@@ -80,7 +80,7 @@ function App() {
     setMessage("");
 
     try {
-      const res = await axios.post("http://101.32.190.42:8000/chat", {
+      const res = await axios.post("/chat", {
         message,
         course,
       });
