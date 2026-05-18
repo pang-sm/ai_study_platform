@@ -1,13 +1,73 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
 import ReactMarkdown from "react-markdown";
 import "./App.css";
 
+// 登录/注册组件
+function Login({ onLogin }) {
+  const [name, setName] = useState("");
+  const [year, setYear] = useState("大一");
+  const [major, setMajor] = useState("软件工程");
+  const [habit, setHabit] = useState("每天学习1-2小时");
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onLogin({ name, year, major, habit });
+  };
+
+  return (
+    <div style={{ padding: "40px", fontFamily: "Arial", maxWidth: "400px", margin: "50px auto", background: "#f4f6fb", borderRadius: "12px" }}>
+      <h2 style={{ textAlign: "center", marginBottom: "30px" }}>欢迎使用 AI 学习助手</h2>
+      <form onSubmit={handleSubmit}>
+        <div style={{ marginBottom: "16px" }}>
+          <label>姓名:</label>
+          <input style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #ccc" }} value={name} onChange={e => setName(e.target.value)} required/>
+        </div>
+        <div style={{ marginBottom: "16px" }}>
+          <label>年级:</label>
+          <select style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #ccc" }} value={year} onChange={e => setYear(e.target.value)}>
+            <option>大一</option>
+            <option>大二</option>
+            <option>大三</option>
+            <option>大四</option>
+          </select>
+        </div>
+        <div style={{ marginBottom: "16px" }}>
+  <label>专业类别:</label>
+  <select
+    style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #ccc" }}
+    value={major}
+    onChange={e => setMajor(e.target.value)}
+  >
+    <option value="泛计算机类">泛计算机类（计算机、软件、AI、大数据等）</option>
+    <option value="电子信息 & 电气类">电子信息 & 电气类（电子、通信、电气、自动化等）</option>
+    <option value="其他理工科类">其他理工科类（数理、化工、土木、机械、农林、医学等）</option>
+    <option value="文科类">文科类</option>
+  </select>
+</div>
+        <div style={{ marginBottom: "16px" }}>
+          <label>学习习惯:</label>
+          <input style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #ccc" }} value={habit} onChange={e => setHabit(e.target.value)}/>
+        </div>
+        <button type="submit" style={{ width: "100%", padding: "12px", background: "#2563eb", color: "white", border: "none", borderRadius: "8px", cursor: "pointer" }}>进入学习助手</button>
+      </form>
+    </div>
+  );
+}
+
+// 主 App
 function App() {
+  const [user, setUser] = useState(null); // 用户信息
   const [course, setCourse] = useState("Python");
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
 
+  // 如果 user 为空，显示登录页面
+  if (!user) {
+    return <Login onLogin={setUser} />;
+  }
+
+  // 发送消息函数
   const sendMessage = async () => {
     if (!message.trim()) return;
 
@@ -20,7 +80,7 @@ function App() {
     setMessage("");
 
     try {
-      const res = await axios.post("http://127.0.0.1:8000/chat", {
+      const res = await axios.post("http://101.32.190.42:8000/chat", {
         message,
         course,
       });
@@ -32,24 +92,33 @@ function App() {
 
       setMessages((prev) => [...prev, aiMessage]);
     } catch (error) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: "后端连接失败，请检查 FastAPI 是否已经启动。",
-        },
-      ]);
-    }
+  console.error("请求失败详情：", error);
+
+  setMessages((prev) => [
+    ...prev,
+    {
+      role: "assistant",
+      content:
+        "请求失败：" +
+        (error.response?.data?.detail ||
+          error.message ||
+          "未知错误"),
+    },
+  ]);
+}
   };
 
   const clearChat = () => {
     setMessages([]);
   };
 
+  // AI 学习助手页面
   return (
     <div className="app">
       <div className="sidebar">
         <h2>AI 学习助手</h2>
+        <p>用户：{user.name} ({user.year}, {user.major})</p>
+        <p>学习习惯：{user.habit}</p>
 
         <label>选择课程</label>
         <select value={course} onChange={(e) => setCourse(e.target.value)}>
@@ -60,7 +129,7 @@ function App() {
           <option value="操作系统">操作系统</option>
         </select>
 
-        <button onClick={clearChat}>清空聊天</button>
+        <button onClick={clearChat} style={{ marginTop: "10px" }}>清空聊天</button>
       </div>
 
       <div className="chat">

@@ -1,0 +1,12 @@
+# 忽略 Python 虚拟环境
+.venv/
+
+# 忽略环境变量文件
+.env
+
+# 忽略 __pycache__ 文件夹
+__pycache__/
+
+# 忽略系统文件
+*.pyc
+*.pyo
