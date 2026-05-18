@@ -10,3 +10,6 @@ __pycache__/
 # 忽略系统文件
 *.pyc
 *.pyo
+
+#忽略数据库
+app.db
