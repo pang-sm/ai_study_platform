@@ -13,3 +13,6 @@ __pycache__/
 
 #忽略数据库
 app.db
+
+
+node_modules/
