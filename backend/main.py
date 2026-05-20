@@ -4,7 +4,8 @@ from sqlalchemy.orm import Session
 from openai import OpenAI
 from dotenv import load_dotenv
 
-from database import engine, Base, get_db
+from database import Base, engine, get_db
+from models  import ChatMessage
 from auth import hash_password, verify_password
 from pydantic import BaseModel
 
@@ -304,6 +305,32 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=401, detail="登录状态无效，请重新登录")
 
+    # 1. 创建一条历史对话记录
+    title = req.message.strip()
+    if len(title) > 30:
+        title = title[:30] + "..."
+
+    chat_session = models.ChatSession(
+        user_id=user.id,
+        title=title,
+        course=req.course
+    )
+
+    db.add(chat_session)
+    db.commit()
+    db.refresh(chat_session)
+
+    # 2. 保存用户消息，并绑定到这次对话
+    user_message = models.ChatMessage(
+        user_id=user.id,
+        session_id=chat_session.id,
+        role="user",
+        content=req.message
+    )
+
+    db.add(user_message)
+    db.commit()
+
     course_prompt = get_course_prompt(req.course)
 
     system_prompt = f"""
@@ -340,6 +367,153 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
         ]
     )
 
+    answer = response.choices[0].message.content
+
+    # 3. 保存 AI 回复，并绑定到这次对话
+    assistant_message = models.ChatMessage(
+        user_id=user.id,
+        session_id=chat_session.id,
+        role="assistant",
+        content=answer
+    )
+
+    db.add(assistant_message)
+    db.commit()
+
     return {
-        "answer": response.choices[0].message.content
+        "answer": answer,
+        "session": {
+            "id": chat_session.id,
+            "title": chat_session.title,
+            "course": chat_session.course,
+            "created_at": chat_session.created_at
+        }
+    }
+
+
+
+@app.get("/chat/history")
+def get_chat_history(username: str, db: Session = Depends(get_db)):
+    if not username:
+        raise HTTPException(status_code=401, detail="请先登录后再查看聊天记录")
+
+    user = db.query(models.User).filter(models.User.username == username).first()
+
+    if not user:
+        raise HTTPException(status_code=401, detail="登录状态无效，请重新登录")
+
+    sessions = (
+        db.query(models.ChatSession)
+        .filter(models.ChatSession.user_id == user.id)
+        .order_by(models.ChatSession.created_at.desc())
+        .all()
+    )
+
+    return {
+        "sessions": [
+            {
+                "id": session.id,
+                "title": session.title,
+                "course": session.course,
+                "created_at": session.created_at
+            }
+            for session in sessions
+        ]
+    }
+
+
+
+
+@app.get("/chat/sessions/{session_id}")
+def get_chat_session_messages(
+    session_id: int,
+    username: str,
+    db: Session = Depends(get_db)
+):
+    if not username:
+        raise HTTPException(status_code=401, detail="请先登录后再查看聊天记录")
+
+    user = db.query(models.User).filter(models.User.username == username).first()
+
+    if not user:
+        raise HTTPException(status_code=401, detail="登录状态无效，请重新登录")
+
+    chat_session = (
+        db.query(models.ChatSession)
+        .filter(
+            models.ChatSession.id == session_id,
+            models.ChatSession.user_id == user.id
+        )
+        .first()
+    )
+
+    if not chat_session:
+        raise HTTPException(status_code=404, detail="聊天记录不存在")
+
+    messages = (
+        db.query(models.ChatMessage)
+        .filter(
+            models.ChatMessage.session_id == session_id,
+            models.ChatMessage.user_id == user.id
+        )
+        .order_by(models.ChatMessage.created_at.asc())
+        .all()
+    )
+
+    return {
+        "session": {
+            "id": chat_session.id,
+            "title": chat_session.title,
+            "course": chat_session.course,
+            "created_at": chat_session.created_at
+        },
+        "messages": [
+            {
+                "role": msg.role,
+                "content": msg.content,
+                "created_at": msg.created_at
+            }
+            for msg in messages
+        ]
+    }
+
+@app.delete("/chat/sessions/{session_id}")
+def delete_chat_session(
+    session_id: int,
+    username: str,
+    db: Session = Depends(get_db)
+):
+    if not username:
+        raise HTTPException(status_code=401, detail="请先登录后再删除聊天记录")
+
+    user = db.query(models.User).filter(models.User.username == username).first()
+
+    if not user:
+        raise HTTPException(status_code=401, detail="登录状态无效，请重新登录")
+
+    chat_session = (
+        db.query(models.ChatSession)
+        .filter(
+            models.ChatSession.id == session_id,
+            models.ChatSession.user_id == user.id
+        )
+        .first()
+    )
+
+    if not chat_session:
+        raise HTTPException(status_code=404, detail="聊天记录不存在")
+
+    # 先删除这次对话下面的所有消息
+    db.query(models.ChatMessage).filter(
+        models.ChatMessage.session_id == session_id,
+        models.ChatMessage.user_id == user.id
+    ).delete()
+
+    # 再删除这条历史对话
+    db.delete(chat_session)
+    db.commit()
+
+    return {
+        "message": "聊天记录删除成功",
+        "deleted_session_id": session_id
     }

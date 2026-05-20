@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 
 const USER_STORAGE_KEY = "ai_study_platform_user";
 
+const ACTIVE_SESSION_STORAGE_KEY = "ai_study_platform_active_session_id";
+
 function getSavedUser() {
   try {
     const savedUser = localStorage.getItem(USER_STORAGE_KEY);
@@ -28,8 +30,13 @@ function App() {
   const [user, setUser] = useState(getSavedUser);
 
   const [course, setCourse] = useState("Python");
-  const [message, setMessage] = useState("");
-  const [messages, setMessages] = useState([]);
+const [message, setMessage] = useState("");
+const [messages, setMessages] = useState([]);
+
+const [chatSessions, setChatSessions] = useState([]);
+const [activeSessionId, setActiveSessionId] = useState(null);
+
+const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const [tip, setTip] = useState("");
   const [loading, setLoading] = useState(false);
@@ -41,9 +48,157 @@ function App() {
 const logout = () => {
   setUser(null);
   localStorage.removeItem(USER_STORAGE_KEY);
+  localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
   setMessages([]);
+  setChatSessions([]);
+  setActiveSessionId(null);
 };
+
+
+const loadChatHistory = async (loginUser) => {
+  if (!loginUser || !loginUser.username) {
+    return;
+  }
+
+  try {
+    const res = await fetch(
+      `${API_BASE}/chat/history?username=${encodeURIComponent(loginUser.username)}`
+    );
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      setTip(data.detail || "加载聊天记录失败");
+      return;
+    }
+
+    setChatSessions(data.sessions || []);
+  } catch (error) {
+    console.error("加载聊天记录失败：", error);
+    setTip("无法加载聊天记录，请确认后端正在运行");
+  }
+};
+
+
+
+const openChatSession = async (session) => {
+  if (!user || !user.username) {
+    setTip("请先登录后再查看聊天记录");
+    return;
+  }
+
+  try {
+    const res = await fetch(
+      `${API_BASE}/chat/sessions/${session.id}?username=${encodeURIComponent(user.username)}`
+    );
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      setTip(data.detail || "加载该聊天记录失败");
+      return;
+    }
+
+    setActiveSessionId(session.id);
+localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, String(session.id));
+
+setCourse(data.session.course);
+setMessages(data.messages || []);
+  } catch (error) {
+    console.error("加载单条聊天记录失败：", error);
+    setTip("无法加载该聊天记录，请确认后端正在运行");
+  }
+};
+const deleteChatSession = async (session, event) => {
+  event.stopPropagation();
+
+  if (!user || !user.username) {
+    setTip("请先登录后再删除聊天记录");
+    return;
+  }
+
+  const confirmed = window.confirm(`确定要删除「${session.title}」吗？`);
+
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    const res = await fetch(
+      `${API_BASE}/chat/sessions/${session.id}?username=${encodeURIComponent(user.username)}`,
+      {
+        method: "DELETE",
+      }
+    );
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      setTip(data.detail || "删除聊天记录失败");
+      return;
+    }
+
+    setChatSessions((prev) =>
+      prev.filter((item) => item.id !== session.id)
+    );
+
+    if (activeSessionId === session.id) {
+      setMessages([]);
+      setActiveSessionId(null);
+      localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+    }
+  } catch (error) {
+    console.error("删除聊天记录失败：", error);
+    setTip("无法删除聊天记录，请确认后端正在运行");
+  }
+};
+
+
   
+useEffect(() => {
+  if (user && user.username) {
+    loadChatHistory(user);
+  }
+}, [user?.username]);
+
+useEffect(() => {
+  const restoreActiveSession = async () => {
+    if (!user || !user.username) {
+      return;
+    }
+
+    const savedSessionId = localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
+
+    if (!savedSessionId) {
+      return;
+    }
+
+    try {
+      const res = await fetch(
+        `${API_BASE}/chat/sessions/${savedSessionId}?username=${encodeURIComponent(user.username)}`
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+        setActiveSessionId(null);
+        setMessages([]);
+        return;
+      }
+
+      setActiveSessionId(data.session.id);
+      setCourse(data.session.course);
+      setMessages(data.messages || []);
+    } catch (error) {
+      console.error("恢复当前聊天失败：", error);
+    }
+  };
+
+  restoreActiveSession();
+}, [user?.username]);
+
+
 
 useEffect(() => {
   const checkLoginStatus = async () => {
@@ -177,15 +332,18 @@ useEffect(() => {
     }
 
     const userMessage = {
-      role: "user",
-      content: message,
-    };
+  role: "user",
+  content: message,
+};
 
-    setMessages((prev) => [...prev, userMessage]);
-    setLoading(true);
+setActiveSessionId(null);
+localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
 
-    const currentMessage = message;
-    setMessage("");
+setMessages([userMessage]);
+setLoading(true);
+
+const currentMessage = message;
+setMessage("");
 
     try {
       const res = await fetch(`${API_BASE}/chat`, {
@@ -217,6 +375,7 @@ useEffect(() => {
       content: data.detail || "AI 回复失败",
     },
   ]);
+
   return;
 }
 
@@ -227,6 +386,15 @@ useEffect(() => {
           content: data.answer,
         },
       ]);
+
+
+      if (data.session) {
+  setActiveSessionId(data.session.id);
+  localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, String(data.session.id));
+
+  setChatSessions((prev) => [data.session, ...prev]);
+}
+
     } catch (error) {
       setMessages((prev) => [
         ...prev,
@@ -242,78 +410,86 @@ useEffect(() => {
 
 
   if (!user) {
-    return (
-      <div style={styles.page}>
-        <div style={styles.card}>
-          <h1 style={styles.title}>AI 学习助手</h1>
-          <p style={styles.subtitle}>数据库登录注册版</p>
+  return (
+    <div style={styles.page}>
+      <div style={styles.card}>
+        <h1 style={styles.title}>AI 学习助手</h1>
+        <p style={styles.subtitle}>数据库登录注册版</p>
 
-          <div style={styles.tabs}>
-            <button
-              style={page === "login" ? styles.activeTab : styles.tab}
-              onClick={() => setPage("login")}
-            >
-              登录
-            </button>
-            <button
-              style={page === "register" ? styles.activeTab : styles.tab}
-              onClick={() => setPage("register")}
-            >
-              注册
-            </button>
-          </div>
-
-          <input
-            style={styles.input}
-            placeholder="账号"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-          />
-
-          <input
-            style={styles.input}
-            placeholder="密码"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-
-          {page === "register" && (
-            <>
-              <input
-                style={styles.input}
-                placeholder="年级，例如：大一"
-                value={grade}
-                onChange={(e) => setGrade(e.target.value)}
-              />
-
-              <input
-                style={styles.input}
-                placeholder="专业，例如：软件工程"
-                value={major}
-                onChange={(e) => setMajor(e.target.value)}
-              />
-            </>
-          )}
-
-          {tip && <p style={styles.tip}>{tip}</p>}
-
-          {page === "login" ? (
-            <button style={styles.primaryButton} onClick={handleLogin}>
-              登录
-            </button>
-          ) : (
-            <button style={styles.primaryButton} onClick={handleRegister}>
-              注册
-            </button>
-          )}
+        <div style={styles.tabs}>
+          <button
+            style={page === "login" ? styles.activeTab : styles.tab}
+            onClick={() => setPage("login")}
+          >
+            登录
+          </button>
+          <button
+            style={page === "register" ? styles.activeTab : styles.tab}
+            onClick={() => setPage("register")}
+          >
+            注册
+          </button>
         </div>
+
+        <input
+          style={styles.input}
+          placeholder="账号"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+        />
+
+        <input
+          style={styles.input}
+          placeholder="密码"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+
+        {page === "register" && (
+          <>
+            <input
+              style={styles.input}
+              placeholder="年级，例如：大一"
+              value={grade}
+              onChange={(e) => setGrade(e.target.value)}
+            />
+
+            <input
+              style={styles.input}
+              placeholder="专业，例如：软件工程"
+              value={major}
+              onChange={(e) => setMajor(e.target.value)}
+            />
+          </>
+        )}
+
+        {tip && <p style={styles.tip}>{tip}</p>}
+
+        {page === "login" ? (
+          <button style={styles.primaryButton} onClick={handleLogin}>
+            登录
+          </button>
+        ) : (
+          <button style={styles.primaryButton} onClick={handleRegister}>
+            注册
+          </button>
+        )}
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   return (
-    <div style={styles.chatPage}>
+  <div style={styles.chatPage}>
+    <button
+      style={styles.sidebarToggle}
+      onClick={() => setSidebarOpen((prev) => !prev)}
+    >
+      {sidebarOpen ? "←" : "☰"}
+    </button>
+
+    {sidebarOpen && (
       <div style={styles.sidebar}>
         <h2>AI 学习助手</h2>
 
@@ -337,12 +513,60 @@ useEffect(() => {
           <option value="算法">算法</option>
         </select>
 
+        <button
+          style={styles.secondaryButton}
+          onClick={() => {
+            setMessages([]);
+            setActiveSessionId(null);
+            localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+          }}
+        >
+          新对话
+        </button>
+
+        <h3 style={styles.historyTitle}>历史记录</h3>
+
+        <div style={styles.historyList}>
+          {chatSessions.length === 0 && (
+            <div style={styles.historyEmpty}>暂无历史记录</div>
+          )}
+
+          {chatSessions.map((session) => (
+  <div
+    key={session.id}
+    style={
+      activeSessionId === session.id
+        ? styles.activeHistoryItem
+        : styles.historyItem
+    }
+    onClick={() => openChatSession(session)}
+  >
+    <div style={styles.historyRow}>
+      <div style={styles.historyContent}>
+        <div style={styles.historyCourse}>[{session.course}]</div>
+        <div style={styles.historyText}>{session.title}</div>
+      </div>
+
+      <button
+        style={styles.deleteHistoryButton}
+        onClick={(event) => deleteChatSession(session, event)}
+        title="删除这条历史记录"
+      >
+        ×
+      </button>
+    </div>
+  </div>
+))}
+        </div>
+
         <button style={styles.secondaryButton} onClick={logout}>
           退出登录
         </button>
       </div>
+    )}
 
-      <div style={styles.chatMain}>
+
+    <div style={styles.chatMain}>
         <div style={styles.messages}>
           {messages.length === 0 && (
             <div style={styles.empty}>
@@ -458,12 +682,27 @@ const styles = {
     background: "#f3f4f6",
     fontFamily: "Arial, sans-serif",
   },
+  sidebarToggle: {
+  position: "fixed",
+  top: "16px",
+  left: "16px",
+  zIndex: 1000,
+  width: "40px",
+  height: "40px",
+  border: "none",
+  borderRadius: "10px",
+  background: "#2563eb",
+  color: "white",
+  fontSize: "18px",
+  cursor: "pointer",
+  boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+},
   sidebar: {
-    width: "260px",
-    background: "white",
-    padding: "24px",
-    borderRight: "1px solid #e5e7eb",
-  },
+  width: "260px",
+  background: "white",
+  padding: "72px 24px 24px",
+  borderRight: "1px solid #e5e7eb",
+},
   secondaryButton: {
     width: "100%",
     padding: "10px",
@@ -472,6 +711,60 @@ const styles = {
     background: "white",
     cursor: "pointer",
   },
+  historyTitle: {
+  marginTop: "20px",
+  marginBottom: "10px",
+  fontSize: "16px",
+},
+
+historyList: {
+  display: "flex",
+  flexDirection: "column",
+  gap: "8px",
+  marginBottom: "16px",
+},
+
+historyEmpty: {
+  color: "#888",
+  fontSize: "14px",
+  padding: "8px 0",
+},
+
+historyItem: {
+  width: "100%",
+  textAlign: "left",
+  padding: "10px",
+  border: "1px solid #e5e7eb",
+  borderRadius: "8px",
+  background: "#f9fafb",
+  cursor: "pointer",
+  userSelect: "none",
+},
+
+activeHistoryItem: {
+  width: "100%",
+  textAlign: "left",
+  padding: "10px",
+  border: "1px solid #2563eb",
+  borderRadius: "8px",
+  background: "#dbeafe",
+  cursor: "pointer",
+  userSelect: "none",
+},
+
+historyCourse: {
+  fontSize: "12px",
+  color: "#2563eb",
+  marginBottom: "4px",
+},
+
+historyText: {
+  fontSize: "14px",
+  color: "#111827",
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+},
   chatMain: {
     flex: 1,
     display: "flex",
@@ -527,6 +820,29 @@ const styles = {
     color: "white",
     cursor: "pointer",
   },
+  historyRow: {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "8px",
+},
+
+historyContent: {
+  flex: 1,
+  minWidth: 0,
+},
+
+deleteHistoryButton: {
+  width: "24px",
+  height: "24px",
+  border: "none",
+  borderRadius: "6px",
+  background: "#fee2e2",
+  color: "#dc2626",
+  cursor: "pointer",
+  fontSize: "16px",
+  lineHeight: "20px",
+},
 };
 
 export default App;
