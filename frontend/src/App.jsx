@@ -1,5 +1,20 @@
 import { useState } from "react";
 
+
+
+const USER_STORAGE_KEY = "ai_study_platform_user";
+
+function getSavedUser() {
+  try {
+    const savedUser = localStorage.getItem(USER_STORAGE_KEY);
+    return savedUser ? JSON.parse(savedUser) : null;
+  } catch (error) {
+    localStorage.removeItem(USER_STORAGE_KEY);
+    return null;
+  }
+}
+
+
 const API_BASE = "http://127.0.0.1:8000";
 
 function App() {
@@ -10,7 +25,7 @@ function App() {
   const [grade, setGrade] = useState("");
   const [major, setMajor] = useState("");
 
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(getSavedUser);
 
   const [course, setCourse] = useState("Python");
   const [message, setMessage] = useState("");
@@ -18,76 +33,101 @@ function App() {
 
   const [tip, setTip] = useState("");
   const [loading, setLoading] = useState(false);
+  const saveLoginUser = (loginUser) => {
+  setUser(loginUser);
+  localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(loginUser));
+};
+
+const logout = () => {
+  setUser(null);
+  localStorage.removeItem(USER_STORAGE_KEY);
+  setMessages([]);
+};
+  
 
   const handleRegister = async () => {
-    setTip("");
+  setTip("");
 
-    if (!username || !password || !grade || !major) {
-      setTip("请填写账号、密码、年级和专业");
+  if (!username.trim() || !password.trim() || !grade.trim() || !major.trim()) {
+    setTip("请填写账号、密码、年级和专业");
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/register`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        username,
+        password,
+        grade,
+        major,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      setTip(data.detail || "注册失败");
       return;
     }
 
-    try {
-      const res = await fetch(`${API_BASE}/register`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          username,
-          password,
-          grade,
-          major,
-        }),
-      });
+    const loginUser = data.user || {
+      username: data.username || username,
+      grade: data.grade || grade,
+      major: data.major || major,
+    };
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        setTip(data.detail || "注册失败");
-        return;
-      }
-
-      setUser(data.user);
-      setTip("注册成功，已进入学习助手");
-    } catch (error) {
-      setTip("无法连接后端，请确认 FastAPI 正在运行");
-    }
-  };
+    saveLoginUser(loginUser);
+    setTip("注册成功，已进入学习助手");
+  } catch (error) {
+    console.error("注册错误：", error);
+    setTip("无法连接后端，请确认 FastAPI 正在运行");
+  }
+};
 
   const handleLogin = async () => {
-    setTip("");
+  setTip("");
 
-    if (!username || !password) {
-      setTip("请填写账号和密码");
+  if (!username.trim() || !password.trim()) {
+    setTip("请输入用户名和密码");
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        username,
+        password,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      setTip(data.detail || "登录失败");
       return;
     }
 
-    try {
-      const res = await fetch(`${API_BASE}/login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          username,
-          password,
-        }),
-      });
+    const loginUser = data.user || {
+      username: data.username || username,
+      grade: data.grade || "",
+      major: data.major || "",
+    };
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        setTip(data.detail || "登录失败");
-        return;
-      }
-
-      setUser(data.user);
-      setTip("登录成功");
-    } catch (error) {
-      setTip("无法连接后端，请确认 FastAPI 正在运行");
-    }
-  };
+    saveLoginUser(loginUser);
+    setTip("");
+  } catch (error) {
+    console.error("登录错误：", error);
+    setTip("无法连接后端，请确认 FastAPI 正在运行");
+  }
+};
 
   const sendMessage = async () => {
     if (!message.trim()) return;
@@ -154,11 +194,6 @@ function App() {
     }
   };
 
-  const logout = () => {
-    setUser(null);
-    setMessages([]);
-    setTip("已退出登录");
-  };
 
   if (!user) {
     return (
