@@ -62,6 +62,10 @@ class ChatRequest(BaseModel):
     message: str
     course: str = "计算机基础"
 
+class MeRequest(BaseModel):
+    username: str
+
+
 
 @app.post("/register")
 def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
@@ -133,6 +137,29 @@ def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
 
     return {
         "message": "登录成功",
+        "user": {
+            "id": db_user.id,
+            "username": db_user.username,
+            "grade": db_user.grade,
+            "major": db_user.major
+        }
+    }
+
+@app.post("/me")
+def me(req: MeRequest, db: Session = Depends(get_db)):
+    username = req.username.strip()
+
+    if not username:
+        raise HTTPException(status_code=400, detail="账号不能为空")
+
+    db_user = db.query(models.User).filter(
+        models.User.username == username
+    ).first()
+
+    if not db_user:
+        raise HTTPException(status_code=401, detail="登录状态已失效，请重新登录")
+
+    return {
         "user": {
             "id": db_user.id,
             "username": db_user.username,

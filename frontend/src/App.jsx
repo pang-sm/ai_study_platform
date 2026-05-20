@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 
 
@@ -44,6 +44,44 @@ const logout = () => {
   setMessages([]);
 };
   
+
+useEffect(() => {
+  const checkLoginStatus = async () => {
+    const savedUser = getSavedUser();
+
+    if (!savedUser || !savedUser.username) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/me`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username: savedUser.username,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        logout();
+        setTip(data.detail || "登录状态已失效，请重新登录");
+        return;
+      }
+
+      const checkedUser = data.user || savedUser;
+      saveLoginUser(checkedUser);
+    } catch (error) {
+      console.error("登录状态校验失败：", error);
+    }
+  };
+
+  checkLoginStatus();
+}, []);
+
 
   const handleRegister = async () => {
   setTip("");
