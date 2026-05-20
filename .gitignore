@@ -10,5 +10,6 @@ venv/
 .idea/
 
 # 系统文件
-.DS_Store.env
+.DS_Store
+.env
 backend/.env

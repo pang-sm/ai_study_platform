@@ -1,20 +1,27 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from sqlalchemy.orm import Session
 from openai import OpenAI
 from dotenv import load_dotenv
-from database import engine, Base, SessionLocal
-from sqlalchemy.orm import Session
+
+from database import engine, Base, get_db
+from auth import hash_password, verify_password
+from pydantic import BaseModel
 
 import models
 import os
-import bcrypt
+
 import schemas
 
 load_dotenv()
 
 app = FastAPI()
 
+
+# 创建数据库表
+Base.metadata.create_all(bind=engine)
+
+# 允许前端访问后端
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -25,30 +32,21 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
-def hash_password(password: str):
-    password_bytes = password.encode("utf-8")
-    hashed = bcrypt.hashpw(password_bytes, bcrypt.gensalt())
-    return hashed.decode("utf-8")
-
-def hash_password(password: str):
-    password_bytes = password.encode("utf-8")
-    hashed = bcrypt.hashpw(password_bytes, bcrypt.gensalt())
-    return hashed.decode("utf-8")
+client = OpenAI(
+    api_key=os.getenv("DEEPSEEK_API_KEY"),
+    base_url="https://api.deepseek.com"
+)
 
 
-def verify_password(password: str, hashed_password: str):
-    password_bytes = password.encode("utf-8")
-    hashed_bytes = hashed_password.encode("utf-8")
-    return bcrypt.checkpw(password_bytes, hashed_bytes)
+@app.get("/")
+def root():
+    return {"message": "AI Study Platform Backend is running"}
 
-Base.metadata.create_all(bind=engine)
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -58,10 +56,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-client = OpenAI(
-    api_key=os.getenv("DEEPSEEK_API_KEY"),
-    base_url="https://api.deepseek.com"
-)
+
 
 class ChatRequest(BaseModel):
     message: str
@@ -70,16 +65,21 @@ class ChatRequest(BaseModel):
 
 @app.post("/register")
 def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
-    if not user.username.strip():
+    username = user.username.strip()
+    password = user.password.strip()
+    grade = user.grade.strip()
+    major = user.major.strip()
+
+    if not username:
         raise HTTPException(status_code=400, detail="账号不能为空")
 
-    if len(user.password) < 6:
+    if len(password) < 6:
         raise HTTPException(status_code=400, detail="密码至少需要 6 位")
 
-    if not user.grade.strip():
+    if not grade:
         raise HTTPException(status_code=400, detail="年级不能为空")
 
-    if not user.major.strip():
+    if not major:
         raise HTTPException(status_code=400, detail="专业不能为空")
 
     existing_user = db.query(models.User).filter(
@@ -112,10 +112,13 @@ def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
 
 @app.post("/login")
 def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
-    if not user.username.strip():
+    username = user.username.strip()
+    password = user.password.strip()
+
+    if not username:
         raise HTTPException(status_code=400, detail="账号不能为空")
 
-    if not user.password.strip():
+    if not password:
         raise HTTPException(status_code=400, detail="密码不能为空")
 
     db_user = db.query(models.User).filter(
@@ -138,10 +141,6 @@ def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
         }
     }
 
-
-@app.get("/")
-def root():
-    return {"message": "AI Study Platform Backend is running"}
 
 
 def get_course_prompt(course: str):

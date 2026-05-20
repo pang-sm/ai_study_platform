@@ -1,285 +1,451 @@
-import { useState, useEffect } from "react";
-import axios from "axios";
-import ReactMarkdown from "react-markdown";
-import "./App.css";
-import "./style.css";
+import { useState } from "react";
 
-// 登录/注册组件
-function Login({ onLogin }) {
-  const [mode, setMode] = useState("login");
+const API_BASE = "http://127.0.0.1:8000";
+
+function App() {
+  const [page, setPage] = useState("login");
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-
   const [grade, setGrade] = useState("");
   const [major, setMajor] = useState("");
 
-  const majorOptions = [
-  "软件工程",
-  "计算机科学与技术",
-  "人工智能",
-  "数据科学与大数据技术",
-  "网络工程",
-  "信息安全",
-  "电子信息工程",
-  "自动化",
-  "其他"
-];
-
-  const [tip, setTip] = useState("");
-
-  const API_BASE_URL = "/api";
-
-  const handleLogin = async () => {
-  try {
-    setTip("");
-
-    const res = await axios.post(`${API_BASE_URL}/login`, {
-      username,
-      password,
-    });
-
-    setTip("登录成功");
-    onLogin(res.data.user);
-  } catch (error) {
-    console.error("登录失败：", error);
-
-    setTip(
-      error.response?.data?.detail ||
-        error.message ||
-        "登录失败，请检查后端是否启动"
-    );
-  }
-};
-
-  const handleRegister = async () => {
-    try {
-      setTip("");
-
-      const res = await axios.post(`${API_BASE_URL}/register`, {
-  username,
-  password,
-  grade,
-  major,
-});
-
-      setTip(res.data.message || "注册成功，请登录");
-
-      setMode("login");
-      setPassword("");
-    } catch (error) {
-      console.error("注册失败：", error);
-
-      setTip(
-        error.response?.data?.detail ||
-          error.message ||
-          "注册失败，请检查后端是否启动"
-      );
-    }
-  };
-
-  return (
-    <div className="login-page">
-      <div className="login-card">
-        <h1>AI 学习助手</h1>
-
-        <div className="login-tabs">
-          <button
-            className={mode === "login" ? "active" : ""}
-            onClick={() => {
-              setMode("login");
-              setTip("");
-            }}
-          >
-            登录
-          </button>
-
-          <button
-            className={mode === "register" ? "active" : ""}
-            onClick={() => {
-              setMode("register");
-              setTip("");
-            }}
-          >
-            注册
-          </button>
-        </div>
-
-        <input
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          placeholder="请输入账号"
-        />
-
-        <input
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="请输入密码"
-          type="password"
-        />
-
-        {mode === "register" && (
-          <>
-            <input
-              value={grade}
-              onChange={(e) => setGrade(e.target.value)}
-              placeholder="请输入年级，例如：大一"
-            />
-
-            <select
-  value={major}
-  onChange={(e) => setMajor(e.target.value)}
->
-  <option value="">请选择专业</option>
-  {majorOptions.map((item) => (
-    <option key={item} value={item}>
-      {item}
-    </option>
-  ))}
-</select>
-
-          
-          </>
-        )}
-
-        {mode === "login" ? (
-          <button onClick={handleLogin}>登录</button>
-        ) : (
-          <button onClick={handleRegister}>注册</button>
-        )}
-
-        {tip && <p className="login-tip">{tip}</p>}
-      </div>
-    </div>
-  );
-}
-
-// 主 App
-function App() {
   const [user, setUser] = useState(null);
-  const [course, setCourse] = useState("");
+
+  const [course, setCourse] = useState("Python");
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
 
-  
+  const [tip, setTip] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  // 发送消息函数
-  const sendMessage = async () => {
-  if (!message.trim()) return;
+  const handleRegister = async () => {
+    setTip("");
 
-  if (!course) {
-    setMessages((prev) => [
-      ...prev,
-      {
-        role: "assistant",
-        content: "请先在左侧选择一门课程，然后再开始提问。",
-      },
-    ]);
-    return;
-  }
+    if (!username || !password || !grade || !major) {
+      setTip("请填写账号、密码、年级和专业");
+      return;
+    }
 
-  const userMessage = {
-    role: "user",
-    content: message,
+    try {
+      const res = await fetch(`${API_BASE}/register`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username,
+          password,
+          grade,
+          major,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setTip(data.detail || "注册失败");
+        return;
+      }
+
+      setUser(data.user);
+      setTip("注册成功，已进入学习助手");
+    } catch (error) {
+      setTip("无法连接后端，请确认 FastAPI 正在运行");
+    }
   };
 
-  setMessages((prev) => [...prev, userMessage]);
-  setMessage("");
+  const handleLogin = async () => {
+    setTip("");
 
-  try {
-    const res = await axios.post("/api/chat", {
-  message,
-  course,
-  grade: user.grade,
-  major: user.major,
-});
+    if (!username || !password) {
+      setTip("请填写账号和密码");
+      return;
+    }
 
-    const aiMessage = {
-      role: "assistant",
-      content: res.data.answer,
+    try {
+      const res = await fetch(`${API_BASE}/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username,
+          password,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setTip(data.detail || "登录失败");
+        return;
+      }
+
+      setUser(data.user);
+      setTip("登录成功");
+    } catch (error) {
+      setTip("无法连接后端，请确认 FastAPI 正在运行");
+    }
+  };
+
+  const sendMessage = async () => {
+    if (!message.trim()) return;
+    if (!user) {
+      setTip("请先登录");
+      return;
+    }
+
+    const userMessage = {
+      role: "user",
+      content: message,
     };
 
-    setMessages((prev) => [...prev, aiMessage]);
-  } catch (error) {
-    console.error("请求失败详情：", error);
+    setMessages((prev) => [...prev, userMessage]);
+    setLoading(true);
 
-    setMessages((prev) => [
-      ...prev,
-      {
-        role: "assistant",
-        content:
-          "请求失败：" +
-          (error.response?.data?.detail ||
-            error.message ||
-            "未知错误"),
-      },
-    ]);
-  }
-};
+    const currentMessage = message;
+    setMessage("");
 
-  const clearChat = () => {
-    setMessages([]);
+    try {
+      const res = await fetch(`${API_BASE}/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: currentMessage,
+          course,
+          grade: user.grade,
+          major: user.major,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: data.detail || "AI 回复失败",
+          },
+        ]);
+        return;
+      }
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: data.answer,
+        },
+      ]);
+    } catch (error) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "无法连接后端，请确认 FastAPI 正在运行",
+        },
+      ]);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // 如果 user 为空，显示登录页面
+  const logout = () => {
+    setUser(null);
+    setMessages([]);
+    setTip("已退出登录");
+  };
+
   if (!user) {
+    return (
+      <div style={styles.page}>
+        <div style={styles.card}>
+          <h1 style={styles.title}>AI 学习助手</h1>
+          <p style={styles.subtitle}>数据库登录注册版</p>
+
+          <div style={styles.tabs}>
+            <button
+              style={page === "login" ? styles.activeTab : styles.tab}
+              onClick={() => setPage("login")}
+            >
+              登录
+            </button>
+            <button
+              style={page === "register" ? styles.activeTab : styles.tab}
+              onClick={() => setPage("register")}
+            >
+              注册
+            </button>
+          </div>
+
+          <input
+            style={styles.input}
+            placeholder="账号"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+          />
+
+          <input
+            style={styles.input}
+            placeholder="密码"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+
+          {page === "register" && (
+            <>
+              <input
+                style={styles.input}
+                placeholder="年级，例如：大一"
+                value={grade}
+                onChange={(e) => setGrade(e.target.value)}
+              />
+
+              <input
+                style={styles.input}
+                placeholder="专业，例如：软件工程"
+                value={major}
+                onChange={(e) => setMajor(e.target.value)}
+              />
+            </>
+          )}
+
+          {tip && <p style={styles.tip}>{tip}</p>}
+
+          {page === "login" ? (
+            <button style={styles.primaryButton} onClick={handleLogin}>
+              登录
+            </button>
+          ) : (
+            <button style={styles.primaryButton} onClick={handleRegister}>
+              注册
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <Login
-      onLogin={(loginUser) => {
-        setUser(loginUser);
-      }}
-    />
-  );
-}
+    <div style={styles.chatPage}>
+      <div style={styles.sidebar}>
+        <h2>AI 学习助手</h2>
 
-  // AI 学习助手页面
-  return (
-    <div className="app">
-      <div className="sidebar">
-  <h2>AI 学习助手</h2>
+        <p>当前用户：{user.username}</p>
+        <p>年级：{user.grade}</p>
+        <p>专业：{user.major}</p>
 
-  <p>用户：{user.username} ({user.grade}, {user.major})</p>
-  <p>当前课程：{course || "未选择"}</p>
+        <select
+          style={styles.input}
+          value={course}
+          onChange={(e) => setCourse(e.target.value)}
+        >
+          <option value="Python">Python</option>
+          <option value="Java">Java</option>
+          <option value="数据结构">数据结构</option>
+          <option value="计算机网络">计算机网络</option>
+          <option value="操作系统">操作系统</option>
+          <option value="数据库">数据库</option>
+          <option value="前端开发">前端开发</option>
+          <option value="后端开发">后端开发</option>
+          <option value="算法">算法</option>
+        </select>
 
-  <label>选择课程</label>
-  <select value={course} onChange={(e) => setCourse(e.target.value)}>
-    <option value="">请选择课程</option>
-    <option value="Python">Python</option>
-    <option value="Java">Java</option>
-    <option value="数据结构">数据结构</option>
-    <option value="计算机网络">计算机网络</option>
-    <option value="操作系统">操作系统</option>
-    <option value="数据库">数据库</option>
-    <option value="前端开发">前端开发</option>
-    <option value="后端开发">后端开发</option>
-    <option value="算法">算法</option>
-  </select>
+        <button style={styles.secondaryButton} onClick={logout}>
+          退出登录
+        </button>
+      </div>
 
-  <button onClick={clearChat} style={{ marginTop: "10px" }}>
-    清空聊天
-  </button>
-</div>
+      <div style={styles.chatMain}>
+        <div style={styles.messages}>
+          {messages.length === 0 && (
+            <div style={styles.empty}>
+              请选择课程，然后开始提问。
+            </div>
+          )}
 
-      <div className="chat">
-        <div className="messages">
           {messages.map((msg, index) => (
-            <div key={index} className={`message ${msg.role}`}>
-              <ReactMarkdown>{msg.content}</ReactMarkdown>
+            <div
+              key={index}
+              style={msg.role === "user" ? styles.userMsg : styles.aiMsg}
+            >
+              <strong>{msg.role === "user" ? "你" : "AI"}：</strong>
+              <div style={styles.msgText}>{msg.content}</div>
             </div>
           ))}
+
+          {loading && <div style={styles.aiMsg}>AI 正在思考...</div>}
         </div>
 
-        <div className="input-area">
-          <textarea
+        <div style={styles.inputBar}>
+          <input
+            style={styles.chatInput}
+            placeholder="输入你的问题..."
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder={`请输入你的 ${course} 学习问题...`}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                sendMessage();
+              }
+            }}
           />
-          <button onClick={sendMessage}>发送</button>
+
+          <button style={styles.sendButton} onClick={sendMessage}>
+            发送
+          </button>
         </div>
       </div>
     </div>
   );
 }
+
+const styles = {
+  page: {
+    minHeight: "100vh",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    background: "#f3f4f6",
+    fontFamily: "Arial, sans-serif",
+  },
+  card: {
+    width: "360px",
+    background: "white",
+    padding: "32px",
+    borderRadius: "16px",
+    boxShadow: "0 10px 30px rgba(0,0,0,0.1)",
+  },
+  title: {
+    margin: 0,
+    textAlign: "center",
+  },
+  subtitle: {
+    textAlign: "center",
+    color: "#666",
+  },
+  tabs: {
+    display: "flex",
+    gap: "10px",
+    marginBottom: "16px",
+  },
+  tab: {
+    flex: 1,
+    padding: "10px",
+    border: "1px solid #ddd",
+    background: "#f9fafb",
+    borderRadius: "8px",
+    cursor: "pointer",
+  },
+  activeTab: {
+    flex: 1,
+    padding: "10px",
+    border: "none",
+    background: "#2563eb",
+    color: "white",
+    borderRadius: "8px",
+    cursor: "pointer",
+  },
+  input: {
+    width: "100%",
+    boxSizing: "border-box",
+    padding: "12px",
+    marginBottom: "12px",
+    borderRadius: "8px",
+    border: "1px solid #ddd",
+  },
+  tip: {
+    color: "#dc2626",
+    fontSize: "14px",
+  },
+  primaryButton: {
+    width: "100%",
+    padding: "12px",
+    border: "none",
+    borderRadius: "8px",
+    background: "#2563eb",
+    color: "white",
+    cursor: "pointer",
+  },
+  chatPage: {
+    minHeight: "100vh",
+    display: "flex",
+    background: "#f3f4f6",
+    fontFamily: "Arial, sans-serif",
+  },
+  sidebar: {
+    width: "260px",
+    background: "white",
+    padding: "24px",
+    borderRight: "1px solid #e5e7eb",
+  },
+  secondaryButton: {
+    width: "100%",
+    padding: "10px",
+    border: "1px solid #ddd",
+    borderRadius: "8px",
+    background: "white",
+    cursor: "pointer",
+  },
+  chatMain: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+  },
+  messages: {
+    flex: 1,
+    padding: "24px",
+    overflowY: "auto",
+  },
+  empty: {
+    color: "#666",
+    textAlign: "center",
+    marginTop: "120px",
+  },
+  userMsg: {
+    background: "#dbeafe",
+    padding: "12px",
+    borderRadius: "12px",
+    marginBottom: "12px",
+    marginLeft: "20%",
+  },
+  aiMsg: {
+    background: "white",
+    padding: "12px",
+    borderRadius: "12px",
+    marginBottom: "12px",
+    marginRight: "20%",
+    border: "1px solid #e5e7eb",
+  },
+  msgText: {
+    whiteSpace: "pre-wrap",
+    marginTop: "6px",
+  },
+  inputBar: {
+    display: "flex",
+    gap: "12px",
+    padding: "16px",
+    background: "white",
+    borderTop: "1px solid #e5e7eb",
+  },
+  chatInput: {
+    flex: 1,
+    padding: "12px",
+    borderRadius: "8px",
+    border: "1px solid #ddd",
+  },
+  sendButton: {
+    padding: "0 24px",
+    border: "none",
+    borderRadius: "8px",
+    background: "#2563eb",
+    color: "white",
+    cursor: "pointer",
+  },
+};
 
 export default App;
