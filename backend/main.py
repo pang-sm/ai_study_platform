@@ -60,7 +60,7 @@ app.add_middleware(
 
 class ChatRequest(BaseModel):
     message: str
-    course: str = "计算机基础"
+    username: str | None = None
 
 class MeRequest(BaseModel):
     username: str
@@ -295,7 +295,15 @@ def get_course_prompt(course: str):
 
 
 @app.post("/chat")
-def chat(req: schemas.ChatRequest):
+def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
+    if not req.username:
+        raise HTTPException(status_code=401, detail="请先登录后再使用 AI 聊天")
+
+    user = db.query(models.User).filter(models.User.username == req.username).first()
+
+    if not user:
+        raise HTTPException(status_code=401, detail="登录状态无效，请重新登录")
+
     course_prompt = get_course_prompt(req.course)
 
     system_prompt = f"""

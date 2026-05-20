@@ -169,8 +169,10 @@ useEffect(() => {
 
   const sendMessage = async () => {
     if (!message.trim()) return;
-    if (!user) {
-      setTip("请先登录");
+
+    if (!user || !user.username) {
+      setTip("请先登录后再使用 AI 聊天");
+      logout();
       return;
     }
 
@@ -196,21 +198,27 @@ useEffect(() => {
           course,
           grade: user.grade,
           major: user.major,
+          username: user.username,
         }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content: data.detail || "AI 回复失败",
-          },
-        ]);
-        return;
-      }
+  if (res.status === 401) {
+    logout();
+    setTip(data.detail || "登录状态无效，请重新登录");
+  }
+
+  setMessages((prev) => [
+    ...prev,
+    {
+      role: "assistant",
+      content: data.detail || "AI 回复失败",
+    },
+  ]);
+  return;
+}
 
       setMessages((prev) => [
         ...prev,

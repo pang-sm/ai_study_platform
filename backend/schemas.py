@@ -18,3 +18,4 @@ class ChatRequest(BaseModel):
     course: str
     grade: str
     major: str
+    username: str | None = None
