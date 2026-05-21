@@ -305,20 +305,33 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=401, detail="登录状态无效，请重新登录")
 
-    # 1. 创建一条历史对话记录
-    title = req.message.strip()
-    if len(title) > 30:
-        title = title[:30] + "..."
+    # Reuse an existing session when session_id is provided; otherwise create one.
+    if req.session_id is not None:
+        chat_session = (
+            db.query(models.ChatSession)
+            .filter(
+                models.ChatSession.id == req.session_id,
+                models.ChatSession.user_id == user.id
+            )
+            .first()
+        )
 
-    chat_session = models.ChatSession(
-        user_id=user.id,
-        title=title,
-        course=req.course
-    )
+        if not chat_session:
+            raise HTTPException(status_code=404, detail="Chat session not found")
+    else:
+        title = req.message.strip()
+        if len(title) > 30:
+            title = title[:30] + "..."
 
-    db.add(chat_session)
-    db.commit()
-    db.refresh(chat_session)
+        chat_session = models.ChatSession(
+            user_id=user.id,
+            title=title,
+            course=req.course
+        )
+
+        db.add(chat_session)
+        db.commit()
+        db.refresh(chat_session)
 
     # 2. 保存用户消息，并绑定到这次对话
     user_message = models.ChatMessage(

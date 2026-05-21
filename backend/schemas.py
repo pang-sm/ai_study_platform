@@ -19,3 +19,4 @@ class ChatRequest(BaseModel):
     grade: str
     major: str
     username: str | None = None
+    session_id: int | None = None

@@ -331,15 +331,14 @@ useEffect(() => {
       return;
     }
 
-    const userMessage = {
+const userMessage = {
   role: "user",
   content: message,
 };
 
-setActiveSessionId(null);
-localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+const currentSessionId = activeSessionId;
 
-setMessages([userMessage]);
+setMessages((prev) => currentSessionId ? [...prev, userMessage] : [userMessage]);
 setLoading(true);
 
 const currentMessage = message;
@@ -357,6 +356,7 @@ setMessage("");
           grade: user.grade,
           major: user.major,
           username: user.username,
+          session_id: currentSessionId,
         }),
       });
 
@@ -392,7 +392,17 @@ setMessage("");
   setActiveSessionId(data.session.id);
   localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, String(data.session.id));
 
-  setChatSessions((prev) => [data.session, ...prev]);
+  setChatSessions((prev) => {
+    const exists = prev.some((session) => session.id === data.session.id);
+
+    if (exists) {
+      return prev.map((session) =>
+        session.id === data.session.id ? data.session : session
+      );
+    }
+
+    return [data.session, ...prev];
+  });
 }
 
     } catch (error) {
