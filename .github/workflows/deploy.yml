@@ -1,0 +1,80 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install backend dependencies
+        run: python -m pip install -r backend/requirements.txt
+
+      - name: Check backend Python syntax
+        run: python -m py_compile backend/*.py
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Prepare SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.TENCENT_SSH_KEY }}" > ~/.ssh/tencent_key
+          chmod 600 ~/.ssh/tencent_key
+          ssh-keyscan -p "${{ secrets.TENCENT_PORT }}" "${{ secrets.TENCENT_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy to Tencent Cloud
+        run: |
+          ssh -i ~/.ssh/tencent_key -p "${{ secrets.TENCENT_PORT }}" "${{ secrets.TENCENT_USER }}@${{ secrets.TENCENT_HOST }}" 'bash -se' <<'EOF'
+          set -euo pipefail
+
+          cd ~/ai_study_platform
+
+          git fetch origin main
+          git checkout main
+          git reset --hard origin/main
+
+          if [ -x ".venv/bin/pip" ]; then
+            .venv/bin/pip install -r backend/requirements.txt
+          elif [ -x "venv/bin/pip" ]; then
+            venv/bin/pip install -r backend/requirements.txt
+          else
+            python3 -m pip install -r backend/requirements.txt
+          fi
+
+          cd frontend
+          npm ci
+          npm run build
+          cd ..
+
+          sudo mkdir -p /var/www/ai_study_platform
+          sudo rsync -a --delete frontend/dist/ /var/www/ai_study_platform/
+
+          sudo systemctl restart ai-backend
+          sudo systemctl is-active --quiet ai-backend
+
+          curl -fsS http://127.0.0.1 >/dev/null
+          EOF
