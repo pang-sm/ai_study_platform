@@ -77,3 +77,24 @@ class MaterialChunk(Base):
     source_filename = Column(String(255), nullable=False)
     is_deleted = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class LearningRecord(Base):
+    __tablename__ = "learning_records"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=False)
+    subject = Column(String(100), index=True, nullable=False)
+    session_id = Column(Integer, ForeignKey("chat_sessions.id"), index=True, nullable=True)
+    message_id = Column(Integer, ForeignKey("chat_messages.id"), index=True, nullable=True)
+    record_type = Column(String(30), index=True, nullable=False)
+    question = Column(Text, nullable=False)
+    answer = Column(Text, nullable=False)
+    references_json = Column(Text, nullable=True)
+    note = Column(Text, nullable=True)
+    tags = Column(Text, nullable=True)
+    review_status = Column(String(20), index=True, nullable=False, default="pending")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    reviewed_at = Column(DateTime, nullable=True)
+    is_deleted = Column(Boolean, nullable=False, default=False)

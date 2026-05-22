@@ -92,6 +92,17 @@ SUBJECT_OPTIONS = [
     "算法",
 ]
 
+ALLOWED_RECORD_TYPES = {
+    "wrong_question",
+    "important",
+    "review",
+}
+
+ALLOWED_REVIEW_STATUSES = {
+    "pending",
+    "reviewed",
+}
+
 
 class MeRequest(BaseModel):
     username: str
@@ -118,6 +129,25 @@ class ReindexMaterialsRequest(BaseModel):
     username: str
     subject: str | None = None
     force: bool = False
+
+
+class CreateLearningRecordRequest(BaseModel):
+    username: str
+    subject: str
+    session_id: int | None = None
+    message_id: int | None = None
+    record_type: str
+    question: str
+    answer: str
+    references: list[dict] | None = None
+    note: str | None = None
+    tags: list[str] | None = None
+
+
+class UpdateLearningRecordRequest(BaseModel):
+    note: str | None = None
+    tags: list[str] | None = None
+    review_status: str | None = None
 
 
 def user_profile(user: models.User):
@@ -384,6 +414,94 @@ def serialize_reference_item(item: dict):
     }
 
 
+def normalize_record_type(record_type: str) -> str:
+    normalized = (record_type or "").strip()
+    if normalized not in ALLOWED_RECORD_TYPES:
+        raise HTTPException(status_code=400, detail="学习记录类型无效")
+    return normalized
+
+
+def normalize_review_status(review_status: str | None, default: str = "pending") -> str:
+    normalized = (review_status or "").strip() or default
+    if normalized not in ALLOWED_REVIEW_STATUSES:
+        raise HTTPException(status_code=400, detail="复习状态无效")
+    return normalized
+
+
+def normalize_learning_record_tags(tags: list[str] | None) -> list[str]:
+    normalized_tags: list[str] = []
+    for tag in tags or []:
+        clean_tag = (tag or "").strip()
+        if clean_tag and clean_tag not in normalized_tags:
+            normalized_tags.append(clean_tag[:30])
+    return normalized_tags[:12]
+
+
+def serialize_learning_record(record: models.LearningRecord):
+    references = []
+    tags = []
+
+    if record.references_json:
+        try:
+            references = json.loads(record.references_json)
+        except json.JSONDecodeError:
+            references = []
+
+    if record.tags:
+        try:
+            tags = json.loads(record.tags)
+        except json.JSONDecodeError:
+            tags = [item.strip() for item in record.tags.split(",") if item.strip()]
+
+    return {
+        "id": record.id,
+        "user_id": record.user_id,
+        "subject": record.subject,
+        "session_id": record.session_id,
+        "message_id": record.message_id,
+        "record_type": record.record_type,
+        "question": record.question,
+        "answer": record.answer,
+        "references": references,
+        "note": record.note or "",
+        "tags": tags,
+        "review_status": record.review_status,
+        "created_at": record.created_at,
+        "updated_at": record.updated_at,
+        "reviewed_at": record.reviewed_at,
+    }
+
+
+def find_duplicate_learning_record(
+    db: Session,
+    user_id: int,
+    message_id: int | None,
+    record_type: str,
+    question: str,
+    answer: str,
+    session_id: int | None = None,
+):
+    query = db.query(models.LearningRecord).filter(
+        models.LearningRecord.user_id == user_id,
+        models.LearningRecord.record_type == record_type,
+        models.LearningRecord.is_deleted.is_(False),
+    )
+
+    if message_id is not None:
+        return query.filter(models.LearningRecord.message_id == message_id).first()
+
+    compact_question = question.strip()
+    compact_answer = answer.strip()
+    if not compact_question or not compact_answer:
+        return None
+
+    return query.filter(
+        models.LearningRecord.session_id == session_id,
+        models.LearningRecord.question == compact_question,
+        models.LearningRecord.answer == compact_answer,
+    ).first()
+
+
 def get_or_create_chat_session(
     db: Session,
     user_id: int,
@@ -527,6 +645,7 @@ async def handle_material_upload(
     answer = None
     created_material = None
     references: list[dict] = []
+    assistant_message = None
 
     if conversation_id is not None or clean_question:
         chat_session = get_or_create_chat_session(
@@ -584,18 +703,18 @@ async def handle_material_upload(
                 ]
             )
 
-            db.add(
-                models.ChatMessage(
-                    user_id=user.id,
-                    session_id=chat_session.id,
-                    role="assistant",
-                    content=answer,
-                    reference_payload=json.dumps(references, ensure_ascii=False)
-                    if references
-                    else None,
-                )
+            assistant_message = models.ChatMessage(
+                user_id=user.id,
+                session_id=chat_session.id,
+                role="assistant",
+                content=answer,
+                reference_payload=json.dumps(references, ensure_ascii=False)
+                if references
+                else None,
             )
+            db.add(assistant_message)
             db.commit()
+            db.refresh(assistant_message)
 
     if save_to_materials:
         target_message = user_message
@@ -641,6 +760,7 @@ async def handle_material_upload(
         "material": serialize_material_detail(created_material) if created_material else None,
         "answer": answer,
         "references": references,
+        "assistant_message_id": assistant_message.id if assistant_message else None,
         "session": serialize_session(chat_session) if chat_session else None,
         "message": serialize_message(user_message) if user_message else None,
         "extracted_text_preview": extracted_text[:2000],
@@ -781,15 +901,15 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(chat_session)
 
-    db.add(
-        models.ChatMessage(
-            user_id=user.id,
-            session_id=chat_session.id,
-            role="user",
-            content=req.message,
-        )
+    user_message = models.ChatMessage(
+        user_id=user.id,
+        session_id=chat_session.id,
+        role="user",
+        content=req.message,
     )
+    db.add(user_message)
     db.commit()
+    db.refresh(user_message)
 
     rag_chunks = []
     if subject and subject != "通用学习":
@@ -818,20 +938,22 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
     )
     references = [serialize_reference_item(item) for item in rag_chunks]
 
-    db.add(
-        models.ChatMessage(
-            user_id=user.id,
-            session_id=chat_session.id,
-            role="assistant",
-            content=answer,
-            reference_payload=json.dumps(references, ensure_ascii=False) if references else None,
-        )
+    assistant_message = models.ChatMessage(
+        user_id=user.id,
+        session_id=chat_session.id,
+        role="assistant",
+        content=answer,
+        reference_payload=json.dumps(references, ensure_ascii=False) if references else None,
     )
+    db.add(assistant_message)
     db.commit()
+    db.refresh(assistant_message)
 
     return {
         "answer": answer,
         "references": references,
+        "assistant_message_id": assistant_message.id,
+        "user_message_id": user_message.id,
         "session": serialize_session(chat_session),
         "rag_sources": sorted({item["source_filename"] for item in rag_chunks}),
     }
@@ -1021,6 +1143,201 @@ def delete_material(material_id: int, username: str, db: Session = Depends(get_d
     soft_delete_material_chunks(db, material.id)
 
     return {"message": "资料已删除", "material_id": material.id}
+
+
+@app.post("/learning-records")
+def create_learning_record(req: CreateLearningRecordRequest, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+    normalized_subject = normalize_subject(req.subject)
+    record_type = normalize_record_type(req.record_type)
+    question = (req.question or "").strip()
+    answer = (req.answer or "").strip()
+    tags = normalize_learning_record_tags(req.tags)
+
+    if not question:
+        raise HTTPException(status_code=400, detail="问题内容不能为空")
+    if not answer:
+        raise HTTPException(status_code=400, detail="回答内容不能为空")
+
+    duplicate_record = find_duplicate_learning_record(
+        db=db,
+        user_id=user.id,
+        message_id=req.message_id,
+        record_type=record_type,
+        question=question,
+        answer=answer,
+        session_id=req.session_id,
+    )
+    if duplicate_record:
+        return {
+            "success": True,
+            "duplicated": True,
+            "message": "已添加过",
+            "record": serialize_learning_record(duplicate_record),
+        }
+
+    note = (req.note or "").strip()
+    review_status = "pending"
+    reviewed_at = None
+
+    learning_record = models.LearningRecord(
+        user_id=user.id,
+        subject=normalized_subject,
+        session_id=req.session_id,
+        message_id=req.message_id,
+        record_type=record_type,
+        question=question,
+        answer=answer,
+        references_json=json.dumps(req.references or [], ensure_ascii=False)
+        if req.references is not None
+        else None,
+        note=note,
+        tags=json.dumps(tags, ensure_ascii=False) if tags else None,
+        review_status=review_status,
+        reviewed_at=reviewed_at,
+        is_deleted=False,
+    )
+    db.add(learning_record)
+    db.commit()
+    db.refresh(learning_record)
+
+    return {
+        "success": True,
+        "duplicated": False,
+        "message": "学习记录已保存",
+        "record": serialize_learning_record(learning_record),
+    }
+
+
+@app.get("/learning-records")
+def get_learning_records(
+    username: str,
+    subject: str = "",
+    record_type: str = "",
+    review_status: str = "",
+    db: Session = Depends(get_db),
+):
+    user = get_user_by_username(username, db)
+    query = db.query(models.LearningRecord).filter(
+        models.LearningRecord.user_id == user.id,
+        models.LearningRecord.is_deleted.is_(False),
+    )
+
+    normalized_subject = (subject or "").strip()
+    normalized_record_type = (record_type or "").strip()
+    normalized_review_status = (review_status or "").strip()
+
+    if normalized_subject:
+        query = query.filter(models.LearningRecord.subject == normalized_subject)
+    if normalized_record_type:
+        query = query.filter(models.LearningRecord.record_type == normalize_record_type(normalized_record_type))
+    if normalized_review_status:
+        query = query.filter(
+            models.LearningRecord.review_status == normalize_review_status(normalized_review_status)
+        )
+
+    records = query.order_by(models.LearningRecord.created_at.desc()).all()
+    return {"records": [serialize_learning_record(record) for record in records]}
+
+
+@app.get("/learning-records/stats")
+def get_learning_record_stats(username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    records = (
+        db.query(models.LearningRecord)
+        .filter(
+            models.LearningRecord.user_id == user.id,
+            models.LearningRecord.is_deleted.is_(False),
+        )
+        .order_by(models.LearningRecord.created_at.desc())
+        .all()
+    )
+
+    subject_counts: dict[str, int] = {}
+    wrong_question_count = 0
+    important_count = 0
+    review_count = 0
+    reviewed_count = 0
+
+    for record in records:
+        subject_counts[record.subject] = subject_counts.get(record.subject, 0) + 1
+        if record.record_type == "wrong_question":
+            wrong_question_count += 1
+        elif record.record_type == "important":
+            important_count += 1
+        elif record.record_type == "review":
+            review_count += 1
+
+        if record.review_status == "reviewed":
+            reviewed_count += 1
+
+    return {
+        "wrong_question_count": wrong_question_count,
+        "important_count": important_count,
+        "review_count": review_count,
+        "reviewed_count": reviewed_count,
+        "pending_review_count": len(records) - reviewed_count,
+        "subject_counts": subject_counts,
+    }
+
+
+@app.patch("/learning-records/{record_id}")
+def update_learning_record(
+    record_id: int,
+    req: UpdateLearningRecordRequest,
+    username: str,
+    db: Session = Depends(get_db),
+):
+    user = get_user_by_username(username, db)
+    record = (
+        db.query(models.LearningRecord)
+        .filter(
+            models.LearningRecord.id == record_id,
+            models.LearningRecord.user_id == user.id,
+            models.LearningRecord.is_deleted.is_(False),
+        )
+        .first()
+    )
+    if not record:
+        raise HTTPException(status_code=404, detail="学习记录不存在")
+
+    if req.note is not None:
+        record.note = (req.note or "").strip()
+    if req.tags is not None:
+        tags = normalize_learning_record_tags(req.tags)
+        record.tags = json.dumps(tags, ensure_ascii=False) if tags else None
+    if req.review_status is not None:
+        next_status = normalize_review_status(req.review_status)
+        record.review_status = next_status
+        record.reviewed_at = datetime.utcnow() if next_status == "reviewed" else None
+
+    record.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(record)
+
+    return {"success": True, "record": serialize_learning_record(record)}
+
+
+@app.delete("/learning-records/{record_id}")
+def delete_learning_record(record_id: int, username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    record = (
+        db.query(models.LearningRecord)
+        .filter(
+            models.LearningRecord.id == record_id,
+            models.LearningRecord.user_id == user.id,
+            models.LearningRecord.is_deleted.is_(False),
+        )
+        .first()
+    )
+    if not record:
+        raise HTTPException(status_code=404, detail="学习记录不存在")
+
+    record.is_deleted = True
+    record.updated_at = datetime.utcnow()
+    db.commit()
+
+    return {"success": True, "message": "学习记录已删除", "record_id": record.id}
 
 
 @app.get("/chat/history")

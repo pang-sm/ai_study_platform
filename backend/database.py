@@ -53,6 +53,24 @@ MATERIAL_CHUNK_COLUMNS = {
     "created_at": "DATETIME",
 }
 
+LEARNING_RECORD_COLUMNS = {
+    "user_id": "INTEGER",
+    "subject": "VARCHAR(100)",
+    "session_id": "INTEGER",
+    "message_id": "INTEGER",
+    "record_type": "VARCHAR(30)",
+    "question": "TEXT",
+    "answer": "TEXT",
+    "references_json": "TEXT",
+    "note": "TEXT",
+    "tags": "TEXT",
+    "review_status": "VARCHAR(20) NOT NULL DEFAULT 'pending'",
+    "created_at": "DATETIME",
+    "updated_at": "DATETIME",
+    "reviewed_at": "DATETIME",
+    "is_deleted": "BOOLEAN NOT NULL DEFAULT 0",
+}
+
 
 def get_db():
     db = SessionLocal()
@@ -99,6 +117,34 @@ def ensure_material_chunks_schema(conn):
         )
     )
     ensure_columns(conn, "material_chunks", MATERIAL_CHUNK_COLUMNS)
+
+
+def ensure_learning_records_schema(conn):
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS learning_records (
+                id INTEGER PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                subject VARCHAR(100) NOT NULL,
+                session_id INTEGER,
+                message_id INTEGER,
+                record_type VARCHAR(30) NOT NULL,
+                question TEXT NOT NULL,
+                answer TEXT NOT NULL,
+                references_json TEXT,
+                note TEXT,
+                tags TEXT,
+                review_status VARCHAR(20) NOT NULL DEFAULT 'pending',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                reviewed_at DATETIME,
+                is_deleted BOOLEAN NOT NULL DEFAULT 0
+            )
+            """
+        )
+    )
+    ensure_columns(conn, "learning_records", LEARNING_RECORD_COLUMNS)
 
 
 def ensure_material_chunks_fts(conn):
@@ -153,6 +199,7 @@ def init_user_profile_schema():
         ensure_columns(conn, "chat_messages", CHAT_MESSAGE_COLUMNS)
         ensure_columns(conn, "study_materials", STUDY_MATERIAL_COLUMNS)
         ensure_material_chunks_schema(conn)
+        ensure_learning_records_schema(conn)
         ensure_material_chunks_fts(conn)
 
         chat_session_columns = get_existing_columns(conn, "chat_sessions")
@@ -187,6 +234,40 @@ def init_user_profile_schema():
                     UPDATE material_chunks
                     SET is_deleted = 0
                     WHERE is_deleted IS NULL
+                    """
+                )
+            )
+
+        learning_record_columns = get_existing_columns(conn, "learning_records")
+        if "is_deleted" in learning_record_columns:
+            conn.execute(
+                text(
+                    """
+                    UPDATE learning_records
+                    SET is_deleted = 0
+                    WHERE is_deleted IS NULL
+                    """
+                )
+            )
+
+        if "review_status" in learning_record_columns:
+            conn.execute(
+                text(
+                    """
+                    UPDATE learning_records
+                    SET review_status = 'pending'
+                    WHERE review_status IS NULL OR TRIM(review_status) = ''
+                    """
+                )
+            )
+
+        if "updated_at" in learning_record_columns:
+            conn.execute(
+                text(
+                    """
+                    UPDATE learning_records
+                    SET updated_at = COALESCE(updated_at, created_at, CURRENT_TIMESTAMP)
+                    WHERE updated_at IS NULL
                     """
                 )
             )

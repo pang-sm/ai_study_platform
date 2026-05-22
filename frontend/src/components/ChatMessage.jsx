@@ -38,6 +38,11 @@ export default function ChatMessage({
   addMessageToLibrary,
   openMaterialDetail,
   onAnimationComplete,
+  questionText = "",
+  learningRecordActionState,
+  onSaveLearningRecord,
+  getRecordTypeLabel,
+  getRecordTypeIcon,
 }) {
   const isAssistant = message.role === "assistant";
   const [displayedContent, setDisplayedContent] = useState("");
@@ -98,6 +103,9 @@ export default function ChatMessage({
     }
   };
 
+  const messageKey = String(message.id || message.clientId || "");
+  const savedRecordTypes = Array.isArray(message.savedRecordTypes) ? message.savedRecordTypes : [];
+
   return (
     <div
       ref={cardRef}
@@ -116,6 +124,37 @@ export default function ChatMessage({
         <MarkdownMessage content={visibleContent} isTyping={Boolean(message.animateTyping)} />
       ) : (
         <div className="message-text">{visibleContent}</div>
+      )}
+
+      {isAssistant && (
+        <div className="message-action-row">
+          {["wrong_question", "important", "review"].map((recordType) => {
+            const isSaving =
+              learningRecordActionState?.loading &&
+              learningRecordActionState?.messageKey === messageKey &&
+              learningRecordActionState?.recordType === recordType;
+            const isSaved = savedRecordTypes.includes(recordType);
+
+            return (
+              <button
+                key={recordType}
+                className={isSaved ? "record-action-button saved" : "record-action-button"}
+                type="button"
+                disabled={isSaving || isSaved}
+                onClick={() =>
+                  onSaveLearningRecord?.({
+                    messageItem: message,
+                    question: questionText,
+                    recordType,
+                  })
+                }
+              >
+                {getRecordTypeIcon?.(recordType)}{" "}
+                {isSaving ? "保存中..." : `加入${getRecordTypeLabel?.(recordType)}`}
+              </button>
+            );
+          })}
+        </div>
       )}
 
       {message.attachment_type && (

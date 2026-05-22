@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
 import ChatMessage from "./components/ChatMessage.jsx";
+import MarkdownMessage from "./components/MarkdownMessage.jsx";
 
 const USER_STORAGE_KEY = "ai_study_platform_user";
 const ACTIVE_SESSION_STORAGE_KEY = "ai_study_platform_active_session_id";
@@ -91,6 +92,19 @@ const ALLOWED_FILE_TYPES = [
   "image/webp",
 ];
 
+const RECORD_TYPE_OPTIONS = [
+  { value: "", label: "全部" },
+  { value: "wrong_question", label: "错题本" },
+  { value: "important", label: "重点" },
+  { value: "review", label: "待复习" },
+];
+
+const REVIEW_STATUS_OPTIONS = [
+  { value: "", label: "全部" },
+  { value: "pending", label: "待复习" },
+  { value: "reviewed", label: "已复习" },
+];
+
 function getSavedUser() {
   try {
     const savedUser = localStorage.getItem(USER_STORAGE_KEY);
@@ -157,6 +171,34 @@ function getReferenceSnippet(reference) {
   return `${snippet.slice(0, 180)}...`;
 }
 
+function getRecordTypeLabel(recordType) {
+  if (recordType === "wrong_question") return "错题本";
+  if (recordType === "important") return "重点";
+  if (recordType === "review") return "待复习";
+  return "学习记录";
+}
+
+function getRecordTypeIcon(recordType) {
+  if (recordType === "wrong_question") return "📝";
+  if (recordType === "important") return "⭐";
+  if (recordType === "review") return "⏰";
+  return "📘";
+}
+
+function getLearningRecordSavedMessage(recordType, duplicated = false) {
+  if (duplicated) return "已添加过";
+  if (recordType === "wrong_question") return "已加入错题本";
+  if (recordType === "important") return "已加入重点";
+  if (recordType === "review") return "已加入待复习";
+  return "学习记录已保存";
+}
+
+function getRecordAnswerPreview(answer) {
+  const text = String(answer || "").trim();
+  if (text.length <= 180) return text || "暂无回答内容";
+  return `${text.slice(0, 180)}...`;
+}
+
 function App() {
   const [page, setPage] = useState(getSavedUser() ? "profile" : "login");
   const [authMode, setAuthMode] = useState("login");
@@ -194,6 +236,21 @@ function App() {
   const [addToLibraryState, setAddToLibraryState] = useState({
     messageId: null,
     subject: "Python",
+    loading: false,
+  });
+  const [learningRecordsLoading, setLearningRecordsLoading] = useState(false);
+  const [learningRecords, setLearningRecords] = useState([]);
+  const [learningRecordStats, setLearningRecordStats] = useState(null);
+  const [learningRecordTypeFilter, setLearningRecordTypeFilter] = useState("");
+  const [learningRecordSubjectFilter, setLearningRecordSubjectFilter] = useState("__CURRENT__");
+  const [learningRecordReviewFilter, setLearningRecordReviewFilter] = useState("");
+  const [selectedLearningRecord, setSelectedLearningRecord] = useState(null);
+  const [learningRecordNote, setLearningRecordNote] = useState("");
+  const [learningRecordTagsInput, setLearningRecordTagsInput] = useState("");
+  const [learningRecordSaving, setLearningRecordSaving] = useState(false);
+  const [learningRecordActionState, setLearningRecordActionState] = useState({
+    messageKey: "",
+    recordType: "",
     loading: false,
   });
 
@@ -241,6 +298,21 @@ function App() {
     ...messageData,
   });
 
+  const resolvedLearningRecordSubject =
+    learningRecordSubjectFilter === "__CURRENT__" ? currentChatSubject : "";
+
+  const currentSubjectRecordCount =
+    learningRecordStats?.subject_counts?.[currentChatSubject] || 0;
+
+  const getQuestionForAssistantMessage = (messageIndex) => {
+    for (let index = messageIndex - 1; index >= 0; index -= 1) {
+      if (messages[index]?.role === "user") {
+        return messages[index].content || "";
+      }
+    }
+    return "";
+  };
+
   const openMaterialDetail = async (materialId, nextPage = null) => {
     if (nextPage) {
       setPage(nextPage);
@@ -283,6 +355,11 @@ function App() {
     setMaterialSearchTriggered(false);
     setMaterialSearchResults([]);
     setMaterialSearchLoading(false);
+    setLearningRecords([]);
+    setLearningRecordStats(null);
+    setSelectedLearningRecord(null);
+    setLearningRecordNote("");
+    setLearningRecordTagsInput("");
     setPage("login");
     setAuthMode("login");
   };
@@ -371,6 +448,266 @@ function App() {
     } catch (error) {
       console.error("Failed to load material detail:", error);
       setTip("暂时无法加载资料详情。");
+    }
+  };
+
+  const loadLearningRecords = async () => {
+    if (!user?.username) return;
+
+    setLearningRecordsLoading(true);
+    try {
+      const query = new URLSearchParams({ username: user.username });
+      if (resolvedLearningRecordSubject) {
+        query.set("subject", resolvedLearningRecordSubject);
+      }
+      if (learningRecordTypeFilter) {
+        query.set("record_type", learningRecordTypeFilter);
+      }
+      if (learningRecordReviewFilter) {
+        query.set("review_status", learningRecordReviewFilter);
+      }
+
+      const res = await fetch(`${API_BASE}/learning-records?${query.toString()}`);
+      const data = await res.json();
+
+      if (!res.ok) {
+        setTip(getDisplayMessage(data.detail, "加载学习记录失败"));
+        setLearningRecords([]);
+        setSelectedLearningRecord(null);
+        setLearningRecordNote("");
+        setLearningRecordTagsInput("");
+        return;
+      }
+
+      const nextRecords = data.records || [];
+      const nextSelected = selectedLearningRecord?.id
+        ? nextRecords.find((item) => item.id === selectedLearningRecord.id) || null
+        : nextRecords[0] || null;
+      setLearningRecords(nextRecords);
+      setSelectedLearningRecord(nextSelected);
+      setLearningRecordNote(nextSelected?.note || "");
+      setLearningRecordTagsInput((nextSelected?.tags || []).join("，"));
+    } catch (error) {
+      console.error("Failed to load learning records:", error);
+      setTip("暂时无法加载学习记录。");
+      setLearningRecords([]);
+      setSelectedLearningRecord(null);
+      setLearningRecordNote("");
+      setLearningRecordTagsInput("");
+    } finally {
+      setLearningRecordsLoading(false);
+    }
+  };
+
+  const loadLearningRecordStats = async () => {
+    if (!user?.username) return;
+
+    try {
+      const res = await fetch(
+        `${API_BASE}/learning-records/stats?username=${encodeURIComponent(user.username)}`
+      );
+      const data = await res.json();
+
+      if (!res.ok) {
+        setLearningRecordStats(null);
+        return;
+      }
+
+      setLearningRecordStats(data);
+    } catch (error) {
+      console.error("Failed to load learning record stats:", error);
+      setLearningRecordStats(null);
+    }
+  };
+
+  const parseTagsInput = (value) =>
+    String(value || "")
+      .split(/[,，]/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+  const openLearningRecordPage = async () => {
+    setPage("records");
+    await Promise.all([loadLearningRecords(), loadLearningRecordStats()]);
+  };
+
+  const updateLearningRecordInState = (record) => {
+    setLearningRecords((prev) => {
+      const exists = prev.some((item) => item.id === record.id);
+      if (!exists) return [record, ...prev];
+      return prev.map((item) => (item.id === record.id ? record : item));
+    });
+
+    setSelectedLearningRecord((prev) => (prev?.id === record.id ? record : prev));
+    if (selectedLearningRecord?.id === record.id) {
+      setLearningRecordNote(record.note || "");
+      setLearningRecordTagsInput((record.tags || []).join("，"));
+    }
+  };
+
+  const selectLearningRecord = (record) => {
+    setSelectedLearningRecord(record);
+    setLearningRecordNote(record?.note || "");
+    setLearningRecordTagsInput((record?.tags || []).join("，"));
+  };
+
+  const removeLearningRecordFromState = (recordId) => {
+    setLearningRecords((prev) => prev.filter((item) => item.id !== recordId));
+    setSelectedLearningRecord((prev) => (prev?.id === recordId ? null : prev));
+    if (selectedLearningRecord?.id === recordId) {
+      setLearningRecordNote("");
+      setLearningRecordTagsInput("");
+    }
+  };
+
+  const saveLearningRecord = async ({ messageItem, question, recordType }) => {
+    if (!user?.username) return;
+
+    const messageKey = String(messageItem.id || messageItem.clientId || "");
+    setLearningRecordActionState({
+      messageKey,
+      recordType,
+      loading: true,
+    });
+
+    try {
+      const res = await fetch(`${API_BASE}/learning-records`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: user.username,
+          subject: currentChatSubject,
+          session_id: activeSessionId,
+          message_id: messageItem.id || null,
+          record_type: recordType,
+          question: question || "未找到原问题",
+          answer: messageItem.content || "",
+          references: messageItem.references || [],
+          note: "",
+          tags: [],
+        }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setTip(getDisplayMessage(data.detail, "保存学习记录失败"));
+        return;
+      }
+
+      const savedMessage = getLearningRecordSavedMessage(recordType, Boolean(data.duplicated));
+      setTip(savedMessage);
+      updateLearningRecordInState(data.record);
+      setMessages((prev) =>
+        prev.map((item) => {
+          const currentKey = String(item.id || item.clientId || "");
+          if (currentKey !== messageKey) return item;
+
+          const savedTypes = Array.isArray(item.savedRecordTypes) ? item.savedRecordTypes : [];
+          if (savedTypes.includes(recordType)) return item;
+          return {
+            ...item,
+            savedRecordTypes: [...savedTypes, recordType],
+          };
+        })
+      );
+      if (page === "records") {
+        await loadLearningRecords();
+      }
+      await loadLearningRecordStats();
+    } catch (error) {
+      console.error("Failed to save learning record:", error);
+      setTip("暂时无法保存学习记录。");
+    } finally {
+      setLearningRecordActionState({
+        messageKey: "",
+        recordType: "",
+        loading: false,
+      });
+    }
+  };
+
+  const updateLearningRecord = async (recordId, payload, successMessage = "学习记录已更新") => {
+    if (!user?.username) return;
+
+    setLearningRecordSaving(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/learning-records/${recordId}?username=${encodeURIComponent(user.username)}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
+      const data = await res.json();
+
+      if (!res.ok) {
+        setTip(getDisplayMessage(data.detail, "更新学习记录失败"));
+        return;
+      }
+
+      updateLearningRecordInState(data.record);
+      setTip(successMessage);
+      await loadLearningRecords();
+      await loadLearningRecordStats();
+    } catch (error) {
+      console.error("Failed to update learning record:", error);
+      setTip("暂时无法更新学习记录。");
+    } finally {
+      setLearningRecordSaving(false);
+    }
+  };
+
+  const saveLearningRecordNoteAndTags = async () => {
+    if (!selectedLearningRecord?.id) return;
+
+    await updateLearningRecord(
+      selectedLearningRecord.id,
+      {
+        note: learningRecordNote,
+        tags: parseTagsInput(learningRecordTagsInput),
+      },
+      "备注与标签已保存"
+    );
+  };
+
+  const markLearningRecordReviewed = async (record) => {
+    if (!record?.id) return;
+
+    await updateLearningRecord(
+      record.id,
+      { review_status: "reviewed" },
+      "已标记为已复习"
+    );
+  };
+
+  const deleteLearningRecord = async (recordId) => {
+    if (!user?.username) return;
+
+    const confirmed = window.confirm("确认删除这条学习记录吗？");
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch(
+        `${API_BASE}/learning-records/${recordId}?username=${encodeURIComponent(user.username)}`,
+        {
+          method: "DELETE",
+        }
+      );
+      const data = await res.json();
+
+      if (!res.ok) {
+        setTip(getDisplayMessage(data.detail, "删除学习记录失败"));
+        return;
+      }
+
+      removeLearningRecordFromState(recordId);
+      setTip("学习记录已删除");
+      await loadLearningRecords();
+      await loadLearningRecordStats();
+    } catch (error) {
+      console.error("Failed to delete learning record:", error);
+      setTip("暂时无法删除学习记录。");
     }
   };
 
@@ -695,6 +1032,26 @@ function App() {
     checkLoginStatus();
   }, []);
 
+  useEffect(() => {
+    if (page === "records" && user?.username) {
+      const timer = window.setTimeout(() => {
+        loadLearningRecords();
+        loadLearningRecordStats();
+      }, 0);
+
+      return () => window.clearTimeout(timer);
+    }
+
+    return undefined;
+  }, [
+    page,
+    user?.username,
+    learningRecordTypeFilter,
+    learningRecordSubjectFilter,
+    learningRecordReviewFilter,
+    currentChatSubject,
+  ]);
+
   const handleRegister = async () => {
     setTip("");
 
@@ -896,6 +1253,7 @@ function App() {
       setMessages((prev) => [
         ...prev,
         createLocalMessage({
+          id: data.assistant_message_id || undefined,
           role: "assistant",
           content: data.answer,
           references: data.references || [],
@@ -963,6 +1321,7 @@ function App() {
         setMessages((prev) => [
           ...prev,
           createLocalMessage({
+            id: data.assistant_message_id || undefined,
             role: "assistant",
             content: data.answer,
             references: data.references || [],
@@ -1065,6 +1424,7 @@ function App() {
     setSelectedFile(null);
     setMessage("");
     setTip("");
+    setPage("chat");
     localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
   };
 
@@ -1443,6 +1803,9 @@ function App() {
           <button className="ghost-button" onClick={() => setPage("profile")}>
             个人资料
           </button>
+          <button className="ghost-button" onClick={openLearningRecordPage}>
+            学习记录
+          </button>
 
           <div className="history-block">
             <div className="panel-title-row">
@@ -1491,107 +1854,358 @@ function App() {
       )}
 
       <main className="workspace-main workspace-main--chat-only">
-        <section className="chat-panel chat-panel--wide">
-          <div className="panel-header panel-header--chat">
-            <div className="subject-pill panel-pill">当前对话</div>
-            <div className="subject-pill">学科：{getSubjectLabel(currentChatSubject)}</div>
-          </div>
+        {page === "records" ? (
+          <section className="chat-panel chat-panel--wide learning-records-panel">
+            <div className="panel-header panel-header--chat">
+              <div className="subject-pill panel-pill">学习记录</div>
+              <div className="subject-pill">当前学科：{getSubjectLabel(currentChatSubject)}</div>
+            </div>
 
-          <div className="messages-board">
-            {messages.length === 0 && (
-              <div className="empty-state">
-                请选择学科后提问，或点击加号上传图片 / PDF 并附上你的问题。
-              </div>
-            )}
-
-            {messages.map((msg, index) => (
-              <ChatMessage
-                key={msg.id || msg.clientId || index}
-                message={msg}
-                currentChatSubject={currentChatSubject}
-                addToLibraryState={addToLibraryState}
-                setAddToLibraryState={setAddToLibraryState}
-                subjectOptions={SUBJECT_OPTIONS}
-                getSubjectLabel={getSubjectLabel}
-                getFileTypeLabel={getFileTypeLabel}
-                getReferenceSnippet={getReferenceSnippet}
-                addMessageToLibrary={addMessageToLibrary}
-                openMaterialDetail={openMaterialDetail}
-                onAnimationComplete={finishAssistantTyping}
-              />
-            ))}
-
-            {loading && <div className="message-card assistant">正在思考...</div>}
-          </div>
-
-          <div className="composer-panel composer-panel--compact">
-            {selectedFile && (
-              <div className="attachment-chip-row">
-                <div className="attachment-chip">
-                  <span className="attachment-chip-label">{fileLabel}</span>
-                  <button
-                    className="attachment-chip-remove"
-                    onClick={removeSelectedFile}
-                    type="button"
-                  >
-                    ×
-                  </button>
+            <div className="learning-stats-grid">
+              <div className="learning-stat-card">
+                <div className="learning-stat-label">错题本</div>
+                <div className="learning-stat-value">
+                  {learningRecordStats?.wrong_question_count ?? 0}
                 </div>
               </div>
-            )}
-
-            {selectedFile && !trimmedMessage && (
-              <div className="composer-hint">请先输入问题后再发送文件。</div>
-            )}
-
-            <div className="composer-row composer-row--input">
-              <button
-                className="attach-button"
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={loading}
-                title="选择图片或 PDF"
-              >
-                +
-              </button>
-
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".pdf,image/png,image/jpeg,image/webp"
-                onChange={handleFileChange}
-                className="hidden-file-input"
-              />
-
-              <input
-                className="field composer-input"
-                placeholder={
-                  selectedFile
-                    ? "请输入你想针对该文件提问的问题"
-                    : "输入你的问题"
-                }
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage();
-                  }
-                }}
-              />
-
-              <button
-                className="primary-button compact"
-                onClick={sendMessage}
-                disabled={!canSendMessage}
-              >
-                {loading ? "发送中..." : "发送"}
-              </button>
+              <div className="learning-stat-card">
+                <div className="learning-stat-label">重点</div>
+                <div className="learning-stat-value">
+                  {learningRecordStats?.important_count ?? 0}
+                </div>
+              </div>
+              <div className="learning-stat-card">
+                <div className="learning-stat-label">待复习</div>
+                <div className="learning-stat-value">
+                  {learningRecordStats?.pending_review_count ?? 0}
+                </div>
+              </div>
+              <div className="learning-stat-card">
+                <div className="learning-stat-label">当前学科记录</div>
+                <div className="learning-stat-value">{currentSubjectRecordCount}</div>
+              </div>
             </div>
-          </div>
 
-          {tip && <p className="tip-text">{tip}</p>}
-        </section>
+            <div className="learning-filter-row">
+              <div className="learning-filter-item">
+                <label className="field-label">类型筛选</label>
+                <select
+                  className="field"
+                  value={learningRecordTypeFilter}
+                  onChange={(e) => setLearningRecordTypeFilter(e.target.value)}
+                >
+                  {RECORD_TYPE_OPTIONS.map((item) => (
+                    <option key={item.value || "all"} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="learning-filter-item">
+                <label className="field-label">学科筛选</label>
+                <select
+                  className="field"
+                  value={learningRecordSubjectFilter}
+                  onChange={(e) => setLearningRecordSubjectFilter(e.target.value)}
+                >
+                  <option value="__CURRENT__">当前学科</option>
+                  <option value="">全部学科</option>
+                </select>
+              </div>
+              <div className="learning-filter-item">
+                <label className="field-label">复习状态</label>
+                <select
+                  className="field"
+                  value={learningRecordReviewFilter}
+                  onChange={(e) => setLearningRecordReviewFilter(e.target.value)}
+                >
+                  {REVIEW_STATUS_OPTIONS.map((item) => (
+                    <option key={item.value || "all"} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="learning-records-layout">
+              <div className="learning-records-list">
+                {learningRecordsLoading ? (
+                  <div className="empty-inline">学习记录加载中...</div>
+                ) : learningRecords.length === 0 ? (
+                  <div className="empty-inline">暂无学习记录，先去聊天页收藏一条回答吧。</div>
+                ) : (
+                  learningRecords.map((record) => (
+                    <div
+                      key={record.id}
+                      className={
+                        selectedLearningRecord?.id === record.id
+                          ? "learning-record-card active"
+                          : "learning-record-card"
+                      }
+                    >
+                      <div className="learning-record-head">
+                        <div className="record-type-badge">
+                          {getRecordTypeIcon(record.record_type)}{" "}
+                          {getRecordTypeLabel(record.record_type)}
+                        </div>
+                        <span className="subject-pill small">
+                          {getSubjectLabel(record.subject)}
+                        </span>
+                      </div>
+                      <div className="learning-record-question">{record.question}</div>
+                      <div className="learning-record-answer-preview">
+                        {getRecordAnswerPreview(record.answer)}
+                      </div>
+                      <div className="learning-record-meta">
+                        <span>{formatDate(record.created_at)}</span>
+                        <span>
+                          {record.review_status === "reviewed" ? "已复习" : "待复习"}
+                        </span>
+                      </div>
+                      <div className="learning-record-actions">
+                        <button
+                          className="tiny-button"
+                          onClick={() => selectLearningRecord(record)}
+                        >
+                          查看详情
+                        </button>
+                        {record.review_status === "reviewed" ? (
+                          <button className="tiny-button" disabled>
+                            已复习
+                          </button>
+                        ) : (
+                          <button
+                            className="tiny-button"
+                            onClick={() => markLearningRecordReviewed(record)}
+                            disabled={learningRecordSaving}
+                          >
+                            标记已复习
+                          </button>
+                        )}
+                        <button
+                          className="tiny-button danger"
+                          onClick={() => deleteLearningRecord(record.id)}
+                        >
+                          删除
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="material-detail-card learning-record-detail-card">
+                <div className="panel-title-row">
+                  <h3>学习记录详情</h3>
+                </div>
+                {!selectedLearningRecord ? (
+                  <div className="empty-inline">点击左侧记录可查看完整问答、引用来源与备注。</div>
+                ) : (
+                  <>
+                    <div className="detail-meta">
+                      <div>类型：{getRecordTypeLabel(selectedLearningRecord.record_type)}</div>
+                      <div>学科：{getSubjectLabel(selectedLearningRecord.subject)}</div>
+                      <div>创建时间：{formatDate(selectedLearningRecord.created_at)}</div>
+                      <div>
+                        复习状态：
+                        {selectedLearningRecord.review_status === "reviewed"
+                          ? "已复习"
+                          : "待复习"}
+                      </div>
+                    </div>
+
+                    <div className="result-block">
+                      <strong>用户问题</strong>
+                      <p>{selectedLearningRecord.question}</p>
+                    </div>
+
+                    <div className="result-block">
+                      <strong>AI 回答</strong>
+                      <MarkdownMessage content={selectedLearningRecord.answer} />
+                    </div>
+
+                    {Array.isArray(selectedLearningRecord.references) &&
+                      selectedLearningRecord.references.length > 0 && (
+                        <div className="reference-section">
+                          <div className="reference-title">引用来源</div>
+                          <div className="reference-list">
+                            {selectedLearningRecord.references.map((reference, index) => (
+                              <div
+                                key={`${reference.material_id || index}-${index}`}
+                                className="reference-card"
+                              >
+                                <div className="reference-name">
+                                  {index + 1}. {reference.filename || "资料片段"}
+                                </div>
+                                <div className="reference-meta">
+                                  学科：{getSubjectLabel(reference.subject)} | 类型：
+                                  {getFileTypeLabel(reference.file_type)}
+                                </div>
+                                <div className="reference-snippet">
+                                  命中片段：{getReferenceSnippet(reference)}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                    <div className="learning-record-editor">
+                      <label className="field-label">备注</label>
+                      <textarea
+                        className="field learning-record-textarea"
+                        placeholder="补充这条学习记录的思路、易错点或复习提醒"
+                        value={learningRecordNote}
+                        onChange={(e) => setLearningRecordNote(e.target.value)}
+                      />
+
+                      <label className="field-label">标签</label>
+                      <input
+                        className="field"
+                        placeholder="例如：连接查询，事务，并发控制"
+                        value={learningRecordTagsInput}
+                        onChange={(e) => setLearningRecordTagsInput(e.target.value)}
+                      />
+
+                      <div className="learning-record-detail-actions">
+                        <button
+                          className="ghost-button compact"
+                          onClick={saveLearningRecordNoteAndTags}
+                          disabled={learningRecordSaving}
+                        >
+                          {learningRecordSaving ? "保存中..." : "保存备注与标签"}
+                        </button>
+                        {selectedLearningRecord.review_status === "reviewed" ? (
+                          <button className="ghost-button compact" disabled>
+                            已复习
+                          </button>
+                        ) : (
+                          <button
+                            className="ghost-button compact"
+                            onClick={() => markLearningRecordReviewed(selectedLearningRecord)}
+                            disabled={learningRecordSaving}
+                          >
+                            标记已复习
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {tip && <p className="tip-text">{tip}</p>}
+          </section>
+        ) : (
+          <section className="chat-panel chat-panel--wide">
+            <div className="panel-header panel-header--chat">
+              <div className="subject-pill panel-pill">当前对话</div>
+              <div className="subject-pill">学科：{getSubjectLabel(currentChatSubject)}</div>
+            </div>
+
+            <div className="messages-board">
+              {messages.length === 0 && (
+                <div className="empty-state">
+                  请选择学科后提问，或点击加号上传图片 / PDF 并附上你的问题。
+                </div>
+              )}
+
+              {messages.map((msg, index) => (
+                <ChatMessage
+                  key={msg.id || msg.clientId || index}
+                  message={msg}
+                  currentChatSubject={currentChatSubject}
+                  addToLibraryState={addToLibraryState}
+                  setAddToLibraryState={setAddToLibraryState}
+                  subjectOptions={SUBJECT_OPTIONS}
+                  getSubjectLabel={getSubjectLabel}
+                  getFileTypeLabel={getFileTypeLabel}
+                  getReferenceSnippet={getReferenceSnippet}
+                  addMessageToLibrary={addMessageToLibrary}
+                  openMaterialDetail={openMaterialDetail}
+                  onAnimationComplete={finishAssistantTyping}
+                  questionText={getQuestionForAssistantMessage(index)}
+                  learningRecordActionState={learningRecordActionState}
+                  onSaveLearningRecord={saveLearningRecord}
+                  getRecordTypeLabel={getRecordTypeLabel}
+                  getRecordTypeIcon={getRecordTypeIcon}
+                />
+              ))}
+
+              {loading && <div className="message-card assistant">正在思考...</div>}
+            </div>
+
+            <div className="composer-panel composer-panel--compact">
+              {selectedFile && (
+                <div className="attachment-chip-row">
+                  <div className="attachment-chip">
+                    <span className="attachment-chip-label">{fileLabel}</span>
+                    <button
+                      className="attachment-chip-remove"
+                      onClick={removeSelectedFile}
+                      type="button"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {selectedFile && !trimmedMessage && (
+                <div className="composer-hint">请先输入问题后再发送文件。</div>
+              )}
+
+              <div className="composer-row composer-row--input">
+                <button
+                  className="attach-button"
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={loading}
+                  title="选择图片或 PDF"
+                >
+                  +
+                </button>
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,image/png,image/jpeg,image/webp"
+                  onChange={handleFileChange}
+                  className="hidden-file-input"
+                />
+
+                <input
+                  className="field composer-input"
+                  placeholder={
+                    selectedFile
+                      ? "请输入你想针对该文件提问的问题"
+                      : "输入你的问题"
+                  }
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      sendMessage();
+                    }
+                  }}
+                />
+
+                <button
+                  className="primary-button compact"
+                  onClick={sendMessage}
+                  disabled={!canSendMessage}
+                >
+                  {loading ? "发送中..." : "发送"}
+                </button>
+              </div>
+            </div>
+
+            {tip && <p className="tip-text">{tip}</p>}
+          </section>
+        )}
       </main>
     </div>
   );
