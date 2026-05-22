@@ -292,6 +292,20 @@ select.field:focus {
   margin: 18px 0;
 }
 
+.library-search-row {
+  margin: 0 0 18px;
+}
+
+.library-search-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.library-search-controls .field {
+  margin: 0;
+}
+
 .library-tip,
 .context-banner {
   color: #0f766e;
@@ -312,6 +326,28 @@ select.field:focus {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.search-result-card {
+  width: 100%;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(20, 33, 61, 0.08);
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.search-result-snippet {
+  margin: 10px 0;
+  color: #475569;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .library-group {
@@ -634,6 +670,51 @@ select.field:focus {
 }
 
 .message-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.reference-section {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(20, 33, 61, 0.08);
+}
+
+.reference-title {
+  margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.reference-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.reference-card {
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(20, 33, 61, 0.08);
+  background: rgba(248, 250, 252, 0.92);
+}
+
+.reference-name {
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.reference-meta {
+  margin-top: 6px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.reference-snippet {
+  margin: 8px 0 12px;
+  color: #475569;
+  line-height: 1.7;
   white-space: pre-wrap;
   word-break: break-word;
 }

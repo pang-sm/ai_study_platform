@@ -31,6 +31,7 @@ class ChatMessage(Base):
     attachment_path = Column(String(500), nullable=True)
     extracted_text = Column(Text, nullable=True)
     material_id = Column(Integer, ForeignKey("study_materials.id"), nullable=True)
+    reference_payload = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 

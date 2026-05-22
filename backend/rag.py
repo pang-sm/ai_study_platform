@@ -218,14 +218,14 @@ def replace_material_chunks(db: Session, material: models.StudyMaterial):
     return len(chunk_models)
 
 
-def tokenize_query(question: str, subject: str):
-    combined = f"{subject} {question or ''}".lower()
+def tokenize_query(question: str, subject: str | None = None):
+    combined = f"{subject or ''} {question or ''}".lower()
     keywords = re.findall(r"[a-zA-Z_][a-zA-Z0-9_+#.-]{1,30}", combined)
     keywords += [item for item in re.findall(r"[\u4e00-\u9fff]{2,8}", combined) if len(item) >= 2]
     return list(dict.fromkeys(keywords))[:12]
 
 
-def build_fts_query(question: str, subject: str):
+def build_fts_query(question: str, subject: str | None = None):
     tokens = tokenize_query(question, subject)
     return " OR ".join(tokens)
 
@@ -263,7 +263,12 @@ def trim_chunks_for_prompt(chunks: list[dict], total_limit: int = MAX_TOTAL_CONT
     return selected
 
 
-def search_relevant_material_chunks(username: str, subject: str, question: str, top_k: int = DEFAULT_TOP_K):
+def search_relevant_material_chunks(
+    username: str,
+    subject: str | None,
+    question: str,
+    top_k: int = DEFAULT_TOP_K,
+):
     safe_top_k = max(1, min(top_k, MAX_TOP_K))
     question_tokens = tokenize_query(question, subject)
     results: list[dict] = []
@@ -275,11 +280,12 @@ def search_relevant_material_chunks(username: str, subject: str, question: str, 
             .join(models.StudyMaterial, models.StudyMaterial.id == models.MaterialChunk.material_id)
             .filter(
                 models.MaterialChunk.username == username,
-                models.MaterialChunk.subject == subject,
                 models.MaterialChunk.is_deleted.is_(False),
                 models.StudyMaterial.is_deleted.is_(False),
             )
         )
+        if subject:
+            base_filter = base_filter.filter(models.MaterialChunk.subject == subject)
 
         if is_material_chunks_fts_enabled() and fts_query:
             try:
@@ -293,23 +299,26 @@ def search_relevant_material_chunks(username: str, subject: str, question: str, 
                             mc.chunk_text AS chunk_text,
                             mc.chunk_summary AS chunk_summary,
                             mc.keywords AS keywords,
+                            sm.subject AS subject,
+                            sm.file_type AS file_type,
+                            sm.created_at AS created_at,
                             bm25(material_chunks_fts) AS bm25_score,
-                            mc.created_at AS created_at
+                            mc.created_at AS chunk_created_at
                         FROM material_chunks_fts fts
                         JOIN material_chunks mc ON mc.id = fts.chunk_id
                         JOIN study_materials sm ON sm.id = mc.material_id
                         WHERE material_chunks_fts MATCH :fts_query
                           AND mc.username = :username
-                          AND mc.subject = :subject
                           AND mc.is_deleted = 0
                           AND sm.is_deleted = 0
+                          AND (:subject = '' OR mc.subject = :subject)
                         LIMIT 24
                         """
                     ),
                     {
                         "fts_query": fts_query,
                         "username": username,
-                        "subject": subject,
+                        "subject": subject or "",
                     },
                 ).mappings().all()
 
@@ -326,6 +335,9 @@ def search_relevant_material_chunks(username: str, subject: str, question: str, 
                             "chunk_text": row["chunk_text"],
                             "chunk_summary": row["chunk_summary"],
                             "keywords": row["keywords"],
+                            "subject": row["subject"],
+                            "file_type": row["file_type"],
+                            "created_at": row["created_at"] or row["chunk_created_at"],
                             "score": score,
                         }
                     )
@@ -334,7 +346,7 @@ def search_relevant_material_chunks(username: str, subject: str, question: str, 
 
         if not results:
             candidate_rows = base_filter.order_by(models.MaterialChunk.created_at.desc()).limit(60).all()
-            for chunk, _material in candidate_rows:
+            for chunk, material in candidate_rows:
                 searchable = " ".join(
                     [
                         chunk.chunk_text or "",
@@ -354,6 +366,9 @@ def search_relevant_material_chunks(username: str, subject: str, question: str, 
                         "chunk_text": chunk.chunk_text,
                         "chunk_summary": chunk.chunk_summary,
                         "keywords": chunk.keywords,
+                        "subject": material.subject,
+                        "file_type": material.file_type,
+                        "created_at": material.created_at or chunk.created_at,
                         "score": hit_count + 0.1,
                     }
                 )

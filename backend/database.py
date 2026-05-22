@@ -31,6 +31,7 @@ CHAT_MESSAGE_COLUMNS = {
     "attachment_path": "VARCHAR(500)",
     "extracted_text": "TEXT",
     "material_id": "INTEGER",
+    "reference_payload": "TEXT",
 }
 
 STUDY_MATERIAL_COLUMNS = {

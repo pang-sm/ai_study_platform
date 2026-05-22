@@ -149,6 +149,13 @@ function getDisplayMessage(detail, fallback) {
   return translateMessage(detail) || fallback;
 }
 
+function getReferenceSnippet(reference) {
+  const snippet = String(reference?.snippet || "").trim();
+  if (!snippet) return "暂无片段预览";
+  if (snippet.length <= 180) return snippet;
+  return `${snippet.slice(0, 180)}...`;
+}
+
 function App() {
   const [page, setPage] = useState(getSavedUser() ? "profile" : "login");
   const [authMode, setAuthMode] = useState("login");
@@ -177,6 +184,10 @@ function App() {
   const [materialsLoading, setMaterialsLoading] = useState(false);
   const [materials, setMaterials] = useState([]);
   const [materialSubjectFilter, setMaterialSubjectFilter] = useState("");
+  const [materialSearchQuery, setMaterialSearchQuery] = useState("");
+  const [materialSearchLoading, setMaterialSearchLoading] = useState(false);
+  const [materialSearchTriggered, setMaterialSearchTriggered] = useState(false);
+  const [materialSearchResults, setMaterialSearchResults] = useState([]);
   const [selectedMaterialId, setSelectedMaterialId] = useState(null);
   const [selectedMaterialDetail, setSelectedMaterialDetail] = useState(null);
   const [addToLibraryState, setAddToLibraryState] = useState({
@@ -189,6 +200,7 @@ function App() {
 
   const currentChatSubject = activeSessionId ? activeSessionSubject : subject;
   const trimmedMessage = message.trim();
+  const trimmedMaterialSearchQuery = materialSearchQuery.trim();
   const selectedAvatar =
     AVATARS.find((avatar) => avatar.id === profileForm.avatar) || AVATARS[0];
 
@@ -222,6 +234,13 @@ function App() {
       : `图片：${selectedFile.name}`
     : "";
 
+  const openMaterialDetail = async (materialId, nextPage = null) => {
+    if (nextPage) {
+      setPage(nextPage);
+    }
+    await loadMaterialDetail(materialId);
+  };
+
   const saveLoginUser = (loginUser) => {
     const normalizedUser = {
       ...loginUser,
@@ -253,6 +272,10 @@ function App() {
     setActiveSessionId(null);
     setSelectedFile(null);
     setMessage("");
+    setMaterialSearchQuery("");
+    setMaterialSearchTriggered(false);
+    setMaterialSearchResults([]);
+    setMaterialSearchLoading(false);
     setPage("login");
     setAuthMode("login");
   };
@@ -344,6 +367,57 @@ function App() {
     }
   };
 
+  const searchMaterials = async (keyword, targetSubject = materialSubjectFilter) => {
+    if (!user?.username) return;
+
+    const searchKeyword = keyword.trim();
+    if (!searchKeyword) {
+      setMaterialSearchTriggered(false);
+      setMaterialSearchResults([]);
+      setMaterialSearchLoading(false);
+      return;
+    }
+
+    setMaterialSearchTriggered(true);
+    setMaterialSearchLoading(true);
+    try {
+      const query = new URLSearchParams({
+        username: user.username,
+        q: searchKeyword,
+      });
+      if (targetSubject) {
+        query.set("subject", targetSubject);
+      }
+
+      const res = await fetch(`${API_BASE}/materials/search?${query.toString()}`);
+      const data = await res.json();
+
+      if (!res.ok) {
+        setTip(getDisplayMessage(data.detail, "搜索资料失败"));
+        setMaterialSearchResults([]);
+        return;
+      }
+
+      setMaterialSearchResults(data.chunks || []);
+    } catch (error) {
+      console.error("Failed to search materials:", error);
+      setTip("暂时无法搜索资料。");
+      setMaterialSearchResults([]);
+    } finally {
+      setMaterialSearchLoading(false);
+    }
+  };
+
+  const handleMaterialSearchChange = (value) => {
+    setMaterialSearchQuery(value);
+    setMaterialSearchTriggered(false);
+
+    if (!value.trim()) {
+      setMaterialSearchResults([]);
+      setMaterialSearchLoading(false);
+    }
+  };
+
   const deleteMaterial = async (materialId) => {
     if (!user?.username) return;
 
@@ -365,6 +439,9 @@ function App() {
       }
 
       setMaterials((prev) => prev.filter((item) => item.id !== materialId));
+      setMaterialSearchResults((prev) =>
+        prev.filter((item) => item.material_id !== materialId)
+      );
       if (selectedMaterialId === materialId) {
         setSelectedMaterialId(null);
         setSelectedMaterialDetail(null);
@@ -789,7 +866,14 @@ function App() {
         return;
       }
 
-      setMessages((prev) => [...prev, { role: "assistant", content: data.answer }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: data.answer,
+          references: data.references || [],
+        },
+      ]);
       refreshChatSessionState(data.session);
       await loadChatHistory(user);
     } catch (error) {
@@ -848,7 +932,14 @@ function App() {
       }
 
       if (data.answer) {
-        setMessages((prev) => [...prev, { role: "assistant", content: data.answer }]);
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: data.answer,
+            references: data.references || [],
+          },
+        ]);
       }
 
       refreshChatSessionState(data.session);
@@ -1140,7 +1231,64 @@ function App() {
                 </select>
               </div>
 
-              {materialsLoading ? (
+              <div className="library-search-row">
+                <label className="field-label">资料搜索</label>
+                <div className="library-search-controls">
+                  <input
+                    className="field"
+                    placeholder="搜索我的资料..."
+                    value={materialSearchQuery}
+                    onChange={(e) => handleMaterialSearchChange(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        searchMaterials(materialSearchQuery, materialSubjectFilter);
+                      }
+                    }}
+                  />
+                  <button
+                    className="ghost-button compact"
+                    onClick={() => searchMaterials(materialSearchQuery, materialSubjectFilter)}
+                    disabled={!trimmedMaterialSearchQuery || materialSearchLoading}
+                  >
+                    搜索
+                  </button>
+                </div>
+              </div>
+
+              {trimmedMaterialSearchQuery && materialSearchTriggered ? (
+                materialSearchLoading ? (
+                  <div className="empty-inline">正在搜索...</div>
+                ) : materialSearchResults.length === 0 ? (
+                  <div className="empty-inline">未找到相关资料。</div>
+                ) : (
+                  <div className="search-results">
+                    {materialSearchResults.map((item) => (
+                      <div key={`${item.material_id}-${item.chunk_id}`} className="search-result-card">
+                        <div className="material-item-head">
+                          <span className="subject-pill small">
+                            {getSubjectLabel(item.subject)}
+                          </span>
+                          <span className="muted-text">{getFileTypeLabel(item.file_type)}</span>
+                        </div>
+                        <div className="material-title">{item.filename}</div>
+                        <div className="search-result-snippet">
+                          命中片段：{getReferenceSnippet(item)}
+                        </div>
+                        <div className="history-meta">{formatDate(item.created_at)}</div>
+                        <div className="material-actions">
+                          <button
+                            className="tiny-button"
+                            onClick={() => openMaterialDetail(item.material_id)}
+                          >
+                            查看详情
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              ) : materialsLoading ? (
                 <div className="empty-inline">资料加载中...</div>
               ) : groupedMaterials.length === 0 ||
                 groupedMaterials.every((group) => group.items.length === 0) ? (
@@ -1169,7 +1317,7 @@ function App() {
                             <div className="material-actions">
                               <button
                                 className="tiny-button"
-                                onClick={() => loadMaterialDetail(material.id)}
+                                onClick={() => openMaterialDetail(material.id)}
                               >
                                 查看
                               </button>
@@ -1407,6 +1555,39 @@ function App() {
                     )}
                   </div>
                 )}
+
+                {msg.role === "assistant" &&
+                  Array.isArray(msg.references) &&
+                  msg.references.length > 0 && (
+                    <div className="reference-section">
+                      <div className="reference-title">参考资料</div>
+                      <div className="reference-list">
+                        {msg.references.map((reference, referenceIndex) => (
+                          <div
+                            key={`${reference.material_id}-${referenceIndex}`}
+                            className="reference-card"
+                          >
+                            <div className="reference-name">
+                              {referenceIndex + 1}. {reference.filename}
+                            </div>
+                            <div className="reference-meta">
+                              学科：{getSubjectLabel(reference.subject)} | 类型：
+                              {getFileTypeLabel(reference.file_type)}
+                            </div>
+                            <div className="reference-snippet">
+                              命中片段：{getReferenceSnippet(reference)}
+                            </div>
+                            <button
+                              className="tiny-button"
+                              onClick={() => openMaterialDetail(reference.material_id, "profile")}
+                            >
+                              查看资料
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
               </div>
             ))}
 

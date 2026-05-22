@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import secrets
@@ -386,6 +387,13 @@ def serialize_session(chat_session: models.ChatSession):
 
 
 def serialize_message(message: models.ChatMessage):
+    references = []
+    if message.reference_payload:
+        try:
+            references = json.loads(message.reference_payload)
+        except json.JSONDecodeError:
+            references = []
+
     return {
         "id": message.id,
         "role": message.role,
@@ -395,6 +403,7 @@ def serialize_message(message: models.ChatMessage):
         "attachment_path": message.attachment_path,
         "extracted_text": message.extracted_text,
         "material_id": message.material_id,
+        "references": references,
         "created_at": message.created_at,
     }
 
@@ -430,11 +439,30 @@ def serialize_chunk_search_item(item: dict):
     return {
         "material_id": item["material_id"],
         "chunk_id": item["chunk_id"],
-        "source_filename": item["source_filename"],
-        "chunk_text": item["chunk_text"],
-        "chunk_summary": item["chunk_summary"],
-        "keywords": item["keywords"],
-        "score": item["score"],
+        "filename": item.get("source_filename") or "",
+        "subject": item.get("subject") or "",
+        "file_type": item.get("file_type") or "",
+        "snippet": item.get("chunk_text") or "",
+        "chunk_summary": item.get("chunk_summary") or "",
+        "keywords": item.get("keywords") or "",
+        "score": item.get("score") or 0,
+        "created_at": item.get("created_at"),
+    }
+
+
+def serialize_reference_item(item: dict):
+    snippet = (item.get("chunk_text") or item.get("chunk_summary") or "").strip()
+    if len(snippet) > 220:
+        snippet = snippet[:220].rstrip() + "..."
+
+    return {
+        "material_id": item["material_id"],
+        "filename": item.get("source_filename") or "",
+        "subject": item.get("subject") or "",
+        "file_type": item.get("file_type") or "",
+        "snippet": snippet,
+        "score": round(float(item.get("score") or 0), 4),
+        "created_at": item.get("created_at"),
     }
 
 
@@ -580,6 +608,7 @@ async def handle_material_upload(
     user_message = None
     answer = None
     created_material = None
+    references: list[dict] = []
 
     if conversation_id is not None or clean_question:
         chat_session = get_or_create_chat_session(
@@ -617,6 +646,7 @@ async def handle_material_upload(
                 question=clean_question,
                 top_k=TOP_K_CHUNKS,
             )
+            references = [serialize_reference_item(item) for item in rag_chunks]
             answer = call_deepseek(
                 [
                     {
@@ -641,6 +671,9 @@ async def handle_material_upload(
                     session_id=chat_session.id,
                     role="assistant",
                     content=answer,
+                    reference_payload=json.dumps(references, ensure_ascii=False)
+                    if references
+                    else None,
                 )
             )
             db.commit()
@@ -688,6 +721,7 @@ async def handle_material_upload(
     return {
         "material": serialize_material_detail(created_material) if created_material else None,
         "answer": answer,
+        "references": references,
         "session": serialize_session(chat_session) if chat_session else None,
         "message": serialize_message(user_message) if user_message else None,
         "extracted_text_preview": extracted_text[:2000],
@@ -862,6 +896,7 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
             {"role": "user", "content": req.message},
         ]
     )
+    references = [serialize_reference_item(item) for item in rag_chunks]
 
     db.add(
         models.ChatMessage(
@@ -869,12 +904,14 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
             session_id=chat_session.id,
             role="assistant",
             content=answer,
+            reference_payload=json.dumps(references, ensure_ascii=False) if references else None,
         )
     )
     db.commit()
 
     return {
         "answer": answer,
+        "references": references,
         "session": serialize_session(chat_session),
         "rag_sources": sorted({item["source_filename"] for item in rag_chunks}),
     }
@@ -983,17 +1020,24 @@ def reindex_user_materials(req: ReindexMaterialsRequest, db: Session = Depends(g
 
 
 @app.get("/materials/search")
-def search_materials(username: str, subject: str, q: str, top_k: int = 4, db: Session = Depends(get_db)):
+def search_materials(
+    username: str,
+    q: str,
+    subject: str = "",
+    top_k: int = 8,
+    db: Session = Depends(get_db),
+):
     user = get_user_by_username(username, db)
-    normalized_subject = normalize_subject(subject)
+    keyword = (q or "").strip()
+    normalized_subject = (subject or "").strip()
 
-    if normalized_subject == "通用学习":
-        raise HTTPException(status_code=400, detail="检索资料时必须提供学科")
+    if not keyword:
+        return {"chunks": []}
 
     results = search_relevant_material_chunks(
         username=user.username,
-        subject=normalized_subject,
-        question=q,
+        subject=normalized_subject or None,
+        question=keyword,
         top_k=top_k,
     )
 
