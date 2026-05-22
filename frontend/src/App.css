@@ -89,7 +89,8 @@ body {
 .detail-meta,
 .material-actions,
 .attachment-meta,
-.attachment-actions {
+.attachment-actions,
+.header-actions {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -244,7 +245,8 @@ select.field:focus {
 .material-detail-card,
 .chat-upload-card,
 .result-card,
-.composer-panel {
+.composer-panel,
+.context-banner {
   border: 1px solid rgba(20, 33, 61, 0.08);
   background: rgba(255, 255, 255, 0.88);
   border-radius: 20px;
@@ -290,6 +292,22 @@ select.field:focus {
   margin: 18px 0;
 }
 
+.library-tip,
+.context-banner {
+  color: #0f766e;
+  line-height: 1.7;
+}
+
+.library-tip {
+  margin: 16px 0 6px;
+}
+
+.context-banner {
+  padding: 14px 18px;
+  margin-top: 18px;
+  background: linear-gradient(135deg, rgba(15, 118, 110, 0.08), rgba(37, 99, 235, 0.08));
+}
+
 .library-groups {
   display: flex;
   flex-direction: column;
@@ -330,11 +348,6 @@ select.field:focus {
 
 .material-item--profile {
   cursor: default;
-}
-
-.material-item.active {
-  border-color: rgba(15, 118, 110, 0.48);
-  background: linear-gradient(135deg, rgba(15, 118, 110, 0.08), rgba(37, 99, 235, 0.08));
 }
 
 .material-title,

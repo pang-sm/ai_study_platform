@@ -84,6 +84,7 @@ function App() {
   const [tip, setTip] = useState("");
   const [loading, setLoading] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
+  const [reindexLoading, setReindexLoading] = useState(false);
 
   const [materialsLoading, setMaterialsLoading] = useState(false);
   const [materials, setMaterials] = useState([]);
@@ -248,6 +249,40 @@ function App() {
     } catch (error) {
       console.error("删除资料失败:", error);
       setTip("无法删除资料，请稍后重试");
+    }
+  };
+
+  const reindexLibrary = async () => {
+    if (!user?.username) return;
+
+    setReindexLoading(true);
+    setTip("");
+
+    try {
+      const res = await fetch(`${API_BASE}/materials/reindex`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: user.username,
+          subject: materialSubjectFilter || null,
+          force: false,
+        }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setTip(data.detail || "资料索引重建失败");
+        return;
+      }
+
+      setTip(
+        `资料索引已建立：处理 ${data.indexed_material_count} 份资料，生成 ${data.indexed_chunk_count} 个片段`
+      );
+    } catch (error) {
+      console.error("资料索引重建失败:", error);
+      setTip("无法重建资料索引，请稍后重试");
+    } finally {
+      setReindexLoading(false);
     }
   };
 
@@ -781,7 +816,9 @@ function App() {
     return SUBJECT_OPTIONS.map((item) => ({
       subject: item,
       items: materials.filter((material) => material.subject === item),
-    })).filter((group) => group.items.length > 0 || !materialSubjectFilter || materialSubjectFilter === group.subject);
+    })).filter(
+      (group) => group.items.length > 0 || !materialSubjectFilter || materialSubjectFilter === group.subject
+    );
   }, [materials, materialSubjectFilter]);
 
   const selectedAvatar =
@@ -926,12 +963,25 @@ function App() {
                   <div className="section-eyebrow">Library</div>
                   <h2>我的学习资料库</h2>
                 </div>
-                <button
-                  className="ghost-button compact"
-                  onClick={() => loadMaterials(materialSubjectFilter)}
-                >
-                  刷新
-                </button>
+                <div className="header-actions">
+                  <button
+                    className="ghost-button compact"
+                    onClick={reindexLibrary}
+                    disabled={reindexLoading}
+                  >
+                    {reindexLoading ? "重建中..." : "重建资料索引"}
+                  </button>
+                  <button
+                    className="ghost-button compact"
+                    onClick={() => loadMaterials(materialSubjectFilter)}
+                  >
+                    刷新
+                  </button>
+                </div>
+              </div>
+
+              <div className="library-tip">
+                资料索引建立后，本学科资料会作为回答背景，帮助 AI 更贴近你的学习内容。
               </div>
 
               <div className="library-filter-row">
@@ -1127,6 +1177,10 @@ function App() {
             </div>
           </div>
 
+          <div className="context-banner">
+            本对话将优先参考你在【{activeSessionId ? activeSessionSubject : subject}】学科下的个人资料库。
+          </div>
+
           <div className="chat-upload-card">
             <div className="panel-title-row">
               <h3>图片 / PDF 问答</h3>
@@ -1174,7 +1228,7 @@ function App() {
           <div className="messages-board">
             {messages.length === 0 && (
               <div className="empty-state">
-                选择学科后开始提问，或者上传图片/PDF 进行问答。附件不会自动进资料库，可在消息里手动加入。
+                选择学科后开始提问，或者上传图片/PDF 进行问答。该学科资料会自动作为回答背景。
               </div>
             )}
 

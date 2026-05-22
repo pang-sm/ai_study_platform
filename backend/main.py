@@ -19,6 +19,7 @@ import models
 import schemas
 from auth import hash_password, verify_password
 from database import Base, engine, get_db, init_user_profile_schema, update_conversation_title
+from rag import reindex_materials, replace_material_chunks, search_relevant_material_chunks, soft_delete_material_chunks
 
 load_dotenv()
 
@@ -51,7 +52,7 @@ MAX_UPLOAD_SIZE = 10 * 1024 * 1024
 MAX_PDF_CHARS = 12000
 MAX_OCR_CHARS = 12000
 MAX_HISTORY_EXTRACT_CHARS = 4000
-MATERIAL_CONTEXT_LIMIT = 4
+TOP_K_CHUNKS = 4
 
 ALLOWED_UPLOAD_TYPES = {
     "application/pdf": "pdf",
@@ -109,6 +110,12 @@ class AddMaterialFromMessageRequest(BaseModel):
     username: str
     message_id: int
     subject: str
+
+
+class ReindexMaterialsRequest(BaseModel):
+    username: str
+    subject: str | None = None
+    force: bool = False
 
 
 def user_profile(user: models.User):
@@ -229,37 +236,11 @@ def extract_image_text(image_bytes: bytes) -> str:
     return (text or "").strip()[:MAX_OCR_CHARS]
 
 
-def build_material_context(username: str, subject: str, db: Session, limit: int = MATERIAL_CONTEXT_LIMIT):
-    materials = (
-        db.query(models.StudyMaterial)
-        .filter(
-            models.StudyMaterial.username == username,
-            models.StudyMaterial.subject == subject,
-            models.StudyMaterial.is_deleted.is_(False),
-        )
-        .order_by(models.StudyMaterial.created_at.desc())
-        .limit(limit)
-        .all()
-    )
-
-    return [
-        {
-            "id": material.id,
-            "subject": material.subject,
-            "summary": material.summary,
-            "original_filename": material.original_filename,
-            "created_at": material.created_at.isoformat() if material.created_at else "",
-        }
-        for material in materials
-        if (material.summary or "").strip()
-    ]
-
-
 def build_system_prompt(
     subject: str | None,
     user_profile_data: dict | None = None,
     is_pdf: bool = False,
-    material_summaries: list[dict] | None = None,
+    rag_chunks: list[dict] | None = None,
 ):
     normalized_subject = normalize_subject(subject)
     profile = user_profile_data or {}
@@ -283,17 +264,30 @@ def build_system_prompt(
         f"你是通用 AI 学习助手，当前学科是 {normalized_subject}，请根据问题选择合适的讲解方式。",
     )
 
-    material_context_text = ""
-    if material_summaries:
-        context_lines = [
-            f"{index + 1}. 《{item['original_filename']}》摘要：{item['summary']}"
-            for index, item in enumerate(material_summaries)
-        ]
-        material_context_text = (
-            "\n同学科资料上下文：\n"
-            + "\n".join(context_lines)
-            + "\n如果用户问题和这些资料相关，可以优先参考这些摘要；如果无关，不必强行引用。"
+    rag_context_text = ""
+    if rag_chunks:
+        blocks = []
+        for index, item in enumerate(rag_chunks, start=1):
+            blocks.append(
+                f"【资料片段 {index}】\n来源文件：{item['source_filename']}\n内容：{item['chunk_text']}"
+            )
+
+        rag_context_text = (
+            "\n以下是从用户个人学习资料库中检索到的相关资料片段。"
+            "请优先参考这些资料回答，但不要编造资料中不存在的内容。\n\n"
+            + "\n\n".join(blocks)
+            + "\n\n回答要求：\n"
+            + "1. 优先结合资料片段回答。\n"
+            + "2. 如果资料中没有直接说明，请明确说“资料中没有直接提到”，然后再用通用知识补充。\n"
+            + "3. 回答要适合学生理解，尽量分步骤。\n"
+            + "4. 如果使用了资料背景，回答末尾加“参考资料：文件名1、文件名2”。\n"
+            + "5. 不要透露系统内部检索逻辑。\n"
+            + "6. 不要把所有资料原文重复输出。\n"
         )
+
+    no_material_hint = (
+        "\n如果当前学科没有相关资料片段，就正常回答，并可简短提示用户在个人主页上传该学科资料以增强回答。"
+    )
 
     pdf_instruction = ""
     if is_pdf:
@@ -319,7 +313,8 @@ def build_system_prompt(
 - 概念先讲人话，再讲术语。
 - 不确定时不要编造。
 - 如果涉及代码或排错，要说明问题原因、修改建议和测试方法。
-{material_context_text}
+{rag_context_text}
+{no_material_hint}
 {pdf_instruction}
 """.strip()
 
@@ -431,6 +426,18 @@ def serialize_material_detail(material: models.StudyMaterial):
     }
 
 
+def serialize_chunk_search_item(item: dict):
+    return {
+        "material_id": item["material_id"],
+        "chunk_id": item["chunk_id"],
+        "source_filename": item["source_filename"],
+        "chunk_text": item["chunk_text"],
+        "chunk_summary": item["chunk_summary"],
+        "keywords": item["keywords"],
+        "score": item["score"],
+    }
+
+
 def get_or_create_chat_session(
     db: Session,
     user_id: int,
@@ -518,6 +525,7 @@ def create_material_from_message(
     db.add(material)
     db.commit()
     db.refresh(material)
+    replace_material_chunks(db, material)
 
     message.material_id = material.id
     db.commit()
@@ -603,7 +611,12 @@ async def handle_material_upload(
         db.refresh(user_message)
 
         if clean_question:
-            material_context = build_material_context(user.username, normalized_subject, db)
+            rag_chunks = search_relevant_material_chunks(
+                username=user.username,
+                subject=normalized_subject,
+                question=clean_question,
+                top_k=TOP_K_CHUNKS,
+            )
             answer = call_deepseek(
                 [
                     {
@@ -612,7 +625,7 @@ async def handle_material_upload(
                             normalized_subject,
                             user_profile(user),
                             is_pdf=file_type == "pdf",
-                            material_summaries=material_context,
+                            rag_chunks=rag_chunks,
                         ),
                     },
                     {
@@ -698,7 +711,6 @@ def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
 
     if not username:
         raise HTTPException(status_code=400, detail="账号不能为空")
-
     if len(password) < 6:
         raise HTTPException(status_code=400, detail="密码至少需要 6 位")
 
@@ -718,10 +730,7 @@ def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_user)
 
-    return {
-        "message": "注册成功",
-        "user": user_profile(new_user),
-    }
+    return {"message": "注册成功", "user": user_profile(new_user)}
 
 
 @app.post("/login")
@@ -737,14 +746,10 @@ def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
     db_user = db.query(models.User).filter(models.User.username == username).first()
     if not db_user:
         raise HTTPException(status_code=400, detail="账号不存在")
-
     if not verify_password(password, db_user.hashed_password):
         raise HTTPException(status_code=400, detail="密码错误")
 
-    return {
-        "message": "登录成功",
-        "user": user_profile(db_user),
-    }
+    return {"message": "登录成功", "user": user_profile(db_user)}
 
 
 @app.post("/me")
@@ -833,14 +838,22 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
     )
     db.commit()
 
-    material_context = build_material_context(user.username, subject, db)
+    rag_chunks = []
+    if subject and subject != "通用学习":
+        rag_chunks = search_relevant_material_chunks(
+            username=user.username,
+            subject=subject,
+            question=req.message,
+            top_k=TOP_K_CHUNKS,
+        )
+
     system_prompt = build_system_prompt(
         subject,
         {
             "grade": req.grade or user.grade,
             "major": req.major or user.major,
         },
-        material_summaries=material_context,
+        rag_chunks=rag_chunks,
     )
 
     answer = call_deepseek(
@@ -863,7 +876,7 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
     return {
         "answer": answer,
         "session": serialize_session(chat_session),
-        "materials_context": material_context,
+        "rag_sources": sorted({item["source_filename"] for item in rag_chunks}),
     }
 
 
@@ -949,6 +962,44 @@ def add_material_from_message(req: AddMaterialFromMessageRequest, db: Session = 
     }
 
 
+@app.post("/materials/reindex")
+def reindex_user_materials(req: ReindexMaterialsRequest, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+
+    try:
+        indexed_material_count, indexed_chunk_count = reindex_materials(
+            db=db,
+            username=user.username,
+            subject=(req.subject or "").strip() or None,
+            force=req.force,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="资料索引重建失败，请稍后重试") from exc
+
+    return {
+        "indexed_material_count": indexed_material_count,
+        "indexed_chunk_count": indexed_chunk_count,
+    }
+
+
+@app.get("/materials/search")
+def search_materials(username: str, subject: str, q: str, top_k: int = 4, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    normalized_subject = normalize_subject(subject)
+
+    if normalized_subject == "通用学习":
+        raise HTTPException(status_code=400, detail="检索资料时必须提供学科")
+
+    results = search_relevant_material_chunks(
+        username=user.username,
+        subject=normalized_subject,
+        question=q,
+        top_k=top_k,
+    )
+
+    return {"chunks": [serialize_chunk_search_item(item) for item in results]}
+
+
 @app.get("/materials")
 def get_materials(username: str, subject: str | None = None, db: Session = Depends(get_db)):
     user = get_user_by_username(username, db)
@@ -962,7 +1013,6 @@ def get_materials(username: str, subject: str | None = None, db: Session = Depen
         query = query.filter(models.StudyMaterial.subject == normalized_subject)
 
     materials = query.order_by(models.StudyMaterial.created_at.desc()).all()
-
     return {"materials": [serialize_material_list_item(material) for material in materials]}
 
 
@@ -1004,11 +1054,9 @@ def delete_material(material_id: int, username: str, db: Session = Depends(get_d
     material.is_deleted = True
     material.deleted_at = datetime.utcnow()
     db.commit()
+    soft_delete_material_chunks(db, material.id)
 
-    return {
-        "message": "资料已删除",
-        "material_id": material.id,
-    }
+    return {"message": "资料已删除", "material_id": material.id}
 
 
 @app.get("/chat/history")
@@ -1022,9 +1070,7 @@ def get_chat_history(username: str, db: Session = Depends(get_db)):
         .all()
     )
 
-    return {
-        "sessions": [serialize_session(session) for session in sessions]
-    }
+    return {"sessions": [serialize_session(session) for session in sessions]}
 
 
 @app.get("/chat/sessions/{session_id}")
@@ -1111,7 +1157,4 @@ def rename_conversation(
     if not conversation:
         raise HTTPException(status_code=404, detail="历史对话不存在")
 
-    return {
-        "message": "重命名成功",
-        "title": conversation.title,
-    }
+    return {"message": "重命名成功", "title": conversation.title}

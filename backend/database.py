@@ -39,6 +39,19 @@ STUDY_MATERIAL_COLUMNS = {
     "deleted_at": "DATETIME",
 }
 
+MATERIAL_CHUNK_COLUMNS = {
+    "material_id": "INTEGER",
+    "username": "VARCHAR(50)",
+    "subject": "VARCHAR(100)",
+    "chunk_index": "INTEGER",
+    "chunk_text": "TEXT",
+    "chunk_summary": "TEXT",
+    "keywords": "TEXT",
+    "source_filename": "VARCHAR(255)",
+    "is_deleted": "BOOLEAN NOT NULL DEFAULT 0",
+    "created_at": "DATETIME",
+}
+
 
 def get_db():
     db = SessionLocal()
@@ -64,12 +77,82 @@ def ensure_columns(conn, table_name: str, columns: dict[str, str]):
             )
 
 
+def ensure_material_chunks_schema(conn):
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS material_chunks (
+                id INTEGER PRIMARY KEY,
+                material_id INTEGER NOT NULL,
+                username VARCHAR(50) NOT NULL,
+                subject VARCHAR(100) NOT NULL,
+                chunk_index INTEGER NOT NULL,
+                chunk_text TEXT NOT NULL,
+                chunk_summary TEXT NOT NULL,
+                keywords TEXT,
+                source_filename VARCHAR(255) NOT NULL,
+                is_deleted BOOLEAN NOT NULL DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+    )
+    ensure_columns(conn, "material_chunks", MATERIAL_CHUNK_COLUMNS)
+
+
+def ensure_material_chunks_fts(conn):
+    fts_enabled = True
+    try:
+        conn.execute(
+            text(
+                """
+                CREATE VIRTUAL TABLE IF NOT EXISTS material_chunks_fts
+                USING fts5(
+                    chunk_text,
+                    chunk_summary,
+                    keywords,
+                    source_filename,
+                    chunk_id UNINDEXED,
+                    material_id UNINDEXED,
+                    username UNINDEXED,
+                    subject UNINDEXED
+                )
+                """
+            )
+        )
+    except Exception:
+        fts_enabled = False
+
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS app_runtime_flags (
+                key VARCHAR(100) PRIMARY KEY,
+                value VARCHAR(50) NOT NULL
+            )
+            """
+        )
+    )
+    conn.execute(
+        text(
+            """
+            INSERT INTO app_runtime_flags(key, value)
+            VALUES ('material_chunks_fts_enabled', :value)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+            """
+        ),
+        {"value": "1" if fts_enabled else "0"},
+    )
+
+
 def init_user_profile_schema():
     with engine.begin() as conn:
         ensure_columns(conn, "users", PROFILE_COLUMNS)
         ensure_columns(conn, "chat_sessions", CHAT_SESSION_COLUMNS)
         ensure_columns(conn, "chat_messages", CHAT_MESSAGE_COLUMNS)
         ensure_columns(conn, "study_materials", STUDY_MATERIAL_COLUMNS)
+        ensure_material_chunks_schema(conn)
+        ensure_material_chunks_fts(conn)
 
         chat_session_columns = get_existing_columns(conn, "chat_sessions")
         if "subject" in chat_session_columns and "course" in chat_session_columns:
@@ -94,6 +177,42 @@ def init_user_profile_schema():
                     """
                 )
             )
+
+        material_chunk_columns = get_existing_columns(conn, "material_chunks")
+        if "is_deleted" in material_chunk_columns:
+            conn.execute(
+                text(
+                    """
+                    UPDATE material_chunks
+                    SET is_deleted = 0
+                    WHERE is_deleted IS NULL
+                    """
+                )
+            )
+
+
+def is_material_chunks_fts_enabled():
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS app_runtime_flags (
+                    key VARCHAR(100) PRIMARY KEY,
+                    value VARCHAR(50) NOT NULL
+                )
+                """
+            )
+        )
+        row = conn.execute(
+            text(
+                """
+                SELECT value
+                FROM app_runtime_flags
+                WHERE key = 'material_chunks_fts_enabled'
+                """
+            )
+        ).fetchone()
+        return bool(row and row[0] == "1")
 
 
 def clear_user_profile_fields(db):

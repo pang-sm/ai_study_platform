@@ -60,3 +60,19 @@ class StudyMaterial(Base):
     is_deleted = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     deleted_at = Column(DateTime, nullable=True)
+
+
+class MaterialChunk(Base):
+    __tablename__ = "material_chunks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    material_id = Column(Integer, ForeignKey("study_materials.id"), index=True, nullable=False)
+    username = Column(String(50), index=True, nullable=False)
+    subject = Column(String(100), index=True, nullable=False)
+    chunk_index = Column(Integer, nullable=False)
+    chunk_text = Column(Text, nullable=False)
+    chunk_summary = Column(Text, nullable=False)
+    keywords = Column(Text, nullable=True)
+    source_filename = Column(String(255), nullable=False)
+    is_deleted = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
