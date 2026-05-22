@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
 import "./App.css";
+import ChatMessage from "./components/ChatMessage.jsx";
 
 const USER_STORAGE_KEY = "ai_study_platform_user";
 const ACTIVE_SESSION_STORAGE_KEY = "ai_study_platform_active_session_id";
@@ -198,6 +198,7 @@ function App() {
   });
 
   const fileInputRef = useRef(null);
+  const localMessageCounterRef = useRef(0);
 
   const currentChatSubject = activeSessionId ? activeSessionSubject : subject;
   const trimmedMessage = message.trim();
@@ -234,6 +235,11 @@ function App() {
       ? `PDF：${selectedFile.name}`
       : `图片：${selectedFile.name}`
     : "";
+
+  const createLocalMessage = (messageData) => ({
+    clientId: `local-message-${Date.now()}-${localMessageCounterRef.current++}`,
+    ...messageData,
+  });
 
   const openMaterialDetail = async (materialId, nextPage = null) => {
     if (nextPage) {
@@ -612,9 +618,15 @@ function App() {
 
   useEffect(() => {
     if (user?.username) {
-      loadChatHistory(user);
-      loadMaterials(materialSubjectFilter);
+      const timer = window.setTimeout(() => {
+        loadChatHistory(user);
+        loadMaterials(materialSubjectFilter);
+      }, 0);
+
+      return () => window.clearTimeout(timer);
     }
+
+    return undefined;
   }, [user?.username]);
 
   useEffect(() => {
@@ -818,7 +830,18 @@ function App() {
   };
 
   const appendAssistantError = (content) => {
-    setMessages((prev) => [...prev, { role: "assistant", content }]);
+    setMessages((prev) => [
+      ...prev,
+      createLocalMessage({ role: "assistant", content, animateTyping: true }),
+    ]);
+  };
+
+  const finishAssistantTyping = (clientId) => {
+    setMessages((prev) =>
+      prev.map((item) =>
+        item.clientId === clientId ? { ...item, animateTyping: false } : item
+      )
+    );
   };
 
   const refreshChatSessionState = (session) => {
@@ -839,7 +862,10 @@ function App() {
 
   const sendTextMessage = async () => {
     const currentMessage = trimmedMessage;
-    setMessages((prev) => [...prev, { role: "user", content: currentMessage }]);
+    setMessages((prev) => [
+      ...prev,
+      createLocalMessage({ role: "user", content: currentMessage }),
+    ]);
     setLoading(true);
     setMessage("");
 
@@ -869,11 +895,12 @@ function App() {
 
       setMessages((prev) => [
         ...prev,
-        {
+        createLocalMessage({
           role: "assistant",
           content: data.answer,
           references: data.references || [],
-        },
+          animateTyping: true,
+        }),
       ]);
       refreshChatSessionState(data.session);
       await loadChatHistory(user);
@@ -935,11 +962,12 @@ function App() {
       if (data.answer) {
         setMessages((prev) => [
           ...prev,
-          {
+          createLocalMessage({
             role: "assistant",
             content: data.answer,
             references: data.references || [],
-          },
+            animateTyping: true,
+          }),
         ]);
       }
 
@@ -1384,7 +1412,6 @@ function App() {
               <div className="section-eyebrow">学习中心</div>
               <h2>AI 学习助手</h2>
             </div>
-            <p className="muted-text">{user.username}</p>
           </div>
 
           <div className="sidebar-user-card">
@@ -1465,16 +1492,9 @@ function App() {
 
       <main className="workspace-main workspace-main--chat-only">
         <section className="chat-panel chat-panel--wide">
-          <div className="panel-header">
-            <div>
-              <div className="section-eyebrow">对话</div>
-              <h2>当前对话</h2>
-            </div>
+          <div className="panel-header panel-header--chat">
+            <div className="subject-pill panel-pill">当前对话</div>
             <div className="subject-pill">学科：{getSubjectLabel(currentChatSubject)}</div>
-          </div>
-
-          <div className="context-banner">
-            当前对话会优先参考你在 {getSubjectLabel(currentChatSubject)} 学科下的个人资料。
           </div>
 
           <div className="messages-board">
@@ -1485,123 +1505,20 @@ function App() {
             )}
 
             {messages.map((msg, index) => (
-              <div
-                key={msg.id || index}
-                className={msg.role === "user" ? "message-card user" : "message-card assistant"}
-              >
-                <div className="message-role">{msg.role === "user" ? "我" : "AI"}</div>
-                <div
-                  className={
-                    msg.role === "assistant"
-                      ? "message-text message-text--markdown"
-                      : "message-text"
-                  }
-                >
-                  {msg.role === "assistant" ? (
-                    <ReactMarkdown>{msg.content || ""}</ReactMarkdown>
-                  ) : (
-                    msg.content
-                  )}
-                </div>
-
-                {msg.attachment_type && (
-                  <div className="attachment-card">
-                    <div className="attachment-meta">
-                      <span className="subject-pill small">
-                        {getFileTypeLabel(msg.attachment_type)}
-                      </span>
-                      <span>{msg.attachment_filename || "未命名附件"}</span>
-                    </div>
-                    {msg.extracted_text && (
-                      <div className="attachment-preview">
-                        {msg.extracted_text.slice(0, 240)}
-                        {msg.extracted_text.length > 240 ? "..." : ""}
-                      </div>
-                    )}
-
-                    {msg.material_id ? (
-                      <button className="ghost-button compact" disabled>
-                        已加入资料库
-                      </button>
-                    ) : (
-                      <div className="attachment-actions">
-                        <select
-                          className="field attachment-subject-select"
-                          value={
-                            addToLibraryState.messageId === msg.id
-                              ? addToLibraryState.subject
-                              : currentChatSubject
-                          }
-                          onChange={(e) =>
-                            setAddToLibraryState((prev) => ({
-                              ...prev,
-                              messageId: msg.id,
-                              subject: e.target.value,
-                            }))
-                          }
-                        >
-                          {SUBJECT_OPTIONS.map((item) => (
-                            <option key={item} value={item}>
-                              {getSubjectLabel(item)}
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          className="tiny-button"
-                          onClick={() =>
-                            addMessageToLibrary(
-                              msg,
-                              addToLibraryState.messageId === msg.id
-                                ? addToLibraryState.subject
-                                : currentChatSubject
-                            )
-                          }
-                          disabled={
-                            addToLibraryState.loading && addToLibraryState.messageId === msg.id
-                          }
-                        >
-                          {addToLibraryState.loading && addToLibraryState.messageId === msg.id
-                            ? "添加中..."
-                            : "加入资料库"}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {msg.role === "assistant" &&
-                  Array.isArray(msg.references) &&
-                  msg.references.length > 0 && (
-                    <div className="reference-section">
-                      <div className="reference-title">参考资料</div>
-                      <div className="reference-list">
-                        {msg.references.map((reference, referenceIndex) => (
-                          <div
-                            key={`${reference.material_id}-${referenceIndex}`}
-                            className="reference-card"
-                          >
-                            <div className="reference-name">
-                              {referenceIndex + 1}. {reference.filename}
-                            </div>
-                            <div className="reference-meta">
-                              学科：{getSubjectLabel(reference.subject)} | 类型：
-                              {getFileTypeLabel(reference.file_type)}
-                            </div>
-                            <div className="reference-snippet">
-                              命中片段：{getReferenceSnippet(reference)}
-                            </div>
-                            <button
-                              className="tiny-button"
-                              onClick={() => openMaterialDetail(reference.material_id, "profile")}
-                            >
-                              查看资料
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-              </div>
+              <ChatMessage
+                key={msg.id || msg.clientId || index}
+                message={msg}
+                currentChatSubject={currentChatSubject}
+                addToLibraryState={addToLibraryState}
+                setAddToLibraryState={setAddToLibraryState}
+                subjectOptions={SUBJECT_OPTIONS}
+                getSubjectLabel={getSubjectLabel}
+                getFileTypeLabel={getFileTypeLabel}
+                getReferenceSnippet={getReferenceSnippet}
+                addMessageToLibrary={addMessageToLibrary}
+                openMaterialDetail={openMaterialDetail}
+                onAnimationComplete={finishAssistantTyping}
+              />
             ))}
 
             {loading && <div className="message-card assistant">正在思考...</div>}
