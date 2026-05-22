@@ -13,5 +13,7 @@ venv/
 .DS_Store
 .env
 backend/.env
+backend/app.db
+backend/*.db.bak*
 uploads/
 backend/uploads/
