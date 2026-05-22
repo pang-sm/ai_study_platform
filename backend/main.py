@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from openai import OpenAI
@@ -14,7 +14,9 @@ from database import (
 from models  import ChatMessage
 from auth import hash_password, verify_password
 from pydantic import BaseModel
+from pypdf import PdfReader
 
+from io import BytesIO
 import models
 import os
 
@@ -94,6 +96,16 @@ ALLOWED_AVATARS = {
     "avatar_6",
 }
 
+MAX_UPLOAD_SIZE = 10 * 1024 * 1024
+MAX_PDF_CHARS = 12000
+ALLOWED_UPLOAD_TYPES = {
+    "application/pdf",
+    "image/png",
+    "image/jpeg",
+    "image/webp",
+}
+IMAGE_UPLOAD_MESSAGE = "当前版本已支持图片上传，但暂未接入图片文字识别，请先上传 PDF 或输入文字。"
+
 
 def user_profile(user: models.User):
     return {
@@ -118,6 +130,97 @@ def get_user_by_username(username: str, db: Session):
         raise HTTPException(status_code=401, detail="登录状态无效，请重新登录")
 
     return user
+
+
+def get_username_from_upload(username: str | None, authorization: str | None):
+    if username:
+        return username
+
+    if authorization and authorization.startswith("Bearer "):
+        return authorization.replace("Bearer ", "", 1).strip()
+
+    return ""
+
+
+def get_or_create_chat_session(
+    db: Session,
+    user_id: int,
+    conversation_id: int | None,
+    title_source: str,
+):
+    if conversation_id is not None:
+        chat_session = (
+            db.query(models.ChatSession)
+            .filter(
+                models.ChatSession.id == conversation_id,
+                models.ChatSession.user_id == user_id,
+            )
+            .first()
+        )
+
+        if not chat_session:
+            raise HTTPException(status_code=404, detail="聊天记录不存在")
+
+        return chat_session
+
+    title = title_source.strip() or "文件问答"
+    if len(title) > 30:
+        title = title[:30] + "..."
+
+    chat_session = models.ChatSession(
+        user_id=user_id,
+        title=title,
+        course="文件问答",
+    )
+    db.add(chat_session)
+    db.commit()
+    db.refresh(chat_session)
+    return chat_session
+
+
+def save_chat_pair(
+    db: Session,
+    user_id: int,
+    session_id: int,
+    user_content: str,
+    answer: str,
+):
+    db.add(
+        models.ChatMessage(
+            user_id=user_id,
+            session_id=session_id,
+            role="user",
+            content=user_content,
+        )
+    )
+    db.add(
+        models.ChatMessage(
+            user_id=user_id,
+            session_id=session_id,
+            role="assistant",
+            content=answer,
+        )
+    )
+    db.commit()
+
+
+def extract_pdf_text(file_bytes: bytes):
+    try:
+        reader = PdfReader(BytesIO(file_bytes))
+        text_parts = []
+
+        for page in reader.pages[:10]:
+            page_text = page.extract_text() or ""
+            if page_text.strip():
+                text_parts.append(page_text.strip())
+
+            current_text = "\n\n".join(text_parts)
+            if len(current_text) >= MAX_PDF_CHARS:
+                return current_text[:MAX_PDF_CHARS]
+
+        return "\n\n".join(text_parts)[:MAX_PDF_CHARS]
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="PDF 无法解析，请换一个文件重试") from exc
 
 
 
@@ -475,6 +578,109 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
             "course": chat_session.course,
             "created_at": chat_session.created_at
         }
+    }
+
+
+@app.post("/chat/upload")
+async def upload_chat_file(
+    file: UploadFile = File(...),
+    message: str = Form(""),
+    conversation_id: int | None = Form(None),
+    username: str | None = Form(None),
+    authorization: str | None = Header(None),
+    db: Session = Depends(get_db),
+):
+    upload_username = get_username_from_upload(username, authorization)
+
+    if not upload_username:
+        raise HTTPException(status_code=401, detail="请先登录后再上传文件")
+
+    user = db.query(models.User).filter(models.User.username == upload_username).first()
+
+    if not user:
+        raise HTTPException(status_code=401, detail="登录状态无效，请重新登录")
+
+    file_bytes = await file.read()
+
+    if len(file_bytes) > MAX_UPLOAD_SIZE:
+        raise HTTPException(status_code=400, detail="文件不能超过 10MB")
+
+    if file.content_type not in ALLOWED_UPLOAD_TYPES:
+        raise HTTPException(status_code=400, detail="文件类型不支持")
+
+    clean_message = message.strip()
+    file_name = file.filename or "未命名文件"
+    user_content = f"上传文件：{file_name}"
+    if clean_message:
+        user_content += f"\n问题：{clean_message}"
+
+    chat_session = get_or_create_chat_session(
+        db=db,
+        user_id=user.id,
+        conversation_id=conversation_id,
+        title_source=clean_message or file_name or "文件问答",
+    )
+
+    if file.content_type.startswith("image/"):
+        answer = IMAGE_UPLOAD_MESSAGE
+        save_chat_pair(db, user.id, chat_session.id, user_content, answer)
+        return {
+            "answer": answer,
+            "session": {
+                "id": chat_session.id,
+                "title": chat_session.title,
+                "course": chat_session.course,
+                "created_at": chat_session.created_at,
+            },
+        }
+
+    pdf_text = extract_pdf_text(file_bytes)
+
+    if not pdf_text.strip():
+        answer = "这个 PDF 没有提取到可读文本，可能是扫描件或图片型 PDF。"
+        save_chat_pair(db, user.id, chat_session.id, user_content, answer)
+        return {
+            "answer": answer,
+            "session": {
+                "id": chat_session.id,
+                "title": chat_session.title,
+                "course": chat_session.course,
+                "created_at": chat_session.created_at,
+            },
+        }
+
+    prompt = f"""
+用户上传了一个 PDF 文件，以下是从文件中提取的内容：
+
+【PDF 内容开始】
+{pdf_text}
+【PDF 内容结束】
+
+用户问题：
+{clean_message or "请总结这个 PDF 的主要内容。"}
+
+请基于 PDF 内容回答。如果 PDF 内容中没有答案，请明确说明，不要编造。
+"""
+
+    response = client.chat.completions.create(
+        model="deepseek-chat",
+        messages=[
+            {"role": "system", "content": "你是一个严谨的 AI 学习助手，必须基于用户提供的文件内容回答。"},
+            {"role": "user", "content": prompt},
+        ],
+    )
+    answer = response.choices[0].message.content
+
+    save_chat_pair(db, user.id, chat_session.id, user_content, answer)
+
+    return {
+        "answer": answer,
+        "session": {
+            "id": chat_session.id,
+            "title": chat_session.title,
+            "course": chat_session.course,
+            "created_at": chat_session.created_at,
+        },
     }
 
 

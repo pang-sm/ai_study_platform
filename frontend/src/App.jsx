@@ -38,6 +38,7 @@ function App() {
 
   const [course, setCourse] = useState("Python");
   const [message, setMessage] = useState("");
+  const [selectedFile, setSelectedFile] = useState(null);
   const [messages, setMessages] = useState([]);
   const [chatSessions, setChatSessions] = useState([]);
   const [activeSessionId, setActiveSessionId] = useState(null);
@@ -385,12 +386,43 @@ function App() {
     }
   };
 
+  const handleFileChange = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) return;
+
+    const allowedTypes = [
+      "application/pdf",
+      "image/png",
+      "image/jpeg",
+      "image/webp",
+    ];
+
+    if (!allowedTypes.includes(file.type)) {
+      alert("文件类型不支持，请选择 PDF、PNG、JPG/JPEG 或 WEBP 文件");
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      alert("文件不能超过 10MB");
+      return;
+    }
+
+    setSelectedFile(file);
+  };
+
   const sendMessage = async () => {
-    if (!message.trim()) return;
+    if (!message.trim() && !selectedFile) return;
 
     if (!user || !user.username) {
       setTip("请先登录后再使用 AI 聊天");
       logout();
+      return;
+    }
+
+    if (selectedFile) {
+      await sendFileMessage();
       return;
     }
 
@@ -454,6 +486,83 @@ function App() {
       setMessages((prev) => [
         ...prev,
         { role: "assistant", content: "无法连接后端，请确认 FastAPI 正在运行" },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const sendFileMessage = async () => {
+    if (!selectedFile || !user || !user.username) return;
+
+    const currentMessage = message.trim();
+    const currentFile = selectedFile;
+    const currentSessionId = activeSessionId;
+    const userContent = `上传文件：${currentFile.name}${
+      currentMessage ? `\n问题：${currentMessage}` : ""
+    }`;
+
+    setMessages((prev) =>
+      currentSessionId
+        ? [...prev, { role: "user", content: userContent }]
+        : [{ role: "user", content: userContent }]
+    );
+    setLoading(true);
+    setMessage("");
+
+    const formData = new FormData();
+    formData.append("file", currentFile);
+    formData.append("message", currentMessage);
+    formData.append("username", user.username);
+    if (currentSessionId) {
+      formData.append("conversation_id", String(currentSessionId));
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/chat/upload`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${user.username}`,
+        },
+        body: formData,
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.detail || "上传失败");
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: data.detail || "上传失败" },
+        ]);
+        return;
+      }
+
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: data.answer },
+      ]);
+      setSelectedFile(null);
+
+      if (data.session) {
+        setActiveSessionId(data.session.id);
+        localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, String(data.session.id));
+
+        setChatSessions((prev) => {
+          const exists = prev.some((session) => session.id === data.session.id);
+          if (exists) {
+            return prev.map((session) =>
+              session.id === data.session.id ? data.session : session
+            );
+          }
+          return [data.session, ...prev];
+        });
+      }
+    } catch (error) {
+      console.error("文件上传失败：", error);
+      alert("上传失败，请确认后端正在运行");
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: "上传失败，请确认后端正在运行" },
       ]);
     } finally {
       setLoading(false);
@@ -744,22 +853,50 @@ function App() {
           {loading && <div style={styles.aiMsg}>AI 正在思考...</div>}
         </div>
 
-        <div style={styles.inputBar}>
-          <input
-            style={styles.chatInput}
-            placeholder="输入你的问题..."
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                sendMessage();
-              }
-            }}
-          />
+        <div style={styles.inputArea}>
+          {selectedFile && (
+            <div style={styles.selectedFileRow}>
+              <span>已选择：{selectedFile.name}</span>
+              <button
+                style={styles.cancelFileButton}
+                onClick={() => setSelectedFile(null)}
+              >
+                取消文件
+              </button>
+            </div>
+          )}
 
-          <button style={styles.sendButton} onClick={sendMessage}>
-            发送
-          </button>
+          <div style={styles.inputBar}>
+            <label style={styles.fileButton}>
+              文件
+              <input
+                type="file"
+                accept=".pdf,image/png,image/jpeg,image/webp"
+                style={styles.hiddenFileInput}
+                onChange={handleFileChange}
+              />
+            </label>
+
+            <input
+              style={styles.chatInput}
+              placeholder={selectedFile ? "输入关于文件的问题，可留空" : "输入你的问题..."}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  sendMessage();
+                }
+              }}
+            />
+
+            <button
+              style={styles.sendButton}
+              onClick={sendMessage}
+              disabled={loading}
+            >
+              {loading ? "发送中..." : "发送"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -1036,6 +1173,41 @@ const styles = {
     padding: "16px",
     background: "white",
     borderTop: "1px solid #e5e7eb",
+  },
+  inputArea: {
+    background: "white",
+    borderTop: "1px solid #e5e7eb",
+  },
+  selectedFileRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "12px",
+    padding: "10px 16px 0",
+    color: "#374151",
+    fontSize: "14px",
+  },
+  fileButton: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "0 14px",
+    border: "1px solid #ddd",
+    borderRadius: "8px",
+    background: "#f9fafb",
+    color: "#374151",
+    cursor: "pointer",
+    fontSize: "14px",
+  },
+  hiddenFileInput: {
+    display: "none",
+  },
+  cancelFileButton: {
+    border: "none",
+    background: "transparent",
+    color: "#dc2626",
+    cursor: "pointer",
+    fontSize: "14px",
   },
   chatInput: {
     flex: 1,
