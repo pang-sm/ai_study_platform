@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from openai import OpenAI
 from dotenv import load_dotenv
 
-from database import Base, engine, get_db
+from database import Base, engine, get_db, update_conversation_title
 from models  import ChatMessage
 from auth import hash_password, verify_password
 from pydantic import BaseModel
@@ -65,6 +65,10 @@ class ChatRequest(BaseModel):
 
 class MeRequest(BaseModel):
     username: str
+
+
+class RenameConversationRequest(BaseModel):
+    title: str
 
 
 
@@ -529,4 +533,43 @@ def delete_chat_session(
     return {
         "message": "聊天记录删除成功",
         "deleted_session_id": session_id
+    }
+
+
+@app.put("/conversations/{conversation_id}")
+def rename_conversation(
+    conversation_id: int,
+    req: RenameConversationRequest,
+    username: str,
+    db: Session = Depends(get_db)
+):
+    if not username:
+        raise HTTPException(status_code=401, detail="请先登录后再重命名历史对话")
+
+    user = db.query(models.User).filter(models.User.username == username).first()
+
+    if not user:
+        raise HTTPException(status_code=401, detail="登录状态无效，请重新登录")
+
+    title = req.title.strip()
+
+    if not title:
+        raise HTTPException(status_code=400, detail="标题不能为空")
+
+    if len(title) > 50:
+        title = title[:50]
+
+    conversation = update_conversation_title(
+        db=db,
+        user_id=user.id,
+        conversation_id=conversation_id,
+        title=title
+    )
+
+    if not conversation:
+        raise HTTPException(status_code=404, detail="历史对话不存在")
+
+    return {
+        "message": "重命名成功",
+        "title": conversation.title
     }

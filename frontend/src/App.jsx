@@ -37,6 +37,7 @@ const [chatSessions, setChatSessions] = useState([]);
 const [activeSessionId, setActiveSessionId] = useState(null);
 
 const [sidebarOpen, setSidebarOpen] = useState(true);
+const [hoveredHistoryAction, setHoveredHistoryAction] = useState(null);
 
   const [tip, setTip] = useState("");
   const [loading, setLoading] = useState(false);
@@ -150,6 +151,56 @@ const deleteChatSession = async (session, event) => {
   } catch (error) {
     console.error("删除聊天记录失败：", error);
     setTip("无法删除聊天记录，请确认后端正在运行");
+  }
+};
+
+const renameChatSession = async (session, event) => {
+  event.stopPropagation();
+
+  if (!user || !user.username) {
+    alert("请先登录后再重命名历史对话");
+    return;
+  }
+
+  const inputTitle = window.prompt("请输入新的对话标题", session.title || "");
+
+  if (inputTitle === null) {
+    return;
+  }
+
+  const title = inputTitle.trim();
+
+  if (!title) {
+    return;
+  }
+
+  try {
+    const res = await fetch(
+      `${API_BASE}/conversations/${session.id}?username=${encodeURIComponent(user.username)}`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ title }),
+      }
+    );
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.detail || "重命名历史对话失败");
+      return;
+    }
+
+    setChatSessions((prev) =>
+      prev.map((item) =>
+        item.id === session.id ? { ...item, title: data.title } : item
+      )
+    );
+  } catch (error) {
+    console.error("重命名历史对话失败：", error);
+    alert("无法重命名历史对话，请确认后端正在运行");
   }
 };
 
@@ -557,13 +608,29 @@ setMessage("");
         <div style={styles.historyText}>{session.title}</div>
       </div>
 
-      <button
-        style={styles.deleteHistoryButton}
-        onClick={(event) => deleteChatSession(session, event)}
-        title="删除这条历史记录"
-      >
-        ×
-      </button>
+      <div style={styles.historyActions}>
+        <button
+          style={
+            hoveredHistoryAction === `rename-${session.id}`
+              ? styles.renameHistoryButtonHover
+              : styles.renameHistoryButton
+          }
+          onClick={(event) => renameChatSession(session, event)}
+          onMouseEnter={() => setHoveredHistoryAction(`rename-${session.id}`)}
+          onMouseLeave={() => setHoveredHistoryAction(null)}
+          title="重命名这条历史对话"
+        >
+          编辑
+        </button>
+
+        <button
+          style={styles.deleteHistoryButton}
+          onClick={(event) => deleteChatSession(session, event)}
+          title="删除这条历史记录"
+        >
+          ×
+        </button>
+      </div>
     </div>
   </div>
 ))}
@@ -840,6 +907,37 @@ historyText: {
 historyContent: {
   flex: 1,
   minWidth: 0,
+},
+
+historyActions: {
+  display: "flex",
+  alignItems: "center",
+  gap: "6px",
+  flexShrink: 0,
+},
+
+renameHistoryButton: {
+  height: "24px",
+  border: "1px solid #e5e7eb",
+  borderRadius: "6px",
+  background: "transparent",
+  color: "#6b7280",
+  cursor: "pointer",
+  fontSize: "12px",
+  lineHeight: "20px",
+  padding: "0 6px",
+},
+
+renameHistoryButtonHover: {
+  height: "24px",
+  border: "1px solid #fecaca",
+  borderRadius: "6px",
+  background: "#fee2e2",
+  color: "#dc2626",
+  cursor: "pointer",
+  fontSize: "12px",
+  lineHeight: "20px",
+  padding: "0 6px",
 },
 
 deleteHistoryButton: {
