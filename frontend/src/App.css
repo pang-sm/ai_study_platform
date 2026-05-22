@@ -675,12 +675,104 @@ select.field:focus {
   padding: 16px;
 }
 
+.composer-panel--compact {
+  margin-top: 8px;
+}
+
 .composer-row {
   align-items: stretch;
 }
 
 .composer-row .field {
   margin: 0;
+}
+
+.composer-row--input {
+  gap: 10px;
+}
+
+.attach-button {
+  width: 52px;
+  min-width: 52px;
+  height: 52px;
+  border: 1px solid rgba(20, 33, 61, 0.12);
+  border-radius: 16px;
+  background: #f8fafc;
+  color: #14213d;
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease;
+}
+
+.attach-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+  background: #eef6ff;
+}
+
+.attach-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  transform: none;
+  box-shadow: none;
+}
+
+.hidden-file-input {
+  display: none;
+}
+
+.composer-input {
+  flex: 1;
+}
+
+.attachment-chip-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 100%;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(15, 118, 110, 0.08);
+  color: #0f4c5c;
+  border: 1px solid rgba(15, 118, 110, 0.12);
+}
+
+.attachment-chip-label {
+  max-width: min(100%, 420px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.attachment-chip-remove {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(20, 33, 61, 0.1);
+  color: #14213d;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.composer-hint {
+  margin-bottom: 10px;
+  color: #b42318;
+  font-size: 13px;
 }
 
 @media (max-width: 1180px) {
@@ -704,6 +796,19 @@ select.field:focus {
   .profile-card,
   .chat-panel {
     border-radius: 22px;
+  }
+
+  .composer-row--input {
+    flex-wrap: wrap;
+  }
+
+  .attach-button,
+  .composer-row--input .primary-button.compact {
+    width: 100%;
+  }
+
+  .composer-input {
+    min-width: 100%;
   }
 
   .message-card {
