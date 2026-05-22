@@ -27,6 +27,62 @@ const SUBJECT_OPTIONS = [
   "Algorithms",
 ];
 
+const SUBJECT_LABELS = {
+  Python: "Python",
+  Java: "Java",
+  "Data Structures": "数据结构",
+  "Computer Networks": "计算机网络",
+  "Operating Systems": "操作系统",
+  Databases: "数据库",
+  "Frontend Development": "前端开发",
+  "Backend Development": "后端开发",
+  Algorithms: "算法",
+};
+
+const MESSAGE_TRANSLATIONS = {
+  "Invalid username or password": "用户名或密码错误",
+  "Username already exists": "用户名已存在",
+  "Failed to load chat history": "加载聊天记录失败",
+  "Cannot load chat history. Please check the backend.": "无法加载聊天记录，请检查后端服务。",
+  "Failed to load materials": "加载资料失败",
+  "Cannot load materials. Please check the backend.": "无法加载资料，请检查后端服务。",
+  "Failed to load material detail": "加载资料详情失败",
+  "Cannot load material detail right now.": "暂时无法加载资料详情。",
+  "Failed to delete material": "删除资料失败",
+  "Cannot delete this material right now.": "暂时无法删除该资料。",
+  "Failed to rebuild indexes": "重建索引失败",
+  "Cannot rebuild indexes right now.": "暂时无法重建索引。",
+  "Please log in first.": "请先登录。",
+  "Failed to open chat session": "打开对话失败",
+  "Cannot open this chat session right now.": "暂时无法打开该对话。",
+  "Failed to delete chat session": "删除对话失败",
+  "Cannot delete this chat session right now.": "暂时无法删除该对话。",
+  "Failed to rename chat session": "重命名对话失败",
+  "Cannot rename this chat session right now.": "暂时无法重命名该对话。",
+  "Login expired. Please log in again.": "登录已过期，请重新登录。",
+  "Please enter username and password.": "请输入用户名和密码。",
+  "Register failed": "注册失败",
+  "Registration successful. Please complete your profile.": "注册成功，请完善个人资料。",
+  "Login failed": "登录失败",
+  "Cannot reach the backend.": "无法连接后端服务。",
+  "Failed to save profile": "保存个人资料失败",
+  "Profile saved.": "个人资料已保存。",
+  "Cannot save your profile right now.": "暂时无法保存个人资料。",
+  "Unsupported file type. Please choose PDF, PNG, JPG/JPEG, or WEBP.": "不支持的文件类型，请选择 PDF、PNG、JPG/JPEG 或 WEBP。",
+  "File size must be 10MB or smaller.": "文件大小不能超过 10MB。",
+  "Upload rejected. Check file type, size, and subject.": "上传被拒绝，请检查文件类型、大小和学科。",
+  "File too large. Please upload a file under 10MB.": "文件过大，请上传 10MB 以内的文件。",
+  "Upload parameters are invalid. Please try again.": "上传参数无效，请重试。",
+  "The backend could not process this file.": "后端暂时无法处理该文件。",
+  "Gateway error. The backend service may be unavailable.": "网关错误，后端服务可能不可用。",
+  "Upload request failed. Please try again.": "上传请求失败，请重试。",
+  "AI reply failed.": "AI 回复失败。",
+  "Attachment question saved to chat history and added to your library.": "附件提问已保存到聊天记录，并已加入个人资料库。",
+  "Please enter a question before sending the file.": "请先输入问题后再发送文件。",
+  "Failed to add this attachment to the library": "添加附件到资料库失败",
+  "Cannot add this attachment right now.": "暂时无法添加该附件。",
+};
+
 const ALLOWED_FILE_TYPES = [
   "application/pdf",
   "image/png",
@@ -55,6 +111,42 @@ function formatDate(value) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function getSubjectLabel(subject) {
+  return SUBJECT_LABELS[subject] || subject || "";
+}
+
+function getFileTypeLabel(type) {
+  const normalizedType = String(type || "").toLowerCase();
+
+  if (normalizedType.includes("pdf")) return "PDF";
+  if (
+    normalizedType.includes("image") ||
+    normalizedType.includes("png") ||
+    normalizedType.includes("jpg") ||
+    normalizedType.includes("jpeg") ||
+    normalizedType.includes("webp")
+  ) {
+    return "图片";
+  }
+
+  return type || "";
+}
+
+function translateMessage(text) {
+  if (!text) return "";
+  if (MESSAGE_TRANSLATIONS[text]) return MESSAGE_TRANSLATIONS[text];
+
+  if (text.startsWith("Upload failed. HTTP status:")) {
+    return `上传失败，HTTP 状态码：${text.replace("Upload failed. HTTP status:", "").trim()}`;
+  }
+
+  return text;
+}
+
+function getDisplayMessage(detail, fallback) {
+  return translateMessage(detail) || fallback;
 }
 
 function App() {
@@ -126,8 +218,8 @@ function App() {
 
   const fileLabel = selectedFile
     ? selectedFile.type === "application/pdf"
-      ? `PDF: ${selectedFile.name}`
-      : `Image: ${selectedFile.name}`
+      ? `PDF：${selectedFile.name}`
+      : `图片：${selectedFile.name}`
     : "";
 
   const saveLoginUser = (loginUser) => {
@@ -192,14 +284,14 @@ function App() {
       const data = await res.json();
 
       if (!res.ok) {
-        setTip(data.detail || "Failed to load chat history");
+        setTip(getDisplayMessage(data.detail, "加载聊天记录失败"));
         return;
       }
 
       setChatSessions(data.sessions || []);
     } catch (error) {
       console.error("Failed to load chat history:", error);
-      setTip("Cannot load chat history. Please check the backend.");
+      setTip("无法加载聊天记录，请检查后端服务。");
     }
   };
 
@@ -217,14 +309,14 @@ function App() {
       const data = await res.json();
 
       if (!res.ok) {
-        setTip(data.detail || "Failed to load materials");
+        setTip(getDisplayMessage(data.detail, "加载资料失败"));
         return;
       }
 
       setMaterials(data.materials || []);
     } catch (error) {
       console.error("Failed to load materials:", error);
-      setTip("Cannot load materials. Please check the backend.");
+      setTip("无法加载资料，请检查后端服务。");
     } finally {
       setMaterialsLoading(false);
     }
@@ -240,7 +332,7 @@ function App() {
       const data = await res.json();
 
       if (!res.ok) {
-        setTip(data.detail || "Failed to load material detail");
+        setTip(getDisplayMessage(data.detail, "加载资料详情失败"));
         return;
       }
 
@@ -248,14 +340,14 @@ function App() {
       setSelectedMaterialDetail(data.material || null);
     } catch (error) {
       console.error("Failed to load material detail:", error);
-      setTip("Cannot load material detail right now.");
+      setTip("暂时无法加载资料详情。");
     }
   };
 
   const deleteMaterial = async (materialId) => {
     if (!user?.username) return;
 
-    const confirmed = window.confirm("Delete this study material?");
+    const confirmed = window.confirm("确认删除这份资料吗？");
     if (!confirmed) return;
 
     try {
@@ -268,7 +360,7 @@ function App() {
       const data = await res.json();
 
       if (!res.ok) {
-        setTip(data.detail || "Failed to delete material");
+        setTip(getDisplayMessage(data.detail, "删除资料失败"));
         return;
       }
 
@@ -284,7 +376,7 @@ function App() {
       );
     } catch (error) {
       console.error("Failed to delete material:", error);
-      setTip("Cannot delete this material right now.");
+      setTip("暂时无法删除该资料。");
     }
   };
 
@@ -307,16 +399,16 @@ function App() {
       const data = await res.json();
 
       if (!res.ok) {
-        setTip(data.detail || "Failed to rebuild indexes");
+        setTip(getDisplayMessage(data.detail, "重建索引失败"));
         return;
       }
 
       setTip(
-        `Indexes rebuilt: ${data.indexed_material_count} materials, ${data.indexed_chunk_count} chunks.`
+        `索引重建完成：${data.indexed_material_count} 份资料，${data.indexed_chunk_count} 个分块。`
       );
     } catch (error) {
       console.error("Failed to rebuild indexes:", error);
-      setTip("Cannot rebuild indexes right now.");
+      setTip("暂时无法重建索引。");
     } finally {
       setReindexLoading(false);
     }
@@ -324,7 +416,7 @@ function App() {
 
   const openChatSession = async (session) => {
     if (!user?.username) {
-      setTip("Please log in first.");
+      setTip("请先登录。");
       return;
     }
 
@@ -337,7 +429,7 @@ function App() {
       const data = await res.json();
 
       if (!res.ok) {
-        setTip(data.detail || "Failed to open chat session");
+        setTip(getDisplayMessage(data.detail, "打开对话失败"));
         return;
       }
 
@@ -352,7 +444,7 @@ function App() {
       setPage("chat");
     } catch (error) {
       console.error("Failed to open chat session:", error);
-      setTip("Cannot open this chat session right now.");
+      setTip("暂时无法打开该对话。");
     }
   };
 
@@ -360,11 +452,11 @@ function App() {
     event.stopPropagation();
 
     if (!user?.username) {
-      setTip("Please log in first.");
+      setTip("请先登录。");
       return;
     }
 
-    const confirmed = window.confirm(`Delete "${session.title}"?`);
+    const confirmed = window.confirm(`确认删除“${session.title}”吗？`);
     if (!confirmed) return;
 
     try {
@@ -377,7 +469,7 @@ function App() {
       const data = await res.json();
 
       if (!res.ok) {
-        setTip(data.detail || "Failed to delete chat session");
+        setTip(getDisplayMessage(data.detail, "删除对话失败"));
         return;
       }
 
@@ -393,7 +485,7 @@ function App() {
       }
     } catch (error) {
       console.error("Failed to delete chat session:", error);
-      setTip("Cannot delete this chat session right now.");
+      setTip("暂时无法删除该对话。");
     }
   };
 
@@ -401,11 +493,11 @@ function App() {
     event.stopPropagation();
 
     if (!user?.username) {
-      alert("Please log in first.");
+      alert("请先登录。");
       return;
     }
 
-    const inputTitle = window.prompt("Enter a new title", session.title || "");
+    const inputTitle = window.prompt("请输入新标题", session.title || "");
     if (inputTitle === null) return;
 
     const title = inputTitle.trim();
@@ -425,7 +517,7 @@ function App() {
       const data = await res.json();
 
       if (!res.ok) {
-        alert(data.detail || "Failed to rename chat session");
+        alert(getDisplayMessage(data.detail, "重命名对话失败"));
         return;
       }
 
@@ -436,7 +528,7 @@ function App() {
       );
     } catch (error) {
       console.error("Failed to rename chat session:", error);
-      alert("Cannot rename this chat session right now.");
+      alert("暂时无法重命名该对话。");
     }
   };
 
@@ -497,7 +589,7 @@ function App() {
 
         if (!res.ok) {
           logout();
-          setTip(data.detail || "Login expired. Please log in again.");
+          setTip(getDisplayMessage(data.detail, "登录已过期，请重新登录。"));
           return;
         }
 
@@ -517,7 +609,7 @@ function App() {
     setTip("");
 
     if (!username.trim() || !password.trim()) {
-      setTip("Please enter username and password.");
+      setTip("请输入用户名和密码。");
       return;
     }
 
@@ -530,17 +622,17 @@ function App() {
       const data = await res.json();
 
       if (!res.ok) {
-        setTip(data.detail || "Register failed");
+        setTip(getDisplayMessage(data.detail, "注册失败"));
         return;
       }
 
       const loginUser = data.user || { username: data.username || username };
       saveLoginUser(loginUser);
       setPage("profile");
-      setTip("Registration successful. Please complete your profile.");
+      setTip("注册成功，请完善个人资料。");
     } catch (error) {
       console.error("Register failed:", error);
-      setTip("Cannot reach the backend.");
+      setTip("无法连接后端服务。");
     }
   };
 
@@ -548,7 +640,7 @@ function App() {
     setTip("");
 
     if (!username.trim() || !password.trim()) {
-      setTip("Please enter username and password.");
+      setTip("请输入用户名和密码。");
       return;
     }
 
@@ -561,7 +653,7 @@ function App() {
       const data = await res.json();
 
       if (!res.ok) {
-        setTip(data.detail || "Login failed");
+        setTip(getDisplayMessage(data.detail, "登录失败"));
         return;
       }
 
@@ -572,7 +664,7 @@ function App() {
       setTip("");
     } catch (error) {
       console.error("Login failed:", error);
-      setTip("Cannot reach the backend.");
+      setTip("无法连接后端服务。");
     }
   };
 
@@ -597,15 +689,15 @@ function App() {
       const data = await res.json();
 
       if (!res.ok) {
-        setTip(data.detail || "Failed to save profile");
+        setTip(getDisplayMessage(data.detail, "保存个人资料失败"));
         return;
       }
 
       saveLoginUser(data.profile);
-      setTip("Profile saved.");
+      setTip("个人资料已保存。");
     } catch (error) {
       console.error("Failed to save profile:", error);
-      setTip("Cannot save your profile right now.");
+      setTip("暂时无法保存个人资料。");
     } finally {
       setProfileSaving(false);
     }
@@ -618,12 +710,12 @@ function App() {
     if (!file) return;
 
     if (!ALLOWED_FILE_TYPES.includes(file.type)) {
-      alert("Unsupported file type. Please choose PDF, PNG, JPG/JPEG, or WEBP.");
+      alert("不支持的文件类型，请选择 PDF、PNG、JPG/JPEG 或 WEBP。");
       return;
     }
 
     if (file.size > MAX_FILE_SIZE) {
-      alert("File size must be 10MB or smaller.");
+      alert("文件大小不能超过 10MB。");
       return;
     }
 
@@ -637,14 +729,14 @@ function App() {
 
   const getUploadErrorMessage = (status, data) => {
     if (status === 400) {
-      return data.detail || "Upload rejected. Check file type, size, and subject.";
+      return getDisplayMessage(data.detail, "上传被拒绝，请检查文件类型、大小和学科。");
     }
-    if (status === 401) return "Login expired. Please log in again.";
-    if (status === 413) return "File too large. Please upload a file under 10MB.";
-    if (status === 422) return "Upload parameters are invalid. Please try again.";
-    if (status === 500) return data.detail || "The backend could not process this file.";
-    if (status === 502) return "Gateway error. The backend service may be unavailable.";
-    return data.detail || `Upload failed. HTTP status: ${status}`;
+    if (status === 401) return "登录已过期，请重新登录。";
+    if (status === 413) return "文件过大，请上传 10MB 以内的文件。";
+    if (status === 422) return "上传参数无效，请重试。";
+    if (status === 500) return getDisplayMessage(data.detail, "后端暂时无法处理该文件。");
+    if (status === 502) return "网关错误，后端服务可能不可用。";
+    return getDisplayMessage(data.detail, `上传失败，HTTP 状态码：${status}`);
   };
 
   const appendAssistantError = (content) => {
@@ -691,9 +783,9 @@ function App() {
       if (!res.ok) {
         if (res.status === 401) {
           logout();
-          setTip(data.detail || "Login expired. Please log in again.");
+          setTip(getDisplayMessage(data.detail, "登录已过期，请重新登录。"));
         }
-        appendAssistantError(data.detail || "AI reply failed.");
+        appendAssistantError(getDisplayMessage(data.detail, "AI 回复失败。"));
         return;
       }
 
@@ -702,7 +794,7 @@ function App() {
       await loadChatHistory(user);
     } catch (error) {
       console.error("Failed to send message:", error);
-      appendAssistantError("Cannot reach the backend.");
+      appendAssistantError("无法连接后端服务。");
     } finally {
       setLoading(false);
     }
@@ -765,10 +857,10 @@ function App() {
 
       setMessage("");
       setSelectedFile(null);
-      setTip("Attachment question saved to chat history and added to your library.");
+      setTip("附件提问已保存到聊天记录，并已加入个人资料库。");
     } catch (error) {
       console.error("Failed to send file message:", error);
-      appendAssistantError("Upload request failed. Please try again.");
+      appendAssistantError("上传请求失败，请重试。");
     } finally {
       setLoading(false);
     }
@@ -776,14 +868,14 @@ function App() {
 
   const sendMessage = async () => {
     if (!user?.username) {
-      setTip("Please log in first.");
+      setTip("请先登录。");
       logout();
       return;
     }
 
     if (!canSendMessage) {
       if (selectedFile && !trimmedMessage) {
-        setTip("Please enter a question before sending the file.");
+        setTip("请先输入问题后再发送文件。");
       }
       return;
     }
@@ -821,7 +913,7 @@ function App() {
       const data = await res.json();
 
       if (!res.ok) {
-        setTip(data.detail || "Failed to add this attachment to the library");
+        setTip(getDisplayMessage(data.detail, "添加附件到资料库失败"));
         return;
       }
 
@@ -836,7 +928,7 @@ function App() {
       }
     } catch (error) {
       console.error("Failed to add attachment to library:", error);
-      setTip("Cannot add this attachment right now.");
+      setTip("暂时无法添加该附件。");
     } finally {
       setAddToLibraryState((prev) => ({
         ...prev,
@@ -860,10 +952,10 @@ function App() {
     return (
       <div className="auth-shell">
         <div className="auth-card">
-          <div className="auth-badge">AI Study Platform</div>
-          <h1>Your AI Study Platform</h1>
+          <div className="auth-badge">AI 学习平台</div>
+          <h1>欢迎使用 AI 学习平台</h1>
           <p className="auth-subtitle">
-            Log in to access your profile, library, and chat history.
+            登录后即可使用个人资料、个人资料库和历史对话。
           </p>
 
           <div className="tab-row">
@@ -874,7 +966,7 @@ function App() {
                 setTip("");
               }}
             >
-              Login
+              登录
             </button>
             <button
               className={authMode === "register" ? "tab-button active" : "tab-button"}
@@ -883,20 +975,20 @@ function App() {
                 setTip("");
               }}
             >
-              Register
+              注册
             </button>
           </div>
 
           <input
             className="field"
-            placeholder="Username"
+            placeholder="用户名"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
           />
 
           <input
             className="field"
-            placeholder="Password"
+            placeholder="密码"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -906,11 +998,11 @@ function App() {
 
           {authMode === "login" ? (
             <button className="primary-button" onClick={handleLogin}>
-              Login
+              登录
             </button>
           ) : (
             <button className="primary-button" onClick={handleRegister}>
-              Register
+              注册
             </button>
           )}
         </div>
@@ -927,8 +1019,8 @@ function App() {
               {selectedAvatar.label}
             </div>
             <div>
-              <div className="section-eyebrow">Profile</div>
-              <h1>Personal Profile</h1>
+              <div className="section-eyebrow">个人资料</div>
+              <h1>个人资料</h1>
               <p className="muted-text">{user.username}</p>
             </div>
           </div>
@@ -946,40 +1038,40 @@ function App() {
                     onClick={() =>
                       setProfileForm((prev) => ({ ...prev, avatar: avatar.id }))
                     }
-                    title={avatar.id}
+                    title={`头像 ${avatar.label}`}
                   >
                     {avatar.label}
                   </button>
                 ))}
               </div>
 
-              <label className="field-label">Account</label>
+              <label className="field-label">用户名</label>
               <input className="field" value={user.username} disabled />
 
-              <label className="field-label">Nickname</label>
+              <label className="field-label">昵称</label>
               <input
                 className="field"
-                placeholder="For example: Alex"
+                placeholder="例如：小明"
                 value={profileForm.nickname}
                 onChange={(e) =>
                   setProfileForm((prev) => ({ ...prev, nickname: e.target.value }))
                 }
               />
 
-              <label className="field-label">Grade</label>
+              <label className="field-label">年级</label>
               <input
                 className="field"
-                placeholder="For example: Sophomore"
+                placeholder="例如：大二"
                 value={profileForm.grade}
                 onChange={(e) =>
                   setProfileForm((prev) => ({ ...prev, grade: e.target.value }))
                 }
               />
 
-              <label className="field-label">Major</label>
+              <label className="field-label">专业</label>
               <input
                 className="field"
-                placeholder="For example: Software Engineering"
+                placeholder="例如：软件工程"
                 value={profileForm.major}
                 onChange={(e) =>
                   setProfileForm((prev) => ({ ...prev, major: e.target.value }))
@@ -990,13 +1082,13 @@ function App() {
 
               <div className="stack-actions">
                 <button className="primary-button" onClick={saveProfile} disabled={profileSaving}>
-                  {profileSaving ? "Saving..." : "Save Profile"}
+                  {profileSaving ? "保存中..." : "保存个人资料"}
                 </button>
                 <button className="dark-button" onClick={() => setPage("chat")}>
-                  Open Chat
+                  进入聊天
                 </button>
                 <button className="ghost-button" onClick={logout}>
-                  Log Out
+                  退出登录
                 </button>
               </div>
             </section>
@@ -1004,8 +1096,8 @@ function App() {
             <section className="profile-library">
               <div className="panel-title-row">
                 <div>
-                  <div className="section-eyebrow">Library</div>
-                  <h2>My Study Library</h2>
+                  <div className="section-eyebrow">个人资料库</div>
+                  <h2>我的资料</h2>
                 </div>
                 <div className="header-actions">
                   <button
@@ -1013,23 +1105,23 @@ function App() {
                     onClick={reindexLibrary}
                     disabled={reindexLoading}
                   >
-                    {reindexLoading ? "Reindexing..." : "Rebuild Index"}
+                    {reindexLoading ? "重建索引中..." : "重建索引"}
                   </button>
                   <button
                     className="ghost-button compact"
                     onClick={() => loadMaterials(materialSubjectFilter)}
                   >
-                    Refresh
+                    刷新
                   </button>
                 </div>
               </div>
 
               <div className="library-tip">
-                Indexed study materials can be used as subject-specific background for answers.
+                已索引的学习资料会在对应学科问答中作为优先参考内容。
               </div>
 
               <div className="library-filter-row">
-                <label className="field-label">Filter by subject</label>
+                <label className="field-label">按学科筛选</label>
                 <select
                   className="field"
                   value={materialSubjectFilter}
@@ -1039,33 +1131,37 @@ function App() {
                     loadMaterials(next);
                   }}
                 >
-                  <option value="">All subjects</option>
+                  <option value="">全部学科</option>
                   {SUBJECT_OPTIONS.map((item) => (
                     <option key={item} value={item}>
-                      {item}
+                      {getSubjectLabel(item)}
                     </option>
                   ))}
                 </select>
               </div>
 
               {materialsLoading ? (
-                <div className="empty-inline">Loading materials...</div>
+                <div className="empty-inline">资料加载中...</div>
               ) : groupedMaterials.length === 0 ||
                 groupedMaterials.every((group) => group.items.length === 0) ? (
                 <div className="empty-inline">
-                  No study materials yet. Upload an image or PDF from the chat page first.
+                  暂无资料，请先在聊天页上传图片或 PDF。
                 </div>
               ) : (
                 <div className="library-groups">
                   {groupedMaterials.map((group) => (
                     <div key={group.subject} className="library-group">
-                      <div className="library-group-title">{group.subject}</div>
+                      <div className="library-group-title">{getSubjectLabel(group.subject)}</div>
                       <div className="material-list material-list--profile">
                         {group.items.map((material) => (
                           <div key={material.id} className="material-item material-item--profile">
                             <div className="material-item-head">
-                              <span className="subject-pill small">{material.subject}</span>
-                              <span className="muted-text">{material.file_type}</span>
+                              <span className="subject-pill small">
+                                {getSubjectLabel(material.subject)}
+                              </span>
+                              <span className="muted-text">
+                                {getFileTypeLabel(material.file_type)}
+                              </span>
                             </div>
                             <div className="material-title">{material.original_filename}</div>
                             <div className="material-summary">{material.summary}</div>
@@ -1075,13 +1171,13 @@ function App() {
                                 className="tiny-button"
                                 onClick={() => loadMaterialDetail(material.id)}
                               >
-                                View
+                                查看
                               </button>
                               <button
                                 className="tiny-button danger"
                                 onClick={() => deleteMaterial(material.id)}
                               >
-                                Delete
+                                删除
                               </button>
                             </div>
                           </div>
@@ -1094,26 +1190,26 @@ function App() {
 
               <div className="material-detail-card material-detail-card--profile">
                 <div className="panel-title-row">
-                  <h3>Material Detail</h3>
+                  <h3>资料详情</h3>
                 </div>
                 {!selectedMaterialDetail ? (
                   <div className="empty-inline">
-                    Click "View" on a material card to inspect the summary and extracted text.
+                    点击资料卡片上的“查看”可查看摘要和提取文本。
                   </div>
                 ) : (
                   <>
                     <div className="detail-meta">
-                      <div>File: {selectedMaterialDetail.original_filename}</div>
-                      <div>Subject: {selectedMaterialDetail.subject}</div>
-                      <div>Type: {selectedMaterialDetail.file_type}</div>
-                      <div>Uploaded: {formatDate(selectedMaterialDetail.created_at)}</div>
+                      <div>文件：{selectedMaterialDetail.original_filename}</div>
+                      <div>学科：{getSubjectLabel(selectedMaterialDetail.subject)}</div>
+                      <div>类型：{getFileTypeLabel(selectedMaterialDetail.file_type)}</div>
+                      <div>上传时间：{formatDate(selectedMaterialDetail.created_at)}</div>
                     </div>
                     <div className="result-block">
-                      <strong>Summary</strong>
+                      <strong>摘要</strong>
                       <p>{selectedMaterialDetail.summary}</p>
                     </div>
                     <div className="result-block">
-                      <strong>Extracted Text</strong>
+                      <strong>提取文本</strong>
                       <pre>{selectedMaterialDetail.extracted_text}</pre>
                     </div>
                   </>
@@ -1129,25 +1225,25 @@ function App() {
   return (
     <div className="workspace-shell">
       <button className="sidebar-toggle" onClick={() => setSidebarOpen((prev) => !prev)}>
-        {sidebarOpen ? "Hide" : "Show"}
+        {sidebarOpen ? "收起" : "展开"}
       </button>
 
       {sidebarOpen && (
         <aside className="sidebar-panel">
           <div className="sidebar-top">
             <div>
-              <div className="section-eyebrow">Study Hub</div>
-              <h2>AI Study Assistant</h2>
+              <div className="section-eyebrow">学习中心</div>
+              <h2>AI 学习助手</h2>
             </div>
             <p className="muted-text">{user.username}</p>
           </div>
 
           <div className="sidebar-user-card">
-            <div>Grade: {user.grade || "Not set"}</div>
-            <div>Major: {user.major || "Not set"}</div>
+            <div>年级：{user.grade || "未设置"}</div>
+            <div>专业：{user.major || "未设置"}</div>
           </div>
 
-          <label className="field-label">New conversation subject</label>
+          <label className="field-label">新建对话学科</label>
           <select
             className="field"
             value={subject}
@@ -1160,26 +1256,26 @@ function App() {
           >
             {SUBJECT_OPTIONS.map((item) => (
               <option key={item} value={item}>
-                {item}
+                {getSubjectLabel(item)}
               </option>
             ))}
           </select>
 
           <button className="ghost-button" onClick={startNewConversation}>
-            New Conversation
+            新建对话
           </button>
           <button className="ghost-button" onClick={() => setPage("profile")}>
-            Profile
+            个人资料
           </button>
 
           <div className="history-block">
             <div className="panel-title-row">
-              <h3>{subject} History</h3>
+              <h3>{getSubjectLabel(subject)} 历史对话</h3>
             </div>
 
             <div className="history-list">
               {visibleSessions.length === 0 && (
-                <div className="empty-inline">No history for this subject yet.</div>
+                <div className="empty-inline">该学科下暂无历史对话。</div>
               )}
 
               {visibleSessions.map((session) => (
@@ -1188,7 +1284,9 @@ function App() {
                   className={activeSessionId === session.id ? "history-item active" : "history-item"}
                   onClick={() => openChatSession(session)}
                 >
-                  <div className="history-subject">{session.subject || session.course}</div>
+                  <div className="history-subject">
+                    {getSubjectLabel(session.subject || session.course)}
+                  </div>
                   <div className="history-title">{session.title}</div>
                   <div className="history-meta">{formatDate(session.created_at)}</div>
                   <div className="history-actions">
@@ -1196,13 +1294,13 @@ function App() {
                       className="tiny-button"
                       onClick={(event) => renameChatSession(session, event)}
                     >
-                      Rename
+                      编辑标题
                     </button>
                     <button
                       className="tiny-button danger"
                       onClick={(event) => deleteChatSession(session, event)}
                     >
-                      Delete
+                      删除
                     </button>
                   </div>
                 </div>
@@ -1211,7 +1309,7 @@ function App() {
           </div>
 
           <button className="ghost-button" onClick={logout}>
-            Log Out
+            退出登录
           </button>
         </aside>
       )}
@@ -1220,21 +1318,20 @@ function App() {
         <section className="chat-panel chat-panel--wide">
           <div className="panel-header">
             <div>
-              <div className="section-eyebrow">Conversation</div>
-              <h2>Current Chat</h2>
+              <div className="section-eyebrow">对话</div>
+              <h2>当前对话</h2>
             </div>
-            <div className="subject-pill">Subject: {currentChatSubject}</div>
+            <div className="subject-pill">学科：{getSubjectLabel(currentChatSubject)}</div>
           </div>
 
           <div className="context-banner">
-            This conversation will prioritize your personal materials from {currentChatSubject}.
+            当前对话会优先参考你在 {getSubjectLabel(currentChatSubject)} 学科下的个人资料。
           </div>
 
           <div className="messages-board">
             {messages.length === 0 && (
               <div className="empty-state">
-                Pick a subject and ask a question, or click the plus button to upload an image or
-                PDF with your question.
+                请选择学科后提问，或点击加号上传图片 / PDF 并附上你的问题。
               </div>
             )}
 
@@ -1243,14 +1340,16 @@ function App() {
                 key={msg.id || index}
                 className={msg.role === "user" ? "message-card user" : "message-card assistant"}
               >
-                <div className="message-role">{msg.role === "user" ? "You" : "AI"}</div>
+                <div className="message-role">{msg.role === "user" ? "我" : "AI"}</div>
                 <div className="message-text">{msg.content}</div>
 
                 {msg.attachment_type && (
                   <div className="attachment-card">
                     <div className="attachment-meta">
-                      <span className="subject-pill small">{msg.attachment_type}</span>
-                      <span>{msg.attachment_filename || "Unnamed attachment"}</span>
+                      <span className="subject-pill small">
+                        {getFileTypeLabel(msg.attachment_type)}
+                      </span>
+                      <span>{msg.attachment_filename || "未命名附件"}</span>
                     </div>
                     {msg.extracted_text && (
                       <div className="attachment-preview">
@@ -1261,7 +1360,7 @@ function App() {
 
                     {msg.material_id ? (
                       <button className="ghost-button compact" disabled>
-                        Added to Library
+                        已加入资料库
                       </button>
                     ) : (
                       <div className="attachment-actions">
@@ -1282,7 +1381,7 @@ function App() {
                         >
                           {SUBJECT_OPTIONS.map((item) => (
                             <option key={item} value={item}>
-                              {item}
+                              {getSubjectLabel(item)}
                             </option>
                           ))}
                         </select>
@@ -1301,8 +1400,8 @@ function App() {
                           }
                         >
                           {addToLibraryState.loading && addToLibraryState.messageId === msg.id
-                            ? "Adding..."
-                            : "Add to Library"}
+                            ? "添加中..."
+                            : "加入资料库"}
                         </button>
                       </div>
                     )}
@@ -1311,7 +1410,7 @@ function App() {
               </div>
             ))}
 
-            {loading && <div className="message-card assistant">AI is thinking...</div>}
+            {loading && <div className="message-card assistant">正在思考...</div>}
           </div>
 
           <div className="composer-panel composer-panel--compact">
@@ -1331,7 +1430,7 @@ function App() {
             )}
 
             {selectedFile && !trimmedMessage && (
-              <div className="composer-hint">Please enter a question before sending the file.</div>
+              <div className="composer-hint">请先输入问题后再发送文件。</div>
             )}
 
             <div className="composer-row composer-row--input">
@@ -1340,7 +1439,7 @@ function App() {
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={loading}
-                title="Choose image or PDF"
+                title="选择图片或 PDF"
               >
                 +
               </button>
@@ -1357,8 +1456,8 @@ function App() {
                 className="field composer-input"
                 placeholder={
                   selectedFile
-                    ? "Enter the question you want to ask about this file..."
-                    : "Type your question..."
+                    ? "请输入你想针对该文件提问的问题"
+                    : "输入你的问题"
                 }
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
@@ -1375,7 +1474,7 @@ function App() {
                 onClick={sendMessage}
                 disabled={!canSendMessage}
               >
-                {loading ? "Sending..." : "Send"}
+                {loading ? "发送中..." : "发送"}
               </button>
             </div>
           </div>
