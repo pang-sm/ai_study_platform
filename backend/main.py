@@ -20,6 +20,7 @@ import models
 import schemas
 from auth import hash_password, verify_password
 from database import Base, engine, get_db, init_user_profile_schema, update_conversation_title
+from prompts import build_system_prompt
 from rag import reindex_materials, replace_material_chunks, search_relevant_material_chunks, soft_delete_material_chunks
 
 load_dotenv()
@@ -235,89 +236,6 @@ def extract_image_text(image_bytes: bytes) -> str:
             raise HTTPException(status_code=500, detail="OCR 识别失败，请稍后重试") from exc
 
     return (text or "").strip()[:MAX_OCR_CHARS]
-
-
-def build_system_prompt(
-    subject: str | None,
-    user_profile_data: dict | None = None,
-    is_pdf: bool = False,
-    rag_chunks: list[dict] | None = None,
-):
-    normalized_subject = normalize_subject(subject)
-    profile = user_profile_data or {}
-    grade = profile.get("grade") or "未填写"
-    major = profile.get("major") or "未填写"
-
-    subject_roles = {
-        "Java": "你是 Java 学习助教，优先给出 Java 代码示例，并解释语法、类、对象、异常和集合。",
-        "Python": "你是 Python 学习助教，优先用 Python 示例解释变量、函数、类、模块和调试思路。",
-        "数据结构": "你是数据结构助教，重点解释解题思路、复杂度、边界情况和结构设计。",
-        "数据库": "你是数据库课程助教，重点给出 SQL 示例、表结构设计和索引/事务解释。",
-        "计算机网络": "你是计算机网络助教，重点解释分层、协议作用和真实通信流程。",
-        "操作系统": "你是操作系统助教，重点解释进程、线程、调度、内存和文件系统。",
-        "前端开发": "你是前端开发助教，重点结合 HTML、CSS、JavaScript 和 React 实践回答。",
-        "后端开发": "你是后端开发助教，重点结合接口、数据库、业务逻辑和错误处理回答。",
-        "算法": "你是算法助教，按照题意、思路、步骤、代码、复杂度来组织答案。",
-    }
-
-    subject_instruction = subject_roles.get(
-        normalized_subject,
-        f"你是通用 AI 学习助手，当前学科是 {normalized_subject}，请根据问题选择合适的讲解方式。",
-    )
-
-    rag_context_text = ""
-    if rag_chunks:
-        blocks = []
-        for index, item in enumerate(rag_chunks, start=1):
-            blocks.append(
-                f"【资料片段 {index}】\n来源文件：{item['source_filename']}\n内容：{item['chunk_text']}"
-            )
-
-        rag_context_text = (
-            "\n以下是从用户个人学习资料库中检索到的相关资料片段。"
-            "请优先参考这些资料回答，但不要编造资料中不存在的内容。\n\n"
-            + "\n\n".join(blocks)
-            + "\n\n回答要求：\n"
-            + "1. 优先结合资料片段回答。\n"
-            + "2. 如果资料中没有直接说明，请明确说“资料中没有直接提到”，然后再用通用知识补充。\n"
-            + "3. 回答要适合学生理解，尽量分步骤。\n"
-            + "4. 如果使用了资料背景，回答末尾加“参考资料：文件名1、文件名2”。\n"
-            + "5. 不要透露系统内部检索逻辑。\n"
-            + "6. 不要把所有资料原文重复输出。\n"
-        )
-
-    no_material_hint = (
-        "\n如果当前学科没有相关资料片段，就正常回答，并可简短提示用户在个人主页上传该学科资料以增强回答。"
-    )
-
-    pdf_instruction = ""
-    if is_pdf:
-        pdf_instruction = (
-            "\nPDF 问答要求：必须基于 PDF 提取内容回答。"
-            "如果内容中没有答案，要明确说明“PDF 内容中没有找到相关信息”，不要编造。"
-        )
-
-    return f"""
-你是一个面向大学生的 AI 学习助手。
-
-用户资料：
-- 年级：{grade}
-- 专业：{major}
-- 当前学科：{normalized_subject}
-
-学科身份：
-{subject_instruction}
-
-通用回答原则：
-- 先给结论，再解释原因。
-- 尽量结构化输出，必要时使用标题、列表、代码块。
-- 概念先讲人话，再讲术语。
-- 不确定时不要编造。
-- 如果涉及代码或排错，要说明问题原因、修改建议和测试方法。
-{rag_context_text}
-{no_material_hint}
-{pdf_instruction}
-""".strip()
 
 
 def call_deepseek(messages: list[dict]):
@@ -653,6 +571,7 @@ async def handle_material_upload(
                         "role": "system",
                         "content": build_system_prompt(
                             normalized_subject,
+                            clean_question,
                             user_profile(user),
                             is_pdf=file_type == "pdf",
                             rag_chunks=rag_chunks,
@@ -883,6 +802,7 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
 
     system_prompt = build_system_prompt(
         subject,
+        req.message,
         {
             "grade": req.grade or user.grade,
             "major": req.major or user.major,

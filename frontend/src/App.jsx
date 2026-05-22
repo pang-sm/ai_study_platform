@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
 import "./App.css";
 
 const USER_STORAGE_KEY = "ai_study_platform_user";
@@ -1489,7 +1490,19 @@ function App() {
                 className={msg.role === "user" ? "message-card user" : "message-card assistant"}
               >
                 <div className="message-role">{msg.role === "user" ? "我" : "AI"}</div>
-                <div className="message-text">{msg.content}</div>
+                <div
+                  className={
+                    msg.role === "assistant"
+                      ? "message-text message-text--markdown"
+                      : "message-text"
+                  }
+                >
+                  {msg.role === "assistant" ? (
+                    <ReactMarkdown>{msg.content || ""}</ReactMarkdown>
+                  ) : (
+                    msg.content
+                  )}
+                </div>
 
                 {msg.attachment_type && (
                   <div className="attachment-card">
