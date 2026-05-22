@@ -14,6 +14,9 @@ class User(Base):
     # 加密后的密码，不存明文密码
     hashed_password = Column(String(255), nullable=False)
 
+    nickname = Column(String(30), nullable=True)
+    avatar = Column(String(50), nullable=True)
+
     # 用户学习信息
     grade = Column(String(50), nullable=False)          # 年级，例如：大一、大二
     major = Column(String(100), nullable=False)         # 专业，例如：软件工程

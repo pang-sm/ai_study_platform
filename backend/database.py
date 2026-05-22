@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 DATABASE_URL = "sqlite:///./app.db"
@@ -17,12 +17,47 @@ SessionLocal = sessionmaker(
 Base = declarative_base()
 
 
+PROFILE_COLUMNS = {
+    "nickname": "VARCHAR(30)",
+    "avatar": "VARCHAR(50)",
+}
+
+
 def get_db():
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
+
+
+def init_user_profile_schema():
+    with engine.begin() as conn:
+        existing_columns = {
+            row[1]
+            for row in conn.execute(text("PRAGMA table_info(users)")).fetchall()
+        }
+
+        for column_name, column_type in PROFILE_COLUMNS.items():
+            if column_name not in existing_columns:
+                conn.execute(
+                    text(f"ALTER TABLE users ADD COLUMN {column_name} {column_type}")
+                )
+
+
+def clear_user_profile_fields(db):
+    import models
+
+    db.query(models.User).update(
+        {
+            models.User.grade: "",
+            models.User.major: "",
+            models.User.nickname: "",
+            models.User.avatar: "",
+        },
+        synchronize_session=False,
+    )
+    db.commit()
 
 
 def update_conversation_title(db, user_id: int, conversation_id: int, title: str):

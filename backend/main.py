@@ -4,7 +4,13 @@ from sqlalchemy.orm import Session
 from openai import OpenAI
 from dotenv import load_dotenv
 
-from database import Base, engine, get_db, update_conversation_title
+from database import (
+    Base,
+    engine,
+    get_db,
+    init_user_profile_schema,
+    update_conversation_title,
+)
 from models  import ChatMessage
 from auth import hash_password, verify_password
 from pydantic import BaseModel
@@ -21,6 +27,7 @@ app = FastAPI()
 
 # 创建数据库表
 Base.metadata.create_all(bind=engine)
+init_user_profile_schema()
 
 # 允许前端访问后端
 app.add_middleware(
@@ -71,25 +78,59 @@ class RenameConversationRequest(BaseModel):
     title: str
 
 
+class ProfileUpdateRequest(BaseModel):
+    nickname: str | None = None
+    grade: str | None = None
+    major: str | None = None
+    avatar: str | None = None
+
+
+ALLOWED_AVATARS = {
+    "avatar_1",
+    "avatar_2",
+    "avatar_3",
+    "avatar_4",
+    "avatar_5",
+    "avatar_6",
+}
+
+
+def user_profile(user: models.User):
+    return {
+        "id": user.id,
+        "username": user.username,
+        "nickname": user.nickname or "",
+        "grade": user.grade or "",
+        "major": user.major or "",
+        "avatar": user.avatar or "",
+    }
+
+
+def get_user_by_username(username: str, db: Session):
+    username = username.strip()
+
+    if not username:
+        raise HTTPException(status_code=401, detail="请先登录")
+
+    user = db.query(models.User).filter(models.User.username == username).first()
+
+    if not user:
+        raise HTTPException(status_code=401, detail="登录状态无效，请重新登录")
+
+    return user
+
+
 
 @app.post("/register")
 def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
     username = user.username.strip()
     password = user.password.strip()
-    grade = user.grade.strip()
-    major = user.major.strip()
 
     if not username:
         raise HTTPException(status_code=400, detail="账号不能为空")
 
     if len(password) < 6:
         raise HTTPException(status_code=400, detail="密码至少需要 6 位")
-
-    if not grade:
-        raise HTTPException(status_code=400, detail="年级不能为空")
-
-    if not major:
-        raise HTTPException(status_code=400, detail="专业不能为空")
 
     existing_user = db.query(models.User).filter(
         models.User.username == user.username
@@ -101,8 +142,10 @@ def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
     new_user = models.User(
         username=user.username,
         hashed_password=hash_password(user.password),
-        grade=user.grade,
-        major=user.major
+        nickname="",
+        avatar="",
+        grade="",
+        major=""
     )
 
     db.add(new_user)
@@ -111,12 +154,7 @@ def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
 
     return {
         "message": "注册成功",
-        "user": {
-            "id": new_user.id,
-            "username": new_user.username,
-            "grade": new_user.grade,
-            "major": new_user.major
-        }
+        "user": user_profile(new_user)
     }
 
 @app.post("/login")
@@ -142,12 +180,7 @@ def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
 
     return {
         "message": "登录成功",
-        "user": {
-            "id": db_user.id,
-            "username": db_user.username,
-            "grade": db_user.grade,
-            "major": db_user.major
-        }
+        "user": user_profile(db_user)
     }
 
 @app.post("/me")
@@ -165,13 +198,50 @@ def me(req: MeRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="登录状态已失效，请重新登录")
 
     return {
-        "user": {
-            "id": db_user.id,
-            "username": db_user.username,
-            "grade": db_user.grade,
-            "major": db_user.major
-        }
+        "user": user_profile(db_user)
     }
+
+
+@app.get("/me/profile")
+def get_profile(username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    return {"profile": user_profile(user)}
+
+
+@app.put("/me/profile")
+def update_profile(
+    req: ProfileUpdateRequest,
+    username: str,
+    db: Session = Depends(get_db)
+):
+    user = get_user_by_username(username, db)
+
+    nickname = (req.nickname or "").strip()
+    grade = (req.grade or "").strip()
+    major = (req.major or "").strip()
+    avatar = (req.avatar or "").strip()
+
+    if len(nickname) > 30:
+        nickname = nickname[:30]
+
+    if len(grade) > 20:
+        grade = grade[:20]
+
+    if len(major) > 50:
+        major = major[:50]
+
+    if avatar and avatar not in ALLOWED_AVATARS:
+        raise HTTPException(status_code=400, detail="头像无效")
+
+    user.nickname = nickname
+    user.grade = grade
+    user.major = major
+    user.avatar = avatar
+
+    db.commit()
+    db.refresh(user)
+
+    return {"profile": user_profile(user)}
 
 
 
