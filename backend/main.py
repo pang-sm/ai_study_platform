@@ -15,6 +15,8 @@ from models  import ChatMessage
 from auth import hash_password, verify_password
 from pydantic import BaseModel
 from pypdf import PdfReader
+from PIL import Image, UnidentifiedImageError
+import pytesseract
 
 from io import BytesIO
 import models
@@ -98,13 +100,13 @@ ALLOWED_AVATARS = {
 
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024
 MAX_PDF_CHARS = 12000
+MAX_OCR_CHARS = 12000
 ALLOWED_UPLOAD_TYPES = {
     "application/pdf",
     "image/png",
     "image/jpeg",
     "image/webp",
 }
-IMAGE_UPLOAD_MESSAGE = "当前版本已支持图片上传，但暂未接入图片文字识别，请先上传 PDF 或输入文字。"
 
 
 def user_profile(user: models.User):
@@ -222,6 +224,45 @@ def extract_pdf_text(file_bytes: bytes):
         return "\n\n".join(text_parts)[:MAX_PDF_CHARS]
     except Exception as exc:
         raise HTTPException(status_code=400, detail="PDF 无法解析，请换一个文件重试") from exc
+
+
+def extract_image_text(image_bytes: bytes) -> str:
+    try:
+        image = Image.open(BytesIO(image_bytes))
+        image.load()
+    except (UnidentifiedImageError, OSError) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail="图片无法识别，请上传清晰的 PNG、JPG 或 WEBP 图片",
+        ) from exc
+
+    try:
+        text = pytesseract.image_to_string(image, lang="chi_sim+eng")
+    except pytesseract.pytesseract.TesseractNotFoundError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="服务器 OCR 组件未安装，请联系管理员安装 tesseract-ocr",
+        ) from exc
+    except pytesseract.TesseractError:
+        try:
+            text = pytesseract.image_to_string(image, lang="eng")
+        except pytesseract.pytesseract.TesseractNotFoundError as exc:
+            raise HTTPException(
+                status_code=500,
+                detail="服务器 OCR 组件未安装，请联系管理员安装 tesseract-ocr",
+            ) from exc
+        except pytesseract.TesseractError as exc:
+            raise HTTPException(
+                status_code=500,
+                detail="服务器 OCR 识别失败，请稍后重试",
+            ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400,
+            detail="图片无法识别，请上传清晰的 PNG、JPG 或 WEBP 图片",
+        ) from exc
+
+    return (text or "").strip()[:MAX_OCR_CHARS]
 
 
 def build_system_prompt(course: str | None, user_profile: dict | None = None, is_pdf: bool = False):
@@ -699,8 +740,60 @@ async def upload_chat_file(
     )
 
     if file.content_type.startswith("image/"):
-        answer = IMAGE_UPLOAD_MESSAGE
-        save_chat_pair(db, user.id, chat_session.id, user_content, answer)
+        ocr_text = extract_image_text(file_bytes)
+
+        if not ocr_text.strip():
+            answer = "这张图片没有识别到清晰文字，可能是图片太模糊、手写内容较多，或不是文字型图片。请尝试上传更清晰的截图。"
+            save_chat_pair(db, user.id, chat_session.id, user_content, answer)
+            return {
+                "answer": answer,
+                "session": {
+                    "id": chat_session.id,
+                    "title": chat_session.title,
+                    "course": chat_session.course,
+                    "created_at": chat_session.created_at,
+                },
+            }
+
+        image_user_content = (
+            f"{user_content}\nOCR识别内容：\n{ocr_text[:2000]}"
+        )
+        image_prompt = f"""
+用户上传了一张图片，以下是 OCR 从图片中识别到的文字内容：
+
+【图片 OCR 内容开始】
+{ocr_text}
+【图片 OCR 内容结束】
+
+用户问题：
+{clean_message or "请根据图片中识别出的文字进行讲解。"}
+
+请基于图片中识别出的文字回答。
+如果图片文字中没有足够信息，请明确说明。
+如果图片内容像题目，请按“答案、思路、易错点”解释。
+如果图片内容像代码或报错，请按“问题原因、修改建议、示例代码、测试方法”解释。
+不要编造图片中没有的信息。
+"""
+
+        try:
+            response = client.chat.completions.create(
+                model="deepseek-chat",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": build_system_prompt(
+                            course=selected_course,
+                            user_profile=user_profile(user),
+                        ),
+                    },
+                    {"role": "user", "content": image_prompt},
+                ],
+            )
+            answer = response.choices[0].message.content
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail="后端处理图片失败，请稍后重试") from exc
+
+        save_chat_pair(db, user.id, chat_session.id, image_user_content, answer)
         return {
             "answer": answer,
             "session": {

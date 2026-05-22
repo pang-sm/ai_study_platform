@@ -57,6 +57,11 @@ jobs:
           git checkout main
           git reset --hard origin/main
 
+          if ! command -v tesseract >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y tesseract-ocr tesseract-ocr-chi-sim
+          fi
+
           if [ -x ".venv/bin/pip" ]; then
             .venv/bin/pip install -r backend/requirements.txt
           elif [ -x "venv/bin/pip" ]; then

@@ -16,6 +16,30 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
+## 图片 OCR 部署要求
+
+图片上传问答使用 Python 依赖 `pillow` 和 `pytesseract`，并依赖服务器系统中的 Tesseract OCR。
+
+Ubuntu 服务器需要安装：
+
+```bash
+sudo apt update
+sudo apt install -y tesseract-ocr tesseract-ocr-chi-sim
+```
+
+安装后可用以下命令验证：
+
+```bash
+tesseract --version
+tesseract --list-langs
+```
+
+图片和 PDF 上传仍需要 Nginx 允许 10MB 请求体：
+
+```nginx
+client_max_body_size 10M;
+```
+
 一个基于 FastAPI 的 AI 学习助手项目。
 
 ## 功能
