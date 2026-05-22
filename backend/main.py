@@ -147,6 +147,7 @@ def get_or_create_chat_session(
     user_id: int,
     conversation_id: int | None,
     title_source: str,
+    course: str | None = None,
 ):
     if conversation_id is not None:
         chat_session = (
@@ -170,7 +171,7 @@ def get_or_create_chat_session(
     chat_session = models.ChatSession(
         user_id=user_id,
         title=title,
-        course="文件问答",
+        course=course or "文件问答",
     )
     db.add(chat_session)
     db.commit()
@@ -221,6 +222,99 @@ def extract_pdf_text(file_bytes: bytes):
         return "\n\n".join(text_parts)[:MAX_PDF_CHARS]
     except Exception as exc:
         raise HTTPException(status_code=400, detail="PDF 无法解析，请换一个文件重试") from exc
+
+
+def build_system_prompt(course: str | None, user_profile: dict | None = None, is_pdf: bool = False):
+    normalized_course = (course or "").strip()
+    profile = user_profile or {}
+    grade = profile.get("grade") or "未填写"
+    major = profile.get("major") or "未填写"
+
+    course_roles = {
+        "Java": """
+课程身份：你是 Java 编程助教。
+回答重点：
+- 多解释 Java 语法、类、对象、封装、继承、多态、异常、集合等。
+- 代码示例优先使用 Java。
+- 遇到报错时，说明错误原因、修改位置、修改代码、测试方式。
+""",
+        "Python": """
+课程身份：你是 Python 学习助教。
+回答重点：
+- 代码示例优先使用 Python。
+- 多解释变量、函数、类、包、虚拟环境、依赖安装等。
+- 遇到代码问题时，给出可运行的小例子。
+""",
+        "数据结构": """
+课程身份：你是数据结构助教。
+回答重点：
+- 多解释解题思路、时间复杂度、空间复杂度和边界情况。
+- 必要时给伪代码，或给 Java/Python 示例。
+""",
+        "数据库": """
+课程身份：你是数据库课程助教。
+回答重点：
+- 多给 SQL 示例、表结构设计、查询思路和事务/索引解释。
+- 讲清楚表、字段、主键、外键、约束之间的关系。
+""",
+        "软件工程": """
+课程身份：你是软件工程助教。
+回答重点：
+- 多结合需求分析、UML、类图、用例、项目流程解释。
+- 遇到项目问题时，说明需求、设计、实现、测试之间的关系。
+""",
+    }
+
+    course_instruction = course_roles.get(
+        normalized_course,
+        f"""
+课程身份：你是通用 AI 学习助手。
+当前课程：{normalized_course or "未选择"}。
+回答时根据问题内容选择合适的讲解方式。
+""",
+    )
+
+    pdf_instruction = """
+PDF 问答要求：
+- 必须基于 PDF 内容回答。
+- 如果 PDF 内容中没有答案，要明确说明“PDF 内容中没有找到相关信息”，不要编造。
+- 如果用户要求总结 PDF，按以下结构输出：
+  1. 文档主题
+  2. 核心知识点
+  3. 重点概念
+  4. 复习建议
+  5. 可能考点
+""" if is_pdf else ""
+
+    return f"""
+你是一个面向大学生的 AI 学习助手，不是普通闲聊机器人。
+
+用户资料：
+- 年级：{grade}
+- 专业：{major}
+- 当前课程：{normalized_course or "未选择"}
+
+{course_instruction}
+
+通用回答原则：
+- 先给结论，再解释原因。
+- 用适合大学生理解的语言。
+- 遇到专业概念，先讲人话，再讲术语。
+- 遇到代码问题，说明应该改哪里、为什么改、如何测试。
+- 遇到学习问题，给清晰步骤。
+- 不确定时不要编造。
+- 回答尽量结构化，使用 Markdown 标题、列表、代码块。
+
+默认结构可以参考：
+1. 结论
+2. 解释
+3. 示例
+4. 易错点 / 建议
+
+不要机械套模板。如果用户只是简单问候，可以简短自然回复。
+
+{pdf_instruction}
+"""
 
 
 
@@ -521,33 +615,13 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
     db.add(user_message)
     db.commit()
 
-    course_prompt = get_course_prompt(req.course)
-
-    system_prompt = f"""
-你是一个 AI 学习助手。
-
-用户信息：
-- 年级：{req.grade}
-- 专业：{req.major}
-- 当前选择课程：{req.course}
-
-
-你的核心任务：
-根据用户的年级、专业和当前选择课程，提供适合他的学习解释。
-
-通用回答要求：
-1. 用适合该年级学生的方式讲解。
-2. 尽量结合用户专业举例。
-3. 回答要清晰、分步骤。
-4. 如果涉及代码，给出简单可运行示例。
-5. 不要一次讲太深，先讲核心概念。
-6. 如果用户明显是初学者，要先解释“它是什么、为什么需要它、怎么用”。
-7. 如果用户问的是报错或代码问题，优先帮他定位问题，再给修改方案。
-
-下面是当前课程的专属教学策略：
-
-{course_prompt}
-"""
+    system_prompt = build_system_prompt(
+        course=req.course,
+        user_profile={
+            "grade": req.grade,
+            "major": req.major,
+        },
+    )
 
     response = client.chat.completions.create(
         model="deepseek-chat",
@@ -586,6 +660,7 @@ async def upload_chat_file(
     file: UploadFile = File(...),
     message: str = Form(""),
     conversation_id: int | None = Form(None),
+    course: str = Form(""),
     username: str | None = Form(None),
     authorization: str | None = Header(None),
     db: Session = Depends(get_db),
@@ -609,6 +684,7 @@ async def upload_chat_file(
         raise HTTPException(status_code=400, detail="文件类型不支持")
 
     clean_message = message.strip()
+    selected_course = course.strip()
     file_name = file.filename or "未命名文件"
     user_content = f"上传文件：{file_name}"
     if clean_message:
@@ -619,6 +695,7 @@ async def upload_chat_file(
         user_id=user.id,
         conversation_id=conversation_id,
         title_source=clean_message or file_name or "文件问答",
+        course=selected_course or "文件问答",
     )
 
     if file.content_type.startswith("image/"):
@@ -665,7 +742,14 @@ async def upload_chat_file(
     response = client.chat.completions.create(
         model="deepseek-chat",
         messages=[
-            {"role": "system", "content": "你是一个严谨的 AI 学习助手，必须基于用户提供的文件内容回答。"},
+            {
+                "role": "system",
+                "content": build_system_prompt(
+                    course=selected_course,
+                    user_profile=user_profile(user),
+                    is_pdf=True,
+                ),
+            },
             {"role": "user", "content": prompt},
         ],
     )

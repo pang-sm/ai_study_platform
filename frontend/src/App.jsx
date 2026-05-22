@@ -513,6 +513,7 @@ function App() {
     const formData = new FormData();
     formData.append("file", currentFile);
     formData.append("message", currentMessage);
+    formData.append("course", course);
     formData.append("username", user.username);
     if (currentSessionId) {
       formData.append("conversation_id", String(currentSessionId));
