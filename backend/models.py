@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 
 from database import Base
 
@@ -26,6 +26,11 @@ class ChatMessage(Base):
     session_id = Column(Integer, ForeignKey("chat_sessions.id"), index=True, nullable=False)
     role = Column(String(20), nullable=False)
     content = Column(Text, nullable=False)
+    attachment_type = Column(String(20), nullable=True)
+    attachment_filename = Column(String(255), nullable=True)
+    attachment_path = Column(String(500), nullable=True)
+    extracted_text = Column(Text, nullable=True)
+    material_id = Column(Integer, ForeignKey("study_materials.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -51,4 +56,7 @@ class StudyMaterial(Base):
     file_path = Column(String(500), nullable=False)
     extracted_text = Column(Text, nullable=False)
     summary = Column(Text, nullable=False)
+    source_message_id = Column(Integer, ForeignKey("chat_messages.id"), nullable=True)
+    is_deleted = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+    deleted_at = Column(DateTime, nullable=True)

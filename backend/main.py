@@ -1,6 +1,7 @@
 import os
 import re
 import secrets
+from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 
@@ -102,6 +103,12 @@ class ProfileUpdateRequest(BaseModel):
     grade: str | None = None
     major: str | None = None
     avatar: str | None = None
+
+
+class AddMaterialFromMessageRequest(BaseModel):
+    username: str
+    message_id: int
+    subject: str
 
 
 def user_profile(user: models.User):
@@ -228,6 +235,7 @@ def build_material_context(username: str, subject: str, db: Session, limit: int 
         .filter(
             models.StudyMaterial.username == username,
             models.StudyMaterial.subject == subject,
+            models.StudyMaterial.is_deleted.is_(False),
         )
         .order_by(models.StudyMaterial.created_at.desc())
         .limit(limit)
@@ -263,7 +271,6 @@ def build_system_prompt(
         "Python": "你是 Python 学习助教，优先用 Python 示例解释变量、函数、类、模块和调试思路。",
         "数据结构": "你是数据结构助教，重点解释解题思路、复杂度、边界情况和结构设计。",
         "数据库": "你是数据库课程助教，重点给出 SQL 示例、表结构设计和索引/事务解释。",
-        "软件工程": "你是软件工程助教，重点结合需求分析、设计、实现和测试来回答。",
         "计算机网络": "你是计算机网络助教，重点解释分层、协议作用和真实通信流程。",
         "操作系统": "你是操作系统助教，重点解释进程、线程、调度、内存和文件系统。",
         "前端开发": "你是前端开发助教，重点结合 HTML、CSS、JavaScript 和 React 实践回答。",
@@ -372,47 +379,56 @@ def build_material_question_prompt(file_type: str, extracted_text: str, question
 """.strip()
 
 
-def build_chat_history_user_content(
-    subject: str,
-    original_filename: str,
-    file_type: str,
-    question: str,
-    extracted_text: str,
-    summary: str,
-):
-    label = "OCR识别文本" if file_type == "image" else "PDF提取文本"
-    content = [
-        f"上传资料：{original_filename}",
-        f"学科：{subject}",
-        f"文件类型：{file_type}",
-    ]
-
-    if question:
-        content.append(f"问题：{question}")
-
-    content.append(f"{label}：\n{extracted_text[:MAX_HISTORY_EXTRACT_CHARS]}")
-    content.append(f"资料摘要：{summary}")
-    return "\n".join(content)
+def serialize_session(chat_session: models.ChatSession):
+    session_subject = normalize_subject(chat_session.subject, chat_session.course)
+    return {
+        "id": chat_session.id,
+        "title": chat_session.title,
+        "course": chat_session.course or session_subject,
+        "subject": session_subject,
+        "created_at": chat_session.created_at,
+    }
 
 
-def save_chat_pair(db: Session, user_id: int, session_id: int, user_content: str, answer: str):
-    db.add(
-        models.ChatMessage(
-            user_id=user_id,
-            session_id=session_id,
-            role="user",
-            content=user_content,
-        )
-    )
-    db.add(
-        models.ChatMessage(
-            user_id=user_id,
-            session_id=session_id,
-            role="assistant",
-            content=answer,
-        )
-    )
-    db.commit()
+def serialize_message(message: models.ChatMessage):
+    return {
+        "id": message.id,
+        "role": message.role,
+        "content": message.content,
+        "attachment_type": message.attachment_type,
+        "attachment_filename": message.attachment_filename,
+        "attachment_path": message.attachment_path,
+        "extracted_text": message.extracted_text,
+        "material_id": message.material_id,
+        "created_at": message.created_at,
+    }
+
+
+def serialize_material_list_item(material: models.StudyMaterial):
+    return {
+        "id": material.id,
+        "subject": material.subject,
+        "file_type": material.file_type,
+        "original_filename": material.original_filename,
+        "summary": material.summary,
+        "created_at": material.created_at,
+        "source_message_id": material.source_message_id,
+    }
+
+
+def serialize_material_detail(material: models.StudyMaterial):
+    return {
+        "id": material.id,
+        "username": material.username,
+        "subject": material.subject,
+        "file_type": material.file_type,
+        "original_filename": material.original_filename,
+        "file_path": material.file_path,
+        "extracted_text": material.extracted_text,
+        "summary": material.summary,
+        "source_message_id": material.source_message_id,
+        "created_at": material.created_at,
+    }
 
 
 def get_or_create_chat_session(
@@ -459,15 +475,67 @@ def get_or_create_chat_session(
     return chat_session
 
 
-def serialize_session(chat_session: models.ChatSession):
-    session_subject = normalize_subject(chat_session.subject, chat_session.course)
-    return {
-        "id": chat_session.id,
-        "title": chat_session.title,
-        "course": chat_session.course or session_subject,
-        "subject": session_subject,
-        "created_at": chat_session.created_at,
-    }
+def create_material_from_message(
+    db: Session,
+    user: models.User,
+    message: models.ChatMessage,
+    subject: str,
+):
+    normalized_subject = normalize_subject(subject)
+    if normalized_subject == "通用学习":
+        raise HTTPException(status_code=400, detail="加入资料库时必须选择学科")
+
+    if not message.attachment_path or not (message.extracted_text or "").strip():
+        raise HTTPException(status_code=400, detail="该消息没有可加入资料库的附件内容")
+
+    existing_material = (
+        db.query(models.StudyMaterial)
+        .filter(
+            models.StudyMaterial.username == user.username,
+            models.StudyMaterial.source_message_id == message.id,
+            models.StudyMaterial.is_deleted.is_(False),
+        )
+        .first()
+    )
+    if existing_material:
+        if message.material_id != existing_material.id:
+            message.material_id = existing_material.id
+            db.commit()
+        return existing_material, False
+
+    summary = summarize_material(normalized_subject, message.extracted_text)
+    material = models.StudyMaterial(
+        username=user.username,
+        subject=normalized_subject,
+        file_type=message.attachment_type or "image",
+        original_filename=message.attachment_filename or "未命名附件",
+        file_path=message.attachment_path,
+        extracted_text=message.extracted_text or "",
+        summary=summary,
+        source_message_id=message.id,
+        is_deleted=False,
+    )
+    db.add(material)
+    db.commit()
+    db.refresh(material)
+
+    message.material_id = material.id
+    db.commit()
+    db.refresh(message)
+    return material, True
+
+
+def create_attachment_user_message_content(subject: str, original_filename: str, file_type: str, question: str, extracted_text: str):
+    label = "OCR识别文本" if file_type == "image" else "PDF提取文本"
+    content = [
+        f"上传资料：{original_filename}",
+        f"学科：{subject}",
+        f"文件类型：{file_type}",
+    ]
+    if question:
+        content.append(f"问题：{question}")
+    content.append(f"{label}：\n{extracted_text[:MAX_HISTORY_EXTRACT_CHARS]}")
+    return "\n".join(content)
 
 
 async def handle_material_upload(
@@ -477,11 +545,12 @@ async def handle_material_upload(
     file: UploadFile,
     question: str = "",
     conversation_id: int | None = None,
+    save_to_materials: bool = False,
 ):
     user = get_user_by_username(username, db)
     normalized_subject = normalize_subject(subject)
 
-    if not normalized_subject or normalized_subject == "通用学习":
+    if normalized_subject == "通用学习":
         raise HTTPException(status_code=400, detail="上传资料时必须选择学科")
 
     file_bytes = await file.read()
@@ -489,10 +558,7 @@ async def handle_material_upload(
 
     original_filename = file.filename or "未命名文件"
     file_type = ALLOWED_UPLOAD_TYPES[file.content_type]
-
-    extracted_text = (
-        extract_image_text(file_bytes) if file_type == "image" else extract_pdf_text(file_bytes)
-    )
+    extracted_text = extract_image_text(file_bytes) if file_type == "image" else extract_pdf_text(file_bytes)
 
     if not extracted_text.strip():
         if file_type == "pdf":
@@ -500,27 +566,14 @@ async def handle_material_upload(
         raise HTTPException(status_code=400, detail="未能从图片识别到文字，请上传更清晰的图片")
 
     stored_file_path = save_uploaded_file(user.username, original_filename, file_bytes)
-    summary = summarize_material(normalized_subject, extracted_text)
-
-    material = models.StudyMaterial(
-        username=user.username,
-        subject=normalized_subject,
-        file_type=file_type,
-        original_filename=original_filename,
-        file_path=stored_file_path,
-        extracted_text=extracted_text,
-        summary=summary,
-    )
-    db.add(material)
-    db.commit()
-    db.refresh(material)
-
-    answer = None
-    chat_session = None
     clean_question = (question or "").strip()
 
-    if clean_question:
-        material_context = build_material_context(user.username, normalized_subject, db)
+    chat_session = None
+    user_message = None
+    answer = None
+    created_material = None
+
+    if conversation_id is not None or clean_question:
         chat_session = get_or_create_chat_session(
             db=db,
             user_id=user.id,
@@ -529,48 +582,102 @@ async def handle_material_upload(
             subject=normalized_subject,
         )
 
-        answer = call_deepseek(
-            [
-                {
-                    "role": "system",
-                    "content": build_system_prompt(
-                        normalized_subject,
-                        user_profile(user),
-                        is_pdf=file_type == "pdf",
-                        material_summaries=material_context,
-                    ),
-                },
-                {
-                    "role": "user",
-                    "content": build_material_question_prompt(file_type, extracted_text, clean_question),
-                },
-            ]
-        )
-
-        user_content = build_chat_history_user_content(
-            subject=normalized_subject,
-            original_filename=original_filename,
-            file_type=file_type,
-            question=clean_question,
+        user_message = models.ChatMessage(
+            user_id=user.id,
+            session_id=chat_session.id,
+            role="user",
+            content=create_attachment_user_message_content(
+                subject=normalized_subject,
+                original_filename=original_filename,
+                file_type=file_type,
+                question=clean_question,
+                extracted_text=extracted_text,
+            ),
+            attachment_type=file_type,
+            attachment_filename=original_filename,
+            attachment_path=stored_file_path,
             extracted_text=extracted_text,
-            summary=summary,
         )
-        save_chat_pair(db, user.id, chat_session.id, user_content, answer)
+        db.add(user_message)
+        db.commit()
+        db.refresh(user_message)
+
+        if clean_question:
+            material_context = build_material_context(user.username, normalized_subject, db)
+            answer = call_deepseek(
+                [
+                    {
+                        "role": "system",
+                        "content": build_system_prompt(
+                            normalized_subject,
+                            user_profile(user),
+                            is_pdf=file_type == "pdf",
+                            material_summaries=material_context,
+                        ),
+                    },
+                    {
+                        "role": "user",
+                        "content": build_material_question_prompt(file_type, extracted_text, clean_question),
+                    },
+                ]
+            )
+
+            db.add(
+                models.ChatMessage(
+                    user_id=user.id,
+                    session_id=chat_session.id,
+                    role="assistant",
+                    content=answer,
+                )
+            )
+            db.commit()
+
+    if save_to_materials:
+        target_message = user_message
+        if target_message is None:
+            temp_session = get_or_create_chat_session(
+                db=db,
+                user_id=user.id,
+                conversation_id=None,
+                title_source=original_filename,
+                subject=normalized_subject,
+            )
+            target_message = models.ChatMessage(
+                user_id=user.id,
+                session_id=temp_session.id,
+                role="user",
+                content=create_attachment_user_message_content(
+                    subject=normalized_subject,
+                    original_filename=original_filename,
+                    file_type=file_type,
+                    question=clean_question,
+                    extracted_text=extracted_text,
+                ),
+                attachment_type=file_type,
+                attachment_filename=original_filename,
+                attachment_path=stored_file_path,
+                extracted_text=extracted_text,
+            )
+            db.add(target_message)
+            db.commit()
+            db.refresh(target_message)
+            if chat_session is None:
+                chat_session = temp_session
+
+        created_material, _ = create_material_from_message(
+            db=db,
+            user=user,
+            message=target_message,
+            subject=normalized_subject,
+        )
+        user_message = target_message
 
     return {
-        "material": {
-            "id": material.id,
-            "subject": material.subject,
-            "file_type": material.file_type,
-            "original_filename": material.original_filename,
-            "file_path": material.file_path,
-            "summary": material.summary,
-            "created_at": material.created_at,
-            "extracted_text_preview": material.extracted_text[:2000],
-            "extracted_text": material.extracted_text,
-        },
+        "material": serialize_material_detail(created_material) if created_material else None,
         "answer": answer,
         "session": serialize_session(chat_session) if chat_session else None,
+        "message": serialize_message(user_message) if user_message else None,
+        "extracted_text_preview": extracted_text[:2000],
     }
 
 
@@ -768,6 +875,7 @@ async def upload_chat_file(
     course: str = Form(""),
     subject: str = Form(""),
     username: str | None = Form(None),
+    save_to_materials: bool = Form(False),
     authorization: str | None = Header(None),
     db: Session = Depends(get_db),
 ):
@@ -782,6 +890,7 @@ async def upload_chat_file(
         file=file,
         question=message,
         conversation_id=conversation_id,
+        save_to_materials=save_to_materials,
     )
 
 
@@ -792,6 +901,7 @@ async def upload_material(
     subject: str = Form(...),
     question: str = Form(""),
     conversation_id: int | None = Form(None),
+    save_to_materials: bool = Form(False),
     authorization: str | None = Header(None),
     db: Session = Depends(get_db),
 ):
@@ -806,13 +916,46 @@ async def upload_material(
         file=file,
         question=question,
         conversation_id=conversation_id,
+        save_to_materials=save_to_materials,
     )
+
+
+@app.post("/materials/add-from-message")
+def add_material_from_message(req: AddMaterialFromMessageRequest, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+    message = (
+        db.query(models.ChatMessage)
+        .filter(
+            models.ChatMessage.id == req.message_id,
+            models.ChatMessage.user_id == user.id,
+        )
+        .first()
+    )
+    if not message:
+        raise HTTPException(status_code=404, detail="聊天消息不存在")
+
+    material, created = create_material_from_message(
+        db=db,
+        user=user,
+        message=message,
+        subject=req.subject,
+    )
+
+    return {
+        "message": "加入资料库成功" if created else "该附件已在资料库中",
+        "material_id": material.id,
+        "material": serialize_material_list_item(material),
+        "created": created,
+    }
 
 
 @app.get("/materials")
 def get_materials(username: str, subject: str | None = None, db: Session = Depends(get_db)):
     user = get_user_by_username(username, db)
-    query = db.query(models.StudyMaterial).filter(models.StudyMaterial.username == user.username)
+    query = db.query(models.StudyMaterial).filter(
+        models.StudyMaterial.username == user.username,
+        models.StudyMaterial.is_deleted.is_(False),
+    )
 
     normalized_subject = (subject or "").strip()
     if normalized_subject:
@@ -820,19 +963,7 @@ def get_materials(username: str, subject: str | None = None, db: Session = Depen
 
     materials = query.order_by(models.StudyMaterial.created_at.desc()).all()
 
-    return {
-        "materials": [
-            {
-                "id": material.id,
-                "subject": material.subject,
-                "file_type": material.file_type,
-                "original_filename": material.original_filename,
-                "summary": material.summary,
-                "created_at": material.created_at,
-            }
-            for material in materials
-        ]
-    }
+    return {"materials": [serialize_material_list_item(material) for material in materials]}
 
 
 @app.get("/materials/{material_id}")
@@ -843,6 +974,7 @@ def get_material_detail(material_id: int, username: str, db: Session = Depends(g
         .filter(
             models.StudyMaterial.id == material_id,
             models.StudyMaterial.username == user.username,
+            models.StudyMaterial.is_deleted.is_(False),
         )
         .first()
     )
@@ -850,18 +982,32 @@ def get_material_detail(material_id: int, username: str, db: Session = Depends(g
     if not material:
         raise HTTPException(status_code=404, detail="资料不存在")
 
+    return {"material": serialize_material_detail(material)}
+
+
+@app.delete("/materials/{material_id}")
+def delete_material(material_id: int, username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    material = (
+        db.query(models.StudyMaterial)
+        .filter(
+            models.StudyMaterial.id == material_id,
+            models.StudyMaterial.username == user.username,
+            models.StudyMaterial.is_deleted.is_(False),
+        )
+        .first()
+    )
+
+    if not material:
+        raise HTTPException(status_code=404, detail="资料不存在")
+
+    material.is_deleted = True
+    material.deleted_at = datetime.utcnow()
+    db.commit()
+
     return {
-        "material": {
-            "id": material.id,
-            "username": material.username,
-            "subject": material.subject,
-            "file_type": material.file_type,
-            "original_filename": material.original_filename,
-            "file_path": material.file_path,
-            "extracted_text": material.extracted_text,
-            "summary": material.summary,
-            "created_at": material.created_at,
-        }
+        "message": "资料已删除",
+        "material_id": material.id,
     }
 
 
@@ -908,14 +1054,7 @@ def get_chat_session_messages(session_id: int, username: str, db: Session = Depe
 
     return {
         "session": serialize_session(chat_session),
-        "messages": [
-            {
-                "role": msg.role,
-                "content": msg.content,
-                "created_at": msg.created_at,
-            }
-            for msg in messages
-        ],
+        "messages": [serialize_message(msg) for msg in messages],
     }
 
 

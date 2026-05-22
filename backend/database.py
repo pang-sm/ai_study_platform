@@ -25,6 +25,20 @@ CHAT_SESSION_COLUMNS = {
     "subject": "VARCHAR(100)",
 }
 
+CHAT_MESSAGE_COLUMNS = {
+    "attachment_type": "VARCHAR(20)",
+    "attachment_filename": "VARCHAR(255)",
+    "attachment_path": "VARCHAR(500)",
+    "extracted_text": "TEXT",
+    "material_id": "INTEGER",
+}
+
+STUDY_MATERIAL_COLUMNS = {
+    "source_message_id": "INTEGER",
+    "is_deleted": "BOOLEAN NOT NULL DEFAULT 0",
+    "deleted_at": "DATETIME",
+}
+
 
 def get_db():
     db = SessionLocal()
@@ -54,6 +68,8 @@ def init_user_profile_schema():
     with engine.begin() as conn:
         ensure_columns(conn, "users", PROFILE_COLUMNS)
         ensure_columns(conn, "chat_sessions", CHAT_SESSION_COLUMNS)
+        ensure_columns(conn, "chat_messages", CHAT_MESSAGE_COLUMNS)
+        ensure_columns(conn, "study_materials", STUDY_MATERIAL_COLUMNS)
 
         chat_session_columns = get_existing_columns(conn, "chat_sessions")
         if "subject" in chat_session_columns and "course" in chat_session_columns:
@@ -63,6 +79,18 @@ def init_user_profile_schema():
                     UPDATE chat_sessions
                     SET subject = COALESCE(NULLIF(subject, ''), course)
                     WHERE course IS NOT NULL AND TRIM(course) != ''
+                    """
+                )
+            )
+
+        study_material_columns = get_existing_columns(conn, "study_materials")
+        if "is_deleted" in study_material_columns:
+            conn.execute(
+                text(
+                    """
+                    UPDATE study_materials
+                    SET is_deleted = 0
+                    WHERE is_deleted IS NULL
                     """
                 )
             )

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 
 const USER_STORAGE_KEY = "ai_study_platform_user";
@@ -28,7 +28,6 @@ const SUBJECT_OPTIONS = [
 
 const EMPTY_UPLOAD_RESULT = {
   extracted_text: "",
-  summary: "",
   answer: "",
   original_filename: "",
   subject: "",
@@ -85,11 +84,19 @@ function App() {
   const [tip, setTip] = useState("");
   const [loading, setLoading] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
+
   const [materialsLoading, setMaterialsLoading] = useState(false);
   const [materials, setMaterials] = useState([]);
+  const [materialSubjectFilter, setMaterialSubjectFilter] = useState("");
   const [selectedMaterialId, setSelectedMaterialId] = useState(null);
   const [selectedMaterialDetail, setSelectedMaterialDetail] = useState(null);
+
   const [uploadResult, setUploadResult] = useState(EMPTY_UPLOAD_RESULT);
+  const [addToLibraryState, setAddToLibraryState] = useState({
+    messageId: null,
+    subject: "Python",
+    loading: false,
+  });
 
   const saveLoginUser = (loginUser) => {
     const normalizedUser = {
@@ -163,15 +170,12 @@ function App() {
     }
   };
 
-  const loadMaterials = async (targetSubject = subject) => {
+  const loadMaterials = async (targetSubject = materialSubjectFilter) => {
     if (!user?.username) return;
 
     setMaterialsLoading(true);
     try {
-      const query = new URLSearchParams({
-        username: user.username,
-      });
-
+      const query = new URLSearchParams({ username: user.username });
       if (targetSubject) {
         query.set("subject", targetSubject);
       }
@@ -212,6 +216,38 @@ function App() {
     } catch (error) {
       console.error("加载资料详情失败:", error);
       setTip("无法加载资料详情，请稍后重试");
+    }
+  };
+
+  const deleteMaterial = async (materialId) => {
+    if (!user?.username) return;
+
+    const confirmed = window.confirm("确定要删除这条学习资料吗？");
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch(
+        `${API_BASE}/materials/${materialId}?username=${encodeURIComponent(user.username)}`,
+        { method: "DELETE" }
+      );
+      const data = await res.json();
+
+      if (!res.ok) {
+        setTip(data.detail || "删除资料失败");
+        return;
+      }
+
+      setMaterials((prev) => prev.filter((item) => item.id !== materialId));
+      if (selectedMaterialId === materialId) {
+        setSelectedMaterialId(null);
+        setSelectedMaterialDetail(null);
+      }
+      setMessages((prev) =>
+        prev.map((msg) => (msg.material_id === materialId ? { ...msg, material_id: null } : msg))
+      );
+    } catch (error) {
+      console.error("删除资料失败:", error);
+      setTip("无法删除资料，请稍后重试");
     }
   };
 
@@ -326,14 +362,9 @@ function App() {
   useEffect(() => {
     if (user?.username) {
       loadChatHistory(user);
+      loadMaterials(materialSubjectFilter);
     }
   }, [user?.username]);
-
-  useEffect(() => {
-    if (user?.username) {
-      loadMaterials(subject);
-    }
-  }, [user?.username, subject]);
 
   useEffect(() => {
     const restoreActiveSession = async () => {
@@ -594,9 +625,6 @@ function App() {
 
       setMessages((prev) => [...prev, { role: "assistant", content: data.answer }]);
       refreshChatSessionState(data.session);
-      if (data.session?.subject) {
-        setActiveSessionSubject(data.session.subject);
-      }
       await loadChatHistory(user);
     } catch (error) {
       console.error("发送消息失败:", error);
@@ -615,20 +643,12 @@ function App() {
     setLoading(true);
     setUploadResult(EMPTY_UPLOAD_RESULT);
 
-    if (effectiveQuestion) {
-      const previewMessage = [
-        `上传资料：${selectedFile.name}`,
-        `学科：${uploadSubject}`,
-        `问题：${effectiveQuestion}`,
-      ].join("\n");
-      setMessages((prev) => [...prev, { role: "user", content: previewMessage }]);
-    }
-
     const formData = new FormData();
     formData.append("file", selectedFile);
     formData.append("username", user.username);
     formData.append("subject", uploadSubject);
     formData.append("question", effectiveQuestion);
+    formData.append("save_to_materials", "false");
     if (currentSessionId) {
       formData.append("conversation_id", String(currentSessionId));
     }
@@ -665,25 +685,24 @@ function App() {
       }
 
       setUploadResult({
-        extracted_text: data.material?.extracted_text || data.material?.extracted_text_preview || "",
-        summary: data.material?.summary || "",
+        extracted_text:
+          data.message?.extracted_text || data.extracted_text_preview || "",
         answer: data.answer || "",
-        original_filename: data.material?.original_filename || selectedFile.name,
-        subject: data.material?.subject || uploadSubject,
-        file_type: data.material?.file_type || "",
+        original_filename:
+          data.message?.attachment_filename || selectedFile.name,
+        subject: uploadSubject,
+        file_type: data.message?.attachment_type || "",
       });
+
+      if (data.message) {
+        setMessages((prev) => [...prev, data.message]);
+      }
 
       if (data.answer) {
         setMessages((prev) => [...prev, { role: "assistant", content: data.answer }]);
       }
 
-      if (data.material?.id) {
-        setSelectedMaterialId(data.material.id);
-        await loadMaterialDetail(data.material.id);
-      }
-
       refreshChatSessionState(data.session);
-      await loadMaterials(uploadSubject);
       await loadChatHistory(user);
 
       setSelectedFile(null);
@@ -702,6 +721,54 @@ function App() {
     }
   };
 
+  const addMessageToLibrary = async (messageItem, selectedSubject) => {
+    if (!user?.username || !messageItem?.id) return;
+
+    setAddToLibraryState((prev) => ({
+      ...prev,
+      messageId: messageItem.id,
+      subject: selectedSubject,
+      loading: true,
+    }));
+
+    try {
+      const res = await fetch(`${API_BASE}/materials/add-from-message`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: user.username,
+          message_id: messageItem.id,
+          subject: selectedSubject,
+        }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setTip(data.detail || "加入资料库失败");
+        return;
+      }
+
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === messageItem.id ? { ...msg, material_id: data.material_id } : msg
+        )
+      );
+
+      if (!materialSubjectFilter || materialSubjectFilter === selectedSubject) {
+        await loadMaterials(materialSubjectFilter);
+      }
+    } catch (error) {
+      console.error("加入资料库失败:", error);
+      setTip("无法加入资料库，请稍后重试");
+    } finally {
+      setAddToLibraryState((prev) => ({
+        ...prev,
+        messageId: null,
+        loading: false,
+      }));
+    }
+  };
+
   const startNewConversation = () => {
     setMessages([]);
     setActiveSessionId(null);
@@ -709,6 +776,13 @@ function App() {
     setUploadResult(EMPTY_UPLOAD_RESULT);
     localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
   };
+
+  const groupedMaterials = useMemo(() => {
+    return SUBJECT_OPTIONS.map((item) => ({
+      subject: item,
+      items: materials.filter((material) => material.subject === item),
+    })).filter((group) => group.items.length > 0 || !materialSubjectFilter || materialSubjectFilter === group.subject);
+  }, [materials, materialSubjectFilter]);
 
   const selectedAvatar =
     AVATARS.find((avatar) => avatar.id === profileForm.avatar) || AVATARS[0];
@@ -719,7 +793,7 @@ function App() {
         <div className="auth-card">
           <div className="auth-badge">AI Study Platform</div>
           <h1>你的 AI 学习平台</h1>
-          <p className="auth-subtitle">登录后进入按学科组织的学习资料库和历史对话。</p>
+          <p className="auth-subtitle">登录后进入个人主页、学习资料库和历史对话。</p>
 
           <div className="tab-row">
             <button
@@ -775,8 +849,8 @@ function App() {
 
   if (page === "profile") {
     return (
-      <div className="profile-shell">
-        <div className="profile-card">
+      <div className="profile-shell profile-shell--wide">
+        <div className="profile-card profile-card--wide">
           <div className="profile-header">
             <div className="profile-avatar" style={{ background: selectedAvatar.background }}>
               {selectedAvatar.label}
@@ -788,59 +862,165 @@ function App() {
             </div>
           </div>
 
-          <div className="avatar-grid">
-            {AVATARS.map((avatar) => (
-              <button
-                key={avatar.id}
-                className={profileForm.avatar === avatar.id ? "avatar-chip active" : "avatar-chip"}
-                style={{ background: avatar.background }}
-                onClick={() => setProfileForm((prev) => ({ ...prev, avatar: avatar.id }))}
-                title={avatar.id}
-              >
-                {avatar.label}
-              </button>
-            ))}
-          </div>
+          <div className="profile-grid">
+            <section className="profile-settings">
+              <div className="avatar-grid">
+                {AVATARS.map((avatar) => (
+                  <button
+                    key={avatar.id}
+                    className={profileForm.avatar === avatar.id ? "avatar-chip active" : "avatar-chip"}
+                    style={{ background: avatar.background }}
+                    onClick={() => setProfileForm((prev) => ({ ...prev, avatar: avatar.id }))}
+                    title={avatar.id}
+                  >
+                    {avatar.label}
+                  </button>
+                ))}
+              </div>
 
-          <label className="field-label">账号</label>
-          <input className="field" value={user.username} disabled />
+              <label className="field-label">账号</label>
+              <input className="field" value={user.username} disabled />
 
-          <label className="field-label">昵称</label>
-          <input
-            className="field"
-            placeholder="例如：小明"
-            value={profileForm.nickname}
-            onChange={(e) => setProfileForm((prev) => ({ ...prev, nickname: e.target.value }))}
-          />
+              <label className="field-label">昵称</label>
+              <input
+                className="field"
+                placeholder="例如：小明"
+                value={profileForm.nickname}
+                onChange={(e) => setProfileForm((prev) => ({ ...prev, nickname: e.target.value }))}
+              />
 
-          <label className="field-label">年级</label>
-          <input
-            className="field"
-            placeholder="例如：大二"
-            value={profileForm.grade}
-            onChange={(e) => setProfileForm((prev) => ({ ...prev, grade: e.target.value }))}
-          />
+              <label className="field-label">年级</label>
+              <input
+                className="field"
+                placeholder="例如：大二"
+                value={profileForm.grade}
+                onChange={(e) => setProfileForm((prev) => ({ ...prev, grade: e.target.value }))}
+              />
 
-          <label className="field-label">专业</label>
-          <input
-            className="field"
-            placeholder="例如：软件工程"
-            value={profileForm.major}
-            onChange={(e) => setProfileForm((prev) => ({ ...prev, major: e.target.value }))}
-          />
+              <label className="field-label">专业</label>
+              <input
+                className="field"
+                placeholder="例如：软件工程"
+                value={profileForm.major}
+                onChange={(e) => setProfileForm((prev) => ({ ...prev, major: e.target.value }))}
+              />
 
-          {tip && <p className="tip-text">{tip}</p>}
+              {tip && <p className="tip-text">{tip}</p>}
 
-          <div className="stack-actions">
-            <button className="primary-button" onClick={saveProfile} disabled={profileSaving}>
-              {profileSaving ? "保存中..." : "保存个人信息"}
-            </button>
-            <button className="dark-button" onClick={() => setPage("chat")}>
-              进入聊天
-            </button>
-            <button className="ghost-button" onClick={logout}>
-              退出登录
-            </button>
+              <div className="stack-actions">
+                <button className="primary-button" onClick={saveProfile} disabled={profileSaving}>
+                  {profileSaving ? "保存中..." : "保存个人信息"}
+                </button>
+                <button className="dark-button" onClick={() => setPage("chat")}>
+                  进入聊天
+                </button>
+                <button className="ghost-button" onClick={logout}>
+                  退出登录
+                </button>
+              </div>
+            </section>
+
+            <section className="profile-library">
+              <div className="panel-title-row">
+                <div>
+                  <div className="section-eyebrow">Library</div>
+                  <h2>我的学习资料库</h2>
+                </div>
+                <button
+                  className="ghost-button compact"
+                  onClick={() => loadMaterials(materialSubjectFilter)}
+                >
+                  刷新
+                </button>
+              </div>
+
+              <div className="library-filter-row">
+                <label className="field-label">按学科筛选</label>
+                <select
+                  className="field"
+                  value={materialSubjectFilter}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setMaterialSubjectFilter(next);
+                    loadMaterials(next);
+                  }}
+                >
+                  <option value="">全部学科</option>
+                  {SUBJECT_OPTIONS.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {materialsLoading ? (
+                <div className="empty-inline">资料加载中...</div>
+              ) : groupedMaterials.length === 0 || groupedMaterials.every((group) => group.items.length === 0) ? (
+                <div className="empty-inline">还没有学习资料。你可以先去聊天页上传图片或 PDF。</div>
+              ) : (
+                <div className="library-groups">
+                  {groupedMaterials.map((group) => (
+                    <div key={group.subject} className="library-group">
+                      <div className="library-group-title">{group.subject}</div>
+                      <div className="material-list material-list--profile">
+                        {group.items.map((material) => (
+                          <div key={material.id} className="material-item material-item--profile">
+                            <div className="material-item-head">
+                              <span className="subject-pill small">{material.subject}</span>
+                              <span className="muted-text">{material.file_type}</span>
+                            </div>
+                            <div className="material-title">{material.original_filename}</div>
+                            <div className="material-summary">{material.summary}</div>
+                            <div className="history-meta">{formatDate(material.created_at)}</div>
+                            <div className="material-actions">
+                              <button
+                                className="tiny-button"
+                                onClick={() => loadMaterialDetail(material.id)}
+                              >
+                                查看
+                              </button>
+                              <button
+                                className="tiny-button danger"
+                                onClick={() => deleteMaterial(material.id)}
+                              >
+                                删除
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="material-detail-card material-detail-card--profile">
+                <div className="panel-title-row">
+                  <h3>资料详情</h3>
+                </div>
+                {!selectedMaterialDetail ? (
+                  <div className="empty-inline">点击资料卡片的“查看”按钮查看完整提取文本和摘要</div>
+                ) : (
+                  <>
+                    <div className="detail-meta">
+                      <div>文件：{selectedMaterialDetail.original_filename}</div>
+                      <div>学科：{selectedMaterialDetail.subject}</div>
+                      <div>类型：{selectedMaterialDetail.file_type}</div>
+                      <div>上传时间：{formatDate(selectedMaterialDetail.created_at)}</div>
+                    </div>
+                    <div className="result-block">
+                      <strong>摘要</strong>
+                      <p>{selectedMaterialDetail.summary}</p>
+                    </div>
+                    <div className="result-block">
+                      <strong>完整提取文本</strong>
+                      <pre>{selectedMaterialDetail.extracted_text}</pre>
+                    </div>
+                  </>
+                )}
+              </div>
+            </section>
           </div>
         </div>
       </div>
@@ -935,8 +1115,8 @@ function App() {
         </aside>
       )}
 
-      <main className="workspace-main">
-        <section className="chat-panel">
+      <main className="workspace-main workspace-main--chat-only">
+        <section className="chat-panel chat-panel--wide">
           <div className="panel-header">
             <div>
               <div className="section-eyebrow">Conversation</div>
@@ -947,56 +1127,10 @@ function App() {
             </div>
           </div>
 
-          <div className="messages-board">
-            {messages.length === 0 && (
-              <div className="empty-state">
-                选择学科后开始提问，或者直接上传图片/PDF 进入本学科资料问答。
-              </div>
-            )}
-
-            {messages.map((msg, index) => (
-              <div key={index} className={msg.role === "user" ? "message-card user" : "message-card assistant"}>
-                <div className="message-role">{msg.role === "user" ? "你" : "AI"}</div>
-                <div className="message-text">{msg.content}</div>
-              </div>
-            ))}
-
-            {loading && <div className="message-card assistant">AI 正在思考...</div>}
-          </div>
-
-          <div className="composer-panel">
-            <div className="composer-row">
-              <input
-                className="field"
-                placeholder="输入你的问题..."
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage();
-                  }
-                }}
-              />
-              <button className="primary-button compact" onClick={sendMessage} disabled={loading}>
-                发送
-              </button>
-            </div>
-          </div>
-        </section>
-
-        <section className="materials-panel">
-          <div className="panel-header">
-            <div>
-              <div className="section-eyebrow">Materials</div>
-              <h2>个人学习资料库</h2>
-            </div>
-          </div>
-
-          <div className="material-upload-card">
+          <div className="chat-upload-card">
             <div className="panel-title-row">
-              <h3>上传资料</h3>
-              <span className="muted-text">支持 png、jpg、jpeg、webp、pdf，最大 10MB</span>
+              <h3>图片 / PDF 问答</h3>
+              <span className="muted-text">上传后会保留在聊天和历史记录中</span>
             </div>
 
             <label className="field-label">学科</label>
@@ -1037,10 +1171,90 @@ function App() {
             </div>
           </div>
 
-          {(uploadResult.summary || uploadResult.extracted_text || uploadResult.answer) && (
+          <div className="messages-board">
+            {messages.length === 0 && (
+              <div className="empty-state">
+                选择学科后开始提问，或者上传图片/PDF 进行问答。附件不会自动进资料库，可在消息里手动加入。
+              </div>
+            )}
+
+            {messages.map((msg, index) => (
+              <div key={msg.id || index} className={msg.role === "user" ? "message-card user" : "message-card assistant"}>
+                <div className="message-role">{msg.role === "user" ? "你" : "AI"}</div>
+                <div className="message-text">{msg.content}</div>
+
+                {msg.attachment_type && (
+                  <div className="attachment-card">
+                    <div className="attachment-meta">
+                      <span className="subject-pill small">{msg.attachment_type}</span>
+                      <span>{msg.attachment_filename || "未命名附件"}</span>
+                    </div>
+                    {msg.extracted_text && (
+                      <div className="attachment-preview">
+                        {msg.extracted_text.slice(0, 240)}
+                        {msg.extracted_text.length > 240 ? "..." : ""}
+                      </div>
+                    )}
+
+                    {msg.material_id ? (
+                      <button className="ghost-button compact" disabled>
+                        已加入资料库
+                      </button>
+                    ) : (
+                      <div className="attachment-actions">
+                        <select
+                          className="field attachment-subject-select"
+                          value={
+                            addToLibraryState.messageId === msg.id
+                              ? addToLibraryState.subject
+                              : activeSessionSubject || subject
+                          }
+                          onChange={(e) =>
+                            setAddToLibraryState((prev) => ({
+                              ...prev,
+                              messageId: msg.id,
+                              subject: e.target.value,
+                            }))
+                          }
+                        >
+                          {SUBJECT_OPTIONS.map((item) => (
+                            <option key={item} value={item}>
+                              {item}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          className="tiny-button"
+                          onClick={() =>
+                            addMessageToLibrary(
+                              msg,
+                              addToLibraryState.messageId === msg.id
+                                ? addToLibraryState.subject
+                                : activeSessionSubject || subject
+                            )
+                          }
+                          disabled={
+                            addToLibraryState.loading && addToLibraryState.messageId === msg.id
+                          }
+                        >
+                          {addToLibraryState.loading && addToLibraryState.messageId === msg.id
+                            ? "加入中..."
+                            : "加入资料库"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {loading && <div className="message-card assistant">AI 正在思考...</div>}
+          </div>
+
+          {(uploadResult.extracted_text || uploadResult.answer) && (
             <div className="result-card">
               <div className="panel-title-row">
-                <h3>上传结果</h3>
+                <h3>最近上传结果</h3>
                 <span className="muted-text">
                   {uploadResult.original_filename} · {uploadResult.subject}
                 </span>
@@ -1048,10 +1262,6 @@ function App() {
               <div className="result-block">
                 <strong>提取文本预览</strong>
                 <pre>{uploadResult.extracted_text || "暂无提取文本"}</pre>
-              </div>
-              <div className="result-block">
-                <strong>摘要</strong>
-                <p>{uploadResult.summary || "暂无摘要"}</p>
               </div>
               {uploadResult.answer && (
                 <div className="result-block">
@@ -1062,62 +1272,24 @@ function App() {
             </div>
           )}
 
-          <div className="material-library-card">
-            <div className="panel-title-row">
-              <h3>{subject} 资料列表</h3>
-              <button className="ghost-button compact" onClick={() => loadMaterials(subject)}>
-                刷新
+          <div className="composer-panel">
+            <div className="composer-row">
+              <input
+                className="field"
+                placeholder="输入你的问题..."
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                  }
+                }}
+              />
+              <button className="primary-button compact" onClick={sendMessage} disabled={loading}>
+                发送
               </button>
             </div>
-
-            {materialsLoading ? (
-              <div className="empty-inline">资料加载中...</div>
-            ) : materials.length === 0 ? (
-              <div className="empty-inline">当前学科下还没有资料</div>
-            ) : (
-              <div className="material-list">
-                {materials.map((material) => (
-                  <button
-                    key={material.id}
-                    className={selectedMaterialId === material.id ? "material-item active" : "material-item"}
-                    onClick={() => loadMaterialDetail(material.id)}
-                  >
-                    <div className="material-item-head">
-                      <span className="subject-pill small">{material.subject}</span>
-                      <span className="muted-text">{material.file_type}</span>
-                    </div>
-                    <div className="material-title">{material.original_filename}</div>
-                    <div className="material-summary">{material.summary}</div>
-                    <div className="history-meta">{formatDate(material.created_at)}</div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="material-detail-card">
-            <div className="panel-title-row">
-              <h3>资料详情</h3>
-            </div>
-            {!selectedMaterialDetail ? (
-              <div className="empty-inline">点击左侧资料查看完整提取文本和摘要</div>
-            ) : (
-              <>
-                <div className="detail-meta">
-                  <div>文件：{selectedMaterialDetail.original_filename}</div>
-                  <div>学科：{selectedMaterialDetail.subject}</div>
-                  <div>类型：{selectedMaterialDetail.file_type}</div>
-                </div>
-                <div className="result-block">
-                  <strong>摘要</strong>
-                  <p>{selectedMaterialDetail.summary}</p>
-                </div>
-                <div className="result-block">
-                  <strong>完整提取文本</strong>
-                  <pre>{selectedMaterialDetail.extracted_text}</pre>
-                </div>
-              </>
-            )}
           </div>
 
           {tip && <p className="tip-text">{tip}</p>}
