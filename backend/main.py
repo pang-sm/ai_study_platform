@@ -739,21 +739,24 @@ async def upload_chat_file(
 请基于 PDF 内容回答。如果 PDF 内容中没有答案，请明确说明，不要编造。
 """
 
-    response = client.chat.completions.create(
-        model="deepseek-chat",
-        messages=[
-            {
-                "role": "system",
-                "content": build_system_prompt(
-                    course=selected_course,
-                    user_profile=user_profile(user),
-                    is_pdf=True,
-                ),
-            },
-            {"role": "user", "content": prompt},
-        ],
-    )
-    answer = response.choices[0].message.content
+    try:
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[
+                {
+                    "role": "system",
+                    "content": build_system_prompt(
+                        course=selected_course,
+                        user_profile=user_profile(user),
+                        is_pdf=True,
+                    ),
+                },
+                {"role": "user", "content": prompt},
+            ],
+        )
+        answer = response.choices[0].message.content
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="后端处理文件失败，请稍后重试") from exc
 
     save_chat_pair(db, user.id, chat_session.id, user_content, answer)
 

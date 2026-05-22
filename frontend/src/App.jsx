@@ -412,6 +412,34 @@ function App() {
     setSelectedFile(file);
   };
 
+  const getUploadErrorMessage = (status, data) => {
+    if (status === 400) {
+      return data.detail || "上传文件不符合要求，请检查文件类型和大小";
+    }
+
+    if (status === 401) {
+      return "登录状态失效，请重新登录";
+    }
+
+    if (status === 413) {
+      return "文件太大，请上传 10MB 以内的文件";
+    }
+
+    if (status === 422) {
+      return "上传参数错误，请重新选择文件后再试";
+    }
+
+    if (status === 500) {
+      return "后端处理文件失败，请稍后重试";
+    }
+
+    if (status === 502) {
+      return "服务器网关错误，后端服务可能未启动";
+    }
+
+    return data.detail || `上传失败，HTTP 状态码：${status}`;
+  };
+
   const sendMessage = async () => {
     if (!message.trim() && !selectedFile) return;
 
@@ -498,6 +526,24 @@ function App() {
     const currentMessage = message.trim();
     const currentFile = selectedFile;
     const currentSessionId = activeSessionId;
+
+    const allowedTypes = [
+      "application/pdf",
+      "image/png",
+      "image/jpeg",
+      "image/webp",
+    ];
+
+    if (!allowedTypes.includes(currentFile.type)) {
+      alert("文件类型不支持，请选择 PDF、PNG、JPG/JPEG 或 WEBP 文件");
+      return;
+    }
+
+    if (currentFile.size > 10 * 1024 * 1024) {
+      alert("文件不能超过 10MB");
+      return;
+    }
+
     const userContent = `上传文件：${currentFile.name}${
       currentMessage ? `\n问题：${currentMessage}` : ""
     }`;
@@ -527,14 +573,28 @@ function App() {
         },
         body: formData,
       });
-      const data = await res.json();
+
+      const text = await res.text();
+      let data = {};
+
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        data = {};
+      }
 
       if (!res.ok) {
-        alert(data.detail || "上传失败");
+        const errorMessage = getUploadErrorMessage(res.status, data);
+        alert(errorMessage);
         setMessages((prev) => [
           ...prev,
-          { role: "assistant", content: data.detail || "上传失败" },
+          { role: "assistant", content: errorMessage },
         ]);
+
+        if (res.status === 401) {
+          logout();
+        }
+
         return;
       }
 
@@ -560,10 +620,11 @@ function App() {
       }
     } catch (error) {
       console.error("文件上传失败：", error);
-      alert("上传失败，请确认后端正在运行");
+      const errorMessage = "上传请求失败，请检查网络或稍后重试";
+      alert(errorMessage);
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: "上传失败，请确认后端正在运行" },
+        { role: "assistant", content: errorMessage },
       ]);
     } finally {
       setLoading(false);
