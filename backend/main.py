@@ -1,44 +1,36 @@
+import os
+import re
+import secrets
+from io import BytesIO
+from pathlib import Path
+
+from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.orm import Session
 from openai import OpenAI
-from dotenv import load_dotenv
-
-from database import (
-    Base,
-    engine,
-    get_db,
-    init_user_profile_schema,
-    update_conversation_title,
-)
-from models  import ChatMessage
-from auth import hash_password, verify_password
+from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel
 from pypdf import PdfReader
-from PIL import Image, UnidentifiedImageError
 import pytesseract
+from sqlalchemy.orm import Session
 
-from io import BytesIO
 import models
-import os
-
 import schemas
+from auth import hash_password, verify_password
+from database import Base, engine, get_db, init_user_profile_schema, update_conversation_title
 
 load_dotenv()
 
 app = FastAPI()
 
-
-# 创建数据库表
 Base.metadata.create_all(bind=engine)
 init_user_profile_schema()
 
-# 允许前端访问后端
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",
-        "http://127.0.0.1:5173"
+        "http://127.0.0.1:5173",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -47,32 +39,55 @@ app.add_middleware(
 
 client = OpenAI(
     api_key=os.getenv("DEEPSEEK_API_KEY"),
-    base_url="https://api.deepseek.com"
+    base_url="https://api.deepseek.com",
 )
 
+BASE_DIR = Path(__file__).resolve().parent
+UPLOAD_ROOT = BASE_DIR / "uploads"
+UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
 
-@app.get("/")
-def root():
-    return {"message": "AI Study Platform Backend is running"}
+MAX_UPLOAD_SIZE = 10 * 1024 * 1024
+MAX_PDF_CHARS = 12000
+MAX_OCR_CHARS = 12000
+MAX_HISTORY_EXTRACT_CHARS = 4000
+MATERIAL_CONTEXT_LIMIT = 4
 
-@app.get("/health")
-def health():
-    return {"status": "ok"}
+ALLOWED_UPLOAD_TYPES = {
+    "application/pdf": "pdf",
+    "image/png": "image",
+    "image/jpeg": "image",
+    "image/webp": "image",
+}
 
+ALLOWED_EXTENSIONS = {
+    ".pdf": "application/pdf",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+}
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+ALLOWED_AVATARS = {
+    "avatar_1",
+    "avatar_2",
+    "avatar_3",
+    "avatar_4",
+    "avatar_5",
+    "avatar_6",
+}
 
+SUBJECT_OPTIONS = [
+    "Python",
+    "Java",
+    "数据结构",
+    "计算机网络",
+    "操作系统",
+    "数据库",
+    "前端开发",
+    "后端开发",
+    "算法",
+]
 
-
-class ChatRequest(BaseModel):
-    message: str
-    username: str | None = None
 
 class MeRequest(BaseModel):
     username: str
@@ -89,26 +104,6 @@ class ProfileUpdateRequest(BaseModel):
     avatar: str | None = None
 
 
-ALLOWED_AVATARS = {
-    "avatar_1",
-    "avatar_2",
-    "avatar_3",
-    "avatar_4",
-    "avatar_5",
-    "avatar_6",
-}
-
-MAX_UPLOAD_SIZE = 10 * 1024 * 1024
-MAX_PDF_CHARS = 12000
-MAX_OCR_CHARS = 12000
-ALLOWED_UPLOAD_TYPES = {
-    "application/pdf",
-    "image/png",
-    "image/jpeg",
-    "image/webp",
-}
-
-
 def user_profile(user: models.User):
     return {
         "id": user.id,
@@ -120,14 +115,17 @@ def user_profile(user: models.User):
     }
 
 
-def get_user_by_username(username: str, db: Session):
-    username = username.strip()
+def normalize_subject(subject: str | None = None, course: str | None = None, default: str = "通用学习") -> str:
+    normalized = (subject or course or "").strip()
+    return normalized or default
 
-    if not username:
+
+def get_user_by_username(username: str, db: Session):
+    normalized_username = (username or "").strip()
+    if not normalized_username:
         raise HTTPException(status_code=401, detail="请先登录")
 
-    user = db.query(models.User).filter(models.User.username == username).first()
-
+    user = db.query(models.User).filter(models.User.username == normalized_username).first()
     if not user:
         raise HTTPException(status_code=401, detail="登录状态无效，请重新登录")
 
@@ -135,8 +133,8 @@ def get_user_by_username(username: str, db: Session):
 
 
 def get_username_from_upload(username: str | None, authorization: str | None):
-    if username:
-        return username
+    if username and username.strip():
+        return username.strip()
 
     if authorization and authorization.startswith("Bearer "):
         return authorization.replace("Bearer ", "", 1).strip()
@@ -144,50 +142,260 @@ def get_username_from_upload(username: str | None, authorization: str | None):
     return ""
 
 
-def get_or_create_chat_session(
-    db: Session,
-    user_id: int,
-    conversation_id: int | None,
-    title_source: str,
-    course: str | None = None,
+def sanitize_filename(filename: str) -> str:
+    original = os.path.basename(filename or "material")
+    cleaned = re.sub(r"[^A-Za-z0-9._-]", "_", original)
+    return cleaned[:120] or "material"
+
+
+def validate_upload(file: UploadFile, file_bytes: bytes):
+    suffix = Path(file.filename or "").suffix.lower()
+    expected_content_type = ALLOWED_EXTENSIONS.get(suffix)
+
+    if len(file_bytes) > MAX_UPLOAD_SIZE:
+        raise HTTPException(status_code=400, detail="文件不能超过 10MB")
+
+    if suffix not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="仅支持 png、jpg、jpeg、webp、pdf 文件")
+
+    if file.content_type not in ALLOWED_UPLOAD_TYPES:
+        raise HTTPException(status_code=400, detail="文件类型不支持")
+
+    if expected_content_type != file.content_type and not (
+        expected_content_type == "image/jpeg" and file.content_type == "image/jpg"
+    ):
+        raise HTTPException(status_code=400, detail="文件扩展名与类型不匹配")
+
+
+def save_uploaded_file(username: str, original_filename: str, file_bytes: bytes) -> str:
+    user_dir = UPLOAD_ROOT / username
+    user_dir.mkdir(parents=True, exist_ok=True)
+
+    safe_name = sanitize_filename(original_filename)
+    stored_name = f"{secrets.token_hex(8)}_{safe_name}"
+    file_path = user_dir / stored_name
+
+    with open(file_path, "wb") as output:
+        output.write(file_bytes)
+
+    return str(file_path.relative_to(BASE_DIR)).replace("\\", "/")
+
+
+def extract_pdf_text(file_bytes: bytes) -> str:
+    try:
+        reader = PdfReader(BytesIO(file_bytes))
+        text_parts: list[str] = []
+
+        for page in reader.pages[:15]:
+            page_text = (page.extract_text() or "").strip()
+            if page_text:
+                text_parts.append(page_text)
+
+            current_text = "\n\n".join(text_parts)
+            if len(current_text) >= MAX_PDF_CHARS:
+                return current_text[:MAX_PDF_CHARS]
+
+        return "\n\n".join(text_parts)[:MAX_PDF_CHARS].strip()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="PDF 解析失败，请确认文件未损坏") from exc
+
+
+def extract_image_text(image_bytes: bytes) -> str:
+    try:
+        image = Image.open(BytesIO(image_bytes))
+        image.load()
+    except (UnidentifiedImageError, OSError) as exc:
+        raise HTTPException(status_code=400, detail="图片无法识别，请上传清晰的 PNG、JPG 或 WEBP 图片") from exc
+
+    try:
+        text = pytesseract.image_to_string(image, lang="chi_sim+eng")
+    except pytesseract.pytesseract.TesseractNotFoundError as exc:
+        raise HTTPException(status_code=500, detail="服务器未安装 OCR 组件 tesseract-ocr") from exc
+    except pytesseract.TesseractError:
+        try:
+            text = pytesseract.image_to_string(image, lang="eng")
+        except pytesseract.pytesseract.TesseractNotFoundError as exc:
+            raise HTTPException(status_code=500, detail="服务器未安装 OCR 组件 tesseract-ocr") from exc
+        except pytesseract.TesseractError as exc:
+            raise HTTPException(status_code=500, detail="OCR 识别失败，请稍后重试") from exc
+
+    return (text or "").strip()[:MAX_OCR_CHARS]
+
+
+def build_material_context(username: str, subject: str, db: Session, limit: int = MATERIAL_CONTEXT_LIMIT):
+    materials = (
+        db.query(models.StudyMaterial)
+        .filter(
+            models.StudyMaterial.username == username,
+            models.StudyMaterial.subject == subject,
+        )
+        .order_by(models.StudyMaterial.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+
+    return [
+        {
+            "id": material.id,
+            "subject": material.subject,
+            "summary": material.summary,
+            "original_filename": material.original_filename,
+            "created_at": material.created_at.isoformat() if material.created_at else "",
+        }
+        for material in materials
+        if (material.summary or "").strip()
+    ]
+
+
+def build_system_prompt(
+    subject: str | None,
+    user_profile_data: dict | None = None,
+    is_pdf: bool = False,
+    material_summaries: list[dict] | None = None,
 ):
-    if conversation_id is not None:
-        chat_session = (
-            db.query(models.ChatSession)
-            .filter(
-                models.ChatSession.id == conversation_id,
-                models.ChatSession.user_id == user_id,
-            )
-            .first()
+    normalized_subject = normalize_subject(subject)
+    profile = user_profile_data or {}
+    grade = profile.get("grade") or "未填写"
+    major = profile.get("major") or "未填写"
+
+    subject_roles = {
+        "Java": "你是 Java 学习助教，优先给出 Java 代码示例，并解释语法、类、对象、异常和集合。",
+        "Python": "你是 Python 学习助教，优先用 Python 示例解释变量、函数、类、模块和调试思路。",
+        "数据结构": "你是数据结构助教，重点解释解题思路、复杂度、边界情况和结构设计。",
+        "数据库": "你是数据库课程助教，重点给出 SQL 示例、表结构设计和索引/事务解释。",
+        "软件工程": "你是软件工程助教，重点结合需求分析、设计、实现和测试来回答。",
+        "计算机网络": "你是计算机网络助教，重点解释分层、协议作用和真实通信流程。",
+        "操作系统": "你是操作系统助教，重点解释进程、线程、调度、内存和文件系统。",
+        "前端开发": "你是前端开发助教，重点结合 HTML、CSS、JavaScript 和 React 实践回答。",
+        "后端开发": "你是后端开发助教，重点结合接口、数据库、业务逻辑和错误处理回答。",
+        "算法": "你是算法助教，按照题意、思路、步骤、代码、复杂度来组织答案。",
+    }
+
+    subject_instruction = subject_roles.get(
+        normalized_subject,
+        f"你是通用 AI 学习助手，当前学科是 {normalized_subject}，请根据问题选择合适的讲解方式。",
+    )
+
+    material_context_text = ""
+    if material_summaries:
+        context_lines = [
+            f"{index + 1}. 《{item['original_filename']}》摘要：{item['summary']}"
+            for index, item in enumerate(material_summaries)
+        ]
+        material_context_text = (
+            "\n同学科资料上下文：\n"
+            + "\n".join(context_lines)
+            + "\n如果用户问题和这些资料相关，可以优先参考这些摘要；如果无关，不必强行引用。"
         )
 
-        if not chat_session:
-            raise HTTPException(status_code=404, detail="聊天记录不存在")
+    pdf_instruction = ""
+    if is_pdf:
+        pdf_instruction = (
+            "\nPDF 问答要求：必须基于 PDF 提取内容回答。"
+            "如果内容中没有答案，要明确说明“PDF 内容中没有找到相关信息”，不要编造。"
+        )
 
-        return chat_session
+    return f"""
+你是一个面向大学生的 AI 学习助手。
 
-    title = title_source.strip() or "文件问答"
-    if len(title) > 30:
-        title = title[:30] + "..."
+用户资料：
+- 年级：{grade}
+- 专业：{major}
+- 当前学科：{normalized_subject}
 
-    chat_session = models.ChatSession(
-        user_id=user_id,
-        title=title,
-        course=course or "文件问答",
+学科身份：
+{subject_instruction}
+
+通用回答原则：
+- 先给结论，再解释原因。
+- 尽量结构化输出，必要时使用标题、列表、代码块。
+- 概念先讲人话，再讲术语。
+- 不确定时不要编造。
+- 如果涉及代码或排错，要说明问题原因、修改建议和测试方法。
+{material_context_text}
+{pdf_instruction}
+""".strip()
+
+
+def call_deepseek(messages: list[dict]):
+    try:
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=messages,
+        )
+        return (response.choices[0].message.content or "").strip()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="AI 服务调用失败，请稍后重试") from exc
+
+
+def summarize_material(subject: str, extracted_text: str):
+    preview = extracted_text[:5000]
+    prompt = f"""
+请为以下学习资料生成一段简短摘要，要求：
+1. 使用中文。
+2. 80 到 180 字。
+3. 说明主题、核心知识点、适合复习的方向。
+4. 不要输出标题，不要编造文中没有的信息。
+
+学科：{subject}
+资料文本：
+{preview}
+""".strip()
+
+    return call_deepseek(
+        [
+            {
+                "role": "system",
+                "content": "你是学习资料摘要助手，输出简洁、准确、便于复习的中文摘要。",
+            },
+            {"role": "user", "content": prompt},
+        ]
     )
-    db.add(chat_session)
-    db.commit()
-    db.refresh(chat_session)
-    return chat_session
 
 
-def save_chat_pair(
-    db: Session,
-    user_id: int,
-    session_id: int,
-    user_content: str,
-    answer: str,
+def build_material_question_prompt(file_type: str, extracted_text: str, question: str):
+    label = "OCR识别文本" if file_type == "image" else "PDF提取文本"
+    default_question = "请根据资料内容做简要讲解和总结。"
+
+    return f"""
+用户上传了一份学习资料，以下是提取出的文本：
+
+【{label}开始】
+{extracted_text}
+【{label}结束】
+
+用户问题：
+{question or default_question}
+
+请严格基于以上资料内容回答。
+如果资料里没有足够信息，请明确说明“资料内容中没有找到相关信息”。
+""".strip()
+
+
+def build_chat_history_user_content(
+    subject: str,
+    original_filename: str,
+    file_type: str,
+    question: str,
+    extracted_text: str,
+    summary: str,
 ):
+    label = "OCR识别文本" if file_type == "image" else "PDF提取文本"
+    content = [
+        f"上传资料：{original_filename}",
+        f"学科：{subject}",
+        f"文件类型：{file_type}",
+    ]
+
+    if question:
+        content.append(f"问题：{question}")
+
+    content.append(f"{label}：\n{extracted_text[:MAX_HISTORY_EXTRACT_CHARS]}")
+    content.append(f"资料摘要：{summary}")
+    return "\n".join(content)
+
+
+def save_chat_pair(db: Session, user_id: int, session_id: int, user_content: str, answer: str):
     db.add(
         models.ChatMessage(
             user_id=user_id,
@@ -207,156 +415,173 @@ def save_chat_pair(
     db.commit()
 
 
-def extract_pdf_text(file_bytes: bytes):
-    try:
-        reader = PdfReader(BytesIO(file_bytes))
-        text_parts = []
+def get_or_create_chat_session(
+    db: Session,
+    user_id: int,
+    conversation_id: int | None,
+    title_source: str,
+    subject: str,
+):
+    if conversation_id is not None:
+        chat_session = (
+            db.query(models.ChatSession)
+            .filter(
+                models.ChatSession.id == conversation_id,
+                models.ChatSession.user_id == user_id,
+            )
+            .first()
+        )
 
-        for page in reader.pages[:10]:
-            page_text = page.extract_text() or ""
-            if page_text.strip():
-                text_parts.append(page_text.strip())
+        if not chat_session:
+            raise HTTPException(status_code=404, detail="历史对话不存在")
 
-            current_text = "\n\n".join(text_parts)
-            if len(current_text) >= MAX_PDF_CHARS:
-                return current_text[:MAX_PDF_CHARS]
+        if not (chat_session.subject or "").strip():
+            chat_session.subject = subject
+        if not (chat_session.course or "").strip():
+            chat_session.course = subject
+        db.commit()
+        db.refresh(chat_session)
+        return chat_session
 
-        return "\n\n".join(text_parts)[:MAX_PDF_CHARS]
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail="PDF 无法解析，请换一个文件重试") from exc
+    title = (title_source or "").strip() or "资料问答"
+    if len(title) > 30:
+        title = title[:30] + "..."
 
-
-def extract_image_text(image_bytes: bytes) -> str:
-    try:
-        image = Image.open(BytesIO(image_bytes))
-        image.load()
-    except (UnidentifiedImageError, OSError) as exc:
-        raise HTTPException(
-            status_code=400,
-            detail="图片无法识别，请上传清晰的 PNG、JPG 或 WEBP 图片",
-        ) from exc
-
-    try:
-        text = pytesseract.image_to_string(image, lang="chi_sim+eng")
-    except pytesseract.pytesseract.TesseractNotFoundError as exc:
-        raise HTTPException(
-            status_code=500,
-            detail="服务器 OCR 组件未安装，请联系管理员安装 tesseract-ocr",
-        ) from exc
-    except pytesseract.TesseractError:
-        try:
-            text = pytesseract.image_to_string(image, lang="eng")
-        except pytesseract.pytesseract.TesseractNotFoundError as exc:
-            raise HTTPException(
-                status_code=500,
-                detail="服务器 OCR 组件未安装，请联系管理员安装 tesseract-ocr",
-            ) from exc
-        except pytesseract.TesseractError as exc:
-            raise HTTPException(
-                status_code=500,
-                detail="服务器 OCR 识别失败，请稍后重试",
-            ) from exc
-    except Exception as exc:
-        raise HTTPException(
-            status_code=400,
-            detail="图片无法识别，请上传清晰的 PNG、JPG 或 WEBP 图片",
-        ) from exc
-
-    return (text or "").strip()[:MAX_OCR_CHARS]
+    chat_session = models.ChatSession(
+        user_id=user_id,
+        title=title,
+        course=subject,
+        subject=subject,
+    )
+    db.add(chat_session)
+    db.commit()
+    db.refresh(chat_session)
+    return chat_session
 
 
-def build_system_prompt(course: str | None, user_profile: dict | None = None, is_pdf: bool = False):
-    normalized_course = (course or "").strip()
-    profile = user_profile or {}
-    grade = profile.get("grade") or "未填写"
-    major = profile.get("major") or "未填写"
-
-    course_roles = {
-        "Java": """
-课程身份：你是 Java 编程助教。
-回答重点：
-- 多解释 Java 语法、类、对象、封装、继承、多态、异常、集合等。
-- 代码示例优先使用 Java。
-- 遇到报错时，说明错误原因、修改位置、修改代码、测试方式。
-""",
-        "Python": """
-课程身份：你是 Python 学习助教。
-回答重点：
-- 代码示例优先使用 Python。
-- 多解释变量、函数、类、包、虚拟环境、依赖安装等。
-- 遇到代码问题时，给出可运行的小例子。
-""",
-        "数据结构": """
-课程身份：你是数据结构助教。
-回答重点：
-- 多解释解题思路、时间复杂度、空间复杂度和边界情况。
-- 必要时给伪代码，或给 Java/Python 示例。
-""",
-        "数据库": """
-课程身份：你是数据库课程助教。
-回答重点：
-- 多给 SQL 示例、表结构设计、查询思路和事务/索引解释。
-- 讲清楚表、字段、主键、外键、约束之间的关系。
-""",
-        "软件工程": """
-课程身份：你是软件工程助教。
-回答重点：
-- 多结合需求分析、UML、类图、用例、项目流程解释。
-- 遇到项目问题时，说明需求、设计、实现、测试之间的关系。
-""",
+def serialize_session(chat_session: models.ChatSession):
+    session_subject = normalize_subject(chat_session.subject, chat_session.course)
+    return {
+        "id": chat_session.id,
+        "title": chat_session.title,
+        "course": chat_session.course or session_subject,
+        "subject": session_subject,
+        "created_at": chat_session.created_at,
     }
 
-    course_instruction = course_roles.get(
-        normalized_course,
-        f"""
-课程身份：你是通用 AI 学习助手。
-当前课程：{normalized_course or "未选择"}。
-回答时根据问题内容选择合适的讲解方式。
-""",
+
+async def handle_material_upload(
+    db: Session,
+    username: str,
+    subject: str,
+    file: UploadFile,
+    question: str = "",
+    conversation_id: int | None = None,
+):
+    user = get_user_by_username(username, db)
+    normalized_subject = normalize_subject(subject)
+
+    if not normalized_subject or normalized_subject == "通用学习":
+        raise HTTPException(status_code=400, detail="上传资料时必须选择学科")
+
+    file_bytes = await file.read()
+    validate_upload(file, file_bytes)
+
+    original_filename = file.filename or "未命名文件"
+    file_type = ALLOWED_UPLOAD_TYPES[file.content_type]
+
+    extracted_text = (
+        extract_image_text(file_bytes) if file_type == "image" else extract_pdf_text(file_bytes)
     )
 
-    pdf_instruction = """
-PDF 问答要求：
-- 必须基于 PDF 内容回答。
-- 如果 PDF 内容中没有答案，要明确说明“PDF 内容中没有找到相关信息”，不要编造。
-- 如果用户要求总结 PDF，按以下结构输出：
-  1. 文档主题
-  2. 核心知识点
-  3. 重点概念
-  4. 复习建议
-  5. 可能考点
-""" if is_pdf else ""
+    if not extracted_text.strip():
+        if file_type == "pdf":
+            raise HTTPException(status_code=400, detail="未能从 PDF 提取到可读文本，扫描版 PDF 暂未支持")
+        raise HTTPException(status_code=400, detail="未能从图片识别到文字，请上传更清晰的图片")
 
-    return f"""
-你是一个面向大学生的 AI 学习助手，不是普通闲聊机器人。
+    stored_file_path = save_uploaded_file(user.username, original_filename, file_bytes)
+    summary = summarize_material(normalized_subject, extracted_text)
 
-用户资料：
-- 年级：{grade}
-- 专业：{major}
-- 当前课程：{normalized_course or "未选择"}
+    material = models.StudyMaterial(
+        username=user.username,
+        subject=normalized_subject,
+        file_type=file_type,
+        original_filename=original_filename,
+        file_path=stored_file_path,
+        extracted_text=extracted_text,
+        summary=summary,
+    )
+    db.add(material)
+    db.commit()
+    db.refresh(material)
 
-{course_instruction}
+    answer = None
+    chat_session = None
+    clean_question = (question or "").strip()
 
-通用回答原则：
-- 先给结论，再解释原因。
-- 用适合大学生理解的语言。
-- 遇到专业概念，先讲人话，再讲术语。
-- 遇到代码问题，说明应该改哪里、为什么改、如何测试。
-- 遇到学习问题，给清晰步骤。
-- 不确定时不要编造。
-- 回答尽量结构化，使用 Markdown 标题、列表、代码块。
+    if clean_question:
+        material_context = build_material_context(user.username, normalized_subject, db)
+        chat_session = get_or_create_chat_session(
+            db=db,
+            user_id=user.id,
+            conversation_id=conversation_id,
+            title_source=clean_question or original_filename,
+            subject=normalized_subject,
+        )
 
-默认结构可以参考：
-1. 结论
-2. 解释
-3. 示例
-4. 易错点 / 建议
+        answer = call_deepseek(
+            [
+                {
+                    "role": "system",
+                    "content": build_system_prompt(
+                        normalized_subject,
+                        user_profile(user),
+                        is_pdf=file_type == "pdf",
+                        material_summaries=material_context,
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": build_material_question_prompt(file_type, extracted_text, clean_question),
+                },
+            ]
+        )
 
-不要机械套模板。如果用户只是简单问候，可以简短自然回复。
+        user_content = build_chat_history_user_content(
+            subject=normalized_subject,
+            original_filename=original_filename,
+            file_type=file_type,
+            question=clean_question,
+            extracted_text=extracted_text,
+            summary=summary,
+        )
+        save_chat_pair(db, user.id, chat_session.id, user_content, answer)
 
-{pdf_instruction}
-"""
+    return {
+        "material": {
+            "id": material.id,
+            "subject": material.subject,
+            "file_type": material.file_type,
+            "original_filename": material.original_filename,
+            "file_path": material.file_path,
+            "summary": material.summary,
+            "created_at": material.created_at,
+            "extracted_text_preview": material.extracted_text[:2000],
+            "extracted_text": material.extracted_text,
+        },
+        "answer": answer,
+        "session": serialize_session(chat_session) if chat_session else None,
+    }
 
+
+@app.get("/")
+def root():
+    return {"message": "AI Study Platform Backend is running"}
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
 
 
 @app.post("/register")
@@ -370,30 +595,27 @@ def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
     if len(password) < 6:
         raise HTTPException(status_code=400, detail="密码至少需要 6 位")
 
-    existing_user = db.query(models.User).filter(
-        models.User.username == user.username
-    ).first()
-
+    existing_user = db.query(models.User).filter(models.User.username == username).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="账号已存在")
 
     new_user = models.User(
-        username=user.username,
-        hashed_password=hash_password(user.password),
+        username=username,
+        hashed_password=hash_password(password),
         nickname="",
         avatar="",
         grade="",
-        major=""
+        major="",
     )
-
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
 
     return {
         "message": "注册成功",
-        "user": user_profile(new_user)
+        "user": user_profile(new_user),
     }
+
 
 @app.post("/login")
 def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
@@ -402,42 +624,26 @@ def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
 
     if not username:
         raise HTTPException(status_code=400, detail="账号不能为空")
-
     if not password:
         raise HTTPException(status_code=400, detail="密码不能为空")
 
-    db_user = db.query(models.User).filter(
-        models.User.username == user.username
-    ).first()
-
+    db_user = db.query(models.User).filter(models.User.username == username).first()
     if not db_user:
         raise HTTPException(status_code=400, detail="账号不存在")
 
-    if not verify_password(user.password, db_user.hashed_password):
+    if not verify_password(password, db_user.hashed_password):
         raise HTTPException(status_code=400, detail="密码错误")
 
     return {
         "message": "登录成功",
-        "user": user_profile(db_user)
+        "user": user_profile(db_user),
     }
+
 
 @app.post("/me")
 def me(req: MeRequest, db: Session = Depends(get_db)):
-    username = req.username.strip()
-
-    if not username:
-        raise HTTPException(status_code=400, detail="账号不能为空")
-
-    db_user = db.query(models.User).filter(
-        models.User.username == username
-    ).first()
-
-    if not db_user:
-        raise HTTPException(status_code=401, detail="登录状态已失效，请重新登录")
-
-    return {
-        "user": user_profile(db_user)
-    }
+    user = get_user_by_username(req.username, db)
+    return {"user": user_profile(user)}
 
 
 @app.get("/me/profile")
@@ -447,26 +653,13 @@ def get_profile(username: str, db: Session = Depends(get_db)):
 
 
 @app.put("/me/profile")
-def update_profile(
-    req: ProfileUpdateRequest,
-    username: str,
-    db: Session = Depends(get_db)
-):
+def update_profile(req: ProfileUpdateRequest, username: str, db: Session = Depends(get_db)):
     user = get_user_by_username(username, db)
 
-    nickname = (req.nickname or "").strip()
-    grade = (req.grade or "").strip()
-    major = (req.major or "").strip()
+    nickname = (req.nickname or "").strip()[:30]
+    grade = (req.grade or "").strip()[:20]
+    major = (req.major or "").strip()[:50]
     avatar = (req.avatar or "").strip()
-
-    if len(nickname) > 30:
-        nickname = nickname[:30]
-
-    if len(grade) > 20:
-        grade = grade[:20]
-
-    if len(major) > 50:
-        major = major[:50]
 
     if avatar and avatar not in ALLOWED_AVATARS:
         raise HTTPException(status_code=400, detail="头像无效")
@@ -475,136 +668,10 @@ def update_profile(
     user.grade = grade
     user.major = major
     user.avatar = avatar
-
     db.commit()
     db.refresh(user)
 
     return {"profile": user_profile(user)}
-
-
-
-def get_course_prompt(course: str):
-    course = course.strip()
-
-    course_prompts = {
-        "Python": """
-当前课程是 Python。
-
-教学策略：
-1. 优先用简单代码解释概念。
-2. 每个知识点尽量配一个可运行的小例子。
-3. 重点解释语法、变量、函数、列表、字典、类、文件操作等。
-4. 对初学者要解释代码每一行在做什么。
-5. 不要一开始讲太多底层原理，先让用户能写出来、跑起来。
-6. 如果用户问报错，要优先帮他定位错误原因和修改方式。
-""",
-
-        "Java": """
-当前课程是 Java。
-
-教学策略：
-1. 优先从面向对象角度解释问题。
-2. 重点关注类、对象、封装、继承、多态、接口、异常、集合等。
-3. 讲代码时要解释 public、static、void、class、new 等关键字。
-4. 遇到后端相关问题，可以联系 Spring Boot、接口、数据库。
-5. 不要只给代码，要解释 Java 为什么这样设计。
-6. 如果涉及 JVM，可以只讲大一/大二能理解的核心概念。
-""",
-
-        "数据结构": """
-当前课程是 数据结构。
-
-教学策略：
-1. 优先讲清楚“数据怎么组织”和“操作怎么执行”。
-2. 尽量用步骤解释，例如第一步、第二步、第三步。
-3. 重点关注数组、链表、栈、队列、树、图、哈希表、堆等结构。
-4. 必须说明时间复杂度和空间复杂度，但不要过度数学化。
-5. 适合用生活类比帮助理解，例如排队、文件夹、地图路线。
-6. 如果涉及算法过程，要给出清晰执行流程。
-""",
-
-        "计算机网络": """
-当前课程是 计算机网络。
-
-教学策略：
-1. 优先从“数据如何从一台电脑到另一台电脑”这个角度解释。
-2. 多使用分层思想：应用层、传输层、网络层、数据链路层、物理层。
-3. 讲协议时说明它解决什么问题，例如 HTTP、TCP、UDP、IP、DNS。
-4. 遇到抽象概念，要用真实上网流程举例。
-5. 少写代码，多讲通信过程、封装/解封装、请求/响应、可靠传输。
-6. 对比概念时要明确，例如 TCP vs UDP，HTTP vs HTTPS。
-""",
-
-        "操作系统": """
-当前课程是 操作系统。
-
-教学策略：
-1. 优先从“操作系统如何管理计算机资源”角度解释。
-2. 重点关注进程、线程、CPU 调度、内存管理、文件系统、死锁等。
-3. 多用现实类比，例如食堂窗口类比 CPU 调度，宿舍床位类比内存分配。
-4. 讲概念时要说明：它解决什么问题，为什么需要它。
-5. 如果涉及算法，例如页面置换、进程调度，要一步步模拟过程。
-6. 不要一开始陷入源码或内核细节，先讲机制和思想。
-""",
-
-        "数据库": """
-当前课程是 数据库。
-
-教学策略：
-1. 优先从“数据如何存、如何查、如何保证正确性”角度解释。
-2. 重点关注表、字段、主键、外键、SQL、索引、事务、范式等。
-3. 多给 SQL 示例。
-4. 解释概念时尽量结合用户正在做的登录注册项目。
-5. 遇到表设计问题，要说明字段、类型、约束和表之间关系。
-6. 对事务、索引等概念要用简单场景解释。
-""",
-
-        "前端开发": """
-当前课程是 前端开发。
-
-教学策略：
-1. 优先从页面结构、样式、交互三个角度解释。
-2. 重点关注 HTML、CSS、JavaScript、React、组件、状态、事件。
-3. 讲 React 时要解释 state、props、组件渲染、事件绑定。
-4. 多给可以直接复制运行的代码片段。
-5. 如果用户遇到页面没变化，要优先检查文件路径、import、状态更新、控制台报错。
-6. 解释要偏实践，不要过度理论化。
-""",
-
-        "后端开发": """
-当前课程是 后端开发。
-
-教学策略：
-1. 优先从接口、请求、响应、数据库、业务逻辑角度解释。
-2. 重点关注 FastAPI、路由、POST/GET、数据库模型、接口测试、错误处理。
-3. 多结合用户当前的 AI 学习平台项目。
-4. 讲接口时说明：前端传什么，后端收什么，后端返回什么。
-5. 遇到 bug 要优先定位是前端问题、后端问题、数据库问题还是网络问题。
-6. 代码要尽量简单、可运行。
-""",
-
-        "算法": """
-当前课程是 算法。
-
-教学策略：
-1. 优先讲解题思路，而不是直接给最终代码。
-2. 重点关注枚举、递归、排序、二分、贪心、动态规划、图算法等。
-3. 每道题按照：题意理解 → 思路 → 步骤 → 代码 → 复杂度 来讲。
-4. 对初学者要解释为什么这样做。
-5. 如果涉及动态规划，要明确状态定义、状态转移、初始化和答案。
-6. 不要一开始给太复杂的优化，先给能理解的版本。
-"""
-    }
-
-    return course_prompts.get(course, f"""
-当前课程是 {course}。
-
-教学策略：
-1. 根据该课程特点调整讲解方式。
-2. 优先讲核心概念。
-3. 多结合用户的年级、专业和学习目标。
-4. 回答要清晰、分步骤。
-""")
 
 
 @app.post("/chat")
@@ -612,87 +679,84 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
     if not req.username:
         raise HTTPException(status_code=401, detail="请先登录后再使用 AI 聊天")
 
-    user = db.query(models.User).filter(models.User.username == req.username).first()
+    user = get_user_by_username(req.username, db)
+    subject = normalize_subject(req.subject, req.course)
 
-    if not user:
-        raise HTTPException(status_code=401, detail="登录状态无效，请重新登录")
-
-    # Reuse an existing session when session_id is provided; otherwise create one.
     if req.session_id is not None:
         chat_session = (
             db.query(models.ChatSession)
             .filter(
                 models.ChatSession.id == req.session_id,
-                models.ChatSession.user_id == user.id
+                models.ChatSession.user_id == user.id,
             )
             .first()
         )
-
         if not chat_session:
             raise HTTPException(status_code=404, detail="Chat session not found")
+
+        if not (chat_session.subject or "").strip():
+            chat_session.subject = subject
+        if not (chat_session.course or "").strip():
+            chat_session.course = subject
+        db.commit()
+        db.refresh(chat_session)
+        subject = normalize_subject(chat_session.subject, chat_session.course)
     else:
-        title = req.message.strip()
+        title = req.message.strip() or "新对话"
         if len(title) > 30:
             title = title[:30] + "..."
 
         chat_session = models.ChatSession(
             user_id=user.id,
             title=title,
-            course=req.course
+            course=subject,
+            subject=subject,
         )
-
         db.add(chat_session)
         db.commit()
         db.refresh(chat_session)
 
-    # 2. 保存用户消息，并绑定到这次对话
-    user_message = models.ChatMessage(
-        user_id=user.id,
-        session_id=chat_session.id,
-        role="user",
-        content=req.message
+    db.add(
+        models.ChatMessage(
+            user_id=user.id,
+            session_id=chat_session.id,
+            role="user",
+            content=req.message,
+        )
     )
-
-    db.add(user_message)
     db.commit()
 
+    material_context = build_material_context(user.username, subject, db)
     system_prompt = build_system_prompt(
-        course=req.course,
-        user_profile={
-            "grade": req.grade,
-            "major": req.major,
+        subject,
+        {
+            "grade": req.grade or user.grade,
+            "major": req.major or user.major,
         },
+        material_summaries=material_context,
     )
 
-    response = client.chat.completions.create(
-        model="deepseek-chat",
-        messages=[
+    answer = call_deepseek(
+        [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": req.message}
+            {"role": "user", "content": req.message},
         ]
     )
 
-    answer = response.choices[0].message.content
-
-    # 3. 保存 AI 回复，并绑定到这次对话
-    assistant_message = models.ChatMessage(
-        user_id=user.id,
-        session_id=chat_session.id,
-        role="assistant",
-        content=answer
+    db.add(
+        models.ChatMessage(
+            user_id=user.id,
+            session_id=chat_session.id,
+            role="assistant",
+            content=answer,
+        )
     )
-
-    db.add(assistant_message)
     db.commit()
 
     return {
         "answer": answer,
-        "session": {
-            "id": chat_session.id,
-            "title": chat_session.title,
-            "course": chat_session.course,
-            "created_at": chat_session.created_at
-        }
+        "session": serialize_session(chat_session),
+        "materials_context": material_context,
     }
 
 
@@ -702,178 +766,108 @@ async def upload_chat_file(
     message: str = Form(""),
     conversation_id: int | None = Form(None),
     course: str = Form(""),
+    subject: str = Form(""),
     username: str | None = Form(None),
     authorization: str | None = Header(None),
     db: Session = Depends(get_db),
 ):
     upload_username = get_username_from_upload(username, authorization)
-
     if not upload_username:
         raise HTTPException(status_code=401, detail="请先登录后再上传文件")
 
-    user = db.query(models.User).filter(models.User.username == upload_username).first()
-
-    if not user:
-        raise HTTPException(status_code=401, detail="登录状态无效，请重新登录")
-
-    file_bytes = await file.read()
-
-    if len(file_bytes) > MAX_UPLOAD_SIZE:
-        raise HTTPException(status_code=400, detail="文件不能超过 10MB")
-
-    if file.content_type not in ALLOWED_UPLOAD_TYPES:
-        raise HTTPException(status_code=400, detail="文件类型不支持")
-
-    clean_message = message.strip()
-    selected_course = course.strip()
-    file_name = file.filename or "未命名文件"
-    user_content = f"上传文件：{file_name}"
-    if clean_message:
-        user_content += f"\n问题：{clean_message}"
-
-    chat_session = get_or_create_chat_session(
+    return await handle_material_upload(
         db=db,
-        user_id=user.id,
+        username=upload_username,
+        subject=normalize_subject(subject, course),
+        file=file,
+        question=message,
         conversation_id=conversation_id,
-        title_source=clean_message or file_name or "文件问答",
-        course=selected_course or "文件问答",
     )
 
-    if file.content_type.startswith("image/"):
-        ocr_text = extract_image_text(file_bytes)
 
-        if not ocr_text.strip():
-            answer = "这张图片没有识别到清晰文字，可能是图片太模糊、手写内容较多，或不是文字型图片。请尝试上传更清晰的截图。"
-            save_chat_pair(db, user.id, chat_session.id, user_content, answer)
-            return {
-                "answer": answer,
-                "session": {
-                    "id": chat_session.id,
-                    "title": chat_session.title,
-                    "course": chat_session.course,
-                    "created_at": chat_session.created_at,
-                },
-            }
+@app.post("/materials/upload")
+async def upload_material(
+    file: UploadFile = File(...),
+    username: str = Form(...),
+    subject: str = Form(...),
+    question: str = Form(""),
+    conversation_id: int | None = Form(None),
+    authorization: str | None = Header(None),
+    db: Session = Depends(get_db),
+):
+    upload_username = get_username_from_upload(username, authorization)
+    if not upload_username:
+        raise HTTPException(status_code=401, detail="请先登录后再上传文件")
 
-        image_user_content = (
-            f"{user_content}\nOCR识别内容：\n{ocr_text[:2000]}"
-        )
-        image_prompt = f"""
-用户上传了一张图片，以下是 OCR 从图片中识别到的文字内容：
+    return await handle_material_upload(
+        db=db,
+        username=upload_username,
+        subject=subject,
+        file=file,
+        question=question,
+        conversation_id=conversation_id,
+    )
 
-【图片 OCR 内容开始】
-{ocr_text}
-【图片 OCR 内容结束】
 
-用户问题：
-{clean_message or "请根据图片中识别出的文字进行讲解。"}
+@app.get("/materials")
+def get_materials(username: str, subject: str | None = None, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    query = db.query(models.StudyMaterial).filter(models.StudyMaterial.username == user.username)
 
-请基于图片中识别出的文字回答。
-如果图片文字中没有足够信息，请明确说明。
-如果图片内容像题目，请按“答案、思路、易错点”解释。
-如果图片内容像代码或报错，请按“问题原因、修改建议、示例代码、测试方法”解释。
-不要编造图片中没有的信息。
-"""
+    normalized_subject = (subject or "").strip()
+    if normalized_subject:
+        query = query.filter(models.StudyMaterial.subject == normalized_subject)
 
-        try:
-            response = client.chat.completions.create(
-                model="deepseek-chat",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": build_system_prompt(
-                            course=selected_course,
-                            user_profile=user_profile(user),
-                        ),
-                    },
-                    {"role": "user", "content": image_prompt},
-                ],
-            )
-            answer = response.choices[0].message.content
-        except Exception as exc:
-            raise HTTPException(status_code=500, detail="后端处理图片失败，请稍后重试") from exc
-
-        save_chat_pair(db, user.id, chat_session.id, image_user_content, answer)
-        return {
-            "answer": answer,
-            "session": {
-                "id": chat_session.id,
-                "title": chat_session.title,
-                "course": chat_session.course,
-                "created_at": chat_session.created_at,
-            },
-        }
-
-    pdf_text = extract_pdf_text(file_bytes)
-
-    if not pdf_text.strip():
-        answer = "这个 PDF 没有提取到可读文本，可能是扫描件或图片型 PDF。"
-        save_chat_pair(db, user.id, chat_session.id, user_content, answer)
-        return {
-            "answer": answer,
-            "session": {
-                "id": chat_session.id,
-                "title": chat_session.title,
-                "course": chat_session.course,
-                "created_at": chat_session.created_at,
-            },
-        }
-
-    prompt = f"""
-用户上传了一个 PDF 文件，以下是从文件中提取的内容：
-
-【PDF 内容开始】
-{pdf_text}
-【PDF 内容结束】
-
-用户问题：
-{clean_message or "请总结这个 PDF 的主要内容。"}
-
-请基于 PDF 内容回答。如果 PDF 内容中没有答案，请明确说明，不要编造。
-"""
-
-    try:
-        response = client.chat.completions.create(
-            model="deepseek-chat",
-            messages=[
-                {
-                    "role": "system",
-                    "content": build_system_prompt(
-                        course=selected_course,
-                        user_profile=user_profile(user),
-                        is_pdf=True,
-                    ),
-                },
-                {"role": "user", "content": prompt},
-            ],
-        )
-        answer = response.choices[0].message.content
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail="后端处理文件失败，请稍后重试") from exc
-
-    save_chat_pair(db, user.id, chat_session.id, user_content, answer)
+    materials = query.order_by(models.StudyMaterial.created_at.desc()).all()
 
     return {
-        "answer": answer,
-        "session": {
-            "id": chat_session.id,
-            "title": chat_session.title,
-            "course": chat_session.course,
-            "created_at": chat_session.created_at,
-        },
+        "materials": [
+            {
+                "id": material.id,
+                "subject": material.subject,
+                "file_type": material.file_type,
+                "original_filename": material.original_filename,
+                "summary": material.summary,
+                "created_at": material.created_at,
+            }
+            for material in materials
+        ]
     }
 
+
+@app.get("/materials/{material_id}")
+def get_material_detail(material_id: int, username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    material = (
+        db.query(models.StudyMaterial)
+        .filter(
+            models.StudyMaterial.id == material_id,
+            models.StudyMaterial.username == user.username,
+        )
+        .first()
+    )
+
+    if not material:
+        raise HTTPException(status_code=404, detail="资料不存在")
+
+    return {
+        "material": {
+            "id": material.id,
+            "username": material.username,
+            "subject": material.subject,
+            "file_type": material.file_type,
+            "original_filename": material.original_filename,
+            "file_path": material.file_path,
+            "extracted_text": material.extracted_text,
+            "summary": material.summary,
+            "created_at": material.created_at,
+        }
+    }
 
 
 @app.get("/chat/history")
 def get_chat_history(username: str, db: Session = Depends(get_db)):
-    if not username:
-        raise HTTPException(status_code=401, detail="请先登录后再查看聊天记录")
-
-    user = db.query(models.User).filter(models.User.username == username).first()
-
-    if not user:
-        raise HTTPException(status_code=401, detail="登录状态无效，请重新登录")
+    user = get_user_by_username(username, db)
 
     sessions = (
         db.query(models.ChatSession)
@@ -883,43 +877,22 @@ def get_chat_history(username: str, db: Session = Depends(get_db)):
     )
 
     return {
-        "sessions": [
-            {
-                "id": session.id,
-                "title": session.title,
-                "course": session.course,
-                "created_at": session.created_at
-            }
-            for session in sessions
-        ]
+        "sessions": [serialize_session(session) for session in sessions]
     }
 
 
-
-
 @app.get("/chat/sessions/{session_id}")
-def get_chat_session_messages(
-    session_id: int,
-    username: str,
-    db: Session = Depends(get_db)
-):
-    if not username:
-        raise HTTPException(status_code=401, detail="请先登录后再查看聊天记录")
-
-    user = db.query(models.User).filter(models.User.username == username).first()
-
-    if not user:
-        raise HTTPException(status_code=401, detail="登录状态无效，请重新登录")
+def get_chat_session_messages(session_id: int, username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
 
     chat_session = (
         db.query(models.ChatSession)
         .filter(
             models.ChatSession.id == session_id,
-            models.ChatSession.user_id == user.id
+            models.ChatSession.user_id == user.id,
         )
         .first()
     )
-
     if not chat_session:
         raise HTTPException(status_code=404, detail="聊天记录不存在")
 
@@ -927,68 +900,51 @@ def get_chat_session_messages(
         db.query(models.ChatMessage)
         .filter(
             models.ChatMessage.session_id == session_id,
-            models.ChatMessage.user_id == user.id
+            models.ChatMessage.user_id == user.id,
         )
         .order_by(models.ChatMessage.created_at.asc())
         .all()
     )
 
     return {
-        "session": {
-            "id": chat_session.id,
-            "title": chat_session.title,
-            "course": chat_session.course,
-            "created_at": chat_session.created_at
-        },
+        "session": serialize_session(chat_session),
         "messages": [
             {
                 "role": msg.role,
                 "content": msg.content,
-                "created_at": msg.created_at
+                "created_at": msg.created_at,
             }
             for msg in messages
-        ]
+        ],
     }
 
+
 @app.delete("/chat/sessions/{session_id}")
-def delete_chat_session(
-    session_id: int,
-    username: str,
-    db: Session = Depends(get_db)
-):
-    if not username:
-        raise HTTPException(status_code=401, detail="请先登录后再删除聊天记录")
-
-    user = db.query(models.User).filter(models.User.username == username).first()
-
-    if not user:
-        raise HTTPException(status_code=401, detail="登录状态无效，请重新登录")
+def delete_chat_session(session_id: int, username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
 
     chat_session = (
         db.query(models.ChatSession)
         .filter(
             models.ChatSession.id == session_id,
-            models.ChatSession.user_id == user.id
+            models.ChatSession.user_id == user.id,
         )
         .first()
     )
-
     if not chat_session:
         raise HTTPException(status_code=404, detail="聊天记录不存在")
 
-    # 先删除这次对话下面的所有消息
     db.query(models.ChatMessage).filter(
         models.ChatMessage.session_id == session_id,
-        models.ChatMessage.user_id == user.id
+        models.ChatMessage.user_id == user.id,
     ).delete()
 
-    # 再删除这条历史对话
     db.delete(chat_session)
     db.commit()
 
     return {
         "message": "聊天记录删除成功",
-        "deleted_session_id": session_id
+        "deleted_session_id": session_id,
     }
 
 
@@ -997,21 +953,13 @@ def rename_conversation(
     conversation_id: int,
     req: RenameConversationRequest,
     username: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
-    if not username:
-        raise HTTPException(status_code=401, detail="请先登录后再重命名历史对话")
-
-    user = db.query(models.User).filter(models.User.username == username).first()
-
-    if not user:
-        raise HTTPException(status_code=401, detail="登录状态无效，请重新登录")
+    user = get_user_by_username(username, db)
 
     title = req.title.strip()
-
     if not title:
         raise HTTPException(status_code=400, detail="标题不能为空")
-
     if len(title) > 50:
         title = title[:50]
 
@@ -1019,13 +967,12 @@ def rename_conversation(
         db=db,
         user_id=user.id,
         conversation_id=conversation_id,
-        title=title
+        title=title,
     )
-
     if not conversation:
         raise HTTPException(status_code=404, detail="历史对话不存在")
 
     return {
         "message": "重命名成功",
-        "title": conversation.title
+        "title": conversation.title,
     }

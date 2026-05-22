@@ -1,25 +1,28 @@
 from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.orm import declarative_base, sessionmaker
 
 DATABASE_URL = "sqlite:///./app.db"
 
 engine = create_engine(
     DATABASE_URL,
-    connect_args={"check_same_thread": False}
+    connect_args={"check_same_thread": False},
 )
 
 SessionLocal = sessionmaker(
     autocommit=False,
     autoflush=False,
-    bind=engine
+    bind=engine,
 )
 
 Base = declarative_base()
 
-
 PROFILE_COLUMNS = {
     "nickname": "VARCHAR(30)",
     "avatar": "VARCHAR(50)",
+}
+
+CHAT_SESSION_COLUMNS = {
+    "subject": "VARCHAR(100)",
 }
 
 
@@ -31,18 +34,38 @@ def get_db():
         db.close()
 
 
+def get_existing_columns(conn, table_name: str):
+    return {
+        row[1]
+        for row in conn.execute(text(f"PRAGMA table_info({table_name})")).fetchall()
+    }
+
+
+def ensure_columns(conn, table_name: str, columns: dict[str, str]):
+    existing_columns = get_existing_columns(conn, table_name)
+    for column_name, column_type in columns.items():
+        if column_name not in existing_columns:
+            conn.execute(
+                text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}")
+            )
+
+
 def init_user_profile_schema():
     with engine.begin() as conn:
-        existing_columns = {
-            row[1]
-            for row in conn.execute(text("PRAGMA table_info(users)")).fetchall()
-        }
+        ensure_columns(conn, "users", PROFILE_COLUMNS)
+        ensure_columns(conn, "chat_sessions", CHAT_SESSION_COLUMNS)
 
-        for column_name, column_type in PROFILE_COLUMNS.items():
-            if column_name not in existing_columns:
-                conn.execute(
-                    text(f"ALTER TABLE users ADD COLUMN {column_name} {column_type}")
+        chat_session_columns = get_existing_columns(conn, "chat_sessions")
+        if "subject" in chat_session_columns and "course" in chat_session_columns:
+            conn.execute(
+                text(
+                    """
+                    UPDATE chat_sessions
+                    SET subject = COALESCE(NULLIF(subject, ''), course)
+                    WHERE course IS NOT NULL AND TRIM(course) != ''
+                    """
                 )
+            )
 
 
 def clear_user_profile_fields(db):
@@ -67,7 +90,7 @@ def update_conversation_title(db, user_id: int, conversation_id: int, title: str
         db.query(models.ChatSession)
         .filter(
             models.ChatSession.id == conversation_id,
-            models.ChatSession.user_id == user_id
+            models.ChatSession.user_id == user_id,
         )
         .first()
     )

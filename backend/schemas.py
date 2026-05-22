@@ -13,8 +13,9 @@ class UserLogin(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str
-    course: str
-    grade: str
-    major: str
+    subject: str = ""
+    course: str = ""
+    grade: str = ""
+    major: str = ""
     username: str | None = None
     session_id: int | None = None

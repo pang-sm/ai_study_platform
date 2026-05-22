@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import "./App.css";
 
 const USER_STORAGE_KEY = "ai_study_platform_user";
 const ACTIVE_SESSION_STORAGE_KEY = "ai_study_platform_active_session_id";
@@ -13,14 +14,48 @@ const AVATARS = [
   { id: "avatar_6", label: "A6", background: "#0f766e" },
 ];
 
+const SUBJECT_OPTIONS = [
+  "Python",
+  "Java",
+  "数据结构",
+  "计算机网络",
+  "操作系统",
+  "数据库",
+  "前端开发",
+  "后端开发",
+  "算法",
+];
+
+const EMPTY_UPLOAD_RESULT = {
+  extracted_text: "",
+  summary: "",
+  answer: "",
+  original_filename: "",
+  subject: "",
+  file_type: "",
+};
+
 function getSavedUser() {
   try {
     const savedUser = localStorage.getItem(USER_STORAGE_KEY);
     return savedUser ? JSON.parse(savedUser) : null;
-  } catch (error) {
+  } catch {
     localStorage.removeItem(USER_STORAGE_KEY);
     return null;
   }
+}
+
+function formatDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function App() {
@@ -36,17 +71,25 @@ function App() {
     avatar: "avatar_1",
   });
 
-  const [course, setCourse] = useState("Python");
+  const [subject, setSubject] = useState("Python");
   const [message, setMessage] = useState("");
+  const [uploadSubject, setUploadSubject] = useState("Python");
+  const [uploadQuestion, setUploadQuestion] = useState("");
   const [selectedFile, setSelectedFile] = useState(null);
+
   const [messages, setMessages] = useState([]);
   const [chatSessions, setChatSessions] = useState([]);
   const [activeSessionId, setActiveSessionId] = useState(null);
+  const [activeSessionSubject, setActiveSessionSubject] = useState("Python");
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [hoveredHistoryAction, setHoveredHistoryAction] = useState(null);
   const [tip, setTip] = useState("");
   const [loading, setLoading] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
+  const [materialsLoading, setMaterialsLoading] = useState(false);
+  const [materials, setMaterials] = useState([]);
+  const [selectedMaterialId, setSelectedMaterialId] = useState(null);
+  const [selectedMaterialDetail, setSelectedMaterialDetail] = useState(null);
+  const [uploadResult, setUploadResult] = useState(EMPTY_UPLOAD_RESULT);
 
   const saveLoginUser = (loginUser) => {
     const normalizedUser = {
@@ -73,13 +116,17 @@ function App() {
     localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
     setMessages([]);
     setChatSessions([]);
+    setMaterials([]);
+    setSelectedMaterialId(null);
+    setSelectedMaterialDetail(null);
     setActiveSessionId(null);
+    setUploadResult(EMPTY_UPLOAD_RESULT);
     setPage("login");
     setAuthMode("login");
   };
 
   const loadProfile = async (loginUser) => {
-    if (!loginUser || !loginUser.username) return null;
+    if (!loginUser?.username) return null;
 
     const res = await fetch(
       `${API_BASE}/me/profile?username=${encodeURIComponent(loginUser.username)}`
@@ -96,7 +143,7 @@ function App() {
   };
 
   const loadChatHistory = async (loginUser) => {
-    if (!loginUser || !loginUser.username) return;
+    if (!loginUser?.username) return;
 
     try {
       const res = await fetch(
@@ -111,13 +158,65 @@ function App() {
 
       setChatSessions(data.sessions || []);
     } catch (error) {
-      console.error("加载聊天记录失败：", error);
+      console.error("加载聊天记录失败:", error);
       setTip("无法加载聊天记录，请确认后端正在运行");
     }
   };
 
+  const loadMaterials = async (targetSubject = subject) => {
+    if (!user?.username) return;
+
+    setMaterialsLoading(true);
+    try {
+      const query = new URLSearchParams({
+        username: user.username,
+      });
+
+      if (targetSubject) {
+        query.set("subject", targetSubject);
+      }
+
+      const res = await fetch(`${API_BASE}/materials?${query.toString()}`);
+      const data = await res.json();
+
+      if (!res.ok) {
+        setTip(data.detail || "加载资料库失败");
+        return;
+      }
+
+      setMaterials(data.materials || []);
+    } catch (error) {
+      console.error("加载资料库失败:", error);
+      setTip("无法加载资料库，请确认后端正在运行");
+    } finally {
+      setMaterialsLoading(false);
+    }
+  };
+
+  const loadMaterialDetail = async (materialId) => {
+    if (!user?.username) return;
+
+    try {
+      const res = await fetch(
+        `${API_BASE}/materials/${materialId}?username=${encodeURIComponent(user.username)}`
+      );
+      const data = await res.json();
+
+      if (!res.ok) {
+        setTip(data.detail || "加载资料详情失败");
+        return;
+      }
+
+      setSelectedMaterialId(materialId);
+      setSelectedMaterialDetail(data.material || null);
+    } catch (error) {
+      console.error("加载资料详情失败:", error);
+      setTip("无法加载资料详情，请稍后重试");
+    }
+  };
+
   const openChatSession = async (session) => {
-    if (!user || !user.username) {
+    if (!user?.username) {
       setTip("请先登录后再查看聊天记录");
       return;
     }
@@ -133,12 +232,17 @@ function App() {
         return;
       }
 
+      const sessionSubject = data.session.subject || data.session.course || "Python";
       setActiveSessionId(session.id);
+      setActiveSessionSubject(sessionSubject);
       localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, String(session.id));
-      setCourse(data.session.course);
+      setSubject(sessionSubject);
+      setUploadSubject(sessionSubject);
       setMessages(data.messages || []);
+      setUploadResult(EMPTY_UPLOAD_RESULT);
+      setPage("chat");
     } catch (error) {
-      console.error("加载单条聊天记录失败：", error);
+      console.error("加载聊天记录失败:", error);
       setTip("无法加载该聊天记录，请确认后端正在运行");
     }
   };
@@ -146,7 +250,7 @@ function App() {
   const deleteChatSession = async (session, event) => {
     event.stopPropagation();
 
-    if (!user || !user.username) {
+    if (!user?.username) {
       setTip("请先登录后再删除聊天记录");
       return;
     }
@@ -171,10 +275,11 @@ function App() {
       if (activeSessionId === session.id) {
         setMessages([]);
         setActiveSessionId(null);
+        setActiveSessionSubject(subject);
         localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
       }
     } catch (error) {
-      console.error("删除聊天记录失败：", error);
+      console.error("删除聊天记录失败:", error);
       setTip("无法删除聊天记录，请确认后端正在运行");
     }
   };
@@ -182,7 +287,7 @@ function App() {
   const renameChatSession = async (session, event) => {
     event.stopPropagation();
 
-    if (!user || !user.username) {
+    if (!user?.username) {
       alert("请先登录后再重命名历史对话");
       return;
     }
@@ -210,25 +315,29 @@ function App() {
       }
 
       setChatSessions((prev) =>
-        prev.map((item) =>
-          item.id === session.id ? { ...item, title: data.title } : item
-        )
+        prev.map((item) => (item.id === session.id ? { ...item, title: data.title } : item))
       );
     } catch (error) {
-      console.error("重命名历史对话失败：", error);
+      console.error("重命名历史对话失败:", error);
       alert("无法重命名历史对话，请确认后端正在运行");
     }
   };
 
   useEffect(() => {
-    if (user && user.username) {
+    if (user?.username) {
       loadChatHistory(user);
     }
   }, [user?.username]);
 
   useEffect(() => {
+    if (user?.username) {
+      loadMaterials(subject);
+    }
+  }, [user?.username, subject]);
+
+  useEffect(() => {
     const restoreActiveSession = async () => {
-      if (!user || !user.username) return;
+      if (!user?.username) return;
 
       const savedSessionId = localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
       if (!savedSessionId) return;
@@ -246,11 +355,14 @@ function App() {
           return;
         }
 
+        const sessionSubject = data.session.subject || data.session.course || "Python";
         setActiveSessionId(data.session.id);
-        setCourse(data.session.course);
+        setActiveSessionSubject(sessionSubject);
+        setSubject(sessionSubject);
+        setUploadSubject(sessionSubject);
         setMessages(data.messages || []);
       } catch (error) {
-        console.error("恢复当前聊天失败：", error);
+        console.error("恢复当前聊天失败:", error);
       }
     };
 
@@ -260,7 +372,7 @@ function App() {
   useEffect(() => {
     const checkLoginStatus = async () => {
       const savedUser = getSavedUser();
-      if (!savedUser || !savedUser.username) return;
+      if (!savedUser?.username) return;
 
       try {
         const res = await fetch(`${API_BASE}/me`, {
@@ -281,7 +393,7 @@ function App() {
         await loadProfile(checkedUser);
         setPage("profile");
       } catch (error) {
-        console.error("登录状态校验失败：", error);
+        console.error("登录状态校验失败:", error);
       }
     };
 
@@ -314,7 +426,7 @@ function App() {
       setPage("profile");
       setTip("注册成功，请完善个人资料");
     } catch (error) {
-      console.error("注册错误：", error);
+      console.error("注册错误:", error);
       setTip("无法连接后端，请确认 FastAPI 正在运行");
     }
   };
@@ -346,13 +458,13 @@ function App() {
       setPage("profile");
       setTip("");
     } catch (error) {
-      console.error("登录错误：", error);
+      console.error("登录错误:", error);
       setTip("无法连接后端，请确认 FastAPI 正在运行");
     }
   };
 
   const saveProfile = async () => {
-    if (!user || !user.username) {
+    if (!user?.username) {
       logout();
       return;
     }
@@ -379,7 +491,7 @@ function App() {
       saveLoginUser(data.profile);
       setTip("个人资料已保存");
     } catch (error) {
-      console.error("保存个人资料失败：", error);
+      console.error("保存个人资料失败:", error);
       setTip("无法保存个人资料，请确认后端正在运行");
     } finally {
       setProfileSaving(false);
@@ -413,54 +525,47 @@ function App() {
   };
 
   const getUploadErrorMessage = (status, data) => {
-    if (status === 400) {
-      return data.detail || "上传文件不符合要求，请检查文件类型和大小";
-    }
-
-    if (status === 401) {
-      return "登录状态失效，请重新登录";
-    }
-
-    if (status === 413) {
-      return "文件太大，请上传 10MB 以内的文件";
-    }
-
-    if (status === 422) {
-      return "上传参数错误，请重新选择文件后再试";
-    }
-
-    if (status === 500) {
-      return "后端处理文件失败，请稍后重试";
-    }
-
-    if (status === 502) {
-      return "服务器网关错误，后端服务可能未启动";
-    }
-
+    if (status === 400) return data.detail || "上传文件不符合要求，请检查文件类型、大小和学科";
+    if (status === 401) return "登录状态失效，请重新登录";
+    if (status === 413) return "文件太大，请上传 10MB 以内的文件";
+    if (status === 422) return "上传参数错误，请重新选择文件后再试";
+    if (status === 500) return data.detail || "后端处理文件失败，请稍后重试";
+    if (status === 502) return "服务器网关错误，后端服务可能未启动";
     return data.detail || `上传失败，HTTP 状态码：${status}`;
   };
 
-  const sendMessage = async () => {
-    if (!message.trim() && !selectedFile) return;
+  const appendAssistantError = (content) => {
+    setMessages((prev) => [...prev, { role: "assistant", content }]);
+  };
 
-    if (!user || !user.username) {
+  const refreshChatSessionState = (session) => {
+    if (!session) return;
+
+    setActiveSessionId(session.id);
+    setActiveSessionSubject(session.subject || session.course || subject);
+    localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, String(session.id));
+
+    setChatSessions((prev) => {
+      const exists = prev.some((item) => item.id === session.id);
+      if (exists) {
+        return prev.map((item) => (item.id === session.id ? session : item));
+      }
+      return [session, ...prev];
+    });
+  };
+
+  const sendMessage = async () => {
+    if (!message.trim()) return;
+
+    if (!user?.username) {
       setTip("请先登录后再使用 AI 聊天");
       logout();
       return;
     }
 
-    if (selectedFile) {
-      await sendFileMessage();
-      return;
-    }
-
-    const userMessage = { role: "user", content: message };
-    const currentSessionId = activeSessionId;
-
-    setMessages((prev) => (currentSessionId ? [...prev, userMessage] : [userMessage]));
+    const currentMessage = message.trim();
+    setMessages((prev) => [...prev, { role: "user", content: currentMessage }]);
     setLoading(true);
-
-    const currentMessage = message;
     setMessage("");
 
     try {
@@ -469,11 +574,11 @@ function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: currentMessage,
-          course,
+          subject,
           grade: user.grade || "",
           major: user.major || "",
           username: user.username,
-          session_id: currentSessionId,
+          session_id: activeSessionId,
         }),
       });
       const data = await res.json();
@@ -483,90 +588,53 @@ function App() {
           logout();
           setTip(data.detail || "登录状态无效，请重新登录");
         }
-
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: data.detail || "AI 回复失败" },
-        ]);
+        appendAssistantError(data.detail || "AI 回复失败");
         return;
       }
 
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: data.answer },
-      ]);
-
-      if (data.session) {
-        setActiveSessionId(data.session.id);
-        localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, String(data.session.id));
-
-        setChatSessions((prev) => {
-          const exists = prev.some((session) => session.id === data.session.id);
-          if (exists) {
-            return prev.map((session) =>
-              session.id === data.session.id ? data.session : session
-            );
-          }
-          return [data.session, ...prev];
-        });
+      setMessages((prev) => [...prev, { role: "assistant", content: data.answer }]);
+      refreshChatSessionState(data.session);
+      if (data.session?.subject) {
+        setActiveSessionSubject(data.session.subject);
       }
+      await loadChatHistory(user);
     } catch (error) {
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: "无法连接后端，请确认 FastAPI 正在运行" },
-      ]);
+      console.error("发送消息失败:", error);
+      appendAssistantError("无法连接后端，请确认 FastAPI 正在运行");
     } finally {
       setLoading(false);
     }
   };
 
-  const sendFileMessage = async () => {
-    if (!selectedFile || !user || !user.username) return;
+  const sendMaterialUpload = async () => {
+    if (!selectedFile || !user?.username) return;
 
-    const currentMessage = message.trim();
-    const currentFile = selectedFile;
     const currentSessionId = activeSessionId;
+    const effectiveQuestion = uploadQuestion.trim();
 
-    const allowedTypes = [
-      "application/pdf",
-      "image/png",
-      "image/jpeg",
-      "image/webp",
-    ];
-
-    if (!allowedTypes.includes(currentFile.type)) {
-      alert("文件类型不支持，请选择 PDF、PNG、JPG/JPEG 或 WEBP 文件");
-      return;
-    }
-
-    if (currentFile.size > 10 * 1024 * 1024) {
-      alert("文件不能超过 10MB");
-      return;
-    }
-
-    const userContent = `上传文件：${currentFile.name}${
-      currentMessage ? `\n问题：${currentMessage}` : ""
-    }`;
-
-    setMessages((prev) =>
-      currentSessionId
-        ? [...prev, { role: "user", content: userContent }]
-        : [{ role: "user", content: userContent }]
-    );
     setLoading(true);
-    setMessage("");
+    setUploadResult(EMPTY_UPLOAD_RESULT);
+
+    if (effectiveQuestion) {
+      const previewMessage = [
+        `上传资料：${selectedFile.name}`,
+        `学科：${uploadSubject}`,
+        `问题：${effectiveQuestion}`,
+      ].join("\n");
+      setMessages((prev) => [...prev, { role: "user", content: previewMessage }]);
+    }
 
     const formData = new FormData();
-    formData.append("file", currentFile);
-    formData.append("message", currentMessage);
-    formData.append("course", course);
+    formData.append("file", selectedFile);
     formData.append("username", user.username);
+    formData.append("subject", uploadSubject);
+    formData.append("question", effectiveQuestion);
     if (currentSessionId) {
       formData.append("conversation_id", String(currentSessionId));
     }
 
     try {
-      const res = await fetch(`${API_BASE}/chat/upload`, {
+      const res = await fetch(`${API_BASE}/materials/upload`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${user.username}`,
@@ -576,7 +644,6 @@ function App() {
 
       const text = await res.text();
       let data = {};
-
       try {
         data = text ? JSON.parse(text) : {};
       } catch {
@@ -586,49 +653,61 @@ function App() {
       if (!res.ok) {
         const errorMessage = getUploadErrorMessage(res.status, data);
         alert(errorMessage);
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: errorMessage },
-        ]);
-
+        if (effectiveQuestion) {
+          appendAssistantError(errorMessage);
+        } else {
+          setTip(errorMessage);
+        }
         if (res.status === 401) {
           logout();
         }
-
         return;
       }
 
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: data.answer },
-      ]);
-      setSelectedFile(null);
+      setUploadResult({
+        extracted_text: data.material?.extracted_text || data.material?.extracted_text_preview || "",
+        summary: data.material?.summary || "",
+        answer: data.answer || "",
+        original_filename: data.material?.original_filename || selectedFile.name,
+        subject: data.material?.subject || uploadSubject,
+        file_type: data.material?.file_type || "",
+      });
 
-      if (data.session) {
-        setActiveSessionId(data.session.id);
-        localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, String(data.session.id));
-
-        setChatSessions((prev) => {
-          const exists = prev.some((session) => session.id === data.session.id);
-          if (exists) {
-            return prev.map((session) =>
-              session.id === data.session.id ? data.session : session
-            );
-          }
-          return [data.session, ...prev];
-        });
+      if (data.answer) {
+        setMessages((prev) => [...prev, { role: "assistant", content: data.answer }]);
       }
+
+      if (data.material?.id) {
+        setSelectedMaterialId(data.material.id);
+        await loadMaterialDetail(data.material.id);
+      }
+
+      refreshChatSessionState(data.session);
+      await loadMaterials(uploadSubject);
+      await loadChatHistory(user);
+
+      setSelectedFile(null);
+      setUploadQuestion("");
     } catch (error) {
-      console.error("文件上传失败：", error);
+      console.error("文件上传失败:", error);
       const errorMessage = "上传请求失败，请检查网络或稍后重试";
       alert(errorMessage);
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: errorMessage },
-      ]);
+      if (effectiveQuestion) {
+        appendAssistantError(errorMessage);
+      } else {
+        setTip(errorMessage);
+      }
     } finally {
       setLoading(false);
     }
+  };
+
+  const startNewConversation = () => {
+    setMessages([]);
+    setActiveSessionId(null);
+    setActiveSessionSubject(subject);
+    setUploadResult(EMPTY_UPLOAD_RESULT);
+    localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
   };
 
   const selectedAvatar =
@@ -636,14 +715,15 @@ function App() {
 
   if (!user) {
     return (
-      <div style={styles.page}>
-        <div style={styles.card}>
-          <h1 style={styles.title}>AI 学习助手</h1>
-          <p style={styles.subtitle}>登录后进入个人主页</p>
+      <div className="auth-shell">
+        <div className="auth-card">
+          <div className="auth-badge">AI Study Platform</div>
+          <h1>你的 AI 学习平台</h1>
+          <p className="auth-subtitle">登录后进入按学科组织的学习资料库和历史对话。</p>
 
-          <div style={styles.tabs}>
+          <div className="tab-row">
             <button
-              style={authMode === "login" ? styles.activeTab : styles.tab}
+              className={authMode === "login" ? "tab-button active" : "tab-button"}
               onClick={() => {
                 setAuthMode("login");
                 setTip("");
@@ -652,7 +732,7 @@ function App() {
               登录
             </button>
             <button
-              style={authMode === "register" ? styles.activeTab : styles.tab}
+              className={authMode === "register" ? "tab-button active" : "tab-button"}
               onClick={() => {
                 setAuthMode("register");
                 setTip("");
@@ -663,28 +743,28 @@ function App() {
           </div>
 
           <input
-            style={styles.input}
+            className="field"
             placeholder="账号"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
           />
 
           <input
-            style={styles.input}
+            className="field"
             placeholder="密码"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
 
-          {tip && <p style={styles.tip}>{tip}</p>}
+          {tip && <p className="tip-text">{tip}</p>}
 
           {authMode === "login" ? (
-            <button style={styles.primaryButton} onClick={handleLogin}>
+            <button className="primary-button" onClick={handleLogin}>
               登录
             </button>
           ) : (
-            <button style={styles.primaryButton} onClick={handleRegister}>
+            <button className="primary-button" onClick={handleRegister}>
               注册
             </button>
           )}
@@ -695,38 +775,26 @@ function App() {
 
   if (page === "profile") {
     return (
-      <div style={styles.profilePage}>
-        <div style={styles.profileCard}>
-          <div style={styles.profileHeader}>
-            <div
-              style={{
-                ...styles.profileAvatar,
-                background: selectedAvatar.background,
-              }}
-            >
+      <div className="profile-shell">
+        <div className="profile-card">
+          <div className="profile-header">
+            <div className="profile-avatar" style={{ background: selectedAvatar.background }}>
               {selectedAvatar.label}
             </div>
             <div>
-              <h1 style={styles.profileTitle}>个人主页</h1>
-              <p style={styles.profileSubtitle}>{user.username}</p>
+              <div className="section-eyebrow">Profile</div>
+              <h1>个人主页</h1>
+              <p className="muted-text">{user.username}</p>
             </div>
           </div>
 
-          <div style={styles.avatarGrid}>
+          <div className="avatar-grid">
             {AVATARS.map((avatar) => (
               <button
                 key={avatar.id}
-                style={{
-                  ...styles.avatarOption,
-                  background: avatar.background,
-                  outline:
-                    profileForm.avatar === avatar.id
-                      ? "3px solid #111827"
-                      : "3px solid transparent",
-                }}
-                onClick={() =>
-                  setProfileForm((prev) => ({ ...prev, avatar: avatar.id }))
-                }
+                className={profileForm.avatar === avatar.id ? "avatar-chip active" : "avatar-chip"}
+                style={{ background: avatar.background }}
+                onClick={() => setProfileForm((prev) => ({ ...prev, avatar: avatar.id }))}
                 title={avatar.id}
               >
                 {avatar.label}
@@ -734,53 +802,43 @@ function App() {
             ))}
           </div>
 
-          <label style={styles.label}>账号</label>
-          <input style={styles.input} value={user.username} disabled />
+          <label className="field-label">账号</label>
+          <input className="field" value={user.username} disabled />
 
-          <label style={styles.label}>昵称</label>
+          <label className="field-label">昵称</label>
           <input
-            style={styles.input}
+            className="field"
             placeholder="例如：小明"
             value={profileForm.nickname}
-            onChange={(e) =>
-              setProfileForm((prev) => ({ ...prev, nickname: e.target.value }))
-            }
+            onChange={(e) => setProfileForm((prev) => ({ ...prev, nickname: e.target.value }))}
           />
 
-          <label style={styles.label}>年级</label>
+          <label className="field-label">年级</label>
           <input
-            style={styles.input}
+            className="field"
             placeholder="例如：大二"
             value={profileForm.grade}
-            onChange={(e) =>
-              setProfileForm((prev) => ({ ...prev, grade: e.target.value }))
-            }
+            onChange={(e) => setProfileForm((prev) => ({ ...prev, grade: e.target.value }))}
           />
 
-          <label style={styles.label}>专业</label>
+          <label className="field-label">专业</label>
           <input
-            style={styles.input}
+            className="field"
             placeholder="例如：软件工程"
             value={profileForm.major}
-            onChange={(e) =>
-              setProfileForm((prev) => ({ ...prev, major: e.target.value }))
-            }
+            onChange={(e) => setProfileForm((prev) => ({ ...prev, major: e.target.value }))}
           />
 
-          {tip && <p style={styles.tip}>{tip}</p>}
+          {tip && <p className="tip-text">{tip}</p>}
 
-          <div style={styles.profileActions}>
-            <button
-              style={styles.primaryButton}
-              onClick={saveProfile}
-              disabled={profileSaving}
-            >
+          <div className="stack-actions">
+            <button className="primary-button" onClick={saveProfile} disabled={profileSaving}>
               {profileSaving ? "保存中..." : "保存个人信息"}
             </button>
-            <button style={styles.chatEntryButton} onClick={() => setPage("chat")}>
+            <button className="dark-button" onClick={() => setPage("chat")}>
               进入聊天
             </button>
-            <button style={styles.secondaryButton} onClick={logout}>
+            <button className="ghost-button" onClick={logout}>
               退出登录
             </button>
           </div>
@@ -790,550 +848,283 @@ function App() {
   }
 
   return (
-    <div style={styles.chatPage}>
-      <button
-        style={styles.sidebarToggle}
-        onClick={() => setSidebarOpen((prev) => !prev)}
-      >
-        {sidebarOpen ? "<" : ">"}
+    <div className="workspace-shell">
+      <button className="sidebar-toggle" onClick={() => setSidebarOpen((prev) => !prev)}>
+        {sidebarOpen ? "收起" : "展开"}
       </button>
 
       {sidebarOpen && (
-        <div style={styles.sidebar}>
-          <h2>AI 学习助手</h2>
+        <aside className="sidebar-panel">
+          <div className="sidebar-top">
+            <div>
+              <div className="section-eyebrow">Study Hub</div>
+              <h2>AI 学习助手</h2>
+            </div>
+            <p className="muted-text">{user.username}</p>
+          </div>
 
-          <p>当前用户：{user.username}</p>
-          <p>年级：{user.grade || "未填写"}</p>
-          <p>专业：{user.major || "未填写"}</p>
+          <div className="sidebar-user-card">
+            <div>年级：{user.grade || "未填写"}</div>
+            <div>专业：{user.major || "未填写"}</div>
+          </div>
 
-          <button style={styles.secondaryButton} onClick={() => setPage("profile")}>
+          <label className="field-label">新对话学科</label>
+          <select
+            className="field"
+            value={subject}
+            onChange={(e) => {
+              setSubject(e.target.value);
+              if (!activeSessionId) {
+                setActiveSessionSubject(e.target.value);
+              }
+            }}
+          >
+            {SUBJECT_OPTIONS.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
+
+          <button className="ghost-button" onClick={startNewConversation}>
+            新建对话
+          </button>
+          <button className="ghost-button" onClick={() => setPage("profile")}>
             个人主页
           </button>
 
-          <select
-            style={styles.input}
-            value={course}
-            onChange={(e) => setCourse(e.target.value)}
-          >
-            <option value="Python">Python</option>
-            <option value="Java">Java</option>
-            <option value="数据结构">数据结构</option>
-            <option value="计算机网络">计算机网络</option>
-            <option value="操作系统">操作系统</option>
-            <option value="数据库">数据库</option>
-            <option value="前端开发">前端开发</option>
-            <option value="后端开发">后端开发</option>
-            <option value="算法">算法</option>
-          </select>
+          <div className="history-block">
+            <div className="panel-title-row">
+              <h3>历史对话</h3>
+            </div>
 
-          <button
-            style={styles.secondaryButton}
-            onClick={() => {
-              setMessages([]);
-              setActiveSessionId(null);
-              localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
-            }}
-          >
-            新对话
-          </button>
+            <div className="history-list">
+              {chatSessions.length === 0 && <div className="empty-inline">暂无历史记录</div>}
 
-          <h3 style={styles.historyTitle}>历史记录</h3>
-
-          <div style={styles.historyList}>
-            {chatSessions.length === 0 && (
-              <div style={styles.historyEmpty}>暂无历史记录</div>
-            )}
-
-            {chatSessions.map((session) => (
-              <div
-                key={session.id}
-                style={
-                  activeSessionId === session.id
-                    ? styles.activeHistoryItem
-                    : styles.historyItem
-                }
-                onClick={() => openChatSession(session)}
-              >
-                <div style={styles.historyRow}>
-                  <div style={styles.historyContent}>
-                    <div style={styles.historyCourse}>[{session.course}]</div>
-                    <div style={styles.historyText}>{session.title}</div>
-                  </div>
-
-                  <div style={styles.historyActions}>
+              {chatSessions.map((session) => (
+                <div
+                  key={session.id}
+                  className={activeSessionId === session.id ? "history-item active" : "history-item"}
+                  onClick={() => openChatSession(session)}
+                >
+                  <div className="history-subject">{session.subject || session.course}</div>
+                  <div className="history-title">{session.title}</div>
+                  <div className="history-meta">{formatDate(session.created_at)}</div>
+                  <div className="history-actions">
                     <button
-                      style={
-                        hoveredHistoryAction === `rename-${session.id}`
-                          ? styles.renameHistoryButtonHover
-                          : styles.renameHistoryButton
-                      }
+                      className="tiny-button"
                       onClick={(event) => renameChatSession(session, event)}
-                      onMouseEnter={() =>
-                        setHoveredHistoryAction(`rename-${session.id}`)
-                      }
-                      onMouseLeave={() => setHoveredHistoryAction(null)}
-                      title="重命名这条历史对话"
                     >
                       编辑
                     </button>
-
                     <button
-                      style={styles.deleteHistoryButton}
+                      className="tiny-button danger"
                       onClick={(event) => deleteChatSession(session, event)}
-                      title="删除这条历史记录"
                     >
-                      x
+                      删除
                     </button>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
 
-          <button style={styles.secondaryButton} onClick={logout}>
+          <button className="ghost-button" onClick={logout}>
             退出登录
           </button>
-        </div>
+        </aside>
       )}
 
-      <div style={styles.chatMain}>
-        <div style={styles.messages}>
-          {messages.length === 0 && (
-            <div style={styles.empty}>请选择课程，然后开始提问。</div>
-          )}
-
-          {messages.map((msg, index) => (
-            <div
-              key={index}
-              style={msg.role === "user" ? styles.userMsg : styles.aiMsg}
-            >
-              <strong>{msg.role === "user" ? "你" : "AI"}：</strong>
-              <div style={styles.msgText}>{msg.content}</div>
+      <main className="workspace-main">
+        <section className="chat-panel">
+          <div className="panel-header">
+            <div>
+              <div className="section-eyebrow">Conversation</div>
+              <h2>当前对话</h2>
             </div>
-          ))}
+            <div className="subject-pill">
+              学科：{activeSessionId ? activeSessionSubject : subject}
+            </div>
+          </div>
 
-          {loading && <div style={styles.aiMsg}>AI 正在思考...</div>}
-        </div>
+          <div className="messages-board">
+            {messages.length === 0 && (
+              <div className="empty-state">
+                选择学科后开始提问，或者直接上传图片/PDF 进入本学科资料问答。
+              </div>
+            )}
 
-        <div style={styles.inputArea}>
-          {selectedFile && (
-            <div style={styles.selectedFileRow}>
-              <span>已选择：{selectedFile.name}</span>
-              <button
-                style={styles.cancelFileButton}
-                onClick={() => setSelectedFile(null)}
-              >
-                取消文件
+            {messages.map((msg, index) => (
+              <div key={index} className={msg.role === "user" ? "message-card user" : "message-card assistant"}>
+                <div className="message-role">{msg.role === "user" ? "你" : "AI"}</div>
+                <div className="message-text">{msg.content}</div>
+              </div>
+            ))}
+
+            {loading && <div className="message-card assistant">AI 正在思考...</div>}
+          </div>
+
+          <div className="composer-panel">
+            <div className="composer-row">
+              <input
+                className="field"
+                placeholder="输入你的问题..."
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                  }
+                }}
+              />
+              <button className="primary-button compact" onClick={sendMessage} disabled={loading}>
+                发送
               </button>
             </div>
-          )}
+          </div>
+        </section>
 
-          <div style={styles.inputBar}>
-            <label style={styles.fileButton}>
-              文件
-              <input
-                type="file"
-                accept=".pdf,image/png,image/jpeg,image/webp"
-                style={styles.hiddenFileInput}
-                onChange={handleFileChange}
-              />
-            </label>
+        <section className="materials-panel">
+          <div className="panel-header">
+            <div>
+              <div className="section-eyebrow">Materials</div>
+              <h2>个人学习资料库</h2>
+            </div>
+          </div>
 
+          <div className="material-upload-card">
+            <div className="panel-title-row">
+              <h3>上传资料</h3>
+              <span className="muted-text">支持 png、jpg、jpeg、webp、pdf，最大 10MB</span>
+            </div>
+
+            <label className="field-label">学科</label>
+            <select className="field" value={uploadSubject} onChange={(e) => setUploadSubject(e.target.value)}>
+              {SUBJECT_OPTIONS.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+
+            <label className="field-label">问题（可选）</label>
             <input
-              style={styles.chatInput}
-              placeholder={selectedFile ? "输入关于文件的问题，可留空" : "输入你的问题..."}
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  sendMessage();
-                }
-              }}
+              className="field"
+              placeholder="例如：请解释这页笔记的核心知识点"
+              value={uploadQuestion}
+              onChange={(e) => setUploadQuestion(e.target.value)}
             />
 
-            <button
-              style={styles.sendButton}
-              onClick={sendMessage}
-              disabled={loading}
-            >
-              {loading ? "发送中..." : "发送"}
-            </button>
+            <div className="upload-actions">
+              <label className="file-trigger">
+                选择图片或 PDF
+                <input
+                  type="file"
+                  accept=".pdf,image/png,image/jpeg,image/webp"
+                  onChange={handleFileChange}
+                  hidden
+                />
+              </label>
+              {selectedFile && <span className="selected-file-name">{selectedFile.name}</span>}
+              <button
+                className="primary-button compact"
+                onClick={sendMaterialUpload}
+                disabled={loading || !selectedFile}
+              >
+                上传
+              </button>
+            </div>
           </div>
-        </div>
-      </div>
+
+          {(uploadResult.summary || uploadResult.extracted_text || uploadResult.answer) && (
+            <div className="result-card">
+              <div className="panel-title-row">
+                <h3>上传结果</h3>
+                <span className="muted-text">
+                  {uploadResult.original_filename} · {uploadResult.subject}
+                </span>
+              </div>
+              <div className="result-block">
+                <strong>提取文本预览</strong>
+                <pre>{uploadResult.extracted_text || "暂无提取文本"}</pre>
+              </div>
+              <div className="result-block">
+                <strong>摘要</strong>
+                <p>{uploadResult.summary || "暂无摘要"}</p>
+              </div>
+              {uploadResult.answer && (
+                <div className="result-block">
+                  <strong>AI 回答</strong>
+                  <p>{uploadResult.answer}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="material-library-card">
+            <div className="panel-title-row">
+              <h3>{subject} 资料列表</h3>
+              <button className="ghost-button compact" onClick={() => loadMaterials(subject)}>
+                刷新
+              </button>
+            </div>
+
+            {materialsLoading ? (
+              <div className="empty-inline">资料加载中...</div>
+            ) : materials.length === 0 ? (
+              <div className="empty-inline">当前学科下还没有资料</div>
+            ) : (
+              <div className="material-list">
+                {materials.map((material) => (
+                  <button
+                    key={material.id}
+                    className={selectedMaterialId === material.id ? "material-item active" : "material-item"}
+                    onClick={() => loadMaterialDetail(material.id)}
+                  >
+                    <div className="material-item-head">
+                      <span className="subject-pill small">{material.subject}</span>
+                      <span className="muted-text">{material.file_type}</span>
+                    </div>
+                    <div className="material-title">{material.original_filename}</div>
+                    <div className="material-summary">{material.summary}</div>
+                    <div className="history-meta">{formatDate(material.created_at)}</div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="material-detail-card">
+            <div className="panel-title-row">
+              <h3>资料详情</h3>
+            </div>
+            {!selectedMaterialDetail ? (
+              <div className="empty-inline">点击左侧资料查看完整提取文本和摘要</div>
+            ) : (
+              <>
+                <div className="detail-meta">
+                  <div>文件：{selectedMaterialDetail.original_filename}</div>
+                  <div>学科：{selectedMaterialDetail.subject}</div>
+                  <div>类型：{selectedMaterialDetail.file_type}</div>
+                </div>
+                <div className="result-block">
+                  <strong>摘要</strong>
+                  <p>{selectedMaterialDetail.summary}</p>
+                </div>
+                <div className="result-block">
+                  <strong>完整提取文本</strong>
+                  <pre>{selectedMaterialDetail.extracted_text}</pre>
+                </div>
+              </>
+            )}
+          </div>
+
+          {tip && <p className="tip-text">{tip}</p>}
+        </section>
+      </main>
     </div>
   );
 }
-
-const styles = {
-  page: {
-    minHeight: "100vh",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    background: "#f3f4f6",
-    fontFamily: "Arial, sans-serif",
-  },
-  card: {
-    width: "360px",
-    background: "white",
-    padding: "32px",
-    borderRadius: "16px",
-    boxShadow: "0 10px 30px rgba(0,0,0,0.1)",
-  },
-  title: {
-    margin: 0,
-    textAlign: "center",
-  },
-  subtitle: {
-    textAlign: "center",
-    color: "#666",
-  },
-  tabs: {
-    display: "flex",
-    gap: "10px",
-    marginBottom: "16px",
-  },
-  tab: {
-    flex: 1,
-    padding: "10px",
-    border: "1px solid #ddd",
-    background: "#f9fafb",
-    borderRadius: "8px",
-    cursor: "pointer",
-  },
-  activeTab: {
-    flex: 1,
-    padding: "10px",
-    border: "none",
-    background: "#2563eb",
-    color: "white",
-    borderRadius: "8px",
-    cursor: "pointer",
-  },
-  input: {
-    width: "100%",
-    boxSizing: "border-box",
-    padding: "12px",
-    marginBottom: "12px",
-    borderRadius: "8px",
-    border: "1px solid #ddd",
-  },
-  label: {
-    display: "block",
-    color: "#374151",
-    fontSize: "14px",
-    fontWeight: 700,
-    marginBottom: "6px",
-  },
-  tip: {
-    color: "#dc2626",
-    fontSize: "14px",
-  },
-  primaryButton: {
-    width: "100%",
-    padding: "12px",
-    border: "none",
-    borderRadius: "8px",
-    background: "#2563eb",
-    color: "white",
-    cursor: "pointer",
-  },
-  chatEntryButton: {
-    width: "100%",
-    padding: "12px",
-    border: "none",
-    borderRadius: "8px",
-    background: "#111827",
-    color: "white",
-    cursor: "pointer",
-  },
-  profilePage: {
-    minHeight: "100vh",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background: "#eef2ff",
-    fontFamily: "Arial, sans-serif",
-    padding: "24px",
-  },
-  profileCard: {
-    width: "460px",
-    maxWidth: "100%",
-    background: "white",
-    padding: "28px",
-    borderRadius: "16px",
-    boxShadow: "0 18px 40px rgba(15,23,42,0.16)",
-  },
-  profileHeader: {
-    display: "flex",
-    alignItems: "center",
-    gap: "16px",
-    marginBottom: "20px",
-  },
-  profileAvatar: {
-    width: "72px",
-    height: "72px",
-    borderRadius: "50%",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    color: "white",
-    fontWeight: 800,
-    fontSize: "22px",
-  },
-  profileTitle: {
-    margin: 0,
-    fontSize: "26px",
-  },
-  profileSubtitle: {
-    margin: "6px 0 0",
-    color: "#6b7280",
-  },
-  avatarGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(6, 1fr)",
-    gap: "8px",
-    marginBottom: "20px",
-  },
-  avatarOption: {
-    width: "42px",
-    height: "42px",
-    border: "none",
-    borderRadius: "50%",
-    color: "white",
-    cursor: "pointer",
-    fontWeight: 800,
-  },
-  profileActions: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "10px",
-    marginTop: "10px",
-  },
-  chatPage: {
-    minHeight: "100vh",
-    display: "flex",
-    background: "#f3f4f6",
-    fontFamily: "Arial, sans-serif",
-  },
-  sidebarToggle: {
-    position: "fixed",
-    top: "16px",
-    left: "16px",
-    zIndex: 1000,
-    width: "40px",
-    height: "40px",
-    border: "none",
-    borderRadius: "10px",
-    background: "#2563eb",
-    color: "white",
-    fontSize: "18px",
-    cursor: "pointer",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-  },
-  sidebar: {
-    width: "260px",
-    background: "white",
-    padding: "72px 24px 24px",
-    borderRight: "1px solid #e5e7eb",
-  },
-  secondaryButton: {
-    width: "100%",
-    padding: "10px",
-    border: "1px solid #ddd",
-    borderRadius: "8px",
-    background: "white",
-    cursor: "pointer",
-    marginBottom: "12px",
-  },
-  historyTitle: {
-    marginTop: "20px",
-    marginBottom: "10px",
-    fontSize: "16px",
-  },
-  historyList: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "8px",
-    marginBottom: "16px",
-  },
-  historyEmpty: {
-    color: "#888",
-    fontSize: "14px",
-    padding: "8px 0",
-  },
-  historyItem: {
-    width: "100%",
-    textAlign: "left",
-    padding: "10px",
-    border: "1px solid #e5e7eb",
-    borderRadius: "8px",
-    background: "#f9fafb",
-    cursor: "pointer",
-    userSelect: "none",
-  },
-  activeHistoryItem: {
-    width: "100%",
-    textAlign: "left",
-    padding: "10px",
-    border: "1px solid #2563eb",
-    borderRadius: "8px",
-    background: "#dbeafe",
-    cursor: "pointer",
-    userSelect: "none",
-  },
-  historyCourse: {
-    fontSize: "12px",
-    color: "#2563eb",
-    marginBottom: "4px",
-  },
-  historyText: {
-    fontSize: "14px",
-    color: "#111827",
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-  },
-  chatMain: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-  },
-  messages: {
-    flex: 1,
-    padding: "24px",
-    overflowY: "auto",
-  },
-  empty: {
-    color: "#666",
-    textAlign: "center",
-    marginTop: "120px",
-  },
-  userMsg: {
-    background: "#dbeafe",
-    padding: "12px",
-    borderRadius: "12px",
-    marginBottom: "12px",
-    marginLeft: "20%",
-  },
-  aiMsg: {
-    background: "white",
-    padding: "12px",
-    borderRadius: "12px",
-    marginBottom: "12px",
-    marginRight: "20%",
-    border: "1px solid #e5e7eb",
-  },
-  msgText: {
-    whiteSpace: "pre-wrap",
-    marginTop: "6px",
-  },
-  inputBar: {
-    display: "flex",
-    gap: "12px",
-    padding: "16px",
-    background: "white",
-    borderTop: "1px solid #e5e7eb",
-  },
-  inputArea: {
-    background: "white",
-    borderTop: "1px solid #e5e7eb",
-  },
-  selectedFileRow: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: "12px",
-    padding: "10px 16px 0",
-    color: "#374151",
-    fontSize: "14px",
-  },
-  fileButton: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "0 14px",
-    border: "1px solid #ddd",
-    borderRadius: "8px",
-    background: "#f9fafb",
-    color: "#374151",
-    cursor: "pointer",
-    fontSize: "14px",
-  },
-  hiddenFileInput: {
-    display: "none",
-  },
-  cancelFileButton: {
-    border: "none",
-    background: "transparent",
-    color: "#dc2626",
-    cursor: "pointer",
-    fontSize: "14px",
-  },
-  chatInput: {
-    flex: 1,
-    padding: "12px",
-    borderRadius: "8px",
-    border: "1px solid #ddd",
-  },
-  sendButton: {
-    padding: "0 24px",
-    border: "none",
-    borderRadius: "8px",
-    background: "#2563eb",
-    color: "white",
-    cursor: "pointer",
-  },
-  historyRow: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: "8px",
-  },
-  historyContent: {
-    flex: 1,
-    minWidth: 0,
-  },
-  historyActions: {
-    display: "flex",
-    alignItems: "center",
-    gap: "6px",
-    flexShrink: 0,
-  },
-  renameHistoryButton: {
-    height: "24px",
-    border: "1px solid #e5e7eb",
-    borderRadius: "6px",
-    background: "transparent",
-    color: "#6b7280",
-    cursor: "pointer",
-    fontSize: "12px",
-    lineHeight: "20px",
-    padding: "0 6px",
-  },
-  renameHistoryButtonHover: {
-    height: "24px",
-    border: "1px solid #fecaca",
-    borderRadius: "6px",
-    background: "#fee2e2",
-    color: "#dc2626",
-    cursor: "pointer",
-    fontSize: "12px",
-    lineHeight: "20px",
-    padding: "0 6px",
-  },
-  deleteHistoryButton: {
-    width: "24px",
-    height: "24px",
-    border: "none",
-    borderRadius: "6px",
-    background: "#fee2e2",
-    color: "#dc2626",
-    cursor: "pointer",
-    fontSize: "16px",
-    lineHeight: "20px",
-  },
-};
 
 export default App;
