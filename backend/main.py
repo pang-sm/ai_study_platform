@@ -29,6 +29,7 @@ import schemas
 from auth import hash_password, verify_password
 from database import Base, engine, get_db, init_user_profile_schema, update_conversation_title
 from prompts import build_system_prompt
+from qwen_parser import parse_image_with_qwen
 from rag import reindex_materials, replace_material_chunks, search_relevant_material_chunks, soft_delete_material_chunks
 from subjects import normalize_subject
 
@@ -64,6 +65,8 @@ MAX_PDF_CHARS = 12000
 MAX_OCR_CHARS = 12000
 MAX_HISTORY_EXTRACT_CHARS = 4000
 TOP_K_CHUNKS = 4
+MIN_QWEN_CHINESE_CHARS = 30
+MIN_QWEN_ALNUM_CHARS = 80
 
 ALLOWED_UPLOAD_TYPES = {
     "application/pdf": "pdf",
@@ -267,6 +270,55 @@ def extract_image_text(image_bytes: bytes) -> str:
     return (text or "").strip()[:MAX_OCR_CHARS]
 
 
+def count_chinese_characters(text_value: str) -> int:
+    return len(re.findall(r"[\u4e00-\u9fff]", text_value or ""))
+
+
+def count_alnum_characters(text_value: str) -> int:
+    return len(re.findall(r"[A-Za-z0-9]", text_value or ""))
+
+
+def should_use_qwen_for_image(local_ocr_text: str) -> bool:
+    cleaned = (local_ocr_text or "").strip()
+    if not cleaned:
+        return True
+
+    chinese_count = count_chinese_characters(cleaned)
+    alnum_count = count_alnum_characters(cleaned)
+    return chinese_count < MIN_QWEN_CHINESE_CHARS and alnum_count < MIN_QWEN_ALNUM_CHARS
+
+
+def merge_image_extracted_text(local_ocr_text: str, qwen_text: str) -> str:
+    cleaned_local = (local_ocr_text or "").strip()
+    cleaned_qwen = (qwen_text or "").strip()
+
+    if not cleaned_local:
+        return cleaned_qwen[:MAX_OCR_CHARS]
+    if not cleaned_qwen:
+        return cleaned_local[:MAX_OCR_CHARS]
+    if cleaned_qwen in cleaned_local:
+        return cleaned_local[:MAX_OCR_CHARS]
+    if cleaned_local in cleaned_qwen:
+        return cleaned_qwen[:MAX_OCR_CHARS]
+
+    merged = f"{cleaned_qwen}\n\n本地 OCR 补充：\n{cleaned_local}"
+    return merged[:MAX_OCR_CHARS]
+
+
+def get_default_parse_metadata():
+    return {
+        "extract_method": "local",
+        "parse_status": "success",
+        "parse_error": None,
+        "qwen_used": False,
+        "parsed_at": datetime.utcnow(),
+    }
+
+
+def resolve_stored_file_path(stored_file_path: str) -> Path:
+    return (BASE_DIR / stored_file_path).resolve()
+
+
 def call_deepseek(messages: list[dict]):
     try:
         response = client.chat.completions.create(
@@ -362,6 +414,11 @@ def serialize_material_list_item(material: models.StudyMaterial):
         "file_type": material.file_type,
         "original_filename": material.original_filename,
         "summary": material.summary,
+        "extract_method": material.extract_method or "local",
+        "parse_status": material.parse_status or "success",
+        "parse_error": material.parse_error,
+        "qwen_used": bool(material.qwen_used),
+        "parsed_at": material.parsed_at,
         "created_at": material.created_at,
         "source_message_id": material.source_message_id,
     }
@@ -377,6 +434,11 @@ def serialize_material_detail(material: models.StudyMaterial):
         "file_path": material.file_path,
         "extracted_text": material.extracted_text,
         "summary": material.summary,
+        "extract_method": material.extract_method or "local",
+        "parse_status": material.parse_status or "success",
+        "parse_error": material.parse_error,
+        "qwen_used": bool(material.qwen_used),
+        "parsed_at": material.parsed_at,
         "source_message_id": material.source_message_id,
         "created_at": material.created_at,
     }
@@ -686,10 +748,11 @@ def create_material_from_message(
     user: models.User,
     message: models.ChatMessage,
     subject: str,
+    parse_metadata: dict | None = None,
 ):
     normalized_subject = normalize_subject(subject)
 
-    if not message.attachment_path or not (message.extracted_text or "").strip():
+    if not message.attachment_path:
         raise HTTPException(status_code=400, detail="该消息没有可加入资料库的附件内容")
 
     existing_material = (
@@ -707,7 +770,15 @@ def create_material_from_message(
             db.commit()
         return existing_material, False
 
-    summary = summarize_material(normalized_subject, message.extracted_text)
+    final_parse_metadata = {
+        **get_default_parse_metadata(),
+        **(parse_metadata or {}),
+    }
+
+    if (message.extracted_text or "").strip():
+        summary = summarize_material(normalized_subject, message.extracted_text)
+    else:
+        summary = final_parse_metadata.get("parse_error") or "该资料解析失败，暂未提取到可用于检索的文本内容。"
     material = models.StudyMaterial(
         username=user.username,
         subject=normalized_subject,
@@ -717,12 +788,18 @@ def create_material_from_message(
         extracted_text=message.extracted_text or "",
         summary=summary,
         source_message_id=message.id,
+        extract_method=final_parse_metadata.get("extract_method"),
+        parse_status=final_parse_metadata.get("parse_status"),
+        parse_error=final_parse_metadata.get("parse_error"),
+        qwen_used=bool(final_parse_metadata.get("qwen_used")),
+        parsed_at=final_parse_metadata.get("parsed_at"),
         is_deleted=False,
     )
     db.add(material)
     db.commit()
     db.refresh(material)
-    replace_material_chunks(db, material)
+    if (material.extracted_text or "").strip():
+        replace_material_chunks(db, material)
 
     message.material_id = material.id
     db.commit()

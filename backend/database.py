@@ -38,6 +38,11 @@ CHAT_MESSAGE_COLUMNS = {
 
 STUDY_MATERIAL_COLUMNS = {
     "source_message_id": "INTEGER",
+    "extract_method": "VARCHAR(20)",
+    "parse_status": "VARCHAR(20)",
+    "parse_error": "TEXT",
+    "qwen_used": "BOOLEAN NOT NULL DEFAULT 0",
+    "parsed_at": "DATETIME",
     "is_deleted": "BOOLEAN NOT NULL DEFAULT 0",
     "deleted_at": "DATETIME",
 }
@@ -327,6 +332,17 @@ def init_user_profile_schema():
                     UPDATE study_materials
                     SET is_deleted = 0
                     WHERE is_deleted IS NULL
+                    """
+                )
+            )
+
+        if "qwen_used" in study_material_columns:
+            conn.execute(
+                text(
+                    """
+                    UPDATE study_materials
+                    SET qwen_used = 0
+                    WHERE qwen_used IS NULL
                     """
                 )
             )
