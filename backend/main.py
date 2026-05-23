@@ -3,10 +3,12 @@ import logging
 import os
 import re
 import secrets
+import tempfile
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 
+import fitz
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -30,7 +32,12 @@ import schemas
 from auth import hash_password, verify_password
 from database import Base, engine, get_db, init_user_profile_schema, update_conversation_title
 from prompts import build_system_prompt
-from qwen_parser import get_qwen_status_payload, parse_image_with_qwen
+from qwen_parser import (
+    SCANNED_PDF_PAGE_PROMPT,
+    get_qwen_parse_max_pages,
+    get_qwen_status_payload,
+    parse_image_with_qwen,
+)
 from rag import reindex_materials, replace_material_chunks, search_relevant_material_chunks, soft_delete_material_chunks
 from subjects import normalize_subject
 
@@ -70,6 +77,7 @@ MAX_HISTORY_EXTRACT_CHARS = 4000
 TOP_K_CHUNKS = 4
 MIN_QWEN_CHINESE_CHARS = 30
 MIN_QWEN_ALNUM_CHARS = 80
+MIN_PDF_AVG_PAGE_CHARS = 120
 
 ALLOWED_UPLOAD_TYPES = {
     "application/pdf": "pdf",
@@ -249,6 +257,129 @@ def extract_pdf_text(file_bytes: bytes) -> str:
         return "\n\n".join(text_parts)[:MAX_PDF_CHARS].strip()
     except Exception as exc:
         raise HTTPException(status_code=400, detail="PDF 解析失败，请确认文件未损坏") from exc
+
+
+def get_pdf_total_pages(file_bytes: bytes) -> int:
+    try:
+        reader = PdfReader(BytesIO(file_bytes))
+        return len(reader.pages)
+    except Exception:
+        return 0
+
+
+def should_use_qwen_for_pdf(extracted_text: str, total_pages: int) -> bool:
+    cleaned = (extracted_text or "").strip()
+    if not cleaned:
+        return True
+
+    if total_pages > 0:
+        return len(cleaned) / total_pages < MIN_PDF_AVG_PAGE_CHARS
+
+    return False
+
+
+def render_pdf_pages_to_images(file_bytes: bytes, max_pages: int) -> list[str]:
+    image_paths: list[str] = []
+    document = None
+    try:
+        document = fitz.open(stream=file_bytes, filetype="pdf")
+        page_count = min(len(document), max_pages)
+        for page_index in range(page_count):
+            page = document.load_page(page_index)
+            pixmap = page.get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)
+            temp_file = tempfile.NamedTemporaryFile(
+                suffix=f"_page_{page_index + 1}.png",
+                delete=False,
+            )
+            temp_path = temp_file.name
+            temp_file.close()
+            pixmap.save(temp_path)
+            image_paths.append(temp_path)
+    except Exception as exc:
+        logger.warning("[QWEN] PDF render failed, error=%s", str(exc)[:120])
+        for image_path in image_paths:
+            try:
+                Path(image_path).unlink(missing_ok=True)
+            except OSError:
+                pass
+        return []
+    finally:
+        if document is not None:
+            document.close()
+
+    return image_paths
+
+
+def parse_scanned_pdf_with_qwen(file_bytes: bytes) -> dict:
+    max_pages = get_qwen_parse_max_pages()
+    image_paths = render_pdf_pages_to_images(file_bytes, max_pages)
+    page_texts: list[str] = []
+    errors: list[str] = []
+    success_pages = 0
+    failed_pages = 0
+
+    try:
+        for page_index, image_path in enumerate(image_paths, start=1):
+            result = parse_image_with_qwen(
+                image_path,
+                prompt=SCANNED_PDF_PAGE_PROMPT,
+            )
+            page_text = (result.get("extracted_text") or "").strip()
+            if result.get("success") and page_text:
+                success_pages += 1
+                page_texts.append(f"第 {page_index} 页：\n{page_text}")
+            else:
+                failed_pages += 1
+                errors.append(f"第 {page_index} 页解析失败：{result.get('error') or '未知错误'}")
+    finally:
+        for image_path in image_paths:
+            try:
+                Path(image_path).unlink(missing_ok=True)
+            except OSError:
+                pass
+
+    return {
+        "text": "\n\n".join(page_texts).strip()[:MAX_PDF_CHARS],
+        "success_pages": success_pages,
+        "failed_pages": failed_pages,
+        "max_pages": max_pages,
+        "rendered_pages": len(image_paths),
+        "errors": errors,
+    }
+
+
+def merge_pdf_extracted_text(local_pdf_text: str, qwen_pdf_text: str) -> str:
+    cleaned_local = (local_pdf_text or "").strip()
+    cleaned_qwen = (qwen_pdf_text or "").strip()
+
+    if not cleaned_local:
+        return cleaned_qwen[:MAX_PDF_CHARS]
+    if not cleaned_qwen:
+        return cleaned_local[:MAX_PDF_CHARS]
+    if cleaned_qwen in cleaned_local:
+        return cleaned_local[:MAX_PDF_CHARS]
+    if cleaned_local in cleaned_qwen:
+        return cleaned_qwen[:MAX_PDF_CHARS]
+
+    merged = f"{cleaned_local}\n\nQwen 视觉解析补充：\n{cleaned_qwen}"
+    return merged[:MAX_PDF_CHARS]
+
+
+def build_pdf_qwen_parse_error(pdf_result: dict, total_pages: int) -> str | None:
+    notes: list[str] = []
+    max_pages = pdf_result.get("max_pages") or get_qwen_parse_max_pages()
+    if total_pages > max_pages:
+        notes.append(f"扫描版 PDF 仅解析前 {max_pages} 页")
+
+    failed_pages = int(pdf_result.get("failed_pages") or 0)
+    if failed_pages:
+        notes.append(f"失败页数：{failed_pages}")
+
+    errors = pdf_result.get("errors") or []
+    if errors:
+        notes.append("; ".join(errors[:3]))
+
+    return "；".join(notes) if notes else None
 
 
 def extract_image_text(image_bytes: bytes) -> str:
@@ -876,11 +1007,49 @@ async def handle_material_upload(
                 )
     else:
         extracted_text = extract_pdf_text(file_bytes)
+        total_pages = get_pdf_total_pages(file_bytes)
+        should_fallback = should_use_qwen_for_pdf(extracted_text, total_pages)
+        logger.info(
+            "[QWEN] PDF local parse checked, total_pages=%s, local_text_len=%s, qwen_fallback=%s",
+            total_pages,
+            len(extracted_text or ""),
+            should_fallback,
+        )
+        if should_fallback:
+            pdf_qwen_result = parse_scanned_pdf_with_qwen(file_bytes)
+            qwen_pdf_text = (pdf_qwen_result.get("text") or "").strip()
+            success_pages = int(pdf_qwen_result.get("success_pages") or 0)
+            failed_pages = int(pdf_qwen_result.get("failed_pages") or 0)
+            logger.info(
+                "[QWEN] PDF fallback finished, success_pages=%s, failed_pages=%s, final_text_len=%s",
+                success_pages,
+                failed_pages,
+                len(qwen_pdf_text or ""),
+            )
+
+            if qwen_pdf_text:
+                had_local_text = bool((extracted_text or "").strip())
+                extracted_text = merge_pdf_extracted_text(extracted_text, qwen_pdf_text)
+                parse_metadata["extract_method"] = "mixed" if had_local_text else "qwen"
+                parse_metadata["parse_status"] = "partial" if failed_pages else "success"
+                parse_metadata["parse_error"] = build_pdf_qwen_parse_error(pdf_qwen_result, total_pages)
+                parse_metadata["qwen_used"] = True
+            else:
+                parse_metadata["parse_error"] = (
+                    "无法从 PDF 提取文字，Qwen 扫描解析也失败："
+                    + "; ".join((pdf_qwen_result.get("errors") or [])[:3])
+                )
+                parse_metadata["parse_status"] = "partial" if (extracted_text or "").strip() else "failed"
+                parse_metadata["extract_method"] = "local" if (extracted_text or "").strip() else "failed"
+                parse_metadata["qwen_used"] = True
         stored_file_path = save_uploaded_file(user.username, original_filename, file_bytes)
 
     if not extracted_text.strip():
         if file_type == "pdf":
-            raise HTTPException(status_code=400, detail="未能从 PDF 提取到可读文本，扫描版 PDF 暂未支持")
+            raise HTTPException(
+                status_code=400,
+                detail="这个 PDF 可能是扫描件，但视觉解析失败，请稍后重试或上传更清晰的文件。",
+            )
         raise HTTPException(status_code=400, detail="未能从图片识别到文字，请上传更清晰的图片")
 
 
@@ -997,6 +1166,7 @@ async def handle_material_upload(
             user=user,
             message=target_message,
             subject=normalized_subject,
+            parse_metadata=parse_metadata,
         )
         user_message = target_message
 

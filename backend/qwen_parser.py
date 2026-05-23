@@ -27,6 +27,11 @@ DEFAULT_IMAGE_PROMPT = """请用中文解析这份学习资料图片。请输出
 5. 如果内容不清晰，请说明不确定部分
 6. 不要编造图片中不存在的信息"""
 
+SCANNED_PDF_PAGE_PROMPT = """请识别这页 PDF 图片中的主要文字内容、公式、表格和结构。
+尽量保持原文顺序。
+如果有标题、章节、列表、表格，请用清晰的 Markdown 表达。
+不要添加与页面无关的内容。"""
+
 
 def _build_result(
     success: bool,
@@ -44,7 +49,7 @@ def _build_result(
     }
 
 
-def _get_parse_max_pages() -> int:
+def get_qwen_parse_max_pages() -> int:
     raw_value = (os.getenv("QWEN_PARSE_MAX_PAGES") or "").strip()
     try:
         value = int(raw_value)
@@ -62,7 +67,7 @@ def get_qwen_status_payload() -> dict:
         "has_api_key": bool(api_key),
         "model": model,
         "base_url_configured": bool(base_url),
-        "parse_max_pages": _get_parse_max_pages(),
+        "parse_max_pages": get_qwen_parse_max_pages(),
     }
 
 
