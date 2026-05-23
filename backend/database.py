@@ -37,12 +37,21 @@ CHAT_MESSAGE_COLUMNS = {
 }
 
 STUDY_MATERIAL_COLUMNS = {
+    "file_hash": "TEXT",
+    "file_path": "TEXT",
     "source_message_id": "INTEGER",
     "extract_method": "VARCHAR(20)",
     "parse_status": "VARCHAR(20)",
     "parse_error": "TEXT",
     "qwen_used": "BOOLEAN NOT NULL DEFAULT 0",
     "parsed_at": "DATETIME",
+    "total_pages": "INTEGER DEFAULT 0",
+    "parsed_pages": "INTEGER DEFAULT 0",
+    "chunk_count": "INTEGER DEFAULT 0",
+    "ocr_required": "INTEGER DEFAULT 0",
+    "parse_progress": "REAL DEFAULT 0",
+    "parse_started_at": "TEXT",
+    "parse_completed_at": "TEXT",
     "is_deleted": "BOOLEAN NOT NULL DEFAULT 0",
     "deleted_at": "DATETIME",
 }
@@ -110,6 +119,10 @@ def ensure_columns(conn, table_name: str, columns: dict[str, str]):
             conn.execute(
                 text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}")
             )
+
+
+def ensure_study_material_schema(conn):
+    ensure_columns(conn, "study_materials", STUDY_MATERIAL_COLUMNS)
 
 
 def ensure_material_chunks_schema(conn):
@@ -305,7 +318,7 @@ def init_user_profile_schema():
         ensure_columns(conn, "users", PROFILE_COLUMNS)
         ensure_columns(conn, "chat_sessions", CHAT_SESSION_COLUMNS)
         ensure_columns(conn, "chat_messages", CHAT_MESSAGE_COLUMNS)
-        ensure_columns(conn, "study_materials", STUDY_MATERIAL_COLUMNS)
+        ensure_study_material_schema(conn)
         ensure_material_chunks_schema(conn)
         ensure_learning_records_schema(conn)
         ensure_course_progress_schema(conn)

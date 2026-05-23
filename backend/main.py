@@ -4,13 +4,14 @@ import os
 import re
 import secrets
 import tempfile
+import hashlib
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 
 import fitz
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from openai import OpenAI
 from PIL import Image, UnidentifiedImageError
@@ -30,7 +31,7 @@ from course_workbench import (
 import models
 import schemas
 from auth import hash_password, verify_password
-from database import Base, engine, get_db, init_user_profile_schema, update_conversation_title
+from database import Base, SessionLocal, engine, get_db, init_user_profile_schema, update_conversation_title
 from prompts import build_system_prompt
 from qwen_parser import (
     SCANNED_PDF_PAGE_PROMPT,
@@ -69,6 +70,8 @@ logger = logging.getLogger("ai_study_platform.qwen")
 BASE_DIR = Path(__file__).resolve().parent
 UPLOAD_ROOT = BASE_DIR / "uploads"
 UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
+MATERIAL_UPLOAD_ROOT = UPLOAD_ROOT / "materials"
+MATERIAL_UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
 
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024
 MAX_PDF_CHARS = 12000
@@ -236,6 +239,32 @@ def save_uploaded_file(username: str, original_filename: str, file_bytes: bytes)
 
     with open(file_path, "wb") as output:
         output.write(file_bytes)
+
+    return str(file_path.relative_to(BASE_DIR)).replace("\\", "/")
+
+
+def calculate_file_hash(file_bytes: bytes) -> str:
+    return hashlib.sha256(file_bytes).hexdigest()
+
+
+def safe_file_extension(filename: str) -> str:
+    suffix = Path(os.path.basename(filename or "")).suffix.lower()
+    if suffix not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="文件扩展名不支持")
+    return suffix
+
+
+def save_material_file(file_bytes: bytes, original_filename: str, file_hash: str) -> str:
+    suffix = safe_file_extension(original_filename)
+    safe_hash = re.sub(r"[^a-fA-F0-9]", "", file_hash or "").lower()
+    if len(safe_hash) != 64:
+        raise HTTPException(status_code=400, detail="文件哈希无效")
+
+    MATERIAL_UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
+    file_path = MATERIAL_UPLOAD_ROOT / f"{safe_hash}{suffix}"
+    if not file_path.exists():
+        with open(file_path, "wb") as output:
+            output.write(file_bytes)
 
     return str(file_path.relative_to(BASE_DIR)).replace("\\", "/")
 
@@ -877,6 +906,250 @@ def get_or_create_chat_session(
     return chat_session
 
 
+def get_material_by_file_hash(db: Session, username: str, file_hash: str):
+    normalized_username = (username or "").strip()
+    normalized_hash = (file_hash or "").strip().lower()
+    if not normalized_username or not normalized_hash:
+        return None
+
+    return (
+        db.query(models.StudyMaterial)
+        .filter(
+            models.StudyMaterial.username == normalized_username,
+            models.StudyMaterial.file_hash == normalized_hash,
+            models.StudyMaterial.is_deleted.is_(False),
+        )
+        .order_by(models.StudyMaterial.created_at.desc())
+        .first()
+    )
+
+
+def get_material_for_parsing(db: Session, material_id: int):
+    return (
+        db.query(models.StudyMaterial)
+        .filter(
+            models.StudyMaterial.id == material_id,
+            models.StudyMaterial.is_deleted.is_(False),
+        )
+        .first()
+    )
+
+
+def create_pending_material(
+    db: Session,
+    username: str,
+    subject: str,
+    file_type: str,
+    original_filename: str,
+    file_path: str,
+    file_hash: str,
+    total_pages: int = 0,
+    source_message_id: int | None = None,
+):
+    material = models.StudyMaterial(
+        username=(username or "").strip(),
+        subject=normalize_subject(subject),
+        file_type=file_type,
+        original_filename=os.path.basename(original_filename or "未命名文件"),
+        file_hash=(file_hash or "").strip().lower(),
+        file_path=file_path,
+        extracted_text="",
+        summary="资料已上传，等待后台解析。",
+        source_message_id=source_message_id,
+        extract_method=None,
+        parse_status="pending",
+        parse_error=None,
+        qwen_used=False,
+        parsed_at=None,
+        total_pages=max(0, int(total_pages or 0)),
+        parsed_pages=0,
+        chunk_count=0,
+        ocr_required=0,
+        parse_progress=0,
+        parse_started_at=None,
+        parse_completed_at=None,
+        is_deleted=False,
+    )
+    db.add(material)
+    db.commit()
+    db.refresh(material)
+    return material
+
+
+def update_material_parse_state(db: Session, material_id: int, **updates):
+    material = get_material_for_parsing(db, material_id)
+    if not material:
+        return None
+
+    allowed_fields = {
+        "file_path",
+        "file_hash",
+        "parse_status",
+        "parse_progress",
+        "total_pages",
+        "parsed_pages",
+        "chunk_count",
+        "ocr_required",
+        "parse_error",
+        "qwen_used",
+        "extract_method",
+        "parsed_at",
+        "parse_started_at",
+        "parse_completed_at",
+        "extracted_text",
+        "summary",
+    }
+    for field_name, field_value in updates.items():
+        if field_name in allowed_fields:
+            setattr(material, field_name, field_value)
+
+    db.commit()
+    db.refresh(material)
+    return material
+
+
+def is_pdf_text_usable(extracted_text: str, total_pages: int) -> bool:
+    cleaned = (extracted_text or "").strip()
+    if not cleaned:
+        return False
+
+    checked_pages = max(1, min(total_pages or 1, 15))
+    return len(cleaned) / checked_pages >= MIN_PDF_AVG_PAGE_CHARS
+
+
+def parse_material_in_background(material_id: int):
+    db = SessionLocal()
+    try:
+        material = get_material_for_parsing(db, material_id)
+        if not material:
+            return
+
+        now_text = datetime.utcnow().isoformat()
+        update_material_parse_state(
+            db,
+            material_id,
+            parse_status="parsing",
+            parse_progress=1,
+            parse_started_at=now_text,
+            parse_error=None,
+        )
+        material = get_material_for_parsing(db, material_id)
+        if not material:
+            return
+
+        file_path = resolve_stored_file_path(material.file_path)
+        if not file_path.exists() or not file_path.is_file():
+            update_material_parse_state(
+                db,
+                material_id,
+                parse_status="failed",
+                parse_error="上传文件不存在，无法后台解析。",
+                parse_progress=0,
+            )
+            return
+
+        file_bytes = file_path.read_bytes()
+        total_pages = get_pdf_total_pages(file_bytes) if material.file_type == "pdf" else 0
+
+        if material.file_type == "pdf":
+            extracted_text = extract_pdf_text(file_bytes)
+            if not is_pdf_text_usable(extracted_text, total_pages):
+                update_material_parse_state(
+                    db,
+                    material_id,
+                    parse_status="partial",
+                    parse_error="扫描版 PDF 已上传，后台 OCR 全量解析将在下一阶段接入。",
+                    parse_progress=100,
+                    total_pages=total_pages,
+                    parsed_pages=0,
+                    ocr_required=1,
+                    chunk_count=0,
+                    extract_method="local",
+                    qwen_used=False,
+                    parse_completed_at=datetime.utcnow().isoformat(),
+                    parsed_at=datetime.utcnow(),
+                )
+                return
+        elif material.file_type == "image":
+            extracted_text = extract_image_text(file_bytes)
+            if not (extracted_text or "").strip():
+                update_material_parse_state(
+                    db,
+                    material_id,
+                    parse_status="failed",
+                    parse_error="图片已上传，后台视觉解析将在下一阶段接入。",
+                    parse_progress=0,
+                    extract_method="local",
+                    qwen_used=False,
+                )
+                return
+        else:
+            update_material_parse_state(
+                db,
+                material_id,
+                parse_status="failed",
+                parse_error="暂不支持该文件类型的后台解析。",
+                parse_progress=0,
+            )
+            return
+
+        material = update_material_parse_state(
+            db,
+            material_id,
+            extracted_text=extracted_text,
+            summary=(extracted_text or "").strip()[:300] or "资料解析完成。",
+            total_pages=total_pages,
+            parsed_pages=total_pages,
+            parse_progress=80,
+            extract_method="local",
+            qwen_used=False,
+        )
+        if not material:
+            return
+
+        chunk_count = replace_material_chunks(db, material)
+        update_material_parse_state(
+            db,
+            material_id,
+            parse_status="success",
+            parse_progress=100,
+            chunk_count=chunk_count,
+            parsed_pages=total_pages,
+            total_pages=total_pages,
+            parse_error=None,
+            extract_method="local",
+            qwen_used=False,
+            parsed_at=datetime.utcnow(),
+            parse_completed_at=datetime.utcnow().isoformat(),
+        )
+        logger.info(
+            "[MATERIAL_PARSE] material_id=%s file_type=%s total_pages=%s chunk_count=%s status=success",
+            material_id,
+            material.file_type,
+            total_pages,
+            chunk_count,
+        )
+    except Exception as exc:
+        logger.warning("[MATERIAL_PARSE] material_id=%s failed: %s", material_id, str(exc)[:160])
+        try:
+            update_material_parse_state(
+                db,
+                material_id,
+                parse_status="failed",
+                parse_error=f"后台解析失败：{str(exc)[:120]}",
+                parse_progress=0,
+                parse_completed_at=datetime.utcnow().isoformat(),
+            )
+        except Exception as update_exc:
+            logger.warning(
+                "[MATERIAL_PARSE] material_id=%s failed to update error state: %s",
+                material_id,
+                str(update_exc)[:160],
+            )
+    finally:
+        db.close()
+
+
 def create_material_from_message(
     db: Session,
     user: models.User,
@@ -1407,6 +1680,7 @@ async def upload_chat_file(
 
 @app.post("/materials/upload")
 async def upload_material(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     username: str = Form(...),
     subject: str = Form(...),
@@ -1420,15 +1694,60 @@ async def upload_material(
     if not upload_username:
         raise HTTPException(status_code=401, detail="请先登录后再上传文件")
 
-    return await handle_material_upload(
+    user = get_user_by_username(upload_username, db)
+    normalized_subject = normalize_subject(subject)
+    file_bytes = await file.read()
+    validate_upload(file, file_bytes)
+
+    original_filename = file.filename or "未命名文件"
+    file_type = ALLOWED_UPLOAD_TYPES[file.content_type]
+    file_hash = calculate_file_hash(file_bytes)
+    existing_material = get_material_by_file_hash(db, user.username, file_hash)
+    if existing_material and (existing_material.parse_status or "").strip() == "success":
+        return {
+            "success": True,
+            "material_id": existing_material.id,
+            "filename": existing_material.original_filename,
+            "parse_status": existing_material.parse_status,
+            "parse_progress": existing_material.parse_progress or 100,
+            "message": "该资料已上传并解析完成，可直接使用。",
+            "material": serialize_material_detail(existing_material),
+        }
+
+    if existing_material and (existing_material.parse_status or "").strip() in {"pending", "parsing"}:
+        return {
+            "success": True,
+            "material_id": existing_material.id,
+            "filename": existing_material.original_filename,
+            "parse_status": existing_material.parse_status,
+            "parse_progress": existing_material.parse_progress or 0,
+            "message": "该资料已上传，正在后台解析。",
+            "material": serialize_material_detail(existing_material),
+        }
+
+    stored_file_path = save_material_file(file_bytes, original_filename, file_hash)
+    total_pages = get_pdf_total_pages(file_bytes) if file_type == "pdf" else 0
+    material = create_pending_material(
         db=db,
-        username=upload_username,
-        subject=subject,
-        file=file,
-        question=question,
-        conversation_id=conversation_id,
-        save_to_materials=save_to_materials,
+        username=user.username,
+        subject=normalized_subject,
+        file_type=file_type,
+        original_filename=original_filename,
+        file_path=stored_file_path,
+        file_hash=file_hash,
+        total_pages=total_pages,
     )
+    background_tasks.add_task(parse_material_in_background, material.id)
+
+    return {
+        "success": True,
+        "material_id": material.id,
+        "filename": original_filename,
+        "parse_status": "pending",
+        "parse_progress": 0,
+        "message": "资料已上传，正在后台解析。解析完成后可基于全文问答。",
+        "material": serialize_material_detail(material),
+    }
 
 
 @app.post("/materials/add-from-message")

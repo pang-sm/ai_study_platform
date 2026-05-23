@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
 
 from database import Base
 
@@ -54,6 +54,7 @@ class StudyMaterial(Base):
     subject = Column(String(100), index=True, nullable=False)
     file_type = Column(String(20), nullable=False)
     original_filename = Column(String(255), nullable=False)
+    file_hash = Column(String(64), nullable=True)
     file_path = Column(String(500), nullable=False)
     extracted_text = Column(Text, nullable=False)
     summary = Column(Text, nullable=False)
@@ -63,6 +64,13 @@ class StudyMaterial(Base):
     parse_error = Column(Text, nullable=True)
     qwen_used = Column(Boolean, nullable=False, default=False)
     parsed_at = Column(DateTime, nullable=True)
+    total_pages = Column(Integer, nullable=False, default=0)
+    parsed_pages = Column(Integer, nullable=False, default=0)
+    chunk_count = Column(Integer, nullable=False, default=0)
+    ocr_required = Column(Integer, nullable=False, default=0)
+    parse_progress = Column(Float, nullable=False, default=0)
+    parse_started_at = Column(Text, nullable=True)
+    parse_completed_at = Column(Text, nullable=True)
     is_deleted = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     deleted_at = Column(DateTime, nullable=True)
