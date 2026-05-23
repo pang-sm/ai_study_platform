@@ -1226,8 +1226,158 @@ select.field:focus {
   font-size: 13px;
 }
 
+.dashboard-panel {
+  gap: 18px;
+}
+
+.dashboard-header {
+  align-items: flex-start;
+}
+
+.dashboard-header h2 {
+  margin: 12px 0 0;
+}
+
+.dashboard-course-picker {
+  width: min(280px, 100%);
+}
+
+.dashboard-course-picker .field {
+  margin-bottom: 0;
+}
+
+.dashboard-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+  gap: 18px;
+}
+
+.dashboard-card {
+  padding: 18px 20px;
+  border: 1px solid rgba(20, 33, 61, 0.08);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.dashboard-overview,
+.dashboard-progress-card {
+  grid-column: 1 / -1;
+}
+
+.dashboard-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.dashboard-stat-card {
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(20, 33, 61, 0.08);
+  background: linear-gradient(135deg, rgba(15, 118, 110, 0.05), rgba(37, 99, 235, 0.08));
+}
+
+.dashboard-stat-label {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.dashboard-stat-value {
+  margin-top: 10px;
+  font-size: 28px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.dashboard-stat-value--text {
+  font-size: 18px;
+  line-height: 1.5;
+}
+
+.dashboard-suggestion-text {
+  margin: 14px 0 0;
+  color: #1f2937;
+  line-height: 1.8;
+}
+
+.dashboard-action-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.dashboard-progress-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.dashboard-progress-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(20, 33, 61, 0.08);
+  background: #fff;
+}
+
+.dashboard-progress-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.dashboard-progress-index {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 118, 110, 0.12);
+  color: #0f766e;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.dashboard-progress-point {
+  color: #0f172a;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.dashboard-progress-select {
+  width: 170px;
+  min-width: 170px;
+  margin: 0;
+  padding: 10px 12px;
+}
+
+.dashboard-mini-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 14px 0;
+  color: #475569;
+  font-size: 14px;
+}
+
+.dashboard-chat-item {
+  cursor: default;
+}
+
 @media (max-width: 1180px) {
   .profile-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-layout,
+  .dashboard-stats-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1261,6 +1411,16 @@ select.field:focus {
 
   .composer-row--input {
     flex-wrap: wrap;
+  }
+
+  .dashboard-progress-item {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .dashboard-progress-select {
+    width: 100%;
+    min-width: 100%;
   }
 
   .attach-button,

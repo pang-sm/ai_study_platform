@@ -73,6 +73,15 @@ LEARNING_RECORD_COLUMNS = {
     "is_deleted": "BOOLEAN NOT NULL DEFAULT 0",
 }
 
+COURSE_PROGRESS_COLUMNS = {
+    "username": "VARCHAR(50)",
+    "course": "VARCHAR(100)",
+    "knowledge_point": "VARCHAR(255)",
+    "status": "VARCHAR(20) NOT NULL DEFAULT '未开始'",
+    "created_at": "DATETIME",
+    "updated_at": "DATETIME",
+}
+
 
 def get_db():
     db = SessionLocal()
@@ -147,6 +156,25 @@ def ensure_learning_records_schema(conn):
         )
     )
     ensure_columns(conn, "learning_records", LEARNING_RECORD_COLUMNS)
+
+
+def ensure_course_progress_schema(conn):
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS course_progress (
+                id INTEGER PRIMARY KEY,
+                username VARCHAR(50) NOT NULL,
+                course VARCHAR(100) NOT NULL,
+                knowledge_point VARCHAR(255) NOT NULL,
+                status VARCHAR(20) NOT NULL DEFAULT '未开始',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+    )
+    ensure_columns(conn, "course_progress", COURSE_PROGRESS_COLUMNS)
 
 
 def ensure_material_chunks_fts(conn):
@@ -232,6 +260,7 @@ def normalize_existing_subjects(conn):
     update_subject_aliases(conn, "material_chunks", "subject")
     update_subject_aliases(conn, "learning_records", "subject")
     update_subject_aliases(conn, "chat_messages", "subject")
+    update_subject_aliases(conn, "course_progress", "course")
 
     chat_session_columns = get_existing_columns(conn, "chat_sessions")
     if "subject" in chat_session_columns and "course" in chat_session_columns:
@@ -263,6 +292,7 @@ def normalize_existing_subjects(conn):
     fill_blank_subject_column(conn, "material_chunks", "subject")
     fill_blank_subject_column(conn, "learning_records", "subject")
     fill_blank_subject_column(conn, "chat_messages", "subject")
+    fill_blank_subject_column(conn, "course_progress", "course")
 
 
 def init_user_profile_schema():
@@ -273,6 +303,7 @@ def init_user_profile_schema():
         ensure_columns(conn, "study_materials", STUDY_MATERIAL_COLUMNS)
         ensure_material_chunks_schema(conn)
         ensure_learning_records_schema(conn)
+        ensure_course_progress_schema(conn)
         ensure_material_chunks_fts(conn)
         normalize_existing_subjects(conn)
 
@@ -340,6 +371,29 @@ def init_user_profile_schema():
                 text(
                     """
                     UPDATE learning_records
+                    SET updated_at = COALESCE(updated_at, created_at, CURRENT_TIMESTAMP)
+                    WHERE updated_at IS NULL
+                    """
+                )
+            )
+
+        course_progress_columns = get_existing_columns(conn, "course_progress")
+        if "status" in course_progress_columns:
+            conn.execute(
+                text(
+                    """
+                    UPDATE course_progress
+                    SET status = '未开始'
+                    WHERE status IS NULL OR TRIM(status) = ''
+                    """
+                )
+            )
+
+        if "updated_at" in course_progress_columns:
+            conn.execute(
+                text(
+                    """
+                    UPDATE course_progress
                     SET updated_at = COALESCE(updated_at, created_at, CURRENT_TIMESTAMP)
                     WHERE updated_at IS NULL
                     """

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
 import ChatMessage from "./components/ChatMessage.jsx";
+import CourseDashboard from "./components/CourseDashboard.jsx";
 import MarkdownMessage from "./components/MarkdownMessage.jsx";
 import {
   COURSE_OPTIONS,
@@ -231,6 +232,9 @@ function App() {
     recordType: "",
     loading: false,
   });
+  const [courseDashboardLoading, setCourseDashboardLoading] = useState(false);
+  const [courseDashboardData, setCourseDashboardData] = useState(null);
+  const [courseProgressSavingKey, setCourseProgressSavingKey] = useState("");
 
   const fileInputRef = useRef(null);
   const localMessageCounterRef = useRef(0);
@@ -280,10 +284,14 @@ function App() {
   });
 
   const resolvedLearningRecordSubject =
-    learningRecordSubjectFilter === "__CURRENT__" ? currentChatSubject : "";
+    learningRecordSubjectFilter === "__CURRENT__"
+      ? currentChatSubject
+      : normalizeSubject(learningRecordSubjectFilter, "");
+  const displayedLearningRecordSubject =
+    resolvedLearningRecordSubject || currentChatSubject;
 
   const currentSubjectRecordCount =
-    learningRecordStats?.subject_counts?.[currentChatSubject] || 0;
+    learningRecordStats?.subject_counts?.[displayedLearningRecordSubject] || 0;
 
   const getQuestionForAssistantMessage = (messageIndex) => {
     for (let index = messageIndex - 1; index >= 0; index -= 1) {
@@ -341,6 +349,9 @@ function App() {
     setSelectedLearningRecord(null);
     setLearningRecordNote("");
     setLearningRecordTagsInput("");
+    setCourseDashboardData(null);
+    setCourseDashboardLoading(false);
+    setCourseProgressSavingKey("");
     setPage("login");
     setAuthMode("login");
   };
@@ -501,6 +512,35 @@ function App() {
     }
   };
 
+  const loadCourseDashboard = async (targetCourse = subject) => {
+    if (!user?.username) return;
+
+    const normalizedCourse = normalizeSubject(targetCourse);
+    setCourseDashboardLoading(true);
+    try {
+      const query = new URLSearchParams({
+        username: user.username,
+        course: normalizedCourse,
+      });
+      const res = await fetch(`${API_BASE}/course-dashboard?${query.toString()}`);
+      const data = await res.json();
+
+      if (!res.ok) {
+        setTip(getDisplayMessage(data.detail, "加载课程工作台失败"));
+        setCourseDashboardData(null);
+        return;
+      }
+
+      setCourseDashboardData(data);
+    } catch (error) {
+      console.error("Failed to load course dashboard:", error);
+      setTip("暂时无法加载课程工作台。");
+      setCourseDashboardData(null);
+    } finally {
+      setCourseDashboardLoading(false);
+    }
+  };
+
   const parseTagsInput = (value) =>
     String(value || "")
       .split(/[,，]/)
@@ -510,6 +550,42 @@ function App() {
   const openLearningRecordPage = async () => {
     setPage("records");
     await Promise.all([loadLearningRecords(), loadLearningRecordStats()]);
+  };
+
+  const openLearningRecordPageForCourse = async (targetCourse) => {
+    const normalizedCourse = normalizeSubject(targetCourse);
+    setSubject(normalizedCourse);
+    setLearningRecordSubjectFilter(normalizedCourse);
+    setPage("records");
+  };
+
+  const openMaterialsPageForCourse = async (targetCourse) => {
+    const normalizedCourse = normalizeSubject(targetCourse);
+    setSubject(normalizedCourse);
+    setMaterialSubjectFilter(normalizedCourse);
+    setPage("profile");
+    await loadMaterials(normalizedCourse);
+  };
+
+  const openChatPageForCourse = (targetCourse, forceNew = false) => {
+    const normalizedCourse = normalizeSubject(targetCourse);
+    setSubject(normalizedCourse);
+    setPage("chat");
+
+    if (forceNew || (activeSessionId && activeSessionSubject !== normalizedCourse)) {
+      setMessages([]);
+      setActiveSessionId(null);
+      setActiveSessionSubject(normalizedCourse);
+      setSelectedFile(null);
+      setMessage("");
+      setTip("");
+      localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+      return;
+    }
+
+    if (!activeSessionId) {
+      setActiveSessionSubject(normalizedCourse);
+    }
   };
 
   const updateLearningRecordInState = (record) => {
@@ -711,7 +787,7 @@ function App() {
         q: searchKeyword,
       });
       if (targetSubject) {
-        query.set("subject", targetSubject);
+        query.set("subject", normalizeSubject(targetSubject));
       }
 
       const res = await fetch(`${API_BASE}/materials/search?${query.toString()}`);
@@ -730,6 +806,54 @@ function App() {
       setMaterialSearchResults([]);
     } finally {
       setMaterialSearchLoading(false);
+    }
+  };
+
+  const updateCourseProgress = async (knowledgePoint, status) => {
+    if (!user?.username) return;
+
+    const normalizedCourse = normalizeSubject(subject);
+    const savingKey = `${normalizedCourse}-${knowledgePoint}`;
+    setCourseProgressSavingKey(savingKey);
+    try {
+      const res = await fetch(`${API_BASE}/course-progress`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: user.username,
+          course: normalizedCourse,
+          knowledge_point: knowledgePoint,
+          status,
+        }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setTip(getDisplayMessage(data.detail, "保存知识点状态失败"));
+        return;
+      }
+
+      setCourseDashboardData((prev) =>
+        prev
+          ? {
+              ...prev,
+              progress: data.progress || prev.progress,
+              recent_learning_at: data.item?.updated_at || prev.recent_learning_at,
+              stats: {
+                ...(prev.stats || {}),
+                progress_percent:
+                  typeof data.progress_percent === "number"
+                    ? data.progress_percent
+                    : prev.stats?.progress_percent || 0,
+              },
+            }
+          : prev
+      );
+    } catch (error) {
+      console.error("Failed to update course progress:", error);
+      setTip("暂时无法保存知识点状态。");
+    } finally {
+      setCourseProgressSavingKey("");
     }
   };
 
@@ -1036,6 +1160,18 @@ function App() {
     learningRecordReviewFilter,
     currentChatSubject,
   ]);
+
+  useEffect(() => {
+    if (page === "dashboard" && user?.username) {
+      const timer = window.setTimeout(() => {
+        loadCourseDashboard(subject);
+      }, 0);
+
+      return () => window.clearTimeout(timer);
+    }
+
+    return undefined;
+  }, [page, user?.username, subject]);
 
   const handleRegister = async () => {
     setTip("");
@@ -1549,6 +1685,9 @@ function App() {
                 <button className="primary-button" onClick={saveProfile} disabled={profileSaving}>
                   {profileSaving ? "保存中..." : "保存个人资料"}
                 </button>
+                <button className="dark-button" onClick={() => setPage("dashboard")}>
+                  进入课程工作台
+                </button>
                 <button className="dark-button" onClick={() => setPage("chat")}>
                   进入聊天
                 </button>
@@ -1785,6 +1924,9 @@ function App() {
           <button className="ghost-button" onClick={startNewConversation}>
             新建对话
           </button>
+          <button className="ghost-button" onClick={() => setPage("dashboard")}>
+            课程工作台
+          </button>
           <button className="ghost-button" onClick={() => setPage("profile")}>
             个人资料
           </button>
@@ -1839,11 +1981,33 @@ function App() {
       )}
 
       <main className="workspace-main workspace-main--chat-only">
-        {page === "records" ? (
+        {page === "dashboard" ? (
+          <CourseDashboard
+            course={subject}
+            courseOptions={COURSE_OPTIONS}
+            dashboard={courseDashboardData}
+            loading={courseDashboardLoading}
+            savingPointKey={courseProgressSavingKey}
+            onCourseChange={setSubject}
+            onProgressChange={updateCourseProgress}
+            onOpenMaterial={(materialId) => openMaterialDetail(materialId, "profile")}
+            onOpenChat={openChatSession}
+            onStartAsk={() => openChatPageForCourse(subject)}
+            onUploadMaterial={() => openMaterialsPageForCourse(subject)}
+            onViewMaterials={() => openMaterialsPageForCourse(subject)}
+            onViewLearningRecords={() => openLearningRecordPageForCourse(subject)}
+            onNewCourseChat={() => openChatPageForCourse(subject, true)}
+            getSubjectLabel={getSubjectLabel}
+            getFileTypeLabel={getFileTypeLabel}
+            formatDate={formatDate}
+          />
+        ) : page === "records" ? (
           <section className="chat-panel chat-panel--wide learning-records-panel">
             <div className="panel-header panel-header--chat">
               <div className="subject-pill panel-pill">学习记录</div>
-              <div className="subject-pill">当前学科：{getSubjectLabel(currentChatSubject)}</div>
+              <div className="subject-pill">
+                当前学科：{getSubjectLabel(displayedLearningRecordSubject)}
+              </div>
             </div>
 
             <div className="learning-stats-grid">
@@ -1895,6 +2059,11 @@ function App() {
                 >
                   <option value="__CURRENT__">当前学科</option>
                   <option value="">全部学科</option>
+                  {COURSE_OPTIONS.map((item) => (
+                    <option key={item} value={item}>
+                      {getSubjectLabel(item)}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div className="learning-filter-item">

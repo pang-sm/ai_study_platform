@@ -98,3 +98,15 @@ class LearningRecord(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     reviewed_at = Column(DateTime, nullable=True)
     is_deleted = Column(Boolean, nullable=False, default=False)
+
+
+class CourseProgress(Base):
+    __tablename__ = "course_progress"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), index=True, nullable=False)
+    course = Column(String(100), index=True, nullable=False)
+    knowledge_point = Column(String(255), nullable=False)
+    status = Column(String(20), nullable=False, default="未开始")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

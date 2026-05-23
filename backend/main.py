@@ -14,8 +14,16 @@ from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel
 from pypdf import PdfReader
 import pytesseract
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from course_workbench import (
+    COURSE_PROGRESS_STATUSES,
+    build_course_progress,
+    calculate_progress_percent,
+    get_course_roadmap,
+    normalize_progress_status,
+)
 import models
 import schemas
 from auth import hash_password, verify_password
@@ -137,6 +145,13 @@ class UpdateLearningRecordRequest(BaseModel):
     note: str | None = None
     tags: list[str] | None = None
     review_status: str | None = None
+
+
+class CourseProgressUpdateRequest(BaseModel):
+    username: str
+    course: str
+    knowledge_point: str
+    status: str
 
 
 def user_profile(user: models.User):
@@ -453,6 +468,142 @@ def serialize_learning_record(record: models.LearningRecord):
         "created_at": record.created_at,
         "updated_at": record.updated_at,
         "reviewed_at": record.reviewed_at,
+    }
+
+
+def serialize_course_progress(record: models.CourseProgress):
+    return {
+        "id": record.id,
+        "course": record.course,
+        "knowledge_point": record.knowledge_point,
+        "status": record.status,
+        "created_at": record.created_at,
+        "updated_at": record.updated_at,
+    }
+
+
+def get_saved_course_progress_map(db: Session, username: str, course: str):
+    records = (
+        db.query(models.CourseProgress)
+        .filter(
+            models.CourseProgress.username == username,
+            models.CourseProgress.course == course,
+        )
+        .order_by(models.CourseProgress.updated_at.desc(), models.CourseProgress.id.desc())
+        .all()
+    )
+
+    saved_statuses: dict[str, str] = {}
+    for record in records:
+        if record.knowledge_point not in saved_statuses:
+            saved_statuses[record.knowledge_point] = normalize_progress_status(record.status)
+    return saved_statuses
+
+
+def build_course_dashboard_payload(db: Session, user: models.User, course: str):
+    normalized_course = normalize_subject(course)
+
+    material_query = db.query(models.StudyMaterial).filter(
+        models.StudyMaterial.username == user.username,
+        models.StudyMaterial.subject == normalized_course,
+        models.StudyMaterial.is_deleted.is_(False),
+    )
+    materials_count = material_query.count()
+    pdf_count = material_query.filter(models.StudyMaterial.file_type == "pdf").count()
+    image_count = material_query.filter(models.StudyMaterial.file_type == "image").count()
+    recent_materials = (
+        material_query.order_by(models.StudyMaterial.created_at.desc()).limit(3).all()
+    )
+
+    chat_query = db.query(models.ChatSession).filter(
+        models.ChatSession.user_id == user.id,
+        or_(
+            models.ChatSession.subject == normalized_course,
+            models.ChatSession.course == normalized_course,
+        ),
+    )
+    chat_count = chat_query.count()
+    recent_chats = chat_query.order_by(models.ChatSession.created_at.desc()).limit(5).all()
+
+    pending_review_count = 0
+    recent_record_at = None
+    try:
+        pending_review_count = (
+            db.query(models.LearningRecord)
+            .filter(
+                models.LearningRecord.user_id == user.id,
+                models.LearningRecord.subject == normalized_course,
+                models.LearningRecord.is_deleted.is_(False),
+                models.LearningRecord.review_status == "pending",
+            )
+            .count()
+        )
+        recent_record = (
+            db.query(models.LearningRecord)
+            .filter(
+                models.LearningRecord.user_id == user.id,
+                models.LearningRecord.subject == normalized_course,
+                models.LearningRecord.is_deleted.is_(False),
+            )
+            .order_by(models.LearningRecord.updated_at.desc(), models.LearningRecord.created_at.desc())
+            .first()
+        )
+        recent_record_at = (
+            recent_record.updated_at if recent_record and recent_record.updated_at else recent_record.created_at if recent_record else None
+        )
+    except Exception:
+        pending_review_count = 0
+        recent_record_at = None
+
+    saved_progress_map = get_saved_course_progress_map(db, user.username, normalized_course)
+    progress = build_course_progress(normalized_course, saved_progress_map)
+    progress_percent = calculate_progress_percent(progress)
+
+    latest_progress = (
+        db.query(models.CourseProgress)
+        .filter(
+            models.CourseProgress.username == user.username,
+            models.CourseProgress.course == normalized_course,
+        )
+        .order_by(models.CourseProgress.updated_at.desc(), models.CourseProgress.created_at.desc())
+        .first()
+    )
+
+    latest_candidates = [
+        recent_materials[0].created_at if recent_materials else None,
+        recent_chats[0].created_at if recent_chats else None,
+        recent_record_at,
+        latest_progress.updated_at if latest_progress else None,
+    ]
+    recent_learning_at = max((item for item in latest_candidates if item is not None), default=None)
+
+    if materials_count == 0:
+        suggestion = "建议先上传课程资料，方便 AI 结合你的个人资料回答。"
+    elif chat_count == 0:
+        suggestion = "建议先从一个基础问题开始提问，建立这门课的学习上下文。"
+    elif pending_review_count > 0:
+        suggestion = "建议优先复习待复习内容，再继续围绕薄弱点提问。"
+    else:
+        suggestion = "建议继续围绕薄弱知识点提问，并结合资料库做针对性复习。"
+
+    return {
+        "success": True,
+        "course": normalized_course,
+        "stats": {
+            "materials_count": materials_count,
+            "pdf_count": pdf_count,
+            "image_count": image_count,
+            "chat_count": chat_count,
+            "pending_review_count": pending_review_count,
+            "progress_percent": progress_percent,
+        },
+        "recent_learning_at": recent_learning_at,
+        "recent_materials": [serialize_material_list_item(item) for item in recent_materials],
+        "recent_chats": [serialize_session(item) for item in recent_chats],
+        "progress": progress,
+        "roadmap": get_course_roadmap(normalized_course),
+        "suggestion": suggestion,
+        "progress_status_options": list(COURSE_PROGRESS_STATUSES),
     }
 
 
@@ -1317,6 +1468,81 @@ def delete_learning_record(record_id: int, username: str, db: Session = Depends(
     db.commit()
 
     return {"success": True, "message": "学习记录已删除", "record_id": record.id}
+
+
+@app.get("/course-progress")
+def get_course_progress(username: str, course: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    normalized_course = normalize_subject(course)
+    progress = build_course_progress(
+        normalized_course,
+        get_saved_course_progress_map(db, user.username, normalized_course),
+    )
+    return {
+        "success": True,
+        "course": normalized_course,
+        "progress": progress,
+        "progress_percent": calculate_progress_percent(progress),
+        "status_options": list(COURSE_PROGRESS_STATUSES),
+    }
+
+
+@app.patch("/course-progress")
+def update_course_progress(req: CourseProgressUpdateRequest, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+    normalized_course = normalize_subject(req.course)
+    knowledge_point = (req.knowledge_point or "").strip()
+    raw_status = (req.status or "").strip()
+    roadmap = get_course_roadmap(normalized_course)
+
+    if knowledge_point not in roadmap:
+        raise HTTPException(status_code=400, detail="知识点不属于当前课程")
+    if raw_status not in COURSE_PROGRESS_STATUSES:
+        raise HTTPException(status_code=400, detail="知识点状态无效")
+
+    next_status = normalize_progress_status(raw_status)
+
+    record = (
+        db.query(models.CourseProgress)
+        .filter(
+            models.CourseProgress.username == user.username,
+            models.CourseProgress.course == normalized_course,
+            models.CourseProgress.knowledge_point == knowledge_point,
+        )
+        .first()
+    )
+
+    if record:
+        record.status = next_status
+        record.updated_at = datetime.utcnow()
+    else:
+        record = models.CourseProgress(
+            username=user.username,
+            course=normalized_course,
+            knowledge_point=knowledge_point,
+            status=next_status,
+        )
+        db.add(record)
+
+    db.commit()
+    db.refresh(record)
+
+    progress = build_course_progress(
+        normalized_course,
+        get_saved_course_progress_map(db, user.username, normalized_course),
+    )
+    return {
+        "success": True,
+        "item": serialize_course_progress(record),
+        "progress": progress,
+        "progress_percent": calculate_progress_percent(progress),
+    }
+
+
+@app.get("/course-dashboard")
+def get_course_dashboard(username: str, course: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    return build_course_dashboard_payload(db, user, course)
 
 
 @app.get("/chat/history")
