@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 import models
 from database import engine, is_material_chunks_fts_enabled
+from subjects import normalize_subject
 
 MAX_CHUNK_SIZE = 700
 CHUNK_OVERLAP = 120
@@ -17,15 +18,19 @@ DEFAULT_TOP_K = 4
 MAX_TOP_K = 6
 
 COURSE_HINTS = {
-    "Python": ["python", "def", "class", "list", "dict", "import", "函数", "列表", "字典"],
-    "Java": ["java", "class", "public", "static", "对象", "继承", "多态", "接口"],
-    "数据结构": ["数组", "链表", "栈", "队列", "树", "图", "哈希", "排序", "查找"],
-    "计算机网络": ["tcp", "udp", "http", "https", "ip", "dns", "协议", "分层", "路由"],
-    "操作系统": ["进程", "线程", "调度", "内存", "页表", "死锁", "文件系统", "中断"],
-    "数据库": ["sql", "mysql", "sqlite", "索引", "事务", "表", "查询", "主键", "外键"],
-    "前端开发": ["html", "css", "javascript", "react", "组件", "状态", "事件", "页面"],
-    "后端开发": ["fastapi", "api", "接口", "数据库", "服务", "鉴权", "路由", "后端"],
-    "算法": ["动态规划", "贪心", "二分", "递归", "回溯", "复杂度", "图论", "搜索"],
+    "计算系统基础": ["二进制", "存储", "指令", "程序执行", "系统结构", "软硬件", "编码", "内存"],
+    "C语言": ["指针", "数组", "结构体", "内存", "函数", "编译", "gcc", "字符串"],
+    "C++": ["类", "对象", "STL", "模板", "引用", "构造函数", "析构函数", "内存管理"],
+    "Python": ["python", "列表", "字典", "函数", "文件", "库", "脚本", "异常"],
+    "Java": ["java", "类", "对象", "集合", "异常", "JVM", "线程", "接口"],
+    "离散数学": ["集合", "关系", "函数", "图论", "命题", "逻辑", "证明", "递推"],
+    "数据结构与算法": ["数组", "链表", "栈", "队列", "树", "图", "排序", "查找", "复杂度", "动态规划", "贪心"],
+    "计算机组成结构": ["数据表示", "指令系统", "CPU", "存储器", "总线", "流水线", "cache", "寄存器"],
+    "互联网计算": ["tcp", "udp", "http", "https", "ip", "dns", "协议", "分层", "路由", "web", "分布式"],
+    "计算机操作系统": ["进程", "线程", "调度", "内存", "页表", "死锁", "文件系统", "同步", "互斥"],
+    "编译原理": ["词法分析", "语法分析", "语义分析", "中间代码", "优化", "目标代码", "自动机", "文法"],
+    "数据管理": ["sql", "mysql", "sqlite", "索引", "事务", "关系模型", "范式", "查询优化", "主键", "外键"],
+    "人机交互": ["交互设计", "用户体验", "可用性", "界面", "用户研究", "原型", "任务分析", "可访问性"],
 }
 
 
@@ -90,9 +95,10 @@ def summarize_chunk_text(chunk_text: str) -> str:
 
 
 def extract_keywords(subject: str, material_summary: str, source_filename: str, chunk_text: str):
+    normalized_subject = normalize_subject(subject, default="")
     combined = " ".join(
         [
-            subject or "",
+            normalized_subject or subject or "",
             material_summary or "",
             source_filename or "",
             (chunk_text or "")[:800],
@@ -100,7 +106,7 @@ def extract_keywords(subject: str, material_summary: str, source_filename: str, 
     ).lower()
 
     tokens: list[str] = []
-    tokens.extend(COURSE_HINTS.get(subject, []))
+    tokens.extend(COURSE_HINTS.get(normalized_subject or subject, []))
     tokens.extend(re.findall(r"[a-zA-Z_][a-zA-Z0-9_+#.-]{1,30}", combined))
     tokens.extend([item for item in re.findall(r"[\u4e00-\u9fff]{2,8}", combined) if len(item) >= 2])
 

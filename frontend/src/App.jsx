@@ -2,6 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
 import ChatMessage from "./components/ChatMessage.jsx";
 import MarkdownMessage from "./components/MarkdownMessage.jsx";
+import {
+  COURSE_OPTIONS,
+  DEFAULT_SUBJECT,
+  getSubjectLabel,
+  normalizeSubject,
+} from "./courseOptions.js";
 
 const USER_STORAGE_KEY = "ai_study_platform_user";
 const ACTIVE_SESSION_STORAGE_KEY = "ai_study_platform_active_session_id";
@@ -16,30 +22,6 @@ const AVATARS = [
   { id: "avatar_5", label: "A5", background: "#ea580c" },
   { id: "avatar_6", label: "A6", background: "#0f766e" },
 ];
-
-const SUBJECT_OPTIONS = [
-  "Python",
-  "Java",
-  "Data Structures",
-  "Computer Networks",
-  "Operating Systems",
-  "Databases",
-  "Frontend Development",
-  "Backend Development",
-  "Algorithms",
-];
-
-const SUBJECT_LABELS = {
-  Python: "Python",
-  Java: "Java",
-  "Data Structures": "数据结构",
-  "Computer Networks": "计算机网络",
-  "Operating Systems": "操作系统",
-  Databases: "数据库",
-  "Frontend Development": "前端开发",
-  "Backend Development": "后端开发",
-  Algorithms: "算法",
-};
 
 const MESSAGE_TRANSLATIONS = {
   "Invalid username or password": "用户名或密码错误",
@@ -128,10 +110,6 @@ function formatDate(value) {
   });
 }
 
-function getSubjectLabel(subject) {
-  return SUBJECT_LABELS[subject] || subject || "";
-}
-
 function getFileTypeLabel(type) {
   const normalizedType = String(type || "").toLowerCase();
 
@@ -212,13 +190,13 @@ function App() {
     avatar: "avatar_1",
   });
 
-  const [subject, setSubject] = useState("Python");
+  const [subject, setSubject] = useState(DEFAULT_SUBJECT);
   const [message, setMessage] = useState("");
   const [selectedFile, setSelectedFile] = useState(null);
   const [messages, setMessages] = useState([]);
   const [chatSessions, setChatSessions] = useState([]);
   const [activeSessionId, setActiveSessionId] = useState(null);
-  const [activeSessionSubject, setActiveSessionSubject] = useState("Python");
+  const [activeSessionSubject, setActiveSessionSubject] = useState(DEFAULT_SUBJECT);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [tip, setTip] = useState("");
   const [loading, setLoading] = useState(false);
@@ -235,7 +213,7 @@ function App() {
   const [selectedMaterialDetail, setSelectedMaterialDetail] = useState(null);
   const [addToLibraryState, setAddToLibraryState] = useState({
     messageId: null,
-    subject: "Python",
+    subject: DEFAULT_SUBJECT,
     loading: false,
   });
   const [learningRecordsLoading, setLearningRecordsLoading] = useState(false);
@@ -265,14 +243,17 @@ function App() {
 
   const visibleSessions = useMemo(() => {
     return chatSessions.filter(
-      (session) => (session.subject || session.course || "") === subject
+      (session) =>
+        normalizeSubject(session.subject || session.course || "", "") === subject
     );
   }, [chatSessions, subject]);
 
   const groupedMaterials = useMemo(() => {
-    return SUBJECT_OPTIONS.map((item) => ({
+    return COURSE_OPTIONS.map((item) => ({
       subject: item,
-      items: materials.filter((material) => material.subject === item),
+      items: materials.filter(
+        (material) => normalizeSubject(material.subject, "") === item
+      ),
     })).filter(
       (group) =>
         group.items.length > 0 ||
@@ -409,7 +390,7 @@ function App() {
     try {
       const query = new URLSearchParams({ username: user.username });
       if (targetSubject) {
-        query.set("subject", targetSubject);
+        query.set("subject", normalizeSubject(targetSubject));
       }
 
       const res = await fetch(`${API_BASE}/materials?${query.toString()}`);
@@ -458,7 +439,7 @@ function App() {
     try {
       const query = new URLSearchParams({ username: user.username });
       if (resolvedLearningRecordSubject) {
-        query.set("subject", resolvedLearningRecordSubject);
+        query.set("subject", normalizeSubject(resolvedLearningRecordSubject));
       }
       if (learningRecordTypeFilter) {
         query.set("record_type", learningRecordTypeFilter);
@@ -854,7 +835,9 @@ function App() {
         return;
       }
 
-      const sessionSubject = data.session.subject || data.session.course || subject;
+      const sessionSubject = normalizeSubject(
+        data.session.subject || data.session.course || subject
+      );
       setActiveSessionId(session.id);
       setActiveSessionSubject(sessionSubject);
       localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, String(session.id));
@@ -899,7 +882,7 @@ function App() {
       if (activeSessionId === session.id) {
         setMessages([]);
         setActiveSessionId(null);
-        setActiveSessionSubject(subject);
+        setActiveSessionSubject(normalizeSubject(subject));
         setSelectedFile(null);
         setMessage("");
         localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
@@ -988,7 +971,9 @@ function App() {
           return;
         }
 
-        const sessionSubject = data.session.subject || data.session.course || subject;
+        const sessionSubject = normalizeSubject(
+          data.session.subject || data.session.course || subject
+        );
         setActiveSessionId(data.session.id);
         setActiveSessionSubject(sessionSubject);
         setSubject(sessionSubject);
@@ -1232,7 +1217,7 @@ function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: currentMessage,
-          subject: currentChatSubject,
+          subject: normalizeSubject(currentChatSubject),
           grade: user.grade || "",
           major: user.major || "",
           username: user.username,
@@ -1279,7 +1264,7 @@ function App() {
     const formData = new FormData();
     formData.append("file", selectedFile);
     formData.append("username", user.username);
-    formData.append("subject", currentChatSubject);
+    formData.append("subject", normalizeSubject(currentChatSubject));
     formData.append("question", currentQuestion);
     formData.append("save_to_materials", "true");
     if (activeSessionId) {
@@ -1375,7 +1360,7 @@ function App() {
     setAddToLibraryState((prev) => ({
       ...prev,
       messageId: messageItem.id,
-      subject: selectedSubject,
+      subject: normalizeSubject(selectedSubject),
       loading: true,
     }));
 
@@ -1386,7 +1371,7 @@ function App() {
         body: JSON.stringify({
           username: user.username,
           message_id: messageItem.id,
-          subject: selectedSubject,
+          subject: normalizeSubject(selectedSubject),
         }),
       });
       const data = await res.json();
@@ -1420,7 +1405,7 @@ function App() {
   const startNewConversation = () => {
     setMessages([]);
     setActiveSessionId(null);
-    setActiveSessionSubject(subject);
+    setActiveSessionSubject(normalizeSubject(subject));
     setSelectedFile(null);
     setMessage("");
     setTip("");
@@ -1612,7 +1597,7 @@ function App() {
                   }}
                 >
                   <option value="">全部学科</option>
-                  {SUBJECT_OPTIONS.map((item) => (
+                  {COURSE_OPTIONS.map((item) => (
                     <option key={item} value={item}>
                       {getSubjectLabel(item)}
                     </option>
@@ -1790,7 +1775,7 @@ function App() {
               }
             }}
           >
-            {SUBJECT_OPTIONS.map((item) => (
+            {COURSE_OPTIONS.map((item) => (
               <option key={item} value={item}>
                 {getSubjectLabel(item)}
               </option>
@@ -2119,7 +2104,7 @@ function App() {
                   currentChatSubject={currentChatSubject}
                   addToLibraryState={addToLibraryState}
                   setAddToLibraryState={setAddToLibraryState}
-                  subjectOptions={SUBJECT_OPTIONS}
+                  subjectOptions={COURSE_OPTIONS}
                   getSubjectLabel={getSubjectLabel}
                   getFileTypeLabel={getFileTypeLabel}
                   getReferenceSnippet={getReferenceSnippet}

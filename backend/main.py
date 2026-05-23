@@ -22,6 +22,7 @@ from auth import hash_password, verify_password
 from database import Base, engine, get_db, init_user_profile_schema, update_conversation_title
 from prompts import build_system_prompt
 from rag import reindex_materials, replace_material_chunks, search_relevant_material_chunks, soft_delete_material_chunks
+from subjects import normalize_subject
 
 load_dotenv()
 
@@ -79,18 +80,6 @@ ALLOWED_AVATARS = {
     "avatar_5",
     "avatar_6",
 }
-
-SUBJECT_OPTIONS = [
-    "Python",
-    "Java",
-    "数据结构",
-    "计算机网络",
-    "操作系统",
-    "数据库",
-    "前端开发",
-    "后端开发",
-    "算法",
-]
 
 ALLOWED_RECORD_TYPES = {
     "wrong_question",
@@ -159,11 +148,6 @@ def user_profile(user: models.User):
         "major": user.major or "",
         "avatar": user.avatar or "",
     }
-
-
-def normalize_subject(subject: str | None = None, course: str | None = None, default: str = "通用学习") -> str:
-    normalized = (subject or course or "").strip()
-    return normalized or default
 
 
 def get_user_by_username(username: str, db: Session):
@@ -553,8 +537,6 @@ def create_material_from_message(
     subject: str,
 ):
     normalized_subject = normalize_subject(subject)
-    if normalized_subject == "通用学习":
-        raise HTTPException(status_code=400, detail="加入资料库时必须选择学科")
 
     if not message.attachment_path or not (message.extracted_text or "").strip():
         raise HTTPException(status_code=400, detail="该消息没有可加入资料库的附件内容")
@@ -621,9 +603,6 @@ async def handle_material_upload(
 ):
     user = get_user_by_username(username, db)
     normalized_subject = normalize_subject(subject)
-
-    if normalized_subject == "通用学习":
-        raise HTTPException(status_code=400, detail="上传资料时必须选择学科")
 
     file_bytes = await file.read()
     validate_upload(file, file_bytes)
@@ -912,7 +891,7 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
     db.refresh(user_message)
 
     rag_chunks = []
-    if subject and subject != "通用学习":
+    if subject:
         rag_chunks = search_relevant_material_chunks(
             username=user.username,
             subject=subject,
@@ -1049,7 +1028,7 @@ def reindex_user_materials(req: ReindexMaterialsRequest, db: Session = Depends(g
         indexed_material_count, indexed_chunk_count = reindex_materials(
             db=db,
             username=user.username,
-            subject=(req.subject or "").strip() or None,
+            subject=normalize_subject(req.subject, default="") or None,
             force=req.force,
         )
     except Exception as exc:
@@ -1071,7 +1050,7 @@ def search_materials(
 ):
     user = get_user_by_username(username, db)
     keyword = (q or "").strip()
-    normalized_subject = (subject or "").strip()
+    normalized_subject = normalize_subject(subject, default="")
 
     if not keyword:
         return {"chunks": []}
@@ -1094,7 +1073,7 @@ def get_materials(username: str, subject: str | None = None, db: Session = Depen
         models.StudyMaterial.is_deleted.is_(False),
     )
 
-    normalized_subject = (subject or "").strip()
+    normalized_subject = normalize_subject(subject, default="")
     if normalized_subject:
         query = query.filter(models.StudyMaterial.subject == normalized_subject)
 
@@ -1223,7 +1202,7 @@ def get_learning_records(
         models.LearningRecord.is_deleted.is_(False),
     )
 
-    normalized_subject = (subject or "").strip()
+    normalized_subject = normalize_subject(subject, default="")
     normalized_record_type = (record_type or "").strip()
     normalized_review_status = (review_status or "").strip()
 

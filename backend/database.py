@@ -1,5 +1,6 @@
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import declarative_base, sessionmaker
+from subjects import DEFAULT_SUBJECT, get_subject_migration_pairs
 
 DATABASE_URL = "sqlite:///./app.db"
 
@@ -22,6 +23,7 @@ PROFILE_COLUMNS = {
 }
 
 CHAT_SESSION_COLUMNS = {
+    "course": "VARCHAR(100)",
     "subject": "VARCHAR(100)",
 }
 
@@ -192,6 +194,77 @@ def ensure_material_chunks_fts(conn):
     )
 
 
+def column_exists(conn, table_name: str, column_name: str) -> bool:
+    return column_name in get_existing_columns(conn, table_name)
+
+
+def update_subject_aliases(conn, table_name: str, column_name: str):
+    if not column_exists(conn, table_name, column_name):
+        return
+
+    for old_value, new_value in get_subject_migration_pairs():
+        conn.execute(
+            text(f"UPDATE {table_name} SET {column_name} = :new_value WHERE {column_name} = :old_value"),
+            {"old_value": old_value, "new_value": new_value},
+        )
+
+
+def fill_blank_subject_column(conn, table_name: str, column_name: str):
+    if not column_exists(conn, table_name, column_name):
+        return
+
+    conn.execute(
+        text(
+            f"""
+            UPDATE {table_name}
+            SET {column_name} = :default_subject
+            WHERE {column_name} IS NULL OR TRIM({column_name}) = ''
+            """
+        ),
+        {"default_subject": DEFAULT_SUBJECT},
+    )
+
+
+def normalize_existing_subjects(conn):
+    update_subject_aliases(conn, "chat_sessions", "subject")
+    update_subject_aliases(conn, "chat_sessions", "course")
+    update_subject_aliases(conn, "study_materials", "subject")
+    update_subject_aliases(conn, "material_chunks", "subject")
+    update_subject_aliases(conn, "learning_records", "subject")
+    update_subject_aliases(conn, "chat_messages", "subject")
+
+    chat_session_columns = get_existing_columns(conn, "chat_sessions")
+    if "subject" in chat_session_columns and "course" in chat_session_columns:
+        conn.execute(
+            text(
+                """
+                UPDATE chat_sessions
+                SET subject = COALESCE(NULLIF(subject, ''), NULLIF(course, ''), :default_subject)
+                WHERE subject IS NULL OR TRIM(subject) = ''
+                """
+            ),
+            {"default_subject": DEFAULT_SUBJECT},
+        )
+        conn.execute(
+            text(
+                """
+                UPDATE chat_sessions
+                SET course = COALESCE(NULLIF(course, ''), NULLIF(subject, ''), :default_subject)
+                WHERE course IS NULL OR TRIM(course) = ''
+                """
+            ),
+            {"default_subject": DEFAULT_SUBJECT},
+        )
+    else:
+        fill_blank_subject_column(conn, "chat_sessions", "subject")
+        fill_blank_subject_column(conn, "chat_sessions", "course")
+
+    fill_blank_subject_column(conn, "study_materials", "subject")
+    fill_blank_subject_column(conn, "material_chunks", "subject")
+    fill_blank_subject_column(conn, "learning_records", "subject")
+    fill_blank_subject_column(conn, "chat_messages", "subject")
+
+
 def init_user_profile_schema():
     with engine.begin() as conn:
         ensure_columns(conn, "users", PROFILE_COLUMNS)
@@ -201,6 +274,7 @@ def init_user_profile_schema():
         ensure_material_chunks_schema(conn)
         ensure_learning_records_schema(conn)
         ensure_material_chunks_fts(conn)
+        normalize_existing_subjects(conn)
 
         chat_session_columns = get_existing_columns(conn, "chat_sessions")
         if "subject" in chat_session_columns and "course" in chat_session_columns:

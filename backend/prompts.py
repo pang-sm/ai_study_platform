@@ -1,5 +1,7 @@
 import re
 
+from subjects import normalize_subject as canonical_normalize_subject
+
 
 QUESTION_TYPE_LABELS = {
     "concept_explanation": "概念解释",
@@ -54,22 +56,19 @@ QUESTION_TYPE_INSTRUCTIONS = {
 
 
 SUBJECT_GUIDANCE = {
-    "python": "当前学科偏向 Python，请优先结合语法、函数、类、模块、调试思路和可运行示例来讲解。",
-    "java": "当前学科偏向 Java，请优先结合语法、面向对象、集合、异常、JVM 和代码实践来讲解。",
-    "data structures": "当前学科偏向数据结构，请优先强调抽象结构、操作过程、时间复杂度、空间复杂度和图示化理解。",
-    "数据结构": "当前学科偏向数据结构，请优先强调抽象结构、操作过程、时间复杂度、空间复杂度和图示化理解。",
-    "computer networks": "当前学科偏向计算机网络，请优先解释分层、协议作用、数据传输过程和典型场景。",
-    "计算机网络": "当前学科偏向计算机网络，请优先解释分层、协议作用、数据传输过程和典型场景。",
-    "operating systems": "当前学科偏向操作系统，请优先关注进程、线程、调度、内存管理、文件系统和考试常见易错点。",
-    "操作系统": "当前学科偏向操作系统，请优先关注进程、线程、调度、内存管理、文件系统和考试常见易错点。",
-    "databases": "当前学科偏向数据库，请优先结合表结构、SQL、索引、事务和查询过程来讲解。",
-    "数据库": "当前学科偏向数据库，请优先结合表结构、SQL、索引、事务和查询过程来讲解。",
-    "frontend development": "当前学科偏向前端开发，请优先结合 HTML、CSS、JavaScript、React 和页面交互场景来讲解。",
-    "前端开发": "当前学科偏向前端开发，请优先结合 HTML、CSS、JavaScript、React 和页面交互场景来讲解。",
-    "backend development": "当前学科偏向后端开发，请优先结合接口、业务逻辑、数据库、错误处理和部署来讲解。",
-    "后端开发": "当前学科偏向后端开发，请优先结合接口、业务逻辑、数据库、错误处理和部署来讲解。",
-    "algorithms": "当前学科偏向算法，请优先强调思路拆解、复杂度、边界条件和同类题方法。",
-    "算法": "当前学科偏向算法，请优先强调思路拆解、复杂度、边界条件和同类题方法。",
+    "计算系统基础": "当前课程偏向计算系统基础，请关注计算机系统整体结构、程序执行、二进制、存储、指令与软硬件协同。",
+    "C语言": "当前课程偏向 C语言，请关注语法基础、指针、数组、结构体、内存、编译运行。",
+    "C++": "当前课程偏向 C++，请关注面向对象、STL、模板、引用、内存管理、编译错误。",
+    "Python": "当前课程偏向 Python，请关注语法、数据结构、函数、文件、库使用、脚本实践。",
+    "Java": "当前课程偏向 Java，请关注面向对象、集合、异常、JVM、线程、项目开发。",
+    "离散数学": "当前课程偏向离散数学，请关注集合、关系、函数、图论、逻辑、证明方法。",
+    "数据结构与算法": "当前课程偏向数据结构与算法，请关注线性表、树、图、排序、查找、复杂度、算法思想。",
+    "计算机组成结构": "当前课程偏向计算机组成结构，请关注数据表示、指令系统、CPU、存储系统、总线、流水线。",
+    "互联网计算": "当前课程偏向互联网计算，请关注计算机网络、HTTP、TCP/IP、DNS、Web、分布式基础。",
+    "计算机操作系统": "当前课程偏向计算机操作系统，请关注进程、线程、调度、内存管理、文件系统、死锁、同步互斥。",
+    "编译原理": "当前课程偏向编译原理，请关注词法分析、语法分析、语义分析、中间代码、优化、目标代码。",
+    "数据管理": "当前课程偏向数据管理，请关注数据库、SQL、关系模型、索引、事务、范式、查询优化。",
+    "人机交互": "当前课程偏向人机交互，请关注交互设计、用户体验、可用性、界面设计、用户研究。",
 }
 
 
@@ -165,8 +164,7 @@ PROJECT_HELP_ACTION_KEYWORDS = (
 
 
 def _normalize_subject(subject: str | None) -> str:
-    normalized = (subject or "").strip()
-    return normalized or "通用学习"
+    return canonical_normalize_subject(subject)
 
 
 def _normalize_question(question: str | None) -> str:
@@ -254,7 +252,7 @@ def build_system_prompt(
     profile = user_profile_data or {}
     grade = (profile.get("grade") or "").strip() or "未填写"
     major = (profile.get("major") or "").strip() or "未填写"
-    subject_guidance = SUBJECT_GUIDANCE.get(normalized_subject.lower()) or SUBJECT_GUIDANCE.get(normalized_subject)
+    subject_guidance = SUBJECT_GUIDANCE.get(normalized_subject)
 
     sections = [
         "你是一个面向高校学生的计算机学习导师，重点帮助学生真正理解知识，而不是只给最终答案。",
