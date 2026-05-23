@@ -1,5 +1,6 @@
 import base64
 import os
+import time
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -96,24 +97,26 @@ def _get_qwen_client() -> OpenAI | None:
 
 
 def _image_to_data_url(image_path: Path):
+    started_at = time.perf_counter()
     suffix = image_path.suffix.lower()
     mime_type = IMAGE_MIME_TYPES.get(suffix)
     if not mime_type:
-        return None, "仅支持 jpg、jpeg、png、webp 图片调用 Qwen 解析"
+        return None, "仅支持 jpg、jpeg、png、webp 图片调用 Qwen 解析", 0, 0
 
     try:
         file_bytes = image_path.read_bytes()
     except OSError:
-        return None, "图片文件读取失败"
+        return None, "图片文件读取失败", 0, 0
 
     if not file_bytes:
-        return None, "图片内容为空，无法调用 Qwen 解析"
+        return None, "图片内容为空，无法调用 Qwen 解析", 0, 0
 
     if len(file_bytes) > MAX_IMAGE_BYTES:
-        return None, "图片过大，暂不支持直接发送给 Qwen 解析"
+        return None, "图片过大，暂不支持直接发送给 Qwen 解析", len(file_bytes), 0
 
     encoded = base64.b64encode(file_bytes).decode("utf-8")
-    return f"data:{mime_type};base64,{encoded}", None
+    encode_seconds = time.perf_counter() - started_at
+    return f"data:{mime_type};base64,{encoded}", None, len(file_bytes), encode_seconds
 
 
 def _normalize_message_content(content) -> str:
@@ -136,7 +139,12 @@ def _normalize_message_content(content) -> str:
     return str(content or "").strip()
 
 
-def parse_image_with_qwen(image_path: str, prompt: str | None = None, model: str | None = None):
+def parse_image_with_qwen(
+    image_path: str,
+    prompt: str | None = None,
+    model: str | None = None,
+    timeout_seconds: int | float | None = None,
+):
     if not is_qwen_enabled():
         return _build_result(False, error="Qwen 多模态解析未启用或未配置 DASHSCOPE_API_KEY")
 
@@ -144,7 +152,7 @@ def parse_image_with_qwen(image_path: str, prompt: str | None = None, model: str
     if not image_file.exists() or not image_file.is_file():
         return _build_result(False, error="图片文件不存在，无法调用 Qwen 解析")
 
-    data_url, image_error = _image_to_data_url(image_file)
+    data_url, image_error, image_size_bytes, encode_seconds = _image_to_data_url(image_file)
     if image_error:
         return _build_result(False, error=image_error)
 
@@ -155,6 +163,7 @@ def parse_image_with_qwen(image_path: str, prompt: str | None = None, model: str
     model = (model or os.getenv("QWEN_OCR_MODEL") or DEFAULT_QWEN_OCR_MODEL).strip() or DEFAULT_QWEN_OCR_MODEL
     final_prompt = (prompt or DEFAULT_IMAGE_PROMPT).strip() or DEFAULT_IMAGE_PROMPT
 
+    qwen_started_at = time.perf_counter()
     try:
         response = client.chat.completions.create(
             model=model,
@@ -167,14 +176,35 @@ def parse_image_with_qwen(image_path: str, prompt: str | None = None, model: str
                     ],
                 }
             ],
+            timeout=timeout_seconds,
         )
     except Exception:
-        return _build_result(False, error="Qwen 多模态解析调用失败，请稍后重试")
+        return {
+            **_build_result(False, error="Qwen 多模态解析调用失败，请稍后重试"),
+            "model": model,
+            "image_size_bytes": image_size_bytes,
+            "encode_seconds": encode_seconds,
+            "qwen_seconds": time.perf_counter() - qwen_started_at,
+        }
+
+    qwen_seconds = time.perf_counter() - qwen_started_at
 
     extracted_text = _normalize_message_content(
         response.choices[0].message.content if response and response.choices else ""
     )
     if not extracted_text:
-        return _build_result(False, error="Qwen 已返回结果，但未提取到有效文本")
+        return {
+            **_build_result(False, error="Qwen 已返回结果，但未提取到有效文本"),
+            "model": model,
+            "image_size_bytes": image_size_bytes,
+            "encode_seconds": encode_seconds,
+            "qwen_seconds": qwen_seconds,
+        }
 
-    return _build_result(True, extracted_text=extracted_text, error=None)
+    return {
+        **_build_result(True, extracted_text=extracted_text, error=None),
+        "model": model,
+        "image_size_bytes": image_size_bytes,
+        "encode_seconds": encode_seconds,
+        "qwen_seconds": qwen_seconds,
+    }

@@ -5,7 +5,9 @@ import re
 import secrets
 import tempfile
 import hashlib
-from datetime import datetime
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
 
@@ -66,7 +68,8 @@ client = OpenAI(
     base_url="https://api.deepseek.com",
 )
 
-logger = logging.getLogger("ai_study_platform.qwen")
+logger = logging.getLogger("uvicorn.error")
+logger.setLevel(logging.INFO)
 
 BASE_DIR = Path(__file__).resolve().parent
 UPLOAD_ROOT = BASE_DIR / "uploads"
@@ -82,6 +85,13 @@ TOP_K_CHUNKS = 4
 MIN_QWEN_CHINESE_CHARS = 30
 MIN_QWEN_ALNUM_CHARS = 80
 MIN_PDF_AVG_PAGE_CHARS = 120
+DEFAULT_LOCAL_PDF_SYNC_MAX_PAGES = 200
+DEFAULT_PDF_OCR_RENDER_DPI = 150
+DEFAULT_PDF_OCR_IMAGE_FORMAT = "jpeg"
+DEFAULT_PDF_OCR_JPEG_QUALITY = 80
+DEFAULT_PDF_OCR_MAX_IMAGE_SIDE = 1600
+DEFAULT_PDF_OCR_CONCURRENCY = 2
+DEFAULT_PDF_OCR_PAGE_TIMEOUT_SECONDS = 45
 
 ALLOWED_UPLOAD_TYPES = {
     "application/pdf": "pdf",
@@ -181,6 +191,27 @@ def user_profile(user: models.User):
         "major": user.major or "",
         "avatar": user.avatar or "",
     }
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def serialize_datetime(value):
+    if not value:
+        return None
+    if isinstance(value, str):
+        text_value = value.strip()
+        if not text_value:
+            return None
+        if text_value.endswith("Z") or re.search(r"[+-]\d{2}:\d{2}$", text_value):
+            return text_value
+        return f"{text_value}Z"
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    else:
+        value = value.astimezone(timezone.utc)
+    return value.isoformat().replace("+00:00", "Z")
 
 
 def get_user_by_username(username: str, db: Session):
@@ -297,6 +328,56 @@ def get_pdf_total_pages(file_bytes: bytes) -> int:
         return 0
 
 
+def extract_pdf_pages(file_bytes: bytes) -> tuple[int, list[dict]]:
+    fitz_error = None
+    try:
+        document = fitz.open(stream=file_bytes, filetype="pdf")
+        page_texts: list[dict] = []
+        total_pages = len(document)
+        for page_index in range(total_pages):
+            try:
+                page_text = (document.load_page(page_index).get_text("text") or "").strip()
+            except Exception:
+                page_text = ""
+            if page_text:
+                page_texts.append({"page": page_index + 1, "text": page_text})
+        document.close()
+        if page_texts:
+            return total_pages, page_texts
+    except Exception as exc:
+        fitz_error = exc
+        try:
+            document.close()
+        except Exception:
+            pass
+
+    try:
+        reader = PdfReader(BytesIO(file_bytes))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="PDF 解析失败，请确认文件未损坏") from (fitz_error or exc)
+
+    page_texts: list[dict] = []
+    total_pages = len(reader.pages)
+    for page_index, page in enumerate(reader.pages, start=1):
+        try:
+            page_text = (page.extract_text() or "").strip()
+        except Exception:
+            page_text = ""
+        if page_text:
+            page_texts.append({"page": page_index, "text": page_text})
+    return total_pages, page_texts
+
+
+def build_pdf_text_from_pages(page_texts: list[dict]) -> str:
+    text_parts = []
+    for page_item in page_texts:
+        page_number = page_item.get("page")
+        page_text = (page_item.get("text") or "").strip()
+        if page_text:
+            text_parts.append(f"【第 {page_number} 页】\n{page_text}")
+    return "\n\n".join(text_parts).strip()
+
+
 def should_use_qwen_for_pdf(extracted_text: str, total_pages: int) -> bool:
     cleaned = (extracted_text or "").strip()
     if not cleaned:
@@ -343,7 +424,7 @@ def render_pdf_pages_to_images(file_bytes: bytes, max_pages: int) -> list[str]:
 def parse_scanned_pdf_with_qwen(file_bytes: bytes) -> dict:
     max_pages = get_qwen_parse_max_pages()
     image_paths = render_pdf_pages_to_images(file_bytes, max_pages)
-    page_texts: list[str] = []
+    page_texts: dict[int, str] = {}
     errors: list[str] = []
     success_pages = 0
     failed_pages = 0
@@ -475,7 +556,7 @@ def get_default_parse_metadata():
         "parse_status": "success",
         "parse_error": None,
         "qwen_used": False,
-        "parsed_at": datetime.utcnow(),
+        "parsed_at": utc_now(),
     }
 
 
@@ -582,8 +663,14 @@ def serialize_material_list_item(material: models.StudyMaterial):
         "parse_status": material.parse_status or "success",
         "parse_error": material.parse_error,
         "qwen_used": bool(material.qwen_used),
-        "parsed_at": material.parsed_at,
-        "created_at": material.created_at,
+        "parse_progress": material.parse_progress or 0,
+        "total_pages": material.total_pages or 0,
+        "parsed_pages": material.parsed_pages or 0,
+        "chunk_count": material.chunk_count or 0,
+        "parsed_at": serialize_datetime(material.parsed_at),
+        "parse_started_at": serialize_datetime(material.parse_started_at),
+        "parse_completed_at": serialize_datetime(material.parse_completed_at),
+        "created_at": serialize_datetime(material.created_at),
         "source_message_id": material.source_message_id,
     }
 
@@ -602,9 +689,15 @@ def serialize_material_detail(material: models.StudyMaterial):
         "parse_status": material.parse_status or "success",
         "parse_error": material.parse_error,
         "qwen_used": bool(material.qwen_used),
-        "parsed_at": material.parsed_at,
+        "parse_progress": material.parse_progress or 0,
+        "total_pages": material.total_pages or 0,
+        "parsed_pages": material.parsed_pages or 0,
+        "chunk_count": material.chunk_count or 0,
+        "parsed_at": serialize_datetime(material.parsed_at),
+        "parse_started_at": serialize_datetime(material.parse_started_at),
+        "parse_completed_at": serialize_datetime(material.parse_completed_at),
         "source_message_id": material.source_message_id,
-        "created_at": material.created_at,
+        "created_at": serialize_datetime(material.created_at),
     }
 
 
@@ -970,6 +1063,7 @@ def create_pending_material(
         parse_started_at=None,
         parse_completed_at=None,
         is_deleted=False,
+        created_at=utc_now(),
     )
     db.add(material)
     db.commit()
@@ -1027,17 +1121,147 @@ def get_pdf_ocr_max_pages() -> int:
         return 0
 
 
-def render_pdf_page_to_temp_image(document, page_index: int) -> str:
+def get_local_pdf_sync_max_pages() -> int:
+    raw_value = (os.getenv("LOCAL_PDF_SYNC_MAX_PAGES") or str(DEFAULT_LOCAL_PDF_SYNC_MAX_PAGES)).strip()
+    try:
+        value = int(raw_value)
+        return value if value > 0 else DEFAULT_LOCAL_PDF_SYNC_MAX_PAGES
+    except (TypeError, ValueError):
+        return DEFAULT_LOCAL_PDF_SYNC_MAX_PAGES
+
+
+def get_int_env(name: str, default_value: int, min_value: int = 1) -> int:
+    raw_value = (os.getenv(name) or str(default_value)).strip()
+    try:
+        value = int(raw_value)
+        return value if value >= min_value else default_value
+    except (TypeError, ValueError):
+        return default_value
+
+
+def get_pdf_ocr_render_dpi() -> int:
+    return get_int_env("PDF_OCR_RENDER_DPI", DEFAULT_PDF_OCR_RENDER_DPI, min_value=72)
+
+
+def get_pdf_ocr_image_format() -> str:
+    image_format = (os.getenv("PDF_OCR_IMAGE_FORMAT") or DEFAULT_PDF_OCR_IMAGE_FORMAT).strip().lower()
+    if image_format in {"jpg", "jpeg"}:
+        return "jpeg"
+    if image_format == "webp":
+        return "webp"
+    if image_format == "png":
+        return "png"
+    return DEFAULT_PDF_OCR_IMAGE_FORMAT
+
+
+def get_pdf_ocr_jpeg_quality() -> int:
+    return max(40, min(get_int_env("PDF_OCR_JPEG_QUALITY", DEFAULT_PDF_OCR_JPEG_QUALITY, min_value=1), 95))
+
+
+def get_pdf_ocr_max_image_side() -> int:
+    return get_int_env("PDF_OCR_MAX_IMAGE_SIDE", DEFAULT_PDF_OCR_MAX_IMAGE_SIDE, min_value=800)
+
+
+def get_pdf_ocr_concurrency() -> int:
+    return max(1, min(get_int_env("PDF_OCR_CONCURRENCY", DEFAULT_PDF_OCR_CONCURRENCY, min_value=1), 6))
+
+
+def get_pdf_ocr_page_timeout_seconds() -> int:
+    return get_int_env("PDF_OCR_PAGE_TIMEOUT_SECONDS", DEFAULT_PDF_OCR_PAGE_TIMEOUT_SECONDS, min_value=5)
+
+
+def complete_material_with_local_pdf_text(
+    db: Session,
+    material: models.StudyMaterial,
+    extracted_text: str,
+    total_pages: int,
+):
+    now = utc_now()
+    material = update_material_parse_state(
+        db,
+        material.id,
+        extracted_text=extracted_text,
+        summary=(extracted_text or "").strip()[:300] or "资料解析完成。",
+        parse_status="parsing",
+        parse_progress=80,
+        total_pages=total_pages,
+        parsed_pages=total_pages,
+        ocr_required=0,
+        qwen_used=False,
+        extract_method="local",
+        parse_started_at=serialize_datetime(now),
+    )
+    if not material:
+        return None, 0
+
+    chunk_count = replace_material_chunks(db, material)
+    material = update_material_parse_state(
+        db,
+        material.id,
+        parse_status="success",
+        parse_progress=100,
+        chunk_count=chunk_count,
+        total_pages=total_pages,
+        parsed_pages=total_pages,
+        parse_error=None,
+        ocr_required=0,
+        qwen_used=False,
+        extract_method="local",
+        parsed_at=now,
+        parse_completed_at=serialize_datetime(now),
+    )
+    return material, chunk_count
+
+
+def render_pdf_page_to_temp_image(
+    document,
+    page_index: int,
+    render_dpi: int,
+    image_format: str,
+    jpeg_quality: int,
+    max_image_side: int,
+) -> dict:
+    render_started_at = time.perf_counter()
+    zoom = render_dpi / 72
     page = document.load_page(page_index)
-    pixmap = page.get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)
+    pixmap = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), alpha=False)
+    image = Image.open(BytesIO(pixmap.tobytes("png")))
+    image.load()
+    width, height = image.size
+    largest_side = max(width, height)
+    if largest_side > max_image_side:
+        scale = max_image_side / largest_side
+        width = max(1, int(width * scale))
+        height = max(1, int(height * scale))
+        image = image.resize((width, height), Image.Resampling.LANCZOS)
+
+    suffix = ".jpg" if image_format == "jpeg" else f".{image_format}"
     temp_file = tempfile.NamedTemporaryFile(
-        suffix=f"_material_page_{page_index + 1}.png",
+        suffix=f"_material_page_{page_index + 1}{suffix}",
         delete=False,
     )
     temp_path = temp_file.name
     temp_file.close()
-    pixmap.save(temp_path)
-    return temp_path
+    save_kwargs = {}
+    if image_format == "jpeg":
+        image = image.convert("RGB")
+        save_kwargs = {"quality": jpeg_quality, "optimize": True}
+        pil_format = "JPEG"
+    elif image_format == "webp":
+        image = image.convert("RGB")
+        save_kwargs = {"quality": jpeg_quality, "method": 4}
+        pil_format = "WEBP"
+    else:
+        pil_format = "PNG"
+    image.save(temp_path, pil_format, **save_kwargs)
+    image_size_bytes = Path(temp_path).stat().st_size
+    return {
+        "image_path": temp_path,
+        "render_seconds": time.perf_counter() - render_started_at,
+        "image_size_bytes": image_size_bytes,
+        "image_width": width,
+        "image_height": height,
+    }
 
 
 def build_pdf_ocr_parse_error(
@@ -1056,6 +1280,89 @@ def build_pdf_ocr_parse_error(
     return " ".join(notes) if notes else None
 
 
+def ocr_pdf_page_worker(
+    material_id: int,
+    file_bytes: bytes,
+    page_index: int,
+    total_pages: int,
+    render_dpi: int,
+    image_format: str,
+    jpeg_quality: int,
+    max_image_side: int,
+    model_name: str,
+    timeout_seconds: int,
+) -> dict:
+    page_started_at = time.perf_counter()
+    page_number = page_index + 1
+    document = None
+    image_path = ""
+    render_info = {
+        "render_seconds": 0,
+        "image_size_bytes": 0,
+        "image_width": 0,
+        "image_height": 0,
+    }
+    try:
+        document = fitz.open(stream=file_bytes, filetype="pdf")
+        render_info = render_pdf_page_to_temp_image(
+            document,
+            page_index,
+            render_dpi,
+            image_format,
+            jpeg_quality,
+            max_image_side,
+        )
+        image_path = render_info["image_path"]
+        result = parse_image_with_qwen(
+            image_path,
+            prompt=SCANNED_PDF_PAGE_PROMPT,
+            model=model_name,
+            timeout_seconds=timeout_seconds,
+        )
+        page_text = (result.get("extracted_text") or "").strip()
+        success = bool(result.get("success") and page_text)
+        error = None if success else (result.get("error") or "未识别到有效文本")
+        return {
+            "page_number": page_number,
+            "total_pages": total_pages,
+            "success": success,
+            "text": page_text,
+            "error": error,
+            "model": result.get("model") or model_name,
+            "render_seconds": float(render_info.get("render_seconds") or 0),
+            "image_size_bytes": int(render_info.get("image_size_bytes") or 0),
+            "image_width": int(render_info.get("image_width") or 0),
+            "image_height": int(render_info.get("image_height") or 0),
+            "encode_seconds": float(result.get("encode_seconds") or 0),
+            "qwen_seconds": float(result.get("qwen_seconds") or 0),
+            "total_page_seconds": time.perf_counter() - page_started_at,
+        }
+    except Exception as exc:
+        return {
+            "page_number": page_number,
+            "total_pages": total_pages,
+            "success": False,
+            "text": "",
+            "error": str(exc)[:120],
+            "model": model_name,
+            "render_seconds": float(render_info.get("render_seconds") or 0),
+            "image_size_bytes": int(render_info.get("image_size_bytes") or 0),
+            "image_width": int(render_info.get("image_width") or 0),
+            "image_height": int(render_info.get("image_height") or 0),
+            "encode_seconds": 0,
+            "qwen_seconds": 0,
+            "total_page_seconds": time.perf_counter() - page_started_at,
+        }
+    finally:
+        if image_path:
+            try:
+                Path(image_path).unlink(missing_ok=True)
+            except OSError:
+                pass
+        if document is not None:
+            document.close()
+
+
 def parse_scanned_pdf_in_background(
     db: Session,
     material: models.StudyMaterial,
@@ -1063,7 +1370,7 @@ def parse_scanned_pdf_in_background(
     local_pdf_text: str = "",
 ):
     document = None
-    page_texts: list[str] = []
+    page_texts: dict[int, str] = {}
     failed_pages: list[int] = []
     errors: list[str] = []
     max_pages = get_pdf_ocr_max_pages()
@@ -1086,7 +1393,7 @@ def parse_scanned_pdf_in_background(
                 ocr_required=1,
                 qwen_used=True,
                 extract_method="failed",
-                parse_completed_at=datetime.utcnow().isoformat(),
+                parse_completed_at=serialize_datetime(utc_now()),
             )
             return
 
@@ -1103,44 +1410,96 @@ def parse_scanned_pdf_in_background(
             extract_method="qwen" if not (local_pdf_text or "").strip() else "mixed",
         )
 
-        for page_index in range(ocr_page_count):
-            page_number = page_index + 1
-            image_path = ""
-            try:
-                image_path = render_pdf_page_to_temp_image(document, page_index)
-                result = parse_image_with_qwen(
-                    image_path,
-                    prompt=SCANNED_PDF_PAGE_PROMPT,
-                    model=get_qwen_pdf_ocr_model(),
-                )
-                page_text = (result.get("extracted_text") or "").strip()
+        render_dpi = get_pdf_ocr_render_dpi()
+        image_format = get_pdf_ocr_image_format()
+        jpeg_quality = get_pdf_ocr_jpeg_quality()
+        max_image_side = get_pdf_ocr_max_image_side()
+        concurrency = min(get_pdf_ocr_concurrency(), ocr_page_count)
+        timeout_seconds = get_pdf_ocr_page_timeout_seconds()
+        model_name = get_qwen_pdf_ocr_model()
+        ocr_started_at = time.perf_counter()
+        completed_pages = 0
+        page_results: list[dict] = []
+
+        logger.info(
+            "[PDF_OCR_START] material_id=%s total_pages=%s ocr_max_pages=%s concurrency=%s dpi=%s format=%s quality=%s max_side=%s model=%s",
+            material.id,
+            total_pages,
+            max_pages,
+            concurrency,
+            render_dpi,
+            image_format,
+            jpeg_quality,
+            max_image_side,
+            model_name,
+        )
+
+        if document is not None:
+            document.close()
+            document = None
+
+        with ThreadPoolExecutor(max_workers=concurrency) as executor:
+            future_map = {
+                executor.submit(
+                    ocr_pdf_page_worker,
+                    material.id,
+                    file_bytes,
+                    page_index,
+                    total_pages,
+                    render_dpi,
+                    image_format,
+                    jpeg_quality,
+                    max_image_side,
+                    model_name,
+                    timeout_seconds,
+                ): page_index + 1
+                for page_index in range(ocr_page_count)
+            }
+
+            for future in as_completed(future_map):
+                result = future.result()
+                page_results.append(result)
+                completed_pages += 1
+                page_number = int(result.get("page_number") or future_map[future])
+                page_text = (result.get("text") or "").strip()
+                db_update_started_at = time.perf_counter()
                 if result.get("success") and page_text:
-                    page_texts.append(f"【第 {page_number} 页】\n{page_text}")
+                    page_texts[page_number] = f"【第 {page_number} 页】\n{page_text}"
                 else:
                     failed_pages.append(page_number)
                     errors.append(f"第 {page_number} 页：{result.get('error') or '未识别到有效文本'}")
-            except Exception as exc:
-                failed_pages.append(page_number)
-                errors.append(f"第 {page_number} 页：{str(exc)[:80]}")
-            finally:
-                if image_path:
-                    try:
-                        Path(image_path).unlink(missing_ok=True)
-                    except OSError:
-                        pass
 
-            parsed_pages = page_number
-            parse_progress = round((parsed_pages / max(total_pages, 1)) * 100, 2)
-            update_material_parse_state(
-                db,
-                material.id,
-                parse_status="parsing",
-                parse_progress=min(parse_progress, 99 if parsed_pages < total_pages else parse_progress),
-                parsed_pages=parsed_pages,
-                total_pages=total_pages,
-                chunk_count=len(page_texts),
-                parse_error="; ".join(errors[:3]) if errors else None,
-            )
+                parse_progress = round((completed_pages / max(total_pages, 1)) * 100, 2)
+                update_material_parse_state(
+                    db,
+                    material.id,
+                    parse_status="parsing",
+                    parse_progress=min(parse_progress, 99 if completed_pages < total_pages else parse_progress),
+                    parsed_pages=completed_pages,
+                    total_pages=total_pages,
+                    chunk_count=len(page_texts),
+                    parse_error="; ".join(errors[:3]) if errors else None,
+                )
+                db_update_seconds = time.perf_counter() - db_update_started_at
+                logger.info(
+                    "[PDF_OCR_PAGE] material_id=%s page=%s/%s render=%.2fs image=%sKB size=%sx%s encode=%.2fs qwen=%.2fs db=%.2fs total=%.2fs model=%s success=%s error=%s",
+                    material.id,
+                    page_number,
+                    total_pages,
+                    float(result.get("render_seconds") or 0),
+                    int((int(result.get("image_size_bytes") or 0) + 1023) / 1024),
+                    int(result.get("image_width") or 0),
+                    int(result.get("image_height") or 0),
+                    float(result.get("encode_seconds") or 0),
+                    float(result.get("qwen_seconds") or 0),
+                    db_update_seconds,
+                    float(result.get("total_page_seconds") or 0) + db_update_seconds,
+                    result.get("model") or model_name,
+                    bool(result.get("success")),
+                    (result.get("error") or "")[:80],
+                )
+
+        sorted_page_texts = [text for _, text in sorted(page_texts.items(), key=lambda item: item[0])]
 
         if not page_texts:
             update_material_parse_state(
@@ -1155,15 +1514,15 @@ def parse_scanned_pdf_in_background(
                 ocr_required=1,
                 qwen_used=True,
                 extract_method="failed",
-                parsed_at=datetime.utcnow(),
-                parse_completed_at=datetime.utcnow().isoformat(),
+                parsed_at=utc_now(),
+                parse_completed_at=serialize_datetime(utc_now()),
             )
             return
 
         text_parts: list[str] = []
         if (local_pdf_text or "").strip():
             text_parts.append(f"本地文本提取补充：\n{local_pdf_text.strip()}")
-        text_parts.extend(page_texts)
+        text_parts.extend(sorted_page_texts)
         extracted_text = "\n\n".join(text_parts).strip()
         material = update_material_parse_state(
             db,
@@ -1196,14 +1555,26 @@ def parse_scanned_pdf_in_background(
             ocr_required=1,
             qwen_used=True,
             extract_method="qwen" if not (local_pdf_text or "").strip() else "mixed",
-            parsed_at=datetime.utcnow(),
-            parse_completed_at=datetime.utcnow().isoformat(),
+            parsed_at=utc_now(),
+            parse_completed_at=serialize_datetime(utc_now()),
         )
+        total_ocr_seconds = time.perf_counter() - ocr_started_at
+        average_page_seconds = (
+            sum(float(item.get("total_page_seconds") or 0) for item in page_results) / max(len(page_results), 1)
+        )
+        pages_per_minute = (len(page_results) / total_ocr_seconds * 60) if total_ocr_seconds > 0 else 0
         logger.info(
-            "[MATERIAL_PARSE] material_id=%s scanned_pdf total_pages=%s parsed_pages=%s chunk_count=%s status=%s",
+            "[PDF_OCR_DONE] material_id=%s pages=%s/%s ocr_max_pages=%s concurrency=%s dpi=%s format=%s total=%.2fs avg=%.2fs ppm=%.2f chunk_count=%s status=%s",
             material.id,
+            len(page_results),
             total_pages,
-            ocr_page_count,
+            max_pages,
+            concurrency,
+            render_dpi,
+            image_format,
+            total_ocr_seconds,
+            average_page_seconds,
+            pages_per_minute,
             chunk_count,
             parse_status,
         )
@@ -1218,7 +1589,7 @@ def parse_scanned_pdf_in_background(
             ocr_required=1,
             qwen_used=True,
             extract_method="failed",
-            parse_completed_at=datetime.utcnow().isoformat(),
+            parse_completed_at=serialize_datetime(utc_now()),
         )
     finally:
         if document is not None:
@@ -1232,7 +1603,7 @@ def parse_material_in_background(material_id: int):
         if not material:
             return
 
-        now_text = datetime.utcnow().isoformat()
+        now_text = serialize_datetime(utc_now())
         update_material_parse_state(
             db,
             material_id,
@@ -1260,7 +1631,8 @@ def parse_material_in_background(material_id: int):
         total_pages = get_pdf_total_pages(file_bytes) if material.file_type == "pdf" else 0
 
         if material.file_type == "pdf":
-            extracted_text = extract_pdf_text(file_bytes)
+            total_pages, page_texts = extract_pdf_pages(file_bytes)
+            extracted_text = build_pdf_text_from_pages(page_texts)
             if not is_pdf_text_usable(extracted_text, total_pages):
                 parse_scanned_pdf_in_background(db, material, file_bytes, extracted_text)
                 return
@@ -1287,35 +1659,9 @@ def parse_material_in_background(material_id: int):
             )
             return
 
-        material = update_material_parse_state(
-            db,
-            material_id,
-            extracted_text=extracted_text,
-            summary=(extracted_text or "").strip()[:300] or "资料解析完成。",
-            total_pages=total_pages,
-            parsed_pages=total_pages,
-            parse_progress=80,
-            extract_method="local",
-            qwen_used=False,
-        )
+        material, chunk_count = complete_material_with_local_pdf_text(db, material, extracted_text, total_pages)
         if not material:
             return
-
-        chunk_count = replace_material_chunks(db, material)
-        update_material_parse_state(
-            db,
-            material_id,
-            parse_status="success",
-            parse_progress=100,
-            chunk_count=chunk_count,
-            parsed_pages=total_pages,
-            total_pages=total_pages,
-            parse_error=None,
-            extract_method="local",
-            qwen_used=False,
-            parsed_at=datetime.utcnow(),
-            parse_completed_at=datetime.utcnow().isoformat(),
-        )
         logger.info(
             "[MATERIAL_PARSE] material_id=%s file_type=%s total_pages=%s chunk_count=%s status=success",
             material_id,
@@ -1332,7 +1678,7 @@ def parse_material_in_background(material_id: int):
                 parse_status="failed",
                 parse_error=f"后台解析失败：{str(exc)[:120]}",
                 parse_progress=0,
-                parse_completed_at=datetime.utcnow().isoformat(),
+                parse_completed_at=serialize_datetime(utc_now()),
             )
         except Exception as update_exc:
             logger.warning(
@@ -1920,7 +2266,14 @@ async def upload_material(
         }
 
     stored_file_path = save_material_file(file_bytes, original_filename, file_hash)
-    total_pages = get_pdf_total_pages(file_bytes) if file_type == "pdf" else 0
+    total_pages = 0
+    extracted_text = ""
+    is_text_pdf = False
+    if file_type == "pdf":
+        total_pages, page_texts = extract_pdf_pages(file_bytes)
+        extracted_text = build_pdf_text_from_pages(page_texts)
+        is_text_pdf = is_pdf_text_usable(extracted_text, total_pages)
+
     material = create_pending_material(
         db=db,
         username=user.username,
@@ -1931,7 +2284,44 @@ async def upload_material(
         file_hash=file_hash,
         total_pages=total_pages,
     )
+
+    if file_type == "pdf" and is_text_pdf:
+        sync_max_pages = get_local_pdf_sync_max_pages()
+        if total_pages <= sync_max_pages:
+            material, chunk_count = complete_material_with_local_pdf_text(
+                db,
+                material,
+                extracted_text,
+                total_pages,
+            )
+            return {
+                "success": True,
+                "material_id": material.id,
+                "filename": original_filename,
+                "parse_status": "success",
+                "parse_progress": 100,
+                "message": "资料已解析完成，可直接基于全文问答。",
+                "chunk_count": chunk_count,
+                "material": serialize_material_detail(material),
+            }
+
+        background_tasks.add_task(parse_material_in_background, material.id)
+        return {
+            "success": True,
+            "material_id": material.id,
+            "filename": original_filename,
+            "parse_status": "pending",
+            "parse_progress": 0,
+            "message": "资料页数较多，正在后台解析，完成后可基于全文问答。",
+            "material": serialize_material_detail(material),
+        }
+
     background_tasks.add_task(parse_material_in_background, material.id)
+    pending_message = (
+        "资料已上传，正在后台 OCR 解析。解析完成后可基于全文问答。"
+        if file_type == "pdf"
+        else "资料已上传，正在后台解析。解析完成后可基于全文问答。"
+    )
 
     return {
         "success": True,
@@ -1939,7 +2329,7 @@ async def upload_material(
         "filename": original_filename,
         "parse_status": "pending",
         "parse_progress": 0,
-        "message": "资料已上传，正在后台解析。解析完成后可基于全文问答。",
+        "message": pending_message,
         "material": serialize_material_detail(material),
     }
 
@@ -2070,7 +2460,7 @@ def delete_material(material_id: int, username: str, db: Session = Depends(get_d
         raise HTTPException(status_code=404, detail="资料不存在")
 
     material.is_deleted = True
-    material.deleted_at = datetime.utcnow()
+    material.deleted_at = utc_now()
     db.commit()
     soft_delete_material_chunks(db, material.id)
 
@@ -2241,9 +2631,9 @@ def update_learning_record(
     if req.review_status is not None:
         next_status = normalize_review_status(req.review_status)
         record.review_status = next_status
-        record.reviewed_at = datetime.utcnow() if next_status == "reviewed" else None
+        record.reviewed_at = utc_now() if next_status == "reviewed" else None
 
-    record.updated_at = datetime.utcnow()
+    record.updated_at = utc_now()
     db.commit()
     db.refresh(record)
 
@@ -2266,7 +2656,7 @@ def delete_learning_record(record_id: int, username: str, db: Session = Depends(
         raise HTTPException(status_code=404, detail="学习记录不存在")
 
     record.is_deleted = True
-    record.updated_at = datetime.utcnow()
+    record.updated_at = utc_now()
     db.commit()
 
     return {"success": True, "message": "学习记录已删除", "record_id": record.id}
@@ -2316,7 +2706,7 @@ def update_course_progress(req: CourseProgressUpdateRequest, db: Session = Depen
 
     if record:
         record.status = next_status
-        record.updated_at = datetime.utcnow()
+        record.updated_at = utc_now()
     else:
         record = models.CourseProgress(
             username=user.username,

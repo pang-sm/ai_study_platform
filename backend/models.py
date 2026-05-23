@@ -1,8 +1,12 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
 
 from database import Base
+
+
+def utc_now():
+    return datetime.now(timezone.utc)
 
 
 class User(Base):
@@ -15,7 +19,7 @@ class User(Base):
     avatar = Column(String(50), nullable=True)
     grade = Column(String(50), nullable=False)
     major = Column(String(100), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
 
 class ChatMessage(Base):
@@ -32,7 +36,7 @@ class ChatMessage(Base):
     extracted_text = Column(Text, nullable=True)
     material_id = Column(Integer, ForeignKey("study_materials.id"), nullable=True)
     reference_payload = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
 
 class ChatSession(Base):
@@ -43,7 +47,7 @@ class ChatSession(Base):
     title = Column(String(255), nullable=False)
     course = Column(String(100), nullable=True)
     subject = Column(String(100), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
 
 class StudyMaterial(Base):
@@ -72,7 +76,7 @@ class StudyMaterial(Base):
     parse_started_at = Column(Text, nullable=True)
     parse_completed_at = Column(Text, nullable=True)
     is_deleted = Column(Boolean, nullable=False, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
     deleted_at = Column(DateTime, nullable=True)
 
 
@@ -89,7 +93,7 @@ class MaterialChunk(Base):
     keywords = Column(Text, nullable=True)
     source_filename = Column(String(255), nullable=False)
     is_deleted = Column(Boolean, nullable=False, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
 
 class LearningRecord(Base):
@@ -107,8 +111,8 @@ class LearningRecord(Base):
     note = Column(Text, nullable=True)
     tags = Column(Text, nullable=True)
     review_status = Column(String(20), index=True, nullable=False, default="pending")
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
     reviewed_at = Column(DateTime, nullable=True)
     is_deleted = Column(Boolean, nullable=False, default=False)
 
@@ -121,5 +125,5 @@ class CourseProgress(Base):
     course = Column(String(100), index=True, nullable=False)
     knowledge_point = Column(String(255), nullable=False)
     status = Column(String(20), nullable=False, default="未开始")
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)

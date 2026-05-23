@@ -100,15 +100,21 @@ function getSavedUser() {
 
 function formatDate(value) {
   if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleString("zh-CN", {
+  const textValue = String(value).trim();
+  const hasTimezone = /Z$|[+-]\d{2}:?\d{2}$/.test(textValue);
+  const normalizedValue = /^\d{4}-\d{2}-\d{2}T/.test(textValue) && !hasTimezone
+    ? `${textValue}Z`
+    : textValue;
+  const date = new Date(normalizedValue);
+  if (Number.isNaN(date.getTime())) return textValue;
+  return new Intl.DateTimeFormat("zh-CN", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
-  });
+    hour12: false,
+  }).format(date);
 }
 
 function getFileTypeLabel(type) {
