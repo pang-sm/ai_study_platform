@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import re
 import secrets
@@ -29,7 +30,7 @@ import schemas
 from auth import hash_password, verify_password
 from database import Base, engine, get_db, init_user_profile_schema, update_conversation_title
 from prompts import build_system_prompt
-from qwen_parser import parse_image_with_qwen
+from qwen_parser import get_qwen_status_payload, parse_image_with_qwen
 from rag import reindex_materials, replace_material_chunks, search_relevant_material_chunks, soft_delete_material_chunks
 from subjects import normalize_subject
 
@@ -55,6 +56,8 @@ client = OpenAI(
     api_key=os.getenv("DEEPSEEK_API_KEY"),
     base_url="https://api.deepseek.com",
 )
+
+logger = logging.getLogger("ai_study_platform.qwen")
 
 BASE_DIR = Path(__file__).resolve().parent
 UPLOAD_ROOT = BASE_DIR / "uploads"
@@ -837,15 +840,49 @@ async def handle_material_upload(
 
     original_filename = file.filename or "未命名文件"
     file_type = ALLOWED_UPLOAD_TYPES[file.content_type]
-    extracted_text = extract_image_text(file_bytes) if file_type == "image" else extract_pdf_text(file_bytes)
+    parse_metadata = get_default_parse_metadata()
+    clean_question = (question or "").strip()
+    if file_type == "image":
+        local_ocr_text = extract_image_text(file_bytes)
+        extracted_text = local_ocr_text
+        stored_file_path = save_uploaded_file(user.username, original_filename, file_bytes)
+
+        if should_use_qwen_for_image(local_ocr_text):
+            logger.info(
+                "[QWEN] image fallback triggered, local_text_len=%s",
+                len(local_ocr_text or ""),
+            )
+            qwen_result = parse_image_with_qwen(str(resolve_stored_file_path(stored_file_path)))
+            qwen_text = (qwen_result.get("extracted_text") or "").strip()
+            qwen_success = bool(qwen_result.get("success") and qwen_text)
+
+            if qwen_success:
+                extracted_text = merge_image_extracted_text(local_ocr_text, qwen_text)
+                parse_metadata["extract_method"] = "mixed" if (local_ocr_text or "").strip() else "qwen"
+                parse_metadata["parse_status"] = "success"
+                parse_metadata["parse_error"] = None
+                parse_metadata["qwen_used"] = True
+                logger.info(
+                    "[QWEN] image fallback success, extracted_text_len=%s",
+                    len(extracted_text or ""),
+                )
+            else:
+                parse_metadata["parse_error"] = qwen_result.get("error") or "图片解析失败，请稍后重试"
+                parse_metadata["parse_status"] = "partial" if (local_ocr_text or "").strip() else "failed"
+                logger.warning(
+                    "[QWEN] image fallback failed, qwen_success=%s, final_text_len=%s",
+                    qwen_success,
+                    len(extracted_text or ""),
+                )
+    else:
+        extracted_text = extract_pdf_text(file_bytes)
+        stored_file_path = save_uploaded_file(user.username, original_filename, file_bytes)
 
     if not extracted_text.strip():
         if file_type == "pdf":
             raise HTTPException(status_code=400, detail="未能从 PDF 提取到可读文本，扫描版 PDF 暂未支持")
         raise HTTPException(status_code=400, detail="未能从图片识别到文字，请上传更清晰的图片")
 
-    stored_file_path = save_uploaded_file(user.username, original_filename, file_bytes)
-    clean_question = (question or "").strip()
 
     chat_session = None
     user_message = None
@@ -982,6 +1019,11 @@ def root():
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/debug/qwen-status")
+def get_qwen_status():
+    return get_qwen_status_payload()
 
 
 @app.post("/register")

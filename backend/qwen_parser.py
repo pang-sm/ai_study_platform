@@ -9,13 +9,7 @@ load_dotenv()
 
 DEFAULT_QWEN_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 DEFAULT_QWEN_OCR_MODEL = "qwen-vl-ocr-2025-11-20"
-DEFAULT_IMAGE_PROMPT = """请用中文解析这份学习资料图片。请输出适合进入资料库和 RAG 检索的内容：
-1. 图片中能识别出的文字
-2. 图表、公式、流程图或截图的含义
-3. 关键知识点
-4. 如果是表格，请转成 Markdown 表格
-5. 如果内容不清晰，请说明不确定部分
-6. 不要编造图片中不存在的信息"""
+DEFAULT_QWEN_PARSE_MAX_PAGES = 5
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
 
 IMAGE_MIME_TYPES = {
@@ -24,6 +18,14 @@ IMAGE_MIME_TYPES = {
     ".png": "image/png",
     ".webp": "image/webp",
 }
+
+DEFAULT_IMAGE_PROMPT = """请用中文解析这份学习资料图片。请输出适合进入资料库和 RAG 检索的内容：
+1. 图片中能识别出的文字
+2. 图表、公式、流程图或截图的含义
+3. 关键知识点
+4. 如果是表格，请转成 Markdown 表格
+5. 如果内容不清晰，请说明不确定部分
+6. 不要编造图片中不存在的信息"""
 
 
 def _build_result(
@@ -39,6 +41,28 @@ def _build_result(
         "structured_json": {},
         "warnings": warnings or [],
         "error": error,
+    }
+
+
+def _get_parse_max_pages() -> int:
+    raw_value = (os.getenv("QWEN_PARSE_MAX_PAGES") or "").strip()
+    try:
+        value = int(raw_value)
+        return value if value > 0 else DEFAULT_QWEN_PARSE_MAX_PAGES
+    except (TypeError, ValueError):
+        return DEFAULT_QWEN_PARSE_MAX_PAGES
+
+
+def get_qwen_status_payload() -> dict:
+    api_key = (os.getenv("DASHSCOPE_API_KEY") or "").strip()
+    base_url = (os.getenv("QWEN_BASE_URL") or DEFAULT_QWEN_BASE_URL).strip()
+    model = (os.getenv("QWEN_OCR_MODEL") or DEFAULT_QWEN_OCR_MODEL).strip() or DEFAULT_QWEN_OCR_MODEL
+    return {
+        "qwen_enabled": is_qwen_enabled(),
+        "has_api_key": bool(api_key),
+        "model": model,
+        "base_url_configured": bool(base_url),
+        "parse_max_pages": _get_parse_max_pages(),
     }
 
 
@@ -115,7 +139,7 @@ def parse_image_with_qwen(image_path: str, prompt: str | None = None):
     if client is None:
         return _build_result(False, error="Qwen 多模态解析未启用")
 
-    model = os.getenv("QWEN_OCR_MODEL", DEFAULT_QWEN_OCR_MODEL)
+    model = (os.getenv("QWEN_OCR_MODEL") or DEFAULT_QWEN_OCR_MODEL).strip() or DEFAULT_QWEN_OCR_MODEL
     final_prompt = (prompt or DEFAULT_IMAGE_PROMPT).strip() or DEFAULT_IMAGE_PROMPT
 
     try:
