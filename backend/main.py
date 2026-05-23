@@ -35,6 +35,7 @@ from database import Base, SessionLocal, engine, get_db, init_user_profile_schem
 from prompts import build_system_prompt
 from qwen_parser import (
     SCANNED_PDF_PAGE_PROMPT,
+    get_qwen_pdf_ocr_model,
     get_qwen_parse_max_pages,
     get_qwen_status_payload,
     parse_image_with_qwen,
@@ -1017,6 +1018,213 @@ def is_pdf_text_usable(extracted_text: str, total_pages: int) -> bool:
     return len(cleaned) / checked_pages >= MIN_PDF_AVG_PAGE_CHARS
 
 
+def get_pdf_ocr_max_pages() -> int:
+    raw_value = (os.getenv("PDF_OCR_MAX_PAGES") or "0").strip()
+    try:
+        value = int(raw_value)
+        return value if value > 0 else 0
+    except (TypeError, ValueError):
+        return 0
+
+
+def render_pdf_page_to_temp_image(document, page_index: int) -> str:
+    page = document.load_page(page_index)
+    pixmap = page.get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)
+    temp_file = tempfile.NamedTemporaryFile(
+        suffix=f"_material_page_{page_index + 1}.png",
+        delete=False,
+    )
+    temp_path = temp_file.name
+    temp_file.close()
+    pixmap.save(temp_path)
+    return temp_path
+
+
+def build_pdf_ocr_parse_error(
+    failed_pages: list[int],
+    total_pages: int,
+    ocr_page_count: int,
+    max_pages: int,
+) -> str | None:
+    notes: list[str] = []
+    if max_pages > 0 and total_pages > ocr_page_count:
+        notes.append(f"已按配置仅 OCR 前 {ocr_page_count} 页，未覆盖全文。")
+    if failed_pages:
+        failed_preview = "、".join(str(page) for page in failed_pages[:8])
+        suffix = "等" if len(failed_pages) > 8 else ""
+        notes.append(f"部分页面 OCR 失败：第 {failed_preview}{suffix} 页。")
+    return " ".join(notes) if notes else None
+
+
+def parse_scanned_pdf_in_background(
+    db: Session,
+    material: models.StudyMaterial,
+    file_bytes: bytes,
+    local_pdf_text: str = "",
+):
+    document = None
+    page_texts: list[str] = []
+    failed_pages: list[int] = []
+    errors: list[str] = []
+    max_pages = get_pdf_ocr_max_pages()
+
+    try:
+        document = fitz.open(stream=file_bytes, filetype="pdf")
+        total_pages = len(document)
+        ocr_page_count = total_pages if max_pages == 0 else min(total_pages, max_pages)
+
+        if ocr_page_count <= 0:
+            update_material_parse_state(
+                db,
+                material.id,
+                parse_status="failed",
+                parse_error="扫描版 PDF OCR 解析失败，请稍后重试或上传更清晰的文件。",
+                parse_progress=0,
+                total_pages=total_pages,
+                parsed_pages=0,
+                chunk_count=0,
+                ocr_required=1,
+                qwen_used=True,
+                extract_method="failed",
+                parse_completed_at=datetime.utcnow().isoformat(),
+            )
+            return
+
+        update_material_parse_state(
+            db,
+            material.id,
+            parse_status="parsing",
+            parse_progress=1,
+            total_pages=total_pages,
+            parsed_pages=0,
+            chunk_count=0,
+            ocr_required=1,
+            qwen_used=True,
+            extract_method="qwen" if not (local_pdf_text or "").strip() else "mixed",
+        )
+
+        for page_index in range(ocr_page_count):
+            page_number = page_index + 1
+            image_path = ""
+            try:
+                image_path = render_pdf_page_to_temp_image(document, page_index)
+                result = parse_image_with_qwen(
+                    image_path,
+                    prompt=SCANNED_PDF_PAGE_PROMPT,
+                    model=get_qwen_pdf_ocr_model(),
+                )
+                page_text = (result.get("extracted_text") or "").strip()
+                if result.get("success") and page_text:
+                    page_texts.append(f"【第 {page_number} 页】\n{page_text}")
+                else:
+                    failed_pages.append(page_number)
+                    errors.append(f"第 {page_number} 页：{result.get('error') or '未识别到有效文本'}")
+            except Exception as exc:
+                failed_pages.append(page_number)
+                errors.append(f"第 {page_number} 页：{str(exc)[:80]}")
+            finally:
+                if image_path:
+                    try:
+                        Path(image_path).unlink(missing_ok=True)
+                    except OSError:
+                        pass
+
+            parsed_pages = page_number
+            parse_progress = round((parsed_pages / max(total_pages, 1)) * 100, 2)
+            update_material_parse_state(
+                db,
+                material.id,
+                parse_status="parsing",
+                parse_progress=min(parse_progress, 99 if parsed_pages < total_pages else parse_progress),
+                parsed_pages=parsed_pages,
+                total_pages=total_pages,
+                chunk_count=len(page_texts),
+                parse_error="; ".join(errors[:3]) if errors else None,
+            )
+
+        if not page_texts:
+            update_material_parse_state(
+                db,
+                material.id,
+                parse_status="failed",
+                parse_error="扫描版 PDF OCR 解析失败，请稍后重试或上传更清晰的文件。",
+                parse_progress=100,
+                total_pages=total_pages,
+                parsed_pages=ocr_page_count,
+                chunk_count=0,
+                ocr_required=1,
+                qwen_used=True,
+                extract_method="failed",
+                parsed_at=datetime.utcnow(),
+                parse_completed_at=datetime.utcnow().isoformat(),
+            )
+            return
+
+        text_parts: list[str] = []
+        if (local_pdf_text or "").strip():
+            text_parts.append(f"本地文本提取补充：\n{local_pdf_text.strip()}")
+        text_parts.extend(page_texts)
+        extracted_text = "\n\n".join(text_parts).strip()
+        material = update_material_parse_state(
+            db,
+            material.id,
+            extracted_text=extracted_text,
+            summary=extracted_text[:300] or "扫描版 PDF OCR 解析完成。",
+            parse_progress=95,
+            total_pages=total_pages,
+            parsed_pages=ocr_page_count,
+            ocr_required=1,
+            qwen_used=True,
+            extract_method="qwen" if not (local_pdf_text or "").strip() else "mixed",
+        )
+        if not material:
+            return
+
+        chunk_count = replace_material_chunks(db, material)
+        parse_error = build_pdf_ocr_parse_error(failed_pages, total_pages, ocr_page_count, max_pages)
+        reached_page_limit = max_pages > 0 and total_pages > ocr_page_count
+        parse_status = "partial" if failed_pages or reached_page_limit else "success"
+        update_material_parse_state(
+            db,
+            material.id,
+            parse_status=parse_status,
+            parse_progress=100,
+            total_pages=total_pages,
+            parsed_pages=ocr_page_count if reached_page_limit else total_pages,
+            chunk_count=chunk_count,
+            parse_error=parse_error,
+            ocr_required=1,
+            qwen_used=True,
+            extract_method="qwen" if not (local_pdf_text or "").strip() else "mixed",
+            parsed_at=datetime.utcnow(),
+            parse_completed_at=datetime.utcnow().isoformat(),
+        )
+        logger.info(
+            "[MATERIAL_PARSE] material_id=%s scanned_pdf total_pages=%s parsed_pages=%s chunk_count=%s status=%s",
+            material.id,
+            total_pages,
+            ocr_page_count,
+            chunk_count,
+            parse_status,
+        )
+    except Exception as exc:
+        logger.warning("[MATERIAL_PARSE] material_id=%s scanned pdf OCR failed: %s", material.id, str(exc)[:160])
+        update_material_parse_state(
+            db,
+            material.id,
+            parse_status="failed",
+            parse_error="扫描版 PDF OCR 解析失败，请稍后重试或上传更清晰的文件。",
+            parse_progress=0,
+            ocr_required=1,
+            qwen_used=True,
+            extract_method="failed",
+            parse_completed_at=datetime.utcnow().isoformat(),
+        )
+    finally:
+        if document is not None:
+            document.close()
+
+
 def parse_material_in_background(material_id: int):
     db = SessionLocal()
     try:
@@ -1054,21 +1262,7 @@ def parse_material_in_background(material_id: int):
         if material.file_type == "pdf":
             extracted_text = extract_pdf_text(file_bytes)
             if not is_pdf_text_usable(extracted_text, total_pages):
-                update_material_parse_state(
-                    db,
-                    material_id,
-                    parse_status="partial",
-                    parse_error="扫描版 PDF 已上传，后台 OCR 全量解析将在下一阶段接入。",
-                    parse_progress=100,
-                    total_pages=total_pages,
-                    parsed_pages=0,
-                    ocr_required=1,
-                    chunk_count=0,
-                    extract_method="local",
-                    qwen_used=False,
-                    parse_completed_at=datetime.utcnow().isoformat(),
-                    parsed_at=datetime.utcnow(),
-                )
+                parse_scanned_pdf_in_background(db, material, file_bytes, extracted_text)
                 return
         elif material.file_type == "image":
             extracted_text = extract_image_text(file_bytes)

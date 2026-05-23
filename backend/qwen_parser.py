@@ -58,6 +58,13 @@ def get_qwen_parse_max_pages() -> int:
         return DEFAULT_QWEN_PARSE_MAX_PAGES
 
 
+def get_qwen_pdf_ocr_model() -> str:
+    model = (os.getenv("QWEN_PDF_OCR_MODEL") or "").strip()
+    if model:
+        return model
+    return (os.getenv("QWEN_OCR_MODEL") or DEFAULT_QWEN_OCR_MODEL).strip() or DEFAULT_QWEN_OCR_MODEL
+
+
 def get_qwen_status_payload() -> dict:
     api_key = (os.getenv("DASHSCOPE_API_KEY") or "").strip()
     base_url = (os.getenv("QWEN_BASE_URL") or DEFAULT_QWEN_BASE_URL).strip()
@@ -66,6 +73,7 @@ def get_qwen_status_payload() -> dict:
         "qwen_enabled": is_qwen_enabled(),
         "has_api_key": bool(api_key),
         "model": model,
+        "pdf_ocr_model": get_qwen_pdf_ocr_model(),
         "base_url_configured": bool(base_url),
         "parse_max_pages": get_qwen_parse_max_pages(),
     }
@@ -128,7 +136,7 @@ def _normalize_message_content(content) -> str:
     return str(content or "").strip()
 
 
-def parse_image_with_qwen(image_path: str, prompt: str | None = None):
+def parse_image_with_qwen(image_path: str, prompt: str | None = None, model: str | None = None):
     if not is_qwen_enabled():
         return _build_result(False, error="Qwen 多模态解析未启用或未配置 DASHSCOPE_API_KEY")
 
@@ -144,7 +152,7 @@ def parse_image_with_qwen(image_path: str, prompt: str | None = None):
     if client is None:
         return _build_result(False, error="Qwen 多模态解析未启用")
 
-    model = (os.getenv("QWEN_OCR_MODEL") or DEFAULT_QWEN_OCR_MODEL).strip() or DEFAULT_QWEN_OCR_MODEL
+    model = (model or os.getenv("QWEN_OCR_MODEL") or DEFAULT_QWEN_OCR_MODEL).strip() or DEFAULT_QWEN_OCR_MODEL
     final_prompt = (prompt or DEFAULT_IMAGE_PROMPT).strip() or DEFAULT_IMAGE_PROMPT
 
     try:
