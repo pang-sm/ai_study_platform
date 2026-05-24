@@ -126,6 +126,18 @@ export default function ChatMessage({
         <div className="message-text">{visibleContent}</div>
       )}
 
+      {!isAssistant && Array.isArray(message.attachments) && message.attachments.length > 0 && (
+        <div className="attachment-card">
+          {message.attachments.map((attachment) => (
+            <div key={attachment.material_id || attachment.original_filename} className="attachment-meta">
+              <span className="subject-pill small">{getFileTypeLabel(attachment.file_type)}</span>
+              <span>{attachment.original_filename || "未命名文件"}</span>
+              <span>{attachment.parse_status === "success" ? "已解析" : attachment.parse_status}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {isAssistant && (
         <div className="message-action-row">
           {["wrong_question", "important", "review"].map((recordType) => {

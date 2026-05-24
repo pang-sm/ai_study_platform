@@ -7,7 +7,7 @@ import tempfile
 import hashlib
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from io import BytesIO
 from pathlib import Path
 
@@ -42,7 +42,13 @@ from qwen_parser import (
     get_qwen_status_payload,
     parse_image_with_qwen,
 )
-from rag import reindex_materials, replace_material_chunks, search_relevant_material_chunks, soft_delete_material_chunks
+from rag import (
+    reindex_materials,
+    replace_material_chunks,
+    retrieve_chunks_for_materials,
+    search_relevant_material_chunks,
+    soft_delete_material_chunks,
+)
 from subjects import normalize_subject
 
 load_dotenv()
@@ -701,6 +707,21 @@ def serialize_material_detail(material: models.StudyMaterial):
     }
 
 
+def serialize_material_status(material: models.StudyMaterial):
+    return {
+        "success": True,
+        "material_id": material.id,
+        "filename": material.original_filename,
+        "file_type": material.file_type,
+        "parse_status": material.parse_status or "success",
+        "parse_progress": material.parse_progress or 0,
+        "chunk_count": material.chunk_count or 0,
+        "parse_error": material.parse_error,
+        "total_pages": material.total_pages or 0,
+        "parsed_pages": material.parsed_pages or 0,
+    }
+
+
 def serialize_chunk_search_item(item: dict):
     return {
         "material_id": item["material_id"],
@@ -712,7 +733,7 @@ def serialize_chunk_search_item(item: dict):
         "chunk_summary": item.get("chunk_summary") or "",
         "keywords": item.get("keywords") or "",
         "score": item.get("score") or 0,
-        "created_at": item.get("created_at"),
+        "created_at": serialize_datetime(item.get("created_at")),
     }
 
 
@@ -730,6 +751,22 @@ def serialize_reference_item(item: dict):
         "score": round(float(item.get("score") or 0), 4),
         "created_at": item.get("created_at"),
     }
+
+
+def make_json_safe(value):
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return serialize_datetime(value)
+    if isinstance(value, date):
+        return value.isoformat()
+    if isinstance(value, dict):
+        return {str(key): make_json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [make_json_safe(item) for item in value]
+    if isinstance(value, (str, int, float, bool)):
+        return value
+    return str(value)
 
 
 def normalize_record_type(record_type: str) -> str:
@@ -1929,14 +1966,13 @@ async def handle_material_upload(
                 ]
             )
 
+            safe_references = make_json_safe(references)
             assistant_message = models.ChatMessage(
                 user_id=user.id,
                 session_id=chat_session.id,
                 role="assistant",
                 content=answer,
-                reference_payload=json.dumps(references, ensure_ascii=False)
-                if references
-                else None,
+                reference_payload=json.dumps(safe_references, ensure_ascii=False) if safe_references else None,
             )
             db.add(assistant_message)
             db.commit()
@@ -2098,6 +2134,32 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
 
     user = get_user_by_username(req.username, db)
     subject = normalize_subject(req.subject, req.course)
+    material_ids = sorted({int(item) for item in (req.material_ids or []) if int(item) > 0})
+    selected_materials: list[models.StudyMaterial] = []
+
+    if material_ids:
+        selected_materials = (
+            db.query(models.StudyMaterial)
+            .filter(
+                models.StudyMaterial.id.in_(material_ids),
+                models.StudyMaterial.username == user.username,
+                models.StudyMaterial.is_deleted.is_(False),
+            )
+            .all()
+        )
+        material_map = {material.id: material for material in selected_materials}
+        if len(material_map) != len(material_ids):
+            raise HTTPException(status_code=404, detail="指定资料不存在或不属于当前用户")
+
+        blocked_materials = [
+            material
+            for material in selected_materials
+            if (material.parse_status or "success") != "success" or (material.chunk_count or 0) <= 0
+        ]
+        if blocked_materials:
+            raise HTTPException(status_code=400, detail="资料仍在解析中，解析完成后才能提问。")
+
+        selected_materials = [material_map[material_id] for material_id in material_ids]
 
     if req.session_id is not None:
         chat_session = (
@@ -2133,18 +2195,30 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(chat_session)
 
+    primary_material = selected_materials[0] if selected_materials else None
     user_message = models.ChatMessage(
         user_id=user.id,
         session_id=chat_session.id,
         role="user",
         content=req.message,
+        attachment_type=primary_material.file_type if primary_material else None,
+        attachment_filename=primary_material.original_filename if primary_material else None,
+        material_id=primary_material.id if primary_material else None,
     )
     db.add(user_message)
     db.commit()
     db.refresh(user_message)
 
     rag_chunks = []
-    if subject:
+    if material_ids:
+        rag_chunks = retrieve_chunks_for_materials(
+            username=user.username,
+            subject=subject,
+            question=req.message,
+            material_ids=material_ids,
+            top_k=TOP_K_CHUNKS,
+        )
+    elif subject:
         rag_chunks = search_relevant_material_chunks(
             username=user.username,
             subject=subject,
@@ -2159,6 +2233,7 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
             "grade": req.grade or user.grade,
             "major": req.major or user.major,
         },
+        is_pdf=bool(material_ids),
         rag_chunks=rag_chunks,
     )
 
@@ -2169,13 +2244,14 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
         ]
     )
     references = [serialize_reference_item(item) for item in rag_chunks]
+    safe_references = make_json_safe(references)
 
     assistant_message = models.ChatMessage(
         user_id=user.id,
         session_id=chat_session.id,
         role="assistant",
         content=answer,
-        reference_payload=json.dumps(references, ensure_ascii=False) if references else None,
+        reference_payload=json.dumps(safe_references, ensure_ascii=False) if safe_references else None,
     )
     db.add(assistant_message)
     db.commit()
@@ -2183,7 +2259,7 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
 
     return {
         "answer": answer,
-        "references": references,
+        "references": safe_references,
         "assistant_message_id": assistant_message.id,
         "user_message_id": user_message.id,
         "session": serialize_session(chat_session),
@@ -2422,6 +2498,25 @@ def get_materials(username: str, subject: str | None = None, db: Session = Depen
 
     materials = query.order_by(models.StudyMaterial.created_at.desc()).all()
     return {"materials": [serialize_material_list_item(material) for material in materials]}
+
+
+@app.get("/materials/{material_id}/status")
+def get_material_status(material_id: int, username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    material = (
+        db.query(models.StudyMaterial)
+        .filter(
+            models.StudyMaterial.id == material_id,
+            models.StudyMaterial.username == user.username,
+            models.StudyMaterial.is_deleted.is_(False),
+        )
+        .first()
+    )
+
+    if not material:
+        raise HTTPException(status_code=404, detail="资料不存在")
+
+    return serialize_material_status(material)
 
 
 @app.get("/materials/{material_id}")

@@ -19,3 +19,4 @@ class ChatRequest(BaseModel):
     major: str = ""
     username: str | None = None
     session_id: int | None = None
+    material_ids: list[int] = []

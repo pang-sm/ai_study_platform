@@ -388,6 +388,65 @@ def search_relevant_material_chunks(
         return trim_chunks_for_prompt(ranked, MAX_TOTAL_CONTEXT_LEN)
 
 
+def retrieve_chunks_for_materials(
+    username: str,
+    subject: str | None,
+    question: str,
+    material_ids: list[int],
+    top_k: int = DEFAULT_TOP_K,
+):
+    safe_top_k = max(1, min(top_k, MAX_TOP_K))
+    safe_material_ids = sorted({int(item) for item in material_ids if int(item) > 0})
+    if not safe_material_ids:
+        return []
+
+    question_tokens = tokenize_query(question, subject)
+    results: list[dict] = []
+
+    with Session(engine) as session:
+        candidate_rows = (
+            session.query(models.MaterialChunk, models.StudyMaterial)
+            .join(models.StudyMaterial, models.StudyMaterial.id == models.MaterialChunk.material_id)
+            .filter(
+                models.MaterialChunk.username == username,
+                models.MaterialChunk.material_id.in_(safe_material_ids),
+                models.MaterialChunk.is_deleted.is_(False),
+                models.StudyMaterial.is_deleted.is_(False),
+            )
+            .order_by(models.MaterialChunk.created_at.desc(), models.MaterialChunk.chunk_index.asc())
+            .limit(120)
+            .all()
+        )
+
+        for chunk, material in candidate_rows:
+            searchable = " ".join(
+                [
+                    chunk.chunk_text or "",
+                    chunk.chunk_summary or "",
+                    chunk.keywords or "",
+                    chunk.source_filename or "",
+                ]
+            ).lower()
+            hit_count = sum(1 for token in question_tokens if token in searchable)
+            results.append(
+                {
+                    "material_id": chunk.material_id,
+                    "chunk_id": chunk.id,
+                    "source_filename": chunk.source_filename,
+                    "chunk_text": chunk.chunk_text,
+                    "chunk_summary": chunk.chunk_summary,
+                    "keywords": chunk.keywords,
+                    "subject": material.subject,
+                    "file_type": material.file_type,
+                    "created_at": material.created_at or chunk.created_at,
+                    "score": hit_count + 0.1,
+                }
+            )
+
+        ranked = sorted(results, key=lambda item: item["score"], reverse=True)[:safe_top_k]
+        return trim_chunks_for_prompt(ranked, MAX_TOTAL_CONTEXT_LEN)
+
+
 def reindex_materials(db: Session, username: str, subject: str | None = None, force: bool = False):
     query = db.query(models.StudyMaterial).filter(
         models.StudyMaterial.username == username,

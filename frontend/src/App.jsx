@@ -199,7 +199,7 @@ function App() {
 
   const [subject, setSubject] = useState(DEFAULT_SUBJECT);
   const [message, setMessage] = useState("");
-  const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedFiles, setSelectedFiles] = useState([]);
   const [messages, setMessages] = useState([]);
   const [chatSessions, setChatSessions] = useState([]);
   const [activeSessionId, setActiveSessionId] = useState(null);
@@ -244,8 +244,18 @@ function App() {
 
   const fileInputRef = useRef(null);
   const localMessageCounterRef = useRef(0);
+  const materialStatusPollersRef = useRef({});
 
   const currentChatSubject = activeSessionId ? activeSessionSubject : subject;
+  const selectedFile = selectedFiles[0]
+    ? {
+        ...selectedFiles[0],
+        type: String(selectedFiles[0].file_type || "").includes("pdf")
+          ? "application/pdf"
+          : selectedFiles[0].file_type,
+        name: selectedFiles[0].original_filename,
+      }
+    : null;
   const trimmedMessage = message.trim();
   const trimmedMaterialSearchQuery = materialSearchQuery.trim();
   const selectedAvatar =
@@ -274,9 +284,16 @@ function App() {
 
   const canSendMessage = useMemo(() => {
     if (loading) return false;
-    if (selectedFile) return Boolean(trimmedMessage);
+    if (selectedFiles.length > 0) {
+      return (
+        Boolean(trimmedMessage) &&
+        selectedFiles.every(
+          (item) => item.parse_status === "success" && Number(item.chunk_count || 0) > 0
+        )
+      );
+    }
     return Boolean(trimmedMessage);
-  }, [loading, selectedFile, trimmedMessage]);
+  }, [loading, selectedFiles, trimmedMessage]);
 
   const fileLabel = selectedFile
     ? selectedFile.type === "application/pdf"
@@ -288,6 +305,61 @@ function App() {
     clientId: `local-message-${Date.now()}-${localMessageCounterRef.current++}`,
     ...messageData,
   });
+
+  const clearMaterialPoller = (localId) => {
+    const timerId = materialStatusPollersRef.current[localId];
+    if (timerId) {
+      window.clearInterval(timerId);
+      delete materialStatusPollersRef.current[localId];
+    }
+  };
+
+  const clearAllMaterialPollers = () => {
+    Object.values(materialStatusPollersRef.current).forEach((timerId) => {
+      window.clearInterval(timerId);
+    });
+    materialStatusPollersRef.current = {};
+  };
+
+  const normalizeUploadedMaterial = (data, fallbackFile, localId) => {
+    const material = data.material || {};
+    return {
+      localId,
+      material_id: data.material_id || material.id,
+      original_filename: data.filename || material.original_filename || fallbackFile?.name || "未命名文件",
+      file_type: material.file_type || fallbackFile?.type || "",
+      parse_status: data.parse_status || material.parse_status || "pending",
+      parse_progress: data.parse_progress ?? material.parse_progress ?? 0,
+      chunk_count: data.chunk_count ?? material.chunk_count ?? 0,
+      parse_error: material.parse_error || data.parse_error || "",
+    };
+  };
+
+  const getSelectedFileStatusText = (item) => {
+    if (item.uploading) return "上传中";
+    if (item.parse_status === "success" && Number(item.chunk_count || 0) > 0) {
+      return "已解析，可提问";
+    }
+    if (item.parse_status === "failed") return "解析失败，请删除后重新上传";
+    if (item.parse_status === "partial") return "仅部分解析成功，请删除后重新上传";
+    if (item.parse_status === "parsing") return "解析中";
+    return "等待解析";
+  };
+
+  const selectedFilesBlockReason = useMemo(() => {
+    if (selectedFiles.length === 0) return "";
+    if (!trimmedMessage) return "请输入问题";
+    const blocked = selectedFiles.some(
+      (item) => item.parse_status !== "success" || Number(item.chunk_count || 0) <= 0
+    );
+    return blocked ? "资料正在解析中，解析完成后即可提问。" : "";
+  }, [selectedFiles, trimmedMessage]);
+
+  useEffect(() => {
+    return () => {
+      clearAllMaterialPollers();
+    };
+  }, []);
 
   const resolvedLearningRecordSubject =
     learningRecordSubjectFilter === "__CURRENT__"
@@ -344,7 +416,8 @@ function App() {
     setSelectedMaterialId(null);
     setSelectedMaterialDetail(null);
     setActiveSessionId(null);
-    setSelectedFile(null);
+    clearAllMaterialPollers();
+    setSelectedFiles([]);
     setMessage("");
     setMaterialSearchQuery("");
     setMaterialSearchTriggered(false);
@@ -582,7 +655,8 @@ function App() {
       setMessages([]);
       setActiveSessionId(null);
       setActiveSessionSubject(normalizedCourse);
-      setSelectedFile(null);
+      clearAllMaterialPollers();
+      setSelectedFiles([]);
       setMessage("");
       setTip("");
       localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
@@ -973,7 +1047,8 @@ function App() {
       localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, String(session.id));
       setSubject(sessionSubject);
       setMessages(data.messages || []);
-      setSelectedFile(null);
+      clearAllMaterialPollers();
+      setSelectedFiles([]);
       setMessage("");
       setPage("chat");
     } catch (error) {
@@ -1013,7 +1088,8 @@ function App() {
         setMessages([]);
         setActiveSessionId(null);
         setActiveSessionSubject(normalizeSubject(subject));
-        setSelectedFile(null);
+        clearAllMaterialPollers();
+        setSelectedFiles([]);
         setMessage("");
         localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
       }
@@ -1277,6 +1353,103 @@ function App() {
     }
   };
 
+  const pollMaterialStatus = (localId, materialId) => {
+    clearMaterialPoller(localId);
+
+    const refreshStatus = async () => {
+      try {
+        const res = await fetch(
+          `${API_BASE}/materials/${materialId}/status?username=${encodeURIComponent(user.username)}`
+        );
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.detail || "Failed to load material status");
+        }
+
+        setSelectedFiles((prev) =>
+          prev.map((item) =>
+            item.localId === localId
+              ? {
+                  ...item,
+                  parse_status: data.parse_status,
+                  parse_progress: data.parse_progress ?? item.parse_progress,
+                  chunk_count: data.chunk_count ?? item.chunk_count,
+                  parse_error: data.parse_error || "",
+                  uploading: false,
+                }
+              : item
+          )
+        );
+
+        if (["success", "failed", "partial"].includes(data.parse_status)) {
+          clearMaterialPoller(localId);
+          if (data.parse_status === "success" && Number(data.chunk_count || 0) > 0) {
+            await loadMaterials(materialSubjectFilter);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to poll material status:", error);
+      }
+    };
+
+    refreshStatus();
+    materialStatusPollersRef.current[localId] = window.setInterval(refreshStatus, 2000);
+  };
+
+  const uploadSelectedFile = async (file, localId) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("username", user.username);
+    formData.append("subject", normalizeSubject(currentChatSubject));
+
+    try {
+      const res = await fetch(`${API_BASE}/materials/upload`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${user.username}`,
+        },
+        body: formData,
+      });
+
+      const text = await res.text();
+      let data = {};
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        data = {};
+      }
+
+      if (!res.ok) {
+        throw new Error(getUploadErrorMessage(res.status, data));
+      }
+
+      const uploaded = normalizeUploadedMaterial(data, file, localId);
+      setSelectedFiles((prev) =>
+        prev.map((item) => (item.localId === localId ? { ...item, ...uploaded, uploading: false } : item))
+      );
+
+      if (["pending", "parsing"].includes(uploaded.parse_status)) {
+        pollMaterialStatus(localId, uploaded.material_id);
+      } else if (uploaded.parse_status === "success" && Number(uploaded.chunk_count || 0) > 0) {
+        await loadMaterials(materialSubjectFilter);
+      }
+    } catch (error) {
+      console.error("Failed to upload selected file:", error);
+      setSelectedFiles((prev) =>
+        prev.map((item) =>
+          item.localId === localId
+            ? {
+                ...item,
+                uploading: false,
+                parse_status: "failed",
+                parse_error: error.message || "上传失败",
+              }
+            : item
+        )
+      );
+    }
+  };
+
   const handleFileChange = (event) => {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -1293,12 +1466,32 @@ function App() {
       return;
     }
 
-    setSelectedFile(file);
+    if (!user?.username) {
+      setTip("请先登录。");
+      logout();
+      return;
+    }
+
+    const localId = `upload-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    setSelectedFiles((prev) => [
+      ...prev,
+      {
+        localId,
+        original_filename: file.name,
+        file_type: file.type,
+        parse_status: "pending",
+        parse_progress: 0,
+        chunk_count: 0,
+        uploading: true,
+      },
+    ]);
     setTip("");
+    uploadSelectedFile(file, localId);
   };
 
-  const removeSelectedFile = () => {
-    setSelectedFile(null);
+  const removeSelectedFile = (localId) => {
+    clearMaterialPoller(localId);
+    setSelectedFiles((prev) => prev.filter((item) => item.localId !== localId));
   };
 
   const getUploadErrorMessage = (status, data) => {
@@ -1346,9 +1539,18 @@ function App() {
 
   const sendTextMessage = async () => {
     const currentMessage = trimmedMessage;
+    const attachedFiles = selectedFiles
+      .filter((item) => item.material_id)
+      .map((item) => ({
+        material_id: item.material_id,
+        original_filename: item.original_filename,
+        file_type: item.file_type,
+        parse_status: item.parse_status,
+        chunk_count: item.chunk_count,
+      }));
     setMessages((prev) => [
       ...prev,
-      createLocalMessage({ role: "user", content: currentMessage }),
+      createLocalMessage({ role: "user", content: currentMessage, attachments: attachedFiles }),
     ]);
     setLoading(true);
     setMessage("");
@@ -1364,6 +1566,7 @@ function App() {
           major: user.major || "",
           username: user.username,
           session_id: activeSessionId,
+          material_ids: attachedFiles.map((item) => item.material_id),
         }),
       });
       const data = await res.json();
@@ -1389,6 +1592,8 @@ function App() {
       ]);
       refreshChatSessionState(data.session);
       await loadChatHistory(user);
+      clearAllMaterialPollers();
+      setSelectedFiles([]);
     } catch (error) {
       console.error("Failed to send message:", error);
       appendAssistantError("无法连接后端服务。");
@@ -1462,7 +1667,8 @@ function App() {
       await loadMaterials(materialSubjectFilter);
 
       setMessage("");
-      setSelectedFile(null);
+      clearAllMaterialPollers();
+      setSelectedFiles([]);
       setTip("附件提问已保存到聊天记录，并已加入个人资料库。");
     } catch (error) {
       console.error("Failed to send file message:", error);
@@ -1480,7 +1686,7 @@ function App() {
     }
 
     if (!canSendMessage) {
-      if (selectedFile && !trimmedMessage) {
+      if (selectedFilesBlockReason) {
         setTip("请先输入问题后再发送文件。");
       }
       return;
@@ -1488,7 +1694,7 @@ function App() {
 
     setTip("");
 
-    if (selectedFile) {
+    if (false) {
       await sendFileMessage();
       return;
     }
@@ -1548,7 +1754,8 @@ function App() {
     setMessages([]);
     setActiveSessionId(null);
     setActiveSessionSubject(normalizeSubject(subject));
-    setSelectedFile(null);
+    clearAllMaterialPollers();
+    setSelectedFiles([]);
     setMessage("");
     setTip("");
     setPage("chat");
@@ -2302,9 +2509,15 @@ function App() {
                 <div className="attachment-chip-row">
                   <div className="attachment-chip">
                     <span className="attachment-chip-label">{fileLabel}</span>
+                    <span className="attachment-chip-status">
+                      {getSelectedFileStatusText(selectedFile)}
+                      {Number(selectedFile.parse_progress || 0) > 0
+                        ? ` ${Math.round(Number(selectedFile.parse_progress || 0))}%`
+                        : ""}
+                    </span>
                     <button
                       className="attachment-chip-remove"
-                      onClick={removeSelectedFile}
+                      onClick={() => removeSelectedFile(selectedFile.localId)}
                       type="button"
                     >
                       ×
@@ -2313,8 +2526,12 @@ function App() {
                 </div>
               )}
 
-              {selectedFile && !trimmedMessage && (
+              {false && (
                 <div className="composer-hint">请先输入问题后再发送文件。</div>
+              )}
+
+              {selectedFilesBlockReason && (
+                <div className="composer-hint">{selectedFilesBlockReason}</div>
               )}
 
               <div className="composer-row composer-row--input">
