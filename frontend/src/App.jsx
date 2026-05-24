@@ -2092,59 +2092,86 @@ function App() {
     return (
       <div className="auth-shell">
         <div className="auth-card">
-          <div className="auth-badge">AI 学习平台</div>
-          <h1>欢迎使用 AI 学习平台</h1>
-          <p className="auth-subtitle">
-            登录后即可使用个人资料、个人资料库和历史对话。
-          </p>
+          <div className="auth-hero">
+            <div className="auth-badge">AI 学习平台</div>
+            <h1 className="auth-title">
+              {authMode === "login" ? "欢迎回来" : "创建你的学习账号"}
+            </h1>
+            <p className="auth-subtitle">
+              {authMode === "login"
+                ? "继续你的课程学习、资料问答和学习记录。"
+                : "注册后先完善学习方向，我们会为你组织课程工作台。"}
+            </p>
 
-          <div className="tab-row">
-            <button
-              className={authMode === "login" ? "tab-button active" : "tab-button"}
-              onClick={() => {
-                setAuthMode("login");
-                setTip("");
-              }}
-            >
-              登录
-            </button>
-            <button
-              className={authMode === "register" ? "tab-button active" : "tab-button"}
-              onClick={() => {
-                setAuthMode("register");
-                setTip("");
-              }}
-            >
-              注册
-            </button>
+            <ul className="auth-features">
+              <li className="auth-feature">
+                <span className="auth-feature-icon">💬</span>
+                <div>
+                  <div className="auth-feature-label">AI 问答</div>
+                  <div className="auth-feature-desc">围绕课程进行深度提问</div>
+                </div>
+              </li>
+              <li className="auth-feature">
+                <span className="auth-feature-icon">📚</span>
+                <div>
+                  <div className="auth-feature-label">资料库</div>
+                  <div className="auth-feature-desc">保存、预览和下载原始资料</div>
+                </div>
+              </li>
+              <li className="auth-feature">
+                <span className="auth-feature-icon">📝</span>
+                <div>
+                  <div className="auth-feature-label">学习记录</div>
+                  <div className="auth-feature-desc">沉淀你的学习过程</div>
+                </div>
+              </li>
+            </ul>
           </div>
 
-          <input
-            className="field"
-            placeholder="用户名"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-          />
+          <div className="auth-panel">
+            <div className="auth-tabs">
+              <button
+                className={authMode === "login" ? "auth-tab active" : "auth-tab"}
+                onClick={() => { setAuthMode("login"); setTip(""); }}
+              >
+                登录
+              </button>
+              <button
+                className={authMode === "register" ? "auth-tab active" : "auth-tab"}
+                onClick={() => { setAuthMode("register"); setTip(""); }}
+              >
+                注册
+              </button>
+            </div>
 
-          <input
-            className="field"
-            placeholder="密码"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
+            <div className="auth-form">
+              <input
+                className="auth-input"
+                placeholder="用户名"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+              />
+              <input
+                className="auth-input"
+                placeholder="密码"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
 
-          {tip && <p className="tip-text">{tip}</p>}
+              {tip && <p className="auth-tip">{tip}</p>}
 
-          {authMode === "login" ? (
-            <button className="primary-button" onClick={handleLogin}>
-              登录
-            </button>
-          ) : (
-            <button className="primary-button" onClick={handleRegister}>
-              注册
-            </button>
-          )}
+              {authMode === "login" ? (
+                <button className="auth-submit" onClick={handleLogin}>
+                  登录
+                </button>
+              ) : (
+                <button className="auth-submit" onClick={handleRegister}>
+                  注册并继续
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     );
