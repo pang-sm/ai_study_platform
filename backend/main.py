@@ -653,6 +653,103 @@ def call_deepseek(messages: list[dict]):
         raise HTTPException(status_code=500, detail="AI 服务调用失败，请稍后重试") from exc
 
 
+# ── Markdown post-processing: collapse stray single-term fenced code blocks ──
+
+_COLLAPSIBLE_LANGS = frozenset({"", "text", "txt", "plain", "none", "nohighlight", "plaintext"})
+
+_PRESERVED_LANGS = frozenset({
+    "java", "python", "py", "c", "cpp", "c++", "bash", "sh", "zsh",
+    "javascript", "js", "typescript", "ts", "json", "sql", "html", "css",
+    "latex", "tex", "yaml", "yml", "xml", "rust", "rs", "go", "golang",
+    "php", "ruby", "rb", "shell", "powershell", "ps1", "dockerfile",
+    "toml", "ini", "conf", "makefile", "perl", "swift", "kotlin", "scala",
+    "r", "matlab", "lua", "dart", "groovy", "haskell", "hs", "elixir",
+    "clojure", "erlang", "markdown", "md", "diff", "patch", "nginx",
+})
+
+_CLI_COMMANDS = frozenset({
+    "npm", "npx", "yarn", "pnpm", "git", "sudo", "pip", "pip3", "apt",
+    "apt-get", "yum", "dnf", "brew", "docker", "kubectl", "systemctl",
+    "journalctl", "curl", "wget", "ssh", "scp", "rsync", "make", "cmake",
+    "gcc", "g++", "clang", "clang++", "node", "python", "python3",
+    "java", "javac", "mvn", "gradle", "cargo", "rustc", "go",
+})
+
+_CODE_LINE_PATTERNS = [
+    r"\bimport\s",
+    r"\bclass\s",
+    r"\bdef\s",
+    r"\bfunction\s",
+    r"\breturn\s",
+    r"\bpublic\s",
+    r"\bprivate\s",
+    r"\bprotected\s",
+    r"\bconst\s",
+    r"\blet\s",
+    r"\bvar\s",
+    r"\bexport\s",
+    r"\bpackage\s",
+    r"#include",
+    r"\brequire\s",
+    r"\bfor\s*\(",
+    r"\bwhile\s*\(",
+    r"\bif\s*\(",
+    r"\bswitch\s*\(",
+    r"&&",
+    r"\|\|",
+    r"\bprint\s*\(",
+    r"\becho\s",
+    r"\bthrow\s",
+    r"\bcatch\s*\(",
+    r"\bnew\s+\w+\s*\(",
+]
+
+_CODE_LINE_RE = re.compile("|".join(_CODE_LINE_PATTERNS), re.IGNORECASE)
+
+_FENCE_RE = re.compile(r"```(\w*)[ \t]*\r?\n(.*?)\r?\n[ \t]*```", re.DOTALL)
+
+
+def _should_collapse(lang: str, content: str) -> bool:
+    lang = lang.strip().lower()
+    if lang in _PRESERVED_LANGS:
+        return False
+    if lang not in _COLLAPSIBLE_LANGS:
+        return False
+
+    stripped = content.strip()
+    if not stripped:
+        return False
+    if "\n" in stripped:
+        return False
+    if len(stripped) > 40:
+        return False
+    if ";" in stripped or "{" in stripped or "}" in stripped:
+        return False
+
+    words = stripped.split()
+    if len(words) >= 2 and words[0].lower() in _CLI_COMMANDS:
+        return False
+
+    if _CODE_LINE_RE.search(stripped):
+        return False
+
+    return True
+
+
+def normalize_assistant_markdown(text: str) -> str:
+    if not text:
+        return text
+
+    def _replace(match: re.Match) -> str:
+        lang = match.group(1) or ""
+        content = match.group(2)
+        if _should_collapse(lang, content):
+            return f"`{content.strip()}`"
+        return match.group(0)
+
+    return _FENCE_RE.sub(_replace, text)
+
+
 def summarize_material(subject: str, extracted_text: str):
     preview = extracted_text[:5000]
     prompt = f"""
@@ -2089,6 +2186,8 @@ async def handle_material_upload(
                 ]
             )
 
+            answer = normalize_assistant_markdown(answer)
+
             safe_references = make_json_safe(references)
             assistant_message = models.ChatMessage(
                 user_id=user.id,
@@ -2371,6 +2470,9 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
             {"role": "user", "content": user_content},
         ]
     )
+
+    answer = normalize_assistant_markdown(answer)
+
     references = [serialize_reference_item(item) for item in rag_chunks]
     safe_references = make_json_safe(references)
 
