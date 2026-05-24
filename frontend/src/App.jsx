@@ -311,6 +311,12 @@ function App() {
   const [subject, setSubject] = useState(DEFAULT_SUBJECT);
   const [message, setMessage] = useState("");
   const [selectedFiles, setSelectedFiles] = useState([]);
+  const [showPlusMenu, setShowPlusMenu] = useState(false);
+  const [showLibraryRefModal, setShowLibraryRefModal] = useState(false);
+  const [libraryRefMaterials, setLibraryRefMaterials] = useState([]);
+  const [selectedLibraryMaterials, setSelectedLibraryMaterials] = useState([]);
+  const [libraryRefSearchQuery, setLibraryRefSearchQuery] = useState("");
+  const [libraryRefLoading, setLibraryRefLoading] = useState(false);
   const [messages, setMessages] = useState([]);
   const [chatSessions, setChatSessions] = useState([]);
   const [activeSessionId, setActiveSessionId] = useState(null);
@@ -360,6 +366,7 @@ function App() {
   const fileInputRef = useRef(null);
   const materialsFileInputRef = useRef(null);
   const avatarInputRef = useRef(null);
+  const plusMenuRef = useRef(null);
   const localMessageCounterRef = useRef(0);
   const materialStatusPollersRef = useRef({});
   const materialPollCountRef = useRef({});
@@ -448,13 +455,14 @@ function App() {
 
   const canSendMessage = useMemo(() => {
     if (loading) return false;
-    if (selectedFiles.length > 0) {
+    const hasFiles = selectedFiles.length > 0 || selectedLibraryMaterials.length > 0;
+    if (hasFiles) {
       if (!trimmedMessage) return false;
       if (hasAnyParsing) return false;
-      return validAttachedFiles.length > 0;
+      return validAttachedFiles.length > 0 || selectedLibraryMaterials.length > 0;
     }
     return Boolean(trimmedMessage);
-  }, [loading, selectedFiles, trimmedMessage, hasAnyParsing, validAttachedFiles]);
+  }, [loading, selectedFiles, trimmedMessage, hasAnyParsing, validAttachedFiles, selectedLibraryMaterials]);
 
   const createLocalMessage = (messageData) => ({
     clientId: `local-message-${Date.now()}-${localMessageCounterRef.current++}`,
@@ -519,6 +527,17 @@ function App() {
       clearAllMaterialPollers();
     };
   }, []);
+
+  useEffect(() => {
+    if (!showPlusMenu) return;
+    const handleClick = (e) => {
+      if (plusMenuRef.current && !plusMenuRef.current.contains(e.target)) {
+        setShowPlusMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [showPlusMenu]);
 
   const resolvedLearningRecordSubject =
     learningRecordSubjectFilter === "__CURRENT__"
@@ -699,6 +718,57 @@ function App() {
       console.error("Failed to load chat history:", error);
       setTip("无法加载聊天记录，请检查后端服务。");
     }
+  };
+
+  const openLibraryReferenceModal = async () => {
+    if (!user?.username) return;
+    setShowLibraryRefModal(true);
+    setLibraryRefLoading(true);
+    setLibraryRefSearchQuery("");
+    try {
+      const query = new URLSearchParams({ username: user.username });
+      const normalizedSubject = normalizeSubject(currentChatSubject);
+      if (normalizedSubject) query.set("subject", normalizedSubject);
+      const res = await fetch(`${API_BASE}/materials?${query.toString()}`);
+      const data = await res.json();
+      if (!res.ok) {
+        setLibraryRefMaterials([]);
+        return;
+      }
+      setLibraryRefMaterials(data.materials || []);
+    } catch (error) {
+      console.error("Failed to load materials for reference:", error);
+      setLibraryRefMaterials([]);
+    } finally {
+      setLibraryRefLoading(false);
+    }
+  };
+
+  const toggleLibraryMaterialSelection = (material) => {
+    setSelectedLibraryMaterials((prev) => {
+      const exists = prev.find((item) => item.id === material.id);
+      if (exists) return prev.filter((item) => item.id !== material.id);
+      return [...prev, material];
+    });
+  };
+
+  const removeSelectedLibraryMaterial = (materialId) => {
+    setSelectedLibraryMaterials((prev) => prev.filter((item) => item.id !== materialId));
+  };
+
+  const canReferenceMaterial = (material) =>
+    (material.parse_status === "success" || material.parse_status === "partial") &&
+    Number(material.chunk_count || 0) > 0;
+
+  const getUnreferenceableReason = (material) => {
+    const status = (material.parse_status || "").trim();
+    if (status === "pending" || status === "parsing") return "正在解析，暂不可引用";
+    if (status === "failed") return "解析失败，无法用于 AI 问答";
+    if (status === "success" || status === "partial") {
+      if (Number(material.chunk_count || 0) <= 0) return "未生成知识索引，无法引用";
+      return "";
+    }
+    return "未生成知识索引，无法引用";
   };
 
   const loadMaterials = async (targetSubject = materialSubjectFilter) => {
@@ -1972,7 +2042,12 @@ function App() {
           major: user.major || "",
           username: user.username,
           session_id: activeSessionId,
-          material_ids: attachedFiles.map((item) => item.material_id),
+          material_ids: Array.from(
+            new Set([
+              ...attachedFiles.map((item) => item.material_id),
+              ...selectedLibraryMaterials.map((item) => item.id),
+            ])
+          ),
         }),
       });
       const data = await res.json();
@@ -2002,6 +2077,7 @@ function App() {
       await loadChatHistory(user);
       clearAllMaterialPollers();
       setSelectedFiles([]);
+      setSelectedLibraryMaterials([]);
     } catch (error) {
       console.error("Failed to send message:", error);
       appendAssistantError("无法连接后端服务。");
@@ -3342,10 +3418,7 @@ function App() {
             ) : currentFilterItems.length === 0 ? (
               <div className="empty-inline">
                 <p>当前课程还没有资料。</p>
-                <p className="muted-text">上传 PDF、图片、Word、PPT 或代码文件，系统会保存原文件并生成 AI 知识索引。</p>
-                <button className="primary-button compact" onClick={() => materialsFileInputRef.current?.click()}>
-                  上传课程资料
-                </button>
+                <p className="muted-text">上传 PDF、图片、Word、PPT、TXT 或代码文件后，系统会保存原文件，并生成 AI 知识索引用于课程问答。</p>
               </div>
             ) : (
               <div className="workspace-materials-list">
@@ -3522,16 +3595,64 @@ function App() {
                 <div className="composer-hint">{selectedFilesBlockReason}</div>
               )}
 
+              {selectedLibraryMaterials.length > 0 && (
+                <div className="library-ref-bar">
+                  <div className="library-ref-bar-title">已引用资料库资料</div>
+                  <div className="library-ref-bar-list">
+                    {selectedLibraryMaterials.map((material) => (
+                      <div key={material.id} className="library-ref-chip">
+                        <span className="library-ref-chip-name">{material.original_filename}</span>
+                        <span className="library-ref-chip-type">{getFileTypeLabel(material.file_type)}</span>
+                        <span className="library-ref-chip-source">来自资料库</span>
+                        <button
+                          className="library-ref-chip-remove"
+                          title="从本次提问中移除"
+                          onClick={() => removeSelectedLibraryMaterial(material.id)}
+                        >
+                          &times;
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="composer-row composer-row--input">
-                <button
-                  className="attach-button"
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={loading}
-                  title="选择文件"
-                >
-                  +
-                </button>
+                <div className="plus-menu-wrapper" ref={plusMenuRef}>
+                  <button
+                    className="attach-button"
+                    type="button"
+                    onClick={() => setShowPlusMenu((v) => !v)}
+                    disabled={loading}
+                    title="添加资料"
+                  >
+                    +
+                  </button>
+                  {showPlusMenu && (
+                    <div className="plus-menu">
+                      <button
+                        className="plus-menu-item"
+                        type="button"
+                        onClick={() => {
+                          setShowPlusMenu(false);
+                          fileInputRef.current?.click();
+                        }}
+                      >
+                        上传新文件
+                      </button>
+                      <button
+                        className="plus-menu-item"
+                        type="button"
+                        onClick={() => {
+                          setShowPlusMenu(false);
+                          openLibraryReferenceModal();
+                        }}
+                      >
+                        引用资料库文件
+                      </button>
+                    </div>
+                  )}
+                </div>
 
                 <input
                   ref={fileInputRef}
@@ -3571,6 +3692,108 @@ function App() {
 
             {tip && <p className="tip-text">{tip}</p>}
           </section>
+        )}
+
+        {showLibraryRefModal && (
+          <div className="modal-overlay" onClick={() => setShowLibraryRefModal(false)}>
+            <div
+              className="modal-card library-ref-modal"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="modal-header">
+                <h3>引用当前课程资料</h3>
+                <button
+                  className="modal-close"
+                  onClick={() => setShowLibraryRefModal(false)}
+                  title="关闭"
+                >
+                  &times;
+                </button>
+              </div>
+              <p className="muted-text" style={{ marginBottom: 12 }}>
+                选择资料库中的文件，作为本轮提问的强相关参考资料。
+              </p>
+
+              <input
+                className="field"
+                placeholder="在当前课程资料中搜索..."
+                value={libraryRefSearchQuery}
+                onChange={(e) => setLibraryRefSearchQuery(e.target.value)}
+              />
+
+              <div className="library-ref-list">
+                {libraryRefLoading ? (
+                  <div className="empty-inline">资料加载中...</div>
+                ) : libraryRefMaterials.length === 0 ? (
+                  <div className="empty-inline">
+                    <p>当前课程还没有可引用资料。</p>
+                    <p className="muted-text">
+                      请先在资料库上传资料，或在当前对话中上传新文件。
+                    </p>
+                  </div>
+                ) : (
+                  (() => {
+                    const searchQuery = (libraryRefSearchQuery || "").trim().toLowerCase();
+                    const filtered = searchQuery
+                      ? libraryRefMaterials.filter((m) =>
+                          (m.original_filename || "").toLowerCase().includes(searchQuery)
+                        )
+                      : libraryRefMaterials;
+                    if (filtered.length === 0) {
+                      return <div className="empty-inline">没有匹配的资料。</div>;
+                    }
+                    return filtered.map((material) => {
+                      const canRef = canReferenceMaterial(material);
+                      const reason = canRef ? "" : getUnreferenceableReason(material);
+                      const selected = selectedLibraryMaterials.some(
+                        (item) => item.id === material.id
+                      );
+                      return (
+                        <div
+                          key={material.id}
+                          className={`library-ref-item ${!canRef ? "library-ref-item--disabled" : ""} ${selected ? "library-ref-item--selected" : ""}`}
+                          onClick={() => canRef && toggleLibraryMaterialSelection(material)}
+                        >
+                          <div className="library-ref-item-check">
+                            {selected && <span className="library-ref-check-mark">&#10003;</span>}
+                          </div>
+                          <div className="library-ref-item-info">
+                            <div className="library-ref-item-name">
+                              {material.original_filename}
+                            </div>
+                            <div className="library-ref-item-meta">
+                              <span>{getFileTypeLabel(material.file_type)}</span>
+                              <span>{formatFileSize(material.file_size)}</span>
+                              <span>{getParseStatusLabel(material.parse_status)}</span>
+                              <span>{Number(material.chunk_count || 0)} 个知识片段</span>
+                              {!canRef && (
+                                <span className="library-ref-item-reason">{reason}</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()
+                )}
+              </div>
+
+              <div className="modal-actions">
+                <button
+                  className="ghost-button compact"
+                  onClick={() => setShowLibraryRefModal(false)}
+                >
+                  取消
+                </button>
+                <button
+                  className="primary-button compact"
+                  onClick={() => setShowLibraryRefModal(false)}
+                >
+                  确认引用
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </main>
     </div>
