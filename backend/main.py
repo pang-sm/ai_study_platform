@@ -200,6 +200,8 @@ class ProfileUpdateRequest(BaseModel):
     grade: str | None = None
     major: str | None = None
     avatar: str | None = None
+    learning_goals: list[dict] | None = None
+    onboarding_completed: bool | None = None
 
 
 class AddMaterialFromMessageRequest(BaseModel):
@@ -240,7 +242,35 @@ class CourseProgressUpdateRequest(BaseModel):
     status: str
 
 
+AVATAR_UPLOAD_ROOT = UPLOAD_ROOT / "avatars"
+AVATAR_UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
+
+ALLOWED_AVATAR_TYPES = {
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+}
+
+MAX_AVATAR_SIZE = 3 * 1024 * 1024
+
+
 def user_profile(user: models.User):
+    avatar_id = (user.avatar or "").strip()
+    avatar_url = None
+    if avatar_id:
+        if avatar_id in ALLOWED_AVATARS:
+            avatar_url = avatar_id
+        else:
+            avatar_url = f"/me/avatar/{avatar_id}"
+
+    learning_goals = []
+    if user.learning_goals:
+        try:
+            learning_goals = json.loads(user.learning_goals)
+        except (json.JSONDecodeError, TypeError):
+            learning_goals = []
+
     return {
         "id": user.id,
         "username": user.username,
@@ -248,6 +278,9 @@ def user_profile(user: models.User):
         "grade": user.grade or "",
         "major": user.major or "",
         "avatar": user.avatar or "",
+        "avatar_url": avatar_url,
+        "onboarding_completed": bool(user.onboarding_completed),
+        "learning_goals": learning_goals,
     }
 
 
@@ -2409,12 +2442,14 @@ def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
         avatar="",
         grade="",
         major="",
+        onboarding_completed=False,
+        learning_goals=None,
     )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
 
-    return {"message": "注册成功", "user": user_profile(new_user)}
+    return {"message": "注册成功", "user": user_profile(new_user), "profile": user_profile(new_user)}
 
 
 @app.post("/login")
@@ -2433,7 +2468,7 @@ def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
     if not verify_password(password, db_user.hashed_password):
         raise HTTPException(status_code=400, detail="密码错误")
 
-    return {"message": "登录成功", "user": user_profile(db_user)}
+    return {"message": "登录成功", "user": user_profile(db_user), "profile": user_profile(db_user)}
 
 
 @app.post("/me")
@@ -2457,17 +2492,93 @@ def update_profile(req: ProfileUpdateRequest, username: str, db: Session = Depen
     major = (req.major or "").strip()[:50]
     avatar = (req.avatar or "").strip()
 
-    if avatar and avatar not in ALLOWED_AVATARS:
+    if avatar and avatar not in ALLOWED_AVATARS and not avatar.startswith("/"):
         raise HTTPException(status_code=400, detail="头像无效")
 
     user.nickname = nickname
     user.grade = grade
     user.major = major
     user.avatar = avatar
+
+    if req.learning_goals is not None:
+        validated_goals = []
+        for goal_item in req.learning_goals:
+            if not isinstance(goal_item, dict):
+                continue
+            subject_name = (goal_item.get("subject") or "").strip()
+            if not subject_name:
+                continue
+            target_level = (goal_item.get("target_level") or "").strip()
+            if not target_level:
+                continue
+            note = (goal_item.get("note") or "").strip()[:200]
+            validated_goals.append({
+                "subject": subject_name,
+                "target_level": target_level,
+                "note": note,
+            })
+        user.learning_goals = json.dumps(validated_goals, ensure_ascii=False) if validated_goals else None
+
+    if req.onboarding_completed is not None:
+        user.onboarding_completed = bool(req.onboarding_completed)
+
     db.commit()
     db.refresh(user)
 
     return {"profile": user_profile(user)}
+
+
+@app.post("/me/avatar")
+async def upload_avatar(
+    file: UploadFile = File(...),
+    username: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    user = get_user_by_username(username, db)
+
+    if file.content_type not in ALLOWED_AVATAR_TYPES:
+        raise HTTPException(status_code=400, detail="头像仅支持 JPG、PNG、WebP 或 GIF 格式")
+
+    file_bytes = await file.read()
+    if len(file_bytes) > MAX_AVATAR_SIZE:
+        raise HTTPException(status_code=400, detail="头像文件不能超过 3MB")
+
+    suffix = Path(file.filename or "avatar.png").suffix.lower()
+    if suffix not in {".jpg", ".jpeg", ".png", ".webp", ".gif"}:
+        raise HTTPException(status_code=400, detail="头像仅支持 JPG、PNG、WebP 或 GIF 格式")
+
+    avatar_filename = f"{secrets.token_hex(16)}{suffix}"
+    AVATAR_UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
+    avatar_path = AVATAR_UPLOAD_ROOT / avatar_filename
+
+    with open(avatar_path, "wb") as output:
+        output.write(file_bytes)
+
+    user.avatar = avatar_filename
+    db.commit()
+    db.refresh(user)
+
+    return {"avatar_url": f"/me/avatar/{avatar_filename}", "profile": user_profile(user)}
+
+
+@app.get("/me/avatar/{filename}")
+def serve_avatar(filename: str):
+    safe_name = os.path.basename(filename)
+    if not safe_name or safe_name != filename:
+        raise HTTPException(status_code=400, detail="头像路径无效")
+
+    avatar_path = (AVATAR_UPLOAD_ROOT / safe_name).resolve()
+    if AVATAR_UPLOAD_ROOT.resolve() not in avatar_path.parents and avatar_path != AVATAR_UPLOAD_ROOT.resolve():
+        raise HTTPException(status_code=400, detail="头像路径无效")
+
+    if not avatar_path.exists() or not avatar_path.is_file():
+        raise HTTPException(status_code=404, detail="头像文件不存在")
+
+    ext = avatar_path.suffix.lower()
+    media_map = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".gif": "image/gif"}
+    media_type = media_map.get(ext, "image/png")
+
+    return FileResponse(avatar_path, media_type=media_type)
 
 
 @app.post("/chat")

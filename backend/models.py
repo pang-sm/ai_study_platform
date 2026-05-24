@@ -16,9 +16,11 @@ class User(Base):
     username = Column(String(50), unique=True, index=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)
     nickname = Column(String(30), nullable=True)
-    avatar = Column(String(50), nullable=True)
-    grade = Column(String(50), nullable=False)
-    major = Column(String(100), nullable=False)
+    avatar = Column(String(255), nullable=True)
+    grade = Column(String(50), nullable=False, default="")
+    major = Column(String(100), nullable=False, default="")
+    onboarding_completed = Column(Boolean, nullable=False, default=False)
+    learning_goals = Column(Text, nullable=True)
     created_at = Column(DateTime, default=utc_now)
 
 

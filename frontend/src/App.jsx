@@ -24,6 +24,15 @@ const AVATARS = [
   { id: "avatar_6", label: "A6", background: "#0f766e" },
 ];
 
+const TARGET_LEVEL_OPTIONS = [
+  "入门了解",
+  "课堂跟上",
+  "考试掌握",
+  "项目实战",
+  "深入精通",
+  "自定义",
+];
+
 const MESSAGE_TRANSLATIONS = {
   "Invalid username or password": "用户名或密码错误",
   "Username already exists": "用户名已存在",
@@ -285,7 +294,7 @@ function getRecordAnswerPreview(answer) {
 }
 
 function App() {
-  const [page, setPage] = useState(getSavedUser() ? "profile" : "login");
+  const [page, setPage] = useState("login");
   const [authMode, setAuthMode] = useState("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -296,6 +305,8 @@ function App() {
     major: "",
     avatar: "avatar_1",
   });
+  const [learningGoals, setLearningGoals] = useState([]);
+  const [onboardingSaving, setOnboardingSaving] = useState(false);
 
   const [subject, setSubject] = useState(DEFAULT_SUBJECT);
   const [message, setMessage] = useState("");
@@ -304,7 +315,8 @@ function App() {
   const [chatSessions, setChatSessions] = useState([]);
   const [activeSessionId, setActiveSessionId] = useState(null);
   const [activeSessionSubject, setActiveSessionSubject] = useState(DEFAULT_SUBJECT);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [tip, setTip] = useState("");
   const [loading, setLoading] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
@@ -346,6 +358,7 @@ function App() {
   const [courseProgressSavingKey, setCourseProgressSavingKey] = useState("");
 
   const fileInputRef = useRef(null);
+  const avatarInputRef = useRef(null);
   const localMessageCounterRef = useRef(0);
   const materialStatusPollersRef = useRef({});
   const materialPollCountRef = useRef({});
@@ -533,12 +546,15 @@ function App() {
   };
 
   const saveLoginUser = (loginUser) => {
+    const goals = Array.isArray(loginUser.learning_goals) ? loginUser.learning_goals : [];
     const normalizedUser = {
       ...loginUser,
       nickname: loginUser.nickname || "",
       grade: loginUser.grade || "",
       major: loginUser.major || "",
       avatar: loginUser.avatar || "avatar_1",
+      onboarding_completed: Boolean(loginUser.onboarding_completed),
+      learning_goals: goals,
     };
 
     setUser(normalizedUser);
@@ -549,6 +565,72 @@ function App() {
       major: normalizedUser.major,
       avatar: normalizedUser.avatar,
     });
+    setLearningGoals(goals);
+  };
+
+  const addLearningGoal = () => {
+    setLearningGoals((prev) => [
+      ...prev,
+      { subject: "", target_level: "课堂跟上", note: "" },
+    ]);
+  };
+
+  const removeLearningGoal = (index) => {
+    setLearningGoals((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const updateLearningGoal = (index, field, value) => {
+    setLearningGoals((prev) =>
+      prev.map((item, i) => (i === index ? { ...item, [field]: value } : item))
+    );
+  };
+
+  const saveOnboarding = async () => {
+    if (!user?.username) return;
+
+    const filteredGoals = learningGoals.filter(
+      (g) => (g.subject || "").trim() && (g.target_level || "").trim()
+    );
+
+    if (filteredGoals.length === 0) {
+      setTip("请至少添加一个想学习的科目。");
+      return;
+    }
+
+    setOnboardingSaving(true);
+    setTip("");
+
+    try {
+      const res = await fetch(
+        `${API_BASE}/me/profile?username=${encodeURIComponent(user.username)}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            nickname: profileForm.nickname,
+            grade: profileForm.grade,
+            major: profileForm.major,
+            learning_goals: filteredGoals,
+            onboarding_completed: true,
+          }),
+        }
+      );
+      const data = await res.json();
+
+      if (!res.ok) {
+        setTip(getDisplayMessage(data.detail, "保存学习信息失败"));
+        return;
+      }
+
+      saveLoginUser(data.profile);
+      setPage("home");
+      setTip("");
+    } catch (error) {
+      console.error("Failed to save onboarding:", error);
+      setTip("暂时无法保存学习信息。");
+    } finally {
+      setOnboardingSaving(false);
+    }
   };
 
   const logout = () => {
@@ -802,7 +884,7 @@ function App() {
     const normalizedCourse = normalizeSubject(targetCourse);
     setSubject(normalizedCourse);
     setMaterialSubjectFilter(normalizedCourse);
-    setPage("profile");
+    setPage("materials");
     await loadMaterials("");
   };
 
@@ -1439,7 +1521,11 @@ function App() {
         const checkedUser = data.user || savedUser;
         saveLoginUser(checkedUser);
         await loadProfile(checkedUser);
-        setPage("profile");
+        if (checkedUser.onboarding_completed) {
+          setPage("home");
+        } else {
+          setPage("onboarding");
+        }
       } catch (error) {
         console.error("Failed to verify login status:", error);
       }
@@ -1501,10 +1587,10 @@ function App() {
         return;
       }
 
-      const loginUser = data.user || { username: data.username || username };
+      const loginUser = data.profile || data.user || { username: data.username || username };
       saveLoginUser(loginUser);
-      setPage("profile");
-      setTip("注册成功，请完善个人资料。");
+      setPage("onboarding");
+      setTip("");
     } catch (error) {
       console.error("Register failed:", error);
       setTip("无法连接后端服务。");
@@ -1532,10 +1618,14 @@ function App() {
         return;
       }
 
-      const loginUser = data.user || { username: data.username || username };
+      const loginUser = data.profile || data.user || { username: data.username || username };
       saveLoginUser(loginUser);
       await loadProfile(loginUser);
-      setPage("profile");
+      if (loginUser.onboarding_completed) {
+        setPage("home");
+      } else {
+        setPage("onboarding");
+      }
       setTip("");
     } catch (error) {
       console.error("Login failed:", error);
@@ -1575,6 +1665,46 @@ function App() {
       setTip("暂时无法保存个人资料。");
     } finally {
       setProfileSaving(false);
+    }
+  };
+
+  const handleAvatarUpload = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !user?.username) return;
+
+    if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type)) {
+      setTip("头像仅支持 JPG、PNG、WebP 或 GIF 格式");
+      return;
+    }
+    if (file.size > 3 * 1024 * 1024) {
+      setTip("头像文件不能超过 3MB");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("username", user.username);
+
+    try {
+      const res = await fetch(`${API_BASE}/me/avatar`, {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setTip(getDisplayMessage(data.detail, "头像上传失败"));
+        return;
+      }
+
+      if (data.profile) {
+        saveLoginUser(data.profile);
+      }
+      setTip("头像已更新");
+    } catch (error) {
+      console.error("Failed to upload avatar:", error);
+      setTip("头像上传失败，请稍后重试。");
     }
   };
 
@@ -2011,395 +2141,626 @@ function App() {
     );
   }
 
-  if (page === "profile") {
+  const getUserAvatarElement = (sizeClass = "avatar-circle") => {
+    const avatarVal = (user?.avatar || "").trim();
+    const avatarUrl = user?.avatar_url || "";
+    if (avatarUrl && avatarUrl.startsWith("/me/avatar/")) {
+      return (
+        <img
+          className={sizeClass}
+          src={`${API_BASE}${avatarUrl}?username=${encodeURIComponent(user?.username || "")}`}
+          alt="头像"
+        />
+      );
+    }
+    const avatarObj = AVATARS.find((a) => a.id === avatarVal) || AVATARS[0];
     return (
-      <div className="profile-shell profile-shell--wide">
-        <div className="profile-card profile-card--wide">
-          <div className="profile-header">
-            <div className="profile-avatar" style={{ background: selectedAvatar.background }}>
-              {selectedAvatar.label}
+      <div className={sizeClass} style={{ background: avatarObj.background }}>
+        {(user?.nickname || user?.username || "?").charAt(0)}
+      </div>
+    );
+  };
+
+  if (page === "onboarding") {
+    return (
+      <div className="auth-shell">
+        <div className="onboarding-card">
+          <div className="auth-badge">AI 学习平台</div>
+          <h1>先完善你的学习方向</h1>
+          <p className="auth-subtitle">
+            我们会根据你的专业、目标科目和掌握程度，为你组织课程工作台和资料库。
+          </p>
+
+          <label className="field-label">专业</label>
+          <input
+            className="field"
+            placeholder="例如：软件工程"
+            value={profileForm.major}
+            onChange={(e) =>
+              setProfileForm((prev) => ({ ...prev, major: e.target.value }))
+            }
+          />
+
+          <label className="field-label">年级</label>
+          <input
+            className="field"
+            placeholder="例如：大二"
+            value={profileForm.grade}
+            onChange={(e) =>
+              setProfileForm((prev) => ({ ...prev, grade: e.target.value }))
+            }
+          />
+
+          <div className="onboarding-goals-header">
+            <label className="field-label">想学习的科目</label>
+            <button className="tiny-button" type="button" onClick={addLearningGoal}>
+              + 添加科目
+            </button>
+          </div>
+
+          {learningGoals.length === 0 && (
+            <div className="empty-inline">点击"+ 添加科目"添加你想学习的科目和目标。</div>
+          )}
+
+          {learningGoals.map((goal, index) => (
+            <div key={index} className="onboarding-goal-card">
+              <div className="onboarding-goal-row">
+                <select
+                  className="field"
+                  value={goal.subject}
+                  onChange={(e) => updateLearningGoal(index, "subject", e.target.value)}
+                >
+                  <option value="">选择科目</option>
+                  {COURSE_OPTIONS.map((item) => (
+                    <option key={item} value={item}>
+                      {getSubjectLabel(item)}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  className="tiny-button danger"
+                  type="button"
+                  onClick={() => removeLearningGoal(index)}
+                >
+                  删除
+                </button>
+              </div>
+
+              <label className="field-label">想掌握到的程度</label>
+              <select
+                className="field"
+                value={goal.target_level}
+                onChange={(e) => updateLearningGoal(index, "target_level", e.target.value)}
+              >
+                {TARGET_LEVEL_OPTIONS.map((level) => (
+                  <option key={level} value={level}>
+                    {level}
+                  </option>
+                ))}
+              </select>
+
+              <label className="field-label">备注（可选）</label>
+              <input
+                className="field"
+                placeholder="例如：希望能独立写后端"
+                value={goal.note}
+                onChange={(e) => updateLearningGoal(index, "note", e.target.value)}
+              />
             </div>
-            <div>
-              <div className="section-eyebrow">个人资料</div>
-              <h1>个人资料</h1>
-              <p className="muted-text">{user.username}</p>
+          ))}
+
+          {tip && <p className="tip-text">{tip}</p>}
+
+          <button className="primary-button" onClick={saveOnboarding} disabled={onboardingSaving}>
+            {onboardingSaving ? "保存中..." : "进入我的学习主页"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (page === "home") {
+    const avatarObj = AVATARS.find((a) => a.id === (user?.avatar || "")) || AVATARS[0];
+    const hasCustomAvatar = (user?.avatar_url || "").startsWith("/me/avatar/");
+
+    return (
+      <div className="home-shell">
+        <div className="home-card">
+          <div className="home-hero">
+            <div
+              className="home-avatar-wrapper"
+              onClick={() => avatarInputRef.current?.click()}
+              title="点击更换头像"
+              style={{ cursor: "pointer" }}
+            >
+              {hasCustomAvatar ? (
+                <img
+                  className="home-avatar"
+                  src={`${API_BASE}${user.avatar_url}?username=${encodeURIComponent(user?.username || "")}`}
+                  alt="头像"
+                />
+              ) : (
+                <div className="home-avatar" style={{ background: avatarObj.background }}>
+                  {(user?.nickname || user?.username || "?").charAt(0)}
+                </div>
+              )}
+              <div className="home-avatar-overlay">换</div>
+            </div>
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              onChange={handleAvatarUpload}
+              className="hidden-file-input"
+            />
+            <h1>{user?.nickname || user?.username}</h1>
+            <p className="home-userid">@{user?.username}</p>
+            <div className="home-tags">
+              {user?.grade && <span className="subject-pill">{user.grade}</span>}
+              {user?.major && <span className="subject-pill">{user.major}</span>}
             </div>
           </div>
 
-          <div className="profile-grid">
-            <section className="profile-settings">
-              <div className="avatar-grid">
-                {AVATARS.map((avatar) => (
-                  <button
-                    key={avatar.id}
-                    className={
-                      profileForm.avatar === avatar.id ? "avatar-chip active" : "avatar-chip"
-                    }
-                    style={{ background: avatar.background }}
-                    onClick={() =>
-                      setProfileForm((prev) => ({ ...prev, avatar: avatar.id }))
-                    }
-                    title={`头像 ${avatar.label}`}
-                  >
-                    {avatar.label}
-                  </button>
+          {Array.isArray(user?.learning_goals) && user.learning_goals.length > 0 && (
+            <section className="home-goals">
+              <h3>学习目标</h3>
+              <div className="home-goals-grid">
+                {user.learning_goals.map((goal, index) => (
+                  <div key={index} className="home-goal-card">
+                    <div className="home-goal-subject">{getSubjectLabel(goal.subject)}</div>
+                    <span className="subject-pill small">{goal.target_level}</span>
+                    {goal.note && <div className="home-goal-note">{goal.note}</div>}
+                  </div>
                 ))}
               </div>
-
-              <label className="field-label">用户名</label>
-              <input className="field" value={user.username} disabled />
-
-              <label className="field-label">昵称</label>
-              <input
-                className="field"
-                placeholder="例如：小明"
-                value={profileForm.nickname}
-                onChange={(e) =>
-                  setProfileForm((prev) => ({ ...prev, nickname: e.target.value }))
-                }
-              />
-
-              <label className="field-label">年级</label>
-              <input
-                className="field"
-                placeholder="例如：大二"
-                value={profileForm.grade}
-                onChange={(e) =>
-                  setProfileForm((prev) => ({ ...prev, grade: e.target.value }))
-                }
-              />
-
-              <label className="field-label">专业</label>
-              <input
-                className="field"
-                placeholder="例如：软件工程"
-                value={profileForm.major}
-                onChange={(e) =>
-                  setProfileForm((prev) => ({ ...prev, major: e.target.value }))
-                }
-              />
-
-              {tip && <p className="tip-text">{tip}</p>}
-
-              <div className="stack-actions">
-                <button className="primary-button" onClick={saveProfile} disabled={profileSaving}>
-                  {profileSaving ? "保存中..." : "保存个人资料"}
-                </button>
-                <button className="dark-button" onClick={() => setPage("dashboard")}>
-                  进入课程工作台
-                </button>
-                <button className="dark-button" onClick={() => setPage("chat")}>
-                  进入聊天
-                </button>
-                <button className="ghost-button" onClick={logout}>
-                  退出登录
-                </button>
-              </div>
             </section>
+          )}
 
-            <section className="profile-library">
-              <div className="panel-title-row">
-                <div>
-                  <div className="section-eyebrow">个人资料库</div>
-                  <h2>
-                    我的资料
-                    {currentFilterSubject && (
-                      <span className="material-count">
-                        {" "}（{currentFilterItems.length} 条）
-                      </span>
-                    )}
-                  </h2>
-                </div>
-                <div className="header-actions">
-                  <button
-                    className="ghost-button compact"
-                    onClick={() => setMaterialListCollapsed((prev) => !prev)}
-                  >
-                    {materialListCollapsed ? "展开资料列表" : "收起资料列表"}
-                  </button>
-                  <button
-                    className="ghost-button compact"
-                    onClick={reindexLibrary}
-                    disabled={reindexLoading}
-                  >
-                    {reindexLoading ? "重建索引中..." : "重建索引"}
-                  </button>
-                  <button
-                    className="ghost-button compact"
-                    onClick={() => {
-                      setMaterialCurrentPage(1);
-                      loadMaterials("");
-                    }}
-                  >
-                    刷新
-                  </button>
-                </div>
-              </div>
+          <section className="home-entries">
+            <h3>快速入口</h3>
+            <div className="home-entry-cards">
+              <button className="home-entry-card" onClick={() => openChatPageForCourse(subject, true)}>
+                <div className="home-entry-icon">💬</div>
+                <div className="home-entry-title">进入课程工作台</div>
+                <div className="home-entry-desc">围绕某一科目提问、上传资料、进行 AI 学习。</div>
+              </button>
+              <button className="home-entry-card" onClick={() => { setPage("materials"); loadMaterials(""); }}>
+                <div className="home-entry-icon">📚</div>
+                <div className="home-entry-title">个人资料库</div>
+                <div className="home-entry-desc">查看、预览和下载你上传过的原始资料。</div>
+              </button>
+              <button className="home-entry-card" onClick={() => {
+                setLearningGoals(Array.isArray(user?.learning_goals) ? [...user.learning_goals] : []);
+                setPage("profileEdit");
+              }}>
+                <div className="home-entry-icon">⚙️</div>
+                <div className="home-entry-title">编辑学习信息</div>
+                <div className="home-entry-desc">修改专业、科目和学习目标。</div>
+              </button>
+            </div>
+          </section>
 
-              <div className="library-tip">
-                已索引的学习资料会在对应学科问答中作为优先参考内容。
-              </div>
+          <div className="home-footer">
+            <button className="ghost-button" onClick={logout}>退出登录</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-              <div className="library-filter-row">
-                <label className="field-label">按学科筛选</label>
+  if (page === "profileEdit") {
+    return (
+      <div className="auth-shell">
+        <div className="onboarding-card">
+          <div className="auth-badge">AI 学习平台</div>
+          <h1>编辑学习信息</h1>
+
+          <label className="field-label">昵称</label>
+          <input
+            className="field"
+            placeholder="例如：小明"
+            value={profileForm.nickname}
+            onChange={(e) =>
+              setProfileForm((prev) => ({ ...prev, nickname: e.target.value }))
+            }
+          />
+
+          <label className="field-label">专业</label>
+          <input
+            className="field"
+            placeholder="例如：软件工程"
+            value={profileForm.major}
+            onChange={(e) =>
+              setProfileForm((prev) => ({ ...prev, major: e.target.value }))
+            }
+          />
+
+          <label className="field-label">年级</label>
+          <input
+            className="field"
+            placeholder="例如：大二"
+            value={profileForm.grade}
+            onChange={(e) =>
+              setProfileForm((prev) => ({ ...prev, grade: e.target.value }))
+            }
+          />
+
+          <div className="onboarding-goals-header">
+            <label className="field-label">想学习的科目</label>
+            <button className="tiny-button" type="button" onClick={addLearningGoal}>
+              + 添加科目
+            </button>
+          </div>
+
+          {learningGoals.length === 0 && (
+            <div className="empty-inline">点击"+ 添加科目"添加你想学习的科目和目标。</div>
+          )}
+
+          {learningGoals.map((goal, index) => (
+            <div key={index} className="onboarding-goal-card">
+              <div className="onboarding-goal-row">
                 <select
                   className="field"
-                  value={currentFilterSubject}
-                  onChange={(e) => {
-                    const next = e.target.value;
-                    setMaterialSubjectFilter(next);
-                    setMaterialCurrentPage(1);
-                    setMaterialListCollapsed(false);
-                  }}
+                  value={goal.subject}
+                  onChange={(e) => updateLearningGoal(index, "subject", e.target.value)}
                 >
-                  {availableSubjects.length === 0 ? (
-                    <option value="">暂无资料</option>
-                  ) : (
-                    availableSubjects.map((item) => (
-                      <option key={item} value={item}>
-                        {getSubjectLabel(item)}
-                      </option>
-                    ))
-                  )}
+                  <option value="">选择科目</option>
+                  {COURSE_OPTIONS.map((item) => (
+                    <option key={item} value={item}>
+                      {getSubjectLabel(item)}
+                    </option>
+                  ))}
                 </select>
+                <button
+                  className="tiny-button danger"
+                  type="button"
+                  onClick={() => removeLearningGoal(index)}
+                >
+                  删除
+                </button>
               </div>
 
-              <div className="library-search-row">
-                <label className="field-label">资料搜索</label>
-                <div className="library-search-controls">
-                  <input
-                    className="field"
-                    placeholder="在当前学科下搜索资料..."
-                    value={materialSearchQuery}
-                    onChange={(e) => handleMaterialSearchChange(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        setMaterialCurrentPage(1);
-                        searchMaterials(materialSearchQuery, currentFilterSubject);
-                      }
-                    }}
-                  />
+              <label className="field-label">想掌握到的程度</label>
+              <select
+                className="field"
+                value={goal.target_level}
+                onChange={(e) => updateLearningGoal(index, "target_level", e.target.value)}
+              >
+                {TARGET_LEVEL_OPTIONS.map((level) => (
+                  <option key={level} value={level}>
+                    {level}
+                  </option>
+                ))}
+              </select>
+
+              <label className="field-label">备注（可选）</label>
+              <input
+                className="field"
+                placeholder="例如：希望能独立写后端"
+                value={goal.note}
+                onChange={(e) => updateLearningGoal(index, "note", e.target.value)}
+              />
+            </div>
+          ))}
+
+          {tip && <p className="tip-text">{tip}</p>}
+
+          <div className="stack-actions">
+            <button className="primary-button" onClick={saveOnboarding} disabled={onboardingSaving}>
+              {onboardingSaving ? "保存中..." : "保存并返回主页"}
+            </button>
+            <button className="ghost-button" onClick={() => setPage("home")}>
+              返回主页
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (page === "materials") {
+    return (
+      <div className="materials-shell">
+        <div className="materials-page-card">
+          <div className="materials-page-header">
+            <button className="ghost-button compact" onClick={() => setPage("home")}>
+              ← 返回主页
+            </button>
+            <div>
+              <div className="section-eyebrow">个人资料库</div>
+              <h2>
+                我的资料
+                {currentFilterSubject && (
+                  <span className="material-count">
+                    {" "}（{currentFilterItems.length} 条）
+                  </span>
+                )}
+              </h2>
+            </div>
+            <div className="header-actions">
+              <button
+                className="ghost-button compact"
+                onClick={() => setMaterialListCollapsed((prev) => !prev)}
+              >
+                {materialListCollapsed ? "展开资料列表" : "收起资料列表"}
+              </button>
+              <button
+                className="ghost-button compact"
+                onClick={reindexLibrary}
+                disabled={reindexLoading}
+              >
+                {reindexLoading ? "重建索引中..." : "重建索引"}
+              </button>
+              <button
+                className="ghost-button compact"
+                onClick={() => {
+                  setMaterialCurrentPage(1);
+                  loadMaterials("");
+                }}
+              >
+                刷新
+              </button>
+            </div>
+          </div>
+
+          <div className="library-filter-row">
+            <label className="field-label">按学科筛选</label>
+            <select
+              className="field"
+              value={currentFilterSubject}
+              onChange={(e) => {
+                const next = e.target.value;
+                setMaterialSubjectFilter(next);
+                setMaterialCurrentPage(1);
+                setMaterialListCollapsed(false);
+              }}
+            >
+              {availableSubjects.length === 0 ? (
+                <option value="">暂无资料</option>
+              ) : (
+                availableSubjects.map((item) => (
+                  <option key={item} value={item}>
+                    {getSubjectLabel(item)}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
+
+          <div className="library-search-row">
+            <label className="field-label">资料搜索</label>
+            <div className="library-search-controls">
+              <input
+                className="field"
+                placeholder="在当前学科下搜索资料..."
+                value={materialSearchQuery}
+                onChange={(e) => handleMaterialSearchChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    setMaterialCurrentPage(1);
+                    searchMaterials(materialSearchQuery, currentFilterSubject);
+                  }
+                }}
+              />
+              <button
+                className="ghost-button compact"
+                onClick={() => {
+                  setMaterialCurrentPage(1);
+                  searchMaterials(materialSearchQuery, currentFilterSubject);
+                }}
+                disabled={!trimmedMaterialSearchQuery || materialSearchLoading}
+              >
+                搜索
+              </button>
+            </div>
+          </div>
+
+          {trimmedMaterialSearchQuery && materialSearchTriggered ? (
+            materialSearchLoading ? (
+              <div className="empty-inline">正在搜索...</div>
+            ) : materialSearchResults.length === 0 ? (
+              <div className="empty-inline">
+                {getSubjectLabel(currentFilterSubject)} 学科下没有匹配的资料。
+              </div>
+            ) : (
+              <div className="search-results">
+                {paginatedSearchResults.map((item) => (
+                  <div key={`${item.material_id}-${item.chunk_id}`} className="search-result-card">
+                    <div className="material-item-head">
+                      <span className="subject-pill small">
+                        {getSubjectLabel(item.subject)}
+                      </span>
+                      <span className="muted-text">{getFileTypeLabel(item.file_type)}</span>
+                    </div>
+                    <div className="material-title">{item.filename}</div>
+                    <div className="search-result-snippet">
+                      命中片段：{getReferenceSnippet(item)}
+                    </div>
+                    <div className="history-meta">{formatDate(item.created_at)}</div>
+                    <div className="material-actions">
+                      <button
+                        className="tiny-button"
+                        onClick={() => openMaterialDetail(item.material_id)}
+                      >
+                        查看详情
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                <div className="pagination-bar">
                   <button
-                    className="ghost-button compact"
-                    onClick={() => {
-                      setMaterialCurrentPage(1);
-                      searchMaterials(materialSearchQuery, currentFilterSubject);
-                    }}
-                    disabled={!trimmedMaterialSearchQuery || materialSearchLoading}
+                    className="tiny-button"
+                    disabled={safeSearchPage <= 1}
+                    onClick={() => setMaterialCurrentPage((p) => Math.max(1, p - 1))}
                   >
-                    搜索
+                    上一页
+                  </button>
+                  <span className="pagination-info">
+                    {safeSearchPage} / {searchTotalPages}
+                  </span>
+                  <button
+                    className="tiny-button"
+                    disabled={safeSearchPage >= searchTotalPages}
+                    onClick={() => setMaterialCurrentPage((p) => Math.min(searchTotalPages, p + 1))}
+                  >
+                    下一页
                   </button>
                 </div>
               </div>
-
-              {trimmedMaterialSearchQuery && materialSearchTriggered ? (
-                materialSearchLoading ? (
-                  <div className="empty-inline">正在搜索...</div>
-                ) : materialSearchResults.length === 0 ? (
-                  <div className="empty-inline">
-                    {getSubjectLabel(currentFilterSubject)} 学科下没有匹配的资料。
-                  </div>
-                ) : (
-                  <div className="search-results">
-                    {paginatedSearchResults.map((item) => (
-                      <div key={`${item.material_id}-${item.chunk_id}`} className="search-result-card">
-                        <div className="material-item-head">
-                          <span className="subject-pill small">
-                            {getSubjectLabel(item.subject)}
-                          </span>
-                          <span className="muted-text">{getFileTypeLabel(item.file_type)}</span>
-                        </div>
-                        <div className="material-title">{item.filename}</div>
-                        <div className="search-result-snippet">
-                          命中片段：{getReferenceSnippet(item)}
-                        </div>
-                        <div className="history-meta">{formatDate(item.created_at)}</div>
-                        <div className="material-actions">
-                          <button
-                            className="tiny-button"
-                            onClick={() => openMaterialDetail(item.material_id)}
-                          >
-                            查看详情
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                    <div className="pagination-bar">
-                      <button
-                        className="tiny-button"
-                        disabled={safeSearchPage <= 1}
-                        onClick={() => setMaterialCurrentPage((p) => Math.max(1, p - 1))}
-                      >
-                        上一页
-                      </button>
-                      <span className="pagination-info">
-                        {safeSearchPage} / {searchTotalPages}
-                      </span>
-                      <button
-                        className="tiny-button"
-                        disabled={safeSearchPage >= searchTotalPages}
-                        onClick={() => setMaterialCurrentPage((p) => Math.min(searchTotalPages, p + 1))}
-                      >
-                        下一页
-                      </button>
-                    </div>
-                  </div>
-                )
-              ) : materialsLoading ? (
-                <div className="empty-inline">资料加载中...</div>
-              ) : groupedMaterials.length === 0 ? (
-                <div className="empty-inline">
-                  暂无资料，请先在聊天页上传图片或 PDF。
+            )
+          ) : materialsLoading ? (
+            <div className="empty-inline">资料加载中...</div>
+          ) : groupedMaterials.length === 0 ? (
+            <div className="empty-inline">
+              暂无资料，请先在聊天页上传图片或 PDF。
+            </div>
+          ) : materialListCollapsed ? (
+            <div className="library-group">
+              <div className="library-group-title">
+                {getSubjectLabel(currentFilterSubject)}
+                <span className="material-count-sub">
+                  {" "}（{currentFilterItems.length} 条资料已收起）
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="library-groups">
+              <div className="library-group">
+                <div className="library-group-title">
+                  {getSubjectLabel(currentFilterSubject)}
                 </div>
-              ) : materialListCollapsed ? (
-                <div className="library-group">
-                  <div className="library-group-title">
-                    {getSubjectLabel(currentFilterSubject)}
-                    <span className="material-count-sub">
-                      {" "}（{currentFilterItems.length} 条资料已收起）
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <div className="library-groups">
-                  <div className="library-group">
-                    <div className="library-group-title">
-                      {getSubjectLabel(currentFilterSubject)}
-                    </div>
-                    <div className="material-list material-list--profile">
-                      {paginatedFilterItems.map((material) => (
-                        <div key={material.id} className="material-item material-item--profile">
-                          <div className="material-item-head">
-                            <span className="subject-pill small">
-                              {getSubjectLabel(material.subject)}
-                            </span>
-                            <span className="muted-text">
-                              {getFileTypeLabel(material.file_type)}
-                            </span>
-                          </div>
-                          <div className="material-title">{material.original_filename}</div>
-                          <div className="material-summary">{material.summary}</div>
-                          <div className="material-asset-meta">
-                            <span>原文件已保存</span>
-                            <span>{formatFileSize(material.file_size)}</span>
-                            <span>{getParseStatusLabel(material.parse_status)}</span>
-                            <span>{Number(material.chunk_count || 0)} 个知识片段</span>
-                          </div>
-                          <div className="history-meta">{formatDate(material.created_at)}</div>
-                          <div className="material-actions">
-                            <button
-                              className="tiny-button"
-                              onClick={() => previewMaterial(material)}
-                              disabled={!material.can_preview}
-                            >
-                              查看原文件
-                            </button>
-                            <button
-                              className="tiny-button"
-                              onClick={() => downloadMaterial(material)}
-                              disabled={!material.can_download}
-                            >
-                              下载原文件
-                            </button>
-                            <button
-                              className="tiny-button"
-                              onClick={() => openMaterialDetail(material.id)}
-                            >
-                              查看 AI 索引文本
-                            </button>
-                            <button
-                              className="tiny-button danger"
-                              onClick={() => deleteMaterial(material.id)}
-                            >
-                              删除
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    {currentFilterTotalPages > 1 && (
-                      <div className="pagination-bar">
-                        <button
-                          className="tiny-button"
-                          disabled={safeCurrentPage <= 1}
-                          onClick={() => setMaterialCurrentPage((p) => Math.max(1, p - 1))}
-                        >
-                          上一页
-                        </button>
-                        <span className="pagination-info">
-                          {safeCurrentPage} / {currentFilterTotalPages}
+                <div className="material-list material-list--profile">
+                  {paginatedFilterItems.map((material) => (
+                    <div key={material.id} className="material-item material-item--profile">
+                      <div className="material-item-head">
+                        <span className="subject-pill small">
+                          {getSubjectLabel(material.subject)}
                         </span>
+                        <span className="muted-text">
+                          {getFileTypeLabel(material.file_type)}
+                        </span>
+                      </div>
+                      <div className="material-title">{material.original_filename}</div>
+                      <div className="material-summary">{material.summary}</div>
+                      <div className="material-asset-meta">
+                        <span>原文件已保存</span>
+                        <span>{formatFileSize(material.file_size)}</span>
+                        <span>{getParseStatusLabel(material.parse_status)}</span>
+                        <span>{Number(material.chunk_count || 0)} 个知识片段</span>
+                      </div>
+                      <div className="history-meta">{formatDate(material.created_at)}</div>
+                      <div className="material-actions">
                         <button
                           className="tiny-button"
-                          disabled={safeCurrentPage >= currentFilterTotalPages}
-                          onClick={() =>
-                            setMaterialCurrentPage((p) => Math.min(currentFilterTotalPages, p + 1))
-                          }
+                          onClick={() => previewMaterial(material)}
+                          disabled={!material.can_preview}
                         >
-                          下一页
+                          查看原文件
+                        </button>
+                        <button
+                          className="tiny-button"
+                          onClick={() => downloadMaterial(material)}
+                          disabled={!material.can_download}
+                        >
+                          下载原文件
+                        </button>
+                        <button
+                          className="tiny-button"
+                          onClick={() => openMaterialDetail(material.id)}
+                        >
+                          查看 AI 索引文本
+                        </button>
+                        <button
+                          className="tiny-button danger"
+                          onClick={() => deleteMaterial(material.id)}
+                        >
+                          删除
                         </button>
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  ))}
                 </div>
-              )}
-
-              <div className="material-detail-card material-detail-card--profile">
-                <div className="panel-title-row">
-                  <h3>资料详情</h3>
-                </div>
-                {!selectedMaterialDetail ? (
-                  <div className="empty-inline">
-                    点击"查看原文件"在新标签页预览原文件；点击"查看 AI 索引文本"查看解析摘要。
+                {currentFilterTotalPages > 1 && (
+                  <div className="pagination-bar">
+                    <button
+                      className="tiny-button"
+                      disabled={safeCurrentPage <= 1}
+                      onClick={() => setMaterialCurrentPage((p) => Math.max(1, p - 1))}
+                    >
+                      上一页
+                    </button>
+                    <span className="pagination-info">
+                      {safeCurrentPage} / {currentFilterTotalPages}
+                    </span>
+                    <button
+                      className="tiny-button"
+                      disabled={safeCurrentPage >= currentFilterTotalPages}
+                      onClick={() =>
+                        setMaterialCurrentPage((p) => Math.min(currentFilterTotalPages, p + 1))
+                      }
+                    >
+                      下一页
+                    </button>
                   </div>
-                ) : (
-                  <>
-                    <div className="detail-meta">
-                      <div>文件：{selectedMaterialDetail.original_filename}</div>
-                      <div>学科：{getSubjectLabel(selectedMaterialDetail.subject)}</div>
-                      <div>类型：{getFileTypeLabel(selectedMaterialDetail.file_type)}</div>
-                      <div>上传时间：{formatDate(selectedMaterialDetail.created_at)}</div>
-                    </div>
-                    <div className="material-status-note">
-                      {getParseStatusHint(selectedMaterialDetail)}
-                    </div>
-                    <div className="material-asset-meta material-asset-meta--detail">
-                      <span>原文件大小：{formatFileSize(selectedMaterialDetail.file_size)}</span>
-                      <span>AI 知识索引：{getParseStatusLabel(selectedMaterialDetail.parse_status)}</span>
-                      <span>{Number(selectedMaterialDetail.chunk_count || 0)} 个知识片段</span>
-                    </div>
-                    <div className="material-actions material-actions--detail">
-                      <button
-                        className="tiny-button"
-                        onClick={() => previewMaterial(selectedMaterialDetail)}
-                        disabled={!selectedMaterialDetail.can_preview}
-                      >
-                        查看原文件
-                      </button>
-                      <button
-                        className="tiny-button"
-                        onClick={() => downloadMaterial(selectedMaterialDetail)}
-                        disabled={!selectedMaterialDetail.can_download}
-                      >
-                        下载原文件
-                      </button>
-                    </div>
-                    <div className="material-status-note">
-                      以下内容是系统从原文件中解析出的 AI 知识索引，用于问答和引用，不等同于原文件排版。
-                    </div>
-                    <div className="result-block">
-                      <strong>摘要</strong>
-                      <p>{selectedMaterialDetail.summary}</p>
-                    </div>
-                    <div className="result-block">
-                      <strong>AI 知识索引文本</strong>
-                      <pre>{selectedMaterialDetail.extracted_text}</pre>
-                    </div>
-                  </>
                 )}
               </div>
-            </section>
+            </div>
+          )}
+
+          <div className="material-detail-card material-detail-card--profile">
+            <div className="panel-title-row">
+              <h3>资料详情</h3>
+            </div>
+            {!selectedMaterialDetail ? (
+              <div className="empty-inline">
+                点击"查看原文件"在新标签页预览原文件；点击"查看 AI 索引文本"查看解析摘要。
+              </div>
+            ) : (
+              <>
+                <div className="detail-meta">
+                  <div>文件：{selectedMaterialDetail.original_filename}</div>
+                  <div>学科：{getSubjectLabel(selectedMaterialDetail.subject)}</div>
+                  <div>类型：{getFileTypeLabel(selectedMaterialDetail.file_type)}</div>
+                  <div>上传时间：{formatDate(selectedMaterialDetail.created_at)}</div>
+                </div>
+                <div className="material-status-note">
+                  {getParseStatusHint(selectedMaterialDetail)}
+                </div>
+                <div className="material-asset-meta material-asset-meta--detail">
+                  <span>原文件大小：{formatFileSize(selectedMaterialDetail.file_size)}</span>
+                  <span>AI 知识索引：{getParseStatusLabel(selectedMaterialDetail.parse_status)}</span>
+                  <span>{Number(selectedMaterialDetail.chunk_count || 0)} 个知识片段</span>
+                </div>
+                <div className="material-actions material-actions--detail">
+                  <button
+                    className="tiny-button"
+                    onClick={() => previewMaterial(selectedMaterialDetail)}
+                    disabled={!selectedMaterialDetail.can_preview}
+                  >
+                    查看原文件
+                  </button>
+                  <button
+                    className="tiny-button"
+                    onClick={() => downloadMaterial(selectedMaterialDetail)}
+                    disabled={!selectedMaterialDetail.can_download}
+                  >
+                    下载原文件
+                  </button>
+                </div>
+                <div className="material-status-note">
+                  以下内容是系统从原文件中解析出的 AI 知识索引，用于问答和引用，不等同于原文件排版。
+                </div>
+                <div className="result-block">
+                  <strong>摘要</strong>
+                  <p>{selectedMaterialDetail.summary}</p>
+                </div>
+                <div className="result-block">
+                  <strong>AI 知识索引文本</strong>
+                  <pre>{selectedMaterialDetail.extracted_text}</pre>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -2408,106 +2769,95 @@ function App() {
 
   return (
     <div className="workspace-shell">
-      {sidebarOpen ? (
-        <aside className="sidebar-panel">
-          <div className="sidebar-top">
-            <button
-              className="sidebar-toggle-inline"
-              onClick={() => setSidebarOpen(false)}
-              title="收起侧栏"
-            >
-              ✕
-            </button>
-          </div>
+      <div className="workspace-topbar">
+        <button className="ghost-button compact" onClick={() => setPage("home")}>
+          ← 返回主页
+        </button>
+        <div className="workspace-topbar-center">
+          <span className="subject-pill panel-pill">
+            {page === "dashboard" ? "课程工作台" : page === "records" ? "学习记录" : "当前对话"}
+          </span>
+          <select
+            className="field workspace-subject-select"
+            value={subject}
+            onChange={(e) => {
+              setSubject(e.target.value);
+              if (!activeSessionId) {
+                setActiveSessionSubject(e.target.value);
+              }
+            }}
+          >
+            {COURSE_OPTIONS.map((item) => (
+              <option key={item} value={item}>
+                {getSubjectLabel(item)}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="workspace-topbar-actions">
+          <button className="ghost-button compact" onClick={startNewConversation}>
+            新建对话
+          </button>
+          <button className="ghost-button compact" onClick={() => setPage("dashboard")}>
+            课程工作台
+          </button>
+          <button className="ghost-button compact" onClick={openLearningRecordPage}>
+            学习记录
+          </button>
+          <button
+            className={`ghost-button compact ${showHistory ? "active" : ""}`}
+            onClick={() => setShowHistory((v) => !v)}
+          >
+            历史对话
+          </button>
+          <button className="ghost-button compact" onClick={logout}>
+            退出
+          </button>
+        </div>
+      </div>
 
-          <div className="sidebar-body">
-            <label className="field-label">新建对话学科</label>
-            <select
-              className="field"
-              value={subject}
-              onChange={(e) => {
-                setSubject(e.target.value);
-                if (!activeSessionId) {
-                  setActiveSessionSubject(e.target.value);
-                }
-              }}
-            >
-              {COURSE_OPTIONS.map((item) => (
-                <option key={item} value={item}>
-                  {getSubjectLabel(item)}
-                </option>
-              ))}
-            </select>
-
-            <button className="ghost-button" onClick={startNewConversation}>
-              新建对话
-            </button>
-            <button className="ghost-button" onClick={() => setPage("dashboard")}>
-              课程工作台
-            </button>
-            <button className="ghost-button" onClick={() => setPage("profile")}>
-              个人资料
-            </button>
-            <button className="ghost-button" onClick={openLearningRecordPage}>
-              学习记录
-            </button>
-
-            <div className="history-block">
-              <div className="panel-title-row">
-                <h3>{getSubjectLabel(subject)} 历史对话</h3>
-              </div>
-
-              <div className="history-list">
-                {visibleSessions.length === 0 && (
-                  <div className="empty-inline">该学科下暂无历史对话。</div>
-                )}
-
-                {visibleSessions.map((session) => (
-                  <div
-                    key={session.id}
-                    className={activeSessionId === session.id ? "history-item active" : "history-item"}
-                    onClick={() => openChatSession(session)}
-                  >
-                    <div className="history-subject">
-                      {getSubjectLabel(session.subject || session.course)}
-                    </div>
-                    <div className="history-title">{session.title}</div>
-                    <div className="history-meta">{formatDate(session.created_at)}</div>
-                    <div className="history-actions">
-                      <button
-                        className="tiny-button"
-                        onClick={(event) => renameChatSession(session, event)}
-                      >
-                        编辑标题
-                      </button>
-                      <button
-                        className="tiny-button danger"
-                        onClick={(event) => deleteChatSession(session, event)}
-                      >
-                        删除
-                      </button>
-                    </div>
+      {showHistory && (
+        <div className="history-dropdown">
+          <div className="history-block">
+            <div className="panel-title-row">
+              <h3>{getSubjectLabel(subject)} 历史对话</h3>
+              <button className="tiny-button" onClick={() => setShowHistory(false)}>
+                ✕ 关闭
+              </button>
+            </div>
+            <div className="history-list history-list--dropdown">
+              {visibleSessions.length === 0 && (
+                <div className="empty-inline">该学科下暂无历史对话。</div>
+              )}
+              {visibleSessions.map((session) => (
+                <div
+                  key={session.id}
+                  className={activeSessionId === session.id ? "history-item active" : "history-item"}
+                  onClick={() => { openChatSession(session); setShowHistory(false); }}
+                >
+                  <div className="history-subject">
+                    {getSubjectLabel(session.subject || session.course)}
                   </div>
-                ))}
-              </div>
+                  <div className="history-title">{session.title}</div>
+                  <div className="history-meta">{formatDate(session.created_at)}</div>
+                  <div className="history-actions">
+                    <button
+                      className="tiny-button"
+                      onClick={(event) => { event.stopPropagation(); renameChatSession(session, event); }}
+                    >
+                      编辑标题
+                    </button>
+                    <button
+                      className="tiny-button danger"
+                      onClick={(event) => { event.stopPropagation(); deleteChatSession(session, event); }}
+                    >
+                      删除
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
-
-          <div className="sidebar-footer">
-            <button className="ghost-button" onClick={logout}>
-              退出登录
-            </button>
-          </div>
-        </aside>
-      ) : (
-        <div className="sidebar-collapsed-bar">
-          <button
-            className="sidebar-toggle-inline"
-            onClick={() => setSidebarOpen(true)}
-            title="展开侧栏"
-          >
-            ☰
-          </button>
         </div>
       )}
 
@@ -2521,7 +2871,7 @@ function App() {
             savingPointKey={courseProgressSavingKey}
             onCourseChange={setSubject}
             onProgressChange={updateCourseProgress}
-            onOpenMaterial={(materialId) => openMaterialDetail(materialId, "profile")}
+            onOpenMaterial={(materialId) => openMaterialDetail(materialId, "materials")}
             onOpenChat={openChatSession}
             onStartAsk={() => openChatPageForCourse(subject)}
             onUploadMaterial={() => openMaterialsPageForCourse(subject)}

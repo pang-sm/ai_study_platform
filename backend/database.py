@@ -19,7 +19,9 @@ Base = declarative_base()
 
 PROFILE_COLUMNS = {
     "nickname": "VARCHAR(30)",
-    "avatar": "VARCHAR(50)",
+    "avatar": "VARCHAR(255)",
+    "onboarding_completed": "BOOLEAN NOT NULL DEFAULT 0",
+    "learning_goals": "TEXT",
 }
 
 CHAT_SESSION_COLUMNS = {
