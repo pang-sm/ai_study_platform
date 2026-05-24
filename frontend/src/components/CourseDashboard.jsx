@@ -106,20 +106,11 @@ export default function CourseDashboard({
               <h3>快捷操作</h3>
             </div>
             <div className="dashboard-action-grid">
-              <button className="ghost-button compact" onClick={onStartAsk}>
-                开始提问
-              </button>
               <button className="ghost-button compact" onClick={onUploadMaterial}>
-                上传资料
-              </button>
-              <button className="ghost-button compact" onClick={onViewMaterials}>
-                查看资料库
-              </button>
-              <button className="ghost-button compact" onClick={onViewLearningRecords}>
-                查看学习记录
+                上传课程资料
               </button>
               <button className="primary-button compact" onClick={onNewCourseChat}>
-                新建本课程对话
+                新建 AI 对话
               </button>
             </div>
           </section>
