@@ -2581,6 +2581,118 @@ def serve_avatar(filename: str):
     return FileResponse(avatar_path, media_type=media_type)
 
 
+def generate_answer_summary(answer: str, max_chars: int = 200) -> str:
+    if not answer:
+        return ""
+    cleaned = re.sub(r"```[\s\S]*?```", "", answer)
+    cleaned = re.sub(r"^#{1,6}\s+", "", cleaned, flags=re.MULTILINE)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
+    if len(cleaned) <= max_chars:
+        return cleaned
+    truncated = cleaned[:max_chars]
+    last_period = max(truncated.rfind("。"), truncated.rfind(". "), truncated.rfind("\n"))
+    if last_period > max_chars // 2:
+        return truncated[: last_period + 1]
+    return truncated.rsplit(" ", 1)[0] if " " in truncated else truncated
+
+
+_IGNORE_WORDS = frozenset({
+    "什么", "如何", "怎么", "为什么", "请问", "是什么", "请",
+    "的", "吗", "呢", "吧", "啊", "是", "在", "有", "和", "与", "或",
+    "可以", "这个", "那个", "一下", "一个", "一些", "the", "a", "an",
+    "is", "are", "of", "in", "to", "for", "and", "or",
+})
+
+
+def extract_knowledge_points(question: str, answer: str, subject: str) -> list[str]:
+    points: list[str] = []
+
+    bold_matches = re.findall(r"\*\*(.+?)\*\*", answer or "")
+    for match in bold_matches:
+        clean = match.strip()
+        if 2 <= len(clean) <= 20 and clean.lower() not in _IGNORE_WORDS and clean not in points:
+            points.append(clean)
+
+    question_words = re.findall(r"[一-鿿\w]+", question or "")
+    for word in question_words:
+        clean = word.strip()
+        if (
+            len(clean) >= 2
+            and clean.lower() not in _IGNORE_WORDS
+            and clean not in points
+        ):
+            points.append(clean)
+
+    if not points and subject:
+        points.append(subject)
+
+    return points[:8]
+
+
+def auto_create_learning_record(
+    db: Session,
+    user: models.User,
+    subject: str,
+    session_id: int,
+    message_id: int,
+    question: str,
+    answer: str,
+    rag_chunks: list[dict],
+):
+    existing = (
+        db.query(models.LearningRecord)
+        .filter(
+            models.LearningRecord.user_id == user.id,
+            models.LearningRecord.message_id == message_id,
+            models.LearningRecord.record_type == "review",
+            models.LearningRecord.is_deleted.is_(False),
+        )
+        .first()
+    )
+    if existing:
+        return existing, False
+
+    summary = generate_answer_summary(answer)
+    knowledge_points = extract_knowledge_points(question, answer, subject)
+    review_suggestion = "建议复习本次问题涉及的核心概念，并结合课程资料做 1-2 道相关练习。"
+
+    source_filenames: list[str] = list(dict.fromkeys(
+        item.get("source_filename", "") for item in (rag_chunks or []) if item.get("source_filename")
+    ))
+
+    note_parts: list[str] = []
+    if summary:
+        note_parts.append(f"回答摘要：{summary}")
+    note_parts.append(f"复习建议：{review_suggestion}")
+    note = "\n\n".join(note_parts)
+
+    references = [
+        {"filename": fn, "material_id": item.get("material_id")}
+        for item in (rag_chunks or [])
+        for fn in [item.get("source_filename", "")]
+        if fn
+    ]
+
+    record = models.LearningRecord(
+        user_id=user.id,
+        subject=normalize_subject(subject),
+        session_id=session_id,
+        message_id=message_id,
+        record_type="review",
+        question=question,
+        answer=answer,
+        references_json=json.dumps(references, ensure_ascii=False) if references else None,
+        note=note,
+        tags=json.dumps(knowledge_points, ensure_ascii=False) if knowledge_points else None,
+        review_status="pending",
+        is_deleted=False,
+    )
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+    return record, True
+
+
 @app.post("/chat")
 def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
     if not req.username:
@@ -2718,6 +2830,17 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
     db.add(assistant_message)
     db.commit()
     db.refresh(assistant_message)
+
+    auto_create_learning_record(
+        db=db,
+        user=user,
+        subject=subject,
+        session_id=chat_session.id,
+        message_id=assistant_message.id,
+        question=req.message,
+        answer=answer,
+        rag_chunks=rag_chunks,
+    )
 
     return {
         "answer": answer,
@@ -3352,6 +3475,30 @@ def get_learning_record_stats(username: str, db: Session = Depends(get_db)):
         "pending_review_count": len(records) - reviewed_count,
         "subject_counts": subject_counts,
     }
+
+
+@app.post("/learning-records/{record_id}/reviewed")
+def mark_learning_record_reviewed(record_id: int, username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    record = (
+        db.query(models.LearningRecord)
+        .filter(
+            models.LearningRecord.id == record_id,
+            models.LearningRecord.user_id == user.id,
+            models.LearningRecord.is_deleted.is_(False),
+        )
+        .first()
+    )
+    if not record:
+        raise HTTPException(status_code=404, detail="学习记录不存在")
+
+    record.review_status = "reviewed"
+    record.reviewed_at = utc_now()
+    record.updated_at = utc_now()
+    db.commit()
+    db.refresh(record)
+
+    return {"success": True, "message": "已标记为已复习", "record": serialize_learning_record(record)}
 
 
 @app.patch("/learning-records/{record_id}")

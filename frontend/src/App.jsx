@@ -2997,7 +2997,16 @@ function App() {
                 {learningRecordsLoading ? (
                   <div className="empty-inline">学习记录加载中...</div>
                 ) : learningRecords.length === 0 ? (
-                  <div className="empty-inline">暂无学习记录，先去聊天页收藏一条回答吧。</div>
+                  <div className="empty-inline">
+                    <p>当前课程还没有学习记录。</p>
+                    <p className="muted-text">在 AI 问答中提问后，系统会自动沉淀知识点和复习建议。</p>
+                    <button
+                      className="primary-button compact"
+                      onClick={() => setPage("chat")}
+                    >
+                      去 AI 问答
+                    </button>
+                  </div>
                 ) : (
                   learningRecords.map((record) => (
                     <div
@@ -3021,13 +3030,35 @@ function App() {
                       <div className="learning-record-answer-preview">
                         {getRecordAnswerPreview(record.answer)}
                       </div>
+                      {Array.isArray(record.tags) && record.tags.length > 0 && (
+                        <div className="learning-record-tags">
+                          {record.tags.map((tag) => (
+                            <span key={tag} className="knowledge-tag">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                       <div className="learning-record-meta">
                         <span>{formatDate(record.created_at)}</span>
+                        <span>
+                          {Array.isArray(record.references) && record.references.length > 0
+                            ? "基于资料回答"
+                            : "通用问答"}
+                        </span>
                         <span>
                           {record.review_status === "reviewed" ? "已复习" : "待复习"}
                         </span>
                       </div>
                       <div className="learning-record-actions">
+                        {record.session_id && (
+                          <button
+                            className="tiny-button"
+                            onClick={() => openChatSession({ id: record.session_id })}
+                          >
+                            查看对话
+                          </button>
+                        )}
                         <button
                           className="tiny-button"
                           onClick={() => selectLearningRecord(record)}
