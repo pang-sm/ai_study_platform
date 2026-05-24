@@ -39,6 +39,38 @@ function extractTextFromReactNode(value) {
   return "";
 }
 
+// ── Inline-code downgrade for short text/plain fenced code blocks ──
+
+const PRESERVED_LANGUAGES = new Set([
+  "java", "python", "py", "c", "cpp", "c++", "bash", "sh", "zsh", "shell",
+  "javascript", "js", "typescript", "ts", "tsx", "jsx", "html", "css",
+  "json", "yaml", "yml", "xml", "sql", "latex", "tex", "dockerfile",
+  "go", "rust", "rs", "php", "ruby", "rb", "powershell", "ps1",
+  "markdown", "md", "diff", "patch", "toml", "ini", "conf", "makefile",
+  "swift", "kotlin", "scala", "r", "lua", "dart", "perl", "groovy",
+]);
+
+const COLLAPSIBLE_LANGUAGES = new Set([
+  "", "text", "txt", "plain", "none", "nohighlight", "plaintext",
+]);
+
+const CODE_STRUCTURE_RE =
+  /[;{}]|\bimport\s|\bclass\s|\bpublic\s|\bprivate\s|\bprotected\s|\bfunction\s|\bconst\s|\blet\s|\bvar\s|\bdef\s|\breturn\s|\bthrow\s|\bcatch\s|\btry\s|\bif\s*\(|\bfor\s*\(|\bwhile\s*\(|\bswitch\s*\(|\bnpm\s|\bgit\s|\bsudo\s|\bpip\s|\bapt\s|\bsystemctl|\bdocker\s|\bcd\s|\bls\s|\bmkdir\s|\brm\s|\bcp\s|\bmv\s|&&|\|\||#include|\bexport\s|\brequire\s|\bpackage\s|\bprint\s*\(|\becho\s|=>|\bnew\s+\w+\s*\(/i;
+
+function shouldRenderAsInlineCode(language, codeText) {
+  const lang = (language || "").trim().toLowerCase();
+  if (PRESERVED_LANGUAGES.has(lang)) return false;
+  if (!COLLAPSIBLE_LANGUAGES.has(lang)) return false;
+
+  const stripped = (codeText || "").trim();
+  if (!stripped) return false;
+  if (stripped.includes("\n")) return false;
+  if (stripped.length > 60) return false;
+  if (CODE_STRUCTURE_RE.test(stripped)) return false;
+
+  return true;
+}
+
 function normalizeMathDelimiters(text) {
   if (!text || typeof text !== "string") return text;
 
@@ -128,7 +160,21 @@ export default function MarkdownMessage({ content, isTyping = false }) {
               return <code className="inline-code">{children}</code>;
             }
 
+            const langMatch = /language-([\w-]+)/.exec(className || "");
+            const language = langMatch?.[1] || "";
+            const rawText = extractTextFromReactNode(children);
+
+            if (shouldRenderAsInlineCode(language, rawText)) {
+              return <code className="inline-code inline-code--block">{rawText}</code>;
+            }
+
             return <CodeBlock className={className}>{children}</CodeBlock>;
+          },
+          pre({ children }) {
+            if (isValidElement(children) && children.props?.className?.includes("inline-code--block")) {
+              return <div className="inline-code-standalone">{children}</div>;
+            }
+            return <pre>{children}</pre>;
           },
           p({ node, children }) {
             const rawText = getNodeText(node).trim();
