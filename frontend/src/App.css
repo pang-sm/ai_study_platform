@@ -1607,6 +1607,7 @@ select.field:focus {
 
 .dashboard-panel {
   gap: 18px;
+  overflow-y: auto;
 }
 
 .dashboard-header {
