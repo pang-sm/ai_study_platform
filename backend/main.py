@@ -1924,10 +1924,10 @@ async def handle_material_upload(
     validate_upload(file, file_bytes)
 
     original_filename = file.filename or "未命名文件"
-    file_type = ALLOWED_UPLOAD_TYPES.get(file.content_type, "code")
     from document_parser import detect_material_type, extract_supported_file_text
 
     material_type = detect_material_type(original_filename, file.content_type)
+    file_type = ALLOWED_UPLOAD_TYPES.get(file.content_type, material_type.lower())
     parse_metadata = get_default_parse_metadata()
     clean_question = (question or "").strip()
 
@@ -2438,7 +2438,9 @@ async def upload_material(
     validate_upload(file, file_bytes)
 
     original_filename = file.filename or "未命名文件"
-    file_type = ALLOWED_UPLOAD_TYPES[file.content_type]
+    from document_parser import detect_material_type
+    material_type = detect_material_type(original_filename, file.content_type)
+    file_type = ALLOWED_UPLOAD_TYPES.get(file.content_type, material_type.lower())
     file_hash = calculate_file_hash(file_bytes)
     existing_material = get_material_by_file_hash(db, user.username, file_hash)
     if existing_material and (existing_material.parse_status or "").strip() == "success":

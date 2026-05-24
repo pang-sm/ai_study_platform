@@ -96,6 +96,22 @@ const ALLOWED_FILE_TYPES = [
   "text/x-ruby",
 ];
 
+const ALLOWED_EXTENSIONS = new Set([
+  ".pdf", ".png", ".jpg", ".jpeg", ".webp",
+  ".docx", ".pptx",
+  ".txt", ".md", ".markdown",
+  ".py", ".java", ".c", ".cpp", ".h", ".hpp",
+  ".js", ".jsx", ".ts", ".tsx",
+  ".html", ".css", ".json", ".xml", ".yaml", ".yml",
+  ".sql", ".sh", ".bash", ".go", ".rs", ".php", ".rb",
+]);
+
+function isAllowedFile(file) {
+  if (ALLOWED_FILE_TYPES.includes(file.type)) return true;
+  const ext = (file.name || "").toLowerCase().match(/\.[a-z0-9]+$/)?.[0] || "";
+  return ALLOWED_EXTENSIONS.has(ext);
+}
+
 const RECORD_TYPE_OPTIONS = [
   { value: "", label: "全部" },
   { value: "wrong_question", label: "错题本" },
@@ -1548,7 +1564,7 @@ function App() {
 
     if (!file) return;
 
-    if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+    if (!isAllowedFile(file)) {
       alert("不支持的文件类型，请选择 PDF、图片、Word(docx)、PPT(pptx)、TXT、Markdown 或代码文件。");
       return;
     }
