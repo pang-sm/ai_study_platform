@@ -2486,6 +2486,31 @@ async def upload_material(
         total_pages=total_pages,
     )
 
+    if file_type in ("docx", "pptx", "text", "code"):
+        from document_parser import extract_supported_file_text
+        try:
+            result = extract_supported_file_text(file_bytes, original_filename, file.content_type)
+            sync_text = result["text"]
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+        if not (sync_text or "").strip():
+            raise HTTPException(status_code=400, detail="文件内容为空，请检查后重试。")
+
+        material, chunk_count = complete_material_with_local_pdf_text(
+            db, material, sync_text, 0,
+        )
+        return {
+            "success": True,
+            "material_id": material.id,
+            "filename": original_filename,
+            "parse_status": "success",
+            "parse_progress": 100,
+            "message": "资料已解析完成，可直接基于全文问答。",
+            "chunk_count": chunk_count,
+            "material": serialize_material_detail(material),
+        }
+
     if file_type == "pdf" and is_text_pdf:
         sync_max_pages = get_local_pdf_sync_max_pages()
         if total_pages <= sync_max_pages:
