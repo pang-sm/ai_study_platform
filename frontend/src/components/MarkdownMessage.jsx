@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, isValidElement } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -29,6 +29,14 @@ function getNodeText(node) {
   if (node.type === "text") return node.value || "";
   if (!Array.isArray(node.children)) return "";
   return node.children.map(getNodeText).join("");
+}
+
+function extractTextFromReactNode(value) {
+  if (value == null) return "";
+  if (typeof value === "string" || typeof value === "number") return String(value);
+  if (Array.isArray(value)) return value.map(extractTextFromReactNode).join("");
+  if (isValidElement(value)) return extractTextFromReactNode(value.props.children);
+  return "";
 }
 
 function normalizeMathDelimiters(text) {
@@ -70,7 +78,7 @@ function normalizeMathDelimiters(text) {
 
 function CodeBlock({ className, children }) {
   const [copied, setCopied] = useState(false);
-  const rawCode = String(children || "").replace(/\n$/, "");
+  const copySource = useMemo(() => extractTextFromReactNode(children), [children]);
   const languageMatch = /language-([\w-]+)/.exec(className || "");
   const language = languageMatch?.[1] || "Text";
 
@@ -83,7 +91,7 @@ function CodeBlock({ className, children }) {
 
   const handleCopy = async () => {
     try {
-      await copyText(rawCode);
+      await copyText(copySource);
       setCopied(true);
     } catch (error) {
       console.error("复制代码失败：", error);
@@ -100,7 +108,7 @@ function CodeBlock({ className, children }) {
         </button>
       </div>
       <pre className="code-block-pre">
-        <code className={className}>{rawCode}</code>
+        <code className={className}>{children}</code>
       </pre>
     </div>
   );
