@@ -101,20 +101,6 @@ export default function CourseDashboard({
             </p>
           </section>
 
-          <section className="dashboard-card dashboard-actions-card">
-            <div className="panel-title-row">
-              <h3>快捷操作</h3>
-            </div>
-            <div className="dashboard-action-grid">
-              <button className="ghost-button compact" onClick={onUploadMaterial}>
-                上传课程资料
-              </button>
-              <button className="primary-button compact" onClick={onNewCourseChat}>
-                新建 AI 对话
-              </button>
-            </div>
-          </section>
-
           <section className="dashboard-card dashboard-progress-card">
             <div className="panel-title-row">
               <h3>课程学习路线</h3>

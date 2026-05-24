@@ -358,6 +358,7 @@ function App() {
   const [courseProgressSavingKey, setCourseProgressSavingKey] = useState("");
 
   const fileInputRef = useRef(null);
+  const materialsFileInputRef = useRef(null);
   const avatarInputRef = useRef(null);
   const localMessageCounterRef = useRef(0);
   const materialStatusPollersRef = useRef({});
@@ -3209,6 +3210,12 @@ function App() {
               </div>
               <div className="workspace-materials-header-actions">
                 <button
+                  className="primary-button compact"
+                  onClick={() => materialsFileInputRef.current?.click()}
+                >
+                  上传课程资料
+                </button>
+                <button
                   className="ghost-button compact"
                   onClick={() => { setMaterialCurrentPage(1); loadMaterials(normalizeSubject(subject)); }}
                 >
@@ -3222,6 +3229,14 @@ function App() {
                   {reindexLoading ? "重建中..." : "重建索引"}
                 </button>
               </div>
+              <input
+                ref={materialsFileInputRef}
+                type="file"
+                multiple
+                accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.pptx,.txt,.md,.markdown,.py,.java,.c,.cpp,.h,.hpp,.js,.jsx,.ts,.tsx,.html,.htm,.css,.json,.xml,.yaml,.yml,.sql,.sh,.bash,.go,.rs,.php,.rb"
+                onChange={handleFileChange}
+                className="hidden-file-input"
+              />
             </div>
 
             <div className="library-search-row">
@@ -3296,7 +3311,10 @@ function App() {
             ) : currentFilterItems.length === 0 ? (
               <div className="empty-inline">
                 <p>当前课程还没有资料。</p>
-                <p className="muted-text">你可以在 AI 问答中上传资料，资料会自动沉淀到这里。</p>
+                <p className="muted-text">上传 PDF、图片、Word、PPT 或代码文件，系统会保存原文件并生成 AI 知识索引。</p>
+                <button className="primary-button compact" onClick={() => materialsFileInputRef.current?.click()}>
+                  上传课程资料
+                </button>
               </div>
             ) : (
               <div className="workspace-materials-list">
