@@ -154,6 +154,45 @@ function formatDate(value) {
   }).format(date);
 }
 
+function formatFileSize(value) {
+  const bytes = Number(value || 0);
+  if (!Number.isFinite(bytes) || bytes <= 0) return "未知大小";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function getParseStatusLabel(status) {
+  if (status === "success") return "已生成 AI 知识索引";
+  if (status === "partial") return "部分生成 AI 知识索引";
+  if (status === "failed") return "解析失败，原文件仍可下载";
+  if (status === "parsing") return "正在解析";
+  return "等待解析";
+}
+
+function getParseStatusHint(material) {
+  const status = material?.parse_status;
+  if (status === "success") return "文件已保存，已生成 AI 知识索引。";
+  if (status === "partial") return "文件已保存，已生成部分 AI 知识索引。";
+  if (status === "failed") return "文件已保存，但解析失败，AI 暂时无法基于该文件问答。";
+  if (status === "parsing") return "原文件已保存，正在解析，解析完成后可用于 AI 问答。";
+  return "原文件已保存，等待生成 AI 知识索引。";
+}
+
+function getFilenameFromDisposition(disposition, fallback) {
+  const utf8Match = /filename\*=UTF-8''([^;]+)/i.exec(disposition || "");
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1]);
+    } catch {
+      return utf8Match[1];
+    }
+  }
+
+  const asciiMatch = /filename="?([^";]+)"?/i.exec(disposition || "");
+  return asciiMatch?.[1] || fallback || "download";
+}
+
 function getFileTypeLabel(type) {
   const normalizedType = String(type || "").toLowerCase();
 
@@ -1088,6 +1127,56 @@ function App() {
     } catch (error) {
       console.error("Failed to delete material:", error);
       setTip("暂时无法删除该资料。");
+    }
+  };
+
+  const downloadMaterial = async (material) => {
+    if (!user?.username || !material?.id) return;
+
+    try {
+      const downloadUrl =
+        material.download_url || `/materials/${material.id}/download`;
+      const separator = downloadUrl.includes("?") ? "&" : "?";
+      const res = await fetch(
+        `${API_BASE}${downloadUrl}${separator}username=${encodeURIComponent(user.username)}`
+      );
+
+      if (!res.ok) {
+        let detail = "";
+        try {
+          const data = await res.json();
+          detail = data.detail || "";
+        } catch {
+          detail = "";
+        }
+
+        if (res.status === 404) {
+          setTip(detail || "原文件不存在，无法下载。");
+        } else if (res.status === 403) {
+          setTip("没有权限下载该原文件。");
+        } else {
+          setTip(detail || "下载失败，请稍后重试。");
+        }
+        return;
+      }
+
+      const blob = await res.blob();
+      const filename = getFilenameFromDisposition(
+        res.headers.get("Content-Disposition"),
+        material.file_name || material.original_filename
+      );
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(objectUrl);
+      setTip("原文件下载已开始。");
+    } catch (error) {
+      console.error("Failed to download material:", error);
+      setTip("下载失败，请稍后重试。");
     }
   };
 
@@ -2140,6 +2229,12 @@ function App() {
                           </div>
                           <div className="material-title">{material.original_filename}</div>
                           <div className="material-summary">{material.summary}</div>
+                          <div className="material-asset-meta">
+                            <span>原文件已保存</span>
+                            <span>{formatFileSize(material.file_size)}</span>
+                            <span>{getParseStatusLabel(material.parse_status)}</span>
+                            <span>{Number(material.chunk_count || 0)} 个知识片段</span>
+                          </div>
                           <div className="history-meta">{formatDate(material.created_at)}</div>
                           <div className="material-actions">
                             <button
@@ -2147,6 +2242,13 @@ function App() {
                               onClick={() => openMaterialDetail(material.id)}
                             >
                               查看
+                            </button>
+                            <button
+                              className="tiny-button"
+                              onClick={() => downloadMaterial(material)}
+                              disabled={!material.can_download}
+                            >
+                              下载原文件
                             </button>
                             <button
                               className="tiny-button danger"
@@ -2200,6 +2302,23 @@ function App() {
                       <div>学科：{getSubjectLabel(selectedMaterialDetail.subject)}</div>
                       <div>类型：{getFileTypeLabel(selectedMaterialDetail.file_type)}</div>
                       <div>上传时间：{formatDate(selectedMaterialDetail.created_at)}</div>
+                    </div>
+                    <div className="material-status-note">
+                      {getParseStatusHint(selectedMaterialDetail)}
+                    </div>
+                    <div className="material-asset-meta material-asset-meta--detail">
+                      <span>原文件大小：{formatFileSize(selectedMaterialDetail.file_size)}</span>
+                      <span>AI 知识索引：{getParseStatusLabel(selectedMaterialDetail.parse_status)}</span>
+                      <span>{Number(selectedMaterialDetail.chunk_count || 0)} 个知识片段</span>
+                    </div>
+                    <div className="material-actions material-actions--detail">
+                      <button
+                        className="tiny-button"
+                        onClick={() => downloadMaterial(selectedMaterialDetail)}
+                        disabled={!selectedMaterialDetail.can_download}
+                      >
+                        下载原文件
+                      </button>
                     </div>
                     <div className="result-block">
                       <strong>摘要</strong>

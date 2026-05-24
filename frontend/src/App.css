@@ -447,6 +447,39 @@ select.field:focus {
   margin-top: 24px;
 }
 
+.material-asset-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+  color: #475569;
+  font-size: 12px;
+}
+
+.material-asset-meta span {
+  border: 1px solid #dbeafe;
+  border-radius: 999px;
+  background: #eff6ff;
+  padding: 4px 8px;
+}
+
+.material-asset-meta--detail {
+  margin-top: 12px;
+}
+
+.material-status-note {
+  margin-top: 12px;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #334155;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+.material-actions--detail {
+  margin-top: 12px;
+}
+
 .detail-meta {
   flex-wrap: wrap;
   color: #475569;

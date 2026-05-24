@@ -58,6 +58,8 @@ class StudyMaterial(Base):
     subject = Column(String(100), index=True, nullable=False)
     file_type = Column(String(20), nullable=False)
     original_filename = Column(String(255), nullable=False)
+    mime_type = Column(String(255), nullable=True)
+    file_size = Column(Integer, nullable=False, default=0)
     file_hash = Column(String(64), nullable=True)
     file_path = Column(String(500), nullable=False)
     extracted_text = Column(Text, nullable=False)
@@ -77,6 +79,7 @@ class StudyMaterial(Base):
     parse_completed_at = Column(Text, nullable=True)
     is_deleted = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
     deleted_at = Column(DateTime, nullable=True)
 
 

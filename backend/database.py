@@ -37,6 +37,8 @@ CHAT_MESSAGE_COLUMNS = {
 }
 
 STUDY_MATERIAL_COLUMNS = {
+    "mime_type": "VARCHAR(255)",
+    "file_size": "INTEGER DEFAULT 0",
     "file_hash": "TEXT",
     "file_path": "TEXT",
     "source_message_id": "INTEGER",
@@ -53,6 +55,7 @@ STUDY_MATERIAL_COLUMNS = {
     "parse_started_at": "TEXT",
     "parse_completed_at": "TEXT",
     "is_deleted": "BOOLEAN NOT NULL DEFAULT 0",
+    "updated_at": "DATETIME",
     "deleted_at": "DATETIME",
 }
 
@@ -356,6 +359,28 @@ def init_user_profile_schema():
                     UPDATE study_materials
                     SET qwen_used = 0
                     WHERE qwen_used IS NULL
+                    """
+                )
+            )
+
+        if "file_size" in study_material_columns:
+            conn.execute(
+                text(
+                    """
+                    UPDATE study_materials
+                    SET file_size = 0
+                    WHERE file_size IS NULL
+                    """
+                )
+            )
+
+        if "updated_at" in study_material_columns:
+            conn.execute(
+                text(
+                    """
+                    UPDATE study_materials
+                    SET updated_at = COALESCE(updated_at, created_at, CURRENT_TIMESTAMP)
+                    WHERE updated_at IS NULL
                     """
                 )
             )

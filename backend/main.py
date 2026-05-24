@@ -10,11 +10,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timezone
 from io import BytesIO
 from pathlib import Path
+from urllib.parse import quote
 
 import fitz
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from openai import OpenAI
 from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel
@@ -639,7 +641,33 @@ def get_default_parse_metadata():
 
 
 def resolve_stored_file_path(stored_file_path: str) -> Path:
-    return (BASE_DIR / stored_file_path).resolve()
+    resolved_path = (BASE_DIR / (stored_file_path or "")).resolve()
+    upload_root = UPLOAD_ROOT.resolve()
+    if resolved_path != upload_root and upload_root not in resolved_path.parents:
+        raise HTTPException(status_code=400, detail="文件存储路径无效")
+    return resolved_path
+
+
+def get_material_file_path(material: models.StudyMaterial) -> Path | None:
+    if not (material.file_path or "").strip():
+        return None
+
+    try:
+        file_path = resolve_stored_file_path(material.file_path)
+    except HTTPException:
+        return None
+
+    if not file_path.exists() or not file_path.is_file():
+        return None
+    return file_path
+
+
+def get_material_download_metadata(material: models.StudyMaterial):
+    file_path = get_material_file_path(material)
+    return {
+        "can_download": file_path is not None,
+        "download_url": f"/materials/{material.id}/download" if file_path else None,
+    }
 
 
 def call_deepseek(messages: list[dict]):
@@ -838,11 +866,15 @@ def serialize_message(message: models.ChatMessage):
 
 
 def serialize_material_list_item(material: models.StudyMaterial):
+    download_metadata = get_material_download_metadata(material)
     return {
         "id": material.id,
         "subject": material.subject,
         "file_type": material.file_type,
+        "file_name": material.original_filename,
         "original_filename": material.original_filename,
+        "mime_type": material.mime_type,
+        "file_size": material.file_size or 0,
         "summary": material.summary,
         "extract_method": material.extract_method or "local",
         "parse_status": material.parse_status or "success",
@@ -856,18 +888,23 @@ def serialize_material_list_item(material: models.StudyMaterial):
         "parse_started_at": serialize_datetime(material.parse_started_at),
         "parse_completed_at": serialize_datetime(material.parse_completed_at),
         "created_at": serialize_datetime(material.created_at),
+        "updated_at": serialize_datetime(material.updated_at),
         "source_message_id": material.source_message_id,
+        **download_metadata,
     }
 
 
 def serialize_material_detail(material: models.StudyMaterial):
+    download_metadata = get_material_download_metadata(material)
     return {
         "id": material.id,
         "username": material.username,
         "subject": material.subject,
         "file_type": material.file_type,
+        "file_name": material.original_filename,
         "original_filename": material.original_filename,
-        "file_path": material.file_path,
+        "mime_type": material.mime_type,
+        "file_size": material.file_size or 0,
         "extracted_text": material.extracted_text,
         "summary": material.summary,
         "extract_method": material.extract_method or "local",
@@ -883,6 +920,8 @@ def serialize_material_detail(material: models.StudyMaterial):
         "parse_completed_at": serialize_datetime(material.parse_completed_at),
         "source_message_id": material.source_message_id,
         "created_at": serialize_datetime(material.created_at),
+        "updated_at": serialize_datetime(material.updated_at),
+        **download_metadata,
     }
 
 
@@ -898,6 +937,7 @@ def serialize_material_status(material: models.StudyMaterial):
         "parse_error": material.parse_error,
         "total_pages": material.total_pages or 0,
         "parsed_pages": material.parsed_pages or 0,
+        **get_material_download_metadata(material),
     }
 
 
@@ -1234,6 +1274,27 @@ def get_material_by_file_hash(db: Session, username: str, file_hash: str):
     )
 
 
+def ensure_material_original_file(
+    db: Session,
+    material: models.StudyMaterial,
+    file_bytes: bytes,
+    original_filename: str,
+    file_hash: str,
+    mime_type: str | None,
+):
+    if get_material_file_path(material):
+        return material
+
+    stored_file_path = save_material_file(file_bytes, original_filename, file_hash)
+    material.file_path = stored_file_path
+    material.file_hash = (file_hash or "").strip().lower()
+    material.mime_type = mime_type
+    material.file_size = max(0, len(file_bytes or b""))
+    db.commit()
+    db.refresh(material)
+    return material
+
+
 def get_material_for_parsing(db: Session, material_id: int):
     return (
         db.query(models.StudyMaterial)
@@ -1253,6 +1314,8 @@ def create_pending_material(
     original_filename: str,
     file_path: str,
     file_hash: str,
+    mime_type: str | None = None,
+    file_size: int = 0,
     total_pages: int = 0,
     source_message_id: int | None = None,
 ):
@@ -1261,6 +1324,8 @@ def create_pending_material(
         subject=normalize_subject(subject),
         file_type=file_type,
         original_filename=os.path.basename(original_filename or "未命名文件"),
+        mime_type=mime_type,
+        file_size=max(0, int(file_size or 0)),
         file_hash=(file_hash or "").strip().lower(),
         file_path=file_path,
         extracted_text="",
@@ -1295,6 +1360,8 @@ def update_material_parse_state(db: Session, material_id: int, **updates):
     allowed_fields = {
         "file_path",
         "file_hash",
+        "mime_type",
+        "file_size",
         "parse_status",
         "parse_progress",
         "total_pages",
@@ -2040,7 +2107,36 @@ async def handle_material_upload(
             file_type = result["material_type"].lower()
             parse_metadata["parse_status"] = "success"
         except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
+            file_hash = calculate_file_hash(file_bytes)
+            stored_path = save_material_file(file_bytes, original_filename, file_hash)
+            material = create_pending_material(
+                db=db,
+                username=user.username,
+                subject=normalized_subject,
+                file_type=file_type,
+                original_filename=original_filename,
+                file_path=stored_path,
+                file_hash=file_hash,
+                mime_type=file.content_type,
+                file_size=len(file_bytes),
+            )
+            update_material_parse_state(
+                db,
+                material.id,
+                parse_status="failed",
+                parse_error=str(exc),
+                parse_progress=0,
+                parse_completed_at=serialize_datetime(utc_now()),
+            )
+            return {
+                "success": True,
+                "material_id": material.id,
+                "filename": original_filename,
+                "parse_status": "failed",
+                "parse_progress": 0,
+                "message": "原文件已保存，但解析失败，AI 暂时无法基于该文件问答。",
+                "material": serialize_material_detail(material),
+            }
 
         if not extracted_text or not extracted_text.strip():
             raise HTTPException(status_code=400, detail="文件内容为空，请检查后重试。")
@@ -2564,6 +2660,14 @@ async def upload_material(
     file_hash = calculate_file_hash(file_bytes)
     existing_material = get_material_by_file_hash(db, user.username, file_hash)
     if existing_material and (existing_material.parse_status or "").strip() == "success":
+        existing_material = ensure_material_original_file(
+            db,
+            existing_material,
+            file_bytes,
+            original_filename,
+            file_hash,
+            file.content_type,
+        )
         return {
             "success": True,
             "material_id": existing_material.id,
@@ -2575,6 +2679,14 @@ async def upload_material(
         }
 
     if existing_material and (existing_material.parse_status or "").strip() in {"pending", "parsing"}:
+        existing_material = ensure_material_original_file(
+            db,
+            existing_material,
+            file_bytes,
+            original_filename,
+            file_hash,
+            file.content_type,
+        )
         return {
             "success": True,
             "material_id": existing_material.id,
@@ -2586,14 +2698,6 @@ async def upload_material(
         }
 
     stored_file_path = save_material_file(file_bytes, original_filename, file_hash)
-    total_pages = 0
-    extracted_text = ""
-    is_text_pdf = False
-    if file_type == "pdf":
-        total_pages, page_texts = extract_pdf_pages(file_bytes)
-        extracted_text = build_pdf_text_from_pages(page_texts)
-        is_text_pdf = is_pdf_text_usable(extracted_text, total_pages)
-
     material = create_pending_material(
         db=db,
         username=user.username,
@@ -2602,8 +2706,38 @@ async def upload_material(
         original_filename=original_filename,
         file_path=stored_file_path,
         file_hash=file_hash,
-        total_pages=total_pages,
+        mime_type=file.content_type,
+        file_size=len(file_bytes),
     )
+
+    total_pages = 0
+    extracted_text = ""
+    is_text_pdf = False
+    if file_type == "pdf":
+        try:
+            total_pages, page_texts = extract_pdf_pages(file_bytes)
+            extracted_text = build_pdf_text_from_pages(page_texts)
+            is_text_pdf = is_pdf_text_usable(extracted_text, total_pages)
+            material = update_material_parse_state(db, material.id, total_pages=total_pages) or material
+        except Exception as exc:
+            detail = getattr(exc, "detail", None) or str(exc)
+            material = update_material_parse_state(
+                db,
+                material.id,
+                parse_status="failed",
+                parse_error=str(detail),
+                parse_progress=0,
+                parse_completed_at=serialize_datetime(utc_now()),
+            ) or material
+            return {
+                "success": True,
+                "material_id": material.id,
+                "filename": original_filename,
+                "parse_status": "failed",
+                "parse_progress": 0,
+                "message": "原文件已保存，但解析失败，AI 暂时无法基于该文件问答。",
+                "material": serialize_material_detail(material),
+            }
 
     if file_type in ("docx", "pptx", "text", "code"):
         from document_parser import extract_supported_file_text
@@ -2611,9 +2745,42 @@ async def upload_material(
             result = extract_supported_file_text(file_bytes, original_filename, file.content_type)
             sync_text = result["text"]
         except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
+            material = update_material_parse_state(
+                db,
+                material.id,
+                parse_status="failed",
+                parse_error=str(exc),
+                parse_progress=0,
+                parse_completed_at=serialize_datetime(utc_now()),
+            ) or material
+            return {
+                "success": True,
+                "material_id": material.id,
+                "filename": original_filename,
+                "parse_status": "failed",
+                "parse_progress": 0,
+                "message": "原文件已保存，但解析失败，AI 暂时无法基于该文件问答。",
+                "material": serialize_material_detail(material),
+            }
 
         if not (sync_text or "").strip():
+            material = update_material_parse_state(
+                db,
+                material.id,
+                parse_status="failed",
+                parse_error="文件内容为空，无法生成 AI 知识索引。",
+                parse_progress=0,
+                parse_completed_at=serialize_datetime(utc_now()),
+            ) or material
+            return {
+                "success": True,
+                "material_id": material.id,
+                "filename": original_filename,
+                "parse_status": "failed",
+                "parse_progress": 0,
+                "message": "原文件已保存，但解析失败，AI 暂时无法基于该文件问答。",
+                "material": serialize_material_detail(material),
+            }
             raise HTTPException(status_code=400, detail="文件内容为空，请检查后重试。")
 
         material, chunk_count = complete_material_with_local_pdf_text(
@@ -2767,6 +2934,44 @@ def get_materials(username: str, subject: str | None = None, db: Session = Depen
 
     materials = query.order_by(models.StudyMaterial.created_at.desc()).all()
     return {"materials": [serialize_material_list_item(material) for material in materials]}
+
+
+@app.get("/materials/{material_id}/download")
+def download_material_file(material_id: int, username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    material = (
+        db.query(models.StudyMaterial)
+        .filter(
+            models.StudyMaterial.id == material_id,
+            models.StudyMaterial.is_deleted.is_(False),
+        )
+        .first()
+    )
+
+    if not material:
+        raise HTTPException(status_code=404, detail="资料不存在")
+
+    if material.username != user.username:
+        raise HTTPException(status_code=403, detail="没有权限下载该资料")
+
+    file_path = get_material_file_path(material)
+    if not file_path:
+        raise HTTPException(status_code=404, detail="原文件不存在，无法下载")
+
+    download_filename = os.path.basename(material.original_filename or file_path.name)
+    quoted_filename = quote(download_filename)
+    fallback_filename = sanitize_filename(download_filename)
+    return FileResponse(
+        path=file_path,
+        media_type=material.mime_type or "application/octet-stream",
+        filename=download_filename,
+        headers={
+            "Content-Disposition": (
+                f"attachment; filename=\"{fallback_filename}\"; "
+                f"filename*=UTF-8''{quoted_filename}"
+            )
+        },
+    )
 
 
 @app.get("/materials/{material_id}/status")
