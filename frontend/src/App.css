@@ -1978,6 +1978,10 @@ select.field:focus {
   .goal-card {
     padding: 16px;
   }
+
+  .home-entry-cards {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ── 个人主页 ── */
@@ -2114,9 +2118,17 @@ select.field:focus {
 }
 
 .home-entry-cards {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 12px;
+}
+
+.home-entries-hint {
+  margin: 14px 0 0;
+  font-size: 13px;
+  color: #94a3b8;
+  text-align: center;
+  line-height: 1.5;
 }
 
 .home-entry-card {

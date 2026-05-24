@@ -2339,12 +2339,7 @@ function App() {
               <button className="home-entry-card" onClick={() => { setSubject(subject); setPage("dashboard"); }}>
                 <div className="home-entry-icon">💬</div>
                 <div className="home-entry-title">进入课程工作台</div>
-                <div className="home-entry-desc">查看课程概览，开始 AI 学习。</div>
-              </button>
-              <button className="home-entry-card" onClick={() => { setPage("materials"); loadMaterials(""); }}>
-                <div className="home-entry-icon">📚</div>
-                <div className="home-entry-title">个人资料库</div>
-                <div className="home-entry-desc">查看、预览和下载你上传过的原始资料。</div>
+                <div className="home-entry-desc">AI 问答、上传资料、查看资料库和学习记录。</div>
               </button>
               <button className="home-entry-card" onClick={() => {
                 setLearningGoals(Array.isArray(user?.learning_goals) ? [...user.learning_goals] : []);
@@ -2355,6 +2350,7 @@ function App() {
                 <div className="home-entry-desc">修改专业、科目和学习目标。</div>
               </button>
             </div>
+            <p className="home-entries-hint">资料库已整合到课程工作台中，进入工作台后可在顶部切换到「资料库」查看原文件。</p>
           </section>
 
           <div className="home-footer">
