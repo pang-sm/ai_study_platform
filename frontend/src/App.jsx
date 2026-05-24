@@ -102,7 +102,7 @@ const ALLOWED_EXTENSIONS = new Set([
   ".txt", ".md", ".markdown",
   ".py", ".java", ".c", ".cpp", ".h", ".hpp",
   ".js", ".jsx", ".ts", ".tsx",
-  ".html", ".css", ".json", ".xml", ".yaml", ".yml",
+  ".html", ".htm", ".css", ".json", ".xml", ".yaml", ".yml",
   ".sql", ".sh", ".bash", ".go", ".rs", ".php", ".rb",
 ]);
 
@@ -170,28 +170,27 @@ function getFileTypeLabel(type) {
   if (normalizedType.includes("docx") || normalizedType.includes("word")) return "Word";
   if (normalizedType.includes("pptx") || normalizedType.includes("ppt") || normalizedType.includes("powerpoint") || normalizedType.includes("presentation")) return "PPT";
   if (normalizedType.includes("markdown") || normalizedType.includes("md")) return "Markdown";
+
+  // 具体代码语言优先判断，避免被 text 泛匹配吞掉
+  if (normalizedType.includes("html") || normalizedType.includes("htm")) return "HTML";
+  if (normalizedType.includes("css")) return "CSS";
+  if (normalizedType.includes("javascript") || normalizedType.includes("js")) return "JavaScript";
+  if (normalizedType.includes("typescript") || normalizedType.includes("ts")) return "TypeScript";
+  if (normalizedType.includes("python") || normalizedType.includes(".py")) return "Python";
+  if (normalizedType.includes("java") && !normalizedType.includes("javascript")) return "Java";
+  if (normalizedType.includes("c++") || normalizedType.includes("cpp")) return "C++";
+  if (normalizedType.includes("rust") || normalizedType.includes(".rs")) return "Rust";
+  if (normalizedType.includes("go") || normalizedType.includes("golang")) return "Go";
+  if (normalizedType.includes("php")) return "PHP";
+  if (normalizedType.includes("ruby") || normalizedType.includes(".rb")) return "Ruby";
+  if (normalizedType.includes("sql")) return "SQL";
+  if (normalizedType.includes("json")) return "JSON";
+  if (normalizedType.includes("xml")) return "XML";
+  if (normalizedType.includes("yaml") || normalizedType.includes("yml")) return "YAML";
+  if (normalizedType.includes("shell") || normalizedType.includes("bash") || normalizedType.includes("sh")) return "Bash";
+
+  if (normalizedType.includes("code")) return "代码";
   if (normalizedType.includes("text") || normalizedType === "txt") return "文本";
-  if (
-    normalizedType.includes("code") ||
-    normalizedType.includes("python") ||
-    normalizedType.includes("java") ||
-    normalizedType.includes("javascript") ||
-    normalizedType.includes("html") ||
-    normalizedType.includes("css") ||
-    normalizedType.includes("json") ||
-    normalizedType.includes("xml") ||
-    normalizedType.includes("yaml") ||
-    normalizedType.includes("sql") ||
-    normalizedType.includes("shell") ||
-    normalizedType.includes("bash") ||
-    normalizedType.includes("go") ||
-    normalizedType.includes("php") ||
-    normalizedType.includes("ruby") ||
-    normalizedType.includes("c++") ||
-    normalizedType.includes("rust")
-  ) {
-    return "代码";
-  }
 
   return type || "";
 }
@@ -315,9 +314,6 @@ function App() {
   const selectedFile = selectedFiles[0]
     ? {
         ...selectedFiles[0],
-        type: String(selectedFiles[0].file_type || "").includes("pdf")
-          ? "application/pdf"
-          : selectedFiles[0].file_type,
         name: selectedFiles[0].original_filename,
       }
     : null;
@@ -389,9 +385,7 @@ function App() {
   }, [loading, selectedFiles, trimmedMessage]);
 
   const fileLabel = selectedFile
-    ? selectedFile.type === "application/pdf"
-      ? `PDF：${selectedFile.name}`
-      : `图片：${selectedFile.name}`
+    ? `${getFileTypeLabel(selectedFile.file_type || selectedFile.type)}：${selectedFile.name}`
     : "";
 
   const createLocalMessage = (messageData) => ({
@@ -2740,7 +2734,7 @@ function App() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.pptx,.txt,.md,.markdown,.py,.java,.c,.cpp,.h,.hpp,.js,.jsx,.ts,.tsx,.html,.css,.json,.xml,.yaml,.yml,.sql,.sh,.bash,.go,.rs,.php,.rb"
+                  accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.pptx,.txt,.md,.markdown,.py,.java,.c,.cpp,.h,.hpp,.js,.jsx,.ts,.tsx,.html,.htm,.css,.json,.xml,.yaml,.yml,.sql,.sh,.bash,.go,.rs,.php,.rb"
                   onChange={handleFileChange}
                   className="hidden-file-input"
                 />

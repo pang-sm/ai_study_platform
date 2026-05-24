@@ -149,6 +149,7 @@ ALLOWED_EXTENSIONS = {
     ".ts": "text/javascript",
     ".tsx": "text/javascript",
     ".html": "text/html",
+    ".htm": "text/html",
     ".css": "text/css",
     ".json": "application/json",
     ".xml": "application/xml",
@@ -2022,7 +2023,7 @@ async def handle_material_upload(
                 status_code=400,
                 detail="这个 PDF 可能是扫描件，但视觉解析失败，请稍后重试或上传更清晰的文件。",
             )
-        raise HTTPException(status_code=400, detail="未能从图片识别到文字，请上传更清晰的图片")
+        raise HTTPException(status_code=400, detail="未能从文件中提取到文字内容，请检查文件是否为空或已损坏。")
 
 
     chat_session = None
