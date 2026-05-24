@@ -218,6 +218,9 @@ function App() {
   const [materialSearchResults, setMaterialSearchResults] = useState([]);
   const [selectedMaterialId, setSelectedMaterialId] = useState(null);
   const [selectedMaterialDetail, setSelectedMaterialDetail] = useState(null);
+  const [materialCurrentPage, setMaterialCurrentPage] = useState(1);
+  const [materialListCollapsed, setMaterialListCollapsed] = useState(false);
+  const PAGE_SIZE = 5;
   const [addToLibraryState, setAddToLibraryState] = useState({
     messageId: null,
     subject: DEFAULT_SUBJECT,
@@ -274,13 +277,41 @@ function App() {
       items: materials.filter(
         (material) => normalizeSubject(material.subject, "") === item
       ),
-    })).filter(
-      (group) =>
-        group.items.length > 0 ||
-        !materialSubjectFilter ||
-        materialSubjectFilter === group.subject
-    );
-  }, [materials, materialSubjectFilter]);
+    })).filter((group) => group.items.length > 0);
+  }, [materials]);
+
+  const availableSubjects = useMemo(() => {
+    return groupedMaterials.map((g) => g.subject);
+  }, [groupedMaterials]);
+
+  const currentFilterSubject = availableSubjects.includes(materialSubjectFilter)
+    ? materialSubjectFilter
+    : "";
+
+  const currentFilterItems = useMemo(() => {
+    if (!currentFilterSubject) return [];
+    const group = groupedMaterials.find((g) => g.subject === currentFilterSubject);
+    return group?.items || [];
+  }, [groupedMaterials, currentFilterSubject]);
+
+  const currentFilterTotalPages = Math.max(1, Math.ceil(currentFilterItems.length / PAGE_SIZE));
+
+  const safeCurrentPage = Math.min(materialCurrentPage, currentFilterTotalPages);
+
+  const paginatedFilterItems = currentFilterItems.slice(
+    (safeCurrentPage - 1) * PAGE_SIZE,
+    safeCurrentPage * PAGE_SIZE
+  );
+
+  const searchTotalPages = Math.max(
+    1,
+    Math.ceil(materialSearchResults.length / PAGE_SIZE)
+  );
+  const safeSearchPage = Math.min(materialCurrentPage, searchTotalPages);
+  const paginatedSearchResults = materialSearchResults.slice(
+    (safeSearchPage - 1) * PAGE_SIZE,
+    safeSearchPage * PAGE_SIZE
+  );
 
   const canSendMessage = useMemo(() => {
     if (loading) return false;
@@ -522,6 +553,21 @@ function App() {
     }
   };
 
+  useEffect(() => {
+    if (availableSubjects.length > 0) {
+      if (!materialSubjectFilter || !availableSubjects.includes(materialSubjectFilter)) {
+        setMaterialSubjectFilter(availableSubjects[0]);
+        setMaterialCurrentPage(1);
+      }
+    }
+  }, [availableSubjects, materialSubjectFilter]);
+
+  useEffect(() => {
+    if (materialCurrentPage > 1 && materialCurrentPage > currentFilterTotalPages) {
+      setMaterialCurrentPage(Math.max(1, currentFilterTotalPages));
+    }
+  }, [currentFilterTotalPages, materialCurrentPage]);
+
   const loadLearningRecords = async () => {
     if (!user?.username) return;
 
@@ -643,7 +689,7 @@ function App() {
     setSubject(normalizedCourse);
     setMaterialSubjectFilter(normalizedCourse);
     setPage("profile");
-    await loadMaterials(normalizedCourse);
+    await loadMaterials("");
   };
 
   const openChatPageForCourse = (targetCourse, forceNew = false) => {
@@ -1146,7 +1192,7 @@ function App() {
     if (user?.username) {
       const timer = window.setTimeout(() => {
         loadChatHistory(user);
-        loadMaterials(materialSubjectFilter);
+        loadMaterials("");
       }, 0);
 
       return () => window.clearTimeout(timer);
@@ -1384,7 +1430,7 @@ function App() {
         if (["success", "failed", "partial"].includes(data.parse_status)) {
           clearMaterialPoller(localId);
           if (data.parse_status === "success" && Number(data.chunk_count || 0) > 0) {
-            await loadMaterials(materialSubjectFilter);
+            await loadMaterials("");
           }
         }
       } catch (error) {
@@ -1431,7 +1477,7 @@ function App() {
       if (["pending", "parsing"].includes(uploaded.parse_status)) {
         pollMaterialStatus(localId, uploaded.material_id);
       } else if (uploaded.parse_status === "success" && Number(uploaded.chunk_count || 0) > 0) {
-        await loadMaterials(materialSubjectFilter);
+        await loadMaterials("");
       }
     } catch (error) {
       console.error("Failed to upload selected file:", error);
@@ -1664,7 +1710,7 @@ function App() {
 
       refreshChatSessionState(data.session);
       await loadChatHistory(user);
-      await loadMaterials(materialSubjectFilter);
+      await loadMaterials("");
 
       setMessage("");
       clearAllMaterialPollers();
@@ -1736,7 +1782,7 @@ function App() {
       );
 
       if (!materialSubjectFilter || materialSubjectFilter === selectedSubject) {
-        await loadMaterials(materialSubjectFilter);
+        await loadMaterials("");
       }
     } catch (error) {
       console.error("Failed to add attachment to library:", error);
@@ -1914,9 +1960,22 @@ function App() {
               <div className="panel-title-row">
                 <div>
                   <div className="section-eyebrow">个人资料库</div>
-                  <h2>我的资料</h2>
+                  <h2>
+                    我的资料
+                    {currentFilterSubject && (
+                      <span className="material-count">
+                        {" "}（{currentFilterItems.length} 条）
+                      </span>
+                    )}
+                  </h2>
                 </div>
                 <div className="header-actions">
+                  <button
+                    className="ghost-button compact"
+                    onClick={() => setMaterialListCollapsed((prev) => !prev)}
+                  >
+                    {materialListCollapsed ? "展开资料列表" : "收起资料列表"}
+                  </button>
                   <button
                     className="ghost-button compact"
                     onClick={reindexLibrary}
@@ -1926,7 +1985,10 @@ function App() {
                   </button>
                   <button
                     className="ghost-button compact"
-                    onClick={() => loadMaterials(materialSubjectFilter)}
+                    onClick={() => {
+                      setMaterialCurrentPage(1);
+                      loadMaterials("");
+                    }}
                   >
                     刷新
                   </button>
@@ -1941,19 +2003,23 @@ function App() {
                 <label className="field-label">按学科筛选</label>
                 <select
                   className="field"
-                  value={materialSubjectFilter}
+                  value={currentFilterSubject}
                   onChange={(e) => {
                     const next = e.target.value;
                     setMaterialSubjectFilter(next);
-                    loadMaterials(next);
+                    setMaterialCurrentPage(1);
+                    setMaterialListCollapsed(false);
                   }}
                 >
-                  <option value="">全部学科</option>
-                  {COURSE_OPTIONS.map((item) => (
-                    <option key={item} value={item}>
-                      {getSubjectLabel(item)}
-                    </option>
-                  ))}
+                  {availableSubjects.length === 0 ? (
+                    <option value="">暂无资料</option>
+                  ) : (
+                    availableSubjects.map((item) => (
+                      <option key={item} value={item}>
+                        {getSubjectLabel(item)}
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
 
@@ -1962,19 +2028,23 @@ function App() {
                 <div className="library-search-controls">
                   <input
                     className="field"
-                    placeholder="搜索我的资料..."
+                    placeholder="在当前学科下搜索资料..."
                     value={materialSearchQuery}
                     onChange={(e) => handleMaterialSearchChange(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();
-                        searchMaterials(materialSearchQuery, materialSubjectFilter);
+                        setMaterialCurrentPage(1);
+                        searchMaterials(materialSearchQuery, currentFilterSubject);
                       }
                     }}
                   />
                   <button
                     className="ghost-button compact"
-                    onClick={() => searchMaterials(materialSearchQuery, materialSubjectFilter)}
+                    onClick={() => {
+                      setMaterialCurrentPage(1);
+                      searchMaterials(materialSearchQuery, currentFilterSubject);
+                    }}
                     disabled={!trimmedMaterialSearchQuery || materialSearchLoading}
                   >
                     搜索
@@ -1986,10 +2056,12 @@ function App() {
                 materialSearchLoading ? (
                   <div className="empty-inline">正在搜索...</div>
                 ) : materialSearchResults.length === 0 ? (
-                  <div className="empty-inline">未找到相关资料。</div>
+                  <div className="empty-inline">
+                    {getSubjectLabel(currentFilterSubject)} 学科下没有匹配的资料。
+                  </div>
                 ) : (
                   <div className="search-results">
-                    {materialSearchResults.map((item) => (
+                    {paginatedSearchResults.map((item) => (
                       <div key={`${item.material_id}-${item.chunk_id}`} className="search-result-card">
                         <div className="material-item-head">
                           <span className="subject-pill small">
@@ -2012,53 +2084,103 @@ function App() {
                         </div>
                       </div>
                     ))}
+                    <div className="pagination-bar">
+                      <button
+                        className="tiny-button"
+                        disabled={safeSearchPage <= 1}
+                        onClick={() => setMaterialCurrentPage((p) => Math.max(1, p - 1))}
+                      >
+                        上一页
+                      </button>
+                      <span className="pagination-info">
+                        {safeSearchPage} / {searchTotalPages}
+                      </span>
+                      <button
+                        className="tiny-button"
+                        disabled={safeSearchPage >= searchTotalPages}
+                        onClick={() => setMaterialCurrentPage((p) => Math.min(searchTotalPages, p + 1))}
+                      >
+                        下一页
+                      </button>
+                    </div>
                   </div>
                 )
               ) : materialsLoading ? (
                 <div className="empty-inline">资料加载中...</div>
-              ) : groupedMaterials.length === 0 ||
-                groupedMaterials.every((group) => group.items.length === 0) ? (
+              ) : groupedMaterials.length === 0 ? (
                 <div className="empty-inline">
                   暂无资料，请先在聊天页上传图片或 PDF。
                 </div>
+              ) : materialListCollapsed ? (
+                <div className="library-group">
+                  <div className="library-group-title">
+                    {getSubjectLabel(currentFilterSubject)}
+                    <span className="material-count-sub">
+                      {" "}（{currentFilterItems.length} 条资料已收起）
+                    </span>
+                  </div>
+                </div>
               ) : (
                 <div className="library-groups">
-                  {groupedMaterials.map((group) => (
-                    <div key={group.subject} className="library-group">
-                      <div className="library-group-title">{getSubjectLabel(group.subject)}</div>
-                      <div className="material-list material-list--profile">
-                        {group.items.map((material) => (
-                          <div key={material.id} className="material-item material-item--profile">
-                            <div className="material-item-head">
-                              <span className="subject-pill small">
-                                {getSubjectLabel(material.subject)}
-                              </span>
-                              <span className="muted-text">
-                                {getFileTypeLabel(material.file_type)}
-                              </span>
-                            </div>
-                            <div className="material-title">{material.original_filename}</div>
-                            <div className="material-summary">{material.summary}</div>
-                            <div className="history-meta">{formatDate(material.created_at)}</div>
-                            <div className="material-actions">
-                              <button
-                                className="tiny-button"
-                                onClick={() => openMaterialDetail(material.id)}
-                              >
-                                查看
-                              </button>
-                              <button
-                                className="tiny-button danger"
-                                onClick={() => deleteMaterial(material.id)}
-                              >
-                                删除
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                  <div className="library-group">
+                    <div className="library-group-title">
+                      {getSubjectLabel(currentFilterSubject)}
                     </div>
-                  ))}
+                    <div className="material-list material-list--profile">
+                      {paginatedFilterItems.map((material) => (
+                        <div key={material.id} className="material-item material-item--profile">
+                          <div className="material-item-head">
+                            <span className="subject-pill small">
+                              {getSubjectLabel(material.subject)}
+                            </span>
+                            <span className="muted-text">
+                              {getFileTypeLabel(material.file_type)}
+                            </span>
+                          </div>
+                          <div className="material-title">{material.original_filename}</div>
+                          <div className="material-summary">{material.summary}</div>
+                          <div className="history-meta">{formatDate(material.created_at)}</div>
+                          <div className="material-actions">
+                            <button
+                              className="tiny-button"
+                              onClick={() => openMaterialDetail(material.id)}
+                            >
+                              查看
+                            </button>
+                            <button
+                              className="tiny-button danger"
+                              onClick={() => deleteMaterial(material.id)}
+                            >
+                              删除
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {currentFilterTotalPages > 1 && (
+                      <div className="pagination-bar">
+                        <button
+                          className="tiny-button"
+                          disabled={safeCurrentPage <= 1}
+                          onClick={() => setMaterialCurrentPage((p) => Math.max(1, p - 1))}
+                        >
+                          上一页
+                        </button>
+                        <span className="pagination-info">
+                          {safeCurrentPage} / {currentFilterTotalPages}
+                        </span>
+                        <button
+                          className="tiny-button"
+                          disabled={safeCurrentPage >= currentFilterTotalPages}
+                          onClick={() =>
+                            setMaterialCurrentPage((p) => Math.min(currentFilterTotalPages, p + 1))
+                          }
+                        >
+                          下一页
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 

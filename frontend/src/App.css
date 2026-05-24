@@ -398,13 +398,44 @@ select.field:focus {
   line-height: 1.6;
   margin: 8px 0 10px;
   font-size: 14px;
-  white-space: pre-wrap;
-  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .material-actions {
   justify-content: flex-end;
   margin-top: 10px;
+}
+
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(20, 33, 61, 0.06);
+}
+
+.pagination-info {
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.material-count {
+  font-size: 14px;
+  font-weight: 400;
+  color: #64748b;
+}
+
+.material-count-sub {
+  font-size: 12px;
+  font-weight: 400;
+  color: #94a3b8;
 }
 
 .material-detail-card {
