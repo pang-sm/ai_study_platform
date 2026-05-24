@@ -412,22 +412,35 @@ function App() {
     safeSearchPage * PAGE_SIZE
   );
 
+  const validAttachedFiles = useMemo(() => {
+    return selectedFiles.filter(
+      (item) =>
+        (item.parse_status === "success" || item.parse_status === "partial") &&
+        Number(item.chunk_count || 0) > 0
+    );
+  }, [selectedFiles]);
+
+  const hasAnyParsing = useMemo(() => {
+    return selectedFiles.some(
+      (item) => item.uploading || item.parse_status === "waiting" || item.parse_status === "pending" || item.parse_status === "parsing"
+    );
+  }, [selectedFiles]);
+
+  const allFilesFailed = useMemo(() => {
+    return selectedFiles.length > 0 && selectedFiles.every(
+      (item) => item.parse_status === "failed"
+    );
+  }, [selectedFiles]);
+
   const canSendMessage = useMemo(() => {
     if (loading) return false;
     if (selectedFiles.length > 0) {
-      return (
-        Boolean(trimmedMessage) &&
-        selectedFiles.every(
-          (item) => item.parse_status === "success" && Number(item.chunk_count || 0) > 0
-        )
-      );
+      if (!trimmedMessage) return false;
+      if (hasAnyParsing) return false;
+      return validAttachedFiles.length > 0;
     }
     return Boolean(trimmedMessage);
-  }, [loading, selectedFiles, trimmedMessage]);
-
-  const fileLabel = selectedFile
-    ? `${getFileTypeLabel(selectedFile.file_type || selectedFile.type)}：${selectedFile.name}`
-    : "";
+  }, [loading, selectedFiles, trimmedMessage, hasAnyParsing, validAttachedFiles]);
 
   const createLocalMessage = (messageData) => ({
     clientId: `local-message-${Date.now()}-${localMessageCounterRef.current++}`,
@@ -466,23 +479,26 @@ function App() {
 
   const getSelectedFileStatusText = (item) => {
     if (item.uploading) return "上传中";
+    if (item.parse_status === "waiting") return "等待上传";
     if (item.parse_status === "success" && Number(item.chunk_count || 0) > 0) {
       return "已解析，可提问";
     }
-    if (item.parse_status === "failed") return "解析失败，请删除后重新上传";
-    if (item.parse_status === "partial") return "仅部分解析成功，请删除后重新上传";
+    if (item.parse_status === "failed") {
+      if (item.parse_error && item.parse_error.includes("超时")) return "解析超时";
+      return "解析失败";
+    }
+    if (item.parse_status === "partial") return "部分解析";
     if (item.parse_status === "parsing") return "解析中";
     return "等待解析";
   };
 
   const selectedFilesBlockReason = useMemo(() => {
     if (selectedFiles.length === 0) return "";
-    if (!trimmedMessage) return "请输入问题";
-    const blocked = selectedFiles.some(
-      (item) => item.parse_status !== "success" || Number(item.chunk_count || 0) <= 0
-    );
-    return blocked ? "资料正在解析中，解析完成后即可提问。" : "";
-  }, [selectedFiles, trimmedMessage]);
+    if (!trimmedMessage) return "请先输入你想基于这些资料提问的问题。";
+    if (hasAnyParsing) return "资料还在解析中，请稍后再提问。";
+    if (allFilesFailed) return "本轮资料没有可用于 AI 问答的知识索引，但原文件可能已保存到资料库。";
+    return "";
+  }, [selectedFiles, trimmedMessage, hasAnyParsing, allFilesFailed]);
 
   useEffect(() => {
     return () => {
@@ -1666,20 +1682,10 @@ function App() {
   };
 
   const handleFileChange = (event) => {
-    const file = event.target.files?.[0];
+    const files = Array.from(event.target.files || []);
     event.target.value = "";
 
-    if (!file) return;
-
-    if (!isAllowedFile(file)) {
-      alert("不支持的文件类型，请选择 PDF、图片、Word(docx)、PPT(pptx)、TXT、Markdown 或代码文件。");
-      return;
-    }
-
-    if (file.size > MAX_FILE_SIZE) {
-      alert("文件大小不能超过 20MB。");
-      return;
-    }
+    if (files.length === 0) return;
 
     if (!user?.username) {
       setTip("请先登录。");
@@ -1687,21 +1693,53 @@ function App() {
       return;
     }
 
-    const localId = `upload-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    setSelectedFiles((prev) => [
-      ...prev,
-      {
+    const skippedReasons = [];
+    const fileEntries = [];
+
+    for (const file of files) {
+      if (!isAllowedFile(file)) {
+        skippedReasons.push(`${file.name}（文件类型不支持）`);
+        continue;
+      }
+      if (file.size > MAX_FILE_SIZE) {
+        skippedReasons.push(`${file.name}（超过 20MB）`);
+        continue;
+      }
+      const localId = `upload-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      fileEntries.push({
         localId,
-        original_filename: file.name,
-        file_type: file.type,
-        parse_status: "pending",
-        parse_progress: 0,
-        chunk_count: 0,
-        uploading: true,
-      },
-    ]);
-    setTip("");
-    uploadSelectedFile(file, localId);
+        file,
+        entry: {
+          localId,
+          original_filename: file.name,
+          file_type: file.type,
+          file_size: file.size,
+          parse_status: "waiting",
+          parse_progress: 0,
+          chunk_count: 0,
+          uploading: false,
+        },
+      });
+    }
+
+    if (skippedReasons.length > 0) {
+      setTip(`以下文件被跳过：${skippedReasons.join("、")}`);
+    } else {
+      setTip("");
+    }
+
+    if (fileEntries.length === 0) return;
+
+    setSelectedFiles((prev) => [...prev, ...fileEntries.map((e) => e.entry)]);
+
+    for (const { file, entry } of fileEntries) {
+      setSelectedFiles((prev) =>
+        prev.map((item) =>
+          item.localId === entry.localId ? { ...item, uploading: true, parse_status: "pending" } : item
+        )
+      );
+      uploadSelectedFile(file, entry.localId);
+    }
   };
 
   const removeSelectedFile = (localId) => {
@@ -1754,15 +1792,13 @@ function App() {
 
   const sendTextMessage = async () => {
     const currentMessage = trimmedMessage;
-    const attachedFiles = selectedFiles
-      .filter((item) => item.material_id)
-      .map((item) => ({
-        material_id: item.material_id,
-        original_filename: item.original_filename,
-        file_type: item.file_type,
-        parse_status: item.parse_status,
-        chunk_count: item.chunk_count,
-      }));
+    const attachedFiles = validAttachedFiles.map((item) => ({
+      material_id: item.material_id,
+      original_filename: item.original_filename,
+      file_type: item.file_type,
+      parse_status: item.parse_status,
+      chunk_count: item.chunk_count,
+    }));
     setMessages((prev) => [
       ...prev,
       createLocalMessage({ role: "user", content: currentMessage, attachments: attachedFiles }),
@@ -2755,29 +2791,41 @@ function App() {
             </div>
 
             <div className="composer-panel composer-panel--compact">
-              {selectedFile && (
-                <div className="attachment-chip-row">
-                  <div className="attachment-chip">
-                    <span className="attachment-chip-label">{fileLabel}</span>
-                    <span className="attachment-chip-status">
-                      {getSelectedFileStatusText(selectedFile)}
-                      {Number(selectedFile.parse_progress || 0) > 0
-                        ? ` ${Math.round(Number(selectedFile.parse_progress || 0))}%`
-                        : ""}
-                    </span>
-                    <button
-                      className="attachment-chip-remove"
-                      onClick={() => removeSelectedFile(selectedFile.localId)}
-                      type="button"
+              {selectedFiles.length > 0 && (
+                <div className="attachment-cards-row">
+                  {selectedFiles.map((item) => (
+                    <div
+                      key={item.localId}
+                      className={`attachment-file-card ${item.parse_status === "failed" ? "attachment-file-card--failed" : ""}`}
                     >
-                      ×
-                    </button>
-                  </div>
+                      <div className="attachment-file-card-header">
+                        <span className="attachment-file-card-type">
+                          {getFileTypeLabel(item.file_type || item.type)}
+                        </span>
+                        <button
+                          className="attachment-file-card-remove"
+                          onClick={() => removeSelectedFile(item.localId)}
+                          type="button"
+                          title="从本次提问移除"
+                        >
+                          ×
+                        </button>
+                      </div>
+                      <div className="attachment-file-card-name" title={item.original_filename}>
+                        {item.original_filename}
+                      </div>
+                      <div className="attachment-file-card-meta">
+                        <span>{formatFileSize(item.file_size)}</span>
+                        <span className={`attachment-file-card-status attachment-file-card-status--${item.parse_status}`}>
+                          {getSelectedFileStatusText(item)}
+                          {Number(item.parse_progress || 0) > 0 && item.parse_status === "parsing"
+                            ? ` ${Math.round(Number(item.parse_progress || 0))}%`
+                            : ""}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              )}
-
-              {false && (
-                <div className="composer-hint">请先输入问题后再发送文件。</div>
               )}
 
               {selectedFilesBlockReason && (
@@ -2790,7 +2838,7 @@ function App() {
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={loading}
-                  title="选择图片或 PDF"
+                  title="选择文件"
                 >
                   +
                 </button>
@@ -2798,6 +2846,7 @@ function App() {
                 <input
                   ref={fileInputRef}
                   type="file"
+                  multiple
                   accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.pptx,.txt,.md,.markdown,.py,.java,.c,.cpp,.h,.hpp,.js,.jsx,.ts,.tsx,.html,.htm,.css,.json,.xml,.yaml,.yml,.sql,.sh,.bash,.go,.rs,.php,.rb"
                   onChange={handleFileChange}
                   className="hidden-file-input"
@@ -2806,8 +2855,8 @@ function App() {
                 <input
                   className="field composer-input"
                   placeholder={
-                    selectedFile
-                      ? "请输入你想针对该文件提问的问题"
+                    selectedFiles.length > 0
+                      ? "请输入你想基于这些资料提问的问题"
                       : "输入你的问题"
                   }
                   value={message}

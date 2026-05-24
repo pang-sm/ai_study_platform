@@ -1484,6 +1484,121 @@ select.field:focus {
   font-size: 13px;
 }
 
+/* ── 多文件卡片 ── */
+
+.attachment-cards-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.attachment-file-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  max-width: 220px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  flex-shrink: 0;
+}
+
+.attachment-file-card--failed {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.attachment-file-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.attachment-file-card-type {
+  border-radius: 4px;
+  background: #eff6ff;
+  color: #1e40af;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+}
+
+.attachment-file-card--failed .attachment-file-card-type {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.attachment-file-card-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+  color: #1e293b;
+}
+
+.attachment-file-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: #64748b;
+}
+
+.attachment-file-card-status {
+  font-weight: 600;
+}
+
+.attachment-file-card-status--success {
+  color: #059669;
+}
+
+.attachment-file-card-status--partial {
+  color: #d97706;
+}
+
+.attachment-file-card-status--parsing,
+.attachment-file-card-status--pending {
+  color: #2563eb;
+}
+
+.attachment-file-card-status--waiting {
+  color: #64748b;
+}
+
+.attachment-file-card-status--failed {
+  color: #dc2626;
+}
+
+.attachment-file-card-remove {
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.08);
+  color: #475569;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.attachment-file-card-remove:hover {
+  background: rgba(220, 38, 38, 0.15);
+  color: #b91c1c;
+}
+
+.attachment-file-card--failed .attachment-file-card-remove:hover {
+  background: rgba(220, 38, 38, 0.25);
+}
+
 .dashboard-panel {
   gap: 18px;
 }
