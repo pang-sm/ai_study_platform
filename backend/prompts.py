@@ -209,7 +209,7 @@ def detect_question_type(question: str | None) -> str:
     return "general"
 
 
-def _build_rag_instruction(rag_chunks: list[dict] | None) -> str:
+def _build_rag_instruction(rag_chunks: list[dict] | None, is_attachment: bool = False) -> str:
     if not rag_chunks:
         return (
             "当前没有命中用户资料库片段。请正常回答；如果这个问题明显依赖课程资料，"
@@ -217,8 +217,10 @@ def _build_rag_instruction(rag_chunks: list[dict] | None) -> str:
         )
 
     blocks = []
-    for index, item in enumerate(rag_chunks[:4], start=1):
+    filenames = set()
+    for index, item in enumerate(rag_chunks[:6], start=1):
         filename = item.get("source_filename") or item.get("filename") or "未命名资料"
+        filenames.add(filename)
         subject = item.get("subject") or "未分类"
         file_type = item.get("file_type") or "未知类型"
         score = item.get("score")
@@ -230,13 +232,28 @@ def _build_rag_instruction(rag_chunks: list[dict] | None) -> str:
             f"片段：{snippet or '无可用片段'}"
         )
 
-    return (
-        "本次回答可以参考用户个人资料库。请优先根据资料库片段回答，并在回答中自然说明“根据你资料库中的内容”。\n"
-        "如果资料片段不足以完整回答，请明确说明“资料中没有完整覆盖，我补充解释如下”。\n"
-        "不要编造资料中不存在的内容，不要把资料全文原样复制出来。\n"
-        "本次可参考的资料片段如下：\n"
-        + "\n\n".join(blocks)
-    )
+    if is_attachment:
+        file_list = "、".join(sorted(filenames))
+        header = (
+            f"本轮用户明确上传了以下文件作为讨论对象：{file_list}。\n"
+            "用户的所有问题（包括“解读一下”“总结一下”“分析一下”“讲讲”“重点是什么”等短指令）"
+            "都必须默认理解为针对这些文件的操作。\n"
+            "绝对不要追问“没有具体对象”“请说明你想了解什么”等。\n"
+            "请优先根据这些文件的内容回答，并在回答中自然提及文件名。\n"
+            "如果文件内容不足以完整回答，先基于文件已有内容给出分析，再说明哪些信息文件中未覆盖。\n"
+            "不要编造资料中不存在的内容，不要把资料全文原样复制出来。\n"
+            "本次可参考的资料片段如下：\n"
+        )
+    else:
+        header = (
+            "本次回答可以参考用户个人资料库。请优先根据资料库片段回答，"
+            "并在回答中自然说明“根据你资料库中的内容”。\n"
+            "如果资料片段不足以完整回答，请明确说明“资料中没有完整覆盖，我补充解释如下”。\n"
+            "不要编造资料中不存在的内容，不要把资料全文原样复制出来。\n"
+            "本次可参考的资料片段如下：\n"
+        )
+
+    return header + "\n\n".join(blocks)
 
 
 def build_system_prompt(
@@ -283,16 +300,15 @@ def build_system_prompt(
     if subject_guidance:
         sections.append(subject_guidance)
 
-    sections.append(_build_rag_instruction(rag_chunks))
+    sections.append(_build_rag_instruction(rag_chunks, is_attachment=is_pdf))
 
     if is_pdf:
         sections.append(
-            "如果当前问题来自上传资料问答，请严格依据提取出的资料文本回答；"
-            "若资料内容里没有答案，要直接说明资料未覆盖，不要编造。"
-            "资料可能是 PDF、图片、Word 文档、PPT 幻灯片、文本文件或代码文件，请根据内容特征合理判断。"
-            "如果是 Word 文档，注意区分标题（## 开头）和正文段落。"
-            "如果是 PPT，注意每页由【第 N 页】标记分隔，标题、正文、表格分别用不同行展示。"
-            "如果是代码文件，文件名和语言标注在开头，可直接分析代码逻辑、指出问题或提供改进建议。"
+            "用户本轮上传了资料文件。请严格依据资料提取出的文本回答。"
+            "用户的问题（即使是“解读一下”“总结一下”“分析一下”等简短指令）默认就是针对这些文件的。"
+            "绝对不要回复“没有具体对象”“请说明你想了解什么”“请问您想让我解读什么”等。"
+            "直接开始解读上传的文件内容。"
+            "若资料内容里没有覆盖用户的问题，要直接说明资料未覆盖，不要编造。"
         )
 
     if normalized_question:

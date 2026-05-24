@@ -2360,10 +2360,15 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
         rag_chunks=rag_chunks,
     )
 
+    user_content = req.message
+    if material_ids and selected_materials:
+        file_names = "、".join(m.original_filename for m in selected_materials)
+        user_content = f"【用户本轮上传文件：{file_names}】\n{req.message}"
+
     answer = call_deepseek(
         [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": req.message},
+            {"role": "user", "content": user_content},
         ]
     )
     references = [serialize_reference_item(item) for item in rag_chunks]
