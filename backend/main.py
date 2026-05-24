@@ -104,6 +104,27 @@ ALLOWED_UPLOAD_TYPES = {
     "image/png": "image",
     "image/jpeg": "image",
     "image/webp": "image",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
+    "text/plain": "text",
+    "text/markdown": "text",
+    "text/x-python": "code",
+    "text/x-java": "code",
+    "text/x-c": "code",
+    "text/x-c++": "code",
+    "text/javascript": "code",
+    "text/html": "code",
+    "text/css": "code",
+    "application/json": "code",
+    "text/xml": "code",
+    "application/xml": "code",
+    "text/x-sh": "code",
+    "text/x-sql": "code",
+    "application/x-yaml": "code",
+    "text/yaml": "code",
+    "text/x-go": "code",
+    "text/x-php": "code",
+    "text/x-ruby": "code",
 }
 
 ALLOWED_EXTENSIONS = {
@@ -112,6 +133,34 @@ ALLOWED_EXTENSIONS = {
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
     ".webp": "image/webp",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".txt": "text/plain",
+    ".md": "text/markdown",
+    ".markdown": "text/markdown",
+    ".py": "text/x-python",
+    ".java": "text/x-java",
+    ".c": "text/x-c",
+    ".cpp": "text/x-c++",
+    ".h": "text/x-c",
+    ".hpp": "text/x-c++",
+    ".js": "text/javascript",
+    ".jsx": "text/javascript",
+    ".ts": "text/javascript",
+    ".tsx": "text/javascript",
+    ".html": "text/html",
+    ".css": "text/css",
+    ".json": "application/json",
+    ".xml": "application/xml",
+    ".yaml": "application/x-yaml",
+    ".yml": "application/x-yaml",
+    ".sql": "text/x-sql",
+    ".sh": "text/x-sh",
+    ".bash": "text/x-sh",
+    ".go": "text/x-go",
+    ".rs": "text/x-rust",
+    ".php": "text/x-php",
+    ".rb": "text/x-ruby",
 }
 
 ALLOWED_AVATARS = {
@@ -249,22 +298,44 @@ def sanitize_filename(filename: str) -> str:
 
 
 def validate_upload(file: UploadFile, file_bytes: bytes):
+    from document_parser import detect_material_type, MAX_NEW_TYPE_SIZE, LEGACY_EXTENSIONS
+
     suffix = Path(file.filename or "").suffix.lower()
     expected_content_type = ALLOWED_EXTENSIONS.get(suffix)
+    material_type = detect_material_type(file.filename or "", file.content_type)
 
-    if len(file_bytes) > MAX_UPLOAD_SIZE:
-        raise HTTPException(status_code=400, detail="文件不能超过 10MB")
+    if suffix in LEGACY_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=LEGACY_EXTENSIONS[suffix])
 
     if suffix not in ALLOWED_EXTENSIONS:
-        raise HTTPException(status_code=400, detail="仅支持 png、jpg、jpeg、webp、pdf 文件")
+        raise HTTPException(
+            status_code=400,
+            detail="不支持该文件格式，仅支持 PDF、图片、Word(docx)、PPT(pptx)、TXT、Markdown 和常见代码文件。",
+        )
 
-    if file.content_type not in ALLOWED_UPLOAD_TYPES:
-        raise HTTPException(status_code=400, detail="文件类型不支持")
+    if material_type in ("DOCX", "PPTX", "TEXT", "CODE"):
+        size_limit = MAX_NEW_TYPE_SIZE
+    else:
+        size_limit = MAX_UPLOAD_SIZE
 
-    if expected_content_type != file.content_type and not (
+    if len(file_bytes) > size_limit:
+        limit_mb = size_limit // (1024 * 1024)
+        raise HTTPException(status_code=400, detail=f"文件过大，当前类型最大支持 {limit_mb}MB，请压缩或拆分后上传。")
+
+    if material_type in ("TEXT", "CODE") and suffix not in {".pdf", ".png", ".jpg", ".jpeg", ".webp", ".docx", ".pptx"}:
+        return
+
+    if file.content_type not in ALLOWED_UPLOAD_TYPES and not (
+        material_type in ("TEXT", "CODE")
+    ):
+        if material_type not in ("PDF", "IMAGE", "DOCX", "PPTX"):
+            raise HTTPException(status_code=400, detail="文件类型不支持")
+
+    if expected_content_type and expected_content_type != file.content_type and not (
         expected_content_type == "image/jpeg" and file.content_type == "image/jpg"
     ):
-        raise HTTPException(status_code=400, detail="文件扩展名与类型不匹配")
+        if material_type not in ("TEXT", "CODE", "DOCX", "PPTX"):
+            raise HTTPException(status_code=400, detail="文件扩展名与类型不匹配")
 
 
 def save_uploaded_file(username: str, original_filename: str, file_bytes: bytes) -> str:
@@ -606,8 +677,18 @@ def summarize_material(subject: str, extracted_text: str):
     )
 
 
+FILE_TYPE_LABELS = {
+    "image": "OCR识别文本",
+    "pdf": "PDF提取文本",
+    "docx": "Word文档提取文本",
+    "pptx": "PPT提取文本",
+    "text": "文本文件内容",
+    "code": "代码文件内容",
+}
+
+
 def build_material_question_prompt(file_type: str, extracted_text: str, question: str):
-    label = "OCR识别文本" if file_type == "image" else "PDF提取文本"
+    label = FILE_TYPE_LABELS.get(file_type, "资料提取文本")
     default_question = "请根据资料内容做简要讲解和总结。"
 
     return f"""
@@ -1686,6 +1767,29 @@ def parse_material_in_background(material_id: int):
                     qwen_used=False,
                 )
                 return
+        elif material.file_type in ("docx", "pptx", "text", "code"):
+            from document_parser import extract_supported_file_text
+            try:
+                result = extract_supported_file_text(file_bytes, material.original_filename)
+                extracted_text = result["text"]
+            except ValueError as exc:
+                update_material_parse_state(
+                    db,
+                    material_id,
+                    parse_status="failed",
+                    parse_error=str(exc),
+                    parse_progress=0,
+                )
+                return
+            if not (extracted_text or "").strip():
+                update_material_parse_state(
+                    db,
+                    material_id,
+                    parse_status="failed",
+                    parse_error="文件内容为空，无法解析。",
+                    parse_progress=0,
+                )
+                return
         else:
             update_material_parse_state(
                 db,
@@ -1792,7 +1896,7 @@ def create_material_from_message(
 
 
 def create_attachment_user_message_content(subject: str, original_filename: str, file_type: str, question: str, extracted_text: str):
-    label = "OCR识别文本" if file_type == "image" else "PDF提取文本"
+    label = FILE_TYPE_LABELS.get(file_type, "资料提取文本")
     content = [
         f"上传资料：{original_filename}",
         f"学科：{subject}",
@@ -1820,10 +1924,28 @@ async def handle_material_upload(
     validate_upload(file, file_bytes)
 
     original_filename = file.filename or "未命名文件"
-    file_type = ALLOWED_UPLOAD_TYPES[file.content_type]
+    file_type = ALLOWED_UPLOAD_TYPES.get(file.content_type, "code")
+    from document_parser import detect_material_type, extract_supported_file_text
+
+    material_type = detect_material_type(original_filename, file.content_type)
     parse_metadata = get_default_parse_metadata()
     clean_question = (question or "").strip()
-    if file_type == "image":
+
+    if material_type in ("DOCX", "PPTX", "TEXT", "CODE"):
+        try:
+            result = extract_supported_file_text(file_bytes, original_filename, file.content_type)
+            extracted_text = result["text"]
+            file_type = result["material_type"].lower()
+            parse_metadata["parse_status"] = "success"
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+        if not extracted_text or not extracted_text.strip():
+            raise HTTPException(status_code=400, detail="文件内容为空，请检查后重试。")
+
+        stored_file_path = save_uploaded_file(user.username, original_filename, file_bytes)
+
+    elif file_type == "image":
         local_ocr_text = extract_image_text(file_bytes)
         extracted_text = local_ocr_text
         stored_file_path = save_uploaded_file(user.username, original_filename, file_bytes)

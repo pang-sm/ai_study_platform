@@ -13,7 +13,7 @@ import {
 const USER_STORAGE_KEY = "ai_study_platform_user";
 const ACTIVE_SESSION_STORAGE_KEY = "ai_study_platform_active_session_id";
 const API_BASE = "/api";
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
+const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
 const AVATARS = [
   { id: "avatar_1", label: "A1", background: "#2563eb" },
@@ -73,6 +73,27 @@ const ALLOWED_FILE_TYPES = [
   "image/png",
   "image/jpeg",
   "image/webp",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "text/plain",
+  "text/markdown",
+  "text/x-python",
+  "text/x-java",
+  "text/x-c",
+  "text/x-c++",
+  "text/javascript",
+  "text/html",
+  "text/css",
+  "application/json",
+  "application/xml",
+  "text/xml",
+  "text/x-sh",
+  "text/x-sql",
+  "application/x-yaml",
+  "text/yaml",
+  "text/x-go",
+  "text/x-php",
+  "text/x-ruby",
 ];
 
 const RECORD_TYPE_OPTIONS = [
@@ -129,6 +150,31 @@ function getFileTypeLabel(type) {
     normalizedType.includes("webp")
   ) {
     return "图片";
+  }
+  if (normalizedType.includes("docx") || normalizedType.includes("word")) return "Word";
+  if (normalizedType.includes("pptx") || normalizedType.includes("ppt") || normalizedType.includes("powerpoint") || normalizedType.includes("presentation")) return "PPT";
+  if (normalizedType.includes("markdown") || normalizedType.includes("md")) return "Markdown";
+  if (normalizedType.includes("text") || normalizedType === "txt") return "文本";
+  if (
+    normalizedType.includes("code") ||
+    normalizedType.includes("python") ||
+    normalizedType.includes("java") ||
+    normalizedType.includes("javascript") ||
+    normalizedType.includes("html") ||
+    normalizedType.includes("css") ||
+    normalizedType.includes("json") ||
+    normalizedType.includes("xml") ||
+    normalizedType.includes("yaml") ||
+    normalizedType.includes("sql") ||
+    normalizedType.includes("shell") ||
+    normalizedType.includes("bash") ||
+    normalizedType.includes("go") ||
+    normalizedType.includes("php") ||
+    normalizedType.includes("ruby") ||
+    normalizedType.includes("c++") ||
+    normalizedType.includes("rust")
+  ) {
+    return "代码";
   }
 
   return type || "";
@@ -1503,12 +1549,12 @@ function App() {
     if (!file) return;
 
     if (!ALLOWED_FILE_TYPES.includes(file.type)) {
-      alert("不支持的文件类型，请选择 PDF、PNG、JPG/JPEG 或 WEBP。");
+      alert("不支持的文件类型，请选择 PDF、图片、Word(docx)、PPT(pptx)、TXT、Markdown 或代码文件。");
       return;
     }
 
     if (file.size > MAX_FILE_SIZE) {
-      alert("文件大小不能超过 10MB。");
+      alert("文件大小不能超过 20MB。");
       return;
     }
 
@@ -2678,7 +2724,7 @@ function App() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".pdf,image/png,image/jpeg,image/webp"
+                  accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.pptx,.txt,.md,.markdown,.py,.java,.c,.cpp,.h,.hpp,.js,.jsx,.ts,.tsx,.html,.css,.json,.xml,.yaml,.yml,.sql,.sh,.bash,.go,.rs,.php,.rb"
                   onChange={handleFileChange}
                   className="hidden-file-input"
                 />
