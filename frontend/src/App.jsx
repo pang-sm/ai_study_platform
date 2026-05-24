@@ -1196,6 +1196,21 @@ function App() {
     }
   };
 
+  const previewMaterial = (material) => {
+    if (!user?.username || !material?.id) return;
+    if (!material.can_preview || !material.preview_url) {
+      setTip("此类型暂不支持网页内预览，请下载原文件查看。");
+      return;
+    }
+
+    const separator = material.preview_url.includes("?") ? "&" : "?";
+    const url = `${API_BASE}${material.preview_url}${separator}username=${encodeURIComponent(user.username)}`;
+    const newWindow = window.open(url, "_blank", "noopener,noreferrer");
+    if (!newWindow) {
+      setTip("浏览器阻止了新窗口，请允许弹窗后重试，或使用下载原文件。");
+    }
+  };
+
   const reindexLibrary = async () => {
     if (!user?.username) return;
 
@@ -1275,7 +1290,7 @@ function App() {
       return;
     }
 
-    const confirmed = window.confirm(`确认删除“${session.title}”吗？`);
+    const confirmed = window.confirm(`确认删除"${session.title}"吗？`);
     if (!confirmed) return;
 
     try {
@@ -2275,9 +2290,10 @@ function App() {
                           <div className="material-actions">
                             <button
                               className="tiny-button"
-                              onClick={() => openMaterialDetail(material.id)}
+                              onClick={() => previewMaterial(material)}
+                              disabled={!material.can_preview}
                             >
-                              查看
+                              查看原文件
                             </button>
                             <button
                               className="tiny-button"
@@ -2285,6 +2301,12 @@ function App() {
                               disabled={!material.can_download}
                             >
                               下载原文件
+                            </button>
+                            <button
+                              className="tiny-button"
+                              onClick={() => openMaterialDetail(material.id)}
+                            >
+                              查看 AI 索引文本
                             </button>
                             <button
                               className="tiny-button danger"
@@ -2329,7 +2351,7 @@ function App() {
                 </div>
                 {!selectedMaterialDetail ? (
                   <div className="empty-inline">
-                    点击资料卡片上的“查看”可查看摘要和提取文本。
+                    点击"查看原文件"在新标签页预览原文件；点击"查看 AI 索引文本"查看解析摘要。
                   </div>
                 ) : (
                   <>
@@ -2350,18 +2372,28 @@ function App() {
                     <div className="material-actions material-actions--detail">
                       <button
                         className="tiny-button"
+                        onClick={() => previewMaterial(selectedMaterialDetail)}
+                        disabled={!selectedMaterialDetail.can_preview}
+                      >
+                        查看原文件
+                      </button>
+                      <button
+                        className="tiny-button"
                         onClick={() => downloadMaterial(selectedMaterialDetail)}
                         disabled={!selectedMaterialDetail.can_download}
                       >
                         下载原文件
                       </button>
                     </div>
+                    <div className="material-status-note">
+                      以下内容是系统从原文件中解析出的 AI 知识索引，用于问答和引用，不等同于原文件排版。
+                    </div>
                     <div className="result-block">
                       <strong>摘要</strong>
                       <p>{selectedMaterialDetail.summary}</p>
                     </div>
                     <div className="result-block">
-                      <strong>提取文本</strong>
+                      <strong>AI 知识索引文本</strong>
                       <pre>{selectedMaterialDetail.extracted_text}</pre>
                     </div>
                   </>

@@ -670,6 +670,19 @@ def get_material_download_metadata(material: models.StudyMaterial):
     }
 
 
+PREVIEWABLE_FILE_TYPES = frozenset({"pdf", "image", "txt", "text", "markdown", "code"})
+
+
+def get_material_preview_metadata(material: models.StudyMaterial):
+    file_path = get_material_file_path(material)
+    file_type = (material.file_type or "").lower().strip()
+    can_preview = file_path is not None and file_type in PREVIEWABLE_FILE_TYPES
+    return {
+        "can_preview": can_preview,
+        "preview_url": f"/materials/{material.id}/preview" if can_preview else None,
+    }
+
+
 def call_deepseek(messages: list[dict]):
     try:
         response = client.chat.completions.create(
@@ -867,6 +880,7 @@ def serialize_message(message: models.ChatMessage):
 
 def serialize_material_list_item(material: models.StudyMaterial):
     download_metadata = get_material_download_metadata(material)
+    preview_metadata = get_material_preview_metadata(material)
     return {
         "id": material.id,
         "subject": material.subject,
@@ -891,11 +905,13 @@ def serialize_material_list_item(material: models.StudyMaterial):
         "updated_at": serialize_datetime(material.updated_at),
         "source_message_id": material.source_message_id,
         **download_metadata,
+        **preview_metadata,
     }
 
 
 def serialize_material_detail(material: models.StudyMaterial):
     download_metadata = get_material_download_metadata(material)
+    preview_metadata = get_material_preview_metadata(material)
     return {
         "id": material.id,
         "username": material.username,
@@ -922,6 +938,7 @@ def serialize_material_detail(material: models.StudyMaterial):
         "created_at": serialize_datetime(material.created_at),
         "updated_at": serialize_datetime(material.updated_at),
         **download_metadata,
+        **preview_metadata,
     }
 
 
@@ -938,6 +955,7 @@ def serialize_material_status(material: models.StudyMaterial):
         "total_pages": material.total_pages or 0,
         "parsed_pages": material.parsed_pages or 0,
         **get_material_download_metadata(material),
+        **get_material_preview_metadata(material),
     }
 
 
@@ -2968,6 +2986,59 @@ def download_material_file(material_id: int, username: str, db: Session = Depend
         headers={
             "Content-Disposition": (
                 f"attachment; filename=\"{fallback_filename}\"; "
+                f"filename*=UTF-8''{quoted_filename}"
+            )
+        },
+    )
+
+
+@app.get("/materials/{material_id}/preview")
+def preview_material_file(material_id: int, username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    material = (
+        db.query(models.StudyMaterial)
+        .filter(
+            models.StudyMaterial.id == material_id,
+            models.StudyMaterial.is_deleted.is_(False),
+        )
+        .first()
+    )
+
+    if not material:
+        raise HTTPException(status_code=404, detail="资料不存在")
+
+    if material.username != user.username:
+        raise HTTPException(status_code=403, detail="没有权限查看该资料")
+
+    file_path = get_material_file_path(material)
+    if not file_path:
+        raise HTTPException(status_code=404, detail="原文件不存在，无法预览")
+
+    preview_filename = os.path.basename(material.original_filename or file_path.name)
+    quoted_filename = quote(preview_filename)
+    fallback_filename = sanitize_filename(preview_filename)
+
+    file_type = (material.file_type or "").lower().strip()
+    if file_type == "pdf":
+        media_type = "application/pdf"
+    elif file_type == "image":
+        ext = Path(file_path.name).suffix.lower()
+        media_map = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp"}
+        media_type = media_map.get(ext, material.mime_type or "image/png")
+    elif file_type in ("txt", "text", "markdown", "code"):
+        ext = Path(file_path.name).suffix.lower()
+        text_type_map = {".md": "text/markdown; charset=utf-8", ".markdown": "text/markdown; charset=utf-8"}
+        media_type = text_type_map.get(ext, "text/plain; charset=utf-8")
+    else:
+        raise HTTPException(status_code=400, detail="此文件类型暂不支持网页内预览")
+
+    return FileResponse(
+        path=file_path,
+        media_type=media_type,
+        filename=preview_filename,
+        headers={
+            "Content-Disposition": (
+                f"inline; filename=\"{fallback_filename}\"; "
                 f"filename*=UTF-8''{quoted_filename}"
             )
         },
