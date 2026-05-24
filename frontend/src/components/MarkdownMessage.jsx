@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeHighlight from "rehype-highlight";
+import "highlight.js/styles/atom-one-dark.css";
 
 function copyText(text) {
   if (navigator?.clipboard?.writeText) {
@@ -29,7 +32,7 @@ function CodeBlock({ className, children }) {
   const [copied, setCopied] = useState(false);
   const rawCode = String(children || "").replace(/\n$/, "");
   const languageMatch = /language-([\w-]+)/.exec(className || "");
-  const language = languageMatch?.[1] || "代码";
+  const language = languageMatch?.[1] || "Text";
 
   useEffect(() => {
     if (!copied) return undefined;
@@ -67,6 +70,8 @@ export default function MarkdownMessage({ content, isTyping = false }) {
   return (
     <div className="message-text message-text--markdown">
       <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeHighlight]}
         components={{
           code({ inline, className, children }) {
             if (inline) {
@@ -91,6 +96,15 @@ export default function MarkdownMessage({ content, isTyping = false }) {
             }
 
             return <p>{children}</p>;
+          },
+          table({ children }) {
+            return <div className="table-wrapper"><table>{children}</table></div>;
+          },
+          img({ src, alt }) {
+            return <img src={src} alt={alt || ""} className="markdown-image" loading="lazy" />;
+          },
+          hr() {
+            return <hr className="markdown-divider" />;
           },
         }}
       >
