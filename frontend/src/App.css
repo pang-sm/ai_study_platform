@@ -517,9 +517,15 @@ select.field:focus {
 
 .workspace-shell {
   display: flex;
+  flex-direction: column;
   height: 100vh;
   overflow: hidden;
   background: linear-gradient(180deg, #eef7f5 0%, #f8fafc 40%, #f5f7fb 100%);
+}
+
+.workspace-topbar-wrapper {
+  position: relative;
+  flex-shrink: 0;
 }
 
 .sidebar-toggle {
@@ -670,7 +676,7 @@ select.field:focus {
 
 .workspace-main {
   flex: 1;
-  height: 100vh;
+  min-height: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -2226,8 +2232,10 @@ select.field:focus {
 /* ── 历史对话下拉 ── */
 
 .history-dropdown {
-  position: relative;
-  flex-shrink: 0;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
   z-index: 10;
 }
 
@@ -2298,7 +2306,6 @@ select.field:focus {
 
 @media (max-width: 860px) {
   .workspace-shell {
-    flex-direction: column;
     height: 100svh;
   }
 

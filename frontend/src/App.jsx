@@ -2791,97 +2791,99 @@ function App() {
 
   return (
     <div className="workspace-shell">
-      <div className="workspace-topbar">
-        <button className="ghost-button compact" onClick={() => setPage("home")}>
-          ← 返回主页
-        </button>
-        <div className="workspace-topbar-center">
-          <span className="subject-pill panel-pill">
-            {page === "dashboard" ? "课程工作台" : page === "records" ? "学习记录" : "当前对话"}
-          </span>
-          <select
-            className="field workspace-subject-select"
-            value={subject}
-            onChange={(e) => {
-              setSubject(e.target.value);
-              if (!activeSessionId) {
-                setActiveSessionSubject(e.target.value);
-              }
-            }}
-          >
-            {COURSE_OPTIONS.map((item) => (
-              <option key={item} value={item}>
-                {getSubjectLabel(item)}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="workspace-topbar-actions">
-          <button className="ghost-button compact" onClick={startNewConversation}>
-            新建对话
+      <div className="workspace-topbar-wrapper">
+        <div className="workspace-topbar">
+          <button className="ghost-button compact" onClick={() => setPage("home")}>
+            ← 返回主页
           </button>
-          <button className="ghost-button compact" onClick={() => setPage("dashboard")}>
-            课程工作台
-          </button>
-          <button className="ghost-button compact" onClick={openLearningRecordPage}>
-            学习记录
-          </button>
-          <button
-            className={`ghost-button compact ${showHistory ? "active" : ""}`}
-            onClick={() => setShowHistory((v) => !v)}
-          >
-            历史对话
-          </button>
-          <button className="ghost-button compact" onClick={logout}>
-            退出
-          </button>
-        </div>
-      </div>
-
-      {showHistory && (
-        <div className="history-dropdown">
-          <div className="history-block">
-            <div className="panel-title-row">
-              <h3>{getSubjectLabel(subject)} 历史对话</h3>
-              <button className="tiny-button" onClick={() => setShowHistory(false)}>
-                ✕ 关闭
-              </button>
-            </div>
-            <div className="history-list history-list--dropdown">
-              {visibleSessions.length === 0 && (
-                <div className="empty-inline">该学科下暂无历史对话。</div>
-              )}
-              {visibleSessions.map((session) => (
-                <div
-                  key={session.id}
-                  className={activeSessionId === session.id ? "history-item active" : "history-item"}
-                  onClick={() => { openChatSession(session); setShowHistory(false); }}
-                >
-                  <div className="history-subject">
-                    {getSubjectLabel(session.subject || session.course)}
-                  </div>
-                  <div className="history-title">{session.title}</div>
-                  <div className="history-meta">{formatDate(session.created_at)}</div>
-                  <div className="history-actions">
-                    <button
-                      className="tiny-button"
-                      onClick={(event) => { event.stopPropagation(); renameChatSession(session, event); }}
-                    >
-                      编辑标题
-                    </button>
-                    <button
-                      className="tiny-button danger"
-                      onClick={(event) => { event.stopPropagation(); deleteChatSession(session, event); }}
-                    >
-                      删除
-                    </button>
-                  </div>
-                </div>
+          <div className="workspace-topbar-center">
+            <span className="subject-pill panel-pill">
+              {page === "dashboard" ? "课程工作台" : page === "records" ? "学习记录" : "当前对话"}
+            </span>
+            <select
+              className="field workspace-subject-select"
+              value={subject}
+              onChange={(e) => {
+                setSubject(e.target.value);
+                if (!activeSessionId) {
+                  setActiveSessionSubject(e.target.value);
+                }
+              }}
+            >
+              {COURSE_OPTIONS.map((item) => (
+                <option key={item} value={item}>
+                  {getSubjectLabel(item)}
+                </option>
               ))}
-            </div>
+            </select>
+          </div>
+          <div className="workspace-topbar-actions">
+            <button className="ghost-button compact" onClick={startNewConversation}>
+              新建对话
+            </button>
+            <button className="ghost-button compact" onClick={() => setPage("dashboard")}>
+              课程工作台
+            </button>
+            <button className="ghost-button compact" onClick={openLearningRecordPage}>
+              学习记录
+            </button>
+            <button
+              className={`ghost-button compact ${showHistory ? "active" : ""}`}
+              onClick={() => setShowHistory((v) => !v)}
+            >
+              历史对话
+            </button>
+            <button className="ghost-button compact" onClick={logout}>
+              退出
+            </button>
           </div>
         </div>
-      )}
+
+        {showHistory && (
+          <div className="history-dropdown">
+            <div className="history-block">
+              <div className="panel-title-row">
+                <h3>{getSubjectLabel(subject)} 历史对话</h3>
+                <button className="tiny-button" onClick={() => setShowHistory(false)}>
+                  ✕ 关闭
+                </button>
+              </div>
+              <div className="history-list history-list--dropdown">
+                {visibleSessions.length === 0 && (
+                  <div className="empty-inline">该学科下暂无历史对话。</div>
+                )}
+                {visibleSessions.map((session) => (
+                  <div
+                    key={session.id}
+                    className={activeSessionId === session.id ? "history-item active" : "history-item"}
+                    onClick={() => { openChatSession(session); setShowHistory(false); }}
+                  >
+                    <div className="history-subject">
+                      {getSubjectLabel(session.subject || session.course)}
+                    </div>
+                    <div className="history-title">{session.title}</div>
+                    <div className="history-meta">{formatDate(session.created_at)}</div>
+                    <div className="history-actions">
+                      <button
+                        className="tiny-button"
+                        onClick={(event) => { event.stopPropagation(); renameChatSession(session, event); }}
+                      >
+                        编辑标题
+                      </button>
+                      <button
+                        className="tiny-button danger"
+                        onClick={(event) => { event.stopPropagation(); deleteChatSession(session, event); }}
+                      >
+                        删除
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       <main className="workspace-main workspace-main--chat-only">
         {page === "dashboard" ? (
@@ -3165,7 +3167,7 @@ function App() {
             <div className="messages-board">
               {messages.length === 0 && (
                 <div className="empty-state">
-                  请选择学科后提问，或点击加号上传图片 / PDF 并附上你的问题。
+                  在下方输入你的问题，或点击 + 上传资料后基于资料提问。
                 </div>
               )}
 
