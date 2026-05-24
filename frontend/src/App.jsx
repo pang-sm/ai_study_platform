@@ -309,6 +309,8 @@ function App() {
   const fileInputRef = useRef(null);
   const localMessageCounterRef = useRef(0);
   const materialStatusPollersRef = useRef({});
+  const materialPollCountRef = useRef({});
+  const MAX_POLL_COUNT = 150;
 
   const currentChatSubject = activeSessionId ? activeSessionSubject : subject;
   const selectedFile = selectedFiles[0]
@@ -399,6 +401,7 @@ function App() {
       window.clearInterval(timerId);
       delete materialStatusPollersRef.current[localId];
     }
+    delete materialPollCountRef.current[localId];
   };
 
   const clearAllMaterialPollers = () => {
@@ -1457,8 +1460,29 @@ function App() {
 
   const pollMaterialStatus = (localId, materialId) => {
     clearMaterialPoller(localId);
+    materialPollCountRef.current[localId] = 0;
 
     const refreshStatus = async () => {
+      const pollCount = (materialPollCountRef.current[localId] || 0) + 1;
+      materialPollCountRef.current[localId] = pollCount;
+
+      if (pollCount > MAX_POLL_COUNT) {
+        clearMaterialPoller(localId);
+        setSelectedFiles((prev) =>
+          prev.map((item) =>
+            item.localId === localId
+              ? {
+                  ...item,
+                  parse_status: "failed",
+                  parse_error: "解析超时，请稍后到资料库查看，或重新上传。",
+                  uploading: false,
+                }
+              : item
+          )
+        );
+        return;
+      }
+
       try {
         const res = await fetch(
           `${API_BASE}/materials/${materialId}/status?username=${encodeURIComponent(user.username)}`
@@ -1689,6 +1713,8 @@ function App() {
           role: "assistant",
           content: data.answer,
           references: data.references || [],
+          rag_sources: data.rag_sources || [],
+          has_bound_materials: attachedFiles.length > 0,
           animateTyping: true,
         }),
       ]);
@@ -1699,82 +1725,6 @@ function App() {
     } catch (error) {
       console.error("Failed to send message:", error);
       appendAssistantError("无法连接后端服务。");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const sendFileMessage = async () => {
-    if (!selectedFile || !user?.username) return;
-
-    const currentQuestion = trimmedMessage;
-    setLoading(true);
-
-    const formData = new FormData();
-    formData.append("file", selectedFile);
-    formData.append("username", user.username);
-    formData.append("subject", normalizeSubject(currentChatSubject));
-    formData.append("question", currentQuestion);
-    formData.append("save_to_materials", "true");
-    if (activeSessionId) {
-      formData.append("conversation_id", String(activeSessionId));
-    }
-
-    try {
-      const res = await fetch(`${API_BASE}/materials/upload`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${user.username}`,
-        },
-        body: formData,
-      });
-
-      const text = await res.text();
-      let data = {};
-      try {
-        data = text ? JSON.parse(text) : {};
-      } catch {
-        data = {};
-      }
-
-      if (!res.ok) {
-        const errorMessage = getUploadErrorMessage(res.status, data);
-        alert(errorMessage);
-        appendAssistantError(errorMessage);
-        if (res.status === 401) {
-          logout();
-        }
-        return;
-      }
-
-      if (data.message) {
-        setMessages((prev) => [...prev, data.message]);
-      }
-
-      if (data.answer) {
-        setMessages((prev) => [
-          ...prev,
-          createLocalMessage({
-            id: data.assistant_message_id || undefined,
-            role: "assistant",
-            content: data.answer,
-            references: data.references || [],
-            animateTyping: true,
-          }),
-        ]);
-      }
-
-      refreshChatSessionState(data.session);
-      await loadChatHistory(user);
-      await loadMaterials("");
-
-      setMessage("");
-      clearAllMaterialPollers();
-      setSelectedFiles([]);
-      setTip("附件提问已保存到聊天记录，并已加入个人资料库。");
-    } catch (error) {
-      console.error("Failed to send file message:", error);
-      appendAssistantError("上传请求失败，请重试。");
     } finally {
       setLoading(false);
     }
@@ -1795,11 +1745,6 @@ function App() {
     }
 
     setTip("");
-
-    if (false) {
-      await sendFileMessage();
-      return;
-    }
 
     await sendTextMessage();
   };

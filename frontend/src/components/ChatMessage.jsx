@@ -255,6 +255,30 @@ export default function ChatMessage({
           </div>
         </div>
       )}
+
+      {isAssistant &&
+        (!message.references || message.references.length === 0) &&
+        Array.isArray(message.rag_sources) &&
+        message.rag_sources.length > 0 && (
+          <div className="reference-section">
+            <div className="reference-title">参考文件</div>
+            <div className="rag-sources-summary">
+              {message.rag_sources.join("、")}
+            </div>
+          </div>
+        )}
+
+      {isAssistant &&
+        (!message.references || message.references.length === 0) &&
+        (!message.rag_sources || message.rag_sources.length === 0) &&
+        message.has_bound_materials && (
+          <div className="reference-section reference-section--fallback">
+            <div className="reference-title">参考资料</div>
+            <div className="rag-sources-fallback">
+              本轮上传资料中没有找到足够相关的可引用片段，本次回答可能包含模型补充说明。
+            </div>
+          </div>
+        )}
     </div>
   );
 }

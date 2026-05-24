@@ -1850,6 +1850,10 @@ def parse_material_in_background(material_id: int):
             total_pages, page_texts = extract_pdf_pages(file_bytes)
             extracted_text = build_pdf_text_from_pages(page_texts)
             if not is_pdf_text_usable(extracted_text, total_pages):
+                # TODO: Qwen PDF fallback logic is duplicated between
+                # parse_material_in_background (via parse_scanned_pdf_in_background)
+                # and handle_material_upload (~L2088).
+                # Extract a shared _qwen_fallback_for_pdf() helper in a future refactor.
                 parse_scanned_pdf_in_background(db, material, file_bytes, extracted_text)
                 return
         elif material.file_type == "image":
@@ -2044,6 +2048,9 @@ async def handle_material_upload(
         stored_file_path = save_uploaded_file(user.username, original_filename, file_bytes)
 
     elif file_type == "image":
+        # TODO: Qwen fallback logic for images is duplicated between
+        # handle_material_upload (~L2046) and parse_material_in_background (~L1883).
+        # Extract a shared _qwen_fallback_for_image() helper in a future refactor.
         local_ocr_text = extract_image_text(file_bytes)
         extracted_text = local_ocr_text
         stored_file_path = save_uploaded_file(user.username, original_filename, file_bytes)
@@ -2175,7 +2182,7 @@ async def handle_material_upload(
                             normalized_subject,
                             clean_question,
                             user_profile(user),
-                            is_pdf=file_type == "pdf",
+                            has_attachment=(file_type == "pdf"),
                             rag_chunks=rag_chunks,
                         ),
                     },
@@ -2455,7 +2462,7 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
             "grade": req.grade or user.grade,
             "major": req.major or user.major,
         },
-        is_pdf=bool(material_ids),
+        has_attachment=bool(material_ids),
         rag_chunks=rag_chunks,
     )
 
@@ -2497,6 +2504,11 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
     }
 
 
+# ── LEGACY: /chat/upload ──────────────────────────────────────────────
+# This endpoint is preserved for backward compatibility only.
+# The current primary flow is: POST /materials/upload → poll status → POST /chat (with material_ids).
+# The frontend no longer calls this endpoint; do NOT add new frontend integrations.
+# If this endpoint is confirmed unused by any external client, it can be removed in a future cleanup.
 @app.post("/chat/upload")
 async def upload_chat_file(
     file: UploadFile = File(...),

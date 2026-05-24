@@ -260,7 +260,7 @@ def build_system_prompt(
     subject: str | None,
     question: str | None,
     user_profile_data: dict | None = None,
-    is_pdf: bool = False,
+    has_attachment: bool = False,
     rag_chunks: list[dict] | None = None,
 ) -> str:
     normalized_subject = _normalize_subject(subject)
@@ -318,9 +318,9 @@ def build_system_prompt(
     if subject_guidance:
         sections.append(subject_guidance)
 
-    sections.append(_build_rag_instruction(rag_chunks, is_attachment=is_pdf))
+    sections.append(_build_rag_instruction(rag_chunks, is_attachment=has_attachment))
 
-    if is_pdf:
+    if has_attachment:
         sections.append(
             "用户本轮上传了资料文件。请严格依据资料提取出的文本回答。"
             "用户的问题（即使是“解读一下”“总结一下”“分析一下”等简短指令）默认就是针对这些文件的。"
