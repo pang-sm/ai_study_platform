@@ -62,13 +62,21 @@ jobs:
             sudo apt-get install -y tesseract-ocr tesseract-ocr-chi-sim
           fi
 
-          if [ -x ".venv/bin/pip" ]; then
+          echo "=== 安装后端Python依赖 ==="
+          if [ -x "backend/.venv/bin/pip" ]; then
+            echo "[deploy] 使用 backend/.venv/bin/pip"
+            backend/.venv/bin/pip install -r backend/requirements.txt
+          elif [ -x ".venv/bin/pip" ]; then
+            echo "[deploy] 使用 .venv/bin/pip"
             .venv/bin/pip install -r backend/requirements.txt
           elif [ -x "venv/bin/pip" ]; then
+            echo "[deploy] 使用 venv/bin/pip"
             venv/bin/pip install -r backend/requirements.txt
           else
+            echo "[deploy] 未找到虚拟环境，使用系统 python3"
             python3 -m pip install -r backend/requirements.txt
           fi
+          echo "=== 依赖安装完成 ==="
 
           cd frontend
           npm ci

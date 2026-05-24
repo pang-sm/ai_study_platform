@@ -1,9 +1,7 @@
+from __future__ import annotations
+
 import io
 from pathlib import Path
-
-from docx import Document as DocxDocument
-from pptx import Presentation
-from charset_normalizer import from_bytes
 
 
 CODE_EXTENSIONS = {
@@ -132,6 +130,8 @@ def _read_docx_tables(doc: DocxDocument) -> list[str]:
 
 
 def extract_docx_text(file_bytes: bytes) -> str:
+    from docx import Document as DocxDocument
+
     stream = io.BytesIO(file_bytes)
     try:
         doc = DocxDocument(stream)
@@ -149,6 +149,8 @@ def extract_docx_text(file_bytes: bytes) -> str:
 
 
 def extract_pptx_text(file_bytes: bytes) -> str:
+    from pptx import Presentation
+
     stream = io.BytesIO(file_bytes)
     try:
         prs = Presentation(stream)
@@ -206,6 +208,8 @@ def extract_pptx_text(file_bytes: bytes) -> str:
 
 
 def extract_text_file(file_bytes: bytes, filename: str) -> str:
+    from charset_normalizer import from_bytes
+
     try:
         detected = from_bytes(file_bytes).best()
         if detected:
