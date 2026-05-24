@@ -275,6 +275,7 @@ def build_system_prompt(
         "- 请使用 Markdown 格式回答。正文像教材讲解一样自然分段。重点内容用加粗突出。\n"
         "- 遇到代码、命令行、配置、LaTeX 推导时，必须使用带语言标识的代码块。代码块语言名使用 python、java、c、latex、bash、sql、json、javascript 等。\n"
         "- 遇到公式时使用 LaTeX 格式：行内公式用 $...$ 包裹，块级公式用 $$...$$ 包裹。\n"
+        "- 数学公式优先使用 $...$ 表示行内公式，使用 $$...$$ 表示块级公式；不要使用 HTML；不要把 LaTeX 公式放在普通代码块里，除非用户明确要求 LaTeX 源码。\n"
         "- 不要输出 HTML。不要把整段内容压缩成一个段落。学习类问题优先使用小标题、分点解释、例子、易错点和简短总结。",
         QUESTION_TYPE_INSTRUCTIONS[question_type],
     ]

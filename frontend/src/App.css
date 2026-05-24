@@ -806,6 +806,23 @@ select.field:focus {
   text-decoration: line-through;
 }
 
+/* KaTeX formula styles */
+.message-text--markdown .katex {
+  font-size: 1.02em;
+}
+
+.message-text--markdown .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.5rem 0;
+  margin: 0.75rem 0;
+  text-align: left;
+}
+
+.message-text--markdown .katex-display > .katex {
+  text-align: left;
+}
+
 .message-action-row {
   display: flex;
   flex-wrap: wrap;

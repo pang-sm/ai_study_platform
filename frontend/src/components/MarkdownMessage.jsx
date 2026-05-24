@@ -1,8 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
 import rehypeHighlight from "rehype-highlight";
 import "highlight.js/styles/atom-one-dark.css";
+import "katex/dist/katex.min.css";
 
 function copyText(text) {
   if (navigator?.clipboard?.writeText) {
@@ -26,6 +29,43 @@ function getNodeText(node) {
   if (node.type === "text") return node.value || "";
   if (!Array.isArray(node.children)) return "";
   return node.children.map(getNodeText).join("");
+}
+
+function normalizeMathDelimiters(text) {
+  if (!text || typeof text !== "string") return text;
+
+  const codeBlockPattern = /```[\s\S]*?```/g;
+  const codeBlocks = [];
+  const segments = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = codeBlockPattern.exec(text)) !== null) {
+    segments.push(text.slice(lastIndex, match.index));
+    codeBlocks.push(match[0]);
+    lastIndex = match.index + match[0].length;
+  }
+  segments.push(text.slice(lastIndex));
+
+  const processed = segments.map((seg) => {
+    let result = seg;
+    // \( ... \) → $ ... $
+    result = result.replace(/\\\(/g, "$");
+    result = result.replace(/\\\)/g, "$");
+    // \[ ... \] → $$ ... $$
+    result = result.replace(/\\\[/g, "$$");
+    result = result.replace(/\\\]/g, "$$");
+    return result;
+  });
+
+  let output = "";
+  for (let i = 0; i < processed.length; i++) {
+    output += processed[i];
+    if (i < codeBlocks.length) {
+      output += codeBlocks[i];
+    }
+  }
+  return output;
 }
 
 function CodeBlock({ className, children }) {
@@ -67,11 +107,13 @@ function CodeBlock({ className, children }) {
 }
 
 export default function MarkdownMessage({ content, isTyping = false }) {
+  const safeContent = useMemo(() => normalizeMathDelimiters(content || ""), [content]);
+
   return (
     <div className="message-text message-text--markdown">
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeHighlight]}
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[rehypeKatex, rehypeHighlight]}
         components={{
           code({ inline, className, children }) {
             if (inline) {
@@ -108,7 +150,7 @@ export default function MarkdownMessage({ content, isTyping = false }) {
           },
         }}
       >
-        {content || ""}
+        {safeContent}
       </ReactMarkdown>
 
       {isTyping && <span className="typing-cursor" aria-hidden="true" />}
