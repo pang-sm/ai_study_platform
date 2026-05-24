@@ -1,4 +1,13 @@
-name: Deploy
+# Actions 列表标题来自 push 时的 commit message。
+# 为确保部署记录可读、可回档，提交信息请写清楚中文说明，例如：
+#   - 优化登录注册页面样式
+#   - 将资料库嵌入课程工作台
+#   - 自动沉淀AI学习记录
+# 回档时可根据 Actions 列表中的中文标题和 commit hash 找到目标版本。
+
+name: 自动部署
+
+run-name: 部署：${{ github.event.head_commit.message }}
 
 on:
   push:
@@ -12,6 +21,20 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 5
+
+      - name: 写入部署摘要
+        run: |
+          echo "## 本次部署信息" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- 分支：${GITHUB_REF_NAME}" >> $GITHUB_STEP_SUMMARY
+          echo "- 提交说明：${{ github.event.head_commit.message }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 提交人：${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 触发方式：${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: 打印最近版本记录
+        run: git log --oneline -5
 
       - name: Set up Python
         uses: actions/setup-python@v5
