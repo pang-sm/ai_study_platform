@@ -2098,22 +2098,16 @@ function App() {
 
   return (
     <div className="workspace-shell">
-      <button className="sidebar-toggle" onClick={() => setSidebarOpen((prev) => !prev)}>
-        {sidebarOpen ? "收起" : "展开"}
-      </button>
-
-      {sidebarOpen && (
+      {sidebarOpen ? (
         <aside className="sidebar-panel">
           <div className="sidebar-top">
-            <div>
-              <div className="section-eyebrow">学习中心</div>
-              <h2>AI 学习助手</h2>
-            </div>
-          </div>
-
-          <div className="sidebar-user-card">
-            <div>年级：{user.grade || "未设置"}</div>
-            <div>专业：{user.major || "未设置"}</div>
+            <button
+              className="sidebar-toggle-inline"
+              onClick={() => setSidebarOpen(false)}
+              title="收起侧栏"
+            >
+              ✕
+            </button>
           </div>
 
           <label className="field-label">新建对话学科</label>
@@ -2191,6 +2185,16 @@ function App() {
             退出登录
           </button>
         </aside>
+      ) : (
+        <div className="sidebar-collapsed-bar">
+          <button
+            className="sidebar-toggle-inline"
+            onClick={() => setSidebarOpen(true)}
+            title="展开侧栏"
+          >
+            ☰
+          </button>
+        </div>
       )}
 
       <main className="workspace-main workspace-main--chat-only">

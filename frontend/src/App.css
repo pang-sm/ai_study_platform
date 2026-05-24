@@ -3,12 +3,14 @@ body,
   width: 100%;
   max-width: none;
   margin: 0;
+  height: 100%;
 }
 
 body {
   font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
   color: #14213d;
   background: #f6f8fb;
+  overflow: hidden;
 }
 
 #root {
@@ -454,30 +456,66 @@ select.field:focus {
 
 .workspace-shell {
   display: flex;
+  height: 100vh;
+  overflow: hidden;
   background: linear-gradient(180deg, #eef7f5 0%, #f8fafc 40%, #f5f7fb 100%);
 }
 
 .sidebar-toggle {
-  position: fixed;
-  top: 18px;
-  left: 18px;
-  z-index: 20;
-  padding: 10px 14px;
-  border: none;
-  border-radius: 999px;
-  background: #14213d;
-  color: #fff;
-  cursor: pointer;
-  box-shadow: 0 12px 24px rgba(20, 33, 61, 0.24);
+  display: none;
 }
 
 .sidebar-panel {
   width: 310px;
-  min-height: 100vh;
-  padding: 74px 20px 24px;
+  height: 100vh;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 20px 16px;
   background: rgba(255, 255, 255, 0.72);
   border-right: 1px solid rgba(20, 33, 61, 0.08);
   backdrop-filter: blur(16px);
+  overflow: hidden;
+}
+
+.sidebar-collapsed-bar {
+  width: 48px;
+  height: 100vh;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 16px;
+  background: rgba(255, 255, 255, 0.56);
+  border-right: 1px solid rgba(20, 33, 61, 0.06);
+}
+
+.sidebar-toggle-inline {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(20, 33, 61, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.88);
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+
+.sidebar-toggle-inline:hover {
+  background: rgba(15, 118, 110, 0.08);
+  border-color: rgba(15, 118, 110, 0.24);
+}
+
+.sidebar-top {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  margin-bottom: 14px;
 }
 
 .sidebar-user-card,
@@ -498,13 +536,18 @@ select.field:focus {
 }
 
 .history-block {
-  margin: 18px 0;
+  margin: 12px 0 0;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
 }
 
 .history-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
+  padding-bottom: 8px;
 }
 
 .history-item {
@@ -558,14 +601,17 @@ select.field:focus {
 
 .workspace-main {
   flex: 1;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 20px;
-  padding: 28px 24px 24px;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 24px 12px 0;
 }
 
 .workspace-main--chat-only {
   max-width: 980px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 .chat-panel {
@@ -576,7 +622,8 @@ select.field:focus {
 .chat-panel--wide {
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - 52px);
+  flex: 1;
+  overflow: hidden;
 }
 
 .panel-header,
@@ -1180,6 +1227,8 @@ select.field:focus {
 
 .learning-records-panel {
   gap: 18px;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .learning-stats-grid {
@@ -1225,13 +1274,15 @@ select.field:focus {
   display: grid;
   grid-template-columns: minmax(320px, 0.9fr) minmax(0, 1.1fr);
   gap: 20px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .learning-records-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-height: calc(100vh - 260px);
   overflow-y: auto;
   padding-right: 6px;
 }
@@ -1513,26 +1564,49 @@ select.field:focus {
     grid-template-columns: 1fr;
   }
 
-  .learning-records-list {
-    max-height: none;
-  }
 }
 
 @media (max-width: 860px) {
   .workspace-shell {
     flex-direction: column;
+    height: 100svh;
   }
 
   .sidebar-panel {
     width: 100%;
-    min-height: auto;
-    padding-top: 78px;
+    height: auto;
+    max-height: 50vh;
+    flex-shrink: 1;
+  }
+
+  .sidebar-collapsed-bar {
+    width: 100%;
+    height: auto;
+    flex-direction: row;
+    padding: 8px 16px;
+    justify-content: flex-start;
+    flex-shrink: 0;
+  }
+
+  .workspace-main {
+    height: auto;
+    flex: 1;
+    min-height: 0;
+    padding: 0 12px 12px;
+  }
+
+  .workspace-main--chat-only {
+    max-width: 100%;
   }
 
   .auth-card,
   .profile-card,
   .chat-panel {
     border-radius: 22px;
+  }
+
+  .chat-panel--wide {
+    padding: 12px;
   }
 
   .composer-row--input {
@@ -1560,5 +1634,9 @@ select.field:focus {
 
   .message-card {
     max-width: 100%;
+  }
+
+  .learning-records-layout {
+    grid-template-columns: 1fr;
   }
 }
