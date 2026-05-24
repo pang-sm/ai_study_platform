@@ -2163,48 +2163,69 @@ function App() {
 
   if (page === "onboarding") {
     return (
-      <div className="auth-shell">
+      <div className="onboarding-page">
         <div className="onboarding-card">
-          <div className="auth-badge">AI 学习平台</div>
-          <h1>先完善你的学习方向</h1>
-          <p className="auth-subtitle">
-            我们会根据你的专业、目标科目和掌握程度，为你组织课程工作台和资料库。
+          <h1 className="onboarding-title">完善你的学习方向</h1>
+          <p className="onboarding-subtitle">
+            我们会根据你的专业和科目目标，为你定制专属的学习工作台。
           </p>
 
-          <label className="field-label">专业</label>
-          <input
-            className="field"
-            placeholder="例如：软件工程"
-            value={profileForm.major}
-            onChange={(e) =>
-              setProfileForm((prev) => ({ ...prev, major: e.target.value }))
-            }
-          />
-
-          <label className="field-label">年级</label>
-          <input
-            className="field"
-            placeholder="例如：大二"
-            value={profileForm.grade}
-            onChange={(e) =>
-              setProfileForm((prev) => ({ ...prev, grade: e.target.value }))
-            }
-          />
-
-          <div className="onboarding-goals-header">
-            <label className="field-label">想学习的科目</label>
-            <button className="tiny-button" type="button" onClick={addLearningGoal}>
-              + 添加科目
-            </button>
+          <div className="onboarding-form-grid">
+            <div>
+              <label className="field-label">专业</label>
+              <input
+                className="field"
+                placeholder="例如：软件工程"
+                value={profileForm.major}
+                onChange={(e) =>
+                  setProfileForm((prev) => ({ ...prev, major: e.target.value }))
+                }
+              />
+            </div>
+            <div>
+              <label className="field-label">年级</label>
+              <input
+                className="field"
+                placeholder="例如：大二"
+                value={profileForm.grade}
+                onChange={(e) =>
+                  setProfileForm((prev) => ({ ...prev, grade: e.target.value }))
+                }
+              />
+            </div>
           </div>
 
-          {learningGoals.length === 0 && (
-            <div className="empty-inline">点击"+ 添加科目"添加你想学习的科目和目标。</div>
-          )}
+          <div className="goals-section">
+            <div className="goals-header">
+              <div>
+                <label className="field-label">想学习的科目</label>
+                <span className="goals-header-hint">设定你想掌握的科目和程度</span>
+              </div>
+              <button className="tiny-button" type="button" onClick={addLearningGoal}>
+                + 添加科目
+              </button>
+            </div>
 
-          {learningGoals.map((goal, index) => (
-            <div key={index} className="onboarding-goal-card">
-              <div className="onboarding-goal-row">
+            {learningGoals.length === 0 && (
+              <div className="goal-empty-card" onClick={addLearningGoal}>
+                <div className="goal-empty-icon">+</div>
+                <div className="goal-empty-text">点击这里添加你想学习的第一个科目</div>
+                <div className="goal-empty-hint">例如：高等数学、大学英语、程序设计</div>
+              </div>
+            )}
+
+            {learningGoals.map((goal, index) => (
+              <div key={index} className="goal-card">
+                <div className="goal-card-header">
+                  <span className="goal-card-number">科目 {index + 1}</span>
+                  <button
+                    className="goal-remove-btn"
+                    type="button"
+                    onClick={() => removeLearningGoal(index)}
+                  >
+                    移除
+                  </button>
+                </div>
                 <select
                   className="field"
                   value={goal.subject}
@@ -2217,43 +2238,39 @@ function App() {
                     </option>
                   ))}
                 </select>
-                <button
-                  className="tiny-button danger"
-                  type="button"
-                  onClick={() => removeLearningGoal(index)}
+
+                <label className="field-label">想掌握到的程度</label>
+                <select
+                  className="field"
+                  value={goal.target_level}
+                  onChange={(e) => updateLearningGoal(index, "target_level", e.target.value)}
                 >
-                  删除
-                </button>
+                  {TARGET_LEVEL_OPTIONS.map((level) => (
+                    <option key={level} value={level}>
+                      {level}
+                    </option>
+                  ))}
+                </select>
+
+                <label className="field-label">备注（可选）</label>
+                <input
+                  className="field"
+                  placeholder="例如：希望能独立写后端"
+                  value={goal.note}
+                  onChange={(e) => updateLearningGoal(index, "note", e.target.value)}
+                />
               </div>
-
-              <label className="field-label">想掌握到的程度</label>
-              <select
-                className="field"
-                value={goal.target_level}
-                onChange={(e) => updateLearningGoal(index, "target_level", e.target.value)}
-              >
-                {TARGET_LEVEL_OPTIONS.map((level) => (
-                  <option key={level} value={level}>
-                    {level}
-                  </option>
-                ))}
-              </select>
-
-              <label className="field-label">备注（可选）</label>
-              <input
-                className="field"
-                placeholder="例如：希望能独立写后端"
-                value={goal.note}
-                onChange={(e) => updateLearningGoal(index, "note", e.target.value)}
-              />
-            </div>
-          ))}
+            ))}
+          </div>
 
           {tip && <p className="tip-text">{tip}</p>}
 
-          <button className="primary-button" onClick={saveOnboarding} disabled={onboardingSaving}>
-            {onboardingSaving ? "保存中..." : "进入我的学习主页"}
-          </button>
+          <div className="onboarding-submit-area">
+            <p className="onboarding-submit-hint">后续可以在个人主页随时修改</p>
+            <button className="onboarding-primary-btn" onClick={saveOnboarding} disabled={onboardingSaving}>
+              {onboardingSaving ? "保存中..." : "进入我的学习主页"}
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -2385,7 +2402,7 @@ function App() {
             }
           />
 
-          <div className="onboarding-goals-header">
+          <div className="goals-header">
             <label className="field-label">想学习的科目</label>
             <button className="tiny-button" type="button" onClick={addLearningGoal}>
               + 添加科目
@@ -2393,32 +2410,37 @@ function App() {
           </div>
 
           {learningGoals.length === 0 && (
-            <div className="empty-inline">点击"+ 添加科目"添加你想学习的科目和目标。</div>
+            <div className="goal-empty-card" onClick={addLearningGoal}>
+              <div className="goal-empty-icon">+</div>
+              <div className="goal-empty-text">点击这里添加你想学习的第一个科目</div>
+              <div className="goal-empty-hint">例如：高等数学、大学英语、程序设计</div>
+            </div>
           )}
 
           {learningGoals.map((goal, index) => (
-            <div key={index} className="onboarding-goal-card">
-              <div className="onboarding-goal-row">
-                <select
-                  className="field"
-                  value={goal.subject}
-                  onChange={(e) => updateLearningGoal(index, "subject", e.target.value)}
-                >
-                  <option value="">选择科目</option>
-                  {COURSE_OPTIONS.map((item) => (
-                    <option key={item} value={item}>
-                      {getSubjectLabel(item)}
-                    </option>
-                  ))}
-                </select>
+            <div key={index} className="goal-card">
+              <div className="goal-card-header">
+                <span className="goal-card-number">科目 {index + 1}</span>
                 <button
-                  className="tiny-button danger"
+                  className="goal-remove-btn"
                   type="button"
                   onClick={() => removeLearningGoal(index)}
                 >
-                  删除
+                  移除
                 </button>
               </div>
+              <select
+                className="field"
+                value={goal.subject}
+                onChange={(e) => updateLearningGoal(index, "subject", e.target.value)}
+              >
+                <option value="">选择科目</option>
+                {COURSE_OPTIONS.map((item) => (
+                  <option key={item} value={item}>
+                    {getSubjectLabel(item)}
+                  </option>
+                ))}
+              </select>
 
               <label className="field-label">想掌握到的程度</label>
               <select
