@@ -2110,80 +2110,84 @@ function App() {
             </button>
           </div>
 
-          <label className="field-label">新建对话学科</label>
-          <select
-            className="field"
-            value={subject}
-            onChange={(e) => {
-              setSubject(e.target.value);
-              if (!activeSessionId) {
-                setActiveSessionSubject(e.target.value);
-              }
-            }}
-          >
-            {COURSE_OPTIONS.map((item) => (
-              <option key={item} value={item}>
-                {getSubjectLabel(item)}
-              </option>
-            ))}
-          </select>
-
-          <button className="ghost-button" onClick={startNewConversation}>
-            新建对话
-          </button>
-          <button className="ghost-button" onClick={() => setPage("dashboard")}>
-            课程工作台
-          </button>
-          <button className="ghost-button" onClick={() => setPage("profile")}>
-            个人资料
-          </button>
-          <button className="ghost-button" onClick={openLearningRecordPage}>
-            学习记录
-          </button>
-
-          <div className="history-block">
-            <div className="panel-title-row">
-              <h3>{getSubjectLabel(subject)} 历史对话</h3>
-            </div>
-
-            <div className="history-list">
-              {visibleSessions.length === 0 && (
-                <div className="empty-inline">该学科下暂无历史对话。</div>
-              )}
-
-              {visibleSessions.map((session) => (
-                <div
-                  key={session.id}
-                  className={activeSessionId === session.id ? "history-item active" : "history-item"}
-                  onClick={() => openChatSession(session)}
-                >
-                  <div className="history-subject">
-                    {getSubjectLabel(session.subject || session.course)}
-                  </div>
-                  <div className="history-title">{session.title}</div>
-                  <div className="history-meta">{formatDate(session.created_at)}</div>
-                  <div className="history-actions">
-                    <button
-                      className="tiny-button"
-                      onClick={(event) => renameChatSession(session, event)}
-                    >
-                      编辑标题
-                    </button>
-                    <button
-                      className="tiny-button danger"
-                      onClick={(event) => deleteChatSession(session, event)}
-                    >
-                      删除
-                    </button>
-                  </div>
-                </div>
+          <div className="sidebar-body">
+            <label className="field-label">新建对话学科</label>
+            <select
+              className="field"
+              value={subject}
+              onChange={(e) => {
+                setSubject(e.target.value);
+                if (!activeSessionId) {
+                  setActiveSessionSubject(e.target.value);
+                }
+              }}
+            >
+              {COURSE_OPTIONS.map((item) => (
+                <option key={item} value={item}>
+                  {getSubjectLabel(item)}
+                </option>
               ))}
+            </select>
+
+            <button className="ghost-button" onClick={startNewConversation}>
+              新建对话
+            </button>
+            <button className="ghost-button" onClick={() => setPage("dashboard")}>
+              课程工作台
+            </button>
+            <button className="ghost-button" onClick={() => setPage("profile")}>
+              个人资料
+            </button>
+            <button className="ghost-button" onClick={openLearningRecordPage}>
+              学习记录
+            </button>
+
+            <div className="history-block">
+              <div className="panel-title-row">
+                <h3>{getSubjectLabel(subject)} 历史对话</h3>
+              </div>
+
+              <div className="history-list">
+                {visibleSessions.length === 0 && (
+                  <div className="empty-inline">该学科下暂无历史对话。</div>
+                )}
+
+                {visibleSessions.map((session) => (
+                  <div
+                    key={session.id}
+                    className={activeSessionId === session.id ? "history-item active" : "history-item"}
+                    onClick={() => openChatSession(session)}
+                  >
+                    <div className="history-subject">
+                      {getSubjectLabel(session.subject || session.course)}
+                    </div>
+                    <div className="history-title">{session.title}</div>
+                    <div className="history-meta">{formatDate(session.created_at)}</div>
+                    <div className="history-actions">
+                      <button
+                        className="tiny-button"
+                        onClick={(event) => renameChatSession(session, event)}
+                      >
+                        编辑标题
+                      </button>
+                      <button
+                        className="tiny-button danger"
+                        onClick={(event) => deleteChatSession(session, event)}
+                      >
+                        删除
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
-          <button className="ghost-button" onClick={logout}>
-            退出登录
-          </button>
+          <div className="sidebar-footer">
+            <button className="ghost-button" onClick={logout}>
+              退出登录
+            </button>
+          </div>
         </aside>
       ) : (
         <div className="sidebar-collapsed-bar">

@@ -3,14 +3,12 @@ body,
   width: 100%;
   max-width: none;
   margin: 0;
-  height: 100%;
 }
 
 body {
   font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
   color: #14213d;
   background: #f6f8fb;
-  overflow: hidden;
 }
 
 #root {
@@ -20,8 +18,7 @@ body {
 }
 
 .auth-shell,
-.profile-shell,
-.workspace-shell {
+.profile-shell {
   min-height: 100vh;
 }
 
@@ -515,7 +512,20 @@ select.field:focus {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.sidebar-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+}
+
+.sidebar-footer {
+  flex-shrink: 0;
+  padding-top: 10px;
 }
 
 .sidebar-user-card,
@@ -536,18 +546,13 @@ select.field:focus {
 }
 
 .history-block {
-  margin: 12px 0 0;
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  min-height: 0;
+  margin: 14px 0 0;
 }
 
 .history-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding-bottom: 8px;
+  gap: 6px;
 }
 
 .history-item {
