@@ -2336,10 +2336,10 @@ function App() {
           <section className="home-entries">
             <h3>快速入口</h3>
             <div className="home-entry-cards">
-              <button className="home-entry-card" onClick={() => openChatPageForCourse(subject, true)}>
+              <button className="home-entry-card" onClick={() => { setSubject(subject); setPage("dashboard"); }}>
                 <div className="home-entry-icon">💬</div>
                 <div className="home-entry-title">进入课程工作台</div>
-                <div className="home-entry-desc">围绕某一科目提问、上传资料、进行 AI 学习。</div>
+                <div className="home-entry-desc">查看课程概览，开始 AI 学习。</div>
               </button>
               <button className="home-entry-card" onClick={() => { setPage("materials"); loadMaterials(""); }}>
                 <div className="home-entry-icon">📚</div>
@@ -2797,9 +2797,6 @@ function App() {
             ← 返回主页
           </button>
           <div className="workspace-topbar-center">
-            <span className="subject-pill panel-pill">
-              {page === "dashboard" ? "课程工作台" : page === "records" ? "学习记录" : "当前对话"}
-            </span>
             <select
               className="field workspace-subject-select"
               value={subject}
@@ -2816,73 +2813,48 @@ function App() {
                 </option>
               ))}
             </select>
+            <nav className="workspace-tabs">
+              <button
+                className={`workspace-tab ${page === "dashboard" ? "active" : ""}`}
+                onClick={() => { setPage("dashboard"); }}
+              >
+                课程概览
+              </button>
+              <button
+                className={`workspace-tab ${page === "chat" ? "active" : ""}`}
+                onClick={() => setPage("chat")}
+              >
+                AI 问答
+              </button>
+              <button
+                className={`workspace-tab ${page === "materials" ? "active" : ""}`}
+                onClick={() => openMaterialsPageForCourse(subject)}
+              >
+                资料库
+              </button>
+              <button
+                className={`workspace-tab ${page === "records" ? "active" : ""}`}
+                onClick={openLearningRecordPage}
+              >
+                学习记录
+              </button>
+              <button
+                className={`workspace-tab ${page === "history" ? "active" : ""}`}
+                onClick={() => setPage("history")}
+              >
+                历史对话
+              </button>
+            </nav>
           </div>
           <div className="workspace-topbar-actions">
-            <button className="ghost-button compact" onClick={startNewConversation}>
+            <button className="primary-button compact" onClick={startNewConversation}>
               新建对话
-            </button>
-            <button className="ghost-button compact" onClick={() => setPage("dashboard")}>
-              课程工作台
-            </button>
-            <button className="ghost-button compact" onClick={openLearningRecordPage}>
-              学习记录
-            </button>
-            <button
-              className={`ghost-button compact ${showHistory ? "active" : ""}`}
-              onClick={() => setShowHistory((v) => !v)}
-            >
-              历史对话
             </button>
             <button className="ghost-button compact" onClick={logout}>
               退出
             </button>
           </div>
         </div>
-
-        {showHistory && (
-          <div className="history-dropdown">
-            <div className="history-block">
-              <div className="panel-title-row">
-                <h3>{getSubjectLabel(subject)} 历史对话</h3>
-                <button className="tiny-button" onClick={() => setShowHistory(false)}>
-                  ✕ 关闭
-                </button>
-              </div>
-              <div className="history-list history-list--dropdown">
-                {visibleSessions.length === 0 && (
-                  <div className="empty-inline">该学科下暂无历史对话。</div>
-                )}
-                {visibleSessions.map((session) => (
-                  <div
-                    key={session.id}
-                    className={activeSessionId === session.id ? "history-item active" : "history-item"}
-                    onClick={() => { openChatSession(session); setShowHistory(false); }}
-                  >
-                    <div className="history-subject">
-                      {getSubjectLabel(session.subject || session.course)}
-                    </div>
-                    <div className="history-title">{session.title}</div>
-                    <div className="history-meta">{formatDate(session.created_at)}</div>
-                    <div className="history-actions">
-                      <button
-                        className="tiny-button"
-                        onClick={(event) => { event.stopPropagation(); renameChatSession(session, event); }}
-                      >
-                        编辑标题
-                      </button>
-                      <button
-                        className="tiny-button danger"
-                        onClick={(event) => { event.stopPropagation(); deleteChatSession(session, event); }}
-                      >
-                        删除
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       <main className="workspace-main workspace-main--chat-only">
@@ -3156,6 +3128,45 @@ function App() {
             </div>
 
             {tip && <p className="tip-text">{tip}</p>}
+          </section>
+        ) : page === "history" ? (
+          <section className="chat-panel chat-panel--wide workspace-history-panel">
+            <div className="panel-header panel-header--chat">
+              <div className="subject-pill panel-pill">历史对话</div>
+              <div className="subject-pill">学科：{getSubjectLabel(subject)}</div>
+            </div>
+            <div className="history-list history-list--page">
+              {visibleSessions.length === 0 && (
+                <div className="empty-inline">该学科下暂无历史对话。</div>
+              )}
+              {visibleSessions.map((session) => (
+                <div
+                  key={session.id}
+                  className={activeSessionId === session.id ? "history-item active" : "history-item"}
+                  onClick={() => openChatSession(session)}
+                >
+                  <div className="history-subject">
+                    {getSubjectLabel(session.subject || session.course)}
+                  </div>
+                  <div className="history-title">{session.title}</div>
+                  <div className="history-meta">{formatDate(session.created_at)}</div>
+                  <div className="history-actions">
+                    <button
+                      className="tiny-button"
+                      onClick={(event) => { event.stopPropagation(); renameChatSession(session, event); }}
+                    >
+                      编辑标题
+                    </button>
+                    <button
+                      className="tiny-button danger"
+                      onClick={(event) => { event.stopPropagation(); deleteChatSession(session, event); }}
+                    >
+                      删除
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </section>
         ) : (
           <section className="chat-panel chat-panel--wide">
