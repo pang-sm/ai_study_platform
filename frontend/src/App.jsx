@@ -1566,6 +1566,15 @@ function App() {
     return undefined;
   }, [page, user?.username, subject]);
 
+  useEffect(() => {
+    if (page === "workspaceMaterials" && user?.username) {
+      const normalizedSubject = normalizeSubject(subject);
+      setMaterialSubjectFilter(normalizedSubject);
+      setMaterialCurrentPage(1);
+      loadMaterials(normalizedSubject);
+    }
+  }, [page, user?.username, subject]);
+
   const handleRegister = async () => {
     setTip("");
 
@@ -2823,8 +2832,8 @@ function App() {
                 AI 问答
               </button>
               <button
-                className={`workspace-tab ${page === "materials" ? "active" : ""}`}
-                onClick={() => openMaterialsPageForCourse(subject)}
+                className={`workspace-tab ${page === "workspaceMaterials" ? "active" : ""}`}
+                onClick={() => { setMaterialSubjectFilter(normalizeSubject(subject)); setMaterialCurrentPage(1); setPage("workspaceMaterials"); loadMaterials(normalizeSubject(subject)); }}
               >
                 资料库
               </button>
@@ -3162,6 +3171,198 @@ function App() {
                   </div>
                 </div>
               ))}
+            </div>
+          </section>
+        ) : page === "workspaceMaterials" ? (
+          <section className="chat-panel chat-panel--wide workspace-materials-panel">
+            <div className="panel-header panel-header--chat workspace-materials-header">
+              <div>
+                <div className="subject-pill panel-pill">当前课程资料</div>
+                <h2>课程资料 · {getSubjectLabel(subject)}</h2>
+              </div>
+              <div className="workspace-materials-header-actions">
+                <button
+                  className="ghost-button compact"
+                  onClick={() => { setMaterialCurrentPage(1); loadMaterials(normalizeSubject(subject)); }}
+                >
+                  刷新
+                </button>
+                <button
+                  className="ghost-button compact"
+                  onClick={reindexLibrary}
+                  disabled={reindexLoading}
+                >
+                  {reindexLoading ? "重建中..." : "重建索引"}
+                </button>
+              </div>
+            </div>
+
+            <div className="library-search-row">
+              <label className="field-label">资料搜索</label>
+              <div className="library-search-controls">
+                <input
+                  className="field"
+                  placeholder={`在${getSubjectLabel(subject)}中搜索资料...`}
+                  value={materialSearchQuery}
+                  onChange={(e) => handleMaterialSearchChange(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      setMaterialCurrentPage(1);
+                      searchMaterials(materialSearchQuery, normalizeSubject(subject));
+                    }
+                  }}
+                />
+                <button
+                  className="ghost-button compact"
+                  onClick={() => {
+                    setMaterialCurrentPage(1);
+                    searchMaterials(materialSearchQuery, normalizeSubject(subject));
+                  }}
+                  disabled={!trimmedMaterialSearchQuery || materialSearchLoading}
+                >
+                  搜索
+                </button>
+              </div>
+            </div>
+
+            {trimmedMaterialSearchQuery && materialSearchTriggered ? (
+              materialSearchLoading ? (
+                <div className="empty-inline">正在搜索...</div>
+              ) : materialSearchResults.length === 0 ? (
+                <div className="empty-inline">
+                  {getSubjectLabel(subject)} 学科下没有匹配的资料。
+                </div>
+              ) : (
+                <div className="search-results">
+                  {paginatedSearchResults.map((item) => (
+                    <div key={`${item.material_id}-${item.chunk_id}`} className="search-result-card">
+                      <div className="material-item-head">
+                        <span className="subject-pill small">{getSubjectLabel(item.subject)}</span>
+                        <span className="muted-text">{getFileTypeLabel(item.file_type)}</span>
+                      </div>
+                      <div className="material-title">{item.filename}</div>
+                      <div className="search-result-snippet">
+                        命中片段：{getReferenceSnippet(item)}
+                      </div>
+                      <div className="history-meta">{formatDate(item.created_at)}</div>
+                      <div className="material-actions">
+                        <button className="tiny-button" onClick={() => openMaterialDetail(item.material_id)}>
+                          查看详情
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="pagination-bar">
+                    <button className="tiny-button" disabled={safeSearchPage <= 1} onClick={() => setMaterialCurrentPage((p) => Math.max(1, p - 1))}>
+                      上一页
+                    </button>
+                    <span className="pagination-info">{safeSearchPage} / {searchTotalPages}</span>
+                    <button className="tiny-button" disabled={safeSearchPage >= searchTotalPages} onClick={() => setMaterialCurrentPage((p) => Math.min(searchTotalPages, p + 1))}>
+                      下一页
+                    </button>
+                  </div>
+                </div>
+              )
+            ) : materialsLoading ? (
+              <div className="empty-inline">资料加载中...</div>
+            ) : currentFilterItems.length === 0 ? (
+              <div className="empty-inline">
+                <p>当前课程还没有资料。</p>
+                <p className="muted-text">你可以在 AI 问答中上传资料，资料会自动沉淀到这里。</p>
+              </div>
+            ) : (
+              <div className="workspace-materials-list">
+                {paginatedFilterItems.map((material) => (
+                  <div key={material.id} className="material-item material-item--profile">
+                    <div className="material-item-head">
+                      <span className="subject-pill small">{getSubjectLabel(material.subject)}</span>
+                      <span className="muted-text">{getFileTypeLabel(material.file_type)}</span>
+                    </div>
+                    <div className="material-title">{material.original_filename}</div>
+                    <div className="material-summary">{material.summary}</div>
+                    <div className="material-asset-meta">
+                      <span>原文件已保存</span>
+                      <span>{formatFileSize(material.file_size)}</span>
+                      <span>{getParseStatusLabel(material.parse_status)}</span>
+                      <span>{Number(material.chunk_count || 0)} 个知识片段</span>
+                    </div>
+                    <div className="history-meta">{formatDate(material.created_at)}</div>
+                    <div className="material-actions">
+                      <button className="tiny-button" onClick={() => previewMaterial(material)} disabled={!material.can_preview}>
+                        查看原文件
+                      </button>
+                      <button className="tiny-button" onClick={() => downloadMaterial(material)} disabled={!material.can_download}>
+                        下载原文件
+                      </button>
+                      <button className="tiny-button" onClick={() => openMaterialDetail(material.id)}>
+                        查看 AI 索引文本
+                      </button>
+                      <button className="tiny-button danger" onClick={() => deleteMaterial(material.id)}>
+                        删除
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {currentFilterTotalPages > 1 && (
+                  <div className="pagination-bar">
+                    <button className="tiny-button" disabled={safeCurrentPage <= 1} onClick={() => setMaterialCurrentPage((p) => Math.max(1, p - 1))}>
+                      上一页
+                    </button>
+                    <span className="pagination-info">{safeCurrentPage} / {currentFilterTotalPages}</span>
+                    <button className="tiny-button" disabled={safeCurrentPage >= currentFilterTotalPages} onClick={() => setMaterialCurrentPage((p) => Math.min(currentFilterTotalPages, p + 1))}>
+                      下一页
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="material-detail-card material-detail-card--profile">
+              <div className="panel-title-row">
+                <h3>资料详情</h3>
+              </div>
+              {!selectedMaterialDetail ? (
+                <div className="empty-inline">
+                  点击"查看原文件"在新标签页预览原文件；点击"查看 AI 索引文本"查看解析摘要。
+                </div>
+              ) : (
+                <>
+                  <div className="detail-meta">
+                    <div>文件：{selectedMaterialDetail.original_filename}</div>
+                    <div>学科：{getSubjectLabel(selectedMaterialDetail.subject)}</div>
+                    <div>类型：{getFileTypeLabel(selectedMaterialDetail.file_type)}</div>
+                    <div>上传时间：{formatDate(selectedMaterialDetail.created_at)}</div>
+                  </div>
+                  <div className="material-status-note">
+                    {getParseStatusHint(selectedMaterialDetail)}
+                  </div>
+                  <div className="material-asset-meta material-asset-meta--detail">
+                    <span>原文件大小：{formatFileSize(selectedMaterialDetail.file_size)}</span>
+                    <span>AI 知识索引：{getParseStatusLabel(selectedMaterialDetail.parse_status)}</span>
+                    <span>{Number(selectedMaterialDetail.chunk_count || 0)} 个知识片段</span>
+                  </div>
+                  <div className="material-actions material-actions--detail">
+                    <button className="tiny-button" onClick={() => previewMaterial(selectedMaterialDetail)} disabled={!selectedMaterialDetail.can_preview}>
+                      查看原文件
+                    </button>
+                    <button className="tiny-button" onClick={() => downloadMaterial(selectedMaterialDetail)} disabled={!selectedMaterialDetail.can_download}>
+                      下载原文件
+                    </button>
+                  </div>
+                  <div className="material-status-note">
+                    以下内容是系统从原文件中解析出的 AI 知识索引，用于问答和引用，不等同于原文件排版。
+                  </div>
+                  <div className="result-block">
+                    <strong>摘要</strong>
+                    <p>{selectedMaterialDetail.summary}</p>
+                  </div>
+                  <div className="result-block">
+                    <strong>AI 知识索引文本</strong>
+                    <pre>{selectedMaterialDetail.extracted_text}</pre>
+                  </div>
+                </>
+              )}
             </div>
           </section>
         ) : (

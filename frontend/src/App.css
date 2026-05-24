@@ -2313,6 +2313,34 @@ select.field:focus {
   overflow-y: auto;
 }
 
+/* ── 工作台内嵌资料库 ── */
+
+.workspace-materials-panel {
+  overflow-y: auto;
+}
+
+.workspace-materials-header {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.workspace-materials-header h2 {
+  margin: 8px 0 0;
+  font-size: 20px;
+}
+
+.workspace-materials-header-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.workspace-materials-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 /* ── 头像圆形 ── */
 
 .avatar-circle {
