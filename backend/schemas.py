@@ -341,3 +341,26 @@ class PlanImportTasksRequest(BaseModel):
     username: str
     plan_title: str = ""
     items: list
+
+
+# ── Material-Knowledge Links ─────────────────────────────
+
+
+class MaterialKnowledgeLinkCreate(BaseModel):
+    username: str
+    course_id: str = ""
+    knowledge_point_id: int
+    source: str = "manual"
+    confidence: int = 100
+    reason: str = ""
+
+
+class MaterialKnowledgeRecommendRequest(BaseModel):
+    username: str
+    course_id: str = ""
+
+
+class MaterialKnowledgeApplyRequest(BaseModel):
+    username: str
+    course_id: str = ""
+    links: list

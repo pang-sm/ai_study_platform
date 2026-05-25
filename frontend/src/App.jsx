@@ -9,6 +9,7 @@ const PracticeCenter = lazy(() => import("./components/PracticeCenter.jsx"));
 const LearningDataCenter = lazy(() => import("./components/LearningDataCenter.jsx"));
 const ReviewCenter = lazy(() => import("./components/ReviewCenter.jsx"));
 const LearningPlanCenter = lazy(() => import("./components/LearningPlanCenter.jsx"));
+const KnowledgeBaseCenter = lazy(() => import("./components/KnowledgeBaseCenter.jsx"));
 import MarkdownMessage from "./components/MarkdownMessage.jsx";
 import {
   COURSE_OPTIONS,
@@ -2491,6 +2492,11 @@ function App() {
                 <div className="home-entry-title">AI 学习计划</div>
                 <div className="home-entry-desc">根据知识点掌握度、错题和任务生成个性化学习计划。</div>
               </button>
+              <button className="home-entry-card" onClick={() => setPage("knowledgeBaseCenter")}>
+                <div className="home-entry-icon">📚</div>
+                <div className="home-entry-title">知识库中心</div>
+                <div className="home-entry-desc">管理课程资料与知识点的关联，查看资料覆盖情况。</div>
+              </button>
               <button className="home-entry-card" onClick={() => {
                 setLearningGoals(Array.isArray(user?.learning_goals) ? [...user.learning_goals] : []);
                 setPage("profileEdit");
@@ -2641,6 +2647,27 @@ function App() {
         </header>
         <Suspense fallback={<div className="empty-state">AI 学习计划加载中...</div>}>
           <LearningPlanCenter
+            user={user}
+            getSubjectLabel={getSubjectLabel}
+          />
+        </Suspense>
+      </div>
+    );
+  }
+
+  if (page === "knowledgeBaseCenter") {
+    return (
+      <div className="app-shell">
+        <header className="workspace-topbar">
+          <div className="workspace-topbar-left">
+            <button className="ghost-button compact" onClick={() => setPage("home")}>
+              返回首页
+            </button>
+            <span className="subject-pill panel-pill">知识库中心</span>
+          </div>
+        </header>
+        <Suspense fallback={<div className="empty-state">知识库中心加载中...</div>}>
+          <KnowledgeBaseCenter
             user={user}
             getSubjectLabel={getSubjectLabel}
           />

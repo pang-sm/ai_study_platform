@@ -5829,6 +5829,21 @@ def list_knowledge_points(
     )
     qc_map = {row[0]: row[1] for row in q_counts}
 
+    # Count linked materials per knowledge point
+    ml_counts = (
+        db.query(
+            models.MaterialKnowledgeLink.knowledge_point_id,
+            func.count(models.MaterialKnowledgeLink.id).label("cnt"),
+        )
+        .filter(
+            models.MaterialKnowledgeLink.username == user.username,
+            models.MaterialKnowledgeLink.course_id == normalized_course,
+        )
+        .group_by(models.MaterialKnowledgeLink.knowledge_point_id)
+        .all()
+    )
+    ml_map = {row[0]: row[1] for row in ml_counts}
+
     serialized = [
         serialize_knowledge_point(
             p,
@@ -5842,6 +5857,7 @@ def list_knowledge_points(
 
     for s in serialized:
         s["question_count"] = qc_map.get(s["id"], 0)
+        s["material_count"] = ml_map.get(s["id"], 0)
 
     # Build tree
     point_map = {s["id"]: s for s in serialized}
@@ -7423,4 +7439,565 @@ def import_plan_tasks(req: PlanImportTasksRequest, db: Session = Depends(get_db)
         "created_count": len(created_tasks),
         "message": f"已创建 {len(created_tasks)} 个学习任务，可前往任务中心查看。",
         "tasks": [serialize_learning_task(t) for t in created_tasks],
+    }
+
+
+# ── Knowledge Base Center ────────────────────────────────
+
+
+def _get_knowledge_base_dashboard_data(username: str, course_id: str, db: Session):
+    """Shared helper for knowledge-base dashboard queries."""
+    normalized_course = normalize_subject(course_id, default="")
+
+    mat_query = db.query(models.StudyMaterial).filter(
+        models.StudyMaterial.username == username,
+        models.StudyMaterial.is_deleted == False,
+    )
+    if normalized_course:
+        mat_query = mat_query.filter(models.StudyMaterial.subject == normalized_course)
+    materials = mat_query.all()
+    material_count = len(materials)
+    material_ids = [m.id for m in materials]
+
+    # Linked material IDs
+    link_query = db.query(models.MaterialKnowledgeLink.material_id).filter(
+        models.MaterialKnowledgeLink.username == username,
+    )
+    if normalized_course:
+        link_query = link_query.filter(models.MaterialKnowledgeLink.course_id == normalized_course)
+    linked_material_ids = set(row[0] for row in link_query.distinct().all())
+
+    linked_material_count = len(linked_material_ids)
+    unlinked_material_count = material_count - linked_material_count
+
+    kp_query = db.query(models.KnowledgePoint).filter(
+        models.KnowledgePoint.username == username,
+    )
+    if normalized_course:
+        kp_query = kp_query.filter(models.KnowledgePoint.course_id == normalized_course)
+    kp_count = kp_query.count()
+
+    # Covered knowledge point IDs
+    covered_query = db.query(models.MaterialKnowledgeLink.knowledge_point_id).filter(
+        models.MaterialKnowledgeLink.username == username,
+    )
+    if normalized_course:
+        covered_query = covered_query.filter(models.MaterialKnowledgeLink.course_id == normalized_course)
+    covered_kp_ids = set(row[0] for row in covered_query.distinct().all())
+    covered_kp_count = len(covered_kp_ids)
+
+    uncovered_kp_count = max(0, kp_count - covered_kp_count)
+    coverage_rate = round(covered_kp_count * 100 / kp_count, 1) if kp_count > 0 else 0
+
+    return {
+        "material_count": material_count,
+        "linked_material_count": linked_material_count,
+        "unlinked_material_count": unlinked_material_count,
+        "knowledge_point_count": kp_count,
+        "covered_knowledge_point_count": covered_kp_count,
+        "uncovered_knowledge_point_count": uncovered_kp_count,
+        "coverage_rate": coverage_rate,
+        "materials": materials,
+        "material_ids": material_ids,
+        "linked_material_ids": linked_material_ids,
+        "covered_kp_ids": covered_kp_ids,
+        "normalized_course": normalized_course,
+    }
+
+
+@app.get("/knowledge-base/dashboard")
+def get_knowledge_base_dashboard(username: str, course_id: str = "", db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    dd = _get_knowledge_base_dashboard_data(username, course_id, db)
+
+    # ── Course summaries ──
+    all_kps = (
+        db.query(models.KnowledgePoint)
+        .filter(models.KnowledgePoint.username == username)
+        .all()
+    )
+    course_kp_map: dict[str, int] = {}
+    for kp in all_kps:
+        cid = kp.course_id or ""
+        course_kp_map[cid] = course_kp_map.get(cid, 0) + 1
+
+    all_links = (
+        db.query(models.MaterialKnowledgeLink)
+        .filter(models.MaterialKnowledgeLink.username == username)
+        .all()
+    )
+    course_links_by_material: dict[str, set[int]] = {}
+    course_links_by_kp: dict[str, set[int]] = {}
+    for link in all_links:
+        cid = link.course_id or ""
+        if cid not in course_links_by_material:
+            course_links_by_material[cid] = set()
+        if cid not in course_links_by_kp:
+            course_links_by_kp[cid] = set()
+        course_links_by_material[cid].add(link.material_id)
+        course_links_by_kp[cid].add(link.knowledge_point_id)
+
+    course_materials: dict[str, int] = {}
+    for m in dd["materials"]:
+        cid = m.subject or ""
+        course_materials[cid] = course_materials.get(cid, 0) + 1
+
+    all_courses = set(list(course_kp_map.keys()) + list(course_materials.keys()))
+    course_summaries = []
+    for cid in sorted(all_courses):
+        mat_c = course_materials.get(cid, 0)
+        linked_mat = len(course_links_by_material.get(cid, set()))
+        kp_c = course_kp_map.get(cid, 0)
+        covered = len(course_links_by_kp.get(cid, set()))
+        rate = round(covered * 100 / kp_c, 1) if kp_c > 0 else 0
+        course_summaries.append({
+            "course_id": cid,
+            "course_name": cid,
+            "material_count": mat_c,
+            "linked_material_count": linked_mat,
+            "knowledge_point_count": kp_c,
+            "covered_knowledge_point_count": covered,
+            "coverage_rate": rate,
+        })
+
+    # ── Unlinked materials ──
+    unlinked = [m for m in dd["materials"] if m.id not in dd["linked_material_ids"]]
+    unlinked_materials = []
+    for m in unlinked[:20]:
+        unlinked_materials.append({
+            "id": m.id,
+            "title": m.original_filename or "",
+            "filename": m.original_filename or "",
+            "course_id": m.subject or "",
+            "course_name": m.subject or "",
+            "created_at": serialize_datetime(m.created_at) if m.created_at else None,
+        })
+
+    # ── Uncovered points ──
+    kps_for_uncovered = db.query(models.KnowledgePoint).filter(
+        models.KnowledgePoint.username == username,
+    )
+    if dd["normalized_course"]:
+        kps_for_uncovered = kps_for_uncovered.filter(models.KnowledgePoint.course_id == dd["normalized_course"])
+    kps_for_uncovered = kps_for_uncovered.all()
+
+    progress_query = db.query(models.UserKnowledgeProgress).filter(
+        models.UserKnowledgeProgress.username == username,
+    )
+    if dd["normalized_course"]:
+        progress_query = progress_query.filter(models.UserKnowledgeProgress.course_id == dd["normalized_course"])
+    progress_map = {p.knowledge_point_id: p for p in progress_query.all()}
+
+    uncovered_points = []
+    for kp in kps_for_uncovered:
+        if kp.id not in dd["covered_kp_ids"]:
+            prog = progress_map.get(kp.id)
+            uncovered_points.append({
+                "id": kp.id,
+                "title": kp.title,
+                "course_id": kp.course_id,
+                "course_name": kp.course_id,
+                "mastery_score": prog.mastery_score or 0 if prog else 0,
+                "status": prog.status or "not_started" if prog else "not_started",
+            })
+    uncovered_points = uncovered_points[:20]
+
+    # ── Recent links ──
+    recent = (
+        db.query(models.MaterialKnowledgeLink)
+        .filter(models.MaterialKnowledgeLink.username == username)
+        .order_by(models.MaterialKnowledgeLink.created_at.desc())
+        .limit(20)
+        .all()
+    )
+    recent_mat_ids = list(set(r.material_id for r in recent))
+    recent_kp_ids = list(set(r.knowledge_point_id for r in recent))
+    mat_map = {}
+    if recent_mat_ids:
+        mats = db.query(models.StudyMaterial).filter(
+            models.StudyMaterial.id.in_(recent_mat_ids),
+            models.StudyMaterial.is_deleted == False,
+        ).all()
+        mat_map = {m.id: m.original_filename or "" for m in mats}
+    kp_map = {}
+    if recent_kp_ids:
+        kps = db.query(models.KnowledgePoint).filter(
+            models.KnowledgePoint.id.in_(recent_kp_ids),
+        ).all()
+        kp_map = {kp.id: kp.title for kp in kps}
+
+    recent_links = []
+    for r in recent:
+        recent_links.append({
+            "material_id": r.material_id,
+            "material_title": mat_map.get(r.material_id, ""),
+            "knowledge_point_id": r.knowledge_point_id,
+            "knowledge_point_title": kp_map.get(r.knowledge_point_id, ""),
+            "source": r.source or "manual",
+            "confidence": r.confidence or 100,
+            "created_at": serialize_datetime(r.created_at) if r.created_at else None,
+        })
+
+    return {
+        "overview": {
+            "material_count": dd["material_count"],
+            "linked_material_count": dd["linked_material_count"],
+            "unlinked_material_count": dd["unlinked_material_count"],
+            "knowledge_point_count": dd["knowledge_point_count"],
+            "covered_knowledge_point_count": dd["covered_knowledge_point_count"],
+            "uncovered_knowledge_point_count": dd["uncovered_knowledge_point_count"],
+            "coverage_rate": dd["coverage_rate"],
+        },
+        "course_summaries": course_summaries,
+        "unlinked_materials": unlinked_materials,
+        "uncovered_points": uncovered_points,
+        "recent_links": recent_links,
+    }
+
+
+@app.get("/materials/{material_id}/knowledge-links")
+def get_material_knowledge_links(material_id: int, username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+
+    material = (
+        db.query(models.StudyMaterial)
+        .filter(
+            models.StudyMaterial.id == material_id,
+            models.StudyMaterial.username == user.username,
+            models.StudyMaterial.is_deleted == False,
+        )
+        .first()
+    )
+    if not material:
+        raise HTTPException(status_code=404, detail="资料不存在")
+
+    links = (
+        db.query(models.MaterialKnowledgeLink)
+        .filter(
+            models.MaterialKnowledgeLink.material_id == material_id,
+            models.MaterialKnowledgeLink.username == user.username,
+        )
+        .all()
+    )
+
+    kp_ids = [l.knowledge_point_id for l in links]
+    kp_map = {}
+    if kp_ids:
+        kps = db.query(models.KnowledgePoint).filter(
+            models.KnowledgePoint.id.in_(kp_ids),
+        ).all()
+        kp_map = {kp.id: kp for kp in kps}
+
+    return {
+        "links": [
+            {
+                "link_id": l.id,
+                "knowledge_point_id": l.knowledge_point_id,
+                "knowledge_point_title": kp_map[l.knowledge_point_id].title if l.knowledge_point_id in kp_map else "",
+                "course_id": l.course_id,
+                "source": l.source or "manual",
+                "confidence": l.confidence or 100,
+                "reason": l.reason or "",
+                "created_at": serialize_datetime(l.created_at) if l.created_at else None,
+            }
+            for l in links
+        ],
+    }
+
+
+@app.post("/materials/{material_id}/knowledge-links")
+def add_material_knowledge_link(material_id: int, req: schemas.MaterialKnowledgeLinkCreate, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+    normalized_course = normalize_subject(req.course_id, default="")
+
+    material = (
+        db.query(models.StudyMaterial)
+        .filter(
+            models.StudyMaterial.id == material_id,
+            models.StudyMaterial.username == user.username,
+            models.StudyMaterial.is_deleted == False,
+        )
+        .first()
+    )
+    if not material:
+        raise HTTPException(status_code=404, detail="资料不存在")
+
+    kp = (
+        db.query(models.KnowledgePoint)
+        .filter(
+            models.KnowledgePoint.id == req.knowledge_point_id,
+            models.KnowledgePoint.username == user.username,
+        )
+        .first()
+    )
+    if not kp:
+        raise HTTPException(status_code=404, detail="知识点不存在")
+
+    material_course = normalize_subject(material.subject or "", default="")
+    kp_course = normalize_subject(kp.course_id or "", default="")
+    if material_course and kp_course and material_course != kp_course:
+        raise HTTPException(status_code=400, detail="资料和知识点不属于同一课程")
+
+    # Check duplicate
+    existing = (
+        db.query(models.MaterialKnowledgeLink)
+        .filter(
+            models.MaterialKnowledgeLink.username == user.username,
+            models.MaterialKnowledgeLink.material_id == material_id,
+            models.MaterialKnowledgeLink.knowledge_point_id == req.knowledge_point_id,
+        )
+        .first()
+    )
+    if existing:
+        raise HTTPException(status_code=400, detail="该资料已绑定此知识点")
+
+    link = models.MaterialKnowledgeLink(
+        username=user.username,
+        course_id=normalized_course or material_course or kp_course,
+        material_id=material_id,
+        knowledge_point_id=req.knowledge_point_id,
+        source=req.source or "manual",
+        confidence=req.confidence or 100,
+        reason=req.reason or "",
+    )
+    db.add(link)
+    db.commit()
+    db.refresh(link)
+
+    return {
+        "success": True,
+        "link_id": link.id,
+        "message": "知识点绑定成功",
+    }
+
+
+@app.delete("/materials/{material_id}/knowledge-links/{link_id}")
+def delete_material_knowledge_link(material_id: int, link_id: int, username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+
+    link = (
+        db.query(models.MaterialKnowledgeLink)
+        .filter(
+            models.MaterialKnowledgeLink.id == link_id,
+            models.MaterialKnowledgeLink.username == user.username,
+            models.MaterialKnowledgeLink.material_id == material_id,
+        )
+        .first()
+    )
+    if not link:
+        raise HTTPException(status_code=404, detail="绑定关系不存在")
+
+    db.delete(link)
+    db.commit()
+
+    return {"success": True, "message": "绑定关系已删除"}
+
+
+RECOMMEND_SYSTEM_PROMPT = """You are a knowledge point recommendation assistant. Given a study material and a list of knowledge points, recommend which knowledge points the material is most relevant to.
+
+Rules:
+1. Output ONLY valid JSON — no markdown, no code fences, no extra text.
+2. The JSON must have: recommendations (array).
+3. Each recommendation must use an EXISTING knowledge_point_id from the provided list.
+4. Never invent new IDs.
+5. Max 5 recommendations.
+6. If nothing matches well, return an empty array.
+7. confidence must be 0-100.
+8. reason should be short and specific (1 sentence)."""
+
+
+@app.post("/materials/{material_id}/knowledge-links/recommend")
+def recommend_material_knowledge_links(material_id: int, req: schemas.MaterialKnowledgeRecommendRequest, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+    normalized_course = normalize_subject(req.course_id, default="")
+
+    material = (
+        db.query(models.StudyMaterial)
+        .filter(
+            models.StudyMaterial.id == material_id,
+            models.StudyMaterial.username == user.username,
+            models.StudyMaterial.is_deleted == False,
+        )
+        .first()
+    )
+    if not material:
+        raise HTTPException(status_code=404, detail="资料不存在")
+
+    material_course = normalize_subject(material.subject or "", default="")
+    target_course = normalized_course or material_course
+
+    kps = (
+        db.query(models.KnowledgePoint)
+        .filter(
+            models.KnowledgePoint.username == user.username,
+            models.KnowledgePoint.course_id == target_course,
+        )
+        .all()
+    )
+    if not kps:
+        raise HTTPException(status_code=400, detail="当前课程还没有知识点，请先生成知识点路线图。")
+
+    # Build material text (max 2000 chars)
+    mat_text = material.summary or ""
+    if len(mat_text) < 200 and material.extracted_text:
+        mat_text = material.extracted_text[:2000]
+
+    kp_list = [
+        f"id={kp.id}, title={kp.title}, desc={kp.description or ''}"
+        for kp in kps
+    ]
+
+    user_prompt = (
+        f"Material: {material.original_filename}\n"
+        f"Material content (excerpt): {mat_text[:2000]}\n\n"
+        f"Knowledge points in course \"{target_course}\":\n"
+        + "\n".join(kp_list)
+        + "\n\nRecommend which knowledge points this material relates to."
+    )
+
+    messages = [
+        {"role": "system", "content": RECOMMEND_SYSTEM_PROMPT},
+        {"role": "user", "content": user_prompt},
+    ]
+
+    try:
+        raw = call_deepseek(messages)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="AI 推荐失败，请稍后重试") from exc
+
+    # Parse JSON
+    text = raw.strip()
+    if text.startswith("```"):
+        lines = text.split("\n")
+        end_idx = len(lines)
+        for i in range(len(lines) - 1, 0, -1):
+            if lines[i].strip() == "```":
+                end_idx = i
+                break
+        text = "\n".join(lines[1:end_idx]).strip()
+    json_start = text.find("{")
+    json_end = text.rfind("}")
+    if json_start == -1 or json_end == -1:
+        raise HTTPException(status_code=500, detail="AI 返回格式异常，未找到 JSON 对象")
+
+    try:
+        data = json.loads(text[json_start:json_end + 1])
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=500, detail=f"AI 返回 JSON 解析失败：{str(exc)}")
+
+    raw_recs = data.get("recommendations", [])
+    if not isinstance(raw_recs, list):
+        raw_recs = []
+
+    kp_id_set = {kp.id for kp in kps}
+    recommendations = []
+    for rec in raw_recs:
+        if not isinstance(rec, dict):
+            continue
+        kp_id = rec.get("knowledge_point_id")
+        if kp_id is None or not isinstance(kp_id, (int, float)):
+            continue
+        kp_id = int(kp_id)
+        if kp_id not in kp_id_set:
+            continue
+        confidence = int(rec.get("confidence", 50))
+        confidence = max(0, min(100, confidence))
+        reason = str(rec.get("reason") or "").strip()
+        if not reason:
+            reason = "该资料与该知识点相关。"
+        kp_title = next((kp.title for kp in kps if kp.id == kp_id), "")
+        recommendations.append({
+            "knowledge_point_id": kp_id,
+            "knowledge_point_title": kp_title,
+            "confidence": confidence,
+            "reason": reason,
+        })
+
+    return {"recommendations": recommendations}
+
+
+@app.post("/materials/{material_id}/knowledge-links/apply")
+def apply_material_knowledge_recommendations(material_id: int, req: schemas.MaterialKnowledgeApplyRequest, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+
+    material = (
+        db.query(models.StudyMaterial)
+        .filter(
+            models.StudyMaterial.id == material_id,
+            models.StudyMaterial.username == user.username,
+            models.StudyMaterial.is_deleted == False,
+        )
+        .first()
+    )
+    if not material:
+        raise HTTPException(status_code=404, detail="资料不存在")
+
+    if not req.links:
+        raise HTTPException(status_code=400, detail="没有可应用的推荐结果")
+
+    # Validate all kp_ids
+    kp_ids = []
+    for item in req.links:
+        if isinstance(item, dict) and item.get("knowledge_point_id"):
+            kp_ids.append(int(item["knowledge_point_id"]))
+    if not kp_ids:
+        raise HTTPException(status_code=400, detail="没有有效的知识点 ID")
+
+    valid_kps = (
+        db.query(models.KnowledgePoint)
+        .filter(
+            models.KnowledgePoint.id.in_(kp_ids),
+            models.KnowledgePoint.username == user.username,
+        )
+        .all()
+    )
+    valid_kp_ids = {kp.id for kp in valid_kps}
+
+    # Check existing links
+    existing = (
+        db.query(models.MaterialKnowledgeLink)
+        .filter(
+            models.MaterialKnowledgeLink.username == user.username,
+            models.MaterialKnowledgeLink.material_id == material_id,
+        )
+        .all()
+    )
+    existing_kp_ids = {l.knowledge_point_id for l in existing}
+
+    material_course = normalize_subject(material.subject or "", default="")
+    created = 0
+    for item in req.links:
+        if not isinstance(item, dict):
+            continue
+        kp_id = int(item.get("knowledge_point_id", 0))
+        if kp_id not in valid_kp_ids:
+            continue
+        if kp_id in existing_kp_ids:
+            continue
+        confidence = max(0, min(100, int(item.get("confidence", 50))))
+        reason = str(item.get("reason") or "").strip() or "AI 推荐"
+
+        kp = next((kp for kp in valid_kps if kp.id == kp_id), None)
+        kp_course = normalize_subject(kp.course_id if kp else "", default="")
+
+        link = models.MaterialKnowledgeLink(
+            username=user.username,
+            course_id=material_course or kp_course,
+            material_id=material_id,
+            knowledge_point_id=kp_id,
+            source="ai",
+            confidence=confidence,
+            reason=reason,
+        )
+        db.add(link)
+        created += 1
+
+    db.commit()
+
+    return {
+        "success": True,
+        "created_count": created,
+        "message": f"已应用 {created} 个知识点关联",
     }

@@ -284,3 +284,17 @@ class QuestionAttempt(Base):
     ai_feedback = Column(Text, nullable=True)
     self_result = Column(String(30), nullable=True)
     created_at = Column(DateTime, default=utc_now)
+
+
+class MaterialKnowledgeLink(Base):
+    __tablename__ = "material_knowledge_links"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), index=True, nullable=False)
+    course_id = Column(String(100), index=True, nullable=False)
+    material_id = Column(Integer, index=True, nullable=False)
+    knowledge_point_id = Column(Integer, index=True, nullable=False)
+    source = Column(String(50), nullable=True, default="manual")
+    confidence = Column(Integer, nullable=True, default=100)
+    reason = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=utc_now)

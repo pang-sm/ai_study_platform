@@ -384,6 +384,11 @@ export default function KnowledgeRoadmap({
                   题目：{point.question_count}
                 </span>
               )}
+              {(point.material_count ?? 0) > 0 && (
+                <span className="kp-mastery-tag" style={{ color: "#7c3aed" }}>
+                  资料：{point.material_count}
+                </span>
+              )}
             </div>
             {point.description && (
               <p className="kp-desc">{point.description}</p>

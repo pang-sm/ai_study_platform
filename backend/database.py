@@ -201,6 +201,17 @@ QUESTION_ATTEMPTS_COLUMNS = {
     "created_at": "DATETIME NOT NULL",
 }
 
+MATERIAL_KNOWLEDGE_LINKS_COLUMNS = {
+    "username": "VARCHAR(50) NOT NULL",
+    "course_id": "VARCHAR(100) NOT NULL",
+    "material_id": "INTEGER NOT NULL",
+    "knowledge_point_id": "INTEGER NOT NULL",
+    "source": "VARCHAR(50) DEFAULT 'manual'",
+    "confidence": "INTEGER DEFAULT 100",
+    "reason": "TEXT",
+    "created_at": "DATETIME NOT NULL",
+}
+
 KNOWLEDGE_PROGRESS_EVENTS_COLUMNS = {
     "username": "VARCHAR(50) NOT NULL",
     "course_id": "VARCHAR(100) NOT NULL",
@@ -512,6 +523,27 @@ def ensure_user_knowledge_progress_schema(conn):
     ensure_columns(conn, "user_knowledge_progress", USER_KNOWLEDGE_PROGRESS_COLUMNS)
 
 
+def ensure_material_knowledge_links_schema(conn):
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS material_knowledge_links (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username VARCHAR(50) NOT NULL,
+                course_id VARCHAR(100) NOT NULL,
+                material_id INTEGER NOT NULL,
+                knowledge_point_id INTEGER NOT NULL,
+                source VARCHAR(50) DEFAULT 'manual',
+                confidence INTEGER DEFAULT 100,
+                reason TEXT,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+    )
+    ensure_columns(conn, "material_knowledge_links", MATERIAL_KNOWLEDGE_LINKS_COLUMNS)
+
+
 def ensure_knowledge_progress_events_schema(conn):
     conn.execute(
         text(
@@ -670,6 +702,7 @@ def init_user_profile_schema():
         ensure_knowledge_points_schema(conn)
         ensure_user_knowledge_progress_schema(conn)
         ensure_knowledge_progress_events_schema(conn)
+        ensure_material_knowledge_links_schema(conn)
         ensure_material_chunks_fts(conn)
         normalize_existing_subjects(conn)
 
