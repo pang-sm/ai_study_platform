@@ -155,6 +155,13 @@ export default function CourseDashboard({
                 >
                   去编程学习助手
                 </button>
+                <button
+                  className="ghost-button compact"
+                  onClick={onOpenCodeStudio}
+                  style={{ marginTop: 8, marginLeft: 8, color: "#0f766e" }}
+                >
+                  查看编程学习诊断
+                </button>
               </>
             ) : (
               <div className="empty-inline">

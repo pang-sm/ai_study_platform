@@ -46,6 +46,9 @@ export default function CodeStudio({
   const [challengeGenerating, setChallengeGenerating] = useState(false);
   const [currentChallenge, setCurrentChallenge] = useState(null);
 
+  const [diagnosisLoading, setDiagnosisLoading] = useState(false);
+  const [diagnosisReport, setDiagnosisReport] = useState(null);
+
   const hasUnsaved =
     selectedSession &&
     (selectedSession.title !== title ||
@@ -296,6 +299,34 @@ export default function CodeStudio({
     }
   };
 
+  const fetchDiagnosis = async () => {
+    if (!user?.username) return;
+    setDiagnosisLoading(true);
+    setDiagnosisReport(null);
+    try {
+      const res = await fetch(`${API_BASE}/code/learning-diagnosis`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: user.username,
+          course_id: normalizeSubject(codeCourseId),
+          language: "",
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setDiagnosisReport(data);
+      } else {
+        setTip(data.detail || "诊断生成失败");
+      }
+    } catch (error) {
+      console.error("Failed to fetch diagnosis:", error);
+      setTip("诊断生成失败，请稍后重试");
+    } finally {
+      setDiagnosisLoading(false);
+    }
+  };
+
   return (
     <section className="code-studio-shell">
       {/* Left Panel — Session List */}
@@ -466,10 +497,39 @@ export default function CodeStudio({
       <aside className="code-studio-assistant">
         <div className="code-studio-assistant-header">
           <h3>AI 代码助手</h3>
+          <button
+            className="ghost-button compact code-diagnosis-btn"
+            onClick={fetchDiagnosis}
+            disabled={diagnosisLoading}
+          >
+            {diagnosisLoading ? "分析中..." : "生成学习诊断"}
+          </button>
         </div>
 
         <div className="code-studio-assistant-chat">
-          {aiMessagesLoading ? (
+          {diagnosisReport ? (
+            <div className="code-diagnosis-report">
+              {diagnosisReport.data_insufficient ? (
+                <div className="empty-inline" style={{ padding: "16px" }}>
+                  {diagnosisReport.summary.split("\n").map((line, i) => (
+                    <p key={i} style={{ margin: "4px 0" }}>{line || " "}</p>
+                  ))}
+                </div>
+              ) : (
+                <div className="code-assistant-msg code-assistant-msg--assistant">
+                  <div className="code-assistant-msg-role">编程学习诊断报告</div>
+                  <div className="code-assistant-msg-content">{diagnosisReport.summary}</div>
+                  <div className="code-diagnosis-meta">
+                    分析依据：{diagnosisReport.used_sessions_count} 条练习、{diagnosisReport.used_messages_count} 条分析记录、{diagnosisReport.used_challenges_count} 道出题
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : diagnosisLoading ? (
+            <div className="empty-inline" style={{ padding: "24px 16px" }}>
+              AI 正在分析你的编程学习情况...
+            </div>
+          ) : aiMessagesLoading ? (
             <div className="empty-inline" style={{ padding: "24px 16px" }}>
               加载历史记录中...
             </div>

@@ -4239,6 +4239,168 @@ def get_code_challenge(challenge_id: int, username: str, db: Session = Depends(g
     return {"challenge": serialize_code_challenge(challenge)}
 
 
+CODE_LEARNING_DIAGNOSIS_PROMPT = """你是编程学习诊断助手。根据用户的代码练习记录、AI 分析历史和出题记录，生成一份结构化的编程学习诊断报告。
+
+要求：
+1. 如果数据明显不足（少于 3 条练习记录），不要编造内容，明确说明「当前练习数据较少，以下建议仅作为初步参考」
+2. 从 AI 分析记录中提取反复出现的问题模式，找出薄弱点
+3. 每个薄弱点必须基于实际数据，给出证据依据
+4. 7 天学习计划要具体可执行，每天一个明确的小目标
+5. 推荐出题方向要结合用户当前语言的薄弱环节
+
+请严格按照以下 Markdown 格式输出：
+
+## 编程学习概况
+用户总练习数、各语言分布、AI 出题数、最近学习动态的简要概述。
+
+## 主要薄弱点
+- **薄弱点名称**：具体表现；可能原因；对应知识点
+- （2~4 个薄弱点，如果没有足够数据则标注「数据不足」）
+
+## 证据依据
+引用最近练习和 AI 分析中的具体现象。
+
+## 下一步训练建议
+3~5 个具体训练方向。
+
+## 推荐 AI 出题方向
+3~5 个适合 AI 出题的练习主题。
+
+## 7 天学习计划
+| 天数 | 目标 | 方式 |
+|------|------|------|
+| 第 N 天 | 目标描述 | 自由练习 / AI 出题 / 专项分析 |
+"""
+
+
+@app.post("/code/learning-diagnosis")
+def generate_learning_diagnosis(req: schemas.CodeLearningDiagnosisRequest, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+    course_id = normalize_subject(req.course_id, default="")
+    language_filter = (req.language or "").strip()
+
+    # Query sessions for this user + course
+    session_query = db.query(models.CodeSession).filter(
+        models.CodeSession.username == user.username,
+    )
+    if course_id:
+        session_query = session_query.filter(models.CodeSession.course_id == course_id)
+    if language_filter:
+        session_query = session_query.filter(models.CodeSession.language == language_filter)
+    all_sessions = session_query.order_by(models.CodeSession.updated_at.desc()).all()
+
+    if len(all_sessions) < 3:
+        return {
+            "success": True,
+            "summary": (
+                "当前还没有足够的编程练习记录（至少需要 3 条），请先完成几次 AI 出题或代码分析。\n\n"
+                "建议：\n"
+                "- 点击「AI 出题」生成一道编程题\n"
+                "- 写代码后点击「发送」让 AI 分析\n"
+                "- 积累 3 条以上记录后再生成诊断报告"
+            ),
+            "generated_at": utc_now().isoformat(),
+            "used_sessions_count": len(all_sessions),
+            "used_messages_count": 0,
+            "used_challenges_count": 0,
+            "data_insufficient": True,
+        }
+
+    # Build progress summary
+    lang_counts: dict[str, int] = {}
+    challenge_count = 0
+    normal_count = 0
+    for s in all_sessions:
+        lang_counts[s.language] = lang_counts.get(s.language, 0) + 1
+        st = getattr(s, "session_type", None) or "normal"
+        if st == "challenge":
+            challenge_count += 1
+        else:
+            normal_count += 1
+
+    # Recent sessions (max 10)
+    recent_sessions = all_sessions[:10]
+    session_summaries = []
+    session_ids = [s.id for s in recent_sessions]
+    for s in recent_sessions:
+        challenge_info = ""
+        cid = getattr(s, "challenge_id", None)
+        if cid:
+            ch = db.query(models.CodeChallenge).filter(models.CodeChallenge.id == cid).first()
+            if ch:
+                challenge_info = f" [AI出题: {ch.knowledge_point or '无'}]"
+        session_summaries.append(
+            f"- [{getattr(s, 'session_type', 'normal') or 'normal'}] {s.title} ({s.language}){challenge_info}"
+        )
+
+    # Recent AI messages (max 10, each truncated to 800 chars)
+    recent_messages = (
+        db.query(models.CodeAIMessage)
+        .filter(models.CodeAIMessage.session_id.in_(session_ids))
+        .order_by(models.CodeAIMessage.created_at.desc())
+        .limit(20)
+        .all()
+    )
+    message_summaries = []
+    for msg in recent_messages[:10]:
+        preview = msg.content[:800]
+        if len(msg.content) > 800:
+            preview += "..."
+        message_summaries.append(
+            f"[{msg.role}] ({msg.language or '未知'}) {preview}"
+        )
+
+    # Recent challenges (max 5)
+    challenges = (
+        db.query(models.CodeChallenge)
+        .filter(models.CodeChallenge.username == user.username)
+        .order_by(models.CodeChallenge.created_at.desc())
+        .limit(5)
+        .all()
+    )
+    challenge_summaries = []
+    for ch in challenges:
+        challenge_summaries.append(
+            f"- {ch.title} ({ch.language}, {ch.difficulty}, 知识点: {ch.knowledge_point or '未指定'})"
+        )
+
+    progress_summary = f"""## 用户编程数据汇总
+
+总练习数：{len(all_sessions)}（AI 出题：{challenge_count}，自由练习：{normal_count}）
+各语言分布：{lang_counts}
+{course_id and f"当前课程：{course_id}" or "未指定课程"}
+
+### 最近练习列表（最近 {len(recent_sessions)} 条）
+{chr(10).join(session_summaries)}
+
+### 最近 AI 分析记录（最近 {len(message_summaries)} 条）
+{chr(10).join(message_summaries) if message_summaries else '暂无 AI 分析记录'}
+
+### 最近 AI 出题记录（最近 {len(challenges)} 条）
+{chr(10).join(challenge_summaries) if challenge_summaries else '暂无 AI 出题记录'}"""
+
+    user_prompt = f"""{progress_summary}
+
+请根据以上数据生成编程学习诊断报告。"""
+
+    ai_response = call_deepseek(
+        [
+            {"role": "system", "content": CODE_LEARNING_DIAGNOSIS_PROMPT},
+            {"role": "user", "content": user_prompt},
+        ]
+    )
+
+    return {
+        "success": True,
+        "summary": ai_response,
+        "generated_at": utc_now().isoformat(),
+        "used_sessions_count": len(all_sessions),
+        "used_messages_count": min(len(recent_messages), 10),
+        "used_challenges_count": len(challenges),
+        "data_insufficient": False,
+    }
+
+
 @app.get("/code/progress")
 def get_code_progress(username: str, course_id: str = "", db: Session = Depends(get_db)):
     user = get_user_by_username(username, db)

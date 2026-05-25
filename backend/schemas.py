@@ -97,3 +97,9 @@ class CodeChallengeGenerateResponse(BaseModel):
     challenge: CodeChallengeOut | None = None
     session: dict | None = None
     detail: str | None = None
+
+
+class CodeLearningDiagnosisRequest(BaseModel):
+    username: str
+    course_id: str = ""
+    language: str = ""
