@@ -3134,23 +3134,19 @@ select.field:focus {
   font-weight: 600;
 }
 
-.code-studio-textarea {
+.code-studio-monaco-wrapper {
   flex: 1;
-  width: 100%;
-  border: none;
-  resize: none;
-  padding: 16px 20px;
-  font-family: "Cascadia Code", "Fira Code", "JetBrains Mono", "Consolas", monospace;
-  font-size: 0.88rem;
-  line-height: 1.65;
-  color: #1e293b;
-  background: #fafbfc;
-  outline: none;
-  tab-size: 4;
+  min-height: 0;
 }
 
-.code-studio-textarea:focus {
-  background: #fff;
+.code-studio-monaco-loading {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  font-size: 0.95rem;
+  background: #1e1e1e;
 }
 
 .code-studio-empty-overlay {

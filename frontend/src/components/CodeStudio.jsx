@@ -1,8 +1,14 @@
 import { useEffect, useRef, useState } from "react";
+import Editor from "@monaco-editor/react";
 
 const API_BASE = "/api";
 
 const LANGUAGES = ["Python", "C", "Java"];
+
+function getMonacoLanguage(language) {
+  const map = { Python: "python", Java: "java", C: "c", "C++": "cpp" };
+  return map[language] || "plaintext";
+}
 
 const CODE_TEMPLATES = {
   Python: 'def main():\n    print("Hello, World!")\n\nif __name__ == "__main__":\n    main()',
@@ -284,13 +290,26 @@ export default function CodeStudio({
           </button>
         </div>
 
-        <textarea
-          className="code-studio-textarea"
-          value={code}
-          onChange={(e) => setCode(e.target.value)}
-          placeholder="在此输入代码..."
-          spellCheck={false}
-        />
+        <div className="code-studio-monaco-wrapper">
+          <Editor
+            language={getMonacoLanguage(language)}
+            value={code}
+            onChange={(value) => setCode(value || "")}
+            theme="vs-dark"
+            options={{
+              fontSize: 14,
+              minimap: { enabled: false },
+              automaticLayout: true,
+              scrollBeyondLastLine: false,
+              wordWrap: "on",
+            }}
+            loading={
+              <div className="code-studio-monaco-loading">
+                代码编辑器加载中...
+              </div>
+            }
+          />
+        </div>
 
         {!selectedSession && (
           <div className="code-studio-empty-overlay">
