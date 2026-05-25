@@ -8,6 +8,7 @@ const TaskCenter = lazy(() => import("./components/TaskCenter.jsx"));
 const PracticeCenter = lazy(() => import("./components/PracticeCenter.jsx"));
 const LearningDataCenter = lazy(() => import("./components/LearningDataCenter.jsx"));
 const ReviewCenter = lazy(() => import("./components/ReviewCenter.jsx"));
+const LearningPlanCenter = lazy(() => import("./components/LearningPlanCenter.jsx"));
 import MarkdownMessage from "./components/MarkdownMessage.jsx";
 import {
   COURSE_OPTIONS,
@@ -2485,6 +2486,11 @@ function App() {
                 <div className="home-entry-title">复盘中心</div>
                 <div className="home-entry-desc">查看错题、薄弱知识点和复盘任务，创建针对性复习计划。</div>
               </button>
+              <button className="home-entry-card" onClick={() => setPage("learningPlanCenter")}>
+                <div className="home-entry-icon">📅</div>
+                <div className="home-entry-title">AI 学习计划</div>
+                <div className="home-entry-desc">根据知识点掌握度、错题和任务生成个性化学习计划。</div>
+              </button>
               <button className="home-entry-card" onClick={() => {
                 setLearningGoals(Array.isArray(user?.learning_goals) ? [...user.learning_goals] : []);
                 setPage("profileEdit");
@@ -2614,6 +2620,27 @@ function App() {
         </header>
         <Suspense fallback={<div className="empty-state">复盘中心加载中...</div>}>
           <ReviewCenter
+            user={user}
+            getSubjectLabel={getSubjectLabel}
+          />
+        </Suspense>
+      </div>
+    );
+  }
+
+  if (page === "learningPlanCenter") {
+    return (
+      <div className="app-shell">
+        <header className="workspace-topbar">
+          <div className="workspace-topbar-left">
+            <button className="ghost-button compact" onClick={() => setPage("home")}>
+              返回首页
+            </button>
+            <span className="subject-pill panel-pill">AI 学习计划</span>
+          </div>
+        </header>
+        <Suspense fallback={<div className="empty-state">AI 学习计划加载中...</div>}>
+          <LearningPlanCenter
             user={user}
             getSubjectLabel={getSubjectLabel}
           />

@@ -323,3 +323,21 @@ class KnowledgePointImportRequest(BaseModel):
     course_id: str
     items: list
     import_mode: str = "append"
+
+
+# ── AI Learning Plan ─────────────────────────────────────
+
+
+class PlanGeneratePreviewRequest(BaseModel):
+    username: str
+    course_id: str = ""
+    plan_type: str = "seven_day"
+    days: int = 7
+    goal: str = ""
+    daily_minutes: int = 60
+
+
+class PlanImportTasksRequest(BaseModel):
+    username: str
+    plan_title: str = ""
+    items: list

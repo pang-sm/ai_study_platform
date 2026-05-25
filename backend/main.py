@@ -6972,3 +6972,455 @@ def generate_questions(req: schemas.GenerateQuestionRequest, db: Session = Depen
         "questions": [serialize_question(q) for q in created],
         "message": f"已生成 {len(created)} 道题目",
     }
+
+
+# ── AI Learning Plan ─────────────────────────────────────
+
+ALLOWED_PLAN_TYPES = {"today", "three_day", "seven_day", "exam", "coding"}
+ALLOWED_TASK_TYPES = {"review", "practice", "coding", "material", "summary", "custom"}
+ALLOWED_PRIORITIES = {"high", "medium", "low"}
+
+
+class PlanGeneratePreviewRequest(BaseModel):
+    username: str
+    course_id: str = ""
+    plan_type: str = "seven_day"
+    days: int = 7
+    goal: str = ""
+    daily_minutes: int = 60
+
+
+class PlanImportTasksRequest(BaseModel):
+    username: str
+    plan_title: str = ""
+    items: list
+
+
+def _gather_plan_data(username: str, course_id: str, db: Session):
+    """Gather lightweight user data for plan generation."""
+    normalized_course = normalize_subject(course_id, default="")
+
+    # Weak knowledge points (max 10)
+    weak_kp_query = (
+        db.query(models.UserKnowledgeProgress, models.KnowledgePoint.title, models.KnowledgePoint.id, models.KnowledgePoint.course_id)
+        .join(models.KnowledgePoint, models.UserKnowledgeProgress.knowledge_point_id == models.KnowledgePoint.id)
+        .filter(
+            models.UserKnowledgeProgress.username == username,
+            models.UserKnowledgeProgress.mastery_score < 40,
+        )
+    )
+    if normalized_course:
+        weak_kp_query = weak_kp_query.filter(models.UserKnowledgeProgress.course_id == normalized_course)
+    weak_kp_rows = weak_kp_query.order_by(models.UserKnowledgeProgress.mastery_score.asc()).limit(10).all()
+    weak_points = [
+        {"id": kp_id, "title": title, "course_id": kp_course, "mastery_score": p.mastery_score or 0, "status": p.status or "not_started"}
+        for p, title, kp_id, kp_course in weak_kp_rows
+    ]
+
+    # Wrong questions (max 10)
+    wrong_query = (
+        db.query(models.QuestionAttempt, models.Question)
+        .join(models.Question, models.QuestionAttempt.question_id == models.Question.id)
+        .filter(
+            models.QuestionAttempt.username == username,
+            models.QuestionAttempt.self_result == "incorrect",
+        )
+    )
+    if normalized_course:
+        wrong_query = wrong_query.filter(models.QuestionAttempt.course_id == normalized_course)
+    wrong_rows = wrong_query.order_by(models.QuestionAttempt.created_at.desc()).limit(10).all()
+    wrong_questions = [
+        {
+            "title": q.title,
+            "course_id": q.course_id or "",
+            "knowledge_point_id": q.knowledge_point_id,
+            "user_answer": a.user_answer or "",
+            "correct_answer": q.answer or "",
+        }
+        for a, q in wrong_rows
+    ]
+
+    # Unfinished tasks (max 10)
+    task_query = (
+        db.query(models.LearningTask)
+        .filter(
+            models.LearningTask.username == username,
+            models.LearningTask.status != "done",
+        )
+    )
+    if normalized_course:
+        task_query = task_query.filter(models.LearningTask.course_id == normalized_course)
+    unfinished_tasks = task_query.order_by(models.LearningTask.created_at.desc()).limit(10).all()
+    tasks_data = [
+        {
+            "title": t.title,
+            "course_id": t.course_id or "",
+            "task_type": t.task_type,
+            "status": t.status,
+            "priority": t.priority or "medium",
+            "knowledge_point_id": t.knowledge_point_id,
+        }
+        for t in unfinished_tasks
+    ]
+
+    # Negative events (max 10)
+    neg_query = (
+        db.query(models.KnowledgeProgressEvent)
+        .filter(
+            models.KnowledgeProgressEvent.username == username,
+            models.KnowledgeProgressEvent.delta < 0,
+        )
+    )
+    if normalized_course:
+        neg_query = neg_query.filter(models.KnowledgeProgressEvent.course_id == normalized_course)
+    neg_events = neg_query.order_by(models.KnowledgeProgressEvent.created_at.desc()).limit(10).all()
+    neg_kp_ids = [e.knowledge_point_id for e in neg_events]
+    neg_kp_map = {}
+    if neg_kp_ids:
+        neg_kps = db.query(models.KnowledgePoint).filter(models.KnowledgePoint.id.in_(neg_kp_ids)).all()
+        neg_kp_map = {kp.id: kp.title for kp in neg_kps}
+    negative_events = [
+        {
+            "event_type": e.event_type,
+            "delta": e.delta,
+            "reason": e.reason or "",
+            "course_id": e.course_id,
+            "knowledge_point_id": e.knowledge_point_id,
+            "knowledge_point_title": neg_kp_map.get(e.knowledge_point_id, ""),
+        }
+        for e in neg_events
+    ]
+
+    # Code sessions summary (max 5)
+    code_query = (
+        db.query(models.CodeSession)
+        .filter(models.CodeSession.username == username)
+    )
+    if normalized_course:
+        code_query = code_query.filter(models.CodeSession.course_id == normalized_course)
+    code_sessions = code_query.order_by(models.CodeSession.updated_at.desc()).limit(5).all()
+    code_data = [
+        {"title": cs.title, "language": cs.language, "course_id": cs.course_id}
+        for cs in code_sessions
+    ]
+
+    # Material and knowledge point counts
+    mat_count = db.query(models.StudyMaterial).filter(
+        models.StudyMaterial.username == username,
+        models.StudyMaterial.is_deleted == False,
+    ).count()
+
+    kp_query = db.query(models.KnowledgePoint).filter(models.KnowledgePoint.username == username)
+    if normalized_course:
+        kp_query = kp_query.filter(models.KnowledgePoint.course_id == normalized_course)
+    kp_count = kp_query.count()
+
+    return {
+        "weak_points": weak_points,
+        "wrong_questions": wrong_questions,
+        "unfinished_tasks": tasks_data,
+        "negative_events": negative_events,
+        "code_sessions": code_data,
+        "material_count": mat_count,
+        "knowledge_point_count": kp_count,
+    }
+
+
+PLAN_SYSTEM_PROMPT = """You are a learning plan assistant. Generate a structured learning plan based on the user's data.
+
+Rules:
+1. Output ONLY valid JSON — no markdown, no code fences, no extra text.
+2. The JSON must have: plan_title (string), summary (string), items (array).
+3. Each item must have: day_index (int), title (string, short), description (string, specific), course_id (string), knowledge_point_id (int or null), task_type (string), estimated_minutes (int), priority (string).
+4. task_type must be one of: review, practice, coding, material, summary, custom.
+5. priority must be one of: high, medium, low.
+6. knowledge_point_id must be an existing ID from the user's data, or null.
+7. Prioritize low-mastery knowledge points.
+8. Don't overload — each day should have at most 3-4 tasks.
+9. For "coding" plan type, prioritize coding exercises and code review.
+10. For "exam" plan type, prioritize review, practice, and summary.
+11. If user data is sparse, still generate a basic plan but mention it in the summary.
+12. estimated_minutes should be between 15 and 120."""
+
+
+def _parse_plan_json(raw_text: str, valid_kp_ids: set[int], username: str) -> dict:
+    """Parse and validate AI-generated plan JSON."""
+    text = raw_text.strip()
+    # Remove markdown code fences
+    if text.startswith("```"):
+        lines = text.split("\n")
+        end_idx = len(lines)
+        for i in range(len(lines) - 1, 0, -1):
+            if lines[i].strip() == "```":
+                end_idx = i
+                break
+        text = "\n".join(lines[1:end_idx]).strip()
+
+    # Try to find JSON object
+    json_start = text.find("{")
+    json_end = text.rfind("}")
+    if json_start == -1 or json_end == -1:
+        raise HTTPException(status_code=500, detail="AI 返回格式异常，未找到 JSON 对象")
+
+    try:
+        data = json.loads(text[json_start:json_end + 1])
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=500, detail=f"AI 返回 JSON 解析失败：{str(exc)}")
+
+    plan_title = str(data.get("plan_title") or "").strip()
+    summary = str(data.get("summary") or "").strip()
+    raw_items = data.get("items", [])
+
+    if not isinstance(raw_items, list) or len(raw_items) == 0:
+        raise HTTPException(status_code=500, detail="AI 返回的计划任务为空，请重试")
+
+    items = []
+    for item in raw_items:
+        if not isinstance(item, dict):
+            continue
+        title = str(item.get("title") or "").strip()
+        if not title:
+            continue
+        description = str(item.get("description") or "").strip()
+        course_id = str(item.get("course_id") or "").strip()
+        kp_id = item.get("knowledge_point_id")
+        if kp_id is not None and isinstance(kp_id, (int, float)):
+            kp_id = int(kp_id)
+            if kp_id not in valid_kp_ids:
+                kp_id = None
+        else:
+            kp_id = None
+        task_type = str(item.get("task_type") or "review").strip().lower()
+        if task_type not in ALLOWED_TASK_TYPES:
+            task_type = "review"
+        estimated = int(item.get("estimated_minutes", 30))
+        estimated = max(10, min(120, estimated))
+        priority = str(item.get("priority") or "medium").strip().lower()
+        if priority not in ALLOWED_PRIORITIES:
+            priority = "medium"
+        day_index = int(item.get("day_index", 1))
+
+        items.append({
+            "day_index": day_index,
+            "title": title,
+            "description": description,
+            "course_id": course_id,
+            "knowledge_point_id": kp_id,
+            "task_type": task_type,
+            "estimated_minutes": estimated,
+            "priority": priority,
+        })
+
+    if not items:
+        raise HTTPException(status_code=500, detail="AI 返回的计划中没有有效任务")
+
+    return {
+        "plan_title": plan_title,
+        "summary": summary,
+        "items": items,
+    }
+
+
+@app.post("/learning/plans/generate-preview")
+def generate_plan_preview(req: PlanGeneratePreviewRequest, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+
+    if req.plan_type not in ALLOWED_PLAN_TYPES:
+        raise HTTPException(status_code=400, detail=f"无效的计划类型：{req.plan_type}")
+
+    plan_data = _gather_plan_data(req.username, req.course_id, db)
+
+    # Build valid knowledge point ID set
+    valid_kp_ids = {wp["id"] for wp in plan_data["weak_points"]}
+    for t in plan_data["unfinished_tasks"]:
+        if t["knowledge_point_id"]:
+            valid_kp_ids.add(t["knowledge_point_id"])
+
+    # Count total knowledge points
+    all_kp_count = db.query(models.KnowledgePoint).filter(
+        models.KnowledgePoint.username == req.username
+    ).count()
+
+    user_prompt_parts = [
+        f"Plan type: {req.plan_type}",
+        f"Days: {req.days}",
+        f"Daily study time: {req.daily_minutes} minutes",
+        f"User goal: {req.goal or '无特定目标'}" if req.goal else "",
+    ]
+    if req.course_id:
+        user_prompt_parts.append(f"Focus course: {req.course_id}")
+
+    user_prompt_parts.append("")
+    user_prompt_parts.append("--- User Data ---")
+
+    user_prompt_parts.append(f"Total knowledge points: {all_kp_count}")
+    user_prompt_parts.append(f"Total materials: {plan_data['material_count']}")
+
+    # Weak points
+    user_prompt_parts.append(f"\nWeak knowledge points (mastery < 40, max 10, {len(plan_data['weak_points'])} found):")
+    for wp in plan_data["weak_points"]:
+        user_prompt_parts.append(
+            f"  - id={wp['id']}, title={wp['title']}, course={wp['course_id']}, "
+            f"mastery={wp['mastery_score']}%, status={wp['status']}"
+        )
+
+    # Wrong questions
+    user_prompt_parts.append(f"\nRecent wrong answers ({len(plan_data['wrong_questions'])} found):")
+    for wq in plan_data["wrong_questions"]:
+        user_prompt_parts.append(
+            f"  - {wq['title']} (course: {wq['course_id']}, "
+            f"user answered: {wq['user_answer'][:80]}, correct: {wq['correct_answer'][:80]})"
+        )
+
+    # Unfinished tasks
+    user_prompt_parts.append(f"\nUnfinished tasks ({len(plan_data['unfinished_tasks'])} found):")
+    for t in plan_data["unfinished_tasks"]:
+        user_prompt_parts.append(
+            f"  - {t['title']} ({t['task_type']}, status={t['status']}, "
+            f"course={t['course_id']}, kp_id={t['knowledge_point_id']})"
+        )
+
+    # Negative events
+    user_prompt_parts.append(f"\nNegative mastery events ({len(plan_data['negative_events'])} found):")
+    for e in plan_data["negative_events"]:
+        user_prompt_parts.append(
+            f"  - kp={e['knowledge_point_title'] or e['knowledge_point_id']}, "
+            f"delta={e['delta']}, type={e['event_type']}"
+        )
+
+    # Code sessions
+    user_prompt_parts.append(f"\nRecent code sessions ({len(plan_data['code_sessions'])} found):")
+    for cs in plan_data["code_sessions"]:
+        user_prompt_parts.append(f"  - {cs['title']} ({cs['language']}, course={cs['course_id']})")
+
+    # Instruction
+    user_prompt_parts.append(f"\n--- Instructions ---")
+    user_prompt_parts.append(f"Generate a {req.plan_type} learning plan for {req.days} day(s).")
+    user_prompt_parts.append("Prioritize low-mastery knowledge points and wrong answer topics.")
+    if req.plan_type == "coding":
+        user_prompt_parts.append("This is a CODING plan — prioritize programming practice and code review tasks.")
+    elif req.plan_type == "exam":
+        user_prompt_parts.append("This is an EXAM plan — prioritize review, practice, and summary tasks.")
+    user_prompt_parts.append("Use ONLY the knowledge_point_ids listed above, or null.")
+    user_prompt_parts.append("Each day should have 2-4 tasks totaling around the daily study time.")
+    user_prompt_parts.append("If user data is sparse, note that in the summary and suggest general study activities.")
+
+    user_prompt = "\n".join(user_prompt_parts)
+
+    messages = [
+        {"role": "system", "content": PLAN_SYSTEM_PROMPT},
+        {"role": "user", "content": user_prompt},
+    ]
+
+    try:
+        raw = call_deepseek(messages)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="AI 计划生成失败，请稍后重试") from exc
+
+    result = _parse_plan_json(raw, valid_kp_ids, req.username)
+
+    # Add course_name for frontend display
+    course_name = req.course_id if req.course_id else "全部课程"
+
+    return {
+        "plan_title": result["plan_title"],
+        "plan_type": req.plan_type,
+        "summary": result["summary"],
+        "course_name": course_name,
+        "items": result["items"],
+    }
+
+
+@app.post("/learning/plans/import-tasks")
+def import_plan_tasks(req: PlanImportTasksRequest, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+
+    if not req.items:
+        raise HTTPException(status_code=400, detail="没有可导入的计划项")
+
+    # Collect all knowledge_point_ids for validation
+    kp_ids_in_plan = set()
+    for item in req.items:
+        if isinstance(item, dict) and item.get("knowledge_point_id"):
+            kp_ids_in_plan.add(int(item["knowledge_point_id"]))
+
+    # Validate knowledge points belong to user
+    valid_kp_ids = set()
+    if kp_ids_in_plan:
+        valid_kps = (
+            db.query(models.KnowledgePoint)
+            .filter(
+                models.KnowledgePoint.username == req.username,
+                models.KnowledgePoint.id.in_(list(kp_ids_in_plan)),
+            )
+            .all()
+        )
+        valid_kp_ids = {kp.id for kp in valid_kps}
+
+    created_tasks = []
+    today = date.today()
+
+    for item in req.items:
+        if not isinstance(item, dict):
+            continue
+
+        title = str(item.get("title") or "").strip()
+        if not title:
+            continue
+
+        description = str(item.get("description") or "").strip()
+        course_id = normalize_subject(str(item.get("course_id") or ""), default="") or None
+
+        kp_id = item.get("knowledge_point_id")
+        if kp_id is not None:
+            kp_id = int(kp_id)
+            if kp_id not in valid_kp_ids:
+                kp_id = None
+        else:
+            kp_id = None
+
+        task_type = str(item.get("task_type") or "review").strip().lower()
+        if task_type not in ALLOWED_TASK_TYPES:
+            task_type = "review"
+
+        priority = str(item.get("priority") or "medium").strip().lower()
+        if priority not in ALLOWED_PRIORITIES:
+            priority = "medium"
+
+        day_index = max(1, int(item.get("day_index", 1)))
+        due_date = today.replace(day=today.day + day_index - 1) if day_index <= 30 else today
+        try:
+            due_date = datetime.combine(due_date, datetime.min.time())
+        except ValueError:
+            due_date = datetime.combine(today, datetime.min.time())
+
+        task = models.LearningTask(
+            username=req.username,
+            course_id=course_id,
+            title=title,
+            description=description,
+            task_type=task_type,
+            status="todo",
+            source="learning_plan",
+            priority=priority,
+            due_date=due_date,
+            knowledge_point_id=kp_id,
+        )
+        db.add(task)
+        created_tasks.append(task)
+
+    if not created_tasks:
+        raise HTTPException(status_code=400, detail="没有有效的任务可导入")
+
+    db.commit()
+    for t in created_tasks:
+        db.refresh(t)
+
+    return {
+        "success": True,
+        "created_count": len(created_tasks),
+        "message": f"已创建 {len(created_tasks)} 个学习任务，可前往任务中心查看。",
+        "tasks": [serialize_learning_task(t) for t in created_tasks],
+    }
