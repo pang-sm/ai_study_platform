@@ -5115,12 +5115,12 @@ def submit_code_challenge(challenge_id: int, req: schemas.CodeChallengeSubmitReq
         ai_feedback = normalize_assistant_markdown(ai_feedback)
 
         # Determine status from AI response
-        if "大概率通过" in ai_feedback:
-            status = "probable_pass"
+        if "大概率不通过" in ai_feedback:
+            status = "failed"
         elif "可能部分通过" in ai_feedback:
             status = "partial"
-        elif "大概率不通过" in ai_feedback:
-            status = "failed"
+        elif "大概率通过" in ai_feedback:
+            status = "probable_pass"
         else:
             status = "unknown"
 
