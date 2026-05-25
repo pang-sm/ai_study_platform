@@ -358,84 +358,93 @@ export default function TaskCenter({
       )}
 
       {showCreateModal && (
-        <div className="code-challenge-modal-overlay" onClick={() => setShowCreateModal(false)}>
-          <div
-            className="code-challenge-modal task-create-modal"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3>新建学习任务</h3>
-            <label className="field-label">任务标题 *</label>
-            <input
-              className="field"
-              placeholder="例如：复习数据结构第三章"
-              value={createTitle}
-              onChange={(e) => setCreateTitle(e.target.value)}
-            />
-            <label className="field-label">任务描述</label>
-            <textarea
-              className="field"
-              rows={3}
-              placeholder="详细说明任务内容..."
-              value={createDescription}
-              onChange={(e) => setCreateDescription(e.target.value)}
-            />
-            <label className="field-label">所属课程</label>
-            <select
-              className="field"
-              value={createCourse}
-              onChange={(e) => setCreateCourse(e.target.value)}
-            >
-              <option value="">不绑定课程</option>
-              {courseOptions.map((item) => (
-                <option key={item} value={item}>
-                  {getSubjectLabel(item)}
-                </option>
-              ))}
-            </select>
-            <label className="field-label">任务类型</label>
-            <select
-              className="field"
-              value={createType}
-              onChange={(e) => setCreateType(e.target.value)}
-            >
-              {TASK_TYPE_OPTIONS.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-            <label className="field-label">优先级</label>
-            <select
-              className="field"
-              value={createPriority}
-              onChange={(e) => setCreatePriority(e.target.value)}
-            >
-              {PRIORITY_OPTIONS.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-            <label className="field-label">截止日期（可选）</label>
-            <input
-              className="field"
-              type="date"
-              value={createDueDate}
-              onChange={(e) => setCreateDueDate(e.target.value)}
-            />
-            <div className="stack-actions" style={{ marginTop: 16 }}>
+        <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>新建学习任务</h3>
+              <button
+                className="modal-close"
+                onClick={() => setShowCreateModal(false)}
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="task-modal-body">
+              <label className="field-label">任务标题 *</label>
+              <input
+                className="field"
+                placeholder="例如：复习数据结构第三章"
+                value={createTitle}
+                onChange={(e) => setCreateTitle(e.target.value)}
+              />
+              <label className="field-label">任务描述</label>
+              <textarea
+                className="field"
+                rows={3}
+                placeholder="详细说明任务内容..."
+                value={createDescription}
+                onChange={(e) => setCreateDescription(e.target.value)}
+              />
+              <label className="field-label">所属课程</label>
+              <select
+                className="field"
+                value={createCourse}
+                onChange={(e) => setCreateCourse(e.target.value)}
+              >
+                <option value="">不绑定课程</option>
+                {courseOptions.map((item) => (
+                  <option key={item} value={item}>
+                    {getSubjectLabel(item)}
+                  </option>
+                ))}
+              </select>
+              <label className="field-label">任务类型</label>
+              <select
+                className="field"
+                value={createType}
+                onChange={(e) => setCreateType(e.target.value)}
+              >
+                {TASK_TYPE_OPTIONS.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+              <label className="field-label">优先级</label>
+              <select
+                className="field"
+                value={createPriority}
+                onChange={(e) => setCreatePriority(e.target.value)}
+              >
+                {PRIORITY_OPTIONS.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+              <label className="field-label">截止日期（可选）</label>
+              <input
+                className="field"
+                type="date"
+                value={createDueDate}
+                onChange={(e) => setCreateDueDate(e.target.value)}
+              />
+            </div>
+
+            <div className="task-form-actions">
+              <button
+                className="ghost-button compact"
+                onClick={() => setShowCreateModal(false)}
+              >
+                取消
+              </button>
               <button
                 className="primary-button compact"
                 disabled={saving || !createTitle.trim()}
                 onClick={createTask}
               >
                 {saving ? "创建中..." : "创建任务"}
-              </button>
-              <button
-                className="ghost-button compact"
-                onClick={() => setShowCreateModal(false)}
-              >
-                取消
               </button>
             </div>
           </div>

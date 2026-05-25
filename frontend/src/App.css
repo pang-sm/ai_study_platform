@@ -3397,7 +3397,8 @@ select.field:focus {
 .task-center-panel {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -3544,9 +3545,35 @@ select.field:focus {
   flex-wrap: wrap;
 }
 
-.task-create-modal {
-  width: 480px;
-  max-width: 90vw;
+.task-modal-body {
+  overflow-y: auto;
+  padding: 0 24px 16px;
+  flex: 1;
+  min-height: 0;
+}
+
+.task-modal-body .field-label {
+  display: block;
+  margin-top: 12px;
+  margin-bottom: 4px;
+}
+
+.task-modal-body .field-label:first-child {
+  margin-top: 0;
+}
+
+.task-modal-body .field {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.task-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 24px;
+  border-top: 1px solid #e9edf4;
+  margin-top: 8px;
 }
 
 /* ── Dashboard task card ── */
