@@ -47,6 +47,13 @@ export default function KnowledgeRoadmap({
   const [editDescription, setEditDescription] = useState("");
   const [editParentId, setEditParentId] = useState("");
 
+  // Event history modal
+  const [showEventsModal, setShowEventsModal] = useState(false);
+  const [eventsPointTitle, setEventsPointTitle] = useState("");
+  const [eventsList, setEventsList] = useState([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
+  const [eventsPointId, setEventsPointId] = useState(null);
+
   const loadPoints = async () => {
     if (!user?.username || !course) return;
     setLoading(true);
@@ -218,6 +225,27 @@ export default function KnowledgeRoadmap({
     }
   };
 
+  const openEventsModal = async (point) => {
+    setEventsPointId(point.id);
+    setEventsPointTitle(point.title);
+    setShowEventsModal(true);
+    setEventsLoading(true);
+    setEventsList([]);
+    try {
+      const res = await fetch(
+        `${API_BASE}/knowledge-points/${point.id}/progress-events?username=${encodeURIComponent(user.username)}`
+      );
+      const data = await res.json();
+      if (res.ok) {
+        setEventsList(data.events || []);
+      }
+    } catch (e) {
+      console.error("Failed to load progress events:", e);
+    } finally {
+      setEventsLoading(false);
+    }
+  };
+
   const openGenerateModal = () => {
     setGenMode("course_name");
     setGenImportMode("append");
@@ -385,6 +413,14 @@ export default function KnowledgeRoadmap({
                 </option>
               ))}
             </select>
+            <button
+              className="tiny-button"
+              disabled={actionId === point.id}
+              onClick={() => openEventsModal(point)}
+              style={{ color: "#0f766e" }}
+            >
+              掌握记录
+            </button>
             <button
               className="tiny-button"
               disabled={actionId === point.id}
@@ -727,6 +763,63 @@ export default function KnowledgeRoadmap({
                     </button>
                   </>
                 )}
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+      {/* Event History Modal */}
+      {showEventsModal &&
+        createPortal(
+          <div className="modal-overlay" onClick={() => setShowEventsModal(false)}>
+            <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
+              <div className="modal-header">
+                <h3>掌握记录 — {eventsPointTitle}</h3>
+                <button className="modal-close" onClick={() => setShowEventsModal(false)}>
+                  &times;
+                </button>
+              </div>
+              <div className="task-modal-body" style={{ maxHeight: "60vh", overflowY: "auto" }}>
+                {eventsLoading ? (
+                  <p className="empty-inline">加载中...</p>
+                ) : eventsList.length === 0 ? (
+                  <p className="empty-inline">暂无掌握度变化记录</p>
+                ) : (
+                  <div>
+                    {eventsList.map((evt, idx) => (
+                      <div
+                        key={idx}
+                        style={{
+                          padding: "10px 0",
+                          borderBottom: "1px solid #f1f5f9",
+                          fontSize: 14,
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                          <span style={{ fontWeight: 600, color: evt.delta > 0 ? "#059669" : evt.delta < 0 ? "#dc2626" : "#6b7280" }}>
+                            {evt.event_type}
+                            {" "}
+                            {evt.delta > 0 ? "+" : ""}{evt.delta}
+                          </span>
+                          <span style={{ color: "#9ca3af", fontSize: 12 }}>
+                            {evt.created_at ? new Date(evt.created_at + "Z").toLocaleString() : ""}
+                          </span>
+                        </div>
+                        {evt.reason && (
+                          <div style={{ color: "#4b5563" }}>{evt.reason}</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="task-form-actions">
+                <button
+                  className="ghost-button compact"
+                  onClick={() => setShowEventsModal(false)}
+                >
+                  关闭
+                </button>
               </div>
             </div>
           </div>,

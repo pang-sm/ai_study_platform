@@ -2973,6 +2973,104 @@ def get_weak_knowledge_points(username: str, course_id: str, db: Session, limit:
     return result[:limit]
 
 
+def apply_knowledge_progress_event(
+    username: str,
+    course_id: str,
+    knowledge_point_id: int,
+    event_type: str,
+    delta: int,
+    reason: str = "",
+    source_type: str | None = None,
+    source_id: int | None = None,
+    db: Session | None = None,
+):
+    if not db or not username or not course_id or not knowledge_point_id:
+        return
+
+    try:
+        # Validate knowledge point belongs to user + course
+        point = (
+            db.query(models.KnowledgePoint)
+            .filter(
+                models.KnowledgePoint.id == knowledge_point_id,
+                models.KnowledgePoint.username == username,
+                models.KnowledgePoint.course_id == course_id,
+            )
+            .first()
+        )
+        if not point:
+            return
+
+        now = utc_now()
+
+        # Write event
+        event = models.KnowledgeProgressEvent(
+            username=username,
+            course_id=course_id,
+            knowledge_point_id=knowledge_point_id,
+            event_type=event_type,
+            delta=delta,
+            reason=reason or None,
+            source_type=source_type,
+            source_id=source_id,
+            created_at=now,
+        )
+        db.add(event)
+
+        # Get or create progress
+        progress = (
+            db.query(models.UserKnowledgeProgress)
+            .filter(
+                models.UserKnowledgeProgress.username == username,
+                models.UserKnowledgeProgress.course_id == course_id,
+                models.UserKnowledgeProgress.knowledge_point_id == knowledge_point_id,
+            )
+            .first()
+        )
+        if not progress:
+            progress = models.UserKnowledgeProgress(
+                username=username,
+                course_id=course_id,
+                knowledge_point_id=knowledge_point_id,
+                mastery_score=0,
+                status="not_started",
+                practice_count=0,
+                task_count=0,
+            )
+            db.add(progress)
+            db.flush()
+
+        # Update mastery_score (clamp 0-100)
+        old_score = progress.mastery_score or 0
+        new_score = max(0, min(100, old_score + delta))
+        progress.mastery_score = new_score
+
+        # Auto-update status
+        if new_score == 0:
+            progress.status = "not_started"
+        elif new_score < 40:
+            progress.status = "learning"
+        elif new_score < 80:
+            progress.status = "reviewing"
+        else:
+            progress.status = "mastered"
+
+        # Update practice/task counts
+        if event_type == "task_done":
+            progress.task_count = (progress.task_count or 0) + 1
+        elif event_type in ("question_correct", "question_incorrect", "question_attempt"):
+            progress.practice_count = (progress.practice_count or 0) + 1
+
+        if delta > 0:
+            progress.last_studied_at = now
+        progress.updated_at = now
+
+        db.flush()
+    except Exception:
+        db.rollback()
+        logging.exception("apply_knowledge_progress_event failed")
+
+
 @app.post("/chat")
 def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
     if not req.username:
@@ -4926,6 +5024,7 @@ def update_learning_task(task_id: int, req: schemas.LearningTaskUpdate, db: Sess
         new_type = (req.task_type or "").strip()
         if new_type in ALLOWED_TASK_TYPES:
             task.task_type = new_type
+    progress_event = None
     if req.status is not None:
         new_status = (req.status or "").strip()
         if new_status in ALLOWED_TASK_STATUSES:
@@ -4934,8 +5033,30 @@ def update_learning_task(task_id: int, req: schemas.LearningTaskUpdate, db: Sess
             now = utc_now()
             if new_status == "done" and old_status != "done":
                 task.completed_at = now
+                if task.knowledge_point_id and task.course_id:
+                    progress_event = {
+                        "username": user.username,
+                        "course_id": task.course_id,
+                        "knowledge_point_id": task.knowledge_point_id,
+                        "event_type": "task_done",
+                        "delta": 5,
+                        "reason": f"完成任务「{task.title}」",
+                        "source_type": "learning_task",
+                        "source_id": task.id,
+                    }
             elif new_status != "done" and old_status == "done":
                 task.completed_at = None
+                if task.knowledge_point_id and task.course_id:
+                    progress_event = {
+                        "username": user.username,
+                        "course_id": task.course_id,
+                        "knowledge_point_id": task.knowledge_point_id,
+                        "event_type": "task_reopened",
+                        "delta": -5,
+                        "reason": f"任务「{task.title}」从完成改为进行中",
+                        "source_type": "learning_task",
+                        "source_id": task.id,
+                    }
     if req.priority is not None:
         new_priority = (req.priority or "medium").strip()
         if new_priority in ALLOWED_TASK_PRIORITIES:
@@ -4950,6 +5071,21 @@ def update_learning_task(task_id: int, req: schemas.LearningTaskUpdate, db: Sess
     task.updated_at = utc_now()
     db.commit()
     db.refresh(task)
+
+    if progress_event:
+        apply_knowledge_progress_event(
+            username=progress_event["username"],
+            course_id=progress_event["course_id"],
+            knowledge_point_id=progress_event["knowledge_point_id"],
+            event_type=progress_event["event_type"],
+            delta=progress_event["delta"],
+            reason=progress_event["reason"],
+            source_type=progress_event["source_type"],
+            source_id=progress_event["source_id"],
+            db=db,
+        )
+        db.commit()
+
     return {"task": serialize_learning_task(task)}
 
 
@@ -5449,6 +5585,8 @@ def update_knowledge_point_progress(
         db.add(progress)
         db.flush()
 
+    old_score = progress.mastery_score or 0
+
     if req.mastery_score is not None:
         progress.mastery_score = max(0, min(100, req.mastery_score))
     if req.status is not None:
@@ -5458,6 +5596,21 @@ def update_knowledge_point_progress(
 
     db.commit()
     db.refresh(progress)
+
+    # Record manual_update event if score changed
+    new_score = progress.mastery_score or 0
+    if new_score != old_score:
+        apply_knowledge_progress_event(
+            username=user.username,
+            course_id=point.course_id,
+            knowledge_point_id=point_id,
+            event_type="manual_update",
+            delta=new_score - old_score,
+            reason="用户手动调整掌握度",
+            source_type="manual",
+            db=db,
+        )
+        db.commit()
 
     return {
         "success": True,
@@ -5474,6 +5627,51 @@ def update_knowledge_point_progress(
             "created_at": serialize_datetime(progress.created_at) if progress.created_at else None,
             "updated_at": serialize_datetime(progress.updated_at) if progress.updated_at else None,
         },
+    }
+
+
+@app.get("/knowledge-points/{point_id}/progress-events")
+def get_knowledge_point_progress_events(
+    point_id: int,
+    username: str,
+    db: Session = Depends(get_db),
+):
+    user = get_user_by_username(username, db)
+    point = (
+        db.query(models.KnowledgePoint)
+        .filter(
+            models.KnowledgePoint.id == point_id,
+            models.KnowledgePoint.username == user.username,
+        )
+        .first()
+    )
+    if not point:
+        raise HTTPException(status_code=404, detail="知识点不存在")
+
+    events = (
+        db.query(models.KnowledgeProgressEvent)
+        .filter(
+            models.KnowledgeProgressEvent.knowledge_point_id == point_id,
+            models.KnowledgeProgressEvent.username == user.username,
+        )
+        .order_by(models.KnowledgeProgressEvent.created_at.desc())
+        .limit(30)
+        .all()
+    )
+
+    return {
+        "success": True,
+        "events": [
+            {
+                "event_type": e.event_type,
+                "delta": e.delta,
+                "reason": e.reason,
+                "source_type": e.source_type,
+                "source_id": e.source_id,
+                "created_at": serialize_datetime(e.created_at) if e.created_at else None,
+            }
+            for e in events
+        ],
     }
 
 
@@ -5955,6 +6153,47 @@ def submit_attempt(question_id: int, req: schemas.QuestionAttemptCreate, db: Ses
     db.add(attempt)
     db.commit()
     db.refresh(attempt)
+
+    # Auto-update knowledge point mastery
+    if question.knowledge_point_id and question.course_id:
+        if self_result == "correct":
+            apply_knowledge_progress_event(
+                username=user.username,
+                course_id=question.course_id,
+                knowledge_point_id=question.knowledge_point_id,
+                event_type="question_correct",
+                delta=8,
+                reason=f"选择题「{question.title}」作答正确",
+                source_type="question_attempt",
+                source_id=attempt.id,
+                db=db,
+            )
+        elif self_result == "incorrect":
+            apply_knowledge_progress_event(
+                username=user.username,
+                course_id=question.course_id,
+                knowledge_point_id=question.knowledge_point_id,
+                event_type="question_incorrect",
+                delta=-5,
+                reason=f"选择题「{question.title}」作答错误",
+                source_type="question_attempt",
+                source_id=attempt.id,
+                db=db,
+            )
+        elif self_result == "unknown" and question.type == "short_answer":
+            apply_knowledge_progress_event(
+                username=user.username,
+                course_id=question.course_id,
+                knowledge_point_id=question.knowledge_point_id,
+                event_type="question_attempt",
+                delta=2,
+                reason=f"简答题「{question.title}」已提交作答",
+                source_type="question_attempt",
+                source_id=attempt.id,
+                db=db,
+            )
+        db.commit()
+
     return {"success": True, "attempt": serialize_attempt(attempt)}
 
 
@@ -6031,6 +6270,27 @@ def request_feedback(question_id: int, req: schemas.QuestionFeedbackRequest, db:
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI 反馈请求失败：{str(e)}")
 
+    # Keyword-based sentiment analysis on AI feedback
+    feedback_lower = ai_response.lower()
+    positive_hits = sum(
+        1 for kw in ["基本正确", "正确", "思路正确", "掌握较好", "回答正确", "很好", "不错", "答对了"]
+        if kw in feedback_lower or kw in ai_response
+    )
+    negative_hits = sum(
+        1 for kw in ["错误", "不符合", "遗漏", "概念混淆", "不正确", "理解有误", "需要纠正", "答错了"]
+        if kw in feedback_lower or kw in ai_response
+    )
+
+    if positive_hits > negative_hits:
+        feedback_event = "ai_feedback_positive"
+        feedback_delta = 5
+    elif negative_hits > positive_hits:
+        feedback_event = "ai_feedback_negative"
+        feedback_delta = -3
+    else:
+        feedback_event = "ai_feedback_neutral"
+        feedback_delta = 2
+
     attempt = models.QuestionAttempt(
         username=user.username,
         question_id=question_id,
@@ -6043,6 +6303,20 @@ def request_feedback(question_id: int, req: schemas.QuestionFeedbackRequest, db:
     db.add(attempt)
     db.commit()
     db.refresh(attempt)
+
+    if question.knowledge_point_id and question.course_id:
+        apply_knowledge_progress_event(
+            username=user.username,
+            course_id=question.course_id,
+            knowledge_point_id=question.knowledge_point_id,
+            event_type=feedback_event,
+            delta=feedback_delta,
+            reason=f"AI 反馈「{question.title}」",
+            source_type="question_feedback",
+            source_id=attempt.id,
+            db=db,
+        )
+        db.commit()
 
     return {"success": True, "feedback": ai_response, "attempt": serialize_attempt(attempt)}
 

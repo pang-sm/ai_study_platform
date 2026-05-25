@@ -257,6 +257,21 @@ class Question(Base):
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
 
+class KnowledgeProgressEvent(Base):
+    __tablename__ = "knowledge_progress_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), index=True, nullable=False)
+    course_id = Column(String(100), index=True, nullable=False)
+    knowledge_point_id = Column(Integer, index=True, nullable=False)
+    event_type = Column(String(50), nullable=False)
+    delta = Column(Integer, nullable=False)
+    reason = Column(Text, nullable=True)
+    source_type = Column(String(50), nullable=True)
+    source_id = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+
+
 class QuestionAttempt(Base):
     __tablename__ = "question_attempts"
 

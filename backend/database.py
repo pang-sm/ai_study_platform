@@ -201,6 +201,18 @@ QUESTION_ATTEMPTS_COLUMNS = {
     "created_at": "DATETIME NOT NULL",
 }
 
+KNOWLEDGE_PROGRESS_EVENTS_COLUMNS = {
+    "username": "VARCHAR(50) NOT NULL",
+    "course_id": "VARCHAR(100) NOT NULL",
+    "knowledge_point_id": "INTEGER NOT NULL",
+    "event_type": "VARCHAR(50) NOT NULL",
+    "delta": "INTEGER NOT NULL",
+    "reason": "TEXT",
+    "source_type": "VARCHAR(50)",
+    "source_id": "INTEGER",
+    "created_at": "DATETIME NOT NULL",
+}
+
 USER_KNOWLEDGE_PROGRESS_COLUMNS = {
     "username": "VARCHAR(50) NOT NULL",
     "course_id": "VARCHAR(100) NOT NULL",
@@ -500,6 +512,28 @@ def ensure_user_knowledge_progress_schema(conn):
     ensure_columns(conn, "user_knowledge_progress", USER_KNOWLEDGE_PROGRESS_COLUMNS)
 
 
+def ensure_knowledge_progress_events_schema(conn):
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS knowledge_progress_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username VARCHAR(50) NOT NULL,
+                course_id VARCHAR(100) NOT NULL,
+                knowledge_point_id INTEGER NOT NULL,
+                event_type VARCHAR(50) NOT NULL,
+                delta INTEGER NOT NULL,
+                reason TEXT,
+                source_type VARCHAR(50),
+                source_id INTEGER,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+    )
+    ensure_columns(conn, "knowledge_progress_events", KNOWLEDGE_PROGRESS_EVENTS_COLUMNS)
+
+
 def ensure_material_chunks_fts(conn):
     fts_enabled = True
     try:
@@ -635,6 +669,7 @@ def init_user_profile_schema():
         ensure_question_attempts_schema(conn)
         ensure_knowledge_points_schema(conn)
         ensure_user_knowledge_progress_schema(conn)
+        ensure_knowledge_progress_events_schema(conn)
         ensure_material_chunks_fts(conn)
         normalize_existing_subjects(conn)
 
