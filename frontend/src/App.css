@@ -3101,6 +3101,18 @@ select.field:focus {
   color: #64748b;
 }
 
+.code-session-type-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #fff;
+  background: #f59e0b;
+  border-radius: 4px;
+  vertical-align: middle;
+}
+
 /* Center — Editor */
 .code-studio-editor {
   display: flex;
@@ -3147,6 +3159,72 @@ select.field:focus {
   color: #94a3b8;
   font-size: 0.95rem;
   background: #1e1e1e;
+}
+
+/* Challenge button */
+.code-challenge-btn {
+  color: #f59e0b !important;
+  border-color: #f59e0b !important;
+}
+
+.code-challenge-btn:hover {
+  background: rgba(245, 158, 11, 0.08) !important;
+}
+
+/* Challenge card above editor */
+.code-challenge-card {
+  padding: 14px 20px;
+  border-bottom: 1px solid #e9edf4;
+  background: #fffdf7;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.code-challenge-card-header {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.code-challenge-card-title {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+  color: #14213d;
+}
+
+.code-challenge-card-section {
+  margin-bottom: 8px;
+}
+
+.code-challenge-card-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #0f766e;
+  margin-bottom: 2px;
+}
+
+.code-challenge-card-section p {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #334155;
+  white-space: pre-wrap;
+}
+
+.code-challenge-card-examples {
+  margin: 4px 0 0;
+  padding: 8px 12px;
+  background: #f1f5f9;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-family: "Cascadia Code", "Fira Code", "JetBrains Mono", "Consolas", monospace;
+  white-space: pre-wrap;
+  color: #1e293b;
+}
+
+/* Challenge modal */
+.code-challenge-modal {
+  width: 420px;
+  max-width: 90vw;
 }
 
 .code-studio-empty-overlay {

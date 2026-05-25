@@ -40,6 +40,12 @@ export default function CodeStudio({
   const [aiLoading, setAiLoading] = useState(false);
   const aiEndRef = useRef(null);
 
+  const [showChallengeModal, setShowChallengeModal] = useState(false);
+  const [challengeDifficulty, setChallengeDifficulty] = useState("基础");
+  const [challengeFocus, setChallengeFocus] = useState("");
+  const [challengeGenerating, setChallengeGenerating] = useState(false);
+  const [currentChallenge, setCurrentChallenge] = useState(null);
+
   const hasUnsaved =
     selectedSession &&
     (selectedSession.title !== title ||
@@ -107,8 +113,12 @@ export default function CodeStudio({
     setCode(session.code);
     setAiMessages([]);
     setAiQuestion("");
+    setCurrentChallenge(null);
     if (session.id) {
       loadMessages(session.id);
+      if (session.challenge_id) {
+        loadChallenge(session.challenge_id);
+      }
     }
   };
 
@@ -120,6 +130,7 @@ export default function CodeStudio({
       code: CODE_TEMPLATES["Python"],
       course_id: normalizeSubject(codeCourseId),
       username: user?.username || "",
+      session_type: "normal",
     };
     setSelectedSession(newS);
     setTitle(newS.title);
@@ -127,6 +138,59 @@ export default function CodeStudio({
     setCode(newS.code);
     setAiMessages([]);
     setAiQuestion("");
+    setCurrentChallenge(null);
+  };
+
+  const loadChallenge = async (challengeId) => {
+    if (!user?.username || !challengeId) return;
+    try {
+      const res = await fetch(
+        `${API_BASE}/code/challenges/${challengeId}?username=${encodeURIComponent(user.username)}`
+      );
+      const data = await res.json();
+      if (res.ok && data.challenge) {
+        setCurrentChallenge(data.challenge);
+      }
+    } catch (error) {
+      console.error("Failed to load challenge:", error);
+    }
+  };
+
+  const generateChallenge = async () => {
+    if (!user?.username) return;
+    setChallengeGenerating(true);
+    try {
+      const res = await fetch(`${API_BASE}/code/challenges/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: user.username,
+          course_id: normalizeSubject(codeCourseId),
+          language,
+          difficulty: challengeDifficulty,
+          focus: challengeFocus,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.session) {
+        setShowChallengeModal(false);
+        setChallengeFocus("");
+        await loadSessions();
+        selectSession(data.session);
+        if (data.challenge) {
+          setCurrentChallenge(data.challenge);
+        }
+        setTip("AI 题目已生成");
+        setTimeout(() => setTip(""), 2000);
+      } else {
+        setTip(data.detail || "AI 出题失败，请重试");
+      }
+    } catch (error) {
+      console.error("Failed to generate challenge:", error);
+      setTip("AI 出题失败，请稍后重试");
+    } finally {
+      setChallengeGenerating(false);
+    }
   };
 
   const saveSession = async () => {
@@ -272,7 +336,12 @@ export default function CodeStudio({
                 className={`code-session-item ${selectedSession?.id === s.id ? "code-session-item--active" : ""}`}
                 onClick={() => selectSession(s)}
               >
-                <div className="code-session-item-title">{s.title}</div>
+                <div className="code-session-item-title">
+                  {s.title}
+                  {s.session_type === "challenge" && (
+                    <span className="code-session-type-badge">AI题</span>
+                  )}
+                </div>
                 <div className="code-session-item-meta">
                   <span className="subject-pill small">{s.language}</span>
                   <span>{formatDate(s.updated_at)}</span>
@@ -304,6 +373,17 @@ export default function CodeStudio({
             ))}
           </div>
           <button
+            className="ghost-button compact code-challenge-btn"
+            onClick={() => {
+              setChallengeDifficulty("基础");
+              setChallengeFocus("");
+              setShowChallengeModal(true);
+            }}
+            title="AI 出题"
+          >
+            AI 出题
+          </button>
+          <button
             className="primary-button compact"
             onClick={saveSession}
             disabled={saving || !title.trim()}
@@ -311,6 +391,48 @@ export default function CodeStudio({
             {saving ? "保存中..." : hasUnsaved ? "保存 *" : "保存"}
           </button>
         </div>
+
+        {currentChallenge && (
+          <div className="code-challenge-card">
+            <div className="code-challenge-card-header">
+              <span className="subject-pill small">{currentChallenge.difficulty || "基础"}</span>
+              {currentChallenge.knowledge_point && (
+                <span className="subject-pill small">{currentChallenge.knowledge_point}</span>
+              )}
+            </div>
+            <h4 className="code-challenge-card-title">{currentChallenge.title}</h4>
+            {currentChallenge.description && (
+              <div className="code-challenge-card-section">
+                <div className="code-challenge-card-label">题目描述</div>
+                <p>{currentChallenge.description}</p>
+              </div>
+            )}
+            {currentChallenge.requirements && (
+              <div className="code-challenge-card-section">
+                <div className="code-challenge-card-label">要求</div>
+                <p>{currentChallenge.requirements}</p>
+              </div>
+            )}
+            {currentChallenge.input_format && (
+              <div className="code-challenge-card-section">
+                <div className="code-challenge-card-label">输入格式</div>
+                <p>{currentChallenge.input_format}</p>
+              </div>
+            )}
+            {currentChallenge.output_format && (
+              <div className="code-challenge-card-section">
+                <div className="code-challenge-card-label">输出格式</div>
+                <p>{currentChallenge.output_format}</p>
+              </div>
+            )}
+            {currentChallenge.examples && (
+              <div className="code-challenge-card-section">
+                <div className="code-challenge-card-label">示例</div>
+                <pre className="code-challenge-card-examples">{currentChallenge.examples}</pre>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="code-studio-monaco-wrapper">
           <Editor
@@ -407,6 +529,77 @@ export default function CodeStudio({
       {tip && (
         <div className="code-studio-tip">
           {tip}
+        </div>
+      )}
+
+      {showChallengeModal && (
+        <div className="modal-overlay" onClick={() => setShowChallengeModal(false)}>
+          <div
+            className="modal-card code-challenge-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <h3>AI 出题</h3>
+              <button className="modal-close" onClick={() => setShowChallengeModal(false)}>
+                &times;
+              </button>
+            </div>
+
+            <label className="field-label">编程语言</label>
+            <div className="code-studio-lang-selector" style={{ marginBottom: 12 }}>
+              {LANGUAGES.map((lang) => (
+                <button
+                  key={lang}
+                  className={`ghost-button compact ${language === lang ? "code-lang-btn--active" : ""}`}
+                  onClick={() => setLanguage(lang)}
+                >
+                  {lang}
+                </button>
+              ))}
+            </div>
+
+            <label className="field-label">难度</label>
+            <select
+              className="field"
+              value={challengeDifficulty}
+              onChange={(e) => setChallengeDifficulty(e.target.value)}
+              style={{ marginBottom: 12 }}
+            >
+              <option value="基础">基础</option>
+              <option value="中等">中等</option>
+              <option value="提高">提高</option>
+            </select>
+
+            <label className="field-label">想练的知识点（可选）</label>
+            <input
+              className="field"
+              placeholder="例如：数组、循环、递归、排序、面向对象"
+              value={challengeFocus}
+              onChange={(e) => setChallengeFocus(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  generateChallenge();
+                }
+              }}
+            />
+
+            <div className="modal-actions" style={{ marginTop: 16 }}>
+              <button
+                className="ghost-button"
+                onClick={() => setShowChallengeModal(false)}
+              >
+                取消
+              </button>
+              <button
+                className="primary-button"
+                onClick={generateChallenge}
+                disabled={challengeGenerating}
+              >
+                {challengeGenerating ? "AI 正在生成题目..." : "生成题目"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </section>

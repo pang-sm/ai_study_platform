@@ -143,8 +143,30 @@ class CodeSession(Base):
     title = Column(String(255), nullable=False, default="未命名练习")
     language = Column(String(20), nullable=False, default="Python")
     code = Column(Text, nullable=False, default="")
+    challenge_id = Column(Integer, nullable=True)
+    session_type = Column(String(20), nullable=True)
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+
+class CodeChallenge(Base):
+    __tablename__ = "code_challenges"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), index=True, nullable=False)
+    course_id = Column(String(100), nullable=True)
+    language = Column(String(20), nullable=False)
+    title = Column(String(255), nullable=False)
+    difficulty = Column(String(20), nullable=False)
+    knowledge_point = Column(String(255), nullable=True)
+    description = Column(Text, nullable=False)
+    requirements = Column(Text, nullable=True)
+    input_format = Column(Text, nullable=True)
+    output_format = Column(Text, nullable=True)
+    examples = Column(Text, nullable=True)
+    starter_code = Column(Text, nullable=True)
+    reference_solution = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=utc_now)
 
 
 class CodeAIMessage(Base):

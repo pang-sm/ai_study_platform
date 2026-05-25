@@ -1209,15 +1209,22 @@ def build_course_dashboard_payload(db: Session, user: models.User, course: str):
     )
     code_sessions = code_query.order_by(models.CodeSession.updated_at.desc()).all()
     code_language_counts: dict[str, int] = {}
+    challenge_count = 0
     for cs in code_sessions:
         code_language_counts[cs.language] = code_language_counts.get(cs.language, 0) + 1
+        st = getattr(cs, "session_type", None)
+        if st == "challenge":
+            challenge_count += 1
     latest_code = code_sessions[0] if code_sessions else None
+    latest_challenge_sessions = [cs for cs in code_sessions if getattr(cs, "session_type", None) == "challenge"][:1]
     code_progress = {
         "total": len(code_sessions),
         "language_counts": code_language_counts,
         "recent_title": latest_code.title if latest_code else None,
         "recent_language": latest_code.language if latest_code else None,
         "recent_updated_at": latest_code.updated_at if latest_code else None,
+        "challenge_count": challenge_count,
+        "recent_challenge_title": latest_challenge_sessions[0].title if latest_challenge_sessions else None,
     }
 
     if materials_count == 0:
@@ -3738,8 +3745,29 @@ def serialize_code_session(session: models.CodeSession):
         "title": session.title,
         "language": session.language,
         "code": session.code,
+        "challenge_id": getattr(session, "challenge_id", None),
+        "session_type": getattr(session, "session_type", None) or "normal",
         "created_at": session.created_at,
         "updated_at": session.updated_at,
+    }
+
+
+def serialize_code_challenge(challenge):
+    return {
+        "id": challenge.id,
+        "username": challenge.username,
+        "course_id": challenge.course_id,
+        "language": challenge.language,
+        "title": challenge.title,
+        "difficulty": challenge.difficulty,
+        "knowledge_point": challenge.knowledge_point,
+        "description": challenge.description,
+        "requirements": challenge.requirements,
+        "input_format": challenge.input_format,
+        "output_format": challenge.output_format,
+        "examples": challenge.examples,
+        "starter_code": challenge.starter_code,
+        "created_at": challenge.created_at,
     }
 
 
@@ -3891,7 +3919,65 @@ def analyze_code(req: schemas.CodeAnalyzeRequest, db: Session = Depends(get_db))
             code_snapshot=code,
         ))
 
-    user_message = f"""语言：{language}
+    # Check if session is linked to a challenge
+    challenge = None
+    challenge_id = getattr(session, "challenge_id", None) if session else None
+    if challenge_id:
+        challenge = db.query(models.CodeChallenge).filter(
+            models.CodeChallenge.id == challenge_id,
+        ).first()
+
+    if challenge:
+        system_prompt = """你是编程学习出题助手。用户正在完成你出的编程题，请根据题目要求分析用户代码。
+
+输出以下格式的中文分析：
+## 是否符合题目要求
+判断代码是否满足题目要求，指出哪些要求已满足、哪些未满足。
+
+## 问题定位
+指出代码中的具体问题。
+
+## 修改建议
+给出具体修改方案。
+
+## 边界情况提醒
+提醒可能遗漏的边界情况。
+
+## 涉及知识点
+列出题目涉及的核心知识点。
+
+## 下一步练习建议
+给出 1-2 条具体的学习方向建议。"""
+
+        challenge_context = ""
+        if challenge.description:
+            challenge_context += f"\n题目描述：{challenge.description}"
+        if challenge.requirements:
+            challenge_context += f"\n题目要求：{challenge.requirements}"
+        if challenge.input_format:
+            challenge_context += f"\n输入格式：{challenge.input_format}"
+        if challenge.output_format:
+            challenge_context += f"\n输出格式：{challenge.output_format}"
+        if challenge.examples:
+            challenge_context += f"\n示例：{challenge.examples}"
+
+        user_message = f"""语言：{language}
+课程：{course_info or "未指定"}
+题目名称：{challenge.title}
+难度：{challenge.difficulty}
+知识点：{challenge.knowledge_point or "未指定"}
+{challenge_context}
+{code_note}
+
+用户代码：
+```
+{truncated_code}
+```
+
+用户问题：{question}"""
+    else:
+        system_prompt = CODE_ANALYZE_SYSTEM_PROMPT
+        user_message = f"""语言：{language}
 课程：{course_info or "未指定"}
 {code_note}
 
@@ -3904,7 +3990,7 @@ def analyze_code(req: schemas.CodeAnalyzeRequest, db: Session = Depends(get_db))
 
     answer = call_deepseek(
         [
-            {"role": "system", "content": CODE_ANALYZE_SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_message},
         ]
     )
@@ -3984,6 +4070,173 @@ def delete_code_session_messages(session_id: int, username: str, db: Session = D
     ).delete()
     db.commit()
     return {"success": True}
+
+
+CODE_CHALLENGE_GENERATE_PROMPT = """你是编程学习出题助手。根据用户的学习背景和编程进度，生成一道合适的编程练习题。
+
+要求：
+1. 题目难度适合用户当前水平
+2. 题目可以在单文件中完成，不依赖第三方库
+3. 不要求读取文件、网络请求或系统命令
+4. 题目描述要清晰，输入输出格式要明确
+5. starter_code 提供代码框架，让用户填写核心逻辑
+6. reference_solution 是完整参考解法
+
+请严格按照以下 JSON 格式输出（不要输出其他内容）：
+
+```json
+{
+  "title": "题目标题",
+  "difficulty": "基础|中等|提高",
+  "knowledge_point": "涉及的核心知识点",
+  "description": "题目详细描述",
+  "requirements": "具体要求，编号列表",
+  "input_format": "输入格式说明",
+  "output_format": "输出格式说明",
+  "examples": "示例输入输出",
+  "starter_code": "用户可编辑的起始代码框架",
+  "reference_solution": "完整参考解法"
+}
+```"""
+
+
+@app.post("/code/challenges/generate")
+def generate_code_challenge(req: schemas.CodeChallengeGenerateRequest, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+    language = (req.language or "Python").strip()
+    if language not in CODE_TEMPLATES:
+        language = "Python"
+    difficulty = (req.difficulty or "基础").strip()
+    if difficulty not in ("基础", "中等", "提高"):
+        difficulty = "基础"
+    course_id = normalize_subject(req.course_id, default="")
+
+    # Gather user's programming progress summary
+    progress_query = db.query(models.CodeSession).filter(
+        models.CodeSession.username == user.username,
+    )
+    if course_id:
+        progress_query = progress_query.filter(models.CodeSession.course_id == course_id)
+    all_sessions = progress_query.order_by(models.CodeSession.updated_at.desc()).all()
+    total_exercises = len(all_sessions)
+    lang_counts: dict[str, int] = {}
+    for s in all_sessions:
+        lang_counts[s.language] = lang_counts.get(s.language, 0) + 1
+    recent_titles = [s.title for s in all_sessions[:3] if s.title]
+
+    # Recent AI analysis history (max 3 summaries)
+    recent_history_summary = ""
+    if all_sessions:
+        recent_session_ids = [s.id for s in all_sessions[:3]]
+        recent_messages = (
+            db.query(models.CodeAIMessage)
+            .filter(models.CodeAIMessage.session_id.in_(recent_session_ids))
+            .order_by(models.CodeAIMessage.created_at.desc())
+            .limit(6)
+            .all()
+        )
+        if recent_messages:
+            summaries = []
+            for msg in recent_messages:
+                content_preview = msg.content[:80].replace("\n", " ")
+                summaries.append(f"[{msg.role}] {content_preview}")
+            recent_history_summary = "；".join(summaries)
+
+    focus_text = f"用户想练习的知识点：{req.focus.strip()}" if req.focus.strip() else ""
+
+    progress_summary = f"""用户编程进度：
+- 当前课程：{course_id or "未指定"}
+- 编程语言：{language}
+- 总练习数：{total_exercises}
+- 各语言练习分布：{lang_counts or "暂无"}
+- 最近练习：{recent_titles or "暂无"}
+- 最近 AI 分析摘要：{recent_history_summary or "暂无"}
+{focus_text}"""
+
+    user_prompt = f"""{progress_summary}
+
+请为上述用户生成一道 {difficulty} 难度的 {language} 编程题。"""
+
+    ai_response = call_deepseek(
+        [
+            {"role": "system", "content": CODE_CHALLENGE_GENERATE_PROMPT},
+            {"role": "user", "content": user_prompt},
+        ]
+    )
+
+    # Parse JSON from AI response
+    import json as json_module
+    import re as re_module
+
+    json_match = re_module.search(r"```json\s*([\s\S]*?)\s*```", ai_response)
+    if json_match:
+        json_str = json_match.group(1)
+    else:
+        raise HTTPException(status_code=500, detail="AI 生成题目格式异常，请重试")
+
+    try:
+        challenge_data = json_module.loads(json_str)
+    except json_module.JSONDecodeError:
+        raise HTTPException(status_code=500, detail="AI 生成题目解析失败，请重试")
+
+    required_fields = ["title", "difficulty", "description"]
+    for field in required_fields:
+        if not challenge_data.get(field):
+            raise HTTPException(status_code=500, detail=f"AI 生成题目缺少 {field}，请重试")
+
+    challenge = models.CodeChallenge(
+        username=user.username,
+        course_id=course_id,
+        language=language,
+        title=str(challenge_data.get("title", ""))[:255],
+        difficulty=str(challenge_data.get("difficulty", difficulty))[:20],
+        knowledge_point=str(challenge_data.get("knowledge_point", ""))[:255],
+        description=str(challenge_data.get("description", "")),
+        requirements=str(challenge_data.get("requirements", "")),
+        input_format=str(challenge_data.get("input_format", "")),
+        output_format=str(challenge_data.get("output_format", "")),
+        examples=str(challenge_data.get("examples", "")),
+        starter_code=str(challenge_data.get("starter_code", CODE_TEMPLATES.get(language, ""))),
+        reference_solution=str(challenge_data.get("reference_solution", "")),
+    )
+    db.add(challenge)
+    db.flush()
+
+    session = models.CodeSession(
+        username=user.username,
+        course_id=course_id,
+        title=challenge.title,
+        language=language,
+        code=challenge.starter_code or CODE_TEMPLATES.get(language, ""),
+        challenge_id=challenge.id,
+        session_type="challenge",
+    )
+    db.add(session)
+    db.commit()
+    db.refresh(challenge)
+    db.refresh(session)
+
+    return {
+        "success": True,
+        "challenge": serialize_code_challenge(challenge),
+        "session": serialize_code_session(session),
+    }
+
+
+@app.get("/code/challenges/{challenge_id}")
+def get_code_challenge(challenge_id: int, username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    challenge = (
+        db.query(models.CodeChallenge)
+        .filter(
+            models.CodeChallenge.id == challenge_id,
+            models.CodeChallenge.username == user.username,
+        )
+        .first()
+    )
+    if not challenge:
+        raise HTTPException(status_code=404, detail="题目不存在")
+    return {"challenge": serialize_code_challenge(challenge)}
 
 
 @app.get("/code/progress")

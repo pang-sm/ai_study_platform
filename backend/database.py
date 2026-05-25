@@ -111,12 +111,31 @@ CODE_AI_MESSAGES_COLUMNS = {
     "created_at": "DATETIME",
 }
 
+CODE_CHALLENGES_COLUMNS = {
+    "username": "VARCHAR(50) NOT NULL",
+    "course_id": "VARCHAR(100)",
+    "language": "VARCHAR(20) NOT NULL",
+    "title": "VARCHAR(255) NOT NULL",
+    "difficulty": "VARCHAR(20) NOT NULL",
+    "knowledge_point": "VARCHAR(255)",
+    "description": "TEXT NOT NULL",
+    "requirements": "TEXT",
+    "input_format": "TEXT",
+    "output_format": "TEXT",
+    "examples": "TEXT",
+    "starter_code": "TEXT",
+    "reference_solution": "TEXT",
+    "created_at": "DATETIME",
+}
+
 CODE_SESSIONS_COLUMNS = {
     "username": "VARCHAR(50)",
     "course_id": "VARCHAR(100)",
     "title": "VARCHAR(255) NOT NULL DEFAULT '未命名练习'",
     "language": "VARCHAR(20) NOT NULL DEFAULT 'Python'",
     "code": "TEXT NOT NULL DEFAULT ''",
+    "challenge_id": "INTEGER",
+    "session_type": "VARCHAR(20)",
     "created_at": "DATETIME",
     "updated_at": "DATETIME",
 }
@@ -260,6 +279,33 @@ def ensure_code_ai_messages_schema(conn):
     ensure_columns(conn, "code_ai_messages", CODE_AI_MESSAGES_COLUMNS)
 
 
+def ensure_code_challenges_schema(conn):
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS code_challenges (
+                id INTEGER PRIMARY KEY,
+                username VARCHAR(50) NOT NULL,
+                course_id VARCHAR(100),
+                language VARCHAR(20) NOT NULL,
+                title VARCHAR(255) NOT NULL,
+                difficulty VARCHAR(20) NOT NULL,
+                knowledge_point VARCHAR(255),
+                description TEXT NOT NULL,
+                requirements TEXT,
+                input_format TEXT,
+                output_format TEXT,
+                examples TEXT,
+                starter_code TEXT,
+                reference_solution TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+    )
+    ensure_columns(conn, "code_challenges", CODE_CHALLENGES_COLUMNS)
+
+
 def ensure_material_chunks_fts(conn):
     fts_enabled = True
     try:
@@ -389,6 +435,7 @@ def init_user_profile_schema():
         ensure_course_progress_schema(conn)
         ensure_code_sessions_schema(conn)
         ensure_code_ai_messages_schema(conn)
+        ensure_code_challenges_schema(conn)
         ensure_material_chunks_fts(conn)
         normalize_existing_subjects(conn)
 

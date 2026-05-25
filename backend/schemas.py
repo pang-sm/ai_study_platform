@@ -65,3 +65,35 @@ class CodeAIMessageOut(BaseModel):
     language: str | None = None
     code_snapshot: str | None = None
     created_at: str | None = None
+
+
+class CodeChallengeGenerateRequest(BaseModel):
+    username: str
+    course_id: str = ""
+    language: str = "Python"
+    difficulty: str = "基础"
+    focus: str = ""
+
+
+class CodeChallengeOut(BaseModel):
+    id: int
+    username: str
+    course_id: str | None = None
+    language: str
+    title: str
+    difficulty: str
+    knowledge_point: str | None = None
+    description: str
+    requirements: str | None = None
+    input_format: str | None = None
+    output_format: str | None = None
+    examples: str | None = None
+    starter_code: str | None = None
+    created_at: str | None = None
+
+
+class CodeChallengeGenerateResponse(BaseModel):
+    success: bool
+    challenge: CodeChallengeOut | None = None
+    session: dict | None = None
+    detail: str | None = None

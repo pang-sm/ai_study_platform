@@ -129,6 +129,14 @@ export default function CourseDashboard({
                     <div className="dashboard-code-stat-label">C/C++</div>
                   </div>
                 </div>
+                {(codeProgress.challenge_count ?? 0) > 0 && (
+                  <div className="dashboard-code-recent">
+                    <span className="history-meta">
+                      AI 出题练习：{codeProgress.challenge_count} 道
+                      {codeProgress.recent_challenge_title ? `（最近：${codeProgress.recent_challenge_title}）` : ""}
+                    </span>
+                  </div>
+                )}
                 {codeProgress.recent_title && (
                   <div className="dashboard-code-recent">
                     <span className="history-meta">
