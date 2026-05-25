@@ -3391,3 +3391,216 @@ select.field:focus {
     max-height: 40vh;
   }
 }
+
+/* ── Task Center ── */
+
+.task-center-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.task-center-header {
+  flex-shrink: 0;
+}
+
+.task-center-filters {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  padding: 12px 20px;
+  border-bottom: 1px solid #e9edf4;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.task-filter-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.task-center-empty {
+  padding: 40px 20px !important;
+  text-align: center;
+}
+
+.task-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+}
+
+.task-card {
+  background: #fff;
+  border: 1px solid #e9edf4;
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  transition: box-shadow 0.15s;
+}
+
+.task-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.task-card--done {
+  opacity: 0.7;
+}
+
+.task-card-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.task-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.task-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0;
+}
+
+.task-card-badges {
+  display: flex;
+  gap: 6px;
+}
+
+.task-status-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+.task-status-todo {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.task-status-doing {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.task-status-done {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.task-priority-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+.task-priority-high {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.task-priority-medium {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.task-priority-low {
+  background: #f8fafc;
+  color: #94a3b8;
+}
+
+.task-card-desc {
+  font-size: 13px;
+  color: #64748b;
+  margin: 8px 0 0;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.task-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.task-card-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.task-create-modal {
+  width: 480px;
+  max-width: 90vw;
+}
+
+/* ── Dashboard task card ── */
+
+.dashboard-task-card {
+  /* reuses existing dashboard card styles */
+}
+
+.task-mini-list {
+  margin-top: 12px;
+}
+
+.task-mini-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.task-mini-item:last-child {
+  border-bottom: none;
+}
+
+.task-mini-title {
+  font-size: 13px;
+  color: #334155;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.task-mini-status {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 500;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.task-mini-status--todo {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.task-mini-status--doing {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.task-mini-status--done {
+  background: #d1fae5;
+  color: #065f46;
+}

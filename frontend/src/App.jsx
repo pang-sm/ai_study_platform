@@ -4,6 +4,7 @@ import ChatMessage from "./components/ChatMessage.jsx";
 import CourseDashboard from "./components/CourseDashboard.jsx";
 
 const CodeStudio = lazy(() => import("./components/CodeStudio.jsx"));
+const TaskCenter = lazy(() => import("./components/TaskCenter.jsx"));
 import MarkdownMessage from "./components/MarkdownMessage.jsx";
 import {
   COURSE_OPTIONS,
@@ -2461,6 +2462,11 @@ function App() {
                 <div className="home-entry-title">编程学习助手</div>
                 <div className="home-entry-desc">在线练习编程，AI 帮你分析代码和解答编程问题。</div>
               </button>
+              <button className="home-entry-card" onClick={() => setPage("taskCenter")}>
+                <div className="home-entry-icon">📋</div>
+                <div className="home-entry-title">学习任务中心</div>
+                <div className="home-entry-desc">查看、创建和管理学习任务，让 AI 帮你生成学习计划。</div>
+              </button>
               <button className="home-entry-card" onClick={() => {
                 setLearningGoals(Array.isArray(user?.learning_goals) ? [...user.learning_goals] : []);
                 setPage("profileEdit");
@@ -2494,6 +2500,31 @@ function App() {
         </header>
         <Suspense fallback={<div className="empty-state">编程学习助手加载中...</div>}>
           <CodeStudio
+            user={user}
+            subject={subject}
+            courseOptions={COURSE_OPTIONS}
+            getSubjectLabel={getSubjectLabel}
+            normalizeSubject={normalizeSubject}
+            formatDate={formatDate}
+          />
+        </Suspense>
+      </div>
+    );
+  }
+
+  if (page === "taskCenter") {
+    return (
+      <div className="app-shell">
+        <header className="workspace-topbar">
+          <div className="workspace-topbar-left">
+            <button className="ghost-button compact" onClick={() => setPage("home")}>
+              返回首页
+            </button>
+            <span className="subject-pill panel-pill">学习任务中心</span>
+          </div>
+        </header>
+        <Suspense fallback={<div className="empty-state">学习任务中心加载中...</div>}>
+          <TaskCenter
             user={user}
             subject={subject}
             courseOptions={COURSE_OPTIONS}
@@ -3016,6 +3047,7 @@ function App() {
             onViewLearningRecords={() => openLearningRecordPageForCourse(subject)}
             onNewCourseChat={() => openChatPageForCourse(subject, true)}
             onOpenCodeStudio={() => setPage("codeStudio")}
+            onOpenTaskCenter={() => setPage("taskCenter")}
             getSubjectLabel={getSubjectLabel}
             getFileTypeLabel={getFileTypeLabel}
             formatDate={formatDate}

@@ -108,3 +108,55 @@ class CodeLearningDiagnosisRequest(BaseModel):
     username: str
     course_id: str = ""
     language: str = ""
+
+
+class LearningTaskCreate(BaseModel):
+    username: str
+    course_id: str = ""
+    title: str
+    description: str = ""
+    task_type: str
+    status: str = "todo"
+    source: str = "manual"
+    priority: str = "medium"
+    due_date: str | None = None
+    related_session_id: int | None = None
+    related_challenge_id: int | None = None
+    related_material_id: int | None = None
+
+
+class LearningTaskUpdate(BaseModel):
+    username: str
+    title: str | None = None
+    description: str | None = None
+    task_type: str | None = None
+    status: str | None = None
+    priority: str | None = None
+    due_date: str | None = None
+
+
+class LearningTaskOut(BaseModel):
+    id: int
+    username: str
+    course_id: str | None = None
+    title: str
+    description: str | None = None
+    task_type: str
+    status: str
+    source: str | None = None
+    priority: str | None = None
+    due_date: str | None = None
+    related_session_id: int | None = None
+    related_challenge_id: int | None = None
+    related_material_id: int | None = None
+    completed_at: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+class GenerateTasksFromDiagnosisRequest(BaseModel):
+    username: str
+    course_id: str = ""
+    course_name: str = ""
+    diagnosis_summary: str
+    language: str = ""

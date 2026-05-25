@@ -858,6 +858,20 @@ FILE_TYPE_LABELS = {
     "code": "代码文件内容",
 }
 
+TASK_TYPE_LABELS = {
+    "read_material": "阅读资料",
+    "ask_ai": "AI 问答",
+    "code_practice": "代码练习",
+    "challenge": "AI 出题练习",
+    "review": "复习巩固",
+    "custom": "自定义任务",
+}
+
+ALLOWED_TASK_TYPES = set(TASK_TYPE_LABELS.keys())
+ALLOWED_TASK_STATUSES = {"todo", "doing", "done"}
+ALLOWED_TASK_SOURCES = {"manual", "code_diagnosis", "course_plan", "system"}
+ALLOWED_TASK_PRIORITIES = {"low", "medium", "high"}
+
 
 def build_material_question_prompt(file_type: str, extracted_text: str, question: str):
     label = FILE_TYPE_LABELS.get(file_type, "资料提取文本")
@@ -1246,6 +1260,24 @@ def build_course_dashboard_payload(db: Session, user: models.User, course: str):
         "diagnosis_challenge_count": diagnosis_challenge_count,
     }
 
+    # Build task summary for this course
+    task_query = db.query(models.LearningTask).filter(
+        models.LearningTask.username == user.username,
+        models.LearningTask.course_id == normalized_course,
+    )
+    task_total = task_query.count()
+    task_todo = task_query.filter(models.LearningTask.status == "todo").count()
+    task_doing = task_query.filter(models.LearningTask.status == "doing").count()
+    task_done = task_query.filter(models.LearningTask.status == "done").count()
+    recent_tasks = task_query.order_by(models.LearningTask.updated_at.desc()).limit(5).all()
+    task_summary = {
+        "total": task_total,
+        "todo_count": task_todo,
+        "doing_count": task_doing,
+        "done_count": task_done,
+        "recent_tasks": [serialize_learning_task(t) for t in recent_tasks],
+    }
+
     if materials_count == 0:
         suggestion = "建议先上传课程资料，方便 AI 结合你的个人资料回答。"
     elif chat_count == 0:
@@ -1274,6 +1306,7 @@ def build_course_dashboard_payload(db: Session, user: models.User, course: str):
         "suggestion": suggestion,
         "progress_status_options": list(COURSE_PROGRESS_STATUSES),
         "code_progress": code_progress,
+        "task_summary": task_summary,
     }
 
 
@@ -3792,6 +3825,27 @@ def serialize_code_challenge(challenge):
     }
 
 
+def serialize_learning_task(task):
+    return {
+        "id": task.id,
+        "username": task.username,
+        "course_id": task.course_id,
+        "title": task.title,
+        "description": task.description,
+        "task_type": task.task_type,
+        "status": task.status,
+        "source": task.source,
+        "priority": task.priority,
+        "due_date": serialize_datetime(task.due_date) if task.due_date else None,
+        "related_session_id": task.related_session_id,
+        "related_challenge_id": task.related_challenge_id,
+        "related_material_id": task.related_material_id,
+        "completed_at": serialize_datetime(task.completed_at) if task.completed_at else None,
+        "created_at": serialize_datetime(task.created_at) if task.created_at else None,
+        "updated_at": serialize_datetime(task.updated_at) if task.updated_at else None,
+    }
+
+
 CODE_TEMPLATES = {
     "Python": 'def main():\n    print("Hello, World!")\n\nif __name__ == "__main__":\n    main()',
     "C": '#include <stdio.h>\n\nint main() {\n    printf("Hello, World!\\n");\n    return 0;\n}',
@@ -4533,3 +4587,277 @@ def rename_conversation(
         raise HTTPException(status_code=404, detail="历史对话不存在")
 
     return {"message": "重命名成功", "title": conversation.title}
+
+
+# ── Learning Task Center ──
+
+@app.get("/learning/tasks")
+def get_learning_tasks(username: str, course_id: str = "", status: str = "", db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    query = db.query(models.LearningTask).filter(
+        models.LearningTask.username == user.username,
+    )
+    normalized_course = normalize_subject(course_id, default="")
+    if normalized_course:
+        query = query.filter(models.LearningTask.course_id == normalized_course)
+    status_filter = (status or "").strip()
+    if status_filter and status_filter in ALLOWED_TASK_STATUSES:
+        query = query.filter(models.LearningTask.status == status_filter)
+    tasks = query.order_by(
+        models.LearningTask.status.asc(),
+        models.LearningTask.updated_at.desc(),
+    ).all()
+    return {"tasks": [serialize_learning_task(t) for t in tasks]}
+
+
+@app.post("/learning/tasks")
+def create_learning_task(req: schemas.LearningTaskCreate, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+    task_type = (req.task_type or "").strip()
+    if task_type not in ALLOWED_TASK_TYPES:
+        task_type = "custom"
+    status = (req.status or "todo").strip()
+    if status not in ALLOWED_TASK_STATUSES:
+        status = "todo"
+    source = (req.source or "manual").strip()
+    if source not in ALLOWED_TASK_SOURCES:
+        source = "manual"
+    priority = (req.priority or "medium").strip()
+    if priority not in ALLOWED_TASK_PRIORITIES:
+        priority = "medium"
+    title = (req.title or "").strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="任务标题不能为空")
+    now = utc_now()
+    task = models.LearningTask(
+        username=user.username,
+        course_id=normalize_subject(req.course_id, default="") or None,
+        title=title[:255],
+        description=(req.description or "").strip() or None,
+        task_type=task_type,
+        status=status,
+        source=source,
+        priority=priority,
+        due_date=req.due_date,
+        related_session_id=req.related_session_id,
+        related_challenge_id=req.related_challenge_id,
+        related_material_id=req.related_material_id,
+        completed_at=now if status == "done" else None,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+    return {"task": serialize_learning_task(task)}
+
+
+@app.put("/learning/tasks/{task_id}")
+def update_learning_task(task_id: int, req: schemas.LearningTaskUpdate, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+    task = (
+        db.query(models.LearningTask)
+        .filter(
+            models.LearningTask.id == task_id,
+            models.LearningTask.username == user.username,
+        )
+        .first()
+    )
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+
+    if req.title is not None:
+        title = (req.title or "").strip()
+        if not title:
+            raise HTTPException(status_code=400, detail="任务标题不能为空")
+        task.title = title[:255]
+    if req.description is not None:
+        task.description = (req.description or "").strip() or None
+    if req.task_type is not None:
+        new_type = (req.task_type or "").strip()
+        if new_type in ALLOWED_TASK_TYPES:
+            task.task_type = new_type
+    if req.status is not None:
+        new_status = (req.status or "").strip()
+        if new_status in ALLOWED_TASK_STATUSES:
+            old_status = task.status
+            task.status = new_status
+            now = utc_now()
+            if new_status == "done" and old_status != "done":
+                task.completed_at = now
+            elif new_status != "done" and old_status == "done":
+                task.completed_at = None
+    if req.priority is not None:
+        new_priority = (req.priority or "medium").strip()
+        if new_priority in ALLOWED_TASK_PRIORITIES:
+            task.priority = new_priority
+    if req.due_date is not None:
+        task.due_date = req.due_date if (req.due_date or "").strip() else None
+
+    task.updated_at = utc_now()
+    db.commit()
+    db.refresh(task)
+    return {"task": serialize_learning_task(task)}
+
+
+@app.delete("/learning/tasks/{task_id}")
+def delete_learning_task(task_id: int, username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    task = (
+        db.query(models.LearningTask)
+        .filter(
+            models.LearningTask.id == task_id,
+            models.LearningTask.username == user.username,
+        )
+        .first()
+    )
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    db.delete(task)
+    db.commit()
+    return {"message": "任务已删除"}
+
+
+@app.get("/learning/tasks/summary")
+def get_learning_tasks_summary(username: str, course_id: str = "", db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    query = db.query(models.LearningTask).filter(
+        models.LearningTask.username == user.username,
+    )
+    normalized_course = normalize_subject(course_id, default="")
+    if normalized_course:
+        query = query.filter(models.LearningTask.course_id == normalized_course)
+
+    total = query.count()
+    todo_count = query.filter(models.LearningTask.status == "todo").count()
+    doing_count = query.filter(models.LearningTask.status == "doing").count()
+    done_count = query.filter(models.LearningTask.status == "done").count()
+
+    now = utc_now()
+    overdue_count = query.filter(
+        models.LearningTask.due_date.isnot(None),
+        models.LearningTask.due_date < now,
+        models.LearningTask.status != "done",
+    ).count()
+
+    high_priority_count = query.filter(
+        models.LearningTask.priority == "high",
+        models.LearningTask.status != "done",
+    ).count()
+
+    recent_tasks = query.order_by(models.LearningTask.updated_at.desc()).limit(5).all()
+
+    return {
+        "total": total,
+        "todo_count": todo_count,
+        "doing_count": doing_count,
+        "done_count": done_count,
+        "overdue_count": overdue_count,
+        "high_priority_count": high_priority_count,
+        "recent_tasks": [serialize_learning_task(t) for t in recent_tasks],
+    }
+
+
+LEARNING_TASKS_FROM_DIAGNOSIS_PROMPT = """你是学习任务规划助手。根据用户的编程学习诊断报告，生成 3 到 5 个具体可执行的学习任务。
+
+要求：
+1. 每个任务必须具体可执行，不要空泛（如"好好学习"）
+2. 任务类型优先使用：code_practice、challenge、review、ask_ai
+3. 根据诊断中的薄弱点设置优先级
+4. 每个任务要有清晰的描述，说明要做什么
+5. 输出严格 JSON 数组格式
+
+输出格式示例：
+[
+  {"title": "任务标题", "description": "详细描述", "task_type": "code_practice", "priority": "high"},
+  {"title": "另一个任务", "description": "详细描述", "task_type": "review", "priority": "medium"}
+]"""
+
+
+@app.post("/learning/tasks/from-diagnosis")
+def generate_tasks_from_diagnosis(req: schemas.GenerateTasksFromDiagnosisRequest, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+    course_name = (req.course_name or "").strip()
+    language = (req.language or "").strip()
+    diagnosis_summary = (req.diagnosis_summary or "").strip()
+    if not diagnosis_summary:
+        raise HTTPException(status_code=400, detail="诊断报告不能为空")
+
+    # Truncate for cost control
+    if len(diagnosis_summary) > 2000:
+        diagnosis_summary = diagnosis_summary[:2000]
+
+    user_prompt = f"""课程：{course_name or '未指定'}
+编程语言：{language or '未指定'}
+
+诊断报告摘要：
+{diagnosis_summary}
+
+请根据以上诊断报告生成 3 到 5 个学习任务。"""
+
+    try:
+        ai_response = call_deepseek(
+            [
+                {"role": "system", "content": LEARNING_TASKS_FROM_DIAGNOSIS_PROMPT},
+                {"role": "user", "content": user_prompt},
+            ]
+        )
+        # Parse JSON array from response
+        json_match = re.search(r"\[[\s\S]*?\]", ai_response)
+        if json_match:
+            tasks_data = json.loads(json_match.group(0))
+        else:
+            tasks_data = json.loads(ai_response)
+    except Exception:
+        # Fallback: create 3 default tasks
+        fallback_weak_point = "诊断报告中的薄弱点"
+        for line in diagnosis_summary.split("\n"):
+            stripped = line.strip()
+            if stripped.startswith("- **") or stripped.startswith("- **"):
+                fallback_weak_point = stripped.lstrip("- *").strip()
+                if len(fallback_weak_point) > 50:
+                    fallback_weak_point = fallback_weak_point[:50] + "..."
+                break
+        tasks_data = [
+            {"title": f"复习：{fallback_weak_point}", "description": f"根据诊断报告复习 {fallback_weak_point}，重点理解薄弱环节。", "task_type": "review", "priority": "high"},
+            {"title": "完成一道针对性 AI 出题练习", "description": "使用 AI 出题功能生成一道针对性编程题并完成练习。", "task_type": "challenge", "priority": "high"},
+            {"title": "让 AI 分析一次修改后的代码", "description": "将练习代码提交给 AI 分析，获取改进建议。", "task_type": "code_practice", "priority": "medium"},
+        ]
+
+    if not isinstance(tasks_data, list) or len(tasks_data) == 0:
+        raise HTTPException(status_code=500, detail="AI 未能生成有效任务，请稍后重试")
+
+    course_id = normalize_subject(req.course_id, default="") or None
+    created_tasks = []
+    now = utc_now()
+    for item in tasks_data[:5]:
+        task_type = (str(item.get("task_type", "custom"))).strip()
+        if task_type not in ALLOWED_TASK_TYPES:
+            task_type = "custom"
+        priority = (str(item.get("priority", "medium"))).strip()
+        if priority not in ALLOWED_TASK_PRIORITIES:
+            priority = "medium"
+        task = models.LearningTask(
+            username=user.username,
+            course_id=course_id,
+            title=str(item.get("title", "未命名任务"))[:255],
+            description=str(item.get("description", ""))[:500] or None,
+            task_type=task_type,
+            status="todo",
+            source="code_diagnosis",
+            priority=priority,
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(task)
+        created_tasks.append(task)
+
+    db.commit()
+    for t in created_tasks:
+        db.refresh(t)
+
+    return {
+        "success": True,
+        "tasks": [serialize_learning_task(t) for t in created_tasks],
+        "message": f"已生成 {len(created_tasks)} 个学习任务",
+    }

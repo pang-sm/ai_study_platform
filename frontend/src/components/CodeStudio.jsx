@@ -49,6 +49,7 @@ export default function CodeStudio({
   const [diagnosisLoading, setDiagnosisLoading] = useState(false);
   const [diagnosisReport, setDiagnosisReport] = useState(null);
   const [targetedChallengeLoading, setTargetedChallengeLoading] = useState(false);
+  const [taskGenerationLoading, setTaskGenerationLoading] = useState(false);
 
   const hasUnsaved =
     selectedSession &&
@@ -367,6 +368,37 @@ export default function CodeStudio({
     }
   };
 
+  const generateTasksFromDiagnosis = async () => {
+    if (!user?.username || !diagnosisReport?.summary) return;
+    setTaskGenerationLoading(true);
+    try {
+      const diagnosisText = diagnosisReport.summary.slice(0, 2000);
+      const res = await fetch(`${API_BASE}/learning/tasks/from-diagnosis`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: user.username,
+          course_id: normalizeSubject(codeCourseId),
+          course_name: getSubjectLabel(codeCourseId) || codeCourseId,
+          diagnosis_summary: diagnosisText,
+          language,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setTip(data.message || `已生成 ${data.tasks?.length || 0} 个学习任务`);
+        setTimeout(() => setTip(""), 3000);
+      } else {
+        setTip(data.detail || "生成学习任务失败");
+      }
+    } catch (error) {
+      console.error("Failed to generate tasks from diagnosis:", error);
+      setTip("生成学习任务失败，请稍后重试");
+    } finally {
+      setTaskGenerationLoading(false);
+    }
+  };
+
   return (
     <section className="code-studio-shell">
       {/* Left Panel — Session List */}
@@ -575,13 +607,21 @@ export default function CodeStudio({
                     分析依据：{diagnosisReport.used_sessions_count} 条练习、{diagnosisReport.used_messages_count} 条分析记录、{diagnosisReport.used_challenges_count} 道出题
                   </div>
                   {!diagnosisReport.data_insufficient && (
-                    <div style={{ marginTop: 12 }}>
+                    <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
                       <button
                         className="primary-button compact"
                         onClick={generateTargetedChallenge}
                         disabled={targetedChallengeLoading}
                       >
                         {targetedChallengeLoading ? "AI 正在根据薄弱点生成练习..." : "根据薄弱点生成练习"}
+                      </button>
+                      <button
+                        className="primary-button compact"
+                        onClick={generateTasksFromDiagnosis}
+                        disabled={taskGenerationLoading}
+                        style={{ background: "#0f766e" }}
+                      >
+                        {taskGenerationLoading ? "AI 正在根据诊断报告生成学习任务..." : "生成学习任务"}
                       </button>
                     </div>
                   )}

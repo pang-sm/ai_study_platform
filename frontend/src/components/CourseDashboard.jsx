@@ -14,6 +14,7 @@ export default function CourseDashboard({
   onViewLearningRecords,
   onNewCourseChat,
   onOpenCodeStudio,
+  onOpenTaskCenter,
   getSubjectLabel,
   getFileTypeLabel,
   formatDate,
@@ -23,6 +24,8 @@ export default function CourseDashboard({
   const progress = Array.isArray(dashboard?.progress) ? dashboard.progress : [];
   const recentMaterials = Array.isArray(dashboard?.recent_materials) ? dashboard.recent_materials : [];
   const recentChats = Array.isArray(dashboard?.recent_chats) ? dashboard.recent_chats : [];
+  const taskSummary = dashboard?.task_summary || {};
+  const recentTasks = Array.isArray(taskSummary.recent_tasks) ? taskSummary.recent_tasks : [];
   const statusOptions = Array.isArray(dashboard?.progress_status_options)
     ? dashboard.progress_status_options
     : ["未开始", "学习中", "已掌握", "薄弱", "待复习"];
@@ -101,6 +104,48 @@ export default function CourseDashboard({
               今日建议：
               {dashboard?.suggestion || "建议先从一个基础问题开始提问。"}
             </p>
+          </section>
+
+          <section className="dashboard-card dashboard-task-card">
+            <div className="panel-title-row">
+              <h3>学习任务</h3>
+              <button className="tiny-button" onClick={onOpenTaskCenter}>
+                进入任务中心
+              </button>
+            </div>
+            {(taskSummary.total ?? 0) > 0 ? (
+              <>
+                <div className="dashboard-mini-stats">
+                  <span>任务总数：{taskSummary.total ?? 0}</span>
+                  <span>待完成：{taskSummary.todo_count ?? 0}</span>
+                  <span>进行中：{taskSummary.doing_count ?? 0}</span>
+                  <span>已完成：{taskSummary.done_count ?? 0}</span>
+                </div>
+                {recentTasks.length > 0 && (
+                  <div className="task-mini-list">
+                    {recentTasks.slice(0, 3).map((task) => (
+                      <div key={task.id} className="task-mini-item">
+                        <span className="task-mini-title">{task.title}</span>
+                        <span className={`task-mini-status task-mini-status--${task.status}`}>
+                          {task.status === "todo" ? "未开始" : task.status === "doing" ? "进行中" : "已完成"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="empty-inline">
+                <p>当前课程还没有学习任务。</p>
+                <button
+                  className="primary-button compact"
+                  onClick={onOpenTaskCenter}
+                  style={{ marginTop: 8 }}
+                >
+                  进入任务中心
+                </button>
+              </div>
+            )}
           </section>
 
           <section className="dashboard-card dashboard-code-card">

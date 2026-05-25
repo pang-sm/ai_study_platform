@@ -142,6 +142,24 @@ CODE_SESSIONS_COLUMNS = {
     "updated_at": "DATETIME",
 }
 
+LEARNING_TASKS_COLUMNS = {
+    "username": "VARCHAR(50) NOT NULL",
+    "course_id": "VARCHAR(100)",
+    "title": "VARCHAR(255) NOT NULL",
+    "description": "TEXT",
+    "task_type": "VARCHAR(50) NOT NULL",
+    "status": "VARCHAR(30) NOT NULL",
+    "source": "VARCHAR(50)",
+    "priority": "VARCHAR(20)",
+    "due_date": "DATETIME",
+    "related_session_id": "INTEGER",
+    "related_challenge_id": "INTEGER",
+    "related_material_id": "INTEGER",
+    "completed_at": "DATETIME",
+    "created_at": "DATETIME NOT NULL",
+    "updated_at": "DATETIME NOT NULL",
+}
+
 
 def get_db():
     db = SessionLocal()
@@ -308,6 +326,34 @@ def ensure_code_challenges_schema(conn):
     ensure_columns(conn, "code_challenges", CODE_CHALLENGES_COLUMNS)
 
 
+def ensure_learning_tasks_schema(conn):
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS learning_tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username VARCHAR(50) NOT NULL,
+                course_id VARCHAR(100),
+                title VARCHAR(255) NOT NULL,
+                description TEXT,
+                task_type VARCHAR(50) NOT NULL,
+                status VARCHAR(30) NOT NULL,
+                source VARCHAR(50),
+                priority VARCHAR(20),
+                due_date DATETIME,
+                related_session_id INTEGER,
+                related_challenge_id INTEGER,
+                related_material_id INTEGER,
+                completed_at DATETIME,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+    )
+    ensure_columns(conn, "learning_tasks", LEARNING_TASKS_COLUMNS)
+
+
 def ensure_material_chunks_fts(conn):
     fts_enabled = True
     try:
@@ -438,6 +484,7 @@ def init_user_profile_schema():
         ensure_code_sessions_schema(conn)
         ensure_code_ai_messages_schema(conn)
         ensure_code_challenges_schema(conn)
+        ensure_learning_tasks_schema(conn)
         ensure_material_chunks_fts(conn)
         normalize_existing_subjects(conn)
 

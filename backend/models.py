@@ -182,3 +182,24 @@ class CodeAIMessage(Base):
     language = Column(String(20), nullable=True)
     code_snapshot = Column(Text, nullable=True)
     created_at = Column(DateTime, default=utc_now)
+
+
+class LearningTask(Base):
+    __tablename__ = "learning_tasks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), index=True, nullable=False)
+    course_id = Column(String(100), nullable=True)
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    task_type = Column(String(50), nullable=False)
+    status = Column(String(30), nullable=False)
+    source = Column(String(50), nullable=True)
+    priority = Column(String(20), nullable=True)
+    due_date = Column(DateTime, nullable=True)
+    related_session_id = Column(Integer, nullable=True)
+    related_challenge_id = Column(Integer, nullable=True)
+    related_material_id = Column(Integer, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
