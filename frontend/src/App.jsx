@@ -14,6 +14,7 @@ const QuotaCenter = lazy(() => import("./components/QuotaCenter.jsx"));
 const AdminUsageCenter = lazy(() => import("./components/AdminUsageCenter.jsx"));
 const AdminCenter = lazy(() => import("./components/AdminCenter.jsx"));
 const LearningReportCenter = lazy(() => import("./components/LearningReportCenter.jsx"));
+const SharedReportPage = lazy(() => import("./components/SharedReportPage.jsx"));
 import MarkdownMessage from "./components/MarkdownMessage.jsx";
 import {
   COURSE_OPTIONS,
@@ -464,6 +465,9 @@ function App() {
       (item) => item.parse_status === "failed"
     );
   }, [selectedFiles]);
+
+  // Shared report pathname detection — public page, no login required
+  const isSharedReportPath = window.location.pathname.startsWith("/shared/reports/");
 
   const canSendMessage = useMemo(() => {
     if (loading) return false;
@@ -2176,6 +2180,14 @@ function App() {
     setPage("chat");
     localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
   };
+
+  if (isSharedReportPath) {
+    return (
+      <Suspense fallback={<div className="shared-report-shell"><div className="shared-report-card"><div className="shared-report-loading">加载中...</div></div></div>}>
+        <SharedReportPage />
+      </Suspense>
+    );
+  }
 
   if (!user) {
     return (

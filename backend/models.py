@@ -345,3 +345,18 @@ class LearningReport(Base):
     start_date = Column(DateTime, nullable=True)
     end_date = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=utc_now)
+
+
+class LearningReportShare(Base):
+    __tablename__ = "learning_report_shares"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), index=True, nullable=False)
+    report_id = Column(Integer, index=True, nullable=False)
+    share_token = Column(String(80), unique=True, nullable=False)
+    title = Column(String(200), nullable=True)
+    is_active = Column(Integer, nullable=True, default=1)
+    view_count = Column(Integer, nullable=True, default=0)
+    created_at = Column(DateTime, default=utc_now)
+    revoked_at = Column(DateTime, nullable=True)
+    last_viewed_at = Column(DateTime, nullable=True)

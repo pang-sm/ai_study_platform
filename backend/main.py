@@ -9308,7 +9308,328 @@ def delete_report(report_id: int, username: str, db: Session = Depends(get_db)):
     if not report:
         raise HTTPException(status_code=404, detail="报告不存在")
 
+    # Deactivate any active shares for this report
+    active_shares = (
+        db.query(models.LearningReportShare)
+        .filter(
+            models.LearningReportShare.report_id == report_id,
+            models.LearningReportShare.username == user.username,
+            models.LearningReportShare.is_active == 1,
+        )
+        .all()
+    )
+    now = utc_now()
+    for share in active_shares:
+        share.is_active = 0
+        share.revoked_at = now
+
     db.delete(report)
     db.commit()
 
     return {"success": True, "message": "报告已删除"}
+
+
+# ── Report Export / Share ──────────────────────────────────
+
+
+def _sanitize_filename(name: str) -> str:
+    return re.sub(r"[^A-Za-z0-9一-鿿._-]", "_", name)[:80]
+
+
+def _format_report_as_markdown(report, metrics, suggestions) -> str:
+    lines = []
+    lines.append(f"# {report.title}")
+    lines.append("")
+    type_label = REPORT_TYPE_LABELS.get(report.report_type, report.report_type)
+    lines.append(f"报告类型：{type_label}")
+    if report.course_name:
+        lines.append(f"课程：{report.course_name}")
+    elif report.course_id:
+        lines.append(f"课程：{report.course_id}")
+    if report.start_date:
+        lines.append(f"时间范围：{serialize_datetime(report.start_date)} 至 {serialize_datetime(report.end_date)}")
+    lines.append(f"生成时间：{serialize_datetime(report.created_at)}")
+    lines.append("")
+
+    if report.summary:
+        lines.append("## 摘要")
+        lines.append("")
+        lines.append(report.summary)
+        lines.append("")
+
+    if metrics:
+        lines.append("## 核心指标")
+        lines.append("")
+        for k, v in metrics.items():
+            label_k = k.replace("_", " ").title()
+            if isinstance(v, float) and v < 1:
+                lines.append(f"- {label_k}：{round(v * 100)}%")
+            else:
+                lines.append(f"- {label_k}：{v}")
+        lines.append("")
+
+    lines.append("## 报告正文")
+    lines.append("")
+    lines.append(report.content)
+    lines.append("")
+
+    if suggestions:
+        lines.append("## 下一步建议")
+        lines.append("")
+        for i, s in enumerate(suggestions, 1):
+            lines.append(f"{i}. {s}")
+        lines.append("")
+
+    lines.append("---")
+    lines.append("由 AI Study Platform 生成")
+    return "\n".join(lines)
+
+
+def _parse_report_meta(report):
+    metrics = None
+    if report.metrics_json:
+        try:
+            metrics = json.loads(report.metrics_json)
+        except (json.JSONDecodeError, TypeError):
+            metrics = None
+    suggestions = None
+    if report.suggestions_json:
+        try:
+            suggestions = json.loads(report.suggestions_json)
+        except (json.JSONDecodeError, TypeError):
+            suggestions = None
+    return metrics, suggestions
+
+
+@app.get("/learning/reports/{report_id}/export/markdown")
+def export_report_markdown(report_id: int, username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    report = (
+        db.query(models.LearningReport)
+        .filter(models.LearningReport.id == report_id, models.LearningReport.username == user.username)
+        .first()
+    )
+    if not report:
+        raise HTTPException(status_code=404, detail="报告不存在")
+
+    metrics, suggestions = _parse_report_meta(report)
+    content = _format_report_as_markdown(report, metrics, suggestions)
+    filename = _sanitize_filename(f"学习报告-{report.title}") + ".md"
+
+    return {"filename": filename, "content": content}
+
+
+@app.get("/learning/reports/{report_id}/export/text")
+def export_report_text(report_id: int, username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    report = (
+        db.query(models.LearningReport)
+        .filter(models.LearningReport.id == report_id, models.LearningReport.username == user.username)
+        .first()
+    )
+    if not report:
+        raise HTTPException(status_code=404, detail="报告不存在")
+
+    lines = []
+    lines.append(report.title)
+    lines.append("")
+    if report.summary:
+        lines.append(report.summary)
+        lines.append("")
+    lines.append(report.content)
+    lines.append("")
+
+    metrics, suggestions = _parse_report_meta(report)
+    if suggestions:
+        lines.append("建议：")
+        for i, s in enumerate(suggestions, 1):
+            lines.append(f"{i}. {s}")
+
+    content = "\n".join(lines)
+    filename = _sanitize_filename(f"学习报告-{report.title}") + ".txt"
+
+    return {"filename": filename, "content": content}
+
+
+@app.post("/learning/reports/{report_id}/share")
+def create_report_share(report_id: int, req: schemas.LearningReportShareCreateRequest, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+    report = (
+        db.query(models.LearningReport)
+        .filter(models.LearningReport.id == report_id, models.LearningReport.username == user.username)
+        .first()
+    )
+    if not report:
+        raise HTTPException(status_code=404, detail="报告不存在")
+
+    # Check for existing active share
+    existing = (
+        db.query(models.LearningReportShare)
+        .filter(
+            models.LearningReportShare.report_id == report_id,
+            models.LearningReportShare.username == user.username,
+            models.LearningReportShare.is_active == 1,
+        )
+        .first()
+    )
+    if existing:
+        return {
+            "share_token": existing.share_token,
+            "share_url": f"/shared/reports/{existing.share_token}",
+            "created_at": serialize_datetime(existing.created_at),
+            "view_count": existing.view_count or 0,
+        }
+
+    token = __import__("secrets").token_urlsafe(32)
+    share = models.LearningReportShare(
+        username=user.username,
+        report_id=report.id,
+        share_token=token,
+        title=report.title,
+        is_active=1,
+        view_count=0,
+    )
+    db.add(share)
+    db.commit()
+    db.refresh(share)
+
+    return {
+        "share_token": share.share_token,
+        "share_url": f"/shared/reports/{share.share_token}",
+        "created_at": serialize_datetime(share.created_at),
+        "view_count": 0,
+    }
+
+
+@app.delete("/learning/reports/{report_id}/share")
+def revoke_report_share(report_id: int, username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    share = (
+        db.query(models.LearningReportShare)
+        .filter(
+            models.LearningReportShare.report_id == report_id,
+            models.LearningReportShare.username == user.username,
+            models.LearningReportShare.is_active == 1,
+        )
+        .first()
+    )
+    if not share:
+        raise HTTPException(status_code=404, detail="该报告没有活跃的分享链接")
+
+    share.is_active = 0
+    share.revoked_at = utc_now()
+    db.commit()
+
+    return {"success": True, "message": "分享已撤销"}
+
+
+@app.get("/learning/reports/{report_id}/share")
+def get_report_share_status(report_id: int, username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    share = (
+        db.query(models.LearningReportShare)
+        .filter(
+            models.LearningReportShare.report_id == report_id,
+            models.LearningReportShare.username == user.username,
+        )
+        .order_by(models.LearningReportShare.created_at.desc())
+        .first()
+    )
+    if not share:
+        return {"is_shared": False}
+
+    return {
+        "is_shared": bool(share.is_active),
+        "share_token": share.share_token if share.is_active else None,
+        "share_url": f"/shared/reports/{share.share_token}" if share.is_active else None,
+        "view_count": share.view_count or 0,
+        "created_at": serialize_datetime(share.created_at),
+        "revoked_at": serialize_datetime(share.revoked_at) if share.revoked_at else None,
+        "last_viewed_at": serialize_datetime(share.last_viewed_at) if share.last_viewed_at else None,
+    }
+
+
+@app.get("/shared/reports/{share_token}")
+def public_shared_report(share_token: str, db: Session = Depends(get_db)):
+    share = (
+        db.query(models.LearningReportShare)
+        .filter(
+            models.LearningReportShare.share_token == share_token,
+            models.LearningReportShare.is_active == 1,
+        )
+        .first()
+    )
+    if not share:
+        raise HTTPException(status_code=404, detail="该报告分享链接不存在或已被撤销。")
+
+    report = db.query(models.LearningReport).filter(models.LearningReport.id == share.report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="该报告分享链接不存在或已被撤销。")
+
+    # Increment view count
+    share.view_count = (share.view_count or 0) + 1
+    share.last_viewed_at = utc_now()
+    db.commit()
+
+    metrics, suggestions = _parse_report_meta(report)
+    safe_metrics = {}
+    if metrics:
+        for k, v in metrics.items():
+            if not isinstance(v, (int, float, str, bool)):
+                continue
+            safe_metrics[k] = v
+
+    return {
+        "title": report.title,
+        "summary": report.summary,
+        "content": report.content,
+        "report_type": report.report_type,
+        "course_name": report.course_name,
+        "start_date": serialize_datetime(report.start_date),
+        "end_date": serialize_datetime(report.end_date),
+        "created_at": serialize_datetime(report.created_at),
+        "suggestions": suggestions,
+        "metrics": safe_metrics,
+    }
+
+
+@app.get("/admin/report-shares")
+def admin_report_shares(
+    admin_username: str,
+    page: int = 1,
+    page_size: int = 30,
+    db: Session = Depends(get_db),
+):
+    require_admin(admin_username, db)
+
+    page = max(1, page)
+    page_size = min(100, max(1, page_size))
+
+    total = db.query(models.LearningReportShare).count()
+    shares = (
+        db.query(models.LearningReportShare)
+        .order_by(models.LearningReportShare.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+
+    return {
+        "items": [
+            {
+                "id": s.id,
+                "report_id": s.report_id,
+                "title": s.title,
+                "username": s.username,
+                "is_active": bool(s.is_active),
+                "view_count": s.view_count or 0,
+                "created_at": serialize_datetime(s.created_at),
+                "revoked_at": serialize_datetime(s.revoked_at),
+                "last_viewed_at": serialize_datetime(s.last_viewed_at),
+            }
+            for s in shares
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }

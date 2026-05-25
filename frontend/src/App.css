@@ -4882,3 +4882,233 @@ select.field:focus {
   font-size: 12px;
   color: #64748b;
 }
+
+/* ── Report Detail Actions ── */
+
+.report-detail-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
+  align-items: center;
+}
+
+/* ── Report Share Info ── */
+
+.report-share-info {
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+}
+
+.report-share-info-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #166534;
+  margin-bottom: 8px;
+}
+
+.report-share-url-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.report-share-url-row .field {
+  flex: 1;
+  font-size: 12px;
+  background: #fff;
+}
+
+.report-share-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 6px;
+}
+
+/* ── Shared Report Page ── */
+
+.shared-report-shell {
+  min-height: 100vh;
+  background: #f6f8fb;
+  padding: 32px 16px;
+  display: flex;
+  justify-content: center;
+}
+
+.shared-report-card {
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 8px 30px rgba(15, 23, 42, 0.1);
+  max-width: 760px;
+  width: 100%;
+  overflow: hidden;
+}
+
+.shared-report-header {
+  text-align: center;
+  padding: 32px 24px 16px;
+  background: linear-gradient(135deg, #0f766e 0%, #2563eb 100%);
+  color: #fff;
+}
+
+.shared-report-header h1 {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+
+.shared-report-subtitle {
+  font-size: 12px;
+  opacity: 0.8;
+  margin: 0;
+}
+
+.shared-report-body {
+  padding: 24px;
+}
+
+.shared-report-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 12px;
+}
+
+.shared-report-meta {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 16px;
+}
+
+.shared-report-summary {
+  font-size: 14px;
+  color: #475569;
+  margin: 0 0 16px;
+  font-style: italic;
+}
+
+.shared-report-footer {
+  text-align: center;
+  padding: 16px 24px;
+  color: #94a3b8;
+  font-size: 12px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.shared-report-loading,
+.shared-report-error {
+  text-align: center;
+  padding: 48px 24px;
+}
+
+.shared-report-error-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #fef2f2;
+  border: 2px solid #fecaca;
+  color: #dc2626;
+  font-size: 24px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+}
+
+.shared-report-error h2 {
+  font-size: 18px;
+  color: #dc2626;
+  margin: 0 0 8px;
+}
+
+.shared-report-error p {
+  font-size: 14px;
+  color: #64748b;
+  margin: 0;
+}
+
+/* ── Print / PDF Styles ── */
+
+@media print {
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  .workspace-topbar,
+  .workspace-topbar-wrapper,
+  .workspace-tabs,
+  .composer-panel,
+  .composer-panel--compact,
+  .composer-row,
+  .panel-header,
+  .panel-header--chat,
+  .ghost-button,
+  .primary-button,
+  .workspace-topbar-actions,
+  nav,
+  button,
+  .report-detail-actions,
+  .report-share-info,
+  .report-modal-overlay {
+    display: none !important;
+  }
+
+  .report-modal,
+  .report-modal-overlay,
+  .report-center,
+  .report-section,
+  .shared-report-card {
+    position: static !important;
+    background: #fff !important;
+    box-shadow: none !important;
+    border: none !important;
+    max-width: none !important;
+    width: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+
+  .report-content-box {
+    background: #fff !important;
+    border: none !important;
+    padding: 0 !important;
+  }
+
+  .report-content-text {
+    white-space: pre-wrap !important;
+    font-size: 12pt !important;
+    line-height: 1.6 !important;
+    color: #000 !important;
+  }
+
+  .report-preview-title,
+  .report-modal-title,
+  .shared-report-title {
+    font-size: 16pt !important;
+    color: #000 !important;
+  }
+
+  .report-metrics-cards {
+    break-inside: avoid;
+  }
+
+  .report-metric-card {
+    background: #fff !important;
+    border: 1px solid #ddd !important;
+  }
+}

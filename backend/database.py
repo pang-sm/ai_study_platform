@@ -239,6 +239,18 @@ LEARNING_REPORTS_COLUMNS = {
     "created_at": "DATETIME NOT NULL",
 }
 
+LEARNING_REPORT_SHARES_COLUMNS = {
+    "username": "VARCHAR(50) NOT NULL",
+    "report_id": "INTEGER NOT NULL",
+    "share_token": "VARCHAR(80) NOT NULL",
+    "title": "VARCHAR(200)",
+    "is_active": "INTEGER DEFAULT 1",
+    "view_count": "INTEGER DEFAULT 0",
+    "created_at": "DATETIME NOT NULL",
+    "revoked_at": "DATETIME",
+    "last_viewed_at": "DATETIME",
+}
+
 MATERIAL_KNOWLEDGE_LINKS_COLUMNS = {
     "username": "VARCHAR(50) NOT NULL",
     "course_id": "VARCHAR(100) NOT NULL",
@@ -626,6 +638,28 @@ def ensure_learning_reports_schema(conn):
     ensure_columns(conn, "learning_reports", LEARNING_REPORTS_COLUMNS)
 
 
+def ensure_learning_report_shares_schema(conn):
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS learning_report_shares (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username VARCHAR(50) NOT NULL,
+                report_id INTEGER NOT NULL,
+                share_token VARCHAR(80) NOT NULL,
+                title VARCHAR(200),
+                is_active INTEGER DEFAULT 1,
+                view_count INTEGER DEFAULT 0,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                revoked_at DATETIME,
+                last_viewed_at DATETIME
+            )
+            """
+        )
+    )
+    ensure_columns(conn, "learning_report_shares", LEARNING_REPORT_SHARES_COLUMNS)
+
+
 def ensure_material_knowledge_links_schema(conn):
     conn.execute(
         text(
@@ -809,6 +843,7 @@ def init_user_profile_schema():
         ensure_ai_usage_logs_schema(conn)
         ensure_admin_audit_logs_schema(conn)
         ensure_learning_reports_schema(conn)
+        ensure_learning_report_shares_schema(conn)
         ensure_material_chunks_fts(conn)
         normalize_existing_subjects(conn)
 

@@ -11,6 +11,7 @@ const TABS = [
   { key: "courses", label: "课程统计" },
   { key: "plans", label: "套餐管理" },
   { key: "auditLogs", label: "操作记录" },
+  { key: "reportShares", label: "报告分享" },
 ];
 
 const FEATURE_LABELS = {
@@ -69,6 +70,9 @@ export default function AdminCenter({ user }) {
 
   // Audit logs
   const [auditLogs, setAuditLogs] = useState({ items: [], total: 0, page: 1 });
+
+  // Report shares
+  const [reportShares, setReportShares] = useState({ items: [], total: 0, page: 1 });
 
   const isAdmin = user?.is_admin;
 
@@ -248,6 +252,22 @@ export default function AdminCenter({ user }) {
     }
   };
 
+  // ── Report Shares ──
+
+  const fetchReportShares = async (page = 1) => {
+    setLoading(true);
+    setError("");
+    try {
+      const params = new URLSearchParams({ admin_username: user.username, page: String(page), page_size: "30" });
+      const data = await getJson(`${API_BASE}/admin/report-shares?${params}`);
+      setReportShares(data);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // ── activate tab ──
 
   const activateTab = (key) => {
@@ -258,6 +278,7 @@ export default function AdminCenter({ user }) {
     if (key === "aiLogs") fetchAiLogs(1);
     if (key === "materials") fetchMaterials(1);
     if (key === "auditLogs") fetchAuditLogs(1);
+    if (key === "reportShares") fetchReportShares(1);
   };
 
   // ── pagination helper ──
@@ -698,6 +719,48 @@ export default function AdminCenter({ user }) {
                 </table>
               </div>
               {renderPagination(auditLogs, fetchAuditLogs)}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── Report Shares ── */}
+      {tab === "reportShares" && (
+        <div className="admin-tab-content">
+          {loading ? <div className="empty-state">加载中...</div> : (
+            <>
+              <div className="admin-table-wrap">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>报告标题</th>
+                      <th>用户</th>
+                      <th>状态</th>
+                      <th>浏览量</th>
+                      <th>创建时间</th>
+                      <th>撤销时间</th>
+                      <th>最近查看</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reportShares.items.map((s) => (
+                      <tr key={s.id}>
+                        <td title={s.title}>{s.title && s.title.length > 30 ? s.title.slice(0, 30) + "..." : (s.title || "-")}</td>
+                        <td>{s.username}</td>
+                        <td><span className={`status-tag ${s.is_active ? "status-success" : "status-failed"}`}>{s.is_active ? "活跃" : "已撤销"}</span></td>
+                        <td>{s.view_count || 0}</td>
+                        <td>{s.created_at ? new Date(s.created_at).toLocaleString("zh-CN") : "-"}</td>
+                        <td>{s.revoked_at ? new Date(s.revoked_at).toLocaleString("zh-CN") : "-"}</td>
+                        <td>{s.last_viewed_at ? new Date(s.last_viewed_at).toLocaleString("zh-CN") : "-"}</td>
+                      </tr>
+                    ))}
+                    {reportShares.items.length === 0 && (
+                      <tr><td colSpan={7} style={{ textAlign: "center", color: "#6b7280" }}>暂无分享记录</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              {renderPagination(reportShares, fetchReportShares)}
             </>
           )}
         </div>

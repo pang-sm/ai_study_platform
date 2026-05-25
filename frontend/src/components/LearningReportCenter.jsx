@@ -44,6 +44,12 @@ export default function LearningReportCenter({ user }) {
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
+  // Export / share state
+  const [shareInfo, setShareInfo] = useState(null);
+  const [shareLoading, setShareLoading] = useState(false);
+  const [shareMsg, setShareMsg] = useState("");
+  const [exportLoading, setExportLoading] = useState("");
+
   const pageSize = 20;
 
   // ── History ──
@@ -180,10 +186,124 @@ export default function LearningReportCenter({ user }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "加载失败");
       setDetail(data);
+      fetchShareStatus(reportId);
     } catch (e) {
       alert(e.message || "加载报告详情失败");
     } finally {
       setDetailLoading(false);
+    }
+  };
+
+  // ── Export ──
+
+  const handleCopyReport = async () => {
+    if (!detail) return;
+    const lines = [detail.title, "", detail.summary || "", "", detail.content];
+    if ((detail.suggestions || []).length > 0) {
+      lines.push("", "建议：");
+      detail.suggestions.forEach((s, i) => lines.push(`${i + 1}. ${s}`));
+    }
+    try {
+      await navigator.clipboard.writeText(lines.join("\n"));
+      setSaveMsg("报告已复制到剪贴板。");
+    } catch {
+      setSaveMsg("复制失败，请手动选择文本。");
+    }
+  };
+
+  const handleExport = async (format) => {
+    if (!detail || !detail.id) return;
+    setExportLoading(format);
+    try {
+      const res = await fetch(
+        `${API_BASE}/learning/reports/${detail.id}/export/${format}?username=${encodeURIComponent(user.username)}`
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "导出失败");
+      const blob = new Blob([data.content], { type: format === "markdown" ? "text/markdown" : "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = data.filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert(e.message || "导出失败");
+    } finally {
+      setExportLoading("");
+    }
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleCreateShare = async () => {
+    if (!detail || !detail.id) return;
+    setShareLoading(true);
+    setShareMsg("");
+    try {
+      const res = await fetch(`${API_BASE}/learning/reports/${detail.id}/share`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: user.username, report_id: detail.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "创建分享失败");
+      setShareInfo(data);
+    } catch (e) {
+      setShareMsg(e.message || "创建分享失败");
+    } finally {
+      setShareLoading(false);
+    }
+  };
+
+  const handleRevokeShare = async () => {
+    if (!detail || !detail.id) return;
+    if (!window.confirm("确定撤销该报告的分享链接？撤销后分享链接将立即失效。")) return;
+    setShareLoading(true);
+    setShareMsg("");
+    try {
+      const res = await fetch(
+        `${API_BASE}/learning/reports/${detail.id}/share?username=${encodeURIComponent(user.username)}`,
+        { method: "DELETE" }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "撤销失败");
+      setShareInfo(null);
+      setShareMsg("分享已撤销。");
+    } catch (e) {
+      setShareMsg(e.message || "撤销失败");
+    } finally {
+      setShareLoading(false);
+    }
+  };
+
+  const fetchShareStatus = async (reportId) => {
+    try {
+      const res = await fetch(
+        `${API_BASE}/learning/reports/${reportId}/share?username=${encodeURIComponent(user.username)}`
+      );
+      const data = await res.json();
+      if (res.ok && data.is_shared) {
+        setShareInfo(data);
+      } else {
+        setShareInfo(null);
+      }
+    } catch {
+      setShareInfo(null);
+    }
+  };
+
+  const copyShareUrl = async (token) => {
+    const url = `${window.location.origin}/shared/reports/${token}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareMsg("分享链接已复制到剪贴板。");
+    } catch {
+      setShareMsg("复制失败，请手动复制上方链接。");
     }
   };
 
@@ -471,7 +591,7 @@ export default function LearningReportCenter({ user }) {
       )}
       {detail && !detailLoading && (
         createPortal(
-          <div className="report-modal-overlay" onClick={() => setDetail(null)}>
+          <div className="report-modal-overlay" onClick={() => { setDetail(null); setShareInfo(null); setShareMsg(""); }}>
             <div className="report-modal" onClick={(e) => e.stopPropagation()}>
               <h2 className="report-modal-title">{detail.title}</h2>
               <div className="report-modal-meta">
@@ -506,8 +626,64 @@ export default function LearningReportCenter({ user }) {
                   </ul>
                 </div>
               )}
-              <div style={{ marginTop: 16, textAlign: "right" }}>
-                <button className="ghost-button" onClick={() => setDetail(null)}>关闭</button>
+
+              {/* ── Share Info ── */}
+              {shareInfo && shareInfo.is_shared && (
+                <div className="report-share-info">
+                  <div className="report-share-info-title">分享链接（已激活）</div>
+                  <div className="report-share-url-row">
+                    <input
+                      className="field"
+                      readOnly
+                      value={`${window.location.origin}/shared/reports/${shareInfo.share_token}`}
+                      onClick={(e) => e.target.select()}
+                    />
+                    <button className="ghost-button compact" onClick={() => copyShareUrl(shareInfo.share_token)}>复制</button>
+                  </div>
+                  <div className="report-share-meta">
+                    <span>浏览量：{shareInfo.view_count || 0}</span>
+                    {shareInfo.created_at && <span>创建于：{new Date(shareInfo.created_at).toLocaleString("zh-CN")}</span>}
+                  </div>
+                </div>
+              )}
+              {shareMsg && (
+                <p className="report-save-msg" style={{ color: shareMsg.includes("失败") ? "#ef4444" : "#059669", marginTop: 8 }}>{shareMsg}</p>
+              )}
+
+              {/* ── Actions ── */}
+              <div className="report-detail-actions">
+                <button className="ghost-button compact" onClick={handleCopyReport}>
+                  复制报告
+                </button>
+                <button
+                  className="ghost-button compact"
+                  onClick={() => handleExport("markdown")}
+                  disabled={exportLoading === "markdown"}
+                >
+                  {exportLoading === "markdown" ? "导出中..." : "导出 Markdown"}
+                </button>
+                <button
+                  className="ghost-button compact"
+                  onClick={() => handleExport("text")}
+                  disabled={exportLoading === "text"}
+                >
+                  {exportLoading === "text" ? "导出中..." : "导出 TXT"}
+                </button>
+                <button className="ghost-button compact" onClick={handlePrint}>
+                  打印 / 保存 PDF
+                </button>
+                {shareInfo && shareInfo.is_shared ? (
+                  <button className="ghost-button compact" style={{ color: "#ef4444" }} onClick={handleRevokeShare} disabled={shareLoading}>
+                    {shareLoading ? "撤销中..." : "撤销分享"}
+                  </button>
+                ) : (
+                  <button className="ghost-button compact" onClick={handleCreateShare} disabled={shareLoading}>
+                    {shareLoading ? "创建中..." : "创建分享链接"}
+                  </button>
+                )}
+                <button className="ghost-button" onClick={() => { setDetail(null); setShareInfo(null); setShareMsg(""); }}>
+                  关闭
+                </button>
               </div>
             </div>
           </div>,

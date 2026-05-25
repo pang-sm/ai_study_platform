@@ -401,3 +401,8 @@ class LearningReportSaveRequest(BaseModel):
     suggestions: list[str] | None = None
     start_date: str | None = None
     end_date: str | None = None
+
+
+class LearningReportShareCreateRequest(BaseModel):
+    username: str
+    report_id: int
