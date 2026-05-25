@@ -1203,6 +1203,23 @@ def build_course_dashboard_payload(db: Session, user: models.User, course: str):
     ]
     recent_learning_at = max((item for item in latest_candidates if item is not None), default=None)
 
+    code_query = db.query(models.CodeSession).filter(
+        models.CodeSession.username == user.username,
+        models.CodeSession.course_id == normalized_course,
+    )
+    code_sessions = code_query.order_by(models.CodeSession.updated_at.desc()).all()
+    code_language_counts: dict[str, int] = {}
+    for cs in code_sessions:
+        code_language_counts[cs.language] = code_language_counts.get(cs.language, 0) + 1
+    latest_code = code_sessions[0] if code_sessions else None
+    code_progress = {
+        "total": len(code_sessions),
+        "language_counts": code_language_counts,
+        "recent_title": latest_code.title if latest_code else None,
+        "recent_language": latest_code.language if latest_code else None,
+        "recent_updated_at": latest_code.updated_at if latest_code else None,
+    }
+
     if materials_count == 0:
         suggestion = "建议先上传课程资料，方便 AI 结合你的个人资料回答。"
     elif chat_count == 0:
@@ -1230,6 +1247,7 @@ def build_course_dashboard_payload(db: Session, user: models.User, course: str):
         "roadmap": get_course_roadmap(normalized_course),
         "suggestion": suggestion,
         "progress_status_options": list(COURSE_PROGRESS_STATUSES),
+        "code_progress": code_progress,
     }
 
 

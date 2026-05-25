@@ -3012,6 +3012,7 @@ function App() {
             onViewMaterials={() => openMaterialsPageForCourse(subject)}
             onViewLearningRecords={() => openLearningRecordPageForCourse(subject)}
             onNewCourseChat={() => openChatPageForCourse(subject, true)}
+            onOpenCodeStudio={() => setPage("codeStudio")}
             getSubjectLabel={getSubjectLabel}
             getFileTypeLabel={getFileTypeLabel}
             formatDate={formatDate}

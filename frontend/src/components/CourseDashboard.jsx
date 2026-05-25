@@ -13,11 +13,13 @@ export default function CourseDashboard({
   onViewMaterials,
   onViewLearningRecords,
   onNewCourseChat,
+  onOpenCodeStudio,
   getSubjectLabel,
   getFileTypeLabel,
   formatDate,
 }) {
   const stats = dashboard?.stats || {};
+  const codeProgress = dashboard?.code_progress || {};
   const progress = Array.isArray(dashboard?.progress) ? dashboard.progress : [];
   const recentMaterials = Array.isArray(dashboard?.recent_materials) ? dashboard.recent_materials : [];
   const recentChats = Array.isArray(dashboard?.recent_chats) ? dashboard.recent_chats : [];
@@ -99,6 +101,65 @@ export default function CourseDashboard({
               今日建议：
               {dashboard?.suggestion || "建议先从一个基础问题开始提问。"}
             </p>
+          </section>
+
+          <section className="dashboard-card dashboard-code-card">
+            <div className="panel-title-row">
+              <h3>编程练习统计</h3>
+            </div>
+            {(codeProgress.total ?? 0) > 0 ? (
+              <>
+                <div className="dashboard-code-stats">
+                  <div className="dashboard-code-stat">
+                    <div className="dashboard-code-stat-value">{codeProgress.total ?? 0}</div>
+                    <div className="dashboard-code-stat-label">总练习数</div>
+                  </div>
+                  <div className="dashboard-code-stat">
+                    <div className="dashboard-code-stat-value">{codeProgress.language_counts?.["Python"] ?? 0}</div>
+                    <div className="dashboard-code-stat-label">Python</div>
+                  </div>
+                  <div className="dashboard-code-stat">
+                    <div className="dashboard-code-stat-value">{codeProgress.language_counts?.["Java"] ?? 0}</div>
+                    <div className="dashboard-code-stat-label">Java</div>
+                  </div>
+                  <div className="dashboard-code-stat">
+                    <div className="dashboard-code-stat-value">
+                      {(codeProgress.language_counts?.["C"] ?? 0) + (codeProgress.language_counts?.["C++"] ?? 0)}
+                    </div>
+                    <div className="dashboard-code-stat-label">C/C++</div>
+                  </div>
+                </div>
+                {codeProgress.recent_title && (
+                  <div className="dashboard-code-recent">
+                    <span className="history-meta">
+                      最近练习：{codeProgress.recent_title}
+                      {codeProgress.recent_language ? `（${codeProgress.recent_language}）` : ""}
+                    </span>
+                    {codeProgress.recent_updated_at && (
+                      <span className="history-meta">{formatDate(codeProgress.recent_updated_at)}</span>
+                    )}
+                  </div>
+                )}
+                <button
+                  className="ghost-button compact"
+                  onClick={onOpenCodeStudio}
+                  style={{ marginTop: 8 }}
+                >
+                  去编程学习助手
+                </button>
+              </>
+            ) : (
+              <div className="empty-inline">
+                <p>当前课程还没有编程练习，可以前往编程学习助手开始练习。</p>
+                <button
+                  className="primary-button compact"
+                  onClick={onOpenCodeStudio}
+                  style={{ marginTop: 8 }}
+                >
+                  去编程学习助手
+                </button>
+              </div>
+            )}
           </section>
 
           <section className="dashboard-card dashboard-progress-card">
