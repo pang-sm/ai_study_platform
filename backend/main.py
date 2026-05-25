@@ -307,6 +307,29 @@ def serialize_datetime(value):
     return value.isoformat().replace("+00:00", "Z")
 
 
+def parse_optional_datetime(value):
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, date):
+        return datetime.combine(value, datetime.min.time())
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+        try:
+            return datetime.fromisoformat(text)
+        except ValueError:
+            try:
+                return datetime.strptime(value[:10], "%Y-%m-%d")
+            except ValueError:
+                return None
+    return None
+
+
 def get_user_by_username(username: str, db: Session):
     normalized_username = (username or "").strip()
     if not normalized_username:
@@ -9193,22 +9216,44 @@ def generate_report_preview(req: schemas.LearningReportGenerateRequest, db: Sess
 def save_report(req: schemas.LearningReportSaveRequest, db: Session = Depends(get_db)):
     user = get_user_by_username(req.username, db)
 
+    title = (req.title or "未命名报告").strip()[:200]
+    content = (req.content or "").strip()
+    if not title or not content:
+        raise HTTPException(status_code=400, detail="报告标题和内容不能为空")
+
+    metrics_json = None
+    if req.metrics:
+        try:
+            metrics_json = json.dumps(req.metrics, ensure_ascii=False)
+        except (TypeError, ValueError):
+            metrics_json = None
+    suggestions_json = None
+    if req.suggestions:
+        try:
+            suggestions_json = json.dumps(req.suggestions, ensure_ascii=False)
+        except (TypeError, ValueError):
+            suggestions_json = None
+
     report = models.LearningReport(
         username=user.username,
         course_id=normalize_subject(req.course_id, default="") or None,
         course_name=(req.course_name or "").strip()[:100] or None,
         report_type=(req.report_type or "weekly").strip(),
-        title=(req.title or "未命名报告").strip()[:200],
+        title=title,
         summary=(req.summary or "").strip()[:500],
-        content=req.content.strip(),
-        metrics_json=json.dumps(req.metrics, ensure_ascii=False) if req.metrics else None,
-        suggestions_json=json.dumps(req.suggestions, ensure_ascii=False) if req.suggestions else None,
-        start_date=req.start_date,
-        end_date=req.end_date,
+        content=content,
+        metrics_json=metrics_json,
+        suggestions_json=suggestions_json,
+        start_date=parse_optional_datetime(req.start_date),
+        end_date=parse_optional_datetime(req.end_date),
     )
-    db.add(report)
-    db.commit()
-    db.refresh(report)
+    try:
+        db.add(report)
+        db.commit()
+        db.refresh(report)
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="保存报告失败，请稍后重试。")
 
     return {"success": True, "report_id": report.id}
 

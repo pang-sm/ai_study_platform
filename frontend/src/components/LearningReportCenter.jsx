@@ -146,7 +146,7 @@ export default function LearningReportCenter({ user }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || "保存失败");
       setSaveMsg("报告已保存到历史记录。");
       fetchHistory(1);
