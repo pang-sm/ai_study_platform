@@ -36,6 +36,7 @@ export default function CodeStudio({
 
   const [aiQuestion, setAiQuestion] = useState("");
   const [aiMessages, setAiMessages] = useState([]);
+  const [aiMessagesLoading, setAiMessagesLoading] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const aiEndRef = useRef(null);
 
@@ -81,6 +82,24 @@ export default function CodeStudio({
     loadSessions();
   }, [user?.username, codeCourseId]);
 
+  const loadMessages = async (sessionId) => {
+    if (!user?.username || !sessionId) return;
+    setAiMessagesLoading(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/code/sessions/${sessionId}/messages?username=${encodeURIComponent(user.username)}`
+      );
+      const data = await res.json();
+      if (res.ok) {
+        setAiMessages(data.messages || []);
+      }
+    } catch (error) {
+      console.error("Failed to load code AI messages:", error);
+    } finally {
+      setAiMessagesLoading(false);
+    }
+  };
+
   const selectSession = (session) => {
     setSelectedSession(session);
     setTitle(session.title);
@@ -88,6 +107,9 @@ export default function CodeStudio({
     setCode(session.code);
     setAiMessages([]);
     setAiQuestion("");
+    if (session.id) {
+      loadMessages(session.id);
+    }
   };
 
   const newSession = () => {
@@ -325,12 +347,25 @@ export default function CodeStudio({
         </div>
 
         <div className="code-studio-assistant-chat">
-          {aiMessages.length === 0 ? (
+          {aiMessagesLoading ? (
             <div className="empty-inline" style={{ padding: "24px 16px" }}>
-              <p>向 AI 助手提问，分析你的代码。</p>
-              <p className="muted-text">
-                例如：检查代码问题、解释这段代码、给我学习建议。
-              </p>
+              加载历史记录中...
+            </div>
+          ) : aiMessages.length === 0 ? (
+            <div className="empty-inline" style={{ padding: "24px 16px" }}>
+              {selectedSession?.id ? (
+                <>
+                  <p>还没有 AI 分析记录</p>
+                  <p className="muted-text">可以让 AI 帮你检查代码。</p>
+                </>
+              ) : (
+                <>
+                  <p>保存练习后，AI 分析记录会自动保留</p>
+                  <p className="muted-text">
+                    例如：检查代码问题、解释这段代码、给我学习建议。
+                  </p>
+                </>
+              )}
             </div>
           ) : (
             aiMessages.map((msg, i) => (

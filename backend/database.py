@@ -101,6 +101,16 @@ COURSE_PROGRESS_COLUMNS = {
     "updated_at": "DATETIME",
 }
 
+CODE_AI_MESSAGES_COLUMNS = {
+    "username": "VARCHAR(50) NOT NULL",
+    "session_id": "INTEGER NOT NULL",
+    "role": "VARCHAR(20) NOT NULL",
+    "content": "TEXT NOT NULL",
+    "language": "VARCHAR(20)",
+    "code_snapshot": "TEXT",
+    "created_at": "DATETIME",
+}
+
 CODE_SESSIONS_COLUMNS = {
     "username": "VARCHAR(50)",
     "course_id": "VARCHAR(100)",
@@ -228,6 +238,26 @@ def ensure_code_sessions_schema(conn):
         )
     )
     ensure_columns(conn, "code_sessions", CODE_SESSIONS_COLUMNS)
+
+
+def ensure_code_ai_messages_schema(conn):
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS code_ai_messages (
+                id INTEGER PRIMARY KEY,
+                username VARCHAR(50) NOT NULL,
+                session_id INTEGER NOT NULL,
+                role VARCHAR(20) NOT NULL,
+                content TEXT NOT NULL,
+                language VARCHAR(20),
+                code_snapshot TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+    )
+    ensure_columns(conn, "code_ai_messages", CODE_AI_MESSAGES_COLUMNS)
 
 
 def ensure_material_chunks_fts(conn):
@@ -358,6 +388,7 @@ def init_user_profile_schema():
         ensure_learning_records_schema(conn)
         ensure_course_progress_schema(conn)
         ensure_code_sessions_schema(conn)
+        ensure_code_ai_messages_schema(conn)
         ensure_material_chunks_fts(conn)
         normalize_existing_subjects(conn)
 

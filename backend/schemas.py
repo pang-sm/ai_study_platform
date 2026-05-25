@@ -45,3 +45,23 @@ class CodeAnalyzeRequest(BaseModel):
     language: str = ""
     code: str = ""
     question: str = ""
+
+
+class CodeAIMessageCreate(BaseModel):
+    username: str
+    session_id: int
+    role: str
+    content: str
+    language: str | None = None
+    code_snapshot: str | None = None
+
+
+class CodeAIMessageOut(BaseModel):
+    id: int
+    username: str
+    session_id: int
+    role: str
+    content: str
+    language: str | None = None
+    code_snapshot: str | None = None
+    created_at: str | None = None

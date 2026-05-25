@@ -3859,6 +3859,19 @@ def analyze_code(req: schemas.CodeAnalyzeRequest, db: Session = Depends(get_db))
     if not question:
         raise HTTPException(status_code=400, detail="请输入要分析的问题。")
 
+    session = None
+    if req.session_id is not None:
+        session = (
+            db.query(models.CodeSession)
+            .filter(
+                models.CodeSession.id == req.session_id,
+                models.CodeSession.username == user.username,
+            )
+            .first()
+        )
+        if not session:
+            raise HTTPException(status_code=404, detail="代码练习不存在")
+
     truncated_code = code
     code_note = ""
     if len(code) > MAX_CODE_ANALYZE_CHARS:
@@ -3867,6 +3880,16 @@ def analyze_code(req: schemas.CodeAnalyzeRequest, db: Session = Depends(get_db))
 
     language = (req.language or "").strip() or "未知"
     course_info = normalize_subject(req.course_id, default="")
+
+    if session:
+        db.add(models.CodeAIMessage(
+            username=user.username,
+            session_id=session.id,
+            role="user",
+            content=question,
+            language=language,
+            code_snapshot=code,
+        ))
 
     user_message = f"""语言：{language}
 课程：{course_info or "未指定"}
@@ -3888,12 +3911,79 @@ def analyze_code(req: schemas.CodeAnalyzeRequest, db: Session = Depends(get_db))
 
     answer = normalize_assistant_markdown(answer)
 
+    if session:
+        db.add(models.CodeAIMessage(
+            username=user.username,
+            session_id=session.id,
+            role="assistant",
+            content=answer,
+            language=language,
+        ))
+        db.commit()
+
     return {
         "success": True,
         "answer": answer,
         "language": language,
         "code_truncated": len(code) > MAX_CODE_ANALYZE_CHARS,
     }
+
+
+def serialize_code_ai_message(msg):
+    return {
+        "id": msg.id,
+        "username": msg.username,
+        "session_id": msg.session_id,
+        "role": msg.role,
+        "content": msg.content,
+        "language": msg.language,
+        "code_snapshot": msg.code_snapshot,
+        "created_at": msg.created_at,
+    }
+
+
+@app.get("/code/sessions/{session_id}/messages")
+def get_code_session_messages(session_id: int, username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    session = (
+        db.query(models.CodeSession)
+        .filter(
+            models.CodeSession.id == session_id,
+            models.CodeSession.username == user.username,
+        )
+        .first()
+    )
+    if not session:
+        raise HTTPException(status_code=404, detail="代码练习不存在")
+
+    messages = (
+        db.query(models.CodeAIMessage)
+        .filter(models.CodeAIMessage.session_id == session_id)
+        .order_by(models.CodeAIMessage.created_at.asc())
+        .all()
+    )
+    return {"messages": [serialize_code_ai_message(m) for m in messages]}
+
+
+@app.delete("/code/sessions/{session_id}/messages")
+def delete_code_session_messages(session_id: int, username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    session = (
+        db.query(models.CodeSession)
+        .filter(
+            models.CodeSession.id == session_id,
+            models.CodeSession.username == user.username,
+        )
+        .first()
+    )
+    if not session:
+        raise HTTPException(status_code=404, detail="代码练习不存在")
+
+    db.query(models.CodeAIMessage).filter(
+        models.CodeAIMessage.session_id == session_id,
+    ).delete()
+    db.commit()
+    return {"success": True}
 
 
 @app.get("/code/progress")

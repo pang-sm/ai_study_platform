@@ -145,3 +145,16 @@ class CodeSession(Base):
     code = Column(Text, nullable=False, default="")
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+
+class CodeAIMessage(Base):
+    __tablename__ = "code_ai_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), index=True, nullable=False)
+    session_id = Column(Integer, index=True, nullable=False)
+    role = Column(String(20), nullable=False)
+    content = Column(Text, nullable=False)
+    language = Column(String(20), nullable=True)
+    code_snapshot = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=utc_now)
