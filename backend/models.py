@@ -21,6 +21,9 @@ class User(Base):
     major = Column(String(100), nullable=False, default="")
     onboarding_completed = Column(Boolean, nullable=False, default=False)
     learning_goals = Column(Text, nullable=True)
+    plan = Column(String(20), nullable=True, default="free")
+    plan_expire_at = Column(DateTime, nullable=True)
+    is_admin = Column(Integer, nullable=True, default=0)
     created_at = Column(DateTime, default=utc_now)
 
 
@@ -297,4 +300,18 @@ class MaterialKnowledgeLink(Base):
     source = Column(String(50), nullable=True, default="manual")
     confidence = Column(Integer, nullable=True, default=100)
     reason = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+
+
+class AiUsageLog(Base):
+    __tablename__ = "ai_usage_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), index=True, nullable=False)
+    feature = Column(String(50), index=True, nullable=False)
+    model = Column(String(100), nullable=True)
+    estimated_tokens = Column(Integer, nullable=True, default=0)
+    estimated_cost = Column(Float, nullable=True, default=0.0)
+    status = Column(String(20), nullable=True, default="success")
+    error_message = Column(Text, nullable=True)
     created_at = Column(DateTime, default=utc_now)

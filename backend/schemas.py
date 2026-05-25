@@ -364,3 +364,12 @@ class MaterialKnowledgeApplyRequest(BaseModel):
     username: str
     course_id: str = ""
     links: list
+
+
+# ── Admin / Plan ────────────────────────────────────────
+
+
+class AdminUpdatePlanRequest(BaseModel):
+    admin_username: str
+    plan: str = "free"
+    plan_expire_at: str | None = None

@@ -22,6 +22,9 @@ PROFILE_COLUMNS = {
     "avatar": "VARCHAR(255)",
     "onboarding_completed": "BOOLEAN NOT NULL DEFAULT 0",
     "learning_goals": "TEXT",
+    "plan": "VARCHAR(20) DEFAULT 'free'",
+    "plan_expire_at": "DATETIME",
+    "is_admin": "INTEGER DEFAULT 0",
 }
 
 CHAT_SESSION_COLUMNS = {
@@ -198,6 +201,17 @@ QUESTION_ATTEMPTS_COLUMNS = {
     "user_answer": "TEXT",
     "ai_feedback": "TEXT",
     "self_result": "VARCHAR(30)",
+    "created_at": "DATETIME NOT NULL",
+}
+
+AI_USAGE_LOGS_COLUMNS = {
+    "username": "VARCHAR(50) NOT NULL",
+    "feature": "VARCHAR(50) NOT NULL",
+    "model": "VARCHAR(100)",
+    "estimated_tokens": "INTEGER DEFAULT 0",
+    "estimated_cost": "REAL DEFAULT 0",
+    "status": "VARCHAR(20) DEFAULT 'success'",
+    "error_message": "TEXT",
     "created_at": "DATETIME NOT NULL",
 }
 
@@ -523,6 +537,27 @@ def ensure_user_knowledge_progress_schema(conn):
     ensure_columns(conn, "user_knowledge_progress", USER_KNOWLEDGE_PROGRESS_COLUMNS)
 
 
+def ensure_ai_usage_logs_schema(conn):
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS ai_usage_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username VARCHAR(50) NOT NULL,
+                feature VARCHAR(50) NOT NULL,
+                model VARCHAR(100),
+                estimated_tokens INTEGER DEFAULT 0,
+                estimated_cost REAL DEFAULT 0,
+                status VARCHAR(20) DEFAULT 'success',
+                error_message TEXT,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+    )
+    ensure_columns(conn, "ai_usage_logs", AI_USAGE_LOGS_COLUMNS)
+
+
 def ensure_material_knowledge_links_schema(conn):
     conn.execute(
         text(
@@ -703,6 +738,7 @@ def init_user_profile_schema():
         ensure_user_knowledge_progress_schema(conn)
         ensure_knowledge_progress_events_schema(conn)
         ensure_material_knowledge_links_schema(conn)
+        ensure_ai_usage_logs_schema(conn)
         ensure_material_chunks_fts(conn)
         normalize_existing_subjects(conn)
 

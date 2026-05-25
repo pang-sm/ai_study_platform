@@ -281,6 +281,8 @@ def user_profile(user: models.User):
         "avatar_url": avatar_url,
         "onboarding_completed": bool(user.onboarding_completed),
         "learning_goals": learning_goals,
+        "is_admin": bool(user.is_admin),
+        "plan": user.plan or "free",
     }
 
 
@@ -725,6 +727,141 @@ def call_deepseek(messages: list[dict]):
         return (response.choices[0].message.content or "").strip()
     except Exception as exc:
         raise HTTPException(status_code=500, detail="AI 服务调用失败，请稍后重试") from exc
+
+
+# ── Quota / Plan System ─────────────────────────────────
+
+PLAN_LIMITS = {
+    "free": {
+        "chat": 30,
+        "code_analyze": 10,
+        "challenge_generate": 5,
+        "learning_diagnosis": 3,
+        "knowledge_generate": 3,
+        "learning_plan_generate": 3,
+        "material_link_recommend": 5,
+        "question_generate": 10,
+        "question_feedback": 10,
+        "material_upload_count": 30,
+        "single_file_size_mb": 20,
+    },
+    "pro": {
+        "chat": 300,
+        "code_analyze": 100,
+        "challenge_generate": 50,
+        "learning_diagnosis": 20,
+        "knowledge_generate": 20,
+        "learning_plan_generate": 20,
+        "material_link_recommend": 50,
+        "question_generate": 100,
+        "question_feedback": 100,
+        "material_upload_count": 500,
+        "single_file_size_mb": 100,
+    },
+    "admin": {
+        "chat": 999999,
+        "code_analyze": 999999,
+        "challenge_generate": 999999,
+        "learning_diagnosis": 999999,
+        "knowledge_generate": 999999,
+        "learning_plan_generate": 999999,
+        "material_link_recommend": 999999,
+        "question_generate": 999999,
+        "question_feedback": 999999,
+        "material_upload_count": 999999,
+        "single_file_size_mb": 500,
+    },
+}
+
+ALL_FEATURES = [
+    "chat", "code_analyze", "challenge_generate", "learning_diagnosis",
+    "knowledge_generate", "learning_plan_generate", "material_link_recommend",
+    "question_generate", "question_feedback",
+]
+
+
+def get_user_plan(username: str, db: Session):
+    user = get_user_by_username(username, db)
+    plan = (user.plan or "free").strip().lower()
+    if plan not in ("free", "pro", "admin"):
+        plan = "free"
+    is_admin = bool(user.is_admin)
+    if is_admin:
+        plan = "admin"
+    if plan == "pro" and user.plan_expire_at:
+        from datetime import datetime, timezone
+        if user.plan_expire_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
+            plan = "free"
+    return {
+        "plan": plan,
+        "is_admin": is_admin,
+        "plan_expire_at": serialize_datetime(user.plan_expire_at) if user.plan_expire_at else None,
+    }
+
+
+def get_plan_limits(plan: str):
+    return PLAN_LIMITS.get(plan, PLAN_LIMITS["free"])
+
+
+def get_today_usage(username: str, feature: str, db: Session):
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    count = (
+        db.query(models.AiUsageLog)
+        .filter(
+            models.AiUsageLog.username == username,
+            models.AiUsageLog.feature == feature,
+            models.AiUsageLog.status == "success",
+            models.AiUsageLog.created_at >= today_start,
+        )
+        .count()
+    )
+    return count
+
+
+def check_usage_limit(username: str, feature: str, db: Session):
+    plan_info = get_user_plan(username, db)
+    plan = plan_info["plan"]
+    limits = get_plan_limits(plan)
+    limit = limits.get(feature, 999999)
+    used = get_today_usage(username, feature, db)
+    remaining = max(0, limit - used)
+    if used >= limit:
+        raise HTTPException(
+            status_code=429,
+            detail=f"今日 {feature} 使用次数已达上限（{used}/{limit}），请明天再试或升级会员。",
+        )
+    return {
+        "allowed": True,
+        "used": used,
+        "limit": limit,
+        "remaining": remaining,
+        "plan": plan,
+    }
+
+
+def record_ai_usage(username: str, feature: str, db: Session, model: str = None,
+                    estimated_tokens: int = 0, status: str = "success",
+                    error_message: str = None):
+    try:
+        log = models.AiUsageLog(
+            username=username,
+            feature=feature,
+            model=model or "deepseek-chat",
+            estimated_tokens=estimated_tokens,
+            estimated_cost=round(estimated_tokens * 0.000001, 6),
+            status=status,
+            error_message=error_message or "",
+        )
+        db.add(log)
+        db.commit()
+    except Exception:
+        logger.warning(f"Failed to record AI usage for {username}/{feature}")
+
+
+def estimate_tokens_from_text(text: str):
+    if not text:
+        return 0
+    return max(1, len(text) // 2)
 
 
 # ── Markdown post-processing: collapse stray single-term fenced code blocks ──
@@ -2678,6 +2815,44 @@ def update_profile(req: ProfileUpdateRequest, username: str, db: Session = Depen
     return {"profile": user_profile(user)}
 
 
+@app.get("/me/quota")
+def get_my_quota(username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    plan_info = get_user_plan(user.username, db)
+    limits = get_plan_limits(plan_info["plan"])
+
+    usage = {}
+    for feature in ALL_FEATURES:
+        usage[feature] = get_today_usage(user.username, feature, db)
+
+    feature_limits = {}
+    for feature in ALL_FEATURES:
+        limit = limits.get(feature, 0)
+        used = usage.get(feature, 0)
+        feature_limits[feature] = {
+            "used": used,
+            "limit": limit,
+            "remaining": max(0, limit - used),
+        }
+
+    upload_limits = {
+        "material_upload_count": {
+            "used": db.query(models.StudyMaterial)
+                .filter(models.StudyMaterial.username == user.username, models.StudyMaterial.is_deleted.is_(False))
+                .count(),
+            "limit": limits.get("material_upload_count", 30),
+        },
+        "single_file_size_mb": limits.get("single_file_size_mb", 20),
+    }
+
+    return {
+        "plan": plan_info,
+        "feature_limits": feature_limits,
+        "upload_limits": upload_limits,
+        "all_features": ALL_FEATURES,
+    }
+
+
 @app.post("/me/avatar")
 async def upload_avatar(
     file: UploadFile = File(...),
@@ -3189,12 +3364,16 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
         file_names = "、".join(m.original_filename for m in selected_materials)
         user_content = f"【用户本轮上传文件：{file_names}】\n{req.message}"
 
+    check_usage_limit(user.username, "chat", db)
+
     answer = call_deepseek(
         [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_content},
         ]
     )
+
+    record_ai_usage(user.username, "chat", db, estimated_tokens=estimate_tokens_from_text(answer), status="success")
 
     answer = normalize_assistant_markdown(answer)
 
@@ -3282,6 +3461,35 @@ async def upload_material(
         raise HTTPException(status_code=401, detail="请先登录后再上传文件")
 
     user = get_user_by_username(upload_username, db)
+
+    # Upload quota checks
+    plan_info = get_user_plan(user.username, db)
+    plan_limits = get_plan_limits(plan_info["plan"])
+    max_file_size_mb = plan_limits.get("single_file_size_mb", 20)
+    max_material_count = plan_limits.get("material_upload_count", 30)
+
+    # Check file size before reading
+    if file.size and file.size > max_file_size_mb * 1024 * 1024:
+        raise HTTPException(
+            status_code=413,
+            detail=f"文件大小超过限制（{max_file_size_mb}MB），当前套餐最大支持 {max_file_size_mb}MB 的文件。",
+        )
+
+    # Check total material count
+    material_count = (
+        db.query(models.StudyMaterial)
+        .filter(
+            models.StudyMaterial.username == user.username,
+            models.StudyMaterial.is_deleted.is_(False),
+        )
+        .count()
+    )
+    if material_count >= max_material_count:
+        raise HTTPException(
+            status_code=429,
+            detail=f"资料数量已达上限（{material_count}/{max_material_count}），请清理旧资料或升级会员。",
+        )
+
     normalized_subject = normalize_subject(subject)
     file_bytes = await file.read()
     validate_upload(file, file_bytes)
@@ -4416,12 +4624,16 @@ def analyze_code(req: schemas.CodeAnalyzeRequest, db: Session = Depends(get_db))
 
 用户问题：{question}"""
 
+    check_usage_limit(user.username, "code_analyze", db)
+
     answer = call_deepseek(
         [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_message},
         ]
     )
+
+    record_ai_usage(user.username, "code_analyze", db, estimated_tokens=estimate_tokens_from_text(answer), status="success")
 
     answer = normalize_assistant_markdown(answer)
 
@@ -4629,12 +4841,16 @@ def generate_code_challenge(req: schemas.CodeChallengeGenerateRequest, db: Sessi
 
 {question_text}"""
 
+    check_usage_limit(user.username, "challenge_generate", db)
+
     ai_response = call_deepseek(
         [
             {"role": "system", "content": CODE_CHALLENGE_GENERATE_PROMPT},
             {"role": "user", "content": user_prompt},
         ]
     )
+
+    record_ai_usage(user.username, "challenge_generate", db, estimated_tokens=estimate_tokens_from_text(ai_response), status="success")
 
     # Parse JSON from AI response
     import json as json_module
@@ -4857,12 +5073,16 @@ def generate_learning_diagnosis(req: schemas.CodeLearningDiagnosisRequest, db: S
 
 请根据以上数据生成编程学习诊断报告。"""
 
+    check_usage_limit(user.username, "learning_diagnosis", db)
+
     ai_response = call_deepseek(
         [
             {"role": "system", "content": CODE_LEARNING_DIAGNOSIS_PROMPT},
             {"role": "user", "content": user_prompt},
         ]
     )
+
+    record_ai_usage(user.username, "learning_diagnosis", db, estimated_tokens=estimate_tokens_from_text(ai_response), status="success")
 
     return {
         "success": True,
@@ -6248,6 +6468,8 @@ def generate_knowledge_points_preview(req: schemas.KnowledgePointGeneratePreview
     else:
         prompt_hint = f"课程名称：{course_name}\n\n请根据该课程名称生成一份合理的知识点路线图。顶层最多 {max_top} 个知识点，每个顶层知识点最多 {max_children} 个子知识点。"
 
+    check_usage_limit(user.username, "knowledge_generate", db)
+
     try:
         ai_response = call_deepseek(
             [
@@ -6255,6 +6477,9 @@ def generate_knowledge_points_preview(req: schemas.KnowledgePointGeneratePreview
                 {"role": "user", "content": prompt_hint},
             ]
         )
+
+        record_ai_usage(user.username, "knowledge_generate", db, estimated_tokens=estimate_tokens_from_text(ai_response), status="success")
+
         # Parse JSON
         json_match = re.search(r"\{[\s\S]*\}", ai_response)
         if json_match:
@@ -6753,6 +6978,8 @@ def request_feedback(question_id: int, req: schemas.QuestionFeedbackRequest, db:
 
 请根据以上信息给出反馈。"""
 
+    check_usage_limit(user.username, "question_feedback", db)
+
     try:
         ai_response = call_deepseek(
             [
@@ -6760,7 +6987,10 @@ def request_feedback(question_id: int, req: schemas.QuestionFeedbackRequest, db:
                 {"role": "user", "content": user_prompt},
             ]
         )
+
+        record_ai_usage(user.username, "question_feedback", db, estimated_tokens=estimate_tokens_from_text(ai_response), status="success")
     except Exception as e:
+        record_ai_usage(user.username, "question_feedback", db, status="failed", error_message=str(e))
         raise HTTPException(status_code=500, detail=f"AI 反馈请求失败：{str(e)}")
 
     # Keyword-based sentiment analysis on AI feedback
@@ -6936,6 +7166,8 @@ def generate_questions(req: schemas.GenerateQuestionRequest, db: Session = Depen
 
 请直接输出 JSON 数组："""
 
+    check_usage_limit(user.username, "question_generate", db)
+
     try:
         ai_response = call_deepseek(
             [
@@ -6943,6 +7175,9 @@ def generate_questions(req: schemas.GenerateQuestionRequest, db: Session = Depen
                 {"role": "user", "content": user_prompt},
             ]
         )
+
+        record_ai_usage(user.username, "question_generate", db, estimated_tokens=estimate_tokens_from_text(ai_response), status="success")
+
         json_match = re.search(r"\[[\s\S]*?\]", ai_response)
         if json_match:
             questions_data = json.loads(json_match.group(0))
@@ -6953,6 +7188,7 @@ def generate_questions(req: schemas.GenerateQuestionRequest, db: Session = Depen
             else:
                 questions_data = []
     except Exception as e:
+        record_ai_usage(user.username, "question_generate", db, status="failed", error_message=str(e))
         raise HTTPException(status_code=500, detail=f"AI 生成题目失败，JSON 解析错误：{str(e)}")
 
     if not isinstance(questions_data, list) or len(questions_data) == 0:
@@ -7328,8 +7564,12 @@ def generate_plan_preview(req: PlanGeneratePreviewRequest, db: Session = Depends
         {"role": "user", "content": user_prompt},
     ]
 
+    check_usage_limit(user.username, "learning_plan_generate", db)
+
     try:
         raw = call_deepseek(messages)
+
+        record_ai_usage(user.username, "learning_plan_generate", db, estimated_tokens=estimate_tokens_from_text(raw), status="success")
     except HTTPException:
         raise
     except Exception as exc:
@@ -7860,8 +8100,12 @@ def recommend_material_knowledge_links(material_id: int, req: schemas.MaterialKn
         {"role": "user", "content": user_prompt},
     ]
 
+    check_usage_limit(user.username, "material_link_recommend", db)
+
     try:
         raw = call_deepseek(messages)
+
+        record_ai_usage(user.username, "material_link_recommend", db, estimated_tokens=estimate_tokens_from_text(raw), status="success")
     except HTTPException:
         raise
     except Exception as exc:
@@ -8000,4 +8244,102 @@ def apply_material_knowledge_recommendations(material_id: int, req: schemas.Mate
         "success": True,
         "created_count": created,
         "message": f"已应用 {created} 个知识点关联",
+    }
+
+
+# ── Admin / Usage ──────────────────────────────────────────
+
+
+@app.get("/admin/usage-summary")
+def admin_usage_summary(admin_username: str, db: Session = Depends(get_db)):
+    admin = get_user_by_username(admin_username, db)
+    if not admin.is_admin:
+        raise HTTPException(status_code=403, detail="仅管理员可访问")
+
+    today_start = utc_now().replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # Per-feature usage today
+    feature_stats = {}
+    for feature in ALL_FEATURES:
+        count = (
+            db.query(models.AiUsageLog)
+            .filter(
+                models.AiUsageLog.feature == feature,
+                models.AiUsageLog.status == "success",
+                models.AiUsageLog.created_at >= today_start,
+            )
+            .count()
+        )
+        feature_stats[feature] = count
+
+    # Total usage today
+    total_usage = (
+        db.query(models.AiUsageLog)
+        .filter(
+            models.AiUsageLog.status == "success",
+            models.AiUsageLog.created_at >= today_start,
+        )
+        .count()
+    )
+
+    # Users by plan
+    plan_counts = {}
+    for plan_name in ["free", "pro", "admin"]:
+        plan_counts[plan_name] = (
+            db.query(models.User).filter(models.User.plan == plan_name).count()
+        )
+
+    # Recent usage logs
+    recent_logs = (
+        db.query(models.AiUsageLog)
+        .order_by(models.AiUsageLog.created_at.desc())
+        .limit(100)
+        .all()
+    )
+
+    return {
+        "today_total": total_usage,
+        "feature_stats": feature_stats,
+        "plan_counts": plan_counts,
+        "recent_logs": [
+            {
+                "username": log.username,
+                "feature": log.feature,
+                "model": log.model,
+                "estimated_tokens": log.estimated_tokens,
+                "status": log.status,
+                "error_message": log.error_message,
+                "created_at": serialize_datetime(log.created_at),
+            }
+            for log in recent_logs
+        ],
+    }
+
+
+@app.post("/admin/users/{target_username}/plan")
+def admin_update_user_plan(
+    target_username: str,
+    req: schemas.AdminUpdatePlanRequest,
+    db: Session = Depends(get_db),
+):
+    admin = get_user_by_username(req.admin_username, db)
+    if not admin.is_admin:
+        raise HTTPException(status_code=403, detail="仅管理员可修改用户套餐")
+
+    target_user = get_user_by_username(target_username, db)
+    plan = (req.plan or "free").strip().lower()
+    if plan not in ("free", "pro", "admin"):
+        raise HTTPException(status_code=400, detail="无效的套餐类型")
+
+    target_user.plan = plan
+    if req.plan_expire_at:
+        target_user.plan_expire_at = req.plan_expire_at
+    db.commit()
+    db.refresh(target_user)
+
+    return {
+        "success": True,
+        "username": target_user.username,
+        "plan": target_user.plan,
+        "plan_expire_at": serialize_datetime(target_user.plan_expire_at),
     }

@@ -10,6 +10,8 @@ const LearningDataCenter = lazy(() => import("./components/LearningDataCenter.js
 const ReviewCenter = lazy(() => import("./components/ReviewCenter.jsx"));
 const LearningPlanCenter = lazy(() => import("./components/LearningPlanCenter.jsx"));
 const KnowledgeBaseCenter = lazy(() => import("./components/KnowledgeBaseCenter.jsx"));
+const QuotaCenter = lazy(() => import("./components/QuotaCenter.jsx"));
+const AdminUsageCenter = lazy(() => import("./components/AdminUsageCenter.jsx"));
 import MarkdownMessage from "./components/MarkdownMessage.jsx";
 import {
   COURSE_OPTIONS,
@@ -2497,6 +2499,18 @@ function App() {
                 <div className="home-entry-title">知识库中心</div>
                 <div className="home-entry-desc">管理课程资料与知识点的关联，查看资料覆盖情况。</div>
               </button>
+              <button className="home-entry-card" onClick={() => setPage("quotaCenter")}>
+                <div className="home-entry-icon">📊</div>
+                <div className="home-entry-title">我的额度</div>
+                <div className="home-entry-desc">查看 AI 使用额度、上传配额和当前套餐信息。</div>
+              </button>
+              {user?.is_admin ? (
+                <button className="home-entry-card" onClick={() => setPage("adminUsageCenter")}>
+                  <div className="home-entry-icon">🛡️</div>
+                  <div className="home-entry-title">管理后台</div>
+                  <div className="home-entry-desc">查看平台用量统计，管理用户套餐。</div>
+                </button>
+              ) : null}
               <button className="home-entry-card" onClick={() => {
                 setLearningGoals(Array.isArray(user?.learning_goals) ? [...user.learning_goals] : []);
                 setPage("profileEdit");
@@ -2671,6 +2685,42 @@ function App() {
             user={user}
             getSubjectLabel={getSubjectLabel}
           />
+        </Suspense>
+      </div>
+    );
+  }
+
+  if (page === "quotaCenter") {
+    return (
+      <div className="app-shell">
+        <header className="workspace-topbar">
+          <div className="workspace-topbar-left">
+            <button className="ghost-button compact" onClick={() => setPage("home")}>
+              返回首页
+            </button>
+            <span className="subject-pill panel-pill">我的额度</span>
+          </div>
+        </header>
+        <Suspense fallback={<div className="empty-state">额度中心加载中...</div>}>
+          <QuotaCenter user={user} />
+        </Suspense>
+      </div>
+    );
+  }
+
+  if (page === "adminUsageCenter") {
+    return (
+      <div className="app-shell">
+        <header className="workspace-topbar">
+          <div className="workspace-topbar-left">
+            <button className="ghost-button compact" onClick={() => setPage("home")}>
+              返回首页
+            </button>
+            <span className="subject-pill panel-pill">管理后台</span>
+          </div>
+        </header>
+        <Suspense fallback={<div className="empty-state">管理后台加载中...</div>}>
+          <AdminUsageCenter user={user} />
         </Suspense>
       </div>
     );
