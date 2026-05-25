@@ -1217,6 +1217,24 @@ def build_course_dashboard_payload(db: Session, user: models.User, course: str):
             challenge_count += 1
     latest_code = code_sessions[0] if code_sessions else None
     latest_challenge_sessions = [cs for cs in code_sessions if getattr(cs, "session_type", None) == "challenge"][:1]
+
+    # Count diagnosis-driven challenges
+    challenge_ids = [
+        getattr(cs, "challenge_id", None)
+        for cs in code_sessions
+        if getattr(cs, "session_type", None) == "challenge" and getattr(cs, "challenge_id", None)
+    ]
+    diagnosis_challenge_count = 0
+    if challenge_ids:
+        diagnosis_challenge_count = (
+            db.query(models.CodeChallenge)
+            .filter(
+                models.CodeChallenge.id.in_(challenge_ids),
+                models.CodeChallenge.source == "diagnosis",
+            )
+            .count()
+        )
+
     code_progress = {
         "total": len(code_sessions),
         "language_counts": code_language_counts,
@@ -1225,6 +1243,7 @@ def build_course_dashboard_payload(db: Session, user: models.User, course: str):
         "recent_updated_at": latest_code.updated_at if latest_code else None,
         "challenge_count": challenge_count,
         "recent_challenge_title": latest_challenge_sessions[0].title if latest_challenge_sessions else None,
+        "diagnosis_challenge_count": diagnosis_challenge_count,
     }
 
     if materials_count == 0:
@@ -3767,6 +3786,8 @@ def serialize_code_challenge(challenge):
         "output_format": challenge.output_format,
         "examples": challenge.examples,
         "starter_code": challenge.starter_code,
+        "source": getattr(challenge, "source", None) or "normal",
+        "target_weak_point": getattr(challenge, "target_weak_point", None),
         "created_at": challenge.created_at,
     }
 
@@ -3807,7 +3828,36 @@ def get_code_sessions(username: str, course_id: str = "", db: Session = Depends(
     if normalized_course_id:
         query = query.filter(models.CodeSession.course_id == normalized_course_id)
     sessions = query.order_by(models.CodeSession.updated_at.desc()).all()
-    return {"sessions": [serialize_code_session(s) for s in sessions]}
+
+    # Bulk-fetch challenge metadata for sessions with challenge_id
+    challenge_ids = [
+        getattr(s, "challenge_id", None)
+        for s in sessions
+        if getattr(s, "challenge_id", None)
+    ]
+    challenge_map: dict[int, dict] = {}
+    if challenge_ids:
+        challenges = (
+            db.query(models.CodeChallenge)
+            .filter(models.CodeChallenge.id.in_(challenge_ids))
+            .all()
+        )
+        for ch in challenges:
+            challenge_map[ch.id] = {
+                "source": getattr(ch, "source", None) or "normal",
+                "target_weak_point": getattr(ch, "target_weak_point", None),
+            }
+
+    return {
+        "sessions": [
+            {
+                **serialize_code_session(s),
+                "challenge_source": (challenge_map.get(getattr(s, "challenge_id", None)) or {}).get("source", None),
+                "challenge_weak_point": (challenge_map.get(getattr(s, "challenge_id", None)) or {}).get("target_weak_point", None),
+            }
+            for s in sessions
+        ],
+    }
 
 
 @app.post("/code/sessions")
@@ -4111,6 +4161,11 @@ def generate_code_challenge(req: schemas.CodeChallengeGenerateRequest, db: Sessi
         difficulty = "基础"
     course_id = normalize_subject(req.course_id, default="")
 
+    challenge_source = (req.source or "normal").strip()
+    if challenge_source not in ("normal", "diagnosis"):
+        challenge_source = "normal"
+    target_weak_point = (req.target_weak_point or req.focus or "").strip()
+
     # Gather user's programming progress summary
     progress_query = db.query(models.CodeSession).filter(
         models.CodeSession.username == user.username,
@@ -4143,6 +4198,7 @@ def generate_code_challenge(req: schemas.CodeChallengeGenerateRequest, db: Sessi
             recent_history_summary = "；".join(summaries)
 
     focus_text = f"用户想练习的知识点：{req.focus.strip()}" if req.focus.strip() else ""
+    weak_point_text = f"本题针对的薄弱点：{target_weak_point}。题目应围绕此薄弱点进行针对性训练。" if target_weak_point else ""
 
     is_diagnosis_driven = (req.source or "").strip() == "diagnosis"
     diagnosis_context = ""
@@ -4169,6 +4225,7 @@ def generate_code_challenge(req: schemas.CodeChallengeGenerateRequest, db: Sessi
 - 最近练习：{recent_titles or "暂无"}
 - 最近 AI 分析摘要：{recent_history_summary or "暂无"}
 {focus_text}
+{weak_point_text}
 {diagnosis_context}"""
 
     if is_diagnosis_driven:
@@ -4221,6 +4278,8 @@ def generate_code_challenge(req: schemas.CodeChallengeGenerateRequest, db: Sessi
         examples=str(challenge_data.get("examples", "")),
         starter_code=str(challenge_data.get("starter_code", CODE_TEMPLATES.get(language, ""))),
         reference_solution=str(challenge_data.get("reference_solution", "")),
+        source=challenge_source,
+        target_weak_point=target_weak_point or None,
     )
     db.add(challenge)
     db.flush()

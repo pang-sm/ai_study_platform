@@ -75,6 +75,7 @@ class CodeChallengeGenerateRequest(BaseModel):
     focus: str = ""
     diagnosis_summary: str = ""
     source: str = ""
+    target_weak_point: str = ""
 
 
 class CodeChallengeOut(BaseModel):
@@ -91,6 +92,8 @@ class CodeChallengeOut(BaseModel):
     output_format: str | None = None
     examples: str | None = None
     starter_code: str | None = None
+    source: str | None = None
+    target_weak_point: str | None = None
     created_at: str | None = None
 
 

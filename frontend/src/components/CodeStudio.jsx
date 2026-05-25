@@ -410,7 +410,9 @@ export default function CodeStudio({
                 <div className="code-session-item-title">
                   {s.title}
                   {s.session_type === "challenge" && (
-                    <span className="code-session-type-badge">AI题</span>
+                    <span className={`code-session-type-badge ${s.challenge_source === "diagnosis" ? "code-session-type-badge--diagnosis" : ""}`}>
+                      {s.challenge_source === "diagnosis" ? "诊断推荐" : "AI题"}
+                    </span>
                   )}
                 </div>
                 <div className="code-session-item-meta">
@@ -469,6 +471,16 @@ export default function CodeStudio({
               <span className="subject-pill small">{currentChallenge.difficulty || "基础"}</span>
               {currentChallenge.knowledge_point && (
                 <span className="subject-pill small">{currentChallenge.knowledge_point}</span>
+              )}
+              {currentChallenge.source === "diagnosis" && (
+                <span className="subject-pill small" style={{ background: "#ecfdf5", color: "#065f46" }}>
+                  来源：诊断推荐
+                </span>
+              )}
+              {currentChallenge.target_weak_point && (
+                <span className="subject-pill small" style={{ background: "#fef3c7", color: "#92400e" }}>
+                  薄弱点：{currentChallenge.target_weak_point}
+                </span>
               )}
             </div>
             <h4 className="code-challenge-card-title">{currentChallenge.title}</h4>

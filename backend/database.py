@@ -112,6 +112,8 @@ CODE_AI_MESSAGES_COLUMNS = {
 }
 
 CODE_CHALLENGES_COLUMNS = {
+    "source": "VARCHAR(30)",
+    "target_weak_point": "VARCHAR(255)",
     "username": "VARCHAR(50) NOT NULL",
     "course_id": "VARCHAR(100)",
     "language": "VARCHAR(20) NOT NULL",

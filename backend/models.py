@@ -166,6 +166,8 @@ class CodeChallenge(Base):
     examples = Column(Text, nullable=True)
     starter_code = Column(Text, nullable=True)
     reference_solution = Column(Text, nullable=True)
+    source = Column(String(30), nullable=True)
+    target_weak_point = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=utc_now)
 
 

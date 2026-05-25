@@ -130,12 +130,21 @@ export default function CourseDashboard({
                   </div>
                 </div>
                 {(codeProgress.challenge_count ?? 0) > 0 && (
-                  <div className="dashboard-code-recent">
-                    <span className="history-meta">
-                      AI 出题练习：{codeProgress.challenge_count} 道
-                      {codeProgress.recent_challenge_title ? `（最近：${codeProgress.recent_challenge_title}）` : ""}
-                    </span>
-                  </div>
+                  <>
+                    <div className="dashboard-code-recent">
+                      <span className="history-meta">
+                        AI 出题练习：{codeProgress.challenge_count} 道
+                        {codeProgress.recent_challenge_title ? `（最近：${codeProgress.recent_challenge_title}）` : ""}
+                      </span>
+                    </div>
+                    {(codeProgress.diagnosis_challenge_count ?? 0) > 0 && (
+                      <div className="dashboard-code-recent">
+                        <span className="history-meta" style={{ color: "#0f766e" }}>
+                          诊断推荐题：{codeProgress.diagnosis_challenge_count} 道
+                        </span>
+                      </div>
+                    )}
+                  </>
                 )}
                 {codeProgress.recent_title && (
                   <div className="dashboard-code-recent">

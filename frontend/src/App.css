@@ -3113,6 +3113,10 @@ select.field:focus {
   vertical-align: middle;
 }
 
+.code-session-type-badge--diagnosis {
+  background: #0f766e;
+}
+
 /* Center — Editor */
 .code-studio-editor {
   display: flex;
