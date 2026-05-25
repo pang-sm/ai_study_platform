@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
 import ChatMessage from "./components/ChatMessage.jsx";
-import CodeStudio from "./components/CodeStudio.jsx";
 import CourseDashboard from "./components/CourseDashboard.jsx";
+
+const CodeStudio = lazy(() => import("./components/CodeStudio.jsx"));
 import MarkdownMessage from "./components/MarkdownMessage.jsx";
 import {
   COURSE_OPTIONS,
@@ -2491,14 +2492,16 @@ function App() {
             <span className="subject-pill panel-pill">编程学习助手</span>
           </div>
         </header>
-        <CodeStudio
-          user={user}
-          subject={subject}
-          courseOptions={COURSE_OPTIONS}
-          getSubjectLabel={getSubjectLabel}
-          normalizeSubject={normalizeSubject}
-          formatDate={formatDate}
-        />
+        <Suspense fallback={<div className="empty-state">编程学习助手加载中...</div>}>
+          <CodeStudio
+            user={user}
+            subject={subject}
+            courseOptions={COURSE_OPTIONS}
+            getSubjectLabel={getSubjectLabel}
+            normalizeSubject={normalizeSubject}
+            formatDate={formatDate}
+          />
+        </Suspense>
       </div>
     );
   }
