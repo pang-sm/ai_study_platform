@@ -29,7 +29,7 @@ export default function SharedReportPage() {
 
     fetch(`${API_BASE}/shared/reports/${encodeURIComponent(token)}`)
       .then(async (res) => {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         if (!res.ok) {
           throw new Error(data.detail || "该报告分享链接不存在或已被撤销。");
         }

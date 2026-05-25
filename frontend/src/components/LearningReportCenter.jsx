@@ -183,7 +183,7 @@ export default function LearningReportCenter({ user }) {
       const res = await fetch(
         `${API_BASE}/learning/reports/${reportId}?username=${encodeURIComponent(user.username)}`
       );
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || "加载失败");
       setDetail(data);
       fetchShareStatus(reportId);
@@ -218,7 +218,7 @@ export default function LearningReportCenter({ user }) {
       const res = await fetch(
         `${API_BASE}/learning/reports/${detail.id}/export/${format}?username=${encodeURIComponent(user.username)}`
       );
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || "导出失败");
       const blob = new Blob([data.content], { type: format === "markdown" ? "text/markdown" : "text/plain" });
       const url = URL.createObjectURL(blob);
@@ -250,7 +250,7 @@ export default function LearningReportCenter({ user }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: user.username, report_id: detail.id }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || "创建分享失败");
       setShareInfo(data);
     } catch (e) {
@@ -270,7 +270,7 @@ export default function LearningReportCenter({ user }) {
         `${API_BASE}/learning/reports/${detail.id}/share?username=${encodeURIComponent(user.username)}`,
         { method: "DELETE" }
       );
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || "撤销失败");
       setShareInfo(null);
       setShareMsg("分享已撤销。");

@@ -9412,11 +9412,13 @@ def export_report_markdown(report_id: int, username: str, db: Session = Depends(
     if not report:
         raise HTTPException(status_code=404, detail="报告不存在")
 
-    metrics, suggestions = _parse_report_meta(report)
-    content = _format_report_as_markdown(report, metrics, suggestions)
-    filename = _sanitize_filename(f"学习报告-{report.title}") + ".md"
-
-    return {"filename": filename, "content": content}
+    try:
+        metrics, suggestions = _parse_report_meta(report)
+        content = _format_report_as_markdown(report, metrics, suggestions)
+        filename = _sanitize_filename(f"学习报告-{report.title}") + ".md"
+        return {"filename": filename, "content": content}
+    except Exception:
+        raise HTTPException(status_code=500, detail="导出 Markdown 失败，请稍后重试。")
 
 
 @app.get("/learning/reports/{report_id}/export/text")
@@ -9430,25 +9432,27 @@ def export_report_text(report_id: int, username: str, db: Session = Depends(get_
     if not report:
         raise HTTPException(status_code=404, detail="报告不存在")
 
-    lines = []
-    lines.append(report.title)
-    lines.append("")
-    if report.summary:
-        lines.append(report.summary)
+    try:
+        lines = []
+        lines.append(report.title)
         lines.append("")
-    lines.append(report.content)
-    lines.append("")
+        if report.summary:
+            lines.append(report.summary)
+            lines.append("")
+        lines.append(report.content)
+        lines.append("")
 
-    metrics, suggestions = _parse_report_meta(report)
-    if suggestions:
-        lines.append("建议：")
-        for i, s in enumerate(suggestions, 1):
-            lines.append(f"{i}. {s}")
+        metrics, suggestions = _parse_report_meta(report)
+        if suggestions:
+            lines.append("建议：")
+            for i, s in enumerate(suggestions, 1):
+                lines.append(f"{i}. {s}")
 
-    content = "\n".join(lines)
-    filename = _sanitize_filename(f"学习报告-{report.title}") + ".txt"
-
-    return {"filename": filename, "content": content}
+        content = "\n".join(lines)
+        filename = _sanitize_filename(f"学习报告-{report.title}") + ".txt"
+        return {"filename": filename, "content": content}
+    except Exception:
+        raise HTTPException(status_code=500, detail="导出 TXT 失败，请稍后重试。")
 
 
 @app.post("/learning/reports/{report_id}/share")
@@ -9462,43 +9466,48 @@ def create_report_share(report_id: int, req: schemas.LearningReportShareCreateRe
     if not report:
         raise HTTPException(status_code=404, detail="报告不存在")
 
-    # Check for existing active share
-    existing = (
-        db.query(models.LearningReportShare)
-        .filter(
-            models.LearningReportShare.report_id == report_id,
-            models.LearningReportShare.username == user.username,
-            models.LearningReportShare.is_active == 1,
+    try:
+        existing = (
+            db.query(models.LearningReportShare)
+            .filter(
+                models.LearningReportShare.report_id == report_id,
+                models.LearningReportShare.username == user.username,
+                models.LearningReportShare.is_active == 1,
+            )
+            .first()
         )
-        .first()
-    )
-    if existing:
+        if existing:
+            return {
+                "share_token": existing.share_token,
+                "share_url": f"/shared/reports/{existing.share_token}",
+                "created_at": serialize_datetime(existing.created_at),
+                "view_count": existing.view_count or 0,
+            }
+
+        token = __import__("secrets").token_urlsafe(32)
+        share = models.LearningReportShare(
+            username=user.username,
+            report_id=report.id,
+            share_token=token,
+            title=report.title,
+            is_active=1,
+            view_count=0,
+        )
+        db.add(share)
+        db.commit()
+        db.refresh(share)
+
         return {
-            "share_token": existing.share_token,
-            "share_url": f"/shared/reports/{existing.share_token}",
-            "created_at": serialize_datetime(existing.created_at),
-            "view_count": existing.view_count or 0,
+            "share_token": share.share_token,
+            "share_url": f"/shared/reports/{share.share_token}",
+            "created_at": serialize_datetime(share.created_at),
+            "view_count": 0,
         }
-
-    token = __import__("secrets").token_urlsafe(32)
-    share = models.LearningReportShare(
-        username=user.username,
-        report_id=report.id,
-        share_token=token,
-        title=report.title,
-        is_active=1,
-        view_count=0,
-    )
-    db.add(share)
-    db.commit()
-    db.refresh(share)
-
-    return {
-        "share_token": share.share_token,
-        "share_url": f"/shared/reports/{share.share_token}",
-        "created_at": serialize_datetime(share.created_at),
-        "view_count": 0,
-    }
+    except HTTPException:
+        raise
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="创建分享失败，请稍后重试。")
 
 
 @app.delete("/learning/reports/{report_id}/share")
@@ -9516,11 +9525,16 @@ def revoke_report_share(report_id: int, username: str, db: Session = Depends(get
     if not share:
         raise HTTPException(status_code=404, detail="该报告没有活跃的分享链接")
 
-    share.is_active = 0
-    share.revoked_at = utc_now()
-    db.commit()
-
-    return {"success": True, "message": "分享已撤销"}
+    try:
+        share.is_active = 0
+        share.revoked_at = utc_now()
+        db.commit()
+        return {"success": True, "message": "分享已撤销"}
+    except HTTPException:
+        raise
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="撤销分享失败，请稍后重试。")
 
 
 @app.get("/learning/reports/{report_id}/share")
@@ -9566,10 +9580,12 @@ def public_shared_report(share_token: str, db: Session = Depends(get_db)):
     if not report:
         raise HTTPException(status_code=404, detail="该报告分享链接不存在或已被撤销。")
 
-    # Increment view count
-    share.view_count = (share.view_count or 0) + 1
-    share.last_viewed_at = utc_now()
-    db.commit()
+    try:
+        share.view_count = (share.view_count or 0) + 1
+        share.last_viewed_at = utc_now()
+        db.commit()
+    except Exception:
+        db.rollback()
 
     metrics, suggestions = _parse_report_meta(report)
     safe_metrics = {}
