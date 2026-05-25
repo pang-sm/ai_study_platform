@@ -70,11 +70,17 @@ export default function CodeStudio({
   const [taskGenerationLoading, setTaskGenerationLoading] = useState(false);
 
   // Feedback / Submit panel
+  const [outputPanelTab, setOutputPanelTab] = useState("feedback"); // "run" | "feedback"
   const [showFeedbackPanel, setShowFeedbackPanel] = useState(false);
   const [feedbackContent, setFeedbackContent] = useState("");
   const [feedbackStatus, setFeedbackStatus] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [codeTruncated, setCodeTruncated] = useState(false);
+
+  // Code execution
+  const [running, setRunning] = useState(false);
+  const [runResult, setRunResult] = useState(null);
+  const [stdin, setStdin] = useState("");
 
   // Reference solution & starter code
   const [showReference, setShowReference] = useState(false);
@@ -157,6 +163,8 @@ export default function CodeStudio({
     setFeedbackStatus(null);
     setCodeTruncated(false);
     setShowReference(false);
+    setRunResult(null);
+    setOutputPanelTab("feedback");
     if (session.id) {
       loadMessages(session.id);
       if (session.challenge_id) {
@@ -187,6 +195,8 @@ export default function CodeStudio({
     setFeedbackStatus(null);
     setCodeTruncated(false);
     setShowReference(false);
+    setRunResult(null);
+    setOutputPanelTab("feedback");
   };
 
   const loadChallenge = async (challengeId) => {
@@ -297,6 +307,63 @@ export default function CodeStudio({
     }
   };
 
+  const runCode = async () => {
+    if (!code.trim()) {
+      setTip("请先输入代码再运行。");
+      return;
+    }
+    setRunning(true);
+    setRunResult(null);
+    setShowFeedbackPanel(true);
+    setOutputPanelTab("run");
+
+    try {
+      const res = await fetch(`${API_BASE}/code/execute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: user.username,
+          session_id: selectedSession?.id || 0,
+          language,
+          code,
+          stdin,
+        }),
+      });
+      const data = await safeJson(res);
+      if (res.ok) {
+        setRunResult({
+          stdout: data.stdout || "",
+          stderr: data.stderr || "",
+          exit_code: data.exit_code,
+          duration_ms: data.duration_ms || 0,
+          timed_out: data.timed_out || false,
+          error_message: data.error_message || null,
+        });
+      } else {
+        setRunResult({
+          stdout: "",
+          stderr: "",
+          exit_code: -1,
+          duration_ms: 0,
+          timed_out: false,
+          error_message: data.detail || "运行请求失败",
+        });
+      }
+    } catch (error) {
+      console.error("Failed to run code:", error);
+      setRunResult({
+        stdout: "",
+        stderr: "",
+        exit_code: -1,
+        duration_ms: 0,
+        timed_out: false,
+        error_message: "无法连接后端服务。",
+      });
+    } finally {
+      setRunning(false);
+    }
+  };
+
   const analyzeCode = async () => {
     if (!code.trim()) {
       setTip("请先输入代码再进行分析。");
@@ -365,6 +432,7 @@ export default function CodeStudio({
     }
     setSubmitting(true);
     setShowFeedbackPanel(true);
+    setOutputPanelTab("feedback");
     setFeedbackContent("");
     setFeedbackStatus(null);
 
@@ -430,6 +498,7 @@ export default function CodeStudio({
           setFeedbackContent("");
           setFeedbackStatus(null);
           setShowReference(false);
+          setRunResult(null);
         }
         await loadSessions();
         setTip("练习已删除");
@@ -577,6 +646,8 @@ export default function CodeStudio({
     }
   };
 
+  const canRun = language === "Python";
+
   return (
     <section className="code-studio-shell">
       {/* Left Panel — Session List */}
@@ -675,6 +746,14 @@ export default function CodeStudio({
             title="AI 出题"
           >
             AI 出题
+          </button>
+          <button
+            className={`primary-button compact code-run-btn ${!canRun ? "code-run-btn--disabled" : ""}`}
+            onClick={runCode}
+            disabled={running || !canRun || !code.trim()}
+            title={canRun ? "运行代码（Docker 沙箱）" : "当前真实运行暂只支持 Python"}
+          >
+            {running ? "运行中..." : canRun ? "运行代码" : `运行 (仅Python)`}
           </button>
           {selectedSession?.challenge_id && (
             <button
@@ -804,36 +883,119 @@ export default function CodeStudio({
           </div>
         )}
 
-        {/* Feedback / Submit Panel */}
+        {/* Output Panel with Tabs */}
         {showFeedbackPanel && (
           <div className="code-feedback-panel">
             <div className="code-feedback-panel-header">
-              <h4>AI 判定反馈</h4>
+              <div className="code-output-tabs">
+                <button
+                  className={`code-output-tab ${outputPanelTab === "run" ? "code-output-tab--active" : ""}`}
+                  onClick={() => setOutputPanelTab("run")}
+                >
+                  运行输出
+                </button>
+                <button
+                  className={`code-output-tab ${outputPanelTab === "feedback" ? "code-output-tab--active" : ""}`}
+                  onClick={() => setOutputPanelTab("feedback")}
+                >
+                  AI 判定反馈
+                </button>
+              </div>
               <div className="code-feedback-panel-header-right">
-                {feedbackStatus && (
+                {outputPanelTab === "feedback" && feedbackStatus && (
                   <span className={`feedback-status-badge ${STATUS_CLASSES[feedbackStatus] || ""}`}>
                     {STATUS_LABELS[feedbackStatus] || feedbackStatus}
                   </span>
                 )}
                 <button
                   className="code-feedback-panel-close"
-                  onClick={() => setShowFeedbackPanel(false)}
+                  onClick={() => { setShowFeedbackPanel(false); setRunResult(null); }}
                 >
                   &times;
                 </button>
               </div>
             </div>
             <div className="code-feedback-panel-body">
-              {submitting ? (
-                <div className="empty-inline" style={{ padding: "16px" }}>
-                  AI 正在判定你的代码...
+              {/* Run Output Tab */}
+              {outputPanelTab === "run" && (
+                <div className="code-run-output">
+                  {running ? (
+                    <div className="empty-inline" style={{ padding: "12px 0" }}>
+                      代码执行中...
+                    </div>
+                  ) : runResult ? (
+                    <>
+                      {runResult.error_message && (
+                        <div className="code-run-error-message">
+                          {runResult.error_message}
+                        </div>
+                      )}
+
+                      {runResult.timed_out && (
+                        <div className="code-run-timeout-warning">
+                          执行超时（超过 3 秒），进程已被终止。
+                        </div>
+                      )}
+
+                      <div className="code-run-meta">
+                        <span>exit_code: {runResult.exit_code}</span>
+                        <span>耗时: {runResult.duration_ms} ms</span>
+                        {runResult.timed_out && <span className="code-run-timeout-tag">超时</span>}
+                      </div>
+
+                      {runResult.stdout !== undefined && runResult.stdout !== null && (
+                        <div className="code-run-section">
+                          <div className="code-run-section-label">stdout</div>
+                          <pre className="code-run-pre">
+                            {runResult.stdout || "(无输出)"}
+                          </pre>
+                        </div>
+                      )}
+
+                      {runResult.stderr && (
+                        <div className="code-run-section">
+                          <div className="code-run-section-label code-run-section-label--err">stderr</div>
+                          <pre className="code-run-pre code-run-pre--err">
+                            {runResult.stderr}
+                          </pre>
+                        </div>
+                      )}
+
+                      {/* Stdin input for next run */}
+                      <div className="code-run-stdin">
+                        <label className="code-run-section-label">stdin（下次运行使用）</label>
+                        <textarea
+                          className="field code-run-stdin-textarea"
+                          rows={3}
+                          placeholder="输入数据（可选）"
+                          value={stdin}
+                          onChange={(e) => setStdin(e.target.value)}
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <div className="empty-inline" style={{ padding: "16px" }}>
+                      点击「运行代码」查看执行结果
+                    </div>
+                  )}
                 </div>
-              ) : feedbackContent ? (
-                <div className="code-assistant-msg-content">{feedbackContent}</div>
-              ) : (
-                <div className="empty-inline" style={{ padding: "16px" }}>
-                  暂无反馈内容
-                </div>
+              )}
+
+              {/* AI Feedback Tab */}
+              {outputPanelTab === "feedback" && (
+                <>
+                  {submitting ? (
+                    <div className="empty-inline" style={{ padding: "16px" }}>
+                      AI 正在判定你的代码...
+                    </div>
+                  ) : feedbackContent ? (
+                    <div className="code-assistant-msg-content">{feedbackContent}</div>
+                  ) : (
+                    <div className="empty-inline" style={{ padding: "16px" }}>
+                      点击「提交答案」获取 AI 判定反馈
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>

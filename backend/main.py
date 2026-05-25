@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import secrets
+import subprocess
 import tempfile
 import hashlib
 import time
@@ -4570,6 +4571,181 @@ def delete_code_session(session_id: int, username: str, db: Session = Depends(ge
     db.delete(session)
     db.commit()
     return {"success": True, "message": "代码练习已删除"}
+
+
+MAX_CODE_EXECUTE_CHARS = 50000
+MAX_STDIN_CHARS = 10000
+EXECUTE_TIMEOUT_SECONDS = 3
+DOCKER_MEMORY_LIMIT = "128m"
+DOCKER_CPU_LIMIT = 1.0
+DOCKER_PIDS_LIMIT = 64
+DOCKER_IMAGE = "python:3.11-slim"
+
+
+def _run_code_in_docker(code: str, stdin: str = "") -> dict:
+    """Run user Python code inside a locked-down Docker container.
+
+    This function ONLY runs 'docker' CLI. User code is written to a temp file
+    and executed INSIDE the container, never on the host.
+    """
+    tmp_dir = tempfile.mkdtemp(prefix="code_exec_")
+    script_path = os.path.join(tmp_dir, "script.py")
+    input_path = os.path.join(tmp_dir, "stdin.txt")
+
+    try:
+        with open(script_path, "w", encoding="utf-8") as f:
+            f.write(code)
+
+        if stdin:
+            with open(input_path, "w", encoding="utf-8") as f:
+                f.write(stdin)
+
+        # Security: --network none, --read-only root, --tmpfs for /tmp, strict limits
+        docker_cmd = [
+            "docker", "run", "--rm",
+            "--network", "none",
+            "--memory", DOCKER_MEMORY_LIMIT,
+            "--cpus", str(DOCKER_CPU_LIMIT),
+            "--pids-limit", str(DOCKER_PIDS_LIMIT),
+            "--read-only",
+            "--tmpfs", "/tmp:rw,noexec,nosuid,size=64m",
+            "-v", f"{tmp_dir}:/code:ro",
+            "-w", "/code",
+            DOCKER_IMAGE,
+            "python", "-u", "script.py",
+        ]
+
+        start = time.time()
+        proc = subprocess.run(
+            docker_cmd,
+            capture_output=True,
+            text=True,
+            timeout=EXECUTE_TIMEOUT_SECONDS,
+            cwd=tmp_dir,
+            input=stdin or None,
+        )
+        elapsed_ms = int((time.time() - start) * 1000)
+
+        stdout = proc.stdout or ""
+        stderr = proc.stderr or ""
+
+        # Trim output
+        if len(stdout) > 50000:
+            stdout = stdout[:50000] + "\n[输出过长，已截断]"
+        if len(stderr) > 50000:
+            stderr = stderr[:50000] + "\n[错误输出过长，已截断]"
+
+        return {
+            "stdout": stdout,
+            "stderr": stderr,
+            "exit_code": proc.returncode,
+            "duration_ms": elapsed_ms,
+            "timed_out": False,
+            "error_message": None,
+        }
+    except subprocess.TimeoutExpired:
+        elapsed_ms = int((time.time() - start) * 1000)
+        return {
+            "stdout": "",
+            "stderr": f"执行超时（超过 {EXECUTE_TIMEOUT_SECONDS} 秒）",
+            "exit_code": -1,
+            "duration_ms": elapsed_ms,
+            "timed_out": True,
+            "error_message": None,
+        }
+    except FileNotFoundError:
+        return {
+            "stdout": "",
+            "stderr": "",
+            "exit_code": -1,
+            "duration_ms": 0,
+            "timed_out": False,
+            "error_message": "Docker 未安装或不可用，请联系管理员。",
+        }
+    except Exception as exc:
+        return {
+            "stdout": "",
+            "stderr": "",
+            "exit_code": -1,
+            "duration_ms": 0,
+            "timed_out": False,
+            "error_message": f"代码执行环境异常：{str(exc)[:200]}",
+        }
+    finally:
+        # Clean up temp files
+        try:
+            if os.path.exists(input_path):
+                os.remove(input_path)
+        except OSError:
+            pass
+        try:
+            if os.path.exists(script_path):
+                os.remove(script_path)
+        except OSError:
+            pass
+        try:
+            os.rmdir(tmp_dir)
+        except OSError:
+            pass
+
+
+@app.post("/code/execute")
+def execute_code(req: schemas.CodeExecuteRequest, db: Session = Depends(get_db)):
+    language = (req.language or "").strip().lower()
+
+    if language != "python":
+        return {
+            "success": True,
+            "stdout": "",
+            "stderr": "",
+            "exit_code": -1,
+            "duration_ms": 0,
+            "timed_out": False,
+            "error_message": f"当前真实运行暂只支持 Python，{req.language or '该语言'} 暂不支持。请使用 AI 判定功能分析代码。",
+        }
+
+    code = (req.code or "").strip()
+    if not code:
+        return {
+            "success": True,
+            "stdout": "",
+            "stderr": "",
+            "exit_code": 0,
+            "duration_ms": 0,
+            "timed_out": False,
+            "error_message": None,
+        }
+
+    if len(code) > MAX_CODE_EXECUTE_CHARS:
+        return {
+            "success": True,
+            "stdout": "",
+            "stderr": "",
+            "exit_code": -1,
+            "duration_ms": 0,
+            "timed_out": False,
+            "error_message": f"代码过长（{len(code)} 字符），当前限制 {MAX_CODE_EXECUTE_CHARS} 字符。",
+        }
+
+    stdin = (req.stdin or "")[:MAX_STDIN_CHARS]
+
+    # Session ownership check (if session_id provided)
+    if req.session_id:
+        user = get_user_by_username(req.username, db)
+        session = (
+            db.query(models.CodeSession)
+            .filter(
+                models.CodeSession.id == req.session_id,
+                models.CodeSession.username == user.username,
+            )
+            .first()
+        )
+        if not session:
+            raise HTTPException(status_code=404, detail="代码练习不存在")
+
+    result = _run_code_in_docker(code, stdin)
+    result["success"] = True
+    return result
 
 
 @app.post("/code/analyze")

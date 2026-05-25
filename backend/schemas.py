@@ -117,6 +117,14 @@ class CodeChallengeSubmitRequest(BaseModel):
     language: str = ""
 
 
+class CodeExecuteRequest(BaseModel):
+    username: str
+    session_id: int = 0
+    language: str = "python"
+    code: str = ""
+    stdin: str = ""
+
+
 class LearningTaskCreate(BaseModel):
     username: str
     course_id: str = ""

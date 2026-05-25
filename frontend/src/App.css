@@ -3631,6 +3631,142 @@ select.field:focus {
   font-size: 0.8rem;
 }
 
+/* ── Code Studio: Run Button ── */
+.code-run-btn {
+  background: #2563eb !important;
+  border-color: #2563eb !important;
+}
+
+.code-run-btn:hover:not(:disabled) {
+  background: #1d4ed8 !important;
+}
+
+.code-run-btn--disabled {
+  background: #94a3b8 !important;
+  border-color: #94a3b8 !important;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.code-run-btn--disabled:hover {
+  background: #94a3b8 !important;
+}
+
+/* ── Code Studio: Output Tabs ── */
+.code-output-tabs {
+  display: flex;
+  gap: 0;
+}
+
+.code-output-tab {
+  padding: 8px 16px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #64748b;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+
+.code-output-tab:hover {
+  color: #334155;
+}
+
+.code-output-tab--active {
+  color: #0f766e;
+  border-bottom-color: #0f766e;
+}
+
+/* ── Code Studio: Run Output ── */
+.code-run-output {
+  font-size: 0.85rem;
+}
+
+.code-run-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 0.78rem;
+  color: #64748b;
+  padding: 4px 0 10px;
+  border-bottom: 1px solid #e9edf4;
+  margin-bottom: 10px;
+}
+
+.code-run-timeout-tag {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.code-run-timeout-warning {
+  padding: 8px 12px;
+  background: #fee2e2;
+  color: #991b1b;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  margin-bottom: 10px;
+}
+
+.code-run-error-message {
+  padding: 8px 12px;
+  background: #fef3c7;
+  color: #92400e;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  margin-bottom: 10px;
+  white-space: pre-wrap;
+}
+
+.code-run-section {
+  margin-bottom: 10px;
+}
+
+.code-run-section-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #0f766e;
+  margin-bottom: 4px;
+}
+
+.code-run-section-label--err {
+  color: #dc2626;
+}
+
+.code-run-pre {
+  margin: 0;
+  padding: 10px 12px;
+  background: #1e293b;
+  color: #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-family: "Cascadia Code", "Fira Code", "JetBrains Mono", "Consolas", monospace;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.code-run-pre--err {
+  background: #450a0a;
+  color: #fca5a5;
+}
+
+.code-run-stdin {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #e9edf4;
+}
+
+.code-run-stdin-textarea {
+  width: 100%;
+  resize: vertical;
+  font-family: "Cascadia Code", "Fira Code", "JetBrains Mono", "Consolas", monospace;
+  font-size: 0.8rem;
+  margin-top: 4px;
+}
+
 /* ── Task Center ── */
 
 .task-center-panel {
