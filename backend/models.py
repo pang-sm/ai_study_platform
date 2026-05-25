@@ -187,6 +187,20 @@ class CodeAIMessage(Base):
     created_at = Column(DateTime, default=utc_now)
 
 
+class CodeChallengeAttempt(Base):
+    __tablename__ = "code_challenge_attempts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), index=True, nullable=False)
+    session_id = Column(Integer, index=True, nullable=False)
+    challenge_id = Column(Integer, index=True, nullable=False)
+    language = Column(String(20), nullable=True)
+    code = Column(Text, nullable=False)
+    status = Column(String(30), nullable=True)
+    ai_feedback = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+
+
 class LearningTask(Base):
     __tablename__ = "learning_tasks"
 

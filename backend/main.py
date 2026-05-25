@@ -4538,6 +4538,40 @@ def update_code_session(session_id: int, req: schemas.CodeSessionUpdate, db: Ses
     return {"success": True, "session": serialize_code_session(session)}
 
 
+@app.delete("/code/sessions/{session_id}")
+def delete_code_session(session_id: int, username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    session = (
+        db.query(models.CodeSession)
+        .filter(
+            models.CodeSession.id == session_id,
+            models.CodeSession.username == user.username,
+        )
+        .first()
+    )
+    if not session:
+        raise HTTPException(status_code=404, detail="代码练习不存在")
+
+    # Delete related AI messages
+    db.query(models.CodeAIMessage).filter(
+        models.CodeAIMessage.session_id == session_id,
+    ).delete()
+
+    # Delete related challenge attempts (keep the challenge itself)
+    db.query(models.CodeChallengeAttempt).filter(
+        models.CodeChallengeAttempt.session_id == session_id,
+    ).delete()
+
+    # Update learning tasks that reference this session
+    db.query(models.LearningTask).filter(
+        models.LearningTask.related_session_id == session_id,
+    ).update({models.LearningTask.related_session_id: None}, synchronize_session=False)
+
+    db.delete(session)
+    db.commit()
+    return {"success": True, "message": "代码练习已删除"}
+
+
 @app.post("/code/analyze")
 def analyze_code(req: schemas.CodeAnalyzeRequest, db: Session = Depends(get_db)):
     user = get_user_by_username(req.username, db)
@@ -4953,6 +4987,181 @@ def get_code_challenge(challenge_id: int, username: str, db: Session = Depends(g
     if not challenge:
         raise HTTPException(status_code=404, detail="题目不存在")
     return {"challenge": serialize_code_challenge(challenge)}
+
+
+CODE_CHALLENGE_SUBMIT_PROMPT = """你是编程学习判题助手。请根据题目要求，仔细分析用户提交的代码，给出结构化的判定反馈。
+
+重要：你没有真实运行这段代码。请基于代码静态分析、逻辑正确性、语法正确性和对题目要求的满足程度来判定。
+
+按要求输出以下 Markdown 格式：
+
+## 判定结论
+（从以下选一项，不要编造其他结论）
+- **大概率通过**：代码逻辑正确，应该能通过大部分测试
+- **可能部分通过**：代码有部分正确的逻辑，但存在一些问题
+- **大概率不通过**：代码有较严重的逻辑错误或未完成
+
+## 按题目要求逐项检查
+逐条列出题目要求，标注用户代码是否满足（✅ / ⚠️ / ❌），给出简要说明。
+
+## 主要问题
+列出代码中的具体问题，每个问题一行。如果代码为空或明显未完成请直接指出。
+
+## 边界情况提醒
+提醒可能遗漏的边界情况。
+
+## 修改建议
+给出具体修改方案，可以包含关键代码片段。
+
+## 可参考的关键思路
+简要说明这道题的正确解法思路（不要直接贴完整参考代码，给思路即可）。"""
+
+
+@app.post("/code/challenges/{challenge_id}/submit")
+def submit_code_challenge(challenge_id: int, req: schemas.CodeChallengeSubmitRequest, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+
+    challenge = (
+        db.query(models.CodeChallenge)
+        .filter(
+            models.CodeChallenge.id == challenge_id,
+            models.CodeChallenge.username == user.username,
+        )
+        .first()
+    )
+    if not challenge:
+        raise HTTPException(status_code=404, detail="题目不存在")
+
+    session = (
+        db.query(models.CodeSession)
+        .filter(
+            models.CodeSession.id == req.session_id,
+            models.CodeSession.username == user.username,
+        )
+        .first()
+    )
+    if not session:
+        raise HTTPException(status_code=404, detail="代码练习不存在")
+
+    code = (req.code or "").strip()
+    language = (req.language or challenge.language or "").strip()
+
+    if not code:
+        status = "failed"
+        ai_feedback = (
+            "## 判定结论\n\n"
+            "**大概率不通过**\n\n"
+            "## 按题目要求逐项检查\n\n"
+            "## 主要问题\n\n"
+            "用户尚未提交任何代码。请先编写代码再提交判定。\n\n"
+            "## 边界情况提醒\n\n"
+            "## 修改建议\n\n"
+            "请先根据题目要求编写代码。\n\n"
+            "## 可参考的关键思路\n"
+        )
+    elif language and challenge.language and language.lower() != challenge.language.lower():
+        status = "failed"
+        ai_feedback = (
+            f"## 判定结论\n\n"
+            f"**大概率不通过**\n\n"
+            f"## 按题目要求逐项检查\n\n"
+            f"## 主要问题\n\n"
+            f"题目要求使用 {challenge.language} 编写，但当前提交的代码语言为 {language}。"
+            f"请切换到 {challenge.language} 后再提交。\n\n"
+            f"## 边界情况提醒\n\n"
+            f"## 修改建议\n\n"
+            f"请使用 {challenge.language} 重新编写代码。\n\n"
+            f"## 可参考的关键思路\n"
+        )
+    else:
+        # Build challenge context
+        challenge_context = ""
+        if challenge.description:
+            challenge_context += f"\n## 题目描述\n{challenge.description}\n"
+        if challenge.requirements:
+            challenge_context += f"\n## 题目要求\n{challenge.requirements}\n"
+        if challenge.input_format:
+            challenge_context += f"\n## 输入格式\n{challenge.input_format}\n"
+        if challenge.output_format:
+            challenge_context += f"\n## 输出格式\n{challenge.output_format}\n"
+        if challenge.examples:
+            challenge_context += f"\n## 示例\n{challenge.examples}\n"
+
+        user_prompt = f"""## 题目信息
+语言：{challenge.language}
+标题：{challenge.title}
+难度：{challenge.difficulty}
+知识点：{challenge.knowledge_point or "未指定"}
+{challenge_context}
+
+## 用户提交的代码
+```{challenge.language}
+{code[:8000]}
+```
+
+请根据题目要求判定以上代码。"""
+
+        check_usage_limit(user.username, "code_analyze", db)
+
+        ai_feedback = call_deepseek(
+            [
+                {"role": "system", "content": CODE_CHALLENGE_SUBMIT_PROMPT},
+                {"role": "user", "content": user_prompt},
+            ]
+        )
+
+        record_ai_usage(user.username, "code_analyze", db, estimated_tokens=estimate_tokens_from_text(ai_feedback), status="success")
+
+        ai_feedback = normalize_assistant_markdown(ai_feedback)
+
+        # Determine status from AI response
+        if "大概率通过" in ai_feedback:
+            status = "probable_pass"
+        elif "可能部分通过" in ai_feedback:
+            status = "partial"
+        elif "大概率不通过" in ai_feedback:
+            status = "failed"
+        else:
+            status = "unknown"
+
+    # Save attempt record
+    attempt = models.CodeChallengeAttempt(
+        username=user.username,
+        session_id=session.id,
+        challenge_id=challenge.id,
+        language=language,
+        code=code,
+        status=status,
+        ai_feedback=ai_feedback,
+    )
+    db.add(attempt)
+    db.commit()
+    db.refresh(attempt)
+
+    # Also save as AI message so it appears in chat history
+    db.add(models.CodeAIMessage(
+        username=user.username,
+        session_id=session.id,
+        role="user",
+        content=f"提交答案（题目：{challenge.title}）",
+        language=language,
+        code_snapshot=code,
+    ))
+    db.add(models.CodeAIMessage(
+        username=user.username,
+        session_id=session.id,
+        role="assistant",
+        content=ai_feedback,
+        language=language,
+    ))
+    db.commit()
+
+    return {
+        "success": True,
+        "status": status,
+        "ai_feedback": ai_feedback,
+        "attempt_id": attempt.id,
+    }
 
 
 CODE_LEARNING_DIAGNOSIS_PROMPT = """你是编程学习诊断助手。根据用户的代码练习记录、AI 分析历史和出题记录，生成一份结构化的编程学习诊断报告。

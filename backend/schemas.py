@@ -110,6 +110,13 @@ class CodeLearningDiagnosisRequest(BaseModel):
     language: str = ""
 
 
+class CodeChallengeSubmitRequest(BaseModel):
+    username: str
+    session_id: int
+    code: str = ""
+    language: str = ""
+
+
 class LearningTaskCreate(BaseModel):
     username: str
     course_id: str = ""

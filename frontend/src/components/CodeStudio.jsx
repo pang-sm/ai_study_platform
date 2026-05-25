@@ -16,6 +16,24 @@ const CODE_TEMPLATES = {
   Java: 'public class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello, World!");\n    }\n}',
 };
 
+const STATUS_LABELS = {
+  probable_pass: "大概率通过",
+  partial: "可能部分通过",
+  failed: "大概率不通过",
+  unknown: "无法判定",
+};
+
+const STATUS_CLASSES = {
+  probable_pass: "feedback-status--pass",
+  partial: "feedback-status--partial",
+  failed: "feedback-status--fail",
+  unknown: "feedback-status--unknown",
+};
+
+function safeJson(res) {
+  return res.json().catch(() => ({}));
+}
+
 export default function CodeStudio({
   user,
   subject,
@@ -51,6 +69,21 @@ export default function CodeStudio({
   const [targetedChallengeLoading, setTargetedChallengeLoading] = useState(false);
   const [taskGenerationLoading, setTaskGenerationLoading] = useState(false);
 
+  // Feedback / Submit panel
+  const [showFeedbackPanel, setShowFeedbackPanel] = useState(false);
+  const [feedbackContent, setFeedbackContent] = useState("");
+  const [feedbackStatus, setFeedbackStatus] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [codeTruncated, setCodeTruncated] = useState(false);
+
+  // Reference solution & starter code
+  const [showReference, setShowReference] = useState(false);
+  const [starterConfirmOpen, setStarterConfirmOpen] = useState(false);
+
+  // Delete confirm
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
   const hasUnsaved =
     selectedSession &&
     (selectedSession.title !== title ||
@@ -75,7 +108,7 @@ export default function CodeStudio({
       const course = normalizeSubject(codeCourseId);
       if (course) query.set("course_id", course);
       const res = await fetch(`${API_BASE}/code/sessions?${query.toString()}`);
-      const data = await res.json();
+      const data = await safeJson(res);
       if (res.ok) {
         setSessions(data.sessions || []);
         if (!selectedSession && data.sessions?.length > 0) {
@@ -100,7 +133,7 @@ export default function CodeStudio({
       const res = await fetch(
         `${API_BASE}/code/sessions/${sessionId}/messages?username=${encodeURIComponent(user.username)}`
       );
-      const data = await res.json();
+      const data = await safeJson(res);
       if (res.ok) {
         setAiMessages(data.messages || []);
       }
@@ -119,6 +152,11 @@ export default function CodeStudio({
     setAiMessages([]);
     setAiQuestion("");
     setCurrentChallenge(null);
+    setShowFeedbackPanel(false);
+    setFeedbackContent("");
+    setFeedbackStatus(null);
+    setCodeTruncated(false);
+    setShowReference(false);
     if (session.id) {
       loadMessages(session.id);
       if (session.challenge_id) {
@@ -144,6 +182,11 @@ export default function CodeStudio({
     setAiMessages([]);
     setAiQuestion("");
     setCurrentChallenge(null);
+    setShowFeedbackPanel(false);
+    setFeedbackContent("");
+    setFeedbackStatus(null);
+    setCodeTruncated(false);
+    setShowReference(false);
   };
 
   const loadChallenge = async (challengeId) => {
@@ -152,9 +195,10 @@ export default function CodeStudio({
       const res = await fetch(
         `${API_BASE}/code/challenges/${challengeId}?username=${encodeURIComponent(user.username)}`
       );
-      const data = await res.json();
+      const data = await safeJson(res);
       if (res.ok && data.challenge) {
         setCurrentChallenge(data.challenge);
+        setShowReference(false);
       }
     } catch (error) {
       console.error("Failed to load challenge:", error);
@@ -176,7 +220,7 @@ export default function CodeStudio({
           focus: challengeFocus,
         }),
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (res.ok && data.session) {
         setShowChallengeModal(false);
         setChallengeFocus("");
@@ -187,6 +231,9 @@ export default function CodeStudio({
         }
         setTip("AI 题目已生成");
         setTimeout(() => setTip(""), 2000);
+      } else if (res.status === 429) {
+        setTip("今日 AI 使用次数已达上限，请明天再试或升级套餐");
+        setTimeout(() => setTip(""), 4000);
       } else {
         setTip(data.detail || "AI 出题失败，请重试");
       }
@@ -223,7 +270,7 @@ export default function CodeStudio({
           body: JSON.stringify(body),
         });
       }
-      const data = await res.json();
+      const data = await safeJson(res);
       if (res.ok && data.session) {
         setSelectedSession(data.session);
         setTitle(data.session.title);
@@ -260,6 +307,7 @@ export default function CodeStudio({
       return;
     }
     setAiLoading(true);
+    setCodeTruncated(false);
     const userMsg = { role: "user", content: aiQuestion };
     setAiMessages((prev) => [...prev, userMsg]);
     const question = aiQuestion;
@@ -278,11 +326,19 @@ export default function CodeStudio({
           question,
         }),
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (res.ok) {
+        if (data.code_truncated) {
+          setCodeTruncated(true);
+        }
         setAiMessages((prev) => [
           ...prev,
           { role: "assistant", content: data.answer },
+        ]);
+      } else if (res.status === 429) {
+        setAiMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: "今日 AI 使用次数已达上限，请明天再试或升级套餐。" },
         ]);
       } else {
         setAiMessages((prev) => [
@@ -301,6 +357,122 @@ export default function CodeStudio({
     }
   };
 
+  const submitAnswer = async () => {
+    if (!user?.username || !selectedSession?.challenge_id) return;
+    if (!code.trim()) {
+      setTip("请先编写代码再提交判定。");
+      return;
+    }
+    setSubmitting(true);
+    setShowFeedbackPanel(true);
+    setFeedbackContent("");
+    setFeedbackStatus(null);
+
+    try {
+      const res = await fetch(
+        `${API_BASE}/code/challenges/${selectedSession.challenge_id}/submit`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: user.username,
+            session_id: selectedSession.id,
+            code,
+            language,
+          }),
+        }
+      );
+      const data = await safeJson(res);
+      if (res.ok) {
+        setFeedbackContent(data.ai_feedback || "");
+        setFeedbackStatus(data.status || "unknown");
+        if (selectedSession?.id) {
+          loadMessages(selectedSession.id);
+        }
+      } else if (res.status === 429) {
+        setFeedbackContent(
+          "## 额度不足\n\n今日 AI 使用次数已达上限，请明天再试或升级套餐。"
+        );
+        setFeedbackStatus("unknown");
+      } else {
+        setFeedbackContent(
+          `## 提交失败\n\n${data.detail || "请稍后重试"}`
+        );
+        setFeedbackStatus("unknown");
+      }
+    } catch (error) {
+      console.error("Failed to submit answer:", error);
+      setFeedbackContent("## 提交失败\n\n无法连接后端服务。");
+      setFeedbackStatus("unknown");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const deleteSession = async (sessionId) => {
+    if (!user?.username || !sessionId) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/code/sessions/${sessionId}?username=${encodeURIComponent(user.username)}`,
+        { method: "DELETE" }
+      );
+      const data = await safeJson(res);
+      if (res.ok) {
+        if (selectedSession?.id === sessionId) {
+          setSelectedSession(null);
+          setTitle("未命名练习");
+          setLanguage("Python");
+          setCode(CODE_TEMPLATES["Python"]);
+          setAiMessages([]);
+          setCurrentChallenge(null);
+          setShowFeedbackPanel(false);
+          setFeedbackContent("");
+          setFeedbackStatus(null);
+          setShowReference(false);
+        }
+        await loadSessions();
+        setTip("练习已删除");
+        setTimeout(() => setTip(""), 2000);
+      } else {
+        setTip(data.detail || "删除失败");
+      }
+    } catch (error) {
+      console.error("Failed to delete session:", error);
+      setTip("删除失败，请稍后重试");
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+    }
+  };
+
+  const useStarterCode = () => {
+    if (!currentChallenge?.starter_code) {
+      setTip("该题目没有起始代码");
+      setTimeout(() => setTip(""), 2000);
+      return;
+    }
+    const isDefault =
+      !code ||
+      Object.values(CODE_TEMPLATES).includes(code);
+    if (!isDefault) {
+      setStarterConfirmOpen(true);
+      return;
+    }
+    setCode(currentChallenge.starter_code);
+    setTip("已应用起始代码");
+    setTimeout(() => setTip(""), 2000);
+  };
+
+  const confirmStarterCode = () => {
+    if (currentChallenge?.starter_code) {
+      setCode(currentChallenge.starter_code);
+      setTip("已应用起始代码");
+      setTimeout(() => setTip(""), 2000);
+    }
+    setStarterConfirmOpen(false);
+  };
+
   const fetchDiagnosis = async () => {
     if (!user?.username) return;
     setDiagnosisLoading(true);
@@ -315,9 +487,12 @@ export default function CodeStudio({
           language: "",
         }),
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (res.ok) {
         setDiagnosisReport(data);
+      } else if (res.status === 429) {
+        setTip("今日 AI 使用次数已达上限，请明天再试或升级套餐");
+        setTimeout(() => setTip(""), 4000);
       } else {
         setTip(data.detail || "诊断生成失败");
       }
@@ -347,7 +522,7 @@ export default function CodeStudio({
           source: "diagnosis",
         }),
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (res.ok && data.session) {
         setDiagnosisReport(null);
         await loadSessions();
@@ -357,6 +532,9 @@ export default function CodeStudio({
         }
         setTip("已生成针对性练习");
         setTimeout(() => setTip(""), 2000);
+      } else if (res.status === 429) {
+        setTip("今日 AI 使用次数已达上限，请明天再试或升级套餐");
+        setTimeout(() => setTip(""), 4000);
       } else {
         setTip(data.detail || "针对性出题失败，请重试");
       }
@@ -384,7 +562,7 @@ export default function CodeStudio({
           language,
         }),
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (res.ok) {
         setTip(data.message || `已生成 ${data.tasks?.length || 0} 个学习任务`);
         setTimeout(() => setTip(""), 3000);
@@ -451,6 +629,16 @@ export default function CodeStudio({
                   <span className="subject-pill small">{s.language}</span>
                   <span>{formatDate(s.updated_at)}</span>
                 </div>
+                <button
+                  className="code-session-delete-btn"
+                  title="删除该练习"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDeleteTarget(s);
+                  }}
+                >
+                  &times;
+                </button>
               </div>
             ))
           )}
@@ -488,6 +676,15 @@ export default function CodeStudio({
           >
             AI 出题
           </button>
+          {selectedSession?.challenge_id && (
+            <button
+              className="primary-button compact code-submit-btn"
+              onClick={submitAnswer}
+              disabled={submitting || !code.trim()}
+            >
+              {submitting ? "判定中..." : "提交答案"}
+            </button>
+          )}
           <button
             className="primary-button compact"
             onClick={saveSession}
@@ -496,6 +693,12 @@ export default function CodeStudio({
             {saving ? "保存中..." : hasUnsaved ? "保存 *" : "保存"}
           </button>
         </div>
+
+        {codeTruncated && (
+          <div className="code-truncated-warning">
+            代码较长，本次仅分析了前 12000 个字符
+          </div>
+        )}
 
         {currentChallenge && (
           <div className="code-challenge-card">
@@ -546,6 +749,31 @@ export default function CodeStudio({
                 <pre className="code-challenge-card-examples">{currentChallenge.examples}</pre>
               </div>
             )}
+
+            <div className="code-challenge-card-actions">
+              {currentChallenge.starter_code && (
+                <button className="ghost-button compact" onClick={useStarterCode}>
+                  使用起始代码
+                </button>
+              )}
+              <button
+                className="ghost-button compact"
+                onClick={() => setShowReference(!showReference)}
+              >
+                {showReference ? "隐藏参考解法" : "查看参考解法"}
+              </button>
+            </div>
+
+            {showReference && (
+              <div className="code-reference-solution">
+                <div className="code-reference-solution-label">参考解法</div>
+                {currentChallenge.reference_solution ? (
+                  <pre className="code-challenge-card-examples">{currentChallenge.reference_solution}</pre>
+                ) : (
+                  <p className="empty-inline" style={{ padding: "8px 0" }}>暂无参考解法</p>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -573,6 +801,41 @@ export default function CodeStudio({
         {!selectedSession && (
           <div className="code-studio-empty-overlay">
             <p>点击左侧「新建练习」开始编程学习</p>
+          </div>
+        )}
+
+        {/* Feedback / Submit Panel */}
+        {showFeedbackPanel && (
+          <div className="code-feedback-panel">
+            <div className="code-feedback-panel-header">
+              <h4>AI 判定反馈</h4>
+              <div className="code-feedback-panel-header-right">
+                {feedbackStatus && (
+                  <span className={`feedback-status-badge ${STATUS_CLASSES[feedbackStatus] || ""}`}>
+                    {STATUS_LABELS[feedbackStatus] || feedbackStatus}
+                  </span>
+                )}
+                <button
+                  className="code-feedback-panel-close"
+                  onClick={() => setShowFeedbackPanel(false)}
+                >
+                  &times;
+                </button>
+              </div>
+            </div>
+            <div className="code-feedback-panel-body">
+              {submitting ? (
+                <div className="empty-inline" style={{ padding: "16px" }}>
+                  AI 正在判定你的代码...
+                </div>
+              ) : feedbackContent ? (
+                <div className="code-assistant-msg-content">{feedbackContent}</div>
+              ) : (
+                <div className="empty-inline" style={{ padding: "16px" }}>
+                  暂无反馈内容
+                </div>
+              )}
+            </div>
           </div>
         )}
       </main>
@@ -695,6 +958,7 @@ export default function CodeStudio({
         </div>
       )}
 
+      {/* Challenge Generation Modal */}
       {showChallengeModal && (
         <div className="modal-overlay" onClick={() => setShowChallengeModal(false)}>
           <div
@@ -760,6 +1024,60 @@ export default function CodeStudio({
                 disabled={challengeGenerating}
               >
                 {challengeGenerating ? "AI 正在生成题目..." : "生成题目"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirm Modal */}
+      {deleteTarget && (
+        <div className="modal-overlay" onClick={() => setDeleteTarget(null)}>
+          <div className="modal-card code-delete-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>删除练习</h3>
+              <button className="modal-close" onClick={() => setDeleteTarget(null)}>
+                &times;
+              </button>
+            </div>
+            <p style={{ margin: "0 0 16px", color: "#334155", fontSize: "0.9rem" }}>
+              确定要删除练习「{deleteTarget.title}」吗？该练习的 AI 分析记录也会被删除。此操作不可撤销。
+            </p>
+            <div className="modal-actions">
+              <button className="ghost-button" onClick={() => setDeleteTarget(null)}>
+                取消
+              </button>
+              <button
+                className="danger-button"
+                onClick={() => deleteSession(deleteTarget.id)}
+                disabled={deleting}
+              >
+                {deleting ? "删除中..." : "确认删除"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Starter Code Confirm Modal */}
+      {starterConfirmOpen && (
+        <div className="modal-overlay" onClick={() => setStarterConfirmOpen(false)}>
+          <div className="modal-card code-delete-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>应用起始代码</h3>
+              <button className="modal-close" onClick={() => setStarterConfirmOpen(false)}>
+                &times;
+              </button>
+            </div>
+            <p style={{ margin: "0 0 16px", color: "#334155", fontSize: "0.9rem" }}>
+              当前编辑器中有未保存的代码。应用起始代码将覆盖当前内容，是否继续？
+            </p>
+            <div className="modal-actions">
+              <button className="ghost-button" onClick={() => setStarterConfirmOpen(false)}>
+                取消
+              </button>
+              <button className="primary-button" onClick={confirmStarterCode}>
+                确认覆盖
               </button>
             </div>
           </div>
