@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 const API_BASE = "/api";
 
@@ -451,280 +452,286 @@ export default function KnowledgeRoadmap({
       )}
 
       {/* Create Modal */}
-      {showCreateModal && (
-        <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>新增知识点</h3>
-              <button className="modal-close" onClick={() => setShowCreateModal(false)}>
-                &times;
-              </button>
-            </div>
-            <div className="task-modal-body">
-              <label className="field-label">课程</label>
-              <input className="field" value={getSubjectLabel(course)} disabled />
-              <label className="field-label">知识点标题 *</label>
-              <input
-                className="field"
-                placeholder="例如：数组与链表"
-                value={createTitle}
-                onChange={(e) => setCreateTitle(e.target.value)}
-              />
-              <label className="field-label">描述</label>
-              <textarea
-                className="field"
-                rows={2}
-                placeholder="知识点简要说明..."
-                value={createDescription}
-                onChange={(e) => setCreateDescription(e.target.value)}
-              />
-              <label className="field-label">父知识点</label>
-              <select
-                className="field"
-                value={createParentId}
-                onChange={(e) => setCreateParentId(e.target.value)}
-              >
-                <option value="">无（作为根知识点）</option>
-                {flatOptions(roots.map((id) => pointMap[id]).filter(Boolean)).map(
-                  (opt) => (
-                    <option key={opt.id} value={opt.id}>
-                      {opt.title}
-                    </option>
-                  )
-                )}
-              </select>
-            </div>
-            <div className="task-form-actions">
-              <button
-                className="ghost-button compact"
-                onClick={() => setShowCreateModal(false)}
-              >
-                取消
-              </button>
-              <button
-                className="primary-button compact"
-                disabled={saving || !createTitle.trim()}
-                onClick={createPoint}
-              >
-                {saving ? "创建中..." : "创建"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Modal */}
-      {showEditModal && (
-        <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>编辑知识点</h3>
-              <button className="modal-close" onClick={() => setShowEditModal(false)}>
-                &times;
-              </button>
-            </div>
-            <div className="task-modal-body">
-              <label className="field-label">知识点标题 *</label>
-              <input
-                className="field"
-                value={editTitle}
-                onChange={(e) => setEditTitle(e.target.value)}
-              />
-              <label className="field-label">描述</label>
-              <textarea
-                className="field"
-                rows={2}
-                value={editDescription}
-                onChange={(e) => setEditDescription(e.target.value)}
-              />
-              <label className="field-label">父知识点</label>
-              <select
-                className="field"
-                value={editParentId}
-                onChange={(e) => setEditParentId(e.target.value)}
-              >
-                <option value="">无（作为根知识点）</option>
-                {flatOptions(roots.map((id) => pointMap[id]).filter(Boolean)).map(
-                  (opt) => (
-                    <option key={opt.id} value={opt.id}>
-                      {opt.title}
-                    </option>
-                  )
-                )}
-              </select>
-            </div>
-            <div className="task-form-actions">
-              <button
-                className="ghost-button compact"
-                onClick={() => setShowEditModal(false)}
-              >
-                取消
-              </button>
-              <button
-                className="primary-button compact"
-                disabled={saving || !editTitle.trim()}
-                onClick={updatePoint}
-              >
-                {saving ? "保存中..." : "保存"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* AI Generate Modal */}
-      {showGenerateModal && (
-        <div className="modal-overlay" onClick={() => setShowGenerateModal(false)}>
-          <div className="modal-card modal-card--wide" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>AI 生成知识点路线图</h3>
-              <button className="modal-close" onClick={() => setShowGenerateModal(false)}>
-                &times;
-              </button>
-            </div>
-            <div className="task-modal-body">
-              {genError && (
-                <div className="ai-feedback-box" style={{ marginBottom: 12, background: "#fef2f2", border: "1px solid #fecaca" }}>
-                  <span style={{ color: "#dc2626" }}>{genError}</span>
-                </div>
-              )}
-
-              {genStep === "settings" && (
-                <>
-                  <label className="field-label">课程</label>
-                  <input className="field" value={getSubjectLabel(course)} disabled />
-
-                  <label className="field-label">生成方式</label>
-                  <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
-                    <label className="question-option-label" style={{ flex: 1 }}>
-                      <input
-                        type="radio"
-                        name="gen_mode"
-                        value="course_name"
-                        checked={genMode === "course_name"}
-                        onChange={(e) => setGenMode(e.target.value)}
-                      />
-                      <span>根据课程名称生成</span>
-                    </label>
-                    <label className="question-option-label" style={{ flex: 1 }}>
-                      <input
-                        type="radio"
-                        name="gen_mode"
-                        value="materials"
-                        checked={genMode === "materials"}
-                        onChange={(e) => setGenMode(e.target.value)}
-                      />
-                      <span>根据课程资料生成</span>
-                    </label>
-                  </div>
-
-                  <label className="field-label">导入方式</label>
-                  <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
-                    <label className="question-option-label" style={{ flex: 1 }}>
-                      <input
-                        type="radio"
-                        name="gen_import_mode"
-                        value="append"
-                        checked={genImportMode === "append"}
-                        onChange={(e) => setGenImportMode(e.target.value)}
-                      />
-                      <span>追加到现有路线图</span>
-                    </label>
-                    <label className="question-option-label" style={{ flex: 1 }}>
-                      <input
-                        type="radio"
-                        name="gen_import_mode"
-                        value="replace"
-                        checked={genImportMode === "replace"}
-                        onChange={(e) => setGenImportMode(e.target.value)}
-                      />
-                      <span>替换现有路线图</span>
-                    </label>
-                  </div>
-
-                  {genImportMode === "replace" && (
-                    <p style={{ color: "#dc2626", fontSize: 13, marginBottom: 12 }}>
-                      警告：替换将删除当前课程所有已有知识点，不可恢复。
-                    </p>
+      {showCreateModal &&
+        createPortal(
+          <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
+            <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3>新增知识点</h3>
+                <button className="modal-close" onClick={() => setShowCreateModal(false)}>
+                  &times;
+                </button>
+              </div>
+              <div className="task-modal-body">
+                <label className="field-label">课程</label>
+                <input className="field" value={getSubjectLabel(course)} disabled />
+                <label className="field-label">知识点标题 *</label>
+                <input
+                  className="field"
+                  placeholder="例如：数组与链表"
+                  value={createTitle}
+                  onChange={(e) => setCreateTitle(e.target.value)}
+                />
+                <label className="field-label">描述</label>
+                <textarea
+                  className="field"
+                  rows={2}
+                  placeholder="知识点简要说明..."
+                  value={createDescription}
+                  onChange={(e) => setCreateDescription(e.target.value)}
+                />
+                <label className="field-label">父知识点</label>
+                <select
+                  className="field"
+                  value={createParentId}
+                  onChange={(e) => setCreateParentId(e.target.value)}
+                >
+                  <option value="">无（作为根知识点）</option>
+                  {flatOptions(roots.map((id) => pointMap[id]).filter(Boolean)).map(
+                    (opt) => (
+                      <option key={opt.id} value={opt.id}>
+                        {opt.title}
+                      </option>
+                    )
                   )}
-                </>
-              )}
-
-              {genStep === "preview" && genPreview && (
-                <>
-                  <div className="kp-preview-info">
-                    <span>生成方式：{genPreview.source === "materials" ? "根据课程资料" : "根据课程名称"}</span>
-                    <span>共 {countPreviewItems(genPreview.items)} 个知识点</span>
-                  </div>
-                  <div className="kp-preview-tree">
-                    {genPreview.items.map((item, idx) => (
-                      <div key={idx} className="kp-preview-parent">
-                        <div className="kp-preview-parent-title">
-                          <span className="kp-preview-dot" />
-                          {item.title}
-                        </div>
-                        {item.description && (
-                          <div className="kp-preview-desc">{item.description}</div>
-                        )}
-                        {item.children && item.children.length > 0 && (
-                          <div className="kp-preview-children">
-                            {item.children.map((child, cIdx) => (
-                              <div key={cIdx} className="kp-preview-child">
-                                <span className="kp-preview-dot kp-preview-dot--child" />
-                                <div>
-                                  <div className="kp-preview-child-title">{child.title}</div>
-                                  {child.description && (
-                                    <div className="kp-preview-desc">{child.description}</div>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-            <div className="task-form-actions">
-              <button
-                className="ghost-button compact"
-                onClick={() => setShowGenerateModal(false)}
-              >
-                取消
-              </button>
-              {genStep === "settings" && (
+                </select>
+              </div>
+              <div className="task-form-actions">
+                <button
+                  className="ghost-button compact"
+                  onClick={() => setShowCreateModal(false)}
+                >
+                  取消
+                </button>
                 <button
                   className="primary-button compact"
-                  disabled={genLoading}
-                  onClick={generatePreview}
+                  disabled={saving || !createTitle.trim()}
+                  onClick={createPoint}
                 >
-                  {genLoading ? "生成中..." : "生成预览"}
+                  {saving ? "创建中..." : "创建"}
                 </button>
-              )}
-              {genStep === "preview" && (
-                <>
-                  <button
-                    className="ghost-button compact"
-                    onClick={() => { setGenStep("settings"); setGenError(""); }}
-                    disabled={importing}
-                  >
-                    重新生成
-                  </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* Edit Modal */}
+      {showEditModal &&
+        createPortal(
+          <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
+            <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3>编辑知识点</h3>
+                <button className="modal-close" onClick={() => setShowEditModal(false)}>
+                  &times;
+                </button>
+              </div>
+              <div className="task-modal-body">
+                <label className="field-label">知识点标题 *</label>
+                <input
+                  className="field"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                />
+                <label className="field-label">描述</label>
+                <textarea
+                  className="field"
+                  rows={2}
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                />
+                <label className="field-label">父知识点</label>
+                <select
+                  className="field"
+                  value={editParentId}
+                  onChange={(e) => setEditParentId(e.target.value)}
+                >
+                  <option value="">无（作为根知识点）</option>
+                  {flatOptions(roots.map((id) => pointMap[id]).filter(Boolean)).map(
+                    (opt) => (
+                      <option key={opt.id} value={opt.id}>
+                        {opt.title}
+                      </option>
+                    )
+                  )}
+                </select>
+              </div>
+              <div className="task-form-actions">
+                <button
+                  className="ghost-button compact"
+                  onClick={() => setShowEditModal(false)}
+                >
+                  取消
+                </button>
+                <button
+                  className="primary-button compact"
+                  disabled={saving || !editTitle.trim()}
+                  onClick={updatePoint}
+                >
+                  {saving ? "保存中..." : "保存"}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* AI Generate Modal */}
+      {showGenerateModal &&
+        createPortal(
+          <div className="modal-overlay" onClick={() => setShowGenerateModal(false)}>
+            <div className="modal-card modal-card--wide" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3>AI 生成知识点路线图</h3>
+                <button className="modal-close" onClick={() => setShowGenerateModal(false)}>
+                  &times;
+                </button>
+              </div>
+              <div className="task-modal-body">
+                {genError && (
+                  <div className="ai-feedback-box" style={{ marginBottom: 12, background: "#fef2f2", border: "1px solid #fecaca" }}>
+                    <span style={{ color: "#dc2626" }}>{genError}</span>
+                  </div>
+                )}
+
+                {genStep === "settings" && (
+                  <>
+                    <label className="field-label">课程</label>
+                    <input className="field" value={getSubjectLabel(course)} disabled />
+
+                    <label className="field-label">生成方式</label>
+                    <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+                      <label className="question-option-label" style={{ flex: 1 }}>
+                        <input
+                          type="radio"
+                          name="gen_mode"
+                          value="course_name"
+                          checked={genMode === "course_name"}
+                          onChange={(e) => setGenMode(e.target.value)}
+                        />
+                        <span>根据课程名称生成</span>
+                      </label>
+                      <label className="question-option-label" style={{ flex: 1 }}>
+                        <input
+                          type="radio"
+                          name="gen_mode"
+                          value="materials"
+                          checked={genMode === "materials"}
+                          onChange={(e) => setGenMode(e.target.value)}
+                        />
+                        <span>根据课程资料生成</span>
+                      </label>
+                    </div>
+
+                    <label className="field-label">导入方式</label>
+                    <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+                      <label className="question-option-label" style={{ flex: 1 }}>
+                        <input
+                          type="radio"
+                          name="gen_import_mode"
+                          value="append"
+                          checked={genImportMode === "append"}
+                          onChange={(e) => setGenImportMode(e.target.value)}
+                        />
+                        <span>追加到现有路线图</span>
+                      </label>
+                      <label className="question-option-label" style={{ flex: 1 }}>
+                        <input
+                          type="radio"
+                          name="gen_import_mode"
+                          value="replace"
+                          checked={genImportMode === "replace"}
+                          onChange={(e) => setGenImportMode(e.target.value)}
+                        />
+                        <span>替换现有路线图</span>
+                      </label>
+                    </div>
+
+                    {genImportMode === "replace" && (
+                      <p style={{ color: "#dc2626", fontSize: 13, marginBottom: 12 }}>
+                        警告：替换将删除当前课程所有已有知识点，不可恢复。
+                      </p>
+                    )}
+                  </>
+                )}
+
+                {genStep === "preview" && genPreview && (
+                  <>
+                    <div className="kp-preview-info">
+                      <span>生成方式：{genPreview.source === "materials" ? "根据课程资料" : "根据课程名称"}</span>
+                      <span>共 {countPreviewItems(genPreview.items)} 个知识点</span>
+                    </div>
+                    <div className="kp-preview-tree">
+                      {genPreview.items.map((item, idx) => (
+                        <div key={idx} className="kp-preview-parent">
+                          <div className="kp-preview-parent-title">
+                            <span className="kp-preview-dot" />
+                            {item.title}
+                          </div>
+                          {item.description && (
+                            <div className="kp-preview-desc">{item.description}</div>
+                          )}
+                          {item.children && item.children.length > 0 && (
+                            <div className="kp-preview-children">
+                              {item.children.map((child, cIdx) => (
+                                <div key={cIdx} className="kp-preview-child">
+                                  <span className="kp-preview-dot kp-preview-dot--child" />
+                                  <div>
+                                    <div className="kp-preview-child-title">{child.title}</div>
+                                    {child.description && (
+                                      <div className="kp-preview-desc">{child.description}</div>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+              <div className="task-form-actions">
+                <button
+                  className="ghost-button compact"
+                  onClick={() => setShowGenerateModal(false)}
+                >
+                  取消
+                </button>
+                {genStep === "settings" && (
                   <button
                     className="primary-button compact"
-                    disabled={importing}
-                    onClick={importGenerated}
+                    disabled={genLoading}
+                    onClick={generatePreview}
                   >
-                    {importing ? "导入中..." : "确认导入"}
+                    {genLoading ? "生成中..." : "生成预览"}
                   </button>
-                </>
-              )}
+                )}
+                {genStep === "preview" && (
+                  <>
+                    <button
+                      className="ghost-button compact"
+                      onClick={() => { setGenStep("settings"); setGenError(""); }}
+                      disabled={importing}
+                    >
+                      重新生成
+                    </button>
+                    <button
+                      className="primary-button compact"
+                      disabled={importing}
+                      onClick={importGenerated}
+                    >
+                      {importing ? "导入中..." : "确认导入"}
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </section>
   );
 }
