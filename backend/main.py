@@ -5401,6 +5401,236 @@ def get_learning_dashboard(username: str, db: Session = Depends(get_db)):
     }
 
 
+@app.get("/review/center")
+def get_review_center(username: str, course_id: str = "", db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    normalized_course = normalize_subject(course_id, default="")
+
+    # ── Wrong Questions ──
+    wrong_query = (
+        db.query(models.QuestionAttempt, models.Question)
+        .join(models.Question, models.QuestionAttempt.question_id == models.Question.id)
+        .filter(
+            models.QuestionAttempt.username == user.username,
+            models.QuestionAttempt.self_result == "incorrect",
+        )
+    )
+    if normalized_course:
+        wrong_query = wrong_query.filter(models.QuestionAttempt.course_id == normalized_course)
+    wrong_rows = wrong_query.order_by(models.QuestionAttempt.created_at.desc()).limit(20).all()
+
+    wrong_questions = []
+    for attempt, question in wrong_rows:
+        wrong_questions.append({
+            "question_id": question.id,
+            "attempt_id": attempt.id,
+            "course_id": question.course_id or "",
+            "course_name": question.course_id or "",
+            "knowledge_point_id": question.knowledge_point_id,
+            "knowledge_point_title": "",
+            "question_type": question.type,
+            "title": question.title,
+            "user_answer": attempt.user_answer or "",
+            "correct_answer": question.answer or "",
+            "created_at": serialize_datetime(attempt.created_at) if attempt.created_at else None,
+        })
+
+    # Fill knowledge point titles for wrong questions
+    wrong_kp_ids = [wq["knowledge_point_id"] for wq in wrong_questions if wq["knowledge_point_id"]]
+    if wrong_kp_ids:
+        wrong_kps = db.query(models.KnowledgePoint).filter(models.KnowledgePoint.id.in_(wrong_kp_ids)).all()
+        wrong_kp_map = {kp.id: kp.title for kp in wrong_kps}
+        for wq in wrong_questions:
+            if wq["knowledge_point_id"]:
+                wq["knowledge_point_title"] = wrong_kp_map.get(wq["knowledge_point_id"], "")
+
+    # ── Weak Points ──
+    weak_progress = (
+        db.query(models.UserKnowledgeProgress)
+        .filter(
+            models.UserKnowledgeProgress.username == user.username,
+            models.UserKnowledgeProgress.mastery_score < 40,
+        )
+    )
+    if normalized_course:
+        weak_progress = weak_progress.filter(models.UserKnowledgeProgress.course_id == normalized_course)
+    weak_progress = weak_progress.order_by(models.UserKnowledgeProgress.mastery_score.asc()).limit(10).all()
+
+    wp_kp_ids = [p.knowledge_point_id for p in weak_progress]
+    wp_kp_map: dict[int, tuple[str, str]] = {}
+    if wp_kp_ids:
+        wp_kps = db.query(models.KnowledgePoint).filter(models.KnowledgePoint.id.in_(wp_kp_ids)).all()
+        for kp in wp_kps:
+            wp_kp_map[kp.id] = (kp.title, kp.course_id)
+
+    weak_points = []
+    for p in weak_progress:
+        title, kp_course = wp_kp_map.get(p.knowledge_point_id, ("", p.course_id))
+        weak_points.append({
+            "knowledge_point_id": p.knowledge_point_id,
+            "course_id": kp_course or p.course_id,
+            "course_name": kp_course or p.course_id,
+            "title": title,
+            "mastery_score": p.mastery_score or 0,
+            "status": p.status or "not_started",
+        })
+
+    # ── Negative Events ──
+    neg_query = (
+        db.query(models.KnowledgeProgressEvent)
+        .filter(
+            models.KnowledgeProgressEvent.username == user.username,
+            models.KnowledgeProgressEvent.delta < 0,
+        )
+    )
+    if normalized_course:
+        neg_query = neg_query.filter(models.KnowledgeProgressEvent.course_id == normalized_course)
+    neg_events = neg_query.order_by(models.KnowledgeProgressEvent.created_at.desc()).limit(20).all()
+
+    neg_kp_ids = [e.knowledge_point_id for e in neg_events]
+    neg_kp_map: dict[int, str] = {}
+    if neg_kp_ids:
+        neg_kps = db.query(models.KnowledgePoint).filter(models.KnowledgePoint.id.in_(neg_kp_ids)).all()
+        for kp in neg_kps:
+            neg_kp_map[kp.id] = kp.title
+
+    negative_events = []
+    for e in neg_events:
+        negative_events.append({
+            "event_id": e.id,
+            "course_id": e.course_id,
+            "knowledge_point_id": e.knowledge_point_id,
+            "knowledge_point_title": neg_kp_map.get(e.knowledge_point_id, ""),
+            "event_type": e.event_type,
+            "delta": e.delta,
+            "reason": e.reason or "",
+            "created_at": serialize_datetime(e.created_at) if e.created_at else None,
+        })
+
+    # ── Review Tasks ──
+    task_query = (
+        db.query(models.LearningTask)
+        .filter(
+            models.LearningTask.username == user.username,
+            models.LearningTask.status != "done",
+            models.LearningTask.knowledge_point_id.isnot(None),
+        )
+    )
+    if normalized_course:
+        task_query = task_query.filter(models.LearningTask.course_id == normalized_course)
+    review_tasks = task_query.order_by(models.LearningTask.updated_at.desc()).limit(10).all()
+
+    task_kp_ids = [t.knowledge_point_id for t in review_tasks if t.knowledge_point_id]
+    task_kp_map: dict[int, str] = {}
+    if task_kp_ids:
+        task_kps = db.query(models.KnowledgePoint).filter(models.KnowledgePoint.id.in_(task_kp_ids)).all()
+        for kp in task_kps:
+            task_kp_map[kp.id] = kp.title
+
+    return {
+        "overview": {
+            "wrong_question_count": len(wrong_questions),
+            "weak_knowledge_count": len(weak_points),
+            "negative_event_count": len(negative_events),
+            "review_task_count": len(review_tasks),
+        },
+        "wrong_questions": wrong_questions,
+        "weak_points": weak_points,
+        "negative_events": negative_events,
+        "review_tasks": [
+            {
+                "task_id": t.id,
+                "course_id": t.course_id or "",
+                "title": t.title,
+                "status": t.status,
+                "knowledge_point_id": t.knowledge_point_id,
+                "knowledge_point_title": task_kp_map.get(t.knowledge_point_id or 0, ""),
+                "due_date": serialize_datetime(t.due_date) if t.due_date else None,
+            }
+            for t in review_tasks
+        ],
+    }
+
+
+class ReviewTaskCreateRequest(BaseModel):
+    username: str
+    course_id: str = ""
+    knowledge_point_id: int | None = None
+    question_id: int | None = None
+    title: str = ""
+    description: str = ""
+
+
+@app.post("/review/tasks/create")
+def create_review_task(req: ReviewTaskCreateRequest, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+    course_id = normalize_subject(req.course_id, default="") or None
+
+    if req.knowledge_point_id:
+        kp = (
+            db.query(models.KnowledgePoint)
+            .filter(
+                models.KnowledgePoint.id == req.knowledge_point_id,
+                models.KnowledgePoint.username == user.username,
+            )
+            .first()
+        )
+        if not kp:
+            raise HTTPException(status_code=404, detail="知识点不存在")
+
+    if req.question_id:
+        question = (
+            db.query(models.Question)
+            .filter(
+                models.Question.id == req.question_id,
+                models.Question.username == user.username,
+            )
+            .first()
+        )
+        if not question:
+            raise HTTPException(status_code=404, detail="题目不存在")
+
+    kp_obj = None
+    q_obj = None
+    if req.knowledge_point_id:
+        kp_obj = db.query(models.KnowledgePoint).filter(models.KnowledgePoint.id == req.knowledge_point_id).first()
+    if req.question_id:
+        q_obj = db.query(models.Question).filter(models.Question.id == req.question_id).first()
+
+    title = (req.title or "").strip()
+    if not title:
+        if kp_obj and q_obj:
+            title = f"复盘：{kp_obj.title} — {q_obj.title}"
+        elif kp_obj:
+            title = f"复习：{kp_obj.title}"
+        elif q_obj:
+            title = f"复盘错题：{q_obj.title}"
+        else:
+            title = "复盘任务"
+
+    now = utc_now()
+    task_course_id = course_id or (kp_obj.course_id if kp_obj else None)
+    task = models.LearningTask(
+        username=user.username,
+        course_id=task_course_id,
+        title=title[:255],
+        description=(req.description or "").strip() or None,
+        task_type="review",
+        status="todo",
+        source="review_center",
+        priority="high",
+        knowledge_point_id=req.knowledge_point_id,
+        related_question_id=req.question_id,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+
+    return {"success": True, "task": serialize_learning_task(task)}
+
+
 LEARNING_TASKS_FROM_DIAGNOSIS_PROMPT = """你是学习任务规划助手。根据用户的编程学习诊断报告和薄弱知识点，生成 3 到 5 个具体可执行的学习任务。
 
 要求：
