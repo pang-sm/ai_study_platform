@@ -73,6 +73,8 @@ class CodeChallengeGenerateRequest(BaseModel):
     language: str = "Python"
     difficulty: str = "基础"
     focus: str = ""
+    diagnosis_summary: str = ""
+    source: str = ""
 
 
 class CodeChallengeOut(BaseModel):

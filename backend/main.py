@@ -4144,6 +4144,23 @@ def generate_code_challenge(req: schemas.CodeChallengeGenerateRequest, db: Sessi
 
     focus_text = f"用户想练习的知识点：{req.focus.strip()}" if req.focus.strip() else ""
 
+    is_diagnosis_driven = (req.source or "").strip() == "diagnosis"
+    diagnosis_context = ""
+    if is_diagnosis_driven and req.diagnosis_summary:
+        diagnosis_summary = req.diagnosis_summary[:2000]
+        diagnosis_context = f"""
+
+以下是最新的编程学习诊断报告摘要。请根据诊断报告中的薄弱点生成一道针对性训练题：
+{diagnosis_summary}
+
+重要要求：
+- 题目必须针对诊断报告中最突出的薄弱点
+- 题目应能训练一个核心知识点
+- 难度不要过高，从基础概念开始训练
+- 不要直接复述诊断报告原文
+- 不要生成过大题目
+- 不要生成需要复杂数学背景的题"""
+
     progress_summary = f"""用户编程进度：
 - 当前课程：{course_id or "未指定"}
 - 编程语言：{language}
@@ -4151,11 +4168,17 @@ def generate_code_challenge(req: schemas.CodeChallengeGenerateRequest, db: Sessi
 - 各语言练习分布：{lang_counts or "暂无"}
 - 最近练习：{recent_titles or "暂无"}
 - 最近 AI 分析摘要：{recent_history_summary or "暂无"}
-{focus_text}"""
+{focus_text}
+{diagnosis_context}"""
+
+    if is_diagnosis_driven:
+        question_text = f"请根据诊断报告中的薄弱点，为上述用户生成一道 {difficulty} 难度的 {language} 针对性训练题。"
+    else:
+        question_text = f"请为上述用户生成一道 {difficulty} 难度的 {language} 编程题。"
 
     user_prompt = f"""{progress_summary}
 
-请为上述用户生成一道 {difficulty} 难度的 {language} 编程题。"""
+{question_text}"""
 
     ai_response = call_deepseek(
         [

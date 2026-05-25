@@ -48,6 +48,7 @@ export default function CodeStudio({
 
   const [diagnosisLoading, setDiagnosisLoading] = useState(false);
   const [diagnosisReport, setDiagnosisReport] = useState(null);
+  const [targetedChallengeLoading, setTargetedChallengeLoading] = useState(false);
 
   const hasUnsaved =
     selectedSession &&
@@ -327,6 +328,45 @@ export default function CodeStudio({
     }
   };
 
+  const generateTargetedChallenge = async () => {
+    if (!user?.username || !diagnosisReport?.summary) return;
+    setTargetedChallengeLoading(true);
+    try {
+      const diagnosisText = diagnosisReport.summary.slice(0, 2000);
+      const res = await fetch(`${API_BASE}/code/challenges/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: user.username,
+          course_id: normalizeSubject(codeCourseId),
+          language,
+          difficulty: "基础",
+          focus: "",
+          diagnosis_summary: diagnosisText,
+          source: "diagnosis",
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.session) {
+        setDiagnosisReport(null);
+        await loadSessions();
+        selectSession(data.session);
+        if (data.challenge) {
+          setCurrentChallenge(data.challenge);
+        }
+        setTip("已生成针对性练习");
+        setTimeout(() => setTip(""), 2000);
+      } else {
+        setTip(data.detail || "针对性出题失败，请重试");
+      }
+    } catch (error) {
+      console.error("Failed to generate targeted challenge:", error);
+      setTip("针对性出题失败，请稍后重试");
+    } finally {
+      setTargetedChallengeLoading(false);
+    }
+  };
+
   return (
     <section className="code-studio-shell">
       {/* Left Panel — Session List */}
@@ -522,6 +562,17 @@ export default function CodeStudio({
                   <div className="code-diagnosis-meta">
                     分析依据：{diagnosisReport.used_sessions_count} 条练习、{diagnosisReport.used_messages_count} 条分析记录、{diagnosisReport.used_challenges_count} 道出题
                   </div>
+                  {!diagnosisReport.data_insufficient && (
+                    <div style={{ marginTop: 12 }}>
+                      <button
+                        className="primary-button compact"
+                        onClick={generateTargetedChallenge}
+                        disabled={targetedChallengeLoading}
+                      >
+                        {targetedChallengeLoading ? "AI 正在根据薄弱点生成练习..." : "根据薄弱点生成练习"}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
