@@ -224,6 +224,21 @@ ADMIN_AUDIT_LOGS_COLUMNS = {
     "created_at": "DATETIME NOT NULL",
 }
 
+LEARNING_REPORTS_COLUMNS = {
+    "username": "VARCHAR(50) NOT NULL",
+    "course_id": "VARCHAR(100)",
+    "course_name": "VARCHAR(100)",
+    "report_type": "VARCHAR(50) NOT NULL",
+    "title": "VARCHAR(200) NOT NULL",
+    "summary": "TEXT",
+    "content": "TEXT NOT NULL",
+    "metrics_json": "TEXT",
+    "suggestions_json": "TEXT",
+    "start_date": "DATETIME",
+    "end_date": "DATETIME",
+    "created_at": "DATETIME NOT NULL",
+}
+
 MATERIAL_KNOWLEDGE_LINKS_COLUMNS = {
     "username": "VARCHAR(50) NOT NULL",
     "course_id": "VARCHAR(100) NOT NULL",
@@ -586,6 +601,31 @@ def ensure_admin_audit_logs_schema(conn):
     ensure_columns(conn, "admin_audit_logs", ADMIN_AUDIT_LOGS_COLUMNS)
 
 
+def ensure_learning_reports_schema(conn):
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS learning_reports (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username VARCHAR(50) NOT NULL,
+                course_id VARCHAR(100),
+                course_name VARCHAR(100),
+                report_type VARCHAR(50) NOT NULL,
+                title VARCHAR(200) NOT NULL,
+                summary TEXT,
+                content TEXT NOT NULL,
+                metrics_json TEXT,
+                suggestions_json TEXT,
+                start_date DATETIME,
+                end_date DATETIME,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+    )
+    ensure_columns(conn, "learning_reports", LEARNING_REPORTS_COLUMNS)
+
+
 def ensure_material_knowledge_links_schema(conn):
     conn.execute(
         text(
@@ -768,6 +808,7 @@ def init_user_profile_schema():
         ensure_material_knowledge_links_schema(conn)
         ensure_ai_usage_logs_schema(conn)
         ensure_admin_audit_logs_schema(conn)
+        ensure_learning_reports_schema(conn)
         ensure_material_chunks_fts(conn)
         normalize_existing_subjects(conn)
 

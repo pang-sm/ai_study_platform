@@ -327,3 +327,21 @@ class AdminAuditLog(Base):
     target_username = Column(String(50), nullable=True)
     detail = Column(Text, nullable=True)
     created_at = Column(DateTime, default=utc_now)
+
+
+class LearningReport(Base):
+    __tablename__ = "learning_reports"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), index=True, nullable=False)
+    course_id = Column(String(100), nullable=True)
+    course_name = Column(String(100), nullable=True)
+    report_type = Column(String(50), nullable=False)
+    title = Column(String(200), nullable=False)
+    summary = Column(Text, nullable=True)
+    content = Column(Text, nullable=False)
+    metrics_json = Column(Text, nullable=True)
+    suggestions_json = Column(Text, nullable=True)
+    start_date = Column(DateTime, nullable=True)
+    end_date = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=utc_now)

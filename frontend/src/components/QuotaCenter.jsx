@@ -13,6 +13,7 @@ const FEATURE_LABELS = {
   material_link_recommend: "资料关联推荐",
   question_generate: "题目生成",
   question_feedback: "题目反馈",
+  learning_report_generate: "学习报告生成",
 };
 
 const PLAN_NAMES = {

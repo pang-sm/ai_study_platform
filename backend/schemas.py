@@ -373,3 +373,31 @@ class AdminUpdatePlanRequest(BaseModel):
     admin_username: str
     plan: str = "free"
     plan_expire_at: str | None = None
+
+
+# ── Learning Reports ──────────────────────────────────────
+
+
+class LearningReportGenerateRequest(BaseModel):
+    username: str
+    report_type: str  # today / weekly / monthly / course / exam / growth
+    course_id: str = ""
+    course_name: str = ""
+    start_date: str | None = None
+    end_date: str | None = None
+    goal: str = ""
+    save_after_generate: bool = False
+
+
+class LearningReportSaveRequest(BaseModel):
+    username: str
+    course_id: str = ""
+    course_name: str = ""
+    report_type: str
+    title: str
+    summary: str = ""
+    content: str
+    metrics: dict | None = None
+    suggestions: list[str] | None = None
+    start_date: str | None = None
+    end_date: str | None = None

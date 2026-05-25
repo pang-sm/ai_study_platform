@@ -13,6 +13,7 @@ const KnowledgeBaseCenter = lazy(() => import("./components/KnowledgeBaseCenter.
 const QuotaCenter = lazy(() => import("./components/QuotaCenter.jsx"));
 const AdminUsageCenter = lazy(() => import("./components/AdminUsageCenter.jsx"));
 const AdminCenter = lazy(() => import("./components/AdminCenter.jsx"));
+const LearningReportCenter = lazy(() => import("./components/LearningReportCenter.jsx"));
 import MarkdownMessage from "./components/MarkdownMessage.jsx";
 import {
   COURSE_OPTIONS,
@@ -2505,6 +2506,11 @@ function App() {
                 <div className="home-entry-title">我的额度</div>
                 <div className="home-entry-desc">查看 AI 使用额度、上传配额和当前套餐信息。</div>
               </button>
+              <button className="home-entry-card" onClick={() => setPage("learningReportCenter")}>
+                <div className="home-entry-icon">📄</div>
+                <div className="home-entry-title">学习报告</div>
+                <div className="home-entry-desc">生成今日总结、周报、月报和课程成长档案。</div>
+              </button>
               {user?.is_admin ? (
                 <button className="home-entry-card" onClick={() => setPage("adminCenter")}>
                   <div className="home-entry-icon">🛡️</div>
@@ -2704,6 +2710,24 @@ function App() {
         </header>
         <Suspense fallback={<div className="empty-state">额度中心加载中...</div>}>
           <QuotaCenter user={user} />
+        </Suspense>
+      </div>
+    );
+  }
+
+  if (page === "learningReportCenter") {
+    return (
+      <div className="app-shell">
+        <header className="workspace-topbar">
+          <div className="workspace-topbar-left">
+            <button className="ghost-button compact" onClick={() => setPage("home")}>
+              返回首页
+            </button>
+            <span className="subject-pill panel-pill">学习报告</span>
+          </div>
+        </header>
+        <Suspense fallback={<div className="empty-state">学习报告加载中...</div>}>
+          <LearningReportCenter user={user} />
         </Suspense>
       </div>
     );

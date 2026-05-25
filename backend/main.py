@@ -742,6 +742,7 @@ PLAN_LIMITS = {
         "material_link_recommend": 5,
         "question_generate": 10,
         "question_feedback": 10,
+        "learning_report_generate": 3,
         "material_upload_count": 30,
         "single_file_size_mb": 20,
     },
@@ -755,6 +756,7 @@ PLAN_LIMITS = {
         "material_link_recommend": 50,
         "question_generate": 100,
         "question_feedback": 100,
+        "learning_report_generate": 30,
         "material_upload_count": 500,
         "single_file_size_mb": 100,
     },
@@ -768,6 +770,7 @@ PLAN_LIMITS = {
         "material_link_recommend": 999999,
         "question_generate": 999999,
         "question_feedback": 999999,
+        "learning_report_generate": 999999,
         "material_upload_count": 999999,
         "single_file_size_mb": 500,
     },
@@ -776,7 +779,7 @@ PLAN_LIMITS = {
 ALL_FEATURES = [
     "chat", "code_analyze", "challenge_generate", "learning_diagnosis",
     "knowledge_generate", "learning_plan_generate", "material_link_recommend",
-    "question_generate", "question_feedback",
+    "question_generate", "question_feedback", "learning_report_generate",
 ]
 
 
@@ -8856,3 +8859,456 @@ def admin_audit_logs(
         "page": page,
         "page_size": page_size,
     }
+
+
+# ── Learning Reports ──────────────────────────────────────
+
+REPORT_TYPE_LABELS = {
+    "today": "今日学习总结",
+    "weekly": "本周学习报告",
+    "monthly": "本月学习报告",
+    "course": "课程学习报告",
+    "exam": "考前复盘报告",
+    "growth": "成长档案概览",
+}
+
+REPORT_PROMPT = """你是一个专业的学习教练。请根据用户的学习数据摘要，生成一份客观、鼓励、可执行的学习报告。
+
+要求：
+1. 使用中文
+2. 结构清晰，包含：学习概况、已完成内容、掌握较好的部分、主要薄弱点、错题复盘、资料使用、AI使用、下一步建议
+3. 语气鼓励但客观，不要虚假表扬
+4. 如果数据较少，明确说明"当前学习数据较少，建议多练习后再次生成报告"
+5. 不要编造不存在的数据
+6. 建议要具体可执行
+7. content 总长度控制在 2000 字以内
+
+请只输出一个 JSON 对象，不要加 ```json 代码块：
+{"title": "报告标题", "summary": "一句话摘要", "content": "完整报告正文", "suggestions": ["建议1", "建议2"]}"""
+
+
+def _resolve_date_range(report_type: str, start_date: str | None, end_date: str | None):
+    now = utc_now()
+    if start_date:
+        start = datetime.fromisoformat(str(start_date).replace("Z", "+00:00"))
+    elif report_type == "today":
+        start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    elif report_type == "weekly":
+        start = now - timedelta(days=7)
+    elif report_type == "monthly":
+        start = now - timedelta(days=30)
+    elif report_type == "growth":
+        start = now - timedelta(days=90)
+    else:
+        start = now - timedelta(days=30)
+
+    if end_date:
+        end = datetime.fromisoformat(str(end_date).replace("Z", "+00:00"))
+    else:
+        end = now
+
+    return start, end
+
+
+def build_learning_report_data(username: str, report_type: str, course_id: str,
+                                start: datetime, end: datetime, db: Session):
+    data = {
+        "report_type": report_type,
+        "report_type_label": REPORT_TYPE_LABELS.get(report_type, report_type),
+        "username": username,
+        "course_id": course_id or "全部课程",
+        "start_date": start.isoformat(),
+        "end_date": end.isoformat(),
+    }
+
+    # ── Tasks ──
+    task_query = db.query(models.LearningTask).filter(
+        models.LearningTask.username == username,
+        models.LearningTask.created_at >= start,
+        models.LearningTask.created_at <= end,
+    )
+    if course_id:
+        task_query = task_query.filter(models.LearningTask.course_id == course_id)
+    tasks = task_query.all()
+    completed_tasks = [t for t in tasks if t.status == "done"]
+    task_type_dist = {}
+    for t in tasks:
+        tt = t.task_type or "other"
+        task_type_dist[tt] = task_type_dist.get(tt, 0) + 1
+    data["tasks"] = {
+        "total": len(tasks),
+        "completed": len(completed_tasks),
+        "todo": sum(1 for t in tasks if t.status == "todo"),
+        "in_progress": sum(1 for t in tasks if t.status == "in_progress"),
+        "type_distribution": task_type_dist,
+        "recent_titles": [t.title for t in tasks[-10:]],
+    }
+
+    # ── Knowledge Points ──
+    kp_query = db.query(models.UserKnowledgeProgress).filter(
+        models.UserKnowledgeProgress.username == username,
+    )
+    if course_id:
+        kp_query = kp_query.filter(models.UserKnowledgeProgress.course_id == course_id)
+    kp_progresses = kp_query.all()
+    mastered = [p for p in kp_progresses if p.status == "mastered"]
+    weak_points = sorted(
+        [p for p in kp_progresses if p.mastery_score is not None and p.mastery_score < 50],
+        key=lambda p: p.mastery_score or 0,
+    )[:5]
+    avg_mastery = round(sum(p.mastery_score or 0 for p in kp_progresses) / max(1, len(kp_progresses)), 1)
+
+    # Progress events for improvements
+    improvements = (
+        db.query(models.KnowledgeProgressEvent)
+        .filter(
+            models.KnowledgeProgressEvent.username == username,
+            models.KnowledgeProgressEvent.delta > 0,
+            models.KnowledgeProgressEvent.created_at >= start,
+            models.KnowledgeProgressEvent.created_at <= end,
+        )
+        .order_by(models.KnowledgeProgressEvent.delta.desc())
+        .limit(5)
+        .all()
+    )
+
+    data["knowledge"] = {
+        "total_points": len(kp_progresses),
+        "mastered": len(mastered),
+        "reviewing": sum(1 for p in kp_progresses if p.status == "reviewing"),
+        "learning": sum(1 for p in kp_progresses if p.status == "learning"),
+        "not_started": sum(1 for p in kp_progresses if p.status == "not_started"),
+        "average_mastery": avg_mastery,
+        "weak_points": [{"title": _kp_title(wp, db), "score": wp.mastery_score} for wp in weak_points],
+        "improvements": [{"reason": imp.reason or "", "delta": imp.delta} for imp in improvements],
+    }
+
+    # ── Questions & Attempts ──
+    attempt_query = db.query(models.QuestionAttempt).filter(
+        models.QuestionAttempt.username == username,
+        models.QuestionAttempt.created_at >= start,
+        models.QuestionAttempt.created_at <= end,
+    )
+    if course_id:
+        attempt_query = attempt_query.filter(models.QuestionAttempt.course_id == course_id)
+    attempts = attempt_query.all()
+    correct_attempts = [a for a in attempts if a.self_result == "correct"]
+    wrong_attempts = [a for a in attempts if a.self_result == "wrong"]
+    data["practice"] = {
+        "attempt_count": len(attempts),
+        "correct_count": len(correct_attempts),
+        "wrong_count": len(wrong_attempts),
+        "correct_rate": round(len(correct_attempts) / max(1, len(attempts)), 2),
+        "recent_wrong": [
+            {"question_id": a.question_id, "user_answer": str(a.user_answer or "")[:100]}
+            for a in wrong_attempts[-5:]
+        ],
+    }
+
+    # ── Materials ──
+    mat_query = db.query(models.StudyMaterial).filter(
+        models.StudyMaterial.username == username,
+        models.StudyMaterial.is_deleted.is_(False),
+        models.StudyMaterial.created_at >= start,
+        models.StudyMaterial.created_at <= end,
+    )
+    if course_id:
+        mat_query = mat_query.filter(models.StudyMaterial.subject == course_id)
+    materials = mat_query.all()
+    linked_count = 0
+    if materials:
+        mat_ids = [m.id for m in materials]
+        linked_count = (
+            db.query(models.MaterialKnowledgeLink)
+            .filter(models.MaterialKnowledgeLink.material_id.in_(mat_ids))
+            .distinct(models.MaterialKnowledgeLink.material_id)
+            .count()
+        )
+    data["materials"] = {
+        "uploaded": len(materials),
+        "linked_to_kp": linked_count,
+    }
+
+    # ── Code Sessions ──
+    code_query = db.query(models.CodeSession).filter(
+        models.CodeSession.username == username,
+        models.CodeSession.created_at >= start,
+        models.CodeSession.created_at <= end,
+    )
+    if course_id:
+        code_query = code_query.filter(models.CodeSession.course_id == course_id)
+    code_sessions = code_query.all()
+    data["code"] = {
+        "session_count": len(code_sessions),
+        "languages": list(set(s.language for s in code_sessions if s.language)),
+    }
+
+    # ── AI Usage ──
+    ai_query = db.query(models.AiUsageLog).filter(
+        models.AiUsageLog.username == username,
+        models.AiUsageLog.status == "success",
+        models.AiUsageLog.created_at >= start,
+        models.AiUsageLog.created_at <= end,
+    )
+    ai_logs = ai_query.all()
+    ai_by_feature = {}
+    for log in ai_logs:
+        f = log.feature or "other"
+        ai_by_feature[f] = ai_by_feature.get(f, 0) + 1
+    data["ai_usage"] = {
+        "total_calls": len(ai_logs),
+        "by_feature": ai_by_feature,
+    }
+
+    return data
+
+
+def _kp_title(kp_progress, db):
+    kp = db.query(models.KnowledgePoint).filter(
+        models.KnowledgePoint.id == kp_progress.knowledge_point_id
+    ).first()
+    return kp.title if kp else f"KP-{kp_progress.knowledge_point_id}"
+
+
+@app.post("/learning/reports/generate-preview")
+def generate_report_preview(req: schemas.LearningReportGenerateRequest, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+
+    check_usage_limit(user.username, "learning_report_generate", db)
+
+    report_type = (req.report_type or "weekly").strip()
+    if report_type not in REPORT_TYPE_LABELS:
+        raise HTTPException(status_code=400, detail=f"无效的报告类型：{report_type}")
+
+    course_id = normalize_subject(req.course_id, default="")
+    start, end = _resolve_date_range(report_type, req.start_date, req.end_date)
+
+    # Build data summary
+    report_data = build_learning_report_data(
+        user.username, report_type, course_id, start, end, db
+    )
+
+    # Build AI prompt
+    user_prompt = f"""报告类型：{report_data['report_type_label']}
+时间范围：{report_data['start_date']} 至 {report_data['end_date']}
+课程：{report_data['course_id']}
+{("学习目标：" + req.goal) if req.goal.strip() else ""}
+
+【学习任务】
+总数：{report_data['tasks']['total']}，完成：{report_data['tasks']['completed']}，待办：{report_data['tasks']['todo']}，进行中：{report_data['tasks']['in_progress']}
+任务类型分布：{json.dumps(report_data['tasks']['type_distribution'], ensure_ascii=False)}
+最近任务：{', '.join(report_data['tasks']['recent_titles'][-5:]) if report_data['tasks']['recent_titles'] else '无'}
+
+【知识点掌握】
+总知识点：{report_data['knowledge']['total_points']}，已掌握：{report_data['knowledge']['mastered']}，复习中：{report_data['knowledge']['reviewing']}，学习中：{report_data['knowledge']['learning']}，未开始：{report_data['knowledge']['not_started']}
+平均掌握度：{report_data['knowledge']['average_mastery']}%
+薄弱知识点：{json.dumps(report_data['knowledge']['weak_points'], ensure_ascii=False) if report_data['knowledge']['weak_points'] else '暂无'}
+近期进步：{json.dumps(report_data['knowledge']['improvements'][:5], ensure_ascii=False) if report_data['knowledge']['improvements'] else '暂无'}
+
+【练习与错题】
+作答次数：{report_data['practice']['attempt_count']}，正确率：{round(report_data['practice']['correct_rate'] * 100)}%
+
+【资料使用】
+上传资料：{report_data['materials']['uploaded']} 份，已关联知识点：{report_data['materials']['linked_to_kp']} 份
+
+【编程学习】
+代码练习次数：{report_data['code']['session_count']}
+
+【AI 使用】
+总调用：{report_data['ai_usage']['total_calls']} 次
+按功能分布：{json.dumps(report_data['ai_usage']['by_feature'], ensure_ascii=False)}
+
+请根据以上数据生成学习报告。"""
+
+    try:
+        raw = call_deepseek([
+            {"role": "system", "content": REPORT_PROMPT},
+            {"role": "user", "content": user_prompt},
+        ])
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="AI 报告生成失败，请稍后重试") from exc
+
+    record_ai_usage(user.username, "learning_report_generate", db,
+                    estimated_tokens=estimate_tokens_from_text(user_prompt) + estimate_tokens_from_text(raw),
+                    status="success")
+
+    # Parse JSON
+    text = raw.strip()
+    if text.startswith("```"):
+        lines = text.split("\n")
+        end_idx = len(lines)
+        for i in range(len(lines) - 1, 0, -1):
+            if lines[i].strip() == "```":
+                end_idx = i
+                break
+        text = "\n".join(lines[1:end_idx]).strip()
+    json_start = text.find("{")
+    json_end = text.rfind("}")
+    if json_start == -1 or json_end == -1:
+        raise HTTPException(status_code=500, detail="AI 返回格式异常，未找到 JSON 对象")
+
+    try:
+        result = json.loads(text[json_start:json_end + 1])
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=500, detail=f"AI 返回 JSON 解析失败：{str(exc)}")
+
+    title = str(result.get("title") or "").strip() or f"{REPORT_TYPE_LABELS.get(report_type, report_type)}"
+    summary = str(result.get("summary") or "").strip()
+    content = str(result.get("content") or "").strip()
+    suggestions = result.get("suggestions", [])
+    if not isinstance(suggestions, list):
+        suggestions = []
+
+    if not content:
+        raise HTTPException(status_code=500, detail="AI 未能生成报告内容，请稍后重试")
+
+    if len(content) > 8000:
+        content = content[:8000] + "..."
+
+    metrics = {
+        "task_completed_count": report_data["tasks"]["completed"],
+        "question_attempt_count": report_data["practice"]["attempt_count"],
+        "correct_rate": report_data["practice"]["correct_rate"],
+        "material_count": report_data["materials"]["uploaded"],
+        "knowledge_point_count": report_data["knowledge"]["total_points"],
+        "mastered_point_count": report_data["knowledge"]["mastered"],
+        "weak_point_count": len(report_data["knowledge"]["weak_points"]),
+        "ai_chat_count": report_data["ai_usage"]["total_calls"],
+    }
+
+    return {
+        "title": title,
+        "summary": summary,
+        "content": content,
+        "metrics": metrics,
+        "suggestions": suggestions,
+        "start_date": serialize_datetime(start),
+        "end_date": serialize_datetime(end),
+    }
+
+
+@app.post("/learning/reports/save")
+def save_report(req: schemas.LearningReportSaveRequest, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+
+    report = models.LearningReport(
+        username=user.username,
+        course_id=normalize_subject(req.course_id, default="") or None,
+        course_name=(req.course_name or "").strip()[:100] or None,
+        report_type=(req.report_type or "weekly").strip(),
+        title=(req.title or "未命名报告").strip()[:200],
+        summary=(req.summary or "").strip()[:500],
+        content=req.content.strip(),
+        metrics_json=json.dumps(req.metrics, ensure_ascii=False) if req.metrics else None,
+        suggestions_json=json.dumps(req.suggestions, ensure_ascii=False) if req.suggestions else None,
+        start_date=req.start_date,
+        end_date=req.end_date,
+    )
+    db.add(report)
+    db.commit()
+    db.refresh(report)
+
+    return {"success": True, "report_id": report.id}
+
+
+@app.get("/learning/reports")
+def list_reports(
+    username: str,
+    course_id: str = "",
+    report_type: str = "",
+    page: int = 1,
+    page_size: int = 20,
+    db: Session = Depends(get_db),
+):
+    user = get_user_by_username(username, db)
+
+    page = max(1, page)
+    page_size = min(100, max(1, page_size))
+
+    query = db.query(models.LearningReport).filter(models.LearningReport.username == user.username)
+    if course_filter := normalize_subject(course_id, default=""):
+        query = query.filter(models.LearningReport.course_id == course_filter)
+    if type_filter := report_type.strip():
+        query = query.filter(models.LearningReport.report_type == type_filter)
+
+    total = query.count()
+    reports = query.order_by(models.LearningReport.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+
+    return {
+        "items": [
+            {
+                "id": r.id,
+                "title": r.title,
+                "summary": r.summary,
+                "report_type": r.report_type,
+                "course_id": r.course_id,
+                "course_name": r.course_name,
+                "start_date": serialize_datetime(r.start_date),
+                "end_date": serialize_datetime(r.end_date),
+                "created_at": serialize_datetime(r.created_at),
+            }
+            for r in reports
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
+
+
+@app.get("/learning/reports/{report_id}")
+def get_report_detail(report_id: int, username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    report = (
+        db.query(models.LearningReport)
+        .filter(models.LearningReport.id == report_id, models.LearningReport.username == user.username)
+        .first()
+    )
+    if not report:
+        raise HTTPException(status_code=404, detail="报告不存在")
+
+    metrics = None
+    if report.metrics_json:
+        try:
+            metrics = json.loads(report.metrics_json)
+        except (json.JSONDecodeError, TypeError):
+            metrics = None
+    suggestions = None
+    if report.suggestions_json:
+        try:
+            suggestions = json.loads(report.suggestions_json)
+        except (json.JSONDecodeError, TypeError):
+            suggestions = None
+
+    return {
+        "id": report.id,
+        "title": report.title,
+        "summary": report.summary,
+        "content": report.content,
+        "report_type": report.report_type,
+        "course_id": report.course_id,
+        "course_name": report.course_name,
+        "metrics": metrics,
+        "suggestions": suggestions,
+        "start_date": serialize_datetime(report.start_date),
+        "end_date": serialize_datetime(report.end_date),
+        "created_at": serialize_datetime(report.created_at),
+    }
+
+
+@app.delete("/learning/reports/{report_id}")
+def delete_report(report_id: int, username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    report = (
+        db.query(models.LearningReport)
+        .filter(models.LearningReport.id == report_id, models.LearningReport.username == user.username)
+        .first()
+    )
+    if not report:
+        raise HTTPException(status_code=404, detail="报告不存在")
+
+    db.delete(report)
+    db.commit()
+
+    return {"success": True, "message": "报告已删除"}
