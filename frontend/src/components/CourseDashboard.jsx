@@ -115,9 +115,6 @@ export default function CourseDashboard({
           <section className="dashboard-card dashboard-task-card">
             <div className="panel-title-row">
               <h3>学习任务</h3>
-              <button className="tiny-button" onClick={onOpenTaskCenter}>
-                进入任务中心
-              </button>
             </div>
             {(taskSummary.total ?? 0) > 0 ? (
               <>
@@ -139,6 +136,13 @@ export default function CourseDashboard({
                     ))}
                   </div>
                 )}
+                <button
+                  className="primary-button compact"
+                  onClick={onOpenTaskCenter}
+                  style={{ marginTop: 12 }}
+                >
+                  进入任务中心
+                </button>
               </>
             ) : (
               <div className="empty-inline">
@@ -209,18 +213,11 @@ export default function CourseDashboard({
                   </div>
                 )}
                 <button
-                  className="ghost-button compact"
+                  className="primary-button compact"
                   onClick={onOpenCodeStudio}
-                  style={{ marginTop: 8 }}
+                  style={{ marginTop: 12 }}
                 >
-                  去编程学习助手
-                </button>
-                <button
-                  className="ghost-button compact"
-                  onClick={onOpenCodeStudio}
-                  style={{ marginTop: 8, marginLeft: 8, color: "#0f766e" }}
-                >
-                  查看编程学习诊断
+                  进入编程学习助手
                 </button>
               </>
             ) : (
@@ -231,7 +228,7 @@ export default function CourseDashboard({
                   onClick={onOpenCodeStudio}
                   style={{ marginTop: 8 }}
                 >
-                  去编程学习助手
+                  进入编程学习助手
                 </button>
               </div>
             )}

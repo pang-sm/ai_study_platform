@@ -3410,7 +3410,6 @@ function App() {
           <section className="chat-panel chat-panel--wide workspace-materials-panel">
             <div className="panel-header panel-header--chat workspace-materials-header">
               <div>
-                <div className="subject-pill panel-pill">当前课程资料</div>
                 <h2>课程资料 · {getSubjectLabel(subject)}</h2>
               </div>
               <div className="workspace-materials-header-actions">
