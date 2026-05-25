@@ -4018,3 +4018,73 @@ select.field:focus {
 .dashboard-practice-card {
   /* reuses existing dashboard card */
 }
+
+/* ── AI Knowledge Point Generation Preview ──────────── */
+
+.kp-preview-info {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+  color: #64748b;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.kp-preview-tree {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.kp-preview-parent {
+  margin-bottom: 14px;
+}
+
+.kp-preview-parent-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.kp-preview-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #7c3aed;
+  flex-shrink: 0;
+}
+
+.kp-preview-dot--child {
+  width: 6px;
+  height: 6px;
+  background: #a78bfa;
+  margin-top: 6px;
+}
+
+.kp-preview-desc {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-top: 2px;
+  padding-left: 16px;
+}
+
+.kp-preview-children {
+  margin-top: 6px;
+  padding-left: 16px;
+}
+
+.kp-preview-child {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.kp-preview-child-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #475569;
+}

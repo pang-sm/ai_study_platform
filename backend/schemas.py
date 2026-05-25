@@ -304,3 +304,22 @@ class GenerateQuestionRequest(BaseModel):
     type: str = "choice"
     difficulty: str = "基础"
     count: int = 1
+
+
+# ── AI Knowledge Point Generation ────────────────────────
+
+
+class KnowledgePointGeneratePreviewRequest(BaseModel):
+    username: str
+    course_id: str = ""
+    course_name: str = ""
+    mode: str = "course_name"
+    max_top_points: int = 8
+    max_children_per_point: int = 6
+
+
+class KnowledgePointImportRequest(BaseModel):
+    username: str
+    course_id: str
+    items: list
+    import_mode: str = "append"

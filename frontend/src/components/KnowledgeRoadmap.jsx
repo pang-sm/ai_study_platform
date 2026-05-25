@@ -24,6 +24,16 @@ export default function KnowledgeRoadmap({
   const [saving, setSaving] = useState(false);
   const [actionId, setActionId] = useState(null);
 
+  // AI generation flow
+  const [showGenerateModal, setShowGenerateModal] = useState(false);
+  const [genMode, setGenMode] = useState("course_name");
+  const [genImportMode, setGenImportMode] = useState("append");
+  const [genPreview, setGenPreview] = useState(null);
+  const [genLoading, setGenLoading] = useState(false);
+  const [genError, setGenError] = useState("");
+  const [genStep, setGenStep] = useState("settings"); // settings | preview
+  const [importing, setImporting] = useState(false);
+
   // Create form
   const [createTitle, setCreateTitle] = useState("");
   const [createDescription, setCreateDescription] = useState("");
@@ -207,6 +217,87 @@ export default function KnowledgeRoadmap({
     }
   };
 
+  const openGenerateModal = () => {
+    setGenMode("course_name");
+    setGenImportMode("append");
+    setGenPreview(null);
+    setGenError("");
+    setGenStep("settings");
+    setShowGenerateModal(true);
+  };
+
+  const generatePreview = async () => {
+    setGenLoading(true);
+    setGenError("");
+    try {
+      const body = {
+        username: user.username,
+        course_id: course,
+        course_name: getSubjectLabel(course),
+        mode: genMode,
+      };
+      const res = await fetch(`${API_BASE}/knowledge-points/generate-preview`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (res.ok && data.items && data.items.length > 0) {
+        setGenPreview(data);
+        setGenStep("preview");
+      } else {
+        setGenError(data.detail || "生成失败");
+      }
+    } catch (e) {
+      setGenError("网络错误：" + (e.message || "请重试"));
+    } finally {
+      setGenLoading(false);
+    }
+  };
+
+  const importGenerated = async () => {
+    if (genImportMode === "replace") {
+      if (!window.confirm("替换会删除当前课程已有知识点路线图，确定继续吗？")) return;
+    }
+    setImporting(true);
+    setGenError("");
+    try {
+      const res = await fetch(`${API_BASE}/knowledge-points/import-generated`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: user.username,
+          course_id: course,
+          items: genPreview.items,
+          import_mode: genImportMode,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setShowGenerateModal(false);
+        await loadPoints();
+        alert(data.message || "导入成功");
+      } else {
+        setGenError(data.detail || "导入失败");
+      }
+    } catch (e) {
+      setGenError("网络错误：" + (e.message || "请重试"));
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const countPreviewItems = (items) => {
+    let count = 0;
+    items.forEach((item) => {
+      count += 1;
+      if (item.children && item.children.length > 0) {
+        count += item.children.length;
+      }
+    });
+    return count;
+  };
+
   const getMasteryColor = (score) => {
     if (score >= 80) return "#059669";
     if (score >= 60) return "#d97706";
@@ -323,15 +414,24 @@ export default function KnowledgeRoadmap({
     <section className="dashboard-card dashboard-kp-card">
       <div className="panel-title-row">
         <h3>知识点路线图</h3>
-        <button
-          className="tiny-button"
-          onClick={() => {
-            resetCreateForm();
-            setShowCreateModal(true);
-          }}
-        >
-          新增知识点
-        </button>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button
+            className="tiny-button"
+            onClick={openGenerateModal}
+            style={{ color: "#7c3aed" }}
+          >
+            AI 生成路线图
+          </button>
+          <button
+            className="tiny-button"
+            onClick={() => {
+              resetCreateForm();
+              setShowCreateModal(true);
+            }}
+          >
+            新增知识点
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -467,6 +567,160 @@ export default function KnowledgeRoadmap({
               >
                 {saving ? "保存中..." : "保存"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Generate Modal */}
+      {showGenerateModal && (
+        <div className="modal-overlay" onClick={() => setShowGenerateModal(false)}>
+          <div className="modal-card modal-card--wide" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>AI 生成知识点路线图</h3>
+              <button className="modal-close" onClick={() => setShowGenerateModal(false)}>
+                &times;
+              </button>
+            </div>
+            <div className="task-modal-body">
+              {genError && (
+                <div className="ai-feedback-box" style={{ marginBottom: 12, background: "#fef2f2", border: "1px solid #fecaca" }}>
+                  <span style={{ color: "#dc2626" }}>{genError}</span>
+                </div>
+              )}
+
+              {genStep === "settings" && (
+                <>
+                  <label className="field-label">课程</label>
+                  <input className="field" value={getSubjectLabel(course)} disabled />
+
+                  <label className="field-label">生成方式</label>
+                  <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+                    <label className="question-option-label" style={{ flex: 1 }}>
+                      <input
+                        type="radio"
+                        name="gen_mode"
+                        value="course_name"
+                        checked={genMode === "course_name"}
+                        onChange={(e) => setGenMode(e.target.value)}
+                      />
+                      <span>根据课程名称生成</span>
+                    </label>
+                    <label className="question-option-label" style={{ flex: 1 }}>
+                      <input
+                        type="radio"
+                        name="gen_mode"
+                        value="materials"
+                        checked={genMode === "materials"}
+                        onChange={(e) => setGenMode(e.target.value)}
+                      />
+                      <span>根据课程资料生成</span>
+                    </label>
+                  </div>
+
+                  <label className="field-label">导入方式</label>
+                  <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+                    <label className="question-option-label" style={{ flex: 1 }}>
+                      <input
+                        type="radio"
+                        name="gen_import_mode"
+                        value="append"
+                        checked={genImportMode === "append"}
+                        onChange={(e) => setGenImportMode(e.target.value)}
+                      />
+                      <span>追加到现有路线图</span>
+                    </label>
+                    <label className="question-option-label" style={{ flex: 1 }}>
+                      <input
+                        type="radio"
+                        name="gen_import_mode"
+                        value="replace"
+                        checked={genImportMode === "replace"}
+                        onChange={(e) => setGenImportMode(e.target.value)}
+                      />
+                      <span>替换现有路线图</span>
+                    </label>
+                  </div>
+
+                  {genImportMode === "replace" && (
+                    <p style={{ color: "#dc2626", fontSize: 13, marginBottom: 12 }}>
+                      警告：替换将删除当前课程所有已有知识点，不可恢复。
+                    </p>
+                  )}
+                </>
+              )}
+
+              {genStep === "preview" && genPreview && (
+                <>
+                  <div className="kp-preview-info">
+                    <span>生成方式：{genPreview.source === "materials" ? "根据课程资料" : "根据课程名称"}</span>
+                    <span>共 {countPreviewItems(genPreview.items)} 个知识点</span>
+                  </div>
+                  <div className="kp-preview-tree">
+                    {genPreview.items.map((item, idx) => (
+                      <div key={idx} className="kp-preview-parent">
+                        <div className="kp-preview-parent-title">
+                          <span className="kp-preview-dot" />
+                          {item.title}
+                        </div>
+                        {item.description && (
+                          <div className="kp-preview-desc">{item.description}</div>
+                        )}
+                        {item.children && item.children.length > 0 && (
+                          <div className="kp-preview-children">
+                            {item.children.map((child, cIdx) => (
+                              <div key={cIdx} className="kp-preview-child">
+                                <span className="kp-preview-dot kp-preview-dot--child" />
+                                <div>
+                                  <div className="kp-preview-child-title">{child.title}</div>
+                                  {child.description && (
+                                    <div className="kp-preview-desc">{child.description}</div>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="task-form-actions">
+              <button
+                className="ghost-button compact"
+                onClick={() => setShowGenerateModal(false)}
+              >
+                取消
+              </button>
+              {genStep === "settings" && (
+                <button
+                  className="primary-button compact"
+                  disabled={genLoading}
+                  onClick={generatePreview}
+                >
+                  {genLoading ? "生成中..." : "生成预览"}
+                </button>
+              )}
+              {genStep === "preview" && (
+                <>
+                  <button
+                    className="ghost-button compact"
+                    onClick={() => { setGenStep("settings"); setGenError(""); }}
+                    disabled={importing}
+                  >
+                    重新生成
+                  </button>
+                  <button
+                    className="primary-button compact"
+                    disabled={importing}
+                    onClick={importGenerated}
+                  >
+                    {importing ? "导入中..." : "确认导入"}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>

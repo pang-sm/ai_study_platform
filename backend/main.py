@@ -5288,6 +5288,256 @@ def update_knowledge_point_progress(
     }
 
 
+# ── AI Knowledge Point Generation ─────────────────────────────────
+
+
+KP_GENERATION_PROMPT = """你是课程大纲设计助手。根据给定的课程名称或课程资料摘要，为该课程生成一份结构化的知识点路线图。
+
+要求：
+1. 顶层知识点 4-8 个，覆盖课程核心主题
+2. 每个顶层知识点下 2-5 个子知识点
+3. 最多两层结构（顶层 + 子层），不要生成过深层级
+4. 标题简洁（不超过 15 字），描述具体（不超过 80 字）
+5. 知识点按学习逻辑顺序排列
+6. 如果根据资料生成，要贴合资料内容
+7. 如果根据课程名称生成，要符合该课程常见教学结构
+8. 不要生成重复或高度重叠的知识点
+9. 不要编造过于细碎或无关的知识点
+10. 输出严格 JSON，不要 Markdown
+
+输出格式：
+{
+  "items": [
+    {
+      "title": "知识点标题",
+      "description": "知识点描述说明",
+      "children": [
+        {"title": "子知识点标题", "description": "子知识点描述"}
+      ]
+    }
+  ]
+}"""
+
+
+@app.post("/knowledge-points/generate-preview")
+def generate_knowledge_points_preview(req: schemas.KnowledgePointGeneratePreviewRequest, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+    course_id = normalize_subject(req.course_id, default="")
+    if not course_id:
+        raise HTTPException(status_code=400, detail="course_id 不能为空")
+
+    mode = (req.mode or "course_name").strip()
+    if mode not in ("course_name", "materials"):
+        raise HTTPException(status_code=400, detail="mode 必须是 course_name 或 materials")
+
+    max_top = max(3, min(req.max_top_points or 8, 12))
+    max_children = max(2, min(req.max_children_per_point or 6, 8))
+
+    course_name = (req.course_name or "").strip() or course_id
+
+    if mode == "materials":
+        materials = (
+            db.query(models.StudyMaterial)
+            .filter(
+                models.StudyMaterial.username == user.username,
+                models.StudyMaterial.subject == course_id,
+                models.StudyMaterial.is_deleted.is_(False),
+            )
+            .order_by(models.StudyMaterial.created_at.desc())
+            .limit(8)
+            .all()
+        )
+        if not materials:
+            raise HTTPException(
+                status_code=400,
+                detail="当前课程还没有可用于生成路线图的资料，请先上传资料或改用课程名称生成。",
+            )
+
+        material_snippets = []
+        for mat in materials:
+            snippet = f"【{mat.original_filename}】"
+            text = (mat.extracted_text or "").strip()
+            if text:
+                snippet += "\n" + text[:1000]
+            if mat.summary and (mat.summary or "").strip():
+                snippet += "\n摘要：" + (mat.summary or "").strip()[:300]
+            material_snippets.append(snippet)
+
+        context_text = "\n\n---\n\n".join(material_snippets)
+        prompt_hint = f"课程：{course_name}\n\n以下是该课程已有资料的内容摘要：\n\n{context_text}\n\n请根据以上资料内容生成该课程的知识点路线图。知识点必须贴合资料实际内容，不要凭空编造。顶层最多 {max_top} 个知识点，每个顶层知识点最多 {max_children} 个子知识点。"
+    else:
+        prompt_hint = f"课程名称：{course_name}\n\n请根据该课程名称生成一份合理的知识点路线图。顶层最多 {max_top} 个知识点，每个顶层知识点最多 {max_children} 个子知识点。"
+
+    try:
+        ai_response = call_deepseek(
+            [
+                {"role": "system", "content": KP_GENERATION_PROMPT},
+                {"role": "user", "content": prompt_hint},
+            ]
+        )
+        # Parse JSON
+        json_match = re.search(r"\{[\s\S]*\}", ai_response)
+        if json_match:
+            result = json.loads(json_match.group(0))
+        else:
+            result = json.loads(ai_response)
+
+        items = result.get("items", [])
+        if not isinstance(items, list) or len(items) == 0:
+            raise ValueError("AI 返回的知识点列表为空")
+
+        # Filter and deduplicate
+        seen_titles = set()
+        clean_items = []
+        for item in items:
+            title = str(item.get("title", "")).strip()
+            if not title or title in seen_titles:
+                continue
+            seen_titles.add(title)
+            desc = str(item.get("description", "")).strip()[:200]
+            children = []
+            child_seen = set()
+            for child in item.get("children", [])[:max_children]:
+                c_title = str(child.get("title", "")).strip()
+                if not c_title or c_title in child_seen or c_title == title:
+                    continue
+                child_seen.add(c_title)
+                c_desc = str(child.get("description", "")).strip()[:200]
+                children.append({"title": c_title, "description": c_desc})
+            clean_items.append({"title": title, "description": desc, "children": children})
+
+        if not clean_items:
+            raise ValueError("过滤后没有有效知识点")
+
+        return {"success": True, "items": clean_items, "source": mode}
+
+    except (json.JSONDecodeError, ValueError, KeyError) as e:
+        raise HTTPException(status_code=500, detail=f"AI 生成结果解析失败，请重试：{str(e)}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI 生成请求失败：{str(e)}")
+
+
+@app.post("/knowledge-points/import-generated")
+def import_generated_knowledge_points(req: schemas.KnowledgePointImportRequest, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+    course_id = normalize_subject(req.course_id, default="")
+    if not course_id:
+        raise HTTPException(status_code=400, detail="course_id 不能为空")
+
+    items = req.items
+    if not isinstance(items, list) or len(items) == 0:
+        raise HTTPException(status_code=400, detail="items 不能为空")
+
+    import_mode = (req.import_mode or "append").strip()
+    if import_mode not in ("append", "replace"):
+        import_mode = "append"
+
+    if import_mode == "replace":
+        # Delete existing points and progress for this user + course
+        existing_points = (
+            db.query(models.KnowledgePoint)
+            .filter(
+                models.KnowledgePoint.username == user.username,
+                models.KnowledgePoint.course_id == course_id,
+            )
+            .all()
+        )
+        existing_ids = [p.id for p in existing_points]
+        if existing_ids:
+            db.query(models.UserKnowledgeProgress).filter(
+                models.UserKnowledgeProgress.knowledge_point_id.in_(existing_ids),
+                models.UserKnowledgeProgress.username == user.username,
+            ).delete(synchronize_session=False)
+            db.query(models.KnowledgePoint).filter(
+                models.KnowledgePoint.id.in_(existing_ids),
+                models.KnowledgePoint.username == user.username,
+            ).delete(synchronize_session=False)
+        db.flush()
+
+    # Get the current max order_index for appending
+    max_order = (
+        db.query(models.KnowledgePoint)
+        .filter(
+            models.KnowledgePoint.username == user.username,
+            models.KnowledgePoint.course_id == course_id,
+        )
+        .count()
+    )
+
+    created_count = 0
+    for idx, item in enumerate(items):
+        title = str(item.get("title", "")).strip()
+        if not title:
+            continue
+        description = str(item.get("description", "")).strip()[:255]
+
+        parent = models.KnowledgePoint(
+            username=user.username,
+            course_id=course_id,
+            parent_id=None,
+            title=title[:255],
+            description=description,
+            order_index=max_order + idx,
+            level=1,
+        )
+        db.add(parent)
+        db.flush()
+
+        progress = models.UserKnowledgeProgress(
+            username=user.username,
+            course_id=course_id,
+            knowledge_point_id=parent.id,
+            mastery_score=0,
+            status="not_started",
+            practice_count=0,
+            task_count=0,
+        )
+        db.add(progress)
+        created_count += 1
+
+        children = item.get("children", [])
+        if isinstance(children, list):
+            for c_idx, child in enumerate(children):
+                c_title = str(child.get("title", "")).strip()
+                if not c_title:
+                    continue
+                c_description = str(child.get("description", "")).strip()[:255]
+
+                child_point = models.KnowledgePoint(
+                    username=user.username,
+                    course_id=course_id,
+                    parent_id=parent.id,
+                    title=c_title[:255],
+                    description=c_description,
+                    order_index=c_idx,
+                    level=2,
+                )
+                db.add(child_point)
+                db.flush()
+
+                child_progress = models.UserKnowledgeProgress(
+                    username=user.username,
+                    course_id=course_id,
+                    knowledge_point_id=child_point.id,
+                    mastery_score=0,
+                    status="not_started",
+                    practice_count=0,
+                    task_count=0,
+                )
+                db.add(child_progress)
+                created_count += 1
+
+    db.commit()
+
+    return {
+        "success": True,
+        "message": f"已导入 {created_count} 个知识点",
+        "count": created_count,
+    }
+
+
 # ── Practice / Question Bank ──────────────────────────────────────
 
 
