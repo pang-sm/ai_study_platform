@@ -2843,6 +2843,80 @@ def auto_create_learning_record(
     return record, True
 
 
+def build_knowledge_context(username: str, course_id: str, db: Session) -> str:
+    if not username or not course_id:
+        return ""
+
+    rows = (
+        db.query(models.UserKnowledgeProgress, models.KnowledgePoint.title)
+        .join(models.KnowledgePoint, models.UserKnowledgeProgress.knowledge_point_id == models.KnowledgePoint.id)
+        .filter(
+            models.UserKnowledgeProgress.username == username,
+            models.UserKnowledgeProgress.course_id == course_id,
+        )
+        .all()
+    )
+
+    if not rows:
+        return ""
+
+    mastered: list[str] = []
+    learning: list[str] = []
+    weak: list[str] = []
+    reviewing: list[str] = []
+    not_started: list[str] = []
+
+    for progress, title in rows:
+        if not title:
+            continue
+        score = progress.mastery_score or 0
+        status = progress.status or ""
+
+        if status == "mastered" or score >= 80:
+            mastered.append(title)
+        elif status == "reviewing":
+            reviewing.append(title)
+        elif status == "learning":
+            learning.append(title)
+        elif status == "not_started":
+            not_started.append(title)
+        elif 0 < score < 40:
+            weak.append(title)
+        elif 40 <= score < 80:
+            learning.append(title)
+        else:
+            not_started.append(title)
+
+    MAX_PER = 5
+    mastered = mastered[:MAX_PER]
+    learning = learning[:MAX_PER]
+    weak = weak[:MAX_PER]
+    reviewing = reviewing[:MAX_PER]
+    not_started = not_started[:MAX_PER]
+
+    lines = ["当前课程知识点掌握情况："]
+    if mastered:
+        lines.append(f"- 已掌握：{'、'.join(mastered)}")
+    if learning:
+        lines.append(f"- 学习中：{'、'.join(learning)}")
+    if reviewing:
+        lines.append(f"- 复习中：{'、'.join(reviewing)}")
+    if weak:
+        lines.append(f"- 掌握度较低：{'、'.join(weak)}")
+    if not_started:
+        lines.append(f"- 未开始：{'、'.join(not_started)}")
+
+    if len(lines) == 1:
+        return ""
+
+    result = "\n".join(lines)
+    if len(result) > 800:
+        result = result[:797] + "..."
+
+    result += "\n\n请仅将以上信息作为学习背景参考，回答时以用户当前问题和提供的资料为准。"
+    return result
+
+
 @app.post("/chat")
 def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
     if not req.username:
@@ -2942,6 +3016,8 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
             top_k=TOP_K_CHUNKS,
         )
 
+    knowledge_context = build_knowledge_context(user.username, subject, db)
+
     system_prompt = build_system_prompt(
         subject,
         req.message,
@@ -2951,6 +3027,7 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
         },
         has_attachment=bool(material_ids),
         rag_chunks=rag_chunks,
+        knowledge_context=knowledge_context,
     )
 
     user_content = req.message

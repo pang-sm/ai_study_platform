@@ -262,6 +262,7 @@ def build_system_prompt(
     user_profile_data: dict | None = None,
     has_attachment: bool = False,
     rag_chunks: list[dict] | None = None,
+    knowledge_context: str = "",
 ) -> str:
     normalized_subject = _normalize_subject(subject)
     normalized_question = _normalize_question(question)
@@ -317,6 +318,9 @@ def build_system_prompt(
 
     if subject_guidance:
         sections.append(subject_guidance)
+
+    if knowledge_context:
+        sections.append(knowledge_context)
 
     sections.append(_build_rag_instruction(rag_chunks, is_attachment=has_attachment))
 
