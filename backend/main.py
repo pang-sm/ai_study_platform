@@ -1270,12 +1270,40 @@ def build_course_dashboard_payload(db: Session, user: models.User, course: str):
     task_doing = task_query.filter(models.LearningTask.status == "doing").count()
     task_done = task_query.filter(models.LearningTask.status == "done").count()
     recent_tasks = task_query.order_by(models.LearningTask.updated_at.desc()).limit(5).all()
+    task_kp_ids = [getattr(t, "knowledge_point_id", None) for t in recent_tasks if getattr(t, "knowledge_point_id", None)]
+    task_kp_map: dict[int, str] = {}
+    if task_kp_ids:
+        task_kps = db.query(models.KnowledgePoint).filter(models.KnowledgePoint.id.in_(task_kp_ids)).all()
+        for kp in task_kps:
+            task_kp_map[kp.id] = kp.title
     task_summary = {
         "total": task_total,
         "todo_count": task_todo,
         "doing_count": task_doing,
         "done_count": task_done,
-        "recent_tasks": [serialize_learning_task(t) for t in recent_tasks],
+        "recent_tasks": [serialize_learning_task(t, knowledge_point_title=task_kp_map.get(getattr(t, "knowledge_point_id", None))) for t in recent_tasks],
+    }
+
+    # Knowledge points summary
+    kp_query = db.query(models.KnowledgePoint).filter(
+        models.KnowledgePoint.username == user.username,
+        models.KnowledgePoint.course_id == normalized_course,
+    )
+    kp_total = kp_query.count()
+    kp_progresses = db.query(models.UserKnowledgeProgress).filter(
+        models.UserKnowledgeProgress.username == user.username,
+        models.UserKnowledgeProgress.course_id == normalized_course,
+    ).all()
+    kp_progress_map = {p.knowledge_point_id: p for p in kp_progresses}
+    kp_mastered = sum(1 for p in kp_progresses if (p.mastery_score or 0) >= 80)
+    kp_learning = sum(1 for p in kp_progresses if p.status == "learning" or p.status == "doing")
+    kp_scores = [p.mastery_score for p in kp_progresses if p.mastery_score is not None]
+    kp_avg_mastery = round(sum(kp_scores) / len(kp_scores), 1) if kp_scores else 0
+    knowledge_summary = {
+        "total_points": kp_total,
+        "mastered_count": kp_mastered,
+        "learning_count": kp_learning,
+        "average_mastery": kp_avg_mastery,
     }
 
     if materials_count == 0:
@@ -1307,6 +1335,7 @@ def build_course_dashboard_payload(db: Session, user: models.User, course: str):
         "progress_status_options": list(COURSE_PROGRESS_STATUSES),
         "code_progress": code_progress,
         "task_summary": task_summary,
+        "knowledge_summary": knowledge_summary,
     }
 
 
@@ -3825,7 +3854,7 @@ def serialize_code_challenge(challenge):
     }
 
 
-def serialize_learning_task(task):
+def serialize_learning_task(task, knowledge_point_title=None):
     return {
         "id": task.id,
         "username": task.username,
@@ -3840,9 +3869,28 @@ def serialize_learning_task(task):
         "related_session_id": task.related_session_id,
         "related_challenge_id": task.related_challenge_id,
         "related_material_id": task.related_material_id,
+        "knowledge_point_id": getattr(task, "knowledge_point_id", None),
+        "knowledge_point_title": knowledge_point_title,
         "completed_at": serialize_datetime(task.completed_at) if task.completed_at else None,
         "created_at": serialize_datetime(task.created_at) if task.created_at else None,
         "updated_at": serialize_datetime(task.updated_at) if task.updated_at else None,
+    }
+
+
+def serialize_knowledge_point(point, progress_info=None):
+    return {
+        "id": point.id,
+        "username": point.username,
+        "course_id": point.course_id,
+        "parent_id": point.parent_id,
+        "title": point.title,
+        "description": point.description,
+        "order_index": point.order_index,
+        "level": point.level,
+        "mastery_score": progress_info.get("mastery_score", 0) if progress_info else 0,
+        "status": progress_info.get("status", "not_started") if progress_info else "not_started",
+        "created_at": serialize_datetime(point.created_at) if point.created_at else None,
+        "updated_at": serialize_datetime(point.updated_at) if point.updated_at else None,
     }
 
 
@@ -4607,7 +4655,14 @@ def get_learning_tasks(username: str, course_id: str = "", status: str = "", db:
         models.LearningTask.status.asc(),
         models.LearningTask.updated_at.desc(),
     ).all()
-    return {"tasks": [serialize_learning_task(t) for t in tasks]}
+    # Bulk-fetch knowledge point titles
+    kp_ids = [getattr(t, "knowledge_point_id", None) for t in tasks if getattr(t, "knowledge_point_id", None)]
+    kp_map: dict[int, str] = {}
+    if kp_ids:
+        kps = db.query(models.KnowledgePoint).filter(models.KnowledgePoint.id.in_(kp_ids)).all()
+        for kp in kps:
+            kp_map[kp.id] = kp.title
+    return {"tasks": [serialize_learning_task(t, knowledge_point_title=kp_map.get(getattr(t, "knowledge_point_id", None))) for t in tasks]}
 
 
 @app.post("/learning/tasks")
@@ -4642,6 +4697,7 @@ def create_learning_task(req: schemas.LearningTaskCreate, db: Session = Depends(
         related_session_id=req.related_session_id,
         related_challenge_id=req.related_challenge_id,
         related_material_id=req.related_material_id,
+        knowledge_point_id=req.knowledge_point_id,
         completed_at=now if status == "done" else None,
         created_at=now,
         updated_at=now,
@@ -4693,6 +4749,8 @@ def update_learning_task(task_id: int, req: schemas.LearningTaskUpdate, db: Sess
             task.priority = new_priority
     if req.due_date is not None:
         task.due_date = req.due_date if (req.due_date or "").strip() else None
+    if req.knowledge_point_id is not None:
+        task.knowledge_point_id = req.knowledge_point_id
 
     task.updated_at = utc_now()
     db.commit()
@@ -4747,6 +4805,13 @@ def get_learning_tasks_summary(username: str, course_id: str = "", db: Session =
 
     recent_tasks = query.order_by(models.LearningTask.updated_at.desc()).limit(5).all()
 
+    kp_ids = [getattr(t, "knowledge_point_id", None) for t in recent_tasks if getattr(t, "knowledge_point_id", None)]
+    kp_map: dict[int, str] = {}
+    if kp_ids:
+        kps = db.query(models.KnowledgePoint).filter(models.KnowledgePoint.id.in_(kp_ids)).all()
+        for kp in kps:
+            kp_map[kp.id] = kp.title
+
     return {
         "total": total,
         "todo_count": todo_count,
@@ -4754,7 +4819,7 @@ def get_learning_tasks_summary(username: str, course_id: str = "", db: Session =
         "done_count": done_count,
         "overdue_count": overdue_count,
         "high_priority_count": high_priority_count,
-        "recent_tasks": [serialize_learning_task(t) for t in recent_tasks],
+        "recent_tasks": [serialize_learning_task(t, knowledge_point_title=kp_map.get(getattr(t, "knowledge_point_id", None))) for t in recent_tasks],
     }
 
 
@@ -4860,4 +4925,296 @@ def generate_tasks_from_diagnosis(req: schemas.GenerateTasksFromDiagnosisRequest
         "success": True,
         "tasks": [serialize_learning_task(t) for t in created_tasks],
         "message": f"已生成 {len(created_tasks)} 个学习任务",
+    }
+
+
+# ── Knowledge Points ──────────────────────────────────────────────
+
+
+@app.get("/knowledge-points")
+def list_knowledge_points(
+    username: str,
+    course_id: str = "",
+    db: Session = Depends(get_db),
+):
+    user = get_user_by_username(username, db)
+    normalized_course = normalize_subject(course_id, default="")
+    if not normalized_course:
+        raise HTTPException(status_code=400, detail="course_id 不能为空")
+
+    points = (
+        db.query(models.KnowledgePoint)
+        .filter(
+            models.KnowledgePoint.username == user.username,
+            models.KnowledgePoint.course_id == normalized_course,
+        )
+        .order_by(models.KnowledgePoint.order_index, models.KnowledgePoint.id)
+        .all()
+    )
+
+    progresses = (
+        db.query(models.UserKnowledgeProgress)
+        .filter(
+            models.UserKnowledgeProgress.username == user.username,
+            models.UserKnowledgeProgress.course_id == normalized_course,
+        )
+        .all()
+    )
+    progress_map = {p.knowledge_point_id: p for p in progresses}
+
+    serialized = [
+        serialize_knowledge_point(
+            p,
+            progress_info={
+                "mastery_score": progress_map[p.id].mastery_score if p.id in progress_map else 0,
+                "status": progress_map[p.id].status if p.id in progress_map else "not_started",
+            } if p.id in progress_map else None,
+        )
+        for p in points
+    ]
+
+    # Build tree
+    point_map = {s["id"]: s for s in serialized}
+    for s in serialized:
+        s["children"] = []
+    roots = []
+    for s in serialized:
+        parent_id = s.get("parent_id")
+        if parent_id and parent_id in point_map:
+            point_map[parent_id]["children"].append(s)
+        else:
+            roots.append(s)
+
+    return {"success": True, "knowledge_points": serialized, "roots": [r["id"] for r in roots]}
+
+
+@app.post("/knowledge-points")
+def create_knowledge_point(req: schemas.KnowledgePointCreate, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+    normalized_course = normalize_subject(req.course_id, default="")
+    if not normalized_course:
+        raise HTTPException(status_code=400, detail="course_id 不能为空")
+
+    if req.parent_id:
+        parent = (
+            db.query(models.KnowledgePoint)
+            .filter(
+                models.KnowledgePoint.id == req.parent_id,
+                models.KnowledgePoint.username == user.username,
+            )
+            .first()
+        )
+        if not parent:
+            raise HTTPException(status_code=404, detail="父知识点不存在")
+
+    max_order = (
+        db.query(models.KnowledgePoint)
+        .filter(
+            models.KnowledgePoint.username == user.username,
+            models.KnowledgePoint.course_id == normalized_course,
+        )
+        .count()
+    )
+
+    level = req.level
+    if level is None:
+        if req.parent_id:
+            parent = db.query(models.KnowledgePoint).filter(models.KnowledgePoint.id == req.parent_id).first()
+            level = (parent.level or 0) + 1 if parent else 0
+        else:
+            level = 0
+
+    point = models.KnowledgePoint(
+        username=user.username,
+        course_id=normalized_course,
+        parent_id=req.parent_id,
+        title=req.title,
+        description=req.description or "",
+        order_index=req.order_index if req.order_index is not None else max_order,
+        level=level,
+    )
+    db.add(point)
+    db.flush()
+
+    progress = models.UserKnowledgeProgress(
+        username=user.username,
+        course_id=normalized_course,
+        knowledge_point_id=point.id,
+        mastery_score=0,
+        status="not_started",
+        practice_count=0,
+        task_count=0,
+    )
+    db.add(progress)
+    db.commit()
+    db.refresh(point)
+
+    return {
+        "success": True,
+        "knowledge_point": serialize_knowledge_point(
+            point,
+            progress_info={"mastery_score": 0, "status": "not_started"},
+        ),
+    }
+
+
+@app.put("/knowledge-points/{point_id}")
+def update_knowledge_point(
+    point_id: int,
+    req: schemas.KnowledgePointUpdate,
+    db: Session = Depends(get_db),
+):
+    user = get_user_by_username(req.username, db)
+    point = (
+        db.query(models.KnowledgePoint)
+        .filter(
+            models.KnowledgePoint.id == point_id,
+            models.KnowledgePoint.username == user.username,
+        )
+        .first()
+    )
+    if not point:
+        raise HTTPException(status_code=404, detail="知识点不存在")
+
+    if req.title is not None:
+        point.title = req.title
+    if req.description is not None:
+        point.description = req.description
+    if req.order_index is not None:
+        point.order_index = req.order_index
+    if req.level is not None:
+        point.level = req.level
+    if req.parent_id is not None:
+        if req.parent_id == point_id:
+            raise HTTPException(status_code=400, detail="父知识点不能是自己")
+        point.parent_id = req.parent_id
+
+    point.updated_at = utc_now()
+    db.commit()
+    db.refresh(point)
+
+    progress = (
+        db.query(models.UserKnowledgeProgress)
+        .filter(
+            models.UserKnowledgeProgress.username == user.username,
+            models.UserKnowledgeProgress.knowledge_point_id == point.id,
+        )
+        .first()
+    )
+
+    return {
+        "success": True,
+        "knowledge_point": serialize_knowledge_point(
+            point,
+            progress_info={
+                "mastery_score": progress.mastery_score if progress else 0,
+                "status": progress.status if progress else "not_started",
+            } if progress else None,
+        ),
+    }
+
+
+@app.delete("/knowledge-points/{point_id}")
+def delete_knowledge_point(
+    point_id: int,
+    username: str,
+    db: Session = Depends(get_db),
+):
+    user = get_user_by_username(username, db)
+    point = (
+        db.query(models.KnowledgePoint)
+        .filter(
+            models.KnowledgePoint.id == point_id,
+            models.KnowledgePoint.username == user.username,
+        )
+        .first()
+    )
+    if not point:
+        raise HTTPException(status_code=404, detail="知识点不存在")
+
+    children = (
+        db.query(models.KnowledgePoint)
+        .filter(
+            models.KnowledgePoint.parent_id == point_id,
+            models.KnowledgePoint.username == user.username,
+        )
+        .count()
+    )
+    if children > 0:
+        raise HTTPException(status_code=400, detail="该知识点下存在子知识点，请先删除子知识点")
+
+    db.query(models.UserKnowledgeProgress).filter(
+        models.UserKnowledgeProgress.knowledge_point_id == point_id,
+        models.UserKnowledgeProgress.username == user.username,
+    ).delete()
+    db.delete(point)
+    db.commit()
+
+    return {"success": True, "message": "知识点已删除"}
+
+
+@app.put("/knowledge-points/{point_id}/progress")
+def update_knowledge_point_progress(
+    point_id: int,
+    req: schemas.KnowledgeProgressUpdate,
+    db: Session = Depends(get_db),
+):
+    user = get_user_by_username(req.username, db)
+    point = (
+        db.query(models.KnowledgePoint)
+        .filter(
+            models.KnowledgePoint.id == point_id,
+            models.KnowledgePoint.username == user.username,
+        )
+        .first()
+    )
+    if not point:
+        raise HTTPException(status_code=404, detail="知识点不存在")
+
+    progress = (
+        db.query(models.UserKnowledgeProgress)
+        .filter(
+            models.UserKnowledgeProgress.username == user.username,
+            models.UserKnowledgeProgress.knowledge_point_id == point_id,
+        )
+        .first()
+    )
+    if not progress:
+        progress = models.UserKnowledgeProgress(
+            username=user.username,
+            course_id=point.course_id,
+            knowledge_point_id=point_id,
+            mastery_score=0,
+            status="not_started",
+            practice_count=0,
+            task_count=0,
+        )
+        db.add(progress)
+        db.flush()
+
+    if req.mastery_score is not None:
+        progress.mastery_score = max(0, min(100, req.mastery_score))
+    if req.status is not None:
+        progress.status = req.status
+    progress.updated_at = utc_now()
+    progress.last_studied_at = utc_now()
+
+    db.commit()
+    db.refresh(progress)
+
+    return {
+        "success": True,
+        "progress": {
+            "id": progress.id,
+            "username": progress.username,
+            "course_id": progress.course_id,
+            "knowledge_point_id": progress.knowledge_point_id,
+            "mastery_score": progress.mastery_score,
+            "status": progress.status,
+            "practice_count": progress.practice_count,
+            "task_count": progress.task_count,
+            "last_studied_at": serialize_datetime(progress.last_studied_at) if progress.last_studied_at else None,
+            "created_at": serialize_datetime(progress.created_at) if progress.created_at else None,
+            "updated_at": serialize_datetime(progress.updated_at) if progress.updated_at else None,
+        },
     }

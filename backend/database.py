@@ -155,7 +155,33 @@ LEARNING_TASKS_COLUMNS = {
     "related_session_id": "INTEGER",
     "related_challenge_id": "INTEGER",
     "related_material_id": "INTEGER",
+    "knowledge_point_id": "INTEGER",
     "completed_at": "DATETIME",
+    "created_at": "DATETIME NOT NULL",
+    "updated_at": "DATETIME NOT NULL",
+}
+
+KNOWLEDGE_POINTS_COLUMNS = {
+    "username": "VARCHAR(50) NOT NULL",
+    "course_id": "VARCHAR(100) NOT NULL",
+    "parent_id": "INTEGER",
+    "title": "VARCHAR(255) NOT NULL",
+    "description": "TEXT",
+    "order_index": "INTEGER",
+    "level": "INTEGER",
+    "created_at": "DATETIME NOT NULL",
+    "updated_at": "DATETIME NOT NULL",
+}
+
+USER_KNOWLEDGE_PROGRESS_COLUMNS = {
+    "username": "VARCHAR(50) NOT NULL",
+    "course_id": "VARCHAR(100) NOT NULL",
+    "knowledge_point_id": "INTEGER NOT NULL",
+    "mastery_score": "INTEGER",
+    "status": "VARCHAR(30)",
+    "practice_count": "INTEGER",
+    "task_count": "INTEGER",
+    "last_studied_at": "DATETIME",
     "created_at": "DATETIME NOT NULL",
     "updated_at": "DATETIME NOT NULL",
 }
@@ -354,6 +380,51 @@ def ensure_learning_tasks_schema(conn):
     ensure_columns(conn, "learning_tasks", LEARNING_TASKS_COLUMNS)
 
 
+def ensure_knowledge_points_schema(conn):
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS knowledge_points (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username VARCHAR(50) NOT NULL,
+                course_id VARCHAR(100) NOT NULL,
+                parent_id INTEGER,
+                title VARCHAR(255) NOT NULL,
+                description TEXT,
+                order_index INTEGER,
+                level INTEGER,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+    )
+    ensure_columns(conn, "knowledge_points", KNOWLEDGE_POINTS_COLUMNS)
+
+
+def ensure_user_knowledge_progress_schema(conn):
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS user_knowledge_progress (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username VARCHAR(50) NOT NULL,
+                course_id VARCHAR(100) NOT NULL,
+                knowledge_point_id INTEGER NOT NULL,
+                mastery_score INTEGER,
+                status VARCHAR(30),
+                practice_count INTEGER,
+                task_count INTEGER,
+                last_studied_at DATETIME,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+    )
+    ensure_columns(conn, "user_knowledge_progress", USER_KNOWLEDGE_PROGRESS_COLUMNS)
+
+
 def ensure_material_chunks_fts(conn):
     fts_enabled = True
     try:
@@ -485,6 +556,8 @@ def init_user_profile_schema():
         ensure_code_ai_messages_schema(conn)
         ensure_code_challenges_schema(conn)
         ensure_learning_tasks_schema(conn)
+        ensure_knowledge_points_schema(conn)
+        ensure_user_knowledge_progress_schema(conn)
         ensure_material_chunks_fts(conn)
         normalize_existing_subjects(conn)
 

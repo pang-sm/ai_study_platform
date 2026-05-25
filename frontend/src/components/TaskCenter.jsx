@@ -68,6 +68,9 @@ export default function TaskCenter({
   const [saving, setSaving] = useState(false);
   const [actionTaskId, setActionTaskId] = useState(null);
 
+  // Knowledge points for binding
+  const [knowledgePoints, setKnowledgePoints] = useState([]);
+
   // Create form state
   const [createTitle, setCreateTitle] = useState("");
   const [createDescription, setCreateDescription] = useState("");
@@ -75,6 +78,25 @@ export default function TaskCenter({
   const [createType, setCreateType] = useState("custom");
   const [createPriority, setCreatePriority] = useState("medium");
   const [createDueDate, setCreateDueDate] = useState("");
+  const [createKnowledgePointId, setCreateKnowledgePointId] = useState("");
+
+  const loadKnowledgePoints = async (courseId) => {
+    if (!user?.username || !courseId) {
+      setKnowledgePoints([]);
+      return;
+    }
+    try {
+      const res = await fetch(
+        `${API_BASE}/knowledge-points?username=${encodeURIComponent(user.username)}&course_id=${encodeURIComponent(courseId)}`
+      );
+      const data = await res.json();
+      if (res.ok) {
+        setKnowledgePoints(data.knowledge_points || []);
+      }
+    } catch (e) {
+      console.error("Failed to load knowledge points:", e);
+    }
+  };
 
   const loadTasks = async () => {
     if (!user?.username) return;
@@ -97,6 +119,8 @@ export default function TaskCenter({
   };
 
   useEffect(() => {
+    const normalizedCourse = normalizeSubject(courseFilter, "");
+    loadKnowledgePoints(normalizedCourse);
     loadTasks();
   }, [user?.username, courseFilter, statusFilter]);
 
@@ -115,6 +139,7 @@ export default function TaskCenter({
         priority: createPriority,
       };
       if (createDueDate) body.due_date = createDueDate;
+      if (createKnowledgePointId) body.knowledge_point_id = parseInt(createKnowledgePointId);
       const res = await fetch(`${API_BASE}/learning/tasks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -142,6 +167,7 @@ export default function TaskCenter({
     setCreateType("custom");
     setCreatePriority("medium");
     setCreateDueDate("");
+    setCreateKnowledgePointId("");
   };
 
   const updateTaskStatus = async (task, newStatus) => {
@@ -294,6 +320,11 @@ export default function TaskCenter({
                   <span className="subject-pill small">
                     {TASK_TYPE_LABELS[task.task_type] || task.task_type}
                   </span>
+                  {task.knowledge_point_title && (
+                    <span className="subject-pill small" style={{ background: "#fef3c7", color: "#92400e" }}>
+                      {task.knowledge_point_title}
+                    </span>
+                  )}
                   {task.source && task.source !== "manual" && (
                     <span className="subject-pill small" style={{ background: "#ecfdf5", color: "#065f46" }}>
                       {SOURCE_LABELS[task.source] || task.source}
@@ -420,6 +451,19 @@ export default function TaskCenter({
                 {PRIORITY_OPTIONS.map((item) => (
                   <option key={item.value} value={item.value}>
                     {item.label}
+                  </option>
+                ))}
+              </select>
+              <label className="field-label">绑定知识点（可选）</label>
+              <select
+                className="field"
+                value={createKnowledgePointId}
+                onChange={(e) => setCreateKnowledgePointId(e.target.value)}
+              >
+                <option value="">不绑定知识点</option>
+                {knowledgePoints.map((kp) => (
+                  <option key={kp.id} value={kp.id}>
+                    {kp.title}
                   </option>
                 ))}
               </select>

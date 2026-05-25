@@ -3032,6 +3032,7 @@ function App() {
       <main className="workspace-main workspace-main--chat-only">
         {page === "dashboard" ? (
           <CourseDashboard
+            user={user}
             course={subject}
             courseOptions={COURSE_OPTIONS}
             dashboard={courseDashboardData}

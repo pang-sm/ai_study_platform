@@ -1,4 +1,7 @@
+import KnowledgeRoadmap from "./KnowledgeRoadmap.jsx";
+
 export default function CourseDashboard({
+  user,
   course,
   courseOptions,
   dashboard,
@@ -268,6 +271,12 @@ export default function CourseDashboard({
               })}
             </div>
           </section>
+
+          <KnowledgeRoadmap
+            user={user}
+            course={course}
+            getSubjectLabel={getSubjectLabel}
+          />
 
           <section className="dashboard-card dashboard-materials-card">
             <div className="panel-title-row">

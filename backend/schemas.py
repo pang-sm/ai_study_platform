@@ -123,6 +123,7 @@ class LearningTaskCreate(BaseModel):
     related_session_id: int | None = None
     related_challenge_id: int | None = None
     related_material_id: int | None = None
+    knowledge_point_id: int | None = None
 
 
 class LearningTaskUpdate(BaseModel):
@@ -133,6 +134,7 @@ class LearningTaskUpdate(BaseModel):
     status: str | None = None
     priority: str | None = None
     due_date: str | None = None
+    knowledge_point_id: int | None = None
 
 
 class LearningTaskOut(BaseModel):
@@ -149,6 +151,8 @@ class LearningTaskOut(BaseModel):
     related_session_id: int | None = None
     related_challenge_id: int | None = None
     related_material_id: int | None = None
+    knowledge_point_id: int | None = None
+    knowledge_point_title: str | None = None
     completed_at: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
@@ -160,3 +164,58 @@ class GenerateTasksFromDiagnosisRequest(BaseModel):
     course_name: str = ""
     diagnosis_summary: str
     language: str = ""
+
+
+class KnowledgePointCreate(BaseModel):
+    username: str
+    course_id: str
+    parent_id: int | None = None
+    title: str
+    description: str = ""
+    order_index: int | None = None
+    level: int | None = None
+
+
+class KnowledgePointUpdate(BaseModel):
+    username: str
+    title: str | None = None
+    description: str | None = None
+    parent_id: int | None = None
+    order_index: int | None = None
+    level: int | None = None
+
+
+class KnowledgePointOut(BaseModel):
+    id: int
+    username: str
+    course_id: str
+    parent_id: int | None = None
+    title: str
+    description: str | None = None
+    order_index: int | None = None
+    level: int | None = None
+    mastery_score: int | None = None
+    status: str | None = None
+    children: list["KnowledgePointOut"] | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+class KnowledgeProgressUpdate(BaseModel):
+    username: str
+    mastery_score: int | None = None
+    status: str | None = None
+
+
+class KnowledgeProgressOut(BaseModel):
+    id: int
+    username: str
+    course_id: str
+    knowledge_point_id: int
+    mastery_score: int | None = None
+    status: str | None = None
+    practice_count: int | None = None
+    task_count: int | None = None
+    last_studied_at: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None

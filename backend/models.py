@@ -200,6 +200,38 @@ class LearningTask(Base):
     related_session_id = Column(Integer, nullable=True)
     related_challenge_id = Column(Integer, nullable=True)
     related_material_id = Column(Integer, nullable=True)
+    knowledge_point_id = Column(Integer, nullable=True)
     completed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+
+class KnowledgePoint(Base):
+    __tablename__ = "knowledge_points"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), index=True, nullable=False)
+    course_id = Column(String(100), index=True, nullable=False)
+    parent_id = Column(Integer, nullable=True)
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    order_index = Column(Integer, nullable=True)
+    level = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+
+class UserKnowledgeProgress(Base):
+    __tablename__ = "user_knowledge_progress"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), index=True, nullable=False)
+    course_id = Column(String(100), index=True, nullable=False)
+    knowledge_point_id = Column(Integer, index=True, nullable=False)
+    mastery_score = Column(Integer, nullable=True)
+    status = Column(String(30), nullable=True)
+    practice_count = Column(Integer, nullable=True)
+    task_count = Column(Integer, nullable=True)
+    last_studied_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)

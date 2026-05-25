@@ -3631,3 +3631,137 @@ select.field:focus {
   background: #d1fae5;
   color: #065f46;
 }
+
+/* ── Knowledge Roadmap ─────────────────────────────── */
+
+.dashboard-kp-card {
+  /* reusable dashboard card */
+}
+
+.kp-tree {
+  margin-top: 8px;
+}
+
+.kp-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 10px 0;
+  border-bottom: 1px solid #f1f5f9;
+  gap: 12px;
+}
+
+.kp-row:last-child {
+  border-bottom: none;
+}
+
+.kp-row-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.kp-row-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.kp-expand-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 10px;
+  padding: 0 4px;
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.kp-expand-spacer {
+  width: 18px;
+  flex-shrink: 0;
+}
+
+.kp-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.kp-desc {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 4px;
+}
+
+.kp-status-tag {
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+.kp-status-mastered {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.kp-status-weak {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.kp-status-learning {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.kp-status-review {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.kp-status-default {
+  background: #f1f5f9;
+  color: #9ca3af;
+}
+
+.kp-mastery-tag {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.kp-mastery-bar-wrap {
+  margin-top: 4px;
+}
+
+.kp-mastery-bar {
+  width: 100%;
+  max-width: 200px;
+  height: 4px;
+  background: #e2e8f0;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.kp-mastery-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.kp-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.kp-status-select {
+  width: 90px;
+  font-size: 12px;
+}
+
+.kp-children {
+  /* children are indented via paddingLeft on kp-row */
+}
