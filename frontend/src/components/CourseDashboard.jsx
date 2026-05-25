@@ -18,6 +18,7 @@ export default function CourseDashboard({
   onNewCourseChat,
   onOpenCodeStudio,
   onOpenTaskCenter,
+  onOpenPracticeCenter,
   getSubjectLabel,
   getFileTypeLabel,
   formatDate,
@@ -29,6 +30,8 @@ export default function CourseDashboard({
   const recentChats = Array.isArray(dashboard?.recent_chats) ? dashboard.recent_chats : [];
   const taskSummary = dashboard?.task_summary || {};
   const recentTasks = Array.isArray(taskSummary.recent_tasks) ? taskSummary.recent_tasks : [];
+  const practiceSummary = dashboard?.practice_summary || {};
+  const recentAttempts = Array.isArray(practiceSummary.recent_attempts) ? practiceSummary.recent_attempts : [];
   const statusOptions = Array.isArray(dashboard?.progress_status_options)
     ? dashboard.progress_status_options
     : ["未开始", "学习中", "已掌握", "薄弱", "待复习"];
@@ -277,6 +280,58 @@ export default function CourseDashboard({
             course={course}
             getSubjectLabel={getSubjectLabel}
           />
+
+          <section className="dashboard-card dashboard-practice-card">
+            <div className="panel-title-row">
+              <h3>练习统计</h3>
+              <button className="tiny-button" onClick={onOpenPracticeCenter}>
+                进入练习中心
+              </button>
+            </div>
+            {(practiceSummary.total_questions ?? 0) > 0 ? (
+              <>
+                <div className="dashboard-mini-stats">
+                  <span>题目总数：{practiceSummary.total_questions ?? 0}</span>
+                  <span>作答次数：{practiceSummary.total_attempts ?? 0}</span>
+                  <span>正确数：{practiceSummary.correct_count ?? 0}</span>
+                  <span>选择题：{practiceSummary.choice_count ?? 0}</span>
+                  <span>简答题：{practiceSummary.short_answer_count ?? 0}</span>
+                </div>
+                {recentAttempts.length > 0 && (
+                  <div className="task-mini-list">
+                    {recentAttempts.slice(0, 3).map((a) => (
+                      <div key={a.id} className="task-mini-item">
+                        <span className="task-mini-title">
+                          {a.question_title || `题目 #${a.question_id}`}
+                        </span>
+                        <span className={`task-mini-status ${
+                          a.self_result === "correct" ? "task-mini-status--done"
+                            : a.self_result === "incorrect" ? "task-mini-status--todo"
+                            : "task-mini-status--doing"
+                        }`}>
+                          {a.self_result === "correct" ? "正确"
+                            : a.self_result === "incorrect" ? "错误"
+                            : a.self_result === "partially_correct" ? "部分正确"
+                            : "未知"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="empty-inline">
+                <p>当前课程还没有练习记录。</p>
+                <button
+                  className="primary-button compact"
+                  onClick={onOpenPracticeCenter}
+                  style={{ marginTop: 8 }}
+                >
+                  进入练习中心
+                </button>
+              </div>
+            )}
+          </section>
 
           <section className="dashboard-card dashboard-materials-card">
             <div className="panel-title-row">

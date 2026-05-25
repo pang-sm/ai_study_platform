@@ -201,6 +201,7 @@ class LearningTask(Base):
     related_challenge_id = Column(Integer, nullable=True)
     related_material_id = Column(Integer, nullable=True)
     knowledge_point_id = Column(Integer, nullable=True)
+    related_question_id = Column(Integer, nullable=True)
     completed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
@@ -235,3 +236,36 @@ class UserKnowledgeProgress(Base):
     last_studied_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+
+class Question(Base):
+    __tablename__ = "questions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), index=True, nullable=False)
+    course_id = Column(String(100), index=True, nullable=True)
+    knowledge_point_id = Column(Integer, nullable=True)
+    type = Column(String(30), nullable=False)
+    title = Column(String(255), nullable=False)
+    content = Column(Text, nullable=False)
+    options = Column(Text, nullable=True)
+    answer = Column(Text, nullable=True)
+    explanation = Column(Text, nullable=True)
+    difficulty = Column(String(20), nullable=True)
+    source = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+
+class QuestionAttempt(Base):
+    __tablename__ = "question_attempts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), index=True, nullable=False)
+    question_id = Column(Integer, index=True, nullable=False)
+    course_id = Column(String(100), nullable=True)
+    knowledge_point_id = Column(Integer, nullable=True)
+    user_answer = Column(Text, nullable=True)
+    ai_feedback = Column(Text, nullable=True)
+    self_result = Column(String(30), nullable=True)
+    created_at = Column(DateTime, default=utc_now)

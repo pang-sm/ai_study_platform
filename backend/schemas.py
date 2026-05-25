@@ -124,6 +124,7 @@ class LearningTaskCreate(BaseModel):
     related_challenge_id: int | None = None
     related_material_id: int | None = None
     knowledge_point_id: int | None = None
+    related_question_id: int | None = None
 
 
 class LearningTaskUpdate(BaseModel):
@@ -135,6 +136,7 @@ class LearningTaskUpdate(BaseModel):
     priority: str | None = None
     due_date: str | None = None
     knowledge_point_id: int | None = None
+    related_question_id: int | None = None
 
 
 class LearningTaskOut(BaseModel):
@@ -153,6 +155,7 @@ class LearningTaskOut(BaseModel):
     related_material_id: int | None = None
     knowledge_point_id: int | None = None
     knowledge_point_title: str | None = None
+    related_question_id: int | None = None
     completed_at: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
@@ -219,3 +222,85 @@ class KnowledgeProgressOut(BaseModel):
     last_studied_at: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
+
+
+# ── Practice / Question Bank ──────────────────────────────
+
+
+class QuestionCreate(BaseModel):
+    username: str
+    course_id: str = ""
+    knowledge_point_id: int | None = None
+    type: str
+    title: str
+    content: str
+    options: str | None = None
+    answer: str | None = None
+    explanation: str | None = None
+    difficulty: str = "基础"
+    source: str = "manual"
+
+
+class QuestionUpdate(BaseModel):
+    username: str
+    course_id: str | None = None
+    knowledge_point_id: int | None = None
+    type: str | None = None
+    title: str | None = None
+    content: str | None = None
+    options: str | None = None
+    answer: str | None = None
+    explanation: str | None = None
+    difficulty: str | None = None
+
+
+class QuestionOut(BaseModel):
+    id: int
+    username: str
+    course_id: str | None = None
+    knowledge_point_id: int | None = None
+    knowledge_point_title: str | None = None
+    type: str
+    title: str
+    content: str
+    options: str | None = None
+    answer: str | None = None
+    explanation: str | None = None
+    difficulty: str | None = None
+    source: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+class QuestionAttemptCreate(BaseModel):
+    username: str
+    question_id: int
+    user_answer: str | None = None
+
+
+class QuestionAttemptOut(BaseModel):
+    id: int
+    username: str
+    question_id: int
+    course_id: str | None = None
+    knowledge_point_id: int | None = None
+    user_answer: str | None = None
+    ai_feedback: str | None = None
+    self_result: str | None = None
+    created_at: str | None = None
+
+
+class QuestionFeedbackRequest(BaseModel):
+    username: str
+    user_answer: str
+
+
+class GenerateQuestionRequest(BaseModel):
+    username: str
+    course_id: str = ""
+    course_name: str = ""
+    knowledge_point_id: int | None = None
+    knowledge_point_title: str = ""
+    type: str = "choice"
+    difficulty: str = "基础"
+    count: int = 1

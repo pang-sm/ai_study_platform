@@ -1306,6 +1306,49 @@ def build_course_dashboard_payload(db: Session, user: models.User, course: str):
         "average_mastery": kp_avg_mastery,
     }
 
+    # Practice summary
+    q_query = db.query(models.Question).filter(
+        models.Question.username == user.username,
+        models.Question.course_id == normalized_course,
+    )
+    q_total = q_query.count()
+    q_choice = q_query.filter(models.Question.type == "choice").count()
+    q_short = q_query.filter(models.Question.type == "short_answer").count()
+    q_prog = q_query.filter(models.Question.type == "programming").count()
+    a_query = db.query(models.QuestionAttempt).filter(
+        models.QuestionAttempt.username == user.username,
+        models.QuestionAttempt.course_id == normalized_course,
+    )
+    a_total = a_query.count()
+    a_correct = a_query.filter(models.QuestionAttempt.self_result == "correct").count()
+    recent_attempts = a_query.order_by(models.QuestionAttempt.created_at.desc()).limit(5).all()
+    practice_summary = {
+        "total_questions": q_total,
+        "total_attempts": a_total,
+        "choice_count": q_choice,
+        "short_answer_count": q_short,
+        "programming_count": q_prog,
+        "correct_count": a_correct,
+        "recent_attempts": [],
+    }
+    if recent_attempts:
+        a_q_ids = [a.question_id for a in recent_attempts]
+        a_q_map = {}
+        if a_q_ids:
+            a_qs = db.query(models.Question).filter(models.Question.id.in_(a_q_ids)).all()
+            for q in a_qs:
+                a_q_map[q.id] = q.title
+        practice_summary["recent_attempts"] = [
+            {
+                "id": a.id,
+                "question_id": a.question_id,
+                "question_title": a_q_map.get(a.question_id, ""),
+                "self_result": a.self_result,
+                "created_at": serialize_datetime(a.created_at) if a.created_at else None,
+            }
+            for a in recent_attempts
+        ]
+
     if materials_count == 0:
         suggestion = "建议先上传课程资料，方便 AI 结合你的个人资料回答。"
     elif chat_count == 0:
@@ -1336,6 +1379,7 @@ def build_course_dashboard_payload(db: Session, user: models.User, course: str):
         "code_progress": code_progress,
         "task_summary": task_summary,
         "knowledge_summary": knowledge_summary,
+        "practice_summary": practice_summary,
     }
 
 
@@ -3871,6 +3915,7 @@ def serialize_learning_task(task, knowledge_point_title=None):
         "related_material_id": task.related_material_id,
         "knowledge_point_id": getattr(task, "knowledge_point_id", None),
         "knowledge_point_title": knowledge_point_title,
+        "related_question_id": getattr(task, "related_question_id", None),
         "completed_at": serialize_datetime(task.completed_at) if task.completed_at else None,
         "created_at": serialize_datetime(task.created_at) if task.created_at else None,
         "updated_at": serialize_datetime(task.updated_at) if task.updated_at else None,
@@ -4698,6 +4743,7 @@ def create_learning_task(req: schemas.LearningTaskCreate, db: Session = Depends(
         related_challenge_id=req.related_challenge_id,
         related_material_id=req.related_material_id,
         knowledge_point_id=req.knowledge_point_id,
+        related_question_id=req.related_question_id,
         completed_at=now if status == "done" else None,
         created_at=now,
         updated_at=now,
@@ -4751,6 +4797,8 @@ def update_learning_task(task_id: int, req: schemas.LearningTaskUpdate, db: Sess
         task.due_date = req.due_date if (req.due_date or "").strip() else None
     if req.knowledge_point_id is not None:
         task.knowledge_point_id = req.knowledge_point_id
+    if req.related_question_id is not None:
+        task.related_question_id = req.related_question_id
 
     task.updated_at = utc_now()
     db.commit()
@@ -4962,6 +5010,23 @@ def list_knowledge_points(
     )
     progress_map = {p.knowledge_point_id: p for p in progresses}
 
+    # Count questions per knowledge point
+    from sqlalchemy import func
+    q_counts = (
+        db.query(
+            models.Question.knowledge_point_id,
+            func.count(models.Question.id).label("cnt"),
+        )
+        .filter(
+            models.Question.username == user.username,
+            models.Question.course_id == normalized_course,
+            models.Question.knowledge_point_id.isnot(None),
+        )
+        .group_by(models.Question.knowledge_point_id)
+        .all()
+    )
+    qc_map = {row[0]: row[1] for row in q_counts}
+
     serialized = [
         serialize_knowledge_point(
             p,
@@ -4972,6 +5037,9 @@ def list_knowledge_points(
         )
         for p in points
     ]
+
+    for s in serialized:
+        s["question_count"] = qc_map.get(s["id"], 0)
 
     # Build tree
     point_map = {s["id"]: s for s in serialized}
@@ -5217,4 +5285,480 @@ def update_knowledge_point_progress(
             "created_at": serialize_datetime(progress.created_at) if progress.created_at else None,
             "updated_at": serialize_datetime(progress.updated_at) if progress.updated_at else None,
         },
+    }
+
+
+# ── Practice / Question Bank ──────────────────────────────────────
+
+
+def serialize_question(q, knowledge_point_title=None):
+    return {
+        "id": q.id,
+        "username": q.username,
+        "course_id": q.course_id,
+        "knowledge_point_id": q.knowledge_point_id,
+        "knowledge_point_title": knowledge_point_title,
+        "type": q.type,
+        "title": q.title,
+        "content": q.content,
+        "options": q.options,
+        "answer": q.answer,
+        "explanation": q.explanation,
+        "difficulty": q.difficulty,
+        "source": q.source,
+        "created_at": serialize_datetime(q.created_at) if q.created_at else None,
+        "updated_at": serialize_datetime(q.updated_at) if q.updated_at else None,
+    }
+
+
+def serialize_question_list_item(q, knowledge_point_title=None):
+    return {
+        "id": q.id,
+        "username": q.username,
+        "course_id": q.course_id,
+        "knowledge_point_id": q.knowledge_point_id,
+        "knowledge_point_title": knowledge_point_title,
+        "type": q.type,
+        "title": q.title,
+        "content": q.content,
+        "difficulty": q.difficulty,
+        "source": q.source,
+        "created_at": serialize_datetime(q.created_at) if q.created_at else None,
+        "updated_at": serialize_datetime(q.updated_at) if q.updated_at else None,
+    }
+
+
+def serialize_attempt(a, question_title=None):
+    return {
+        "id": a.id,
+        "username": a.username,
+        "question_id": a.question_id,
+        "question_title": question_title,
+        "course_id": a.course_id,
+        "knowledge_point_id": a.knowledge_point_id,
+        "user_answer": a.user_answer,
+        "ai_feedback": a.ai_feedback,
+        "self_result": a.self_result,
+        "created_at": serialize_datetime(a.created_at) if a.created_at else None,
+    }
+
+
+@app.get("/practice/questions")
+def list_questions(
+    username: str,
+    course_id: str = "",
+    knowledge_point_id: int | None = None,
+    type: str = "",
+    db: Session = Depends(get_db),
+):
+    user = get_user_by_username(username, db)
+    query = db.query(models.Question).filter(models.Question.username == user.username)
+    normalized_course = normalize_subject(course_id, default="")
+    if normalized_course:
+        query = query.filter(models.Question.course_id == normalized_course)
+    if knowledge_point_id is not None:
+        query = query.filter(models.Question.knowledge_point_id == knowledge_point_id)
+    qtype = (type or "").strip()
+    if qtype and qtype in ("choice", "short_answer", "programming"):
+        query = query.filter(models.Question.type == qtype)
+
+    questions = query.order_by(models.Question.updated_at.desc()).all()
+
+    kp_ids = [q.knowledge_point_id for q in questions if q.knowledge_point_id]
+    kp_map: dict[int, str] = {}
+    if kp_ids:
+        kps = db.query(models.KnowledgePoint).filter(models.KnowledgePoint.id.in_(kp_ids)).all()
+        for kp in kps:
+            kp_map[kp.id] = kp.title
+
+    return {
+        "success": True,
+        "questions": [serialize_question_list_item(q, knowledge_point_title=kp_map.get(q.knowledge_point_id)) for q in questions],
+    }
+
+
+@app.post("/practice/questions")
+def create_question(req: schemas.QuestionCreate, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+    qtype = (req.type or "").strip()
+    if qtype not in ("choice", "short_answer", "programming"):
+        raise HTTPException(status_code=400, detail="无效的题型")
+    title = (req.title or "").strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="题目标题不能为空")
+    content = (req.content or "").strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="题目内容不能为空")
+
+    question = models.Question(
+        username=user.username,
+        course_id=normalize_subject(req.course_id, default="") or None,
+        knowledge_point_id=req.knowledge_point_id,
+        type=qtype,
+        title=title[:255],
+        content=content,
+        options=(req.options or "").strip() or None,
+        answer=(req.answer or "").strip() or None,
+        explanation=(req.explanation or "").strip() or None,
+        difficulty=req.difficulty or "基础",
+        source=req.source or "manual",
+    )
+    db.add(question)
+    db.commit()
+    db.refresh(question)
+    return {"success": True, "question": serialize_question(question)}
+
+
+@app.get("/practice/questions/{question_id}")
+def get_question(question_id: int, username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    question = (
+        db.query(models.Question)
+        .filter(models.Question.id == question_id, models.Question.username == user.username)
+        .first()
+    )
+    if not question:
+        raise HTTPException(status_code=404, detail="题目不存在")
+
+    kp_title = None
+    if question.knowledge_point_id:
+        kp = db.query(models.KnowledgePoint).filter(models.KnowledgePoint.id == question.knowledge_point_id).first()
+        if kp:
+            kp_title = kp.title
+
+    return {"success": True, "question": serialize_question(question, knowledge_point_title=kp_title)}
+
+
+@app.put("/practice/questions/{question_id}")
+def update_question(question_id: int, req: schemas.QuestionUpdate, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+    question = (
+        db.query(models.Question)
+        .filter(models.Question.id == question_id, models.Question.username == user.username)
+        .first()
+    )
+    if not question:
+        raise HTTPException(status_code=404, detail="题目不存在")
+
+    if req.type is not None:
+        new_type = (req.type or "").strip()
+        if new_type not in ("choice", "short_answer", "programming"):
+            raise HTTPException(status_code=400, detail="无效的题型")
+        question.type = new_type
+    if req.title is not None:
+        question.title = (req.title or "").strip()[:255]
+    if req.content is not None:
+        question.content = (req.content or "").strip()
+    if req.options is not None:
+        question.options = (req.options or "").strip() or None
+    if req.answer is not None:
+        question.answer = (req.answer or "").strip() or None
+    if req.explanation is not None:
+        question.explanation = (req.explanation or "").strip() or None
+    if req.difficulty is not None:
+        question.difficulty = req.difficulty
+    if req.course_id is not None:
+        question.course_id = normalize_subject(req.course_id, default="") or None
+    if req.knowledge_point_id is not None:
+        question.knowledge_point_id = req.knowledge_point_id
+
+    question.updated_at = utc_now()
+    db.commit()
+    db.refresh(question)
+    return {"success": True, "question": serialize_question(question)}
+
+
+@app.delete("/practice/questions/{question_id}")
+def delete_question(question_id: int, username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    question = (
+        db.query(models.Question)
+        .filter(models.Question.id == question_id, models.Question.username == user.username)
+        .first()
+    )
+    if not question:
+        raise HTTPException(status_code=404, detail="题目不存在")
+
+    db.query(models.QuestionAttempt).filter(models.QuestionAttempt.question_id == question_id).delete()
+    db.delete(question)
+    db.commit()
+    return {"success": True, "message": "题目已删除"}
+
+
+@app.post("/practice/questions/{question_id}/attempts")
+def submit_attempt(question_id: int, req: schemas.QuestionAttemptCreate, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+    question = (
+        db.query(models.Question)
+        .filter(models.Question.id == question_id, models.Question.username == user.username)
+        .first()
+    )
+    if not question:
+        raise HTTPException(status_code=404, detail="题目不存在")
+
+    self_result = "unknown"
+    if question.type == "choice" and question.answer:
+        ua = (req.user_answer or "").strip()
+        ca = (question.answer or "").strip()
+        if ua and ca and ua == ca:
+            self_result = "correct"
+        elif ua:
+            self_result = "incorrect"
+
+    attempt = models.QuestionAttempt(
+        username=user.username,
+        question_id=question_id,
+        course_id=question.course_id,
+        knowledge_point_id=question.knowledge_point_id,
+        user_answer=req.user_answer,
+        self_result=self_result,
+    )
+    db.add(attempt)
+    db.commit()
+    db.refresh(attempt)
+    return {"success": True, "attempt": serialize_attempt(attempt)}
+
+
+@app.get("/practice/questions/{question_id}/attempts")
+def list_attempts(question_id: int, username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    question = (
+        db.query(models.Question)
+        .filter(models.Question.id == question_id, models.Question.username == user.username)
+        .first()
+    )
+    if not question:
+        raise HTTPException(status_code=404, detail="题目不存在")
+
+    attempts = (
+        db.query(models.QuestionAttempt)
+        .filter(
+            models.QuestionAttempt.question_id == question_id,
+            models.QuestionAttempt.username == user.username,
+        )
+        .order_by(models.QuestionAttempt.created_at.desc())
+        .all()
+    )
+    return {
+        "success": True,
+        "attempts": [serialize_attempt(a, question_title=question.title) for a in attempts],
+    }
+
+
+PRACTICE_FEEDBACK_PROMPT = """你是学习辅导助手。根据题目、参考答案、解析和用户的作答，给出结构化反馈。
+
+要求：
+1. 答案判断：用户答案是否正确/部分正确/错误
+2. 问题分析：分析为什么对/错
+3. 正确思路：分析正确解法
+4. 知识点提醒：涉及什么知识点
+5. 下一步建议：下一步学什么
+
+输出格式：Markdown，结构化清晰。"""
+
+
+@app.post("/practice/questions/{question_id}/feedback")
+def request_feedback(question_id: int, req: schemas.QuestionFeedbackRequest, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+    question = (
+        db.query(models.Question)
+        .filter(models.Question.id == question_id, models.Question.username == user.username)
+        .first()
+    )
+    if not question:
+        raise HTTPException(status_code=404, detail="题目不存在")
+
+    user_prompt = f"""题目：{question.title}
+
+题面：
+{question.content}
+
+题目类型：{question.type}
+参考答案：{question.answer or '未提供'}
+解析：{question.explanation or '未提供'}
+
+用户的答案：
+{req.user_answer}
+
+请根据以上信息给出反馈。"""
+
+    try:
+        ai_response = call_deepseek(
+            [
+                {"role": "system", "content": PRACTICE_FEEDBACK_PROMPT},
+                {"role": "user", "content": user_prompt},
+            ]
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI 反馈请求失败：{str(e)}")
+
+    attempt = models.QuestionAttempt(
+        username=user.username,
+        question_id=question_id,
+        course_id=question.course_id,
+        knowledge_point_id=question.knowledge_point_id,
+        user_answer=req.user_answer,
+        ai_feedback=ai_response,
+        self_result="unknown",
+    )
+    db.add(attempt)
+    db.commit()
+    db.refresh(attempt)
+
+    return {"success": True, "feedback": ai_response, "attempt": serialize_attempt(attempt)}
+
+
+@app.get("/practice/summary")
+def get_practice_summary(
+    username: str,
+    course_id: str = "",
+    knowledge_point_id: int | None = None,
+    db: Session = Depends(get_db),
+):
+    user = get_user_by_username(username, db)
+    q_query = db.query(models.Question).filter(models.Question.username == user.username)
+    normalized_course = normalize_subject(course_id, default="")
+    if normalized_course:
+        q_query = q_query.filter(models.Question.course_id == normalized_course)
+    if knowledge_point_id is not None:
+        q_query = q_query.filter(models.Question.knowledge_point_id == knowledge_point_id)
+
+    a_query = db.query(models.QuestionAttempt).filter(models.QuestionAttempt.username == user.username)
+    if normalized_course:
+        a_query = a_query.filter(models.QuestionAttempt.course_id == normalized_course)
+    if knowledge_point_id is not None:
+        a_query = a_query.filter(models.QuestionAttempt.knowledge_point_id == knowledge_point_id)
+
+    total_questions = q_query.count()
+    total_attempts = a_query.count()
+    choice_count = q_query.filter(models.Question.type == "choice").count()
+    short_answer_count = q_query.filter(models.Question.type == "short_answer").count()
+    programming_count = q_query.filter(models.Question.type == "programming").count()
+    correct_count = a_query.filter(models.QuestionAttempt.self_result == "correct").count()
+
+    recent = a_query.order_by(models.QuestionAttempt.created_at.desc()).limit(5).all()
+    recent_attempts = []
+    if recent:
+        a_q_ids = [a.question_id for a in recent]
+        a_q_map = {}
+        qs = db.query(models.Question).filter(models.Question.id.in_(a_q_ids)).all()
+        for q in qs:
+            a_q_map[q.id] = q.title
+        recent_attempts = [
+            {
+                "id": a.id,
+                "question_id": a.question_id,
+                "question_title": a_q_map.get(a.question_id, ""),
+                "self_result": a.self_result,
+                "created_at": serialize_datetime(a.created_at) if a.created_at else None,
+            }
+            for a in recent
+        ]
+
+    return {
+        "success": True,
+        "total_questions": total_questions,
+        "total_attempts": total_attempts,
+        "choice_count": choice_count,
+        "short_answer_count": short_answer_count,
+        "programming_count": programming_count,
+        "correct_count": correct_count,
+        "recent_attempts": recent_attempts,
+    }
+
+
+GENERATE_QUESTION_PROMPT = """你是教育题库生成助手。根据课程和知识点信息，生成练习题。
+
+要求：
+1. 题目必须围绕指定的课程和知识点
+2. 题面清晰，不超纲
+3. 难度适中
+4. 选择题必须有 4 个选项（A/B/C/D），并标注标准答案
+5. 简答题必须有参考答案和解析
+6. 不生成需要运行代码的题
+7. 不生成需要外部文件或网络的题
+8. 输出严格 JSON 格式
+
+输出格式：
+如果是选择题：
+{"type": "choice", "title": "题目标题", "content": "题面内容", "options": "A. 选项1\\nB. 选项2\\nC. 选项3\\nD. 选项4", "answer": "A", "explanation": "解析说明"}
+
+如果是简答题：
+{"type": "short_answer", "title": "题目标题", "content": "题面内容", "answer": "参考答案", "explanation": "解析说明"}"""
+
+
+@app.post("/practice/questions/generate")
+def generate_questions(req: schemas.GenerateQuestionRequest, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+    count = min(max(req.count, 1), 5)
+    qtype = (req.type or "choice").strip()
+    if qtype not in ("choice", "short_answer"):
+        raise HTTPException(status_code=400, detail="AI 生成仅支持 choice 和 short_answer")
+
+    course_name = (req.course_name or req.course_id or "").strip()
+    kp_title = (req.knowledge_point_title or "").strip()
+    difficulty = (req.difficulty or "基础").strip()
+
+    user_prompt = f"""课程：{course_name or '未指定'}
+知识点：{kp_title or '通用'}
+题型：{qtype}
+难度：{difficulty}
+数量：{count} 道
+
+请生成 {count} 道{qtype}类型的题目。{"如果选择题，请返回一个 JSON 对象数组。" if qtype == "choice" else "请返回一个 JSON 对象数组。"}
+
+请直接输出 JSON 数组："""
+
+    try:
+        ai_response = call_deepseek(
+            [
+                {"role": "system", "content": GENERATE_QUESTION_PROMPT},
+                {"role": "user", "content": user_prompt},
+            ]
+        )
+        json_match = re.search(r"\[[\s\S]*?\]", ai_response)
+        if json_match:
+            questions_data = json.loads(json_match.group(0))
+        else:
+            obj_match = re.search(r"\{[\s\S]*?\}", ai_response)
+            if obj_match:
+                questions_data = [json.loads(obj_match.group(0))]
+            else:
+                questions_data = []
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI 生成题目失败，JSON 解析错误：{str(e)}")
+
+    if not isinstance(questions_data, list) or len(questions_data) == 0:
+        raise HTTPException(status_code=500, detail="AI 未能生成有效题目，请稍后重试")
+
+    course_id = normalize_subject(req.course_id, default="") or None
+    created = []
+    for item in questions_data[:count]:
+        gen_type = (str(item.get("type", qtype))).strip()
+        if gen_type not in ("choice", "short_answer"):
+            gen_type = qtype
+        question = models.Question(
+            username=user.username,
+            course_id=course_id,
+            knowledge_point_id=req.knowledge_point_id,
+            type=gen_type,
+            title=str(item.get("title", "AI 生成题目"))[:255],
+            content=str(item.get("content", "")),
+            options=str(item.get("options", "")) or None,
+            answer=str(item.get("answer", "")) or None,
+            explanation=str(item.get("explanation", "")) or None,
+            difficulty=difficulty,
+            source="ai",
+        )
+        db.add(question)
+        created.append(question)
+
+    db.commit()
+    for q in created:
+        db.refresh(q)
+
+    return {
+        "success": True,
+        "questions": [serialize_question(q) for q in created],
+        "message": f"已生成 {len(created)} 道题目",
     }

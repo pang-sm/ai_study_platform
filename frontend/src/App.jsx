@@ -5,6 +5,7 @@ import CourseDashboard from "./components/CourseDashboard.jsx";
 
 const CodeStudio = lazy(() => import("./components/CodeStudio.jsx"));
 const TaskCenter = lazy(() => import("./components/TaskCenter.jsx"));
+const PracticeCenter = lazy(() => import("./components/PracticeCenter.jsx"));
 import MarkdownMessage from "./components/MarkdownMessage.jsx";
 import {
   COURSE_OPTIONS,
@@ -2467,6 +2468,11 @@ function App() {
                 <div className="home-entry-title">学习任务中心</div>
                 <div className="home-entry-desc">查看、创建和管理学习任务，让 AI 帮你生成学习计划。</div>
               </button>
+              <button className="home-entry-card" onClick={() => setPage("practiceCenter")}>
+                <div className="home-entry-icon">📝</div>
+                <div className="home-entry-title">练习中心</div>
+                <div className="home-entry-desc">按知识点刷题练习，AI 自动反馈，支持选择题和简答题。</div>
+              </button>
               <button className="home-entry-card" onClick={() => {
                 setLearningGoals(Array.isArray(user?.learning_goals) ? [...user.learning_goals] : []);
                 setPage("profileEdit");
@@ -2525,6 +2531,31 @@ function App() {
         </header>
         <Suspense fallback={<div className="empty-state">学习任务中心加载中...</div>}>
           <TaskCenter
+            user={user}
+            subject={subject}
+            courseOptions={COURSE_OPTIONS}
+            getSubjectLabel={getSubjectLabel}
+            normalizeSubject={normalizeSubject}
+            formatDate={formatDate}
+          />
+        </Suspense>
+      </div>
+    );
+  }
+
+  if (page === "practiceCenter") {
+    return (
+      <div className="app-shell">
+        <header className="workspace-topbar">
+          <div className="workspace-topbar-left">
+            <button className="ghost-button compact" onClick={() => setPage("home")}>
+              返回首页
+            </button>
+            <span className="subject-pill panel-pill">练习中心</span>
+          </div>
+        </header>
+        <Suspense fallback={<div className="empty-state">练习中心加载中...</div>}>
+          <PracticeCenter
             user={user}
             subject={subject}
             courseOptions={COURSE_OPTIONS}
@@ -3049,6 +3080,7 @@ function App() {
             onNewCourseChat={() => openChatPageForCourse(subject, true)}
             onOpenCodeStudio={() => setPage("codeStudio")}
             onOpenTaskCenter={() => setPage("taskCenter")}
+            onOpenPracticeCenter={() => setPage("practiceCenter")}
             getSubjectLabel={getSubjectLabel}
             getFileTypeLabel={getFileTypeLabel}
             formatDate={formatDate}

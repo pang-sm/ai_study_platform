@@ -156,6 +156,7 @@ LEARNING_TASKS_COLUMNS = {
     "related_challenge_id": "INTEGER",
     "related_material_id": "INTEGER",
     "knowledge_point_id": "INTEGER",
+    "related_question_id": "INTEGER",
     "completed_at": "DATETIME",
     "created_at": "DATETIME NOT NULL",
     "updated_at": "DATETIME NOT NULL",
@@ -171,6 +172,33 @@ KNOWLEDGE_POINTS_COLUMNS = {
     "level": "INTEGER",
     "created_at": "DATETIME NOT NULL",
     "updated_at": "DATETIME NOT NULL",
+}
+
+QUESTIONS_COLUMNS = {
+    "username": "VARCHAR(50) NOT NULL",
+    "course_id": "VARCHAR(100)",
+    "knowledge_point_id": "INTEGER",
+    "type": "VARCHAR(30) NOT NULL",
+    "title": "VARCHAR(255) NOT NULL",
+    "content": "TEXT NOT NULL",
+    "options": "TEXT",
+    "answer": "TEXT",
+    "explanation": "TEXT",
+    "difficulty": "VARCHAR(20)",
+    "source": "VARCHAR(50)",
+    "created_at": "DATETIME NOT NULL",
+    "updated_at": "DATETIME NOT NULL",
+}
+
+QUESTION_ATTEMPTS_COLUMNS = {
+    "username": "VARCHAR(50) NOT NULL",
+    "question_id": "INTEGER NOT NULL",
+    "course_id": "VARCHAR(100)",
+    "knowledge_point_id": "INTEGER",
+    "user_answer": "TEXT",
+    "ai_feedback": "TEXT",
+    "self_result": "VARCHAR(30)",
+    "created_at": "DATETIME NOT NULL",
 }
 
 USER_KNOWLEDGE_PROGRESS_COLUMNS = {
@@ -380,6 +408,53 @@ def ensure_learning_tasks_schema(conn):
     ensure_columns(conn, "learning_tasks", LEARNING_TASKS_COLUMNS)
 
 
+def ensure_questions_schema(conn):
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS questions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username VARCHAR(50) NOT NULL,
+                course_id VARCHAR(100),
+                knowledge_point_id INTEGER,
+                type VARCHAR(30) NOT NULL,
+                title VARCHAR(255) NOT NULL,
+                content TEXT NOT NULL,
+                options TEXT,
+                answer TEXT,
+                explanation TEXT,
+                difficulty VARCHAR(20),
+                source VARCHAR(50),
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+    )
+    ensure_columns(conn, "questions", QUESTIONS_COLUMNS)
+
+
+def ensure_question_attempts_schema(conn):
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS question_attempts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username VARCHAR(50) NOT NULL,
+                question_id INTEGER NOT NULL,
+                course_id VARCHAR(100),
+                knowledge_point_id INTEGER,
+                user_answer TEXT,
+                ai_feedback TEXT,
+                self_result VARCHAR(30),
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+    )
+    ensure_columns(conn, "question_attempts", QUESTION_ATTEMPTS_COLUMNS)
+
+
 def ensure_knowledge_points_schema(conn):
     conn.execute(
         text(
@@ -556,6 +631,8 @@ def init_user_profile_schema():
         ensure_code_ai_messages_schema(conn)
         ensure_code_challenges_schema(conn)
         ensure_learning_tasks_schema(conn)
+        ensure_questions_schema(conn)
+        ensure_question_attempts_schema(conn)
         ensure_knowledge_points_schema(conn)
         ensure_user_knowledge_progress_schema(conn)
         ensure_material_chunks_fts(conn)
