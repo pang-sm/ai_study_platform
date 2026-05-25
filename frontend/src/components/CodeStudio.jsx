@@ -82,6 +82,10 @@ export default function CodeStudio({
   const [runResult, setRunResult] = useState(null);
   const [stdin, setStdin] = useState("");
 
+  // Test runner
+  const [testing, setTesting] = useState(false);
+  const [testResults, setTestResults] = useState(null);
+
   // Reference solution & starter code
   const [showReference, setShowReference] = useState(false);
   const [starterConfirmOpen, setStarterConfirmOpen] = useState(false);
@@ -164,6 +168,7 @@ export default function CodeStudio({
     setCodeTruncated(false);
     setShowReference(false);
     setRunResult(null);
+    setTestResults(null);
     setOutputPanelTab("feedback");
     if (session.id) {
       loadMessages(session.id);
@@ -196,6 +201,7 @@ export default function CodeStudio({
     setCodeTruncated(false);
     setShowReference(false);
     setRunResult(null);
+    setTestResults(null);
     setOutputPanelTab("feedback");
   };
 
@@ -364,6 +370,59 @@ export default function CodeStudio({
     }
   };
 
+  const runTests = async () => {
+    if (!user?.username || !selectedSession?.challenge_id) return;
+    if (!code.trim()) {
+      setTip("请先编写代码再运行测试。");
+      return;
+    }
+    if (language !== "Python") {
+      setTip("当前测试运行暂只支持 Python");
+      return;
+    }
+    setTesting(true);
+    setTestResults(null);
+    setShowFeedbackPanel(true);
+    setOutputPanelTab("run");
+
+    try {
+      const res = await fetch(
+        `${API_BASE}/code/challenges/${selectedSession.challenge_id}/run-tests`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: user.username,
+            session_id: selectedSession.id,
+            language,
+            code,
+          }),
+        }
+      );
+      const data = await safeJson(res);
+      if (res.ok) {
+        setTestResults(data);
+      } else {
+        setTestResults({
+          total: 0,
+          passed: 0,
+          results: [],
+          error_message: data.detail || "运行测试失败",
+        });
+      }
+    } catch (error) {
+      console.error("Failed to run tests:", error);
+      setTestResults({
+        total: 0,
+        passed: 0,
+        results: [],
+        error_message: "无法连接后端服务。",
+      });
+    } finally {
+      setTesting(false);
+    }
+  };
+
   const analyzeCode = async () => {
     if (!code.trim()) {
       setTip("请先输入代码再进行分析。");
@@ -499,6 +558,7 @@ export default function CodeStudio({
           setFeedbackStatus(null);
           setShowReference(false);
           setRunResult(null);
+          setTestResults(null);
         }
         await loadSessions();
         setTip("练习已删除");
@@ -757,6 +817,16 @@ export default function CodeStudio({
           </button>
           {selectedSession?.challenge_id && (
             <button
+              className={`primary-button compact code-test-btn ${!canRun ? "code-run-btn--disabled" : ""}`}
+              onClick={runTests}
+              disabled={testing || !canRun || !code.trim()}
+              title={canRun ? "运行测试用例" : "当前测试运行暂只支持 Python"}
+            >
+              {testing ? "测试中..." : canRun ? "运行测试" : `测试 (仅Python)`}
+            </button>
+          )}
+          {selectedSession?.challenge_id && (
+            <button
               className="primary-button compact code-submit-btn"
               onClick={submitAnswer}
               disabled={submitting || !code.trim()}
@@ -909,7 +979,7 @@ export default function CodeStudio({
                 )}
                 <button
                   className="code-feedback-panel-close"
-                  onClick={() => { setShowFeedbackPanel(false); setRunResult(null); }}
+                  onClick={() => { setShowFeedbackPanel(false); setRunResult(null); setTestResults(null); }}
                 >
                   &times;
                 </button>
@@ -922,6 +992,107 @@ export default function CodeStudio({
                   {running ? (
                     <div className="empty-inline" style={{ padding: "12px 0" }}>
                       代码执行中...
+                    </div>
+                  ) : testing ? (
+                    <div className="empty-inline" style={{ padding: "12px 0" }}>
+                      测试运行中...
+                    </div>
+                  ) : testResults ? (
+                    <div className="code-test-results">
+                      {/* Error message */}
+                      {testResults.error_message && (
+                        <div className="code-run-error-message">
+                          {testResults.error_message}
+                        </div>
+                      )}
+
+                      {/* Test Summary */}
+                      {testResults.total > 0 ? (
+                        <>
+                          <div
+                            className={`code-test-summary ${
+                              testResults.passed === testResults.total
+                                ? "code-test-summary--all-pass"
+                                : testResults.passed > 0
+                                ? "code-test-summary--partial"
+                                : "code-test-summary--all-fail"
+                            }`}
+                          >
+                            <span className="code-test-summary-text">
+                              测试结果：通过 {testResults.passed}/{testResults.total}
+                            </span>
+                          </div>
+
+                          {/* Per-test-case results */}
+                          {testResults.results.map((tc, idx) => (
+                            <div
+                              key={idx}
+                              className={`code-test-case ${tc.passed ? "code-test-case--pass" : "code-test-case--fail"}`}
+                            >
+                              <div className="code-test-case-header">
+                                <span className="code-test-case-index">测试用例 #{idx + 1}</span>
+                                <span
+                                  className={`code-test-case-badge ${
+                                    tc.passed
+                                      ? "code-test-case-badge--pass"
+                                      : "code-test-case-badge--fail"
+                                  }`}
+                                >
+                                  {tc.passed ? "通过" : "未通过"}
+                                </span>
+                                {tc.timed_out && (
+                                  <span className="code-test-case-badge code-test-case-badge--timeout">
+                                    超时
+                                  </span>
+                                )}
+                              </div>
+                              {tc.description && (
+                                <div className="code-test-case-desc">{tc.description}</div>
+                              )}
+                              <div className="code-test-case-details">
+                                <div className="code-test-case-detail">
+                                  <span className="code-test-case-label">Input</span>
+                                  <pre className="code-run-pre" style={{ maxHeight: 80 }}>
+                                    {tc.input || "(空)"}
+                                  </pre>
+                                </div>
+                                <div className="code-test-case-detail">
+                                  <span className="code-test-case-label">期望输出</span>
+                                  <pre className="code-run-pre" style={{ maxHeight: 80 }}>
+                                    {tc.expected_output || "(空)"}
+                                  </pre>
+                                </div>
+                                <div className="code-test-case-detail">
+                                  <span className="code-test-case-label">实际输出</span>
+                                  <pre
+                                    className={`code-run-pre ${!tc.passed ? "code-run-pre--err" : ""}`}
+                                    style={{ maxHeight: 80 }}
+                                  >
+                                    {tc.actual_output || "(空)"}
+                                  </pre>
+                                </div>
+                                {tc.stderr && (
+                                  <div className="code-test-case-detail">
+                                    <span className="code-test-case-label code-run-section-label--err">
+                                      stderr
+                                    </span>
+                                    <pre
+                                      className="code-run-pre code-run-pre--err"
+                                      style={{ maxHeight: 80 }}
+                                    >
+                                      {tc.stderr}
+                                    </pre>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </>
+                      ) : (
+                        <div className="empty-inline" style={{ padding: "16px" }}>
+                          当前题目暂无测试用例，可使用 AI 判定功能分析答案
+                        </div>
+                      )}
                     </div>
                   ) : runResult ? (
                     <>
@@ -975,7 +1146,7 @@ export default function CodeStudio({
                     </>
                   ) : (
                     <div className="empty-inline" style={{ padding: "16px" }}>
-                      点击「运行代码」查看执行结果
+                      点击「运行代码」或「运行测试」查看执行结果
                     </div>
                   )}
                 </div>

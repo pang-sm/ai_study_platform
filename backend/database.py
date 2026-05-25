@@ -130,6 +130,7 @@ CODE_CHALLENGES_COLUMNS = {
     "examples": "TEXT",
     "starter_code": "TEXT",
     "reference_solution": "TEXT",
+    "test_cases": "TEXT",
     "created_at": "DATETIME",
 }
 

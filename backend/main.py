@@ -4358,8 +4358,10 @@ def serialize_code_challenge(challenge):
         "output_format": challenge.output_format,
         "examples": challenge.examples,
         "starter_code": challenge.starter_code,
+        "reference_solution": challenge.reference_solution,
         "source": getattr(challenge, "source", None) or "normal",
         "target_weak_point": getattr(challenge, "target_weak_point", None),
+        "test_cases": getattr(challenge, "test_cases", None) or "[]",
         "created_at": challenge.created_at,
     }
 
@@ -4957,6 +4959,10 @@ CODE_CHALLENGE_GENERATE_PROMPT = """你是编程学习出题助手。根据用�
 4. 题目描述要清晰，输入输出格式要明确
 5. starter_code 提供代码框架，让用户填写核心逻辑
 6. reference_solution 是完整参考解法
+7. test_cases 必须提供 3-5 个测试用例，每个用例包含 input（stdin输入）、expected_output（期望输出）、description（用例描述）
+8. 测试用例必须与题目输入输出格式完全一致
+9. 测试用例至少包含：基础样例、边界样例、常见错误样例
+10. expected_output 必须是精确的输出字符串，包含必要的换行符
 
 请严格按照以下 JSON 格式输出（不要输出其他内容）：
 
@@ -4971,7 +4977,24 @@ CODE_CHALLENGE_GENERATE_PROMPT = """你是编程学习出题助手。根据用�
   "output_format": "输出格式说明",
   "examples": "示例输入输出",
   "starter_code": "用户可编辑的起始代码框架",
-  "reference_solution": "完整参考解法"
+  "reference_solution": "完整参考解法",
+  "test_cases": [
+    {
+      "input": "stdin输入内容",
+      "expected_output": "期望输出",
+      "description": "基础样例"
+    },
+    {
+      "input": "边界输入",
+      "expected_output": "边界期望输出",
+      "description": "边界测试"
+    },
+    {
+      "input": "可能触发错误的输入",
+      "expected_output": "正确输出",
+      "description": "常见错误测试"
+    }
+  ]
 }
 ```"""
 
@@ -5108,6 +5131,21 @@ def generate_code_challenge(req: schemas.CodeChallengeGenerateRequest, db: Sessi
         if not challenge_data.get(field):
             raise HTTPException(status_code=500, detail=f"AI 生成题目缺少 {field}，请重试")
 
+    # Parse and validate test_cases
+    test_cases_json = "[]"
+    raw_test_cases = challenge_data.get("test_cases")
+    if isinstance(raw_test_cases, list) and len(raw_test_cases) > 0:
+        valid_cases = []
+        for tc in raw_test_cases:
+            if isinstance(tc, dict) and tc.get("input") is not None and tc.get("expected_output") is not None:
+                valid_cases.append({
+                    "input": str(tc.get("input", "")),
+                    "expected_output": str(tc.get("expected_output", "")),
+                    "description": str(tc.get("description", ""))[:100],
+                })
+        if valid_cases:
+            test_cases_json = json_module.dumps(valid_cases, ensure_ascii=False)
+
     challenge = models.CodeChallenge(
         username=user.username,
         course_id=course_id,
@@ -5122,6 +5160,7 @@ def generate_code_challenge(req: schemas.CodeChallengeGenerateRequest, db: Sessi
         examples=str(challenge_data.get("examples", "")),
         starter_code=str(challenge_data.get("starter_code", CODE_TEMPLATES.get(language, ""))),
         reference_solution=str(challenge_data.get("reference_solution", "")),
+        test_cases=test_cases_json,
         source=challenge_source,
         target_weak_point=target_weak_point or None,
     )
@@ -5337,6 +5376,135 @@ def submit_code_challenge(challenge_id: int, req: schemas.CodeChallengeSubmitReq
         "status": status,
         "ai_feedback": ai_feedback,
         "attempt_id": attempt.id,
+    }
+
+
+@app.post("/code/challenges/{challenge_id}/run-tests")
+def run_challenge_tests(challenge_id: int, req: schemas.CodeChallengeRunTestsRequest, db: Session = Depends(get_db)):
+    language = (req.language or "").strip().lower()
+
+    if language != "python":
+        return {
+            "success": True,
+            "total": 0,
+            "passed": 0,
+            "results": [],
+            "error_message": f"当前测试运行暂只支持 Python，{req.language or '该语言'} 暂不支持。",
+        }
+
+    user = get_user_by_username(req.username, db)
+
+    challenge = (
+        db.query(models.CodeChallenge)
+        .filter(
+            models.CodeChallenge.id == challenge_id,
+            models.CodeChallenge.username == user.username,
+        )
+        .first()
+    )
+    if not challenge:
+        raise HTTPException(status_code=404, detail="题目不存在")
+
+    session = (
+        db.query(models.CodeSession)
+        .filter(
+            models.CodeSession.id == req.session_id,
+            models.CodeSession.username == user.username,
+        )
+        .first()
+    )
+    if not session:
+        raise HTTPException(status_code=404, detail="代码练习不存在")
+
+    code = (req.code or "").strip()
+    if not code:
+        return {
+            "success": True,
+            "total": 0,
+            "passed": 0,
+            "results": [],
+            "error_message": "请先编写代码再运行测试。",
+        }
+
+    if len(code) > MAX_CODE_EXECUTE_CHARS:
+        return {
+            "success": True,
+            "total": 0,
+            "passed": 0,
+            "results": [],
+            "error_message": f"代码过长（{len(code)} 字符），当前限制 {MAX_CODE_EXECUTE_CHARS} 字符。",
+        }
+
+    # Parse test_cases
+    test_cases_json = getattr(challenge, "test_cases", None) or "[]"
+    try:
+        test_cases = json.loads(test_cases_json) if isinstance(test_cases_json, str) else test_cases_json
+    except (json.JSONDecodeError, TypeError):
+        test_cases = []
+
+    if not isinstance(test_cases, list) or len(test_cases) == 0:
+        return {
+            "success": True,
+            "total": 0,
+            "passed": 0,
+            "results": [],
+            "error_message": "当前题目暂无测试用例，可使用 AI 判定功能分析答案。",
+        }
+
+    results = []
+    passed_count = 0
+
+    for idx, tc in enumerate(test_cases):
+        if not isinstance(tc, dict):
+            continue
+        test_input = str(tc.get("input", ""))
+        expected = str(tc.get("expected_output", "")).strip()
+        description = str(tc.get("description", ""))[:100]
+
+        exec_result = _run_code_in_docker(code, test_input)
+
+        actual_output = (exec_result.get("stdout") or "").strip()
+        stderr = (exec_result.get("stderr") or "")
+        exit_code = exec_result.get("exit_code", -1)
+        duration_ms = exec_result.get("duration_ms", 0)
+        timed_out = exec_result.get("timed_out", False)
+        error_message = exec_result.get("error_message")
+
+        # Determine pass/fail
+        if error_message:
+            passed = False
+        elif timed_out:
+            passed = False
+        elif exit_code != 0:
+            passed = False
+        elif actual_output == expected:
+            passed = True
+        else:
+            # Allow minor whitespace-only differences (the strip() above handles trailing newlines)
+            passed = False
+
+        if passed:
+            passed_count += 1
+
+        results.append({
+            "index": idx + 1,
+            "description": description,
+            "input": test_input,
+            "expected_output": expected,
+            "actual_output": actual_output,
+            "stderr": stderr,
+            "exit_code": exit_code,
+            "passed": passed,
+            "duration_ms": duration_ms,
+            "timed_out": timed_out,
+            "error_message": error_message,
+        })
+
+    return {
+        "success": True,
+        "total": len(results),
+        "passed": passed_count,
+        "results": results,
     }
 
 
