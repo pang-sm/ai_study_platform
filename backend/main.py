@@ -5154,6 +5154,253 @@ def get_learning_tasks_summary(username: str, course_id: str = "", db: Session =
     }
 
 
+@app.get("/learning/dashboard")
+def get_learning_dashboard(username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+
+    # ── Collect all distinct course_ids across tables ──
+    course_ids: set[str] = set()
+
+    materials = (
+        db.query(models.StudyMaterial)
+        .filter(models.StudyMaterial.username == user.username, models.StudyMaterial.is_deleted.is_(False))
+        .all()
+    )
+    for m in materials:
+        if m.subject:
+            course_ids.add(m.subject)
+
+    kps = db.query(models.KnowledgePoint).filter(models.KnowledgePoint.username == user.username).all()
+    for kp in kps:
+        if kp.course_id:
+            course_ids.add(kp.course_id)
+
+    tasks = db.query(models.LearningTask).filter(models.LearningTask.username == user.username).all()
+    for t in tasks:
+        if t.course_id:
+            course_ids.add(t.course_id)
+
+    sessions = db.query(models.CodeSession).filter(models.CodeSession.username == user.username).all()
+    for s in sessions:
+        if s.course_id:
+            course_ids.add(s.course_id)
+
+    questions = db.query(models.Question).filter(models.Question.username == user.username).all()
+    for q in questions:
+        if q.course_id:
+            course_ids.add(q.course_id)
+
+    # ── Overview ──
+    kp_progresses = (
+        db.query(models.UserKnowledgeProgress)
+        .filter(models.UserKnowledgeProgress.username == user.username)
+        .all()
+    )
+    avg_mastery = 0
+    if kp_progresses:
+        scores = [p.mastery_score or 0 for p in kp_progresses]
+        avg_mastery = round(sum(scores) / len(scores))
+
+    all_tasks = db.query(models.LearningTask).filter(models.LearningTask.username == user.username)
+    todo_task_count = all_tasks.filter(models.LearningTask.status == "todo").count()
+    doing_task_count = all_tasks.filter(models.LearningTask.status == "doing").count()
+    done_task_count = all_tasks.filter(models.LearningTask.status == "done").count()
+
+    overview = {
+        "course_count": len(course_ids),
+        "material_count": len(materials),
+        "knowledge_point_count": len(kps),
+        "average_mastery": avg_mastery,
+        "todo_task_count": todo_task_count,
+        "doing_task_count": doing_task_count,
+        "done_task_count": done_task_count,
+        "code_session_count": len(sessions),
+        "challenge_count": db.query(models.CodeChallenge).filter(
+            models.CodeChallenge.username == user.username
+        ).count(),
+        "question_count": len(questions),
+        "attempt_count": db.query(models.QuestionAttempt).filter(
+            models.QuestionAttempt.username == user.username
+        ).count(),
+    }
+
+    # ── Weak Points ──
+    weak_points = []
+    weak_progresses = (
+        db.query(models.UserKnowledgeProgress)
+        .filter(
+            models.UserKnowledgeProgress.username == user.username,
+            models.UserKnowledgeProgress.mastery_score < 40,
+        )
+        .order_by(models.UserKnowledgeProgress.mastery_score.asc())
+        .limit(5)
+        .all()
+    )
+    if len(weak_progresses) < 5:
+        extra = (
+            db.query(models.UserKnowledgeProgress)
+            .filter(
+                models.UserKnowledgeProgress.username == user.username,
+                models.UserKnowledgeProgress.status.in_(["not_started", "learning", "reviewing"]),
+                ~models.UserKnowledgeProgress.id.in_([p.id for p in weak_progresses]),
+            )
+            .order_by(models.UserKnowledgeProgress.mastery_score.asc())
+            .limit(5 - len(weak_progresses))
+            .all()
+        )
+        weak_progresses.extend(extra)
+
+    kp_id_to_title: dict[int, str] = {}
+    kp_id_to_course: dict[int, str] = {}
+    if weak_progresses:
+        wp_kp_ids = [p.knowledge_point_id for p in weak_progresses]
+        wp_kps = db.query(models.KnowledgePoint).filter(models.KnowledgePoint.id.in_(wp_kp_ids)).all()
+        for kp in wp_kps:
+            kp_id_to_title[kp.id] = kp.title
+            kp_id_to_course[kp.id] = kp.course_id
+
+    for p in weak_progresses:
+        title = kp_id_to_title.get(p.knowledge_point_id, "")
+        course_id = kp_id_to_course.get(p.knowledge_point_id, p.course_id)
+        weak_points.append({
+            "course_id": course_id,
+            "course_name": course_id,
+            "knowledge_point_id": p.knowledge_point_id,
+            "title": title,
+            "mastery_score": p.mastery_score or 0,
+            "status": p.status or "not_started",
+        })
+
+    # ── Recent Activities ──
+    activities = []
+
+    # Recent completed tasks
+    recent_done_tasks = (
+        db.query(models.LearningTask)
+        .filter(models.LearningTask.username == user.username, models.LearningTask.status == "done")
+        .order_by(models.LearningTask.updated_at.desc())
+        .limit(5)
+        .all()
+    )
+    for t in recent_done_tasks:
+        activities.append({
+            "type": "task_done",
+            "title": t.title,
+            "course_id": t.course_id or "",
+            "course_name": t.course_id or "",
+            "created_at": serialize_datetime(t.updated_at) if t.updated_at else None,
+        })
+
+    # Recent progress events
+    recent_events = (
+        db.query(models.KnowledgeProgressEvent)
+        .filter(models.KnowledgeProgressEvent.username == user.username)
+        .order_by(models.KnowledgeProgressEvent.created_at.desc())
+        .limit(5)
+        .all()
+    )
+    event_kp_ids = [e.knowledge_point_id for e in recent_events]
+    event_kp_map: dict[int, str] = {}
+    event_kp_course: dict[int, str] = {}
+    if event_kp_ids:
+        ekps = db.query(models.KnowledgePoint).filter(models.KnowledgePoint.id.in_(event_kp_ids)).all()
+        for ekp in ekps:
+            event_kp_map[ekp.id] = ekp.title
+            event_kp_course[ekp.id] = ekp.course_id
+
+    for e in recent_events:
+        activities.append({
+            "type": "knowledge_progress",
+            "title": event_kp_map.get(e.knowledge_point_id, f"知识点#{e.knowledge_point_id}"),
+            "course_id": e.course_id,
+            "course_name": e.course_id,
+            "created_at": serialize_datetime(e.created_at) if e.created_at else None,
+        })
+
+    # Recent materials
+    recent_materials = (
+        db.query(models.StudyMaterial)
+        .filter(models.StudyMaterial.username == user.username, models.StudyMaterial.is_deleted.is_(False))
+        .order_by(models.StudyMaterial.created_at.desc())
+        .limit(3)
+        .all()
+    )
+    for m in recent_materials:
+        activities.append({
+            "type": "material_uploaded",
+            "title": m.original_filename or "资料",
+            "course_id": m.subject or "",
+            "course_name": m.subject or "",
+            "created_at": serialize_datetime(m.created_at) if m.created_at else None,
+        })
+
+    # Sort by created_at desc and limit to 10
+    activities.sort(key=lambda x: x["created_at"] or "", reverse=True)
+    activities = activities[:10]
+
+    # ── Course Summaries ──
+    course_summaries = []
+    for cid in sorted(course_ids):
+        cid_materials = [m for m in materials if m.subject == cid]
+        cid_kps = [kp for kp in kps if kp.course_id == cid]
+        cid_tasks = [t for t in tasks if t.course_id == cid]
+        cid_sessions = [s for s in sessions if s.course_id == cid]
+        cid_questions_list = [q for q in questions if q.course_id == cid]
+
+        cid_progresses = [
+            p for p in kp_progresses
+            if p.course_id == cid
+        ]
+        cid_avg = 0
+        if cid_progresses:
+            cid_scores = [p.mastery_score or 0 for p in cid_progresses]
+            cid_avg = round(sum(cid_scores) / len(cid_scores))
+
+        course_summaries.append({
+            "course_id": cid,
+            "course_name": cid,
+            "material_count": len(cid_materials),
+            "knowledge_point_count": len(cid_kps),
+            "average_mastery": cid_avg,
+            "todo_task_count": len([t for t in cid_tasks if t.status == "todo"]),
+            "doing_task_count": len([t for t in cid_tasks if t.status == "doing"]),
+            "done_task_count": len([t for t in cid_tasks if t.status == "done"]),
+            "code_session_count": len(cid_sessions),
+            "challenge_count": db.query(models.CodeChallenge).filter(
+                models.CodeChallenge.username == user.username,
+                models.CodeChallenge.course_id == cid,
+            ).count(),
+            "question_count": len(cid_questions_list),
+        })
+
+    # ── Recommendations ──
+    recommendations = []
+    if todo_task_count > 0:
+        recommendations.append(f"你还有 {todo_task_count} 个待完成任务，建议先完成最近的学习任务。")
+    if weak_points:
+        top_weak = weak_points[0]["title"] if weak_points[0]["title"] else "薄弱知识点"
+        recommendations.append(f"你有 {len(weak_points)} 个薄弱知识点，建议优先复习：{top_weak}。")
+    if overview["material_count"] == 0:
+        recommendations.append("建议先上传课程资料，让 AI 回答更贴合你的课程内容。")
+    if overview["knowledge_point_count"] == 0:
+        recommendations.append("建议进入课程工作台，使用 AI 生成知识点路线图。")
+    if overview["code_session_count"] < 3:
+        recommendations.append("建议进入编程学习助手完成几次代码练习，积累诊断数据。")
+    if overview["attempt_count"] < 3:
+        recommendations.append("建议进入练习中心完成几道题，系统会自动更新知识点掌握度。")
+    if not recommendations:
+        recommendations.append("当前学习数据较完整，可以继续按薄弱知识点进行针对性练习。")
+    recommendations = recommendations[:5]
+
+    return {
+        "overview": overview,
+        "weak_points": weak_points,
+        "recent_activities": activities,
+        "course_summaries": course_summaries,
+        "recommendations": recommendations,
+    }
+
+
 LEARNING_TASKS_FROM_DIAGNOSIS_PROMPT = """你是学习任务规划助手。根据用户的编程学习诊断报告和薄弱知识点，生成 3 到 5 个具体可执行的学习任务。
 
 要求：

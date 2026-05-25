@@ -6,6 +6,7 @@ import CourseDashboard from "./components/CourseDashboard.jsx";
 const CodeStudio = lazy(() => import("./components/CodeStudio.jsx"));
 const TaskCenter = lazy(() => import("./components/TaskCenter.jsx"));
 const PracticeCenter = lazy(() => import("./components/PracticeCenter.jsx"));
+const LearningDataCenter = lazy(() => import("./components/LearningDataCenter.jsx"));
 import MarkdownMessage from "./components/MarkdownMessage.jsx";
 import {
   COURSE_OPTIONS,
@@ -2473,6 +2474,11 @@ function App() {
                 <div className="home-entry-title">练习中心</div>
                 <div className="home-entry-desc">按知识点刷题练习，AI 自动反馈，支持选择题和简答题。</div>
               </button>
+              <button className="home-entry-card" onClick={() => setPage("learningDataCenter")}>
+                <div className="home-entry-icon">📊</div>
+                <div className="home-entry-title">学习数据中心</div>
+                <div className="home-entry-desc">查看全局学习统计、薄弱知识点和课程概览。</div>
+              </button>
               <button className="home-entry-card" onClick={() => {
                 setLearningGoals(Array.isArray(user?.learning_goals) ? [...user.learning_goals] : []);
                 setPage("profileEdit");
@@ -2562,6 +2568,27 @@ function App() {
             getSubjectLabel={getSubjectLabel}
             normalizeSubject={normalizeSubject}
             formatDate={formatDate}
+          />
+        </Suspense>
+      </div>
+    );
+  }
+
+  if (page === "learningDataCenter") {
+    return (
+      <div className="app-shell">
+        <header className="workspace-topbar">
+          <div className="workspace-topbar-left">
+            <button className="ghost-button compact" onClick={() => setPage("home")}>
+              返回首页
+            </button>
+            <span className="subject-pill panel-pill">学习数据中心</span>
+          </div>
+        </header>
+        <Suspense fallback={<div className="empty-state">学习数据中心加载中...</div>}>
+          <LearningDataCenter
+            user={user}
+            getSubjectLabel={getSubjectLabel}
           />
         </Suspense>
       </div>

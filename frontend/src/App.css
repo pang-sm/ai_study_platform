@@ -2106,6 +2106,22 @@ select.field:focus {
   background: rgba(255, 255, 255, 0.9);
 }
 
+.datacenter-shell {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 24px 24px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.datacenter-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 0 4px;
+}
+
 .dashboard-overview,
 .dashboard-progress-card {
   grid-column: 1 / -1;
