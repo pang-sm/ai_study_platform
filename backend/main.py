@@ -2917,6 +2917,62 @@ def build_knowledge_context(username: str, course_id: str, db: Session) -> str:
     return result
 
 
+def get_weak_knowledge_points(username: str, course_id: str, db: Session, limit: int = 5):
+    """Return weak/not-started/learning/reviewing knowledge points for a course.
+
+    Sorted by mastery_score ascending, then by last_studied_at (older first).
+    Returns list of dicts with id, title, status, mastery_score.
+    """
+    if not username or not course_id:
+        return []
+
+    rows = (
+        db.query(models.UserKnowledgeProgress, models.KnowledgePoint.title, models.KnowledgePoint.id)
+        .join(models.KnowledgePoint, models.UserKnowledgeProgress.knowledge_point_id == models.KnowledgePoint.id)
+        .filter(
+            models.UserKnowledgeProgress.username == username,
+            models.UserKnowledgeProgress.course_id == course_id,
+            models.UserKnowledgeProgress.status.in_(["not_started", "learning", "reviewing"]),
+        )
+        .all()
+    )
+
+    if not rows:
+        # Fallback: any knowledge points with low mastery score
+        rows = (
+            db.query(models.UserKnowledgeProgress, models.KnowledgePoint.title, models.KnowledgePoint.id)
+            .join(models.KnowledgePoint, models.UserKnowledgeProgress.knowledge_point_id == models.KnowledgePoint.id)
+            .filter(
+                models.UserKnowledgeProgress.username == username,
+                models.UserKnowledgeProgress.course_id == course_id,
+                models.UserKnowledgeProgress.mastery_score < 40,
+            )
+            .all()
+        )
+
+    if not rows:
+        return []
+
+    result: list[dict] = []
+    for progress, title, kp_id in rows:
+        if not title:
+            continue
+        result.append({
+            "id": kp_id,
+            "title": title,
+            "status": progress.status or "not_started",
+            "mastery_score": progress.mastery_score or 0,
+            "last_studied_at": progress.last_studied_at,
+        })
+
+    result.sort(key=lambda x: (
+        x["mastery_score"],
+        0 if x["last_studied_at"] else 0,
+    ))
+
+    return result[:limit]
+
+
 @app.post("/chat")
 def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
     if not req.username:
@@ -4390,6 +4446,13 @@ def generate_code_challenge(req: schemas.CodeChallengeGenerateRequest, db: Sessi
         challenge_source = "normal"
     target_weak_point = (req.target_weak_point or req.focus or "").strip()
 
+    recommended_focus = ""
+    if not target_weak_point and course_id:
+        weak_points = get_weak_knowledge_points(user.username, course_id, db)
+        if weak_points:
+            recommended_focus = weak_points[0]["title"]
+            target_weak_point = recommended_focus
+
     # Gather user's programming progress summary
     progress_query = db.query(models.CodeSession).filter(
         models.CodeSession.username == user.username,
@@ -4422,7 +4485,14 @@ def generate_code_challenge(req: schemas.CodeChallengeGenerateRequest, db: Sessi
             recent_history_summary = "；".join(summaries)
 
     focus_text = f"用户想练习的知识点：{req.focus.strip()}" if req.focus.strip() else ""
-    weak_point_text = f"本题针对的薄弱点：{target_weak_point}。题目应围绕此薄弱点进行针对性训练。" if target_weak_point else ""
+    if target_weak_point:
+        hint = "系统检测到用户当前薄弱知识点" if recommended_focus else "本题针对的薄弱点"
+        weak_point_text = (
+            f"{hint}：{target_weak_point}。"
+            f"请优先围绕该知识点设计题目，题目难度不要过高，不要超出当前课程范围。"
+        )
+    else:
+        weak_point_text = ""
 
     is_diagnosis_driven = (req.source or "").strip() == "diagnosis"
     diagnosis_context = ""
@@ -4494,7 +4564,7 @@ def generate_code_challenge(req: schemas.CodeChallengeGenerateRequest, db: Sessi
         language=language,
         title=str(challenge_data.get("title", ""))[:255],
         difficulty=str(challenge_data.get("difficulty", difficulty))[:20],
-        knowledge_point=str(challenge_data.get("knowledge_point", ""))[:255],
+        knowledge_point=str(challenge_data.get("knowledge_point") or recommended_focus or "")[:255],
         description=str(challenge_data.get("description", "")),
         requirements=str(challenge_data.get("requirements", "")),
         input_format=str(challenge_data.get("input_format", "")),
@@ -4948,18 +5018,20 @@ def get_learning_tasks_summary(username: str, course_id: str = "", db: Session =
     }
 
 
-LEARNING_TASKS_FROM_DIAGNOSIS_PROMPT = """你是学习任务规划助手。根据用户的编程学习诊断报告，生成 3 到 5 个具体可执行的学习任务。
+LEARNING_TASKS_FROM_DIAGNOSIS_PROMPT = """你是学习任务规划助手。根据用户的编程学习诊断报告和薄弱知识点，生成 3 到 5 个具体可执行的学习任务。
 
 要求：
 1. 每个任务必须具体可执行，不要空泛（如"好好学习"）
 2. 任务类型优先使用：code_practice、challenge、review、ask_ai
 3. 根据诊断中的薄弱点设置优先级
 4. 每个任务要有清晰的描述，说明要做什么
-5. 输出严格 JSON 数组格式
+5. 尽量围绕提供的薄弱知识点设计任务
+6. 薄弱知识点只作为推荐依据，不要编造不存在的知识点
+7. 输出严格 JSON 数组格式
 
 输出格式示例：
 [
-  {"title": "任务标题", "description": "详细描述", "task_type": "code_practice", "priority": "high"},
+  {"title": "任务标题", "description": "详细描述", "task_type": "code_practice", "priority": "high", "knowledge_point_title": "对应知识点标题（可选）"},
   {"title": "另一个任务", "description": "详细描述", "task_type": "review", "priority": "medium"}
 ]"""
 
@@ -4977,9 +5049,34 @@ def generate_tasks_from_diagnosis(req: schemas.GenerateTasksFromDiagnosisRequest
     if len(diagnosis_summary) > 2000:
         diagnosis_summary = diagnosis_summary[:2000]
 
+    course_id = normalize_subject(req.course_id, default="") or None
+
+    # Query weak knowledge points for the course
+    weak_points = []
+    weak_point_id_map: dict[str, int] = {}
+    if course_id:
+        weak_points = get_weak_knowledge_points(user.username, course_id, db)
+        for wp in weak_points:
+            weak_point_id_map[wp["title"]] = wp["id"]
+
+    weak_points_context = ""
+    if weak_points:
+        wp_lines = ["当前课程薄弱知识点（仅作为个性化推荐依据，请勿编造不存在的知识点）："]
+        for wp in weak_points:
+            wp_lines.append(
+                f"- id={wp['id']} title={wp['title']} status={wp['status']} mastery_score={wp['mastery_score']}"
+            )
+        weak_points_context = "\n".join(wp_lines)
+        weak_points_context += (
+            "\n生成任务时请尽量围绕这些薄弱知识点，每个任务绑定一个最相关的知识点。"
+            "如果任务涉及的知识点不在列表中，可以不绑定。"
+            "请在 JSON 输出中增加可选字段 knowledge_point_title（字符串）。"
+        )
+
     user_prompt = f"""课程：{course_name or '未指定'}
 编程语言：{language or '未指定'}
 
+{"薄弱知识点参考：" + chr(10) + weak_points_context + chr(10) if weak_points_context else ""}
 诊断报告摘要：
 {diagnosis_summary}
 
@@ -5017,7 +5114,6 @@ def generate_tasks_from_diagnosis(req: schemas.GenerateTasksFromDiagnosisRequest
     if not isinstance(tasks_data, list) or len(tasks_data) == 0:
         raise HTTPException(status_code=500, detail="AI 未能生成有效任务，请稍后重试")
 
-    course_id = normalize_subject(req.course_id, default="") or None
     created_tasks = []
     now = utc_now()
     for item in tasks_data[:5]:
@@ -5027,15 +5123,31 @@ def generate_tasks_from_diagnosis(req: schemas.GenerateTasksFromDiagnosisRequest
         priority = (str(item.get("priority", "medium"))).strip()
         if priority not in ALLOWED_TASK_PRIORITIES:
             priority = "medium"
+
+        # Try to bind knowledge_point_id from AI response or title matching
+        bound_kp_id = None
+        ai_kp_title = str(item.get("knowledge_point_title", "")).strip()
+        task_title = str(item.get("title", ""))
+        task_desc = str(item.get("description", ""))
+
+        if ai_kp_title and ai_kp_title in weak_point_id_map:
+            bound_kp_id = weak_point_id_map[ai_kp_title]
+        else:
+            for wp_title, wp_id in weak_point_id_map.items():
+                if wp_title in task_title or wp_title in task_desc or wp_title in ai_kp_title:
+                    bound_kp_id = wp_id
+                    break
+
         task = models.LearningTask(
             username=user.username,
             course_id=course_id,
-            title=str(item.get("title", "未命名任务"))[:255],
-            description=str(item.get("description", ""))[:500] or None,
+            title=task_title[:255],
+            description=task_desc[:500] or None,
             task_type=task_type,
             status="todo",
             source="code_diagnosis",
             priority=priority,
+            knowledge_point_id=bound_kp_id,
             created_at=now,
             updated_at=now,
         )
@@ -6024,10 +6136,31 @@ def generate_questions(req: schemas.GenerateQuestionRequest, db: Session = Depen
 
     course_name = (req.course_name or req.course_id or "").strip()
     kp_title = (req.knowledge_point_title or "").strip()
+    kp_id = req.knowledge_point_id
     difficulty = (req.difficulty or "基础").strip()
 
+    course_id = normalize_subject(req.course_id, default="") or None
+    recommended_kp_id = None
+    recommended_kp_title = ""
+
+    if not kp_id and not kp_title and course_id:
+        weak_points = get_weak_knowledge_points(user.username, course_id, db)
+        if weak_points:
+            recommended_kp_id = weak_points[0]["id"]
+            recommended_kp_title = weak_points[0]["title"]
+            kp_title = recommended_kp_title
+            kp_id = recommended_kp_id
+
+    kp_label = kp_title or "通用"
+    weak_hint = ""
+    if recommended_kp_title:
+        weak_hint = (
+            f"（系统检测到用户薄弱知识点：{recommended_kp_title}，mastery_score={weak_points[0]['mastery_score']}，"
+            f"请围绕该知识点出题，难度适中，不超纲。）"
+        )
+
     user_prompt = f"""课程：{course_name or '未指定'}
-知识点：{kp_title or '通用'}
+知识点：{kp_label}{weak_hint}
 题型：{qtype}
 难度：{difficulty}
 数量：{count} 道
@@ -6058,7 +6191,6 @@ def generate_questions(req: schemas.GenerateQuestionRequest, db: Session = Depen
     if not isinstance(questions_data, list) or len(questions_data) == 0:
         raise HTTPException(status_code=500, detail="AI 未能生成有效题目，请稍后重试")
 
-    course_id = normalize_subject(req.course_id, default="") or None
     created = []
     for item in questions_data[:count]:
         gen_type = (str(item.get("type", qtype))).strip()
@@ -6067,7 +6199,7 @@ def generate_questions(req: schemas.GenerateQuestionRequest, db: Session = Depen
         question = models.Question(
             username=user.username,
             course_id=course_id,
-            knowledge_point_id=req.knowledge_point_id,
+            knowledge_point_id=kp_id,
             type=gen_type,
             title=str(item.get("title", "AI 生成题目"))[:255],
             content=str(item.get("content", "")),
