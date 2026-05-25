@@ -215,6 +215,15 @@ AI_USAGE_LOGS_COLUMNS = {
     "created_at": "DATETIME NOT NULL",
 }
 
+ADMIN_AUDIT_LOGS_COLUMNS = {
+    "admin_username": "VARCHAR(50) NOT NULL",
+    "action": "VARCHAR(100) NOT NULL",
+    "target_type": "VARCHAR(50)",
+    "target_username": "VARCHAR(50)",
+    "detail": "TEXT",
+    "created_at": "DATETIME NOT NULL",
+}
+
 MATERIAL_KNOWLEDGE_LINKS_COLUMNS = {
     "username": "VARCHAR(50) NOT NULL",
     "course_id": "VARCHAR(100) NOT NULL",
@@ -558,6 +567,25 @@ def ensure_ai_usage_logs_schema(conn):
     ensure_columns(conn, "ai_usage_logs", AI_USAGE_LOGS_COLUMNS)
 
 
+def ensure_admin_audit_logs_schema(conn):
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS admin_audit_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                admin_username VARCHAR(50) NOT NULL,
+                action VARCHAR(100) NOT NULL,
+                target_type VARCHAR(50),
+                target_username VARCHAR(50),
+                detail TEXT,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+    )
+    ensure_columns(conn, "admin_audit_logs", ADMIN_AUDIT_LOGS_COLUMNS)
+
+
 def ensure_material_knowledge_links_schema(conn):
     conn.execute(
         text(
@@ -739,6 +767,7 @@ def init_user_profile_schema():
         ensure_knowledge_progress_events_schema(conn)
         ensure_material_knowledge_links_schema(conn)
         ensure_ai_usage_logs_schema(conn)
+        ensure_admin_audit_logs_schema(conn)
         ensure_material_chunks_fts(conn)
         normalize_existing_subjects(conn)
 

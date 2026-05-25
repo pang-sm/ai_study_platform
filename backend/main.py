@@ -8250,15 +8250,521 @@ def apply_material_knowledge_recommendations(material_id: int, req: schemas.Mate
 # ── Admin / Usage ──────────────────────────────────────────
 
 
-@app.get("/admin/usage-summary")
-def admin_usage_summary(admin_username: str, db: Session = Depends(get_db)):
-    admin = get_user_by_username(admin_username, db)
+def require_admin(username: str, db: Session):
+    admin = get_user_by_username(username, db)
     if not admin.is_admin:
         raise HTTPException(status_code=403, detail="仅管理员可访问")
+    return admin
+
+
+def _write_audit_log(admin_username: str, action: str, db: Session,
+                     target_type: str = None, target_username: str = None,
+                     detail: str = None):
+    try:
+        log = models.AdminAuditLog(
+            admin_username=admin_username,
+            action=action,
+            target_type=target_type or "",
+            target_username=target_username or "",
+            detail=detail or "",
+        )
+        db.add(log)
+        db.commit()
+    except Exception:
+        logger.warning(f"Failed to write audit log for {admin_username}/{action}")
+
+
+@app.get("/admin/dashboard")
+def admin_dashboard(admin_username: str, db: Session = Depends(get_db)):
+    require_admin(admin_username, db)
 
     today_start = utc_now().replace(hour=0, minute=0, second=0, microsecond=0)
 
-    # Per-feature usage today
+    total_users = db.query(models.User).count()
+    plan_counts = {}
+    for p in ("free", "pro", "admin"):
+        plan_counts[p] = db.query(models.User).filter(models.User.plan == p).count()
+
+    total_materials = (
+        db.query(models.StudyMaterial)
+        .filter(models.StudyMaterial.is_deleted.is_(False))
+        .count()
+    )
+
+    # Distinct courses from materials and knowledge_points
+    material_courses = {
+        row[0] for row in
+        db.query(models.StudyMaterial.subject)
+        .filter(models.StudyMaterial.is_deleted.is_(False), models.StudyMaterial.subject != "")
+        .distinct().all()
+        if row[0]
+    }
+    kp_courses = {
+        row[0] for row in
+        db.query(models.KnowledgePoint.course_id)
+        .filter(models.KnowledgePoint.course_id != "")
+        .distinct().all()
+        if row[0]
+    }
+    total_courses = len(material_courses | kp_courses)
+
+    total_knowledge_points = db.query(models.KnowledgePoint).count()
+    total_tasks = db.query(models.LearningTask).count()
+    total_questions = db.query(models.Question).count()
+
+    today_ai_calls = (
+        db.query(models.AiUsageLog)
+        .filter(models.AiUsageLog.created_at >= today_start, models.AiUsageLog.status == "success")
+        .count()
+    )
+    total_ai_calls = (
+        db.query(models.AiUsageLog)
+        .filter(models.AiUsageLog.status == "success")
+        .count()
+    )
+
+    # Today usage by feature
+    today_usage_by_feature = []
+    for feature in ALL_FEATURES:
+        count = (
+            db.query(models.AiUsageLog)
+            .filter(
+                models.AiUsageLog.feature == feature,
+                models.AiUsageLog.status == "success",
+                models.AiUsageLog.created_at >= today_start,
+            )
+            .count()
+        )
+        if count > 0:
+            today_usage_by_feature.append({"feature": feature, "count": count})
+
+    # Recent users
+    recent_users = (
+        db.query(models.User)
+        .order_by(models.User.created_at.desc())
+        .limit(10)
+        .all()
+    )
+
+    # Recent AI logs
+    recent_ai_logs = (
+        db.query(models.AiUsageLog)
+        .order_by(models.AiUsageLog.created_at.desc())
+        .limit(20)
+        .all()
+    )
+
+    system_notes = ["AI 使用记录正常"]
+    ai_error_today = (
+        db.query(models.AiUsageLog)
+        .filter(
+            models.AiUsageLog.status != "success",
+            models.AiUsageLog.created_at >= today_start,
+        )
+        .count()
+    )
+    if ai_error_today > 0:
+        system_notes.append(f"今日有 {ai_error_today} 条 AI 调用失败记录")
+    else:
+        system_notes.append("今日暂无 AI 调用异常")
+
+    return {
+        "overview": {
+            "total_users": total_users,
+            "free_users": plan_counts.get("free", 0),
+            "pro_users": plan_counts.get("pro", 0),
+            "admin_users": plan_counts.get("admin", 0),
+            "total_materials": total_materials,
+            "total_courses": total_courses,
+            "total_knowledge_points": total_knowledge_points,
+            "total_tasks": total_tasks,
+            "total_questions": total_questions,
+            "today_ai_calls": today_ai_calls,
+            "total_ai_calls": total_ai_calls,
+        },
+        "today_usage_by_feature": today_usage_by_feature,
+        "recent_users": [
+            {
+                "username": u.username,
+                "plan": u.plan or "free",
+                "is_admin": bool(u.is_admin),
+                "created_at": serialize_datetime(u.created_at),
+            }
+            for u in recent_users
+        ],
+        "recent_ai_logs": [
+            {
+                "username": log.username,
+                "feature": log.feature,
+                "status": log.status,
+                "estimated_tokens": log.estimated_tokens,
+                "created_at": serialize_datetime(log.created_at),
+            }
+            for log in recent_ai_logs
+        ],
+        "system_notes": system_notes,
+    }
+
+
+@app.get("/admin/users")
+def admin_users_list(
+    admin_username: str,
+    keyword: str = "",
+    plan: str = "",
+    page: int = 1,
+    page_size: int = 20,
+    db: Session = Depends(get_db),
+):
+    require_admin(admin_username, db)
+
+    page = max(1, page)
+    page_size = min(100, max(1, page_size))
+
+    today_start = utc_now().replace(hour=0, minute=0, second=0, microsecond=0)
+
+    query = db.query(models.User)
+    if keyword := keyword.strip():
+        query = query.filter(models.User.username.contains(keyword))
+    if plan_filter := plan.strip():
+        query = query.filter(models.User.plan == plan_filter)
+
+    total = query.count()
+    users = query.order_by(models.User.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+
+    items = []
+    for u in users:
+        material_count = (
+            db.query(models.StudyMaterial)
+            .filter(models.StudyMaterial.username == u.username, models.StudyMaterial.is_deleted.is_(False))
+            .count()
+        )
+        ai_call_count = (
+            db.query(models.AiUsageLog)
+            .filter(models.AiUsageLog.username == u.username, models.AiUsageLog.status == "success")
+            .count()
+        )
+        today_ai_call_count = (
+            db.query(models.AiUsageLog)
+            .filter(
+                models.AiUsageLog.username == u.username,
+                models.AiUsageLog.status == "success",
+                models.AiUsageLog.created_at >= today_start,
+            )
+            .count()
+        )
+        kp_count = (
+            db.query(models.KnowledgePoint).filter(models.KnowledgePoint.username == u.username).count()
+        )
+        task_count = (
+            db.query(models.LearningTask).filter(models.LearningTask.username == u.username).count()
+        )
+        items.append({
+            "username": u.username,
+            "nickname": u.nickname or "",
+            "plan": u.plan or "free",
+            "is_admin": bool(u.is_admin),
+            "plan_expire_at": serialize_datetime(u.plan_expire_at),
+            "material_count": material_count,
+            "ai_call_count": ai_call_count,
+            "today_ai_call_count": today_ai_call_count,
+            "knowledge_point_count": kp_count,
+            "task_count": task_count,
+            "created_at": serialize_datetime(u.created_at),
+        })
+
+    return {"items": items, "total": total, "page": page, "page_size": page_size}
+
+
+@app.get("/admin/users/{target_username}/detail")
+def admin_user_detail(target_username: str, admin_username: str, db: Session = Depends(get_db)):
+    require_admin(admin_username, db)
+    u = get_user_by_username(target_username, db)
+
+    material_count = (
+        db.query(models.StudyMaterial)
+        .filter(models.StudyMaterial.username == u.username, models.StudyMaterial.is_deleted.is_(False))
+        .count()
+    )
+    course_set = {
+        row[0] for row in
+        db.query(models.StudyMaterial.subject)
+        .filter(models.StudyMaterial.username == u.username, models.StudyMaterial.is_deleted.is_(False))
+        .distinct().all()
+        if row[0]
+    }
+    kp_count = db.query(models.KnowledgePoint).filter(models.KnowledgePoint.username == u.username).count()
+    task_count = db.query(models.LearningTask).filter(models.LearningTask.username == u.username).count()
+    question_count = db.query(models.Question).filter(models.Question.username == u.username).count()
+    attempt_count = db.query(models.QuestionAttempt).filter(models.QuestionAttempt.username == u.username).count()
+    code_session_count = db.query(models.CodeSession).filter(models.CodeSession.username == u.username).count()
+
+    # AI usage by feature
+    ai_usage_by_feature = {}
+    for feature in ALL_FEATURES:
+        count = (
+            db.query(models.AiUsageLog)
+            .filter(models.AiUsageLog.username == u.username, models.AiUsageLog.feature == feature, models.AiUsageLog.status == "success")
+            .count()
+        )
+        if count > 0:
+            ai_usage_by_feature[feature] = count
+
+    recent_ai_logs = (
+        db.query(models.AiUsageLog)
+        .filter(models.AiUsageLog.username == u.username)
+        .order_by(models.AiUsageLog.created_at.desc())
+        .limit(20)
+        .all()
+    )
+    recent_materials = (
+        db.query(models.StudyMaterial)
+        .filter(models.StudyMaterial.username == u.username, models.StudyMaterial.is_deleted.is_(False))
+        .order_by(models.StudyMaterial.created_at.desc())
+        .limit(10)
+        .all()
+    )
+    recent_tasks = (
+        db.query(models.LearningTask)
+        .filter(models.LearningTask.username == u.username)
+        .order_by(models.LearningTask.created_at.desc())
+        .limit(10)
+        .all()
+    )
+
+    return {
+        "username": u.username,
+        "nickname": u.nickname or "",
+        "plan": u.plan or "free",
+        "is_admin": bool(u.is_admin),
+        "plan_expire_at": serialize_datetime(u.plan_expire_at),
+        "material_count": material_count,
+        "course_count": len(course_set),
+        "knowledge_point_count": kp_count,
+        "task_count": task_count,
+        "question_count": question_count,
+        "attempt_count": attempt_count,
+        "code_session_count": code_session_count,
+        "ai_usage_by_feature": ai_usage_by_feature,
+        "recent_ai_logs": [
+            {"feature": log.feature, "status": log.status, "estimated_tokens": log.estimated_tokens, "created_at": serialize_datetime(log.created_at)}
+            for log in recent_ai_logs
+        ],
+        "recent_materials": [
+            {"id": m.id, "original_filename": m.original_filename, "subject": m.subject, "file_type": m.file_type, "created_at": serialize_datetime(m.created_at)}
+            for m in recent_materials
+        ],
+        "recent_tasks": [
+            {"id": t.id, "title": t.title, "task_type": t.task_type, "status": t.status, "created_at": serialize_datetime(t.created_at)}
+            for t in recent_tasks
+        ],
+    }
+
+
+@app.get("/admin/ai-logs")
+def admin_ai_logs(
+    admin_username: str,
+    feature: str = "",
+    target_username: str = "",
+    status: str = "",
+    page: int = 1,
+    page_size: int = 30,
+    db: Session = Depends(get_db),
+):
+    require_admin(admin_username, db)
+
+    page = max(1, page)
+    page_size = min(100, max(1, page_size))
+
+    query = db.query(models.AiUsageLog)
+    if feature_filter := feature.strip():
+        query = query.filter(models.AiUsageLog.feature == feature_filter)
+    if username_filter := target_username.strip():
+        query = query.filter(models.AiUsageLog.username.contains(username_filter))
+    if status_filter := status.strip():
+        query = query.filter(models.AiUsageLog.status == status_filter)
+
+    total = query.count()
+    logs = query.order_by(models.AiUsageLog.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+
+    return {
+        "items": [
+            {
+                "username": log.username,
+                "feature": log.feature,
+                "model": log.model,
+                "estimated_tokens": log.estimated_tokens,
+                "status": log.status,
+                "error_message": log.error_message,
+                "created_at": serialize_datetime(log.created_at),
+            }
+            for log in logs
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
+
+
+@app.get("/admin/materials")
+def admin_materials(
+    admin_username: str,
+    keyword: str = "",
+    course_id: str = "",
+    page: int = 1,
+    page_size: int = 20,
+    db: Session = Depends(get_db),
+):
+    require_admin(admin_username, db)
+
+    page = max(1, page)
+    page_size = min(100, max(1, page_size))
+
+    query = db.query(models.StudyMaterial).filter(models.StudyMaterial.is_deleted.is_(False))
+    if keyword_filter := keyword.strip():
+        query = query.filter(
+            models.StudyMaterial.original_filename.contains(keyword_filter)
+        )
+    if course_filter := normalize_subject(course_id, default=""):
+        query = query.filter(models.StudyMaterial.subject == course_filter)
+
+    total = query.count()
+    materials = query.order_by(models.StudyMaterial.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+
+    material_ids = [m.id for m in materials]
+    link_counts = {}
+    if material_ids:
+        from sqlalchemy import func as sql_func
+        rows = (
+            db.query(models.MaterialKnowledgeLink.material_id, sql_func.count(models.MaterialKnowledgeLink.id))
+            .filter(models.MaterialKnowledgeLink.material_id.in_(material_ids))
+            .group_by(models.MaterialKnowledgeLink.material_id)
+            .all()
+        )
+        link_counts = {row[0]: row[1] for row in rows}
+
+    return {
+        "items": [
+            {
+                "material_id": m.id,
+                "username": m.username,
+                "original_filename": m.original_filename,
+                "subject": m.subject,
+                "file_type": m.file_type,
+                "file_size": m.file_size,
+                "parse_status": m.parse_status,
+                "knowledge_link_count": link_counts.get(m.id, 0),
+                "created_at": serialize_datetime(m.created_at),
+            }
+            for m in materials
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
+
+
+@app.get("/admin/courses-summary")
+def admin_courses_summary(admin_username: str, db: Session = Depends(get_db)):
+    require_admin(admin_username, db)
+
+    # Collect unique course_id values
+    course_ids = set()
+    course_ids |= {row[0] for row in db.query(models.StudyMaterial.subject).filter(models.StudyMaterial.is_deleted.is_(False), models.StudyMaterial.subject != "").distinct().all() if row[0]}
+    course_ids |= {row[0] for row in db.query(models.KnowledgePoint.course_id).filter(models.KnowledgePoint.course_id != "").distinct().all() if row[0]}
+    course_ids |= {row[0] for row in db.query(models.LearningTask.course_id).filter(models.LearningTask.course_id != "").distinct().all() if row[0]}
+    course_ids |= {row[0] for row in db.query(models.Question.course_id).filter(models.Question.course_id != "").distinct().all() if row[0]}
+
+    results = []
+    for cid in sorted(course_ids):
+        user_count = (
+            db.query(models.UserKnowledgeProgress)
+            .filter(models.UserKnowledgeProgress.course_id == cid)
+            .distinct(models.UserKnowledgeProgress.username)
+            .count()
+        )
+        if user_count == 0:
+            user_count = (
+                db.query(models.StudyMaterial)
+                .filter(models.StudyMaterial.subject == cid, models.StudyMaterial.is_deleted.is_(False))
+                .distinct(models.StudyMaterial.username)
+                .count()
+            )
+        material_count = (
+            db.query(models.StudyMaterial)
+            .filter(models.StudyMaterial.subject == cid, models.StudyMaterial.is_deleted.is_(False))
+            .count()
+        )
+        kp_count = db.query(models.KnowledgePoint).filter(models.KnowledgePoint.course_id == cid).count()
+        task_count = db.query(models.LearningTask).filter(models.LearningTask.course_id == cid).count()
+        question_count = db.query(models.Question).filter(models.Question.course_id == cid).count()
+
+        # Average mastery
+        avg_row = (
+            db.query(models.UserKnowledgeProgress)
+            .filter(models.UserKnowledgeProgress.course_id == cid, models.UserKnowledgeProgress.mastery_score.isnot(None))
+            .all()
+        )
+        if avg_row:
+            average_mastery = round(sum(r.mastery_score or 0 for r in avg_row) / len(avg_row), 1)
+        else:
+            average_mastery = 0
+
+        results.append({
+            "course_id": cid,
+            "user_count": user_count,
+            "material_count": material_count,
+            "knowledge_point_count": kp_count,
+            "task_count": task_count,
+            "question_count": question_count,
+            "average_mastery": average_mastery,
+        })
+
+    return results
+
+
+@app.post("/admin/users/{target_username}/plan")
+def admin_update_user_plan(
+    target_username: str,
+    req: schemas.AdminUpdatePlanRequest,
+    db: Session = Depends(get_db),
+):
+    admin = require_admin(req.admin_username, db)
+
+    target_user = get_user_by_username(target_username, db)
+    old_plan = target_user.plan or "free"
+    plan = (req.plan or "free").strip().lower()
+    if plan not in ("free", "pro", "admin"):
+        raise HTTPException(status_code=400, detail="无效的套餐类型")
+
+    target_user.plan = plan
+    if req.plan_expire_at:
+        target_user.plan_expire_at = req.plan_expire_at
+    db.commit()
+    db.refresh(target_user)
+
+    _write_audit_log(
+        admin_username=admin.username,
+        action="update_plan",
+        db=db,
+        target_type="user",
+        target_username=target_user.username,
+        detail=f"套餐 {old_plan} → {plan}",
+    )
+
+    return {
+        "success": True,
+        "username": target_user.username,
+        "plan": target_user.plan,
+        "plan_expire_at": serialize_datetime(target_user.plan_expire_at),
+    }
+
+
+@app.get("/admin/usage-summary")
+def admin_usage_summary(admin_username: str, db: Session = Depends(get_db)):
+    require_admin(admin_username, db)
+
+    today_start = utc_now().replace(hour=0, minute=0, second=0, microsecond=0)
+
     feature_stats = {}
     for feature in ALL_FEATURES:
         count = (
@@ -8272,7 +8778,6 @@ def admin_usage_summary(admin_username: str, db: Session = Depends(get_db)):
         )
         feature_stats[feature] = count
 
-    # Total usage today
     total_usage = (
         db.query(models.AiUsageLog)
         .filter(
@@ -8282,14 +8787,12 @@ def admin_usage_summary(admin_username: str, db: Session = Depends(get_db)):
         .count()
     )
 
-    # Users by plan
     plan_counts = {}
     for plan_name in ["free", "pro", "admin"]:
         plan_counts[plan_name] = (
             db.query(models.User).filter(models.User.plan == plan_name).count()
         )
 
-    # Recent usage logs
     recent_logs = (
         db.query(models.AiUsageLog)
         .order_by(models.AiUsageLog.created_at.desc())
@@ -8316,30 +8819,40 @@ def admin_usage_summary(admin_username: str, db: Session = Depends(get_db)):
     }
 
 
-@app.post("/admin/users/{target_username}/plan")
-def admin_update_user_plan(
-    target_username: str,
-    req: schemas.AdminUpdatePlanRequest,
+@app.get("/admin/audit-logs")
+def admin_audit_logs(
+    admin_username: str,
+    page: int = 1,
+    page_size: int = 30,
     db: Session = Depends(get_db),
 ):
-    admin = get_user_by_username(req.admin_username, db)
-    if not admin.is_admin:
-        raise HTTPException(status_code=403, detail="仅管理员可修改用户套餐")
+    require_admin(admin_username, db)
 
-    target_user = get_user_by_username(target_username, db)
-    plan = (req.plan or "free").strip().lower()
-    if plan not in ("free", "pro", "admin"):
-        raise HTTPException(status_code=400, detail="无效的套餐类型")
+    page = max(1, page)
+    page_size = min(100, max(1, page_size))
 
-    target_user.plan = plan
-    if req.plan_expire_at:
-        target_user.plan_expire_at = req.plan_expire_at
-    db.commit()
-    db.refresh(target_user)
+    total = db.query(models.AdminAuditLog).count()
+    logs = (
+        db.query(models.AdminAuditLog)
+        .order_by(models.AdminAuditLog.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
 
     return {
-        "success": True,
-        "username": target_user.username,
-        "plan": target_user.plan,
-        "plan_expire_at": serialize_datetime(target_user.plan_expire_at),
+        "items": [
+            {
+                "admin_username": log.admin_username,
+                "action": log.action,
+                "target_type": log.target_type,
+                "target_username": log.target_username,
+                "detail": log.detail,
+                "created_at": serialize_datetime(log.created_at),
+            }
+            for log in logs
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
     }

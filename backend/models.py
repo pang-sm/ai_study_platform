@@ -315,3 +315,15 @@ class AiUsageLog(Base):
     status = Column(String(20), nullable=True, default="success")
     error_message = Column(Text, nullable=True)
     created_at = Column(DateTime, default=utc_now)
+
+
+class AdminAuditLog(Base):
+    __tablename__ = "admin_audit_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    admin_username = Column(String(50), index=True, nullable=False)
+    action = Column(String(100), nullable=False)
+    target_type = Column(String(50), nullable=True)
+    target_username = Column(String(50), nullable=True)
+    detail = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=utc_now)
