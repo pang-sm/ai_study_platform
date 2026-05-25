@@ -132,3 +132,16 @@ class CourseProgress(Base):
     status = Column(String(20), nullable=False, default="未开始")
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+
+class CodeSession(Base):
+    __tablename__ = "code_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), index=True, nullable=False)
+    course_id = Column(String(100), index=True, nullable=False)
+    title = Column(String(255), nullable=False, default="未命名练习")
+    language = Column(String(20), nullable=False, default="Python")
+    code = Column(Text, nullable=False, default="")
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)

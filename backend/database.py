@@ -101,6 +101,16 @@ COURSE_PROGRESS_COLUMNS = {
     "updated_at": "DATETIME",
 }
 
+CODE_SESSIONS_COLUMNS = {
+    "username": "VARCHAR(50)",
+    "course_id": "VARCHAR(100)",
+    "title": "VARCHAR(255) NOT NULL DEFAULT '未命名练习'",
+    "language": "VARCHAR(20) NOT NULL DEFAULT 'Python'",
+    "code": "TEXT NOT NULL DEFAULT ''",
+    "created_at": "DATETIME",
+    "updated_at": "DATETIME",
+}
+
 
 def get_db():
     db = SessionLocal()
@@ -198,6 +208,26 @@ def ensure_course_progress_schema(conn):
         )
     )
     ensure_columns(conn, "course_progress", COURSE_PROGRESS_COLUMNS)
+
+
+def ensure_code_sessions_schema(conn):
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS code_sessions (
+                id INTEGER PRIMARY KEY,
+                username VARCHAR(50) NOT NULL,
+                course_id VARCHAR(100) NOT NULL,
+                title VARCHAR(255) NOT NULL DEFAULT '未命名练习',
+                language VARCHAR(20) NOT NULL DEFAULT 'Python',
+                code TEXT NOT NULL DEFAULT '',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+    )
+    ensure_columns(conn, "code_sessions", CODE_SESSIONS_COLUMNS)
 
 
 def ensure_material_chunks_fts(conn):
@@ -327,6 +357,7 @@ def init_user_profile_schema():
         ensure_material_chunks_schema(conn)
         ensure_learning_records_schema(conn)
         ensure_course_progress_schema(conn)
+        ensure_code_sessions_schema(conn)
         ensure_material_chunks_fts(conn)
         normalize_existing_subjects(conn)
 

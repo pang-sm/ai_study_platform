@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
 import ChatMessage from "./components/ChatMessage.jsx";
+import CodeStudio from "./components/CodeStudio.jsx";
 import CourseDashboard from "./components/CourseDashboard.jsx";
 import MarkdownMessage from "./components/MarkdownMessage.jsx";
 import {
@@ -2454,6 +2455,11 @@ function App() {
                 <div className="home-entry-title">进入课程工作台</div>
                 <div className="home-entry-desc">AI 问答、上传资料、查看资料库和学习记录。</div>
               </button>
+              <button className="home-entry-card" onClick={() => setPage("codeStudio")}>
+                <div className="home-entry-icon">{"</>"}</div>
+                <div className="home-entry-title">编程学习助手</div>
+                <div className="home-entry-desc">在线练习编程，AI 帮你分析代码和解答编程问题。</div>
+              </button>
               <button className="home-entry-card" onClick={() => {
                 setLearningGoals(Array.isArray(user?.learning_goals) ? [...user.learning_goals] : []);
                 setPage("profileEdit");
@@ -2463,13 +2469,36 @@ function App() {
                 <div className="home-entry-desc">修改专业、科目和学习目标。</div>
               </button>
             </div>
-            <p className="home-entries-hint">资料库已整合到课程工作台中，进入工作台后可在顶部切换到「资料库」查看原文件。</p>
+            <p className="home-entries-hint">资料库已整合到课程工作台中，进入工作台后可在顶部切换到「资料库」查看原文件。编程学习助手支持 C / Python / Java 在线练习和 AI 代码分析。</p>
           </section>
 
           <div className="home-footer">
             <button className="ghost-button" onClick={logout}>退出登录</button>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (page === "codeStudio") {
+    return (
+      <div className="app-shell">
+        <header className="workspace-topbar">
+          <div className="workspace-topbar-left">
+            <button className="ghost-button compact" onClick={() => setPage("home")}>
+              返回首页
+            </button>
+            <span className="subject-pill panel-pill">编程学习助手</span>
+          </div>
+        </header>
+        <CodeStudio
+          user={user}
+          subject={subject}
+          courseOptions={COURSE_OPTIONS}
+          getSubjectLabel={getSubjectLabel}
+          normalizeSubject={normalizeSubject}
+          formatDate={formatDate}
+        />
       </div>
     );
   }

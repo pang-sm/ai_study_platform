@@ -3709,6 +3709,200 @@ def delete_chat_session(session_id: int, username: str, db: Session = Depends(ge
     }
 
 
+# ── Code Sessions ─────────────────────────────────────────────────────────
+
+
+def serialize_code_session(session: models.CodeSession):
+    return {
+        "id": session.id,
+        "username": session.username,
+        "course_id": session.course_id,
+        "title": session.title,
+        "language": session.language,
+        "code": session.code,
+        "created_at": session.created_at,
+        "updated_at": session.updated_at,
+    }
+
+
+CODE_TEMPLATES = {
+    "Python": 'def main():\n    print("Hello, World!")\n\nif __name__ == "__main__":\n    main()',
+    "C": '#include <stdio.h>\n\nint main() {\n    printf("Hello, World!\\n");\n    return 0;\n}',
+    "Java": 'public class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello, World!");\n    }\n}',
+}
+
+MAX_CODE_ANALYZE_CHARS = 12000
+
+CODE_ANALYZE_SYSTEM_PROMPT = """你是编程学习助手。根据用户提供的代码和问题，输出以下格式的中文分析：
+
+## 问题定位
+指出代码中可能的问题或用户问题的核心。
+
+## 修改建议
+给出具体修改方案。
+
+## 参考代码
+提供修改后的参考代码片段（用 ```语言 包裹）。
+
+## 知识点解释
+解释涉及的核心知识点。
+
+## 下一步学习建议
+给出 1-2 条具体的学习方向建议。"""
+
+
+@app.get("/code/sessions")
+def get_code_sessions(username: str, course_id: str = "", db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    query = db.query(models.CodeSession).filter(
+        models.CodeSession.username == user.username,
+    )
+    normalized_course_id = normalize_subject(course_id, default="")
+    if normalized_course_id:
+        query = query.filter(models.CodeSession.course_id == normalized_course_id)
+    sessions = query.order_by(models.CodeSession.updated_at.desc()).all()
+    return {"sessions": [serialize_code_session(s) for s in sessions]}
+
+
+@app.post("/code/sessions")
+def create_code_session(req: schemas.CodeSessionCreate, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+    language = (req.language or "Python").strip()
+    if language not in CODE_TEMPLATES:
+        language = "Python"
+    session = models.CodeSession(
+        username=user.username,
+        course_id=normalize_subject(req.course_id),
+        title=(req.title or "未命名练习").strip()[:255] or "未命名练习",
+        language=language,
+        code=req.code or CODE_TEMPLATES.get(language, ""),
+    )
+    db.add(session)
+    db.commit()
+    db.refresh(session)
+    return {"success": True, "session": serialize_code_session(session)}
+
+
+@app.get("/code/sessions/{session_id}")
+def get_code_session(session_id: int, username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    session = (
+        db.query(models.CodeSession)
+        .filter(
+            models.CodeSession.id == session_id,
+            models.CodeSession.username == user.username,
+        )
+        .first()
+    )
+    if not session:
+        raise HTTPException(status_code=404, detail="代码练习不存在")
+    return {"session": serialize_code_session(session)}
+
+
+@app.put("/code/sessions/{session_id}")
+def update_code_session(session_id: int, req: schemas.CodeSessionUpdate, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+    session = (
+        db.query(models.CodeSession)
+        .filter(
+            models.CodeSession.id == session_id,
+            models.CodeSession.username == user.username,
+        )
+        .first()
+    )
+    if not session:
+        raise HTTPException(status_code=404, detail="代码练习不存在")
+
+    if req.course_id is not None:
+        session.course_id = normalize_subject(req.course_id)
+    if req.title is not None:
+        session.title = (req.title or "未命名练习").strip()[:255]
+    if req.language is not None:
+        language = req.language.strip()
+        if language in CODE_TEMPLATES:
+            session.language = language
+    if req.code is not None:
+        session.code = req.code
+
+    session.updated_at = utc_now()
+    db.commit()
+    db.refresh(session)
+    return {"success": True, "session": serialize_code_session(session)}
+
+
+@app.post("/code/analyze")
+def analyze_code(req: schemas.CodeAnalyzeRequest, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+    code = (req.code or "").strip()
+    question = (req.question or "").strip()
+
+    if not code:
+        raise HTTPException(status_code=400, detail="请先输入代码再进行分析。")
+    if not question:
+        raise HTTPException(status_code=400, detail="请输入要分析的问题。")
+
+    truncated_code = code
+    code_note = ""
+    if len(code) > MAX_CODE_ANALYZE_CHARS:
+        truncated_code = code[:MAX_CODE_ANALYZE_CHARS]
+        code_note = "（注意：代码较长，已截断至前 {} 字符进行分析）".format(MAX_CODE_ANALYZE_CHARS)
+
+    language = (req.language or "").strip() or "未知"
+    course_info = normalize_subject(req.course_id, default="")
+
+    user_message = f"""语言：{language}
+课程：{course_info or "未指定"}
+{code_note}
+
+代码：
+```
+{truncated_code}
+```
+
+用户问题：{question}"""
+
+    answer = call_deepseek(
+        [
+            {"role": "system", "content": CODE_ANALYZE_SYSTEM_PROMPT},
+            {"role": "user", "content": user_message},
+        ]
+    )
+
+    answer = normalize_assistant_markdown(answer)
+
+    return {
+        "success": True,
+        "answer": answer,
+        "language": language,
+        "code_truncated": len(code) > MAX_CODE_ANALYZE_CHARS,
+    }
+
+
+@app.get("/code/progress")
+def get_code_progress(username: str, course_id: str = "", db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    query = db.query(models.CodeSession).filter(
+        models.CodeSession.username == user.username,
+    )
+    normalized_course_id = normalize_subject(course_id, default="")
+    if normalized_course_id:
+        query = query.filter(models.CodeSession.course_id == normalized_course_id)
+
+    sessions = query.order_by(models.CodeSession.updated_at.desc()).all()
+    language_counts: dict[str, int] = {}
+    for s in sessions:
+        language_counts[s.language] = language_counts.get(s.language, 0) + 1
+
+    latest = sessions[0] if sessions else None
+    return {
+        "total": len(sessions),
+        "language_counts": language_counts,
+        "recent_updated_at": latest.updated_at if latest else None,
+        "recent_title": latest.title if latest else None,
+        "recent_language": latest.language if latest else None,
+    }
+
+
 @app.put("/conversations/{conversation_id}")
 def rename_conversation(
     conversation_id: int,
