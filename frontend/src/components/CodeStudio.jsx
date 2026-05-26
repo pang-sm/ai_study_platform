@@ -86,6 +86,10 @@ export default function CodeStudio({
   const [testing, setTesting] = useState(false);
   const [testResults, setTestResults] = useState(null);
 
+  // Test failure explanation
+  const [testExplanations, setTestExplanations] = useState({});
+  const [explainingTestCase, setExplainingTestCase] = useState({});
+
   // Reference solution & starter code
   const [showReference, setShowReference] = useState(false);
   const [starterConfirmOpen, setStarterConfirmOpen] = useState(false);
@@ -169,6 +173,8 @@ export default function CodeStudio({
     setShowReference(false);
     setRunResult(null);
     setTestResults(null);
+    setTestExplanations({});
+    setExplainingTestCase({});
     setOutputPanelTab("feedback");
     if (session.id) {
       loadMessages(session.id);
@@ -202,6 +208,8 @@ export default function CodeStudio({
     setShowReference(false);
     setRunResult(null);
     setTestResults(null);
+    setTestExplanations({});
+    setExplainingTestCase({});
     setOutputPanelTab("feedback");
   };
 
@@ -382,6 +390,8 @@ export default function CodeStudio({
     }
     setTesting(true);
     setTestResults(null);
+    setTestExplanations({});
+    setExplainingTestCase({});
     setShowFeedbackPanel(true);
     setOutputPanelTab("run");
 
@@ -420,6 +430,63 @@ export default function CodeStudio({
       });
     } finally {
       setTesting(false);
+    }
+  };
+
+  const explainFailure = async (tcIndex) => {
+    if (!user?.username || !selectedSession?.challenge_id || !testResults) return;
+
+    const tc = testResults.results[tcIndex];
+    if (!tc) return;
+
+    setExplainingTestCase((prev) => ({ ...prev, [tcIndex]: true }));
+
+    try {
+      const res = await fetch(
+        `${API_BASE}/code/challenges/${selectedSession.challenge_id}/explain-failure`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: user.username,
+            session_id: selectedSession.id,
+            language,
+            code,
+            test_case: {
+              input: tc.input || "",
+              expected_output: tc.expected_output || "",
+              description: tc.description || "",
+            },
+            actual_output: tc.actual_output || "",
+            stderr: tc.stderr || "",
+            exit_code: tc.exit_code ?? 0,
+            timed_out: tc.timed_out || false,
+          }),
+        }
+      );
+      const data = await safeJson(res);
+
+      if (res.ok) {
+        setTestExplanations((prev) => ({ ...prev, [tcIndex]: data.explanation || "" }));
+      } else if (res.status === 429) {
+        setTestExplanations((prev) => ({
+          ...prev,
+          [tcIndex]: "今日 AI 使用次数已达上限，请明天再试或升级套餐。",
+        }));
+      } else {
+        setTestExplanations((prev) => ({
+          ...prev,
+          [tcIndex]: data.detail || "AI 解释失败，请稍后重试。",
+        }));
+      }
+    } catch (error) {
+      console.error("Failed to explain failure:", error);
+      setTestExplanations((prev) => ({
+        ...prev,
+        [tcIndex]: "无法连接后端服务。",
+      }));
+    } finally {
+      setExplainingTestCase((prev) => ({ ...prev, [tcIndex]: false }));
     }
   };
 
@@ -559,6 +626,8 @@ export default function CodeStudio({
           setShowReference(false);
           setRunResult(null);
           setTestResults(null);
+          setTestExplanations({});
+          setExplainingTestCase({});
         }
         await loadSessions();
         setTip("练习已删除");
@@ -979,7 +1048,7 @@ export default function CodeStudio({
                 )}
                 <button
                   className="code-feedback-panel-close"
-                  onClick={() => { setShowFeedbackPanel(false); setRunResult(null); setTestResults(null); }}
+                  onClick={() => { setShowFeedbackPanel(false); setRunResult(null); setTestResults(null); setTestExplanations({}); setExplainingTestCase({}); }}
                 >
                   &times;
                 </button>
@@ -1085,6 +1154,30 @@ export default function CodeStudio({
                                   </div>
                                 )}
                               </div>
+
+                              {/* AI Explain button for failed test cases */}
+                              {!tc.passed && (
+                                <div className="code-test-explain-area">
+                                  {explainingTestCase[idx] ? (
+                                    <div className="code-test-explain-loading">
+                                      AI 正在分析失败原因...
+                                    </div>
+                                  ) : !testExplanations[idx] ? (
+                                    <button
+                                      className="ghost-button compact code-test-explain-btn"
+                                      onClick={() => explainFailure(idx)}
+                                    >
+                                      AI 解释失败原因
+                                    </button>
+                                  ) : null}
+
+                                  {testExplanations[idx] && (
+                                    <div className="code-test-explain-content">
+                                      {testExplanations[idx]}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           ))}
                         </>

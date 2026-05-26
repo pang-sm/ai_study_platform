@@ -767,6 +767,7 @@ PLAN_LIMITS = {
         "question_generate": 10,
         "question_feedback": 10,
         "learning_report_generate": 3,
+        "challenge_explain": 10,
         "material_upload_count": 30,
         "single_file_size_mb": 20,
     },
@@ -781,6 +782,7 @@ PLAN_LIMITS = {
         "question_generate": 100,
         "question_feedback": 100,
         "learning_report_generate": 30,
+        "challenge_explain": 100,
         "material_upload_count": 500,
         "single_file_size_mb": 100,
     },
@@ -795,6 +797,7 @@ PLAN_LIMITS = {
         "question_generate": 999999,
         "question_feedback": 999999,
         "learning_report_generate": 999999,
+        "challenge_explain": 999999,
         "material_upload_count": 999999,
         "single_file_size_mb": 500,
     },
@@ -804,6 +807,7 @@ ALL_FEATURES = [
     "chat", "code_analyze", "challenge_generate", "learning_diagnosis",
     "knowledge_generate", "learning_plan_generate", "material_link_recommend",
     "question_generate", "question_feedback", "learning_report_generate",
+    "challenge_explain",
 ]
 
 
@@ -5506,6 +5510,145 @@ def run_challenge_tests(challenge_id: int, req: schemas.CodeChallengeRunTestsReq
         "passed": passed_count,
         "results": results,
     }
+
+
+CODE_CHALLENGE_EXPLAIN_FAILURE_PROMPT = """你是编程学习辅导助手。用户在练习一道编程题时，某个测试用例没有通过。请根据用户代码、题目信息、测试用例的输入输出和实际运行结果，分析失败原因并给出学习指导。
+
+严格使用以下 Markdown 格式输出（不要输出其他内容）：
+
+## 失败原因总结
+用一两句话总结问题。{timed_out_hint}{stderr_hint}{empty_output_hint}
+
+## 本测试点在考察什么
+这个测试用例针对什么知识点或边界条件。
+
+## 期望输出 vs 实际输出
+对比期望和实际，说明差异的关键所在。
+
+## 最可能出错的位置
+指出代码中问题最可能出现在哪里（不要直接给完整答案）。
+
+## 修改建议
+给出具体的修改思路和局部建议（不要直接写出完整正确代码）。
+
+## 相关知识点
+列出与此问题相关的知识点（2~4 个）。
+
+## 下一步提示
+给用户一个具体的、可操作的下一步行动建议。
+
+注意：
+- 不要直接把完整答案泄露给用户
+- 优先引导用户自己思考和修改
+- 可以给关键思路和局部修改建议"""
+
+
+@app.post("/code/challenges/{challenge_id}/explain-failure")
+def explain_challenge_failure(challenge_id: int, req: schemas.CodeChallengeExplainFailureRequest, db: Session = Depends(get_db)):
+    language = (req.language or "").strip().lower()
+
+    if language != "python":
+        return {
+            "success": True,
+            "explanation": f"当前 AI 解释暂只支持 Python，{req.language or '该语言'} 暂不支持。",
+        }
+
+    user = get_user_by_username(req.username, db)
+
+    challenge = (
+        db.query(models.CodeChallenge)
+        .filter(
+            models.CodeChallenge.id == challenge_id,
+            models.CodeChallenge.username == user.username,
+        )
+        .first()
+    )
+    if not challenge:
+        raise HTTPException(status_code=404, detail="题目不存在")
+
+    session = (
+        db.query(models.CodeSession)
+        .filter(
+            models.CodeSession.id == req.session_id,
+            models.CodeSession.username == user.username,
+        )
+        .first()
+    )
+    if not session:
+        raise HTTPException(status_code=404, detail="代码练习不存在")
+
+    code = (req.code or "").strip()
+    if not code:
+        return {
+            "success": True,
+            "explanation": "请先编写代码再请求 AI 解释。",
+        }
+
+    # Check usage limit
+    check_usage_limit(req.username, "challenge_explain", db)
+
+    # Build hints based on failure characteristics
+    timed_out_hint = ""
+    stderr_hint = ""
+    empty_output_hint = ""
+
+    if req.timed_out:
+        timed_out_hint = "\n\n（注意：此测试用例执行超时，可能是死循环或算法复杂度过高导致。）"
+    if req.stderr and req.stderr.strip():
+        stderr_hint = f"\n\n（注意：此测试用例有 stderr 报错，请优先分析报错原因。stderr 内容：{req.stderr.strip()[:500]}）"
+    if not req.actual_output.strip():
+        empty_output_hint = "\n\n（注意：此测试用例的实际输出为空，可能代码未执行输入处理或未输出结果。）"
+
+    tc = req.test_case or {}
+    test_input = tc.get("input", "") or ""
+    expected_output = tc.get("expected_output", "") or ""
+    description = tc.get("description", "") or ""
+
+    prompt = CODE_CHALLENGE_EXPLAIN_FAILURE_PROMPT.format(
+        timed_out_hint=timed_out_hint,
+        stderr_hint=stderr_hint,
+        empty_output_hint=empty_output_hint,
+    )
+
+    messages = [
+        {"role": "system", "content": prompt},
+        {"role": "user", "content": f"""题目信息：
+- 标题：{challenge.title}
+- 难度：{challenge.difficulty}
+- 知识点：{challenge.knowledge_point or '无'}
+- 题目描述：{challenge.description[:500]}
+- 输入格式：{challenge.input_format or '无'}
+- 输出格式：{challenge.output_format or '无'}
+
+测试用例信息：
+- 描述：{description}
+- 输入（stdin）：{test_input}
+- 期望输出：{expected_output}
+
+实际运行结果：
+- 实际输出：{req.actual_output or '(空)'}
+- stderr：{req.stderr or '(无)'}
+- exit_code：{req.exit_code}
+- 超时：{'是' if req.timed_out else '否'}
+
+用户代码：
+```python
+{code[:3000]}
+```"""},
+    ]
+
+    try:
+        explanation = call_deepseek(messages)
+        record_ai_usage(req.username, "challenge_explain", db, estimated_tokens=len(code) // 2 + 500)
+        return {"success": True, "explanation": explanation}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        record_ai_usage(req.username, "challenge_explain", db, status="error", error_message=str(exc)[:200])
+        return {
+            "success": True,
+            "explanation": "## AI 解释失败\n\n很抱歉，AI 服务暂时不可用，请稍后重试。\n\n错误信息：" + str(exc)[:200],
+        }
 
 
 CODE_LEARNING_DIAGNOSIS_PROMPT = """你是编程学习诊断助手。根据用户的代码练习记录、AI 分析历史和出题记录，生成一份结构化的编程学习诊断报告。

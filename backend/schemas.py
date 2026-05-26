@@ -132,6 +132,18 @@ class CodeChallengeRunTestsRequest(BaseModel):
     code: str = ""
 
 
+class CodeChallengeExplainFailureRequest(BaseModel):
+    username: str
+    session_id: int
+    language: str = ""
+    code: str = ""
+    test_case: dict = {}
+    actual_output: str = ""
+    stderr: str = ""
+    exit_code: int = 0
+    timed_out: bool = False
+
+
 class LearningTaskCreate(BaseModel):
     username: str
     course_id: str = ""
