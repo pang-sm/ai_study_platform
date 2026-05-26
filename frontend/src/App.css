@@ -3160,6 +3160,7 @@ select.field:focus {
   padding: 10px 16px;
   border-bottom: 1px solid #e9edf4;
   background: #fff;
+  flex-wrap: wrap;
 }
 
 .code-studio-title-input {
