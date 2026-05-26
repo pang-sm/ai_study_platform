@@ -4638,18 +4638,56 @@ def _check_code_run_rate(username: str, limit: int, window: int = CODE_RUN_RATE_
     return True
 
 
-def _classify_docker_error(stderr: str) -> str | None:
-    """Classify Docker stderr into user-friendly Chinese messages."""
+def _classify_docker_error(stderr: str) -> tuple[str | None, str | None]:
+    """Classify Docker stderr into user-friendly Chinese messages.
+
+    Returns (error_message, error_type).
+    error_type is one of: docker_permission, docker_not_found, image_not_found,
+    container_permission, container_noexec, or None.
+    """
     if not stderr or not stderr.strip():
-        return None
+        return None, None
     lower = stderr.lower()
-    if "permission denied" in lower or "daemon" in lower and ("connect" in lower or "cannot" in lower):
-        return "后端服务暂无 Docker 权限，无法运行代码。请联系管理员配置 Docker 权限。"
+
+    # Docker daemon socket permission denied — must mention docker socket / daemon
+    # e.g. "Got permission denied while trying to connect to the Docker daemon socket
+    #       at unix:///var/run/docker.sock"
+    if "permission denied" in lower and "docker" in lower and ("socket" in lower or "daemon" in lower or "connect" in lower):
+        return (
+            "后端服务暂无 Docker 权限，无法运行代码。请联系管理员配置 Docker 权限。",
+            "docker_permission",
+        )
+
+    # Docker command not found on host
+    if ("no such file" in lower or "not found" in lower) and "docker" in lower:
+        return (
+            "服务器 Docker 环境未就绪，Docker 命令不存在。请联系管理员安装 Docker。",
+            "docker_not_found",
+        )
+
+    # Docker image not found / pull required
     if "image" in lower and ("not found" in lower or "pull" in lower or "unable" in lower):
-        return "运行镜像尚未准备完成，请先执行 docker pull python:3.11-slim 和 docker pull gcc:13。"
-    if "no such file" in lower and "docker" in lower:
-        return "服务器 Docker 环境未就绪，Docker 命令不存在。请联系管理员安装 Docker。"
-    return None
+        return (
+            "运行镜像尚未准备完成，请先执行 docker pull python:3.11-slim 和 docker pull gcc:13。",
+            "image_not_found",
+        )
+
+    # Container-internal permission error — binary cannot execute (likely noexec tmpfs)
+    # e.g. "sh: 1: /tmp/main: Permission denied"
+    if "permission denied" in lower and "/tmp/" in lower:
+        return (
+            "C 程序编译成功，但运行二进制失败，可能是容器临时目录缺少执行权限。",
+            "container_noexec",
+        )
+
+    # Generic container permission error
+    if "cannot execute" in lower or "exec format error" in lower:
+        return (
+            "C 程序编译成功，但运行二进制失败，可能是容器临时目录缺少执行权限。",
+            "container_noexec",
+        )
+
+    return None, None
 
 
 def _compute_diff_summary(expected: str, actual: str) -> str:
@@ -4735,8 +4773,7 @@ def _run_code_in_docker(code: str, stdin: str = "") -> dict:
             stderr = stderr[:MAX_OUTPUT_CHARS]
             stderr_truncated = True
 
-        # Check if stderr contains Docker errors
-        docker_error = _classify_docker_error(proc.stderr or "")
+        docker_error, docker_error_type = _classify_docker_error(proc.stderr or "")
 
         return {
             "stdout": stdout,
@@ -4745,6 +4782,7 @@ def _run_code_in_docker(code: str, stdin: str = "") -> dict:
             "duration_ms": elapsed_ms,
             "timed_out": False,
             "error_message": docker_error,
+            "docker_error_type": docker_error_type,
             "stdout_truncated": stdout_truncated,
             "stderr_truncated": stderr_truncated,
         }
@@ -4757,6 +4795,7 @@ def _run_code_in_docker(code: str, stdin: str = "") -> dict:
             "duration_ms": elapsed_ms,
             "timed_out": True,
             "error_message": None,
+            "docker_error_type": None,
             "stdout_truncated": False,
             "stderr_truncated": False,
         }
@@ -4768,6 +4807,7 @@ def _run_code_in_docker(code: str, stdin: str = "") -> dict:
             "duration_ms": 0,
             "timed_out": False,
             "error_message": "服务器 Docker 环境未就绪，Docker 命令不存在。请联系管理员安装 Docker。",
+            "docker_error_type": "docker_not_found",
             "stdout_truncated": False,
             "stderr_truncated": False,
         }
@@ -4779,6 +4819,7 @@ def _run_code_in_docker(code: str, stdin: str = "") -> dict:
             "duration_ms": 0,
             "timed_out": False,
             "error_message": "后端服务暂无 Docker 权限，无法运行代码。请联系管理员配置 Docker 权限。",
+            "docker_error_type": "docker_permission",
             "stdout_truncated": False,
             "stderr_truncated": False,
         }
@@ -4790,6 +4831,7 @@ def _run_code_in_docker(code: str, stdin: str = "") -> dict:
             "duration_ms": 0,
             "timed_out": False,
             "error_message": f"代码执行环境异常：{str(exc)[:200]}",
+            "docker_error_type": None,
             "stdout_truncated": False,
             "stderr_truncated": False,
         }
@@ -4840,7 +4882,7 @@ def _run_c_code_in_docker(code: str, stdin: str = "") -> dict:
         )
 
         # Security: --network none, --read-only root,
-        # --tmpfs /tmp:rw,nosuid (exec allowed, needed for compiled binary)
+        # --tmpfs /tmp:rw,exec,nosuid (exec MUST be explicit to override Docker's default noexec)
         docker_cmd = [
             "docker", "run", "--rm",
             "--network", "none",
@@ -4848,7 +4890,7 @@ def _run_c_code_in_docker(code: str, stdin: str = "") -> dict:
             "--cpus", str(DOCKER_CPU_LIMIT),
             "--pids-limit", str(DOCKER_PIDS_LIMIT),
             "--read-only",
-            "--tmpfs", "/tmp:rw,nosuid,size=128m",
+            "--tmpfs", "/tmp:rw,exec,nosuid,size=128m",
             "-v", f"{tmp_dir}:/code:ro",
             "-w", "/code",
             DOCKER_IMAGE_C,
@@ -4887,7 +4929,16 @@ def _run_c_code_in_docker(code: str, stdin: str = "") -> dict:
             stderr = stderr[:MAX_OUTPUT_CHARS]
             stderr_truncated = True
 
-        docker_error = _classify_docker_error(proc.stderr or "")
+        docker_error, docker_error_type = _classify_docker_error(proc.stderr or "")
+
+        # Diagnostic log for C execution
+        stderr_preview = (proc.stderr or "")[:200].replace("\n", "\\n")
+        print(
+            f"[C-DOCKER] exit_code={proc.returncode} compiled={compiled} "
+            f"has_compile_error={'yes' if compile_error else 'no'} "
+            f"docker_error_type={docker_error_type} "
+            f"stderr_preview={stderr_preview}"
+        )
 
         return {
             "stdout": stdout,
@@ -4896,6 +4947,7 @@ def _run_c_code_in_docker(code: str, stdin: str = "") -> dict:
             "duration_ms": elapsed_ms,
             "timed_out": False,
             "error_message": docker_error,
+            "docker_error_type": docker_error_type,
             "compile_error": compile_error,
             "compiled": compiled,
             "stdout_truncated": stdout_truncated,
@@ -4910,6 +4962,7 @@ def _run_c_code_in_docker(code: str, stdin: str = "") -> dict:
             "duration_ms": elapsed_ms,
             "timed_out": True,
             "error_message": None,
+            "docker_error_type": None,
             "compile_error": None,
             "compiled": False,
             "stdout_truncated": False,
@@ -4923,6 +4976,7 @@ def _run_c_code_in_docker(code: str, stdin: str = "") -> dict:
             "duration_ms": 0,
             "timed_out": False,
             "error_message": "服务器 Docker 环境未就绪，Docker 命令不存在。请联系管理员安装 Docker。",
+            "docker_error_type": "docker_not_found",
             "compile_error": None,
             "compiled": False,
             "stdout_truncated": False,
@@ -4936,6 +4990,7 @@ def _run_c_code_in_docker(code: str, stdin: str = "") -> dict:
             "duration_ms": 0,
             "timed_out": False,
             "error_message": "后端服务暂无 Docker 权限，无法运行代码。请联系管理员配置 Docker 权限。",
+            "docker_error_type": "docker_permission",
             "compile_error": None,
             "compiled": False,
             "stdout_truncated": False,
@@ -4949,6 +5004,7 @@ def _run_c_code_in_docker(code: str, stdin: str = "") -> dict:
             "duration_ms": 0,
             "timed_out": False,
             "error_message": f"代码执行环境异常：{str(exc)[:200]}",
+            "docker_error_type": None,
             "compile_error": None,
             "compiled": False,
             "stdout_truncated": False,
