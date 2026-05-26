@@ -102,6 +102,9 @@ export default function CodeStudio({
   // Code progress stats
   const [codeProgress, setCodeProgress] = useState(null);
 
+  // Collapse passed test cases
+  const [collapsePassed, setCollapsePassed] = useState(true);
+
   // Generate test cases for old challenges
   const [generatingTests, setGeneratingTests] = useState(false);
 
@@ -1248,69 +1251,129 @@ export default function CodeStudio({
 
       {/* Center Panel — Code Editor */}
       <main className="code-studio-editor">
-        <div className="code-studio-editor-header">
-          <input
-            className="field code-studio-title-input"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="练习标题"
-          />
-          <div className="code-studio-lang-selector">
-            {LANGUAGES.map((lang) => (
-              <button
-                key={lang}
-                className={`ghost-button compact ${language === lang ? "code-lang-btn--active" : ""}`}
-                onClick={() => handleLanguageChange(lang)}
-              >
-                {lang}
-              </button>
-            ))}
+        {/* Status Bar */}
+        <div className="code-status-bar">
+          <div className="code-status-bar-left">
+            <span className="code-status-title" title={title}>
+              {title}
+            </span>
+            <span className="code-status-tag code-status-tag--lang">
+              {language}
+            </span>
+            {selectedSession?.challenge_id ? (
+              <span className={`code-status-tag ${selectedSession?.challenge_source === "diagnosis" ? "code-status-tag--diagnosis" : "code-status-tag--challenge"}`}>
+                {selectedSession?.challenge_source === "diagnosis" ? "诊断推荐" : "AI 题目"}
+              </span>
+            ) : (
+              <span className="code-status-tag code-status-tag--free">自由练习</span>
+            )}
+            {selectedSession?.session_type === "challenge" && !selectedSession?.challenge_id && (
+              <span className="code-status-tag code-status-tag--redo">复做题目</span>
+            )}
+            {codeCourseId && (
+              <span className="code-status-tag code-status-tag--course">{getSubjectLabel(codeCourseId)}</span>
+            )}
           </div>
-          <button
-            className="ghost-button compact code-challenge-btn"
-            onClick={() => {
-              setChallengeDifficulty("基础");
-              setChallengeFocus("");
-              setShowChallengeModal(true);
-            }}
-            title="AI 出题"
-          >
-            AI 出题
-          </button>
-          <button
-            className={`primary-button compact code-run-btn ${!canRun ? "code-run-btn--disabled" : ""}`}
-            onClick={runCode}
-            disabled={running || !canRun || !code.trim()}
-            title={canRun ? "运行代码（Docker 沙箱）" : "当前真实运行暂支持 Python 和 C"}
-          >
-            {running ? "运行中..." : canRun ? "运行代码" : "运行 (仅Python/C)"}
-          </button>
-          {selectedSession?.challenge_id && (
-            <button
-              className={`primary-button compact code-test-btn ${!canRun ? "code-run-btn--disabled" : ""}`}
-              onClick={runTests}
-              disabled={testing || !canRun || !code.trim()}
-              title={canRun ? "运行测试用例" : "当前测试运行暂支持 Python 和 C"}
-            >
-              {testing ? "测试中..." : canRun ? "运行测试" : "测试 (仅Python/C)"}
-            </button>
-          )}
-          {selectedSession?.challenge_id && (
-            <button
-              className="primary-button compact code-submit-btn"
-              onClick={submitAnswer}
-              disabled={submitting || !code.trim()}
-            >
-              {submitting ? "判定中..." : "提交答案"}
-            </button>
-          )}
-          <button
-            className="primary-button compact"
-            onClick={saveSession}
-            disabled={saving || !title.trim()}
-          >
-            {saving ? "保存中..." : hasUnsaved ? "保存 *" : "保存"}
-          </button>
+          <div className="code-status-bar-right">
+            {LANGUAGES.map((lang) => {
+              const runnable = lang === "Python" || lang === "C";
+              return (
+                <span key={lang} className="code-status-run-badge" title={runnable ? `${lang}：支持运行` : `${lang}：暂仅支持 AI 分析`}>
+                  <span className={`code-status-run-dot ${runnable ? "code-status-run-dot--ok" : "code-status-run-dot--ai"}`} />
+                  {lang}{runnable ? " 可运行" : " AI分析"}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Editor Toolbar: Language + Actions */}
+        <div className="code-studio-editor-header">
+          <div className="code-editor-toolbar-row">
+            {/* Language selector */}
+            <div className="code-editor-lang-group">
+              {LANGUAGES.map((lang) => {
+                const runnable = lang === "Python" || lang === "C";
+                return (
+                  <button
+                    key={lang}
+                    className={`code-lang-btn ${language === lang ? "code-lang-btn--active" : ""}`}
+                    onClick={() => handleLanguageChange(lang)}
+                    title={runnable ? `${lang} — 支持真实运行` : `${lang} — 暂仅支持 AI 分析`}
+                  >
+                    {lang}
+                    <span className={`code-lang-btn-sub ${runnable ? "" : "code-lang-btn-sub--ai"}`}>
+                      {runnable ? "可运行" : "AI分析"}
+                    </span>
+                  </button>
+                );
+              })}
+              <input
+                className="field code-studio-title-input"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="练习标题"
+              />
+            </div>
+
+            {/* Action buttons */}
+            <div className="code-editor-actions">
+              {/* Run group */}
+              <div className="code-editor-btn-group">
+                <button
+                  className={`code-action-btn code-action-btn--run ${!canRun ? "code-action-btn--disabled" : ""}`}
+                  onClick={runCode}
+                  disabled={running || !canRun || !code.trim()}
+                  title={canRun ? "运行代码（Docker 沙箱）" : language === "Java" ? "Java 暂仅支持 AI 分析" : "当前语言暂不支持运行"}
+                >
+                  {running ? "⏳ 运行中..." : "▶ 运行"}
+                </button>
+                {selectedSession?.challenge_id && (
+                  <button
+                    className={`code-action-btn code-action-btn--test ${!canRun ? "code-action-btn--disabled" : ""}`}
+                    onClick={runTests}
+                    disabled={testing || !canRun || !code.trim()}
+                    title={canRun ? "运行测试用例" : language === "Java" ? "Java 暂仅支持 AI 分析" : "当前语言暂不支持测试运行"}
+                  >
+                    {testing ? "⏳ 测试中..." : "✔ 测试"}
+                  </button>
+                )}
+              </div>
+
+              {/* AI group */}
+              <div className="code-editor-btn-group">
+                {selectedSession?.challenge_id && (
+                  <button
+                    className="code-action-btn code-action-btn--submit"
+                    onClick={submitAnswer}
+                    disabled={submitting || !code.trim()}
+                  >
+                    {submitting ? "⏳ 判定中..." : "🐍 AI 判定"}
+                  </button>
+                )}
+                <button
+                  className="code-action-btn code-action-btn--challenge"
+                  onClick={() => {
+                    setChallengeDifficulty("基础");
+                    setChallengeFocus("");
+                    setShowChallengeModal(true);
+                  }}
+                  title="AI 出题"
+                >
+                  📝 出题
+                </button>
+              </div>
+
+              {/* Save */}
+              <button
+                className="code-action-btn code-action-btn--save"
+                onClick={saveSession}
+                disabled={saving || !title.trim()}
+              >
+                {saving ? "⏳ 保存中..." : hasUnsaved ? "💾 保存 *" : "💾 保存"}
+              </button>
+            </div>
+          </div>
         </div>
 
         {codeTruncated && (
@@ -1514,14 +1577,29 @@ export default function CodeStudio({
                           >
                             <span className="code-test-summary-text">
                               测试结果：通过 {testResults.passed}/{testResults.total}
+                              {testResults.passed < testResults.total && (
+                                <span className="code-test-summary-fail-hint">
+                                  ，{testResults.total - testResults.passed} 个未通过
+                                </span>
+                              )}
                             </span>
+                            {testResults.passed > 0 && testResults.passed < testResults.total && (
+                              <button
+                                className="ghost-button compact code-test-collapse-btn"
+                                onClick={() => setCollapsePassed(!collapsePassed)}
+                              >
+                                {collapsePassed ? "展开已通过" : "折叠已通过"}
+                              </button>
+                            )}
                           </div>
 
                           {/* Per-test-case results */}
-                          {testResults.results.map((tc, idx) => (
+                          {testResults.results.map((tc, idx) => {
+                            const isCollapsed = collapsePassed && tc.passed;
+                            return (
                             <div
                               key={idx}
-                              className={`code-test-case ${tc.passed ? "code-test-case--pass" : "code-test-case--fail"}`}
+                              className={`code-test-case ${tc.passed ? "code-test-case--pass" : "code-test-case--fail"} ${isCollapsed ? "code-test-case--collapsed" : ""}`}
                             >
                               <div className="code-test-case-header">
                                 <span className="code-test-case-index">测试用例 #{idx + 1}</span>
@@ -1629,7 +1707,8 @@ export default function CodeStudio({
                                 </div>
                               )}
                             </div>
-                          ))}
+                          );
+                          })}
                         </>
                       ) : testResults.total === 0 && !testResults.error_message ? (
                         <div className="code-no-tests-notice" style={{ margin: "8px 0" }}>
@@ -1742,16 +1821,16 @@ export default function CodeStudio({
         )}
       </main>
 
-      {/* Right Panel — AI Assistant */}
+      {/* Right Panel — AI Coach */}
       <aside className="code-studio-assistant">
         <div className="code-studio-assistant-header">
-          <h3>AI 代码助手</h3>
+          <h3>AI 教练</h3>
           <button
             className="ghost-button compact code-diagnosis-btn"
             onClick={fetchDiagnosis}
             disabled={diagnosisLoading}
           >
-            {diagnosisLoading ? "分析中..." : "生成学习诊断"}
+            {diagnosisLoading ? "分析中..." : "学习诊断"}
           </button>
         </div>
 
@@ -1833,20 +1912,36 @@ export default function CodeStudio({
               加载历史记录中...
             </div>
           ) : aiMessages.length === 0 ? (
-            <div className="empty-inline" style={{ padding: "24px 16px" }}>
+            <div className="code-assistant-empty">
               {selectedSession?.id ? (
                 <>
-                  <p>还没有 AI 分析记录</p>
+                  <p className="code-assistant-empty-title">还没有 AI 分析记录</p>
                   <p className="muted-text">可以让 AI 帮你检查代码。</p>
                 </>
               ) : (
                 <>
-                  <p>保存练习后，AI 分析记录会自动保留</p>
-                  <p className="muted-text">
-                    例如：检查代码问题、解释这段代码、给我学习建议。
-                  </p>
+                  <p className="code-assistant-empty-title">保存练习后开始使用 AI 教练</p>
+                  <p className="muted-text">AI 可以帮你分析代码、解释错误、给出学习建议。</p>
                 </>
               )}
+              <div className="code-assistant-suggestions">
+                <p className="code-assistant-suggestions-title">你可以问 AI：</p>
+                {[
+                  "帮我分析这段代码的问题",
+                  "解释这个编译错误",
+                  "为什么这个测试用例没过",
+                  "帮我优化时间复杂度",
+                  "给我一道相似的练习题",
+                ].map((s, i) => (
+                  <button
+                    key={i}
+                    className="code-suggestion-chip"
+                    onClick={() => { setAiQuestion(s); }}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
             </div>
           ) : (
             aiMessages.map((msg, i) => (
