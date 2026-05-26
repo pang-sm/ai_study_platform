@@ -346,8 +346,8 @@ export default function CodeStudio({
   const [deleting, setDeleting] = useState(false);
 
   // ── Layout: resizable panes ──────────────────────────
-  const LAYOUT_KEY = "codestudio.layout.v1";
-  const LAYOUT_DEFAULTS = { leftWidth: 260, rightWidth: 320, problemHeight: 180, outputHeight: 220 };
+  const LAYOUT_KEY = "codestudio.layout.v2";
+  const LAYOUT_DEFAULTS = { leftWidth: 260, rightWidth: 320, problemWidth: 380, outputHeight: 220 };
   const [layout, setLayout] = useState(() => {
     try {
       const raw = localStorage.getItem(LAYOUT_KEY);
@@ -379,7 +379,7 @@ export default function CodeStudio({
         const next = { ...prev };
         if (type === "left") next.leftWidth = Math.min(360, Math.max(56, startLayout.leftWidth + (e.clientX - startX)));
         if (type === "right") next.rightWidth = Math.min(420, Math.max(56, startLayout.rightWidth - (e.clientX - startX)));
-        if (type === "problem") next.problemHeight = Math.min(320, Math.max(48, startLayout.problemHeight + (e.clientY - startY)));
+        if (type === "problem") next.problemWidth = Math.min(520, Math.max(48, startLayout.problemWidth + (e.clientX - startX)));
         if (type === "output") next.outputHeight = Math.min(window.innerHeight * 0.45, Math.max(48, startLayout.outputHeight - (e.clientY - startY)));
         return next;
       });
@@ -402,7 +402,7 @@ export default function CodeStudio({
     e.preventDefault();
     setResizing(type);
     resizeRef.current = { type, startX: e.clientX, startY: e.clientY, startLayout: { ...layoutRef.current } };
-    document.body.style.cursor = type === "left" || type === "right" ? "col-resize" : "row-resize";
+    document.body.style.cursor = type === "output" ? "row-resize" : "col-resize";
     document.body.style.userSelect = "none";
   };
 
@@ -1716,27 +1716,20 @@ export default function CodeStudio({
           </div>
         )}
 
-        {currentChallenge && !focusMode && (
-          <>
-            <div className="code-challenge-card" style={{ height: problemCollapsed ? "auto" : layout.problemHeight, overflow: "auto", flexShrink: 0 }}>
+        {/* ── Horizontal split: Problem Panel (left) | Editor + Output (right) ── */}
+        <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "row" }}>
+          {/* ── Problem Panel ── */}
+          {currentChallenge && !focusMode && (
+            <>
+              <div
+                className={`code-challenge-card${problemCollapsed ? " code-challenge-card--collapsed" : ""}`}
+                style={{ width: problemCollapsed ? 48 : layout.problemWidth, minWidth: problemCollapsed ? 48 : 280, flexShrink: 0, overflow: "auto" }}
+              >
             {problemCollapsed ? (
-              <div className="code-problem-mini">
-                <div className="code-problem-mini-left">
-                  <span className="code-problem-mini-title">{currentChallenge.title}</span>
-                  <span className="subject-pill small">{currentChallenge.difficulty || "基础"}</span>
-                  {currentChallenge.knowledge_point && (
-                    <span className="subject-pill small">{currentChallenge.knowledge_point}</span>
-                  )}
-                  {(() => {
-                    try {
-                      const tc = JSON.parse(typeof currentChallenge.test_cases === "string" ? currentChallenge.test_cases : JSON.stringify(currentChallenge.test_cases || "[]"));
-                      const count = Array.isArray(tc) ? tc.length : 0;
-                      return count > 0 ? <span className="subject-pill small">{count} 组测试</span> : null;
-                    } catch { return null; }
-                  })()}
-                </div>
+              <div className="code-problem-mini-v">
+                <span className="code-problem-mini-v-label">题 目</span>
                 <button className="code-collapse-btn" onClick={() => setProblemCollapsed(false)} title="展开题目">
-                  &#9650;
+                  &rang;
                 </button>
               </div>
             ) : (
@@ -1748,7 +1741,7 @@ export default function CodeStudio({
               )}
               {currentChallenge.source === "diagnosis" && (
                 <span className="subject-pill small" style={{ background: "#ecfdf5", color: "#065f46" }}>
-                  来源：诊断推荐
+                  诊断推荐
                 </span>
               )}
               {currentChallenge.target_weak_point && (
@@ -1757,10 +1750,17 @@ export default function CodeStudio({
                 </span>
               )}
               <button className="code-collapse-btn code-collapse-btn--card" onClick={() => setProblemCollapsed(true)} title="收起题目" style={{ marginLeft: "auto" }}>
-                &#9660;
+                &lang;
               </button>
             </div>
             <h4 className="code-challenge-card-title">{currentChallenge.title}</h4>
+            {(() => {
+              try {
+                const tc = JSON.parse(typeof currentChallenge.test_cases === "string" ? currentChallenge.test_cases : JSON.stringify(currentChallenge.test_cases || "[]"));
+                const count = Array.isArray(tc) ? tc.length : 0;
+                return count > 0 ? <div className="code-challenge-card-test-count">{count} 组测试用例</div> : null;
+              } catch { return null; }
+            })()}
             {currentChallenge.description && (
               <div className="code-challenge-card-section">
                 <div className="code-challenge-card-label">题目描述</div>
@@ -1842,62 +1842,64 @@ export default function CodeStudio({
             )}
               </>
             )}
-            </div>
-            {!problemCollapsed && (
-              <div
-                className={`code-resize-handle code-resize-handle--v${resizing === "problem" ? " code-resize-handle--active" : ""}`}
-                onMouseDown={(e) => startResize(e, "problem")}
-              />
-            )}
-          </>
-        )}
-
-        <div className="code-studio-monaco-wrapper" style={{ flex: focusMode ? 1 : undefined, minHeight: focusMode ? 0 : 280 }}>
-          <Editor
-            language={getMonacoLanguage(language)}
-            value={code}
-            onChange={(value) => setCode(value || "")}
-            theme="vs-dark"
-            beforeMount={registerAutocomplete}
-            onMount={(editor) => { editorRef.current = editor; }}
-            options={{
-              fontSize: 14,
-              minimap: { enabled: false },
-              automaticLayout: true,
-              scrollBeyondLastLine: false,
-              wordWrap: "on",
-              quickSuggestions: true,
-              suggestOnTriggerCharacters: true,
-              acceptSuggestionOnEnter: "on",
-              tabCompletion: "on",
-              wordBasedSuggestions: "currentDocument",
-              snippetSuggestions: "inline",
-              parameterHints: { enabled: true },
-            }}
-            loading={
-              <div className="code-studio-monaco-loading">
-                代码编辑器加载中...
               </div>
-            }
-          />
-        </div>
+              {!problemCollapsed && (
+                <div
+                  className={`code-resize-handle code-resize-handle--h${resizing === "problem" ? " code-resize-handle--active" : ""}`}
+                  onMouseDown={(e) => startResize(e, "problem")}
+                />
+              )}
+            </>
+          )}
 
-        {!selectedSession && (
-          <div className="code-studio-empty-overlay">
-            <p>点击左侧「新建练习」开始编程学习</p>
-          </div>
-        )}
-
-        {/* Output Panel with Tabs */}
-        {showFeedbackPanel && !focusMode && (
-          <>
-            {!outputCollapsed && (
-              <div
-                className={`code-resize-handle code-resize-handle--v${resizing === "output" ? " code-resize-handle--active" : ""}`}
-                onMouseDown={(e) => startResize(e, "output")}
+          {/* ── Right: Editor + Output ── */}
+          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+            <div className="code-studio-monaco-wrapper" style={{ minHeight: focusMode ? 0 : 300 }}>
+              <Editor
+                language={getMonacoLanguage(language)}
+                value={code}
+                onChange={(value) => setCode(value || "")}
+                theme="vs-dark"
+                beforeMount={registerAutocomplete}
+                onMount={(editor) => { editorRef.current = editor; }}
+                options={{
+                  fontSize: 14,
+                  minimap: { enabled: false },
+                  automaticLayout: true,
+                  scrollBeyondLastLine: false,
+                  wordWrap: "on",
+                  quickSuggestions: true,
+                  suggestOnTriggerCharacters: true,
+                  acceptSuggestionOnEnter: "on",
+                  tabCompletion: "on",
+                  wordBasedSuggestions: "currentDocument",
+                  snippetSuggestions: "inline",
+                  parameterHints: { enabled: true },
+                }}
+                loading={
+                  <div className="code-studio-monaco-loading">
+                    代码编辑器加载中...
+                  </div>
+                }
               />
+            </div>
+
+            {!selectedSession && (
+              <div className="code-studio-empty-overlay">
+                <p>点击左侧「新建练习」开始编程学习</p>
+              </div>
             )}
-          <div className="code-feedback-panel" style={{ height: outputCollapsed ? "auto" : layout.outputHeight, flexShrink: 0 }}>
+
+            {/* Output Panel with Tabs */}
+            {showFeedbackPanel && !focusMode && (
+              <>
+                {!outputCollapsed && (
+                  <div
+                    className={`code-resize-handle code-resize-handle--v${resizing === "output" ? " code-resize-handle--active" : ""}`}
+                    onMouseDown={(e) => startResize(e, "output")}
+                  />
+                )}
+              <div className="code-feedback-panel" style={{ height: outputCollapsed ? "auto" : layout.outputHeight, flexShrink: 0 }}>
             <div className="code-feedback-panel-header">
               <div className="code-output-tabs">
                 <button
@@ -2212,6 +2214,8 @@ export default function CodeStudio({
           </div>
           </>
         )}
+          </div>{/* end right: editor + output */}
+        </div>{/* end horizontal split */}
       </main>
 
       {/* Right Panel — AI Coach */}

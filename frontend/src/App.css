@@ -3502,12 +3502,19 @@ select.field:focus {
   background: rgba(245, 158, 11, 0.08) !important;
 }
 
-/* Challenge card above editor */
+/* Challenge card — left side panel */
 .code-challenge-card {
-  padding: 14px 20px;
-  border-bottom: 1px solid #e9edf4;
+  padding: 14px 16px;
+  border-right: 1px solid #e9edf4;
   background: #fffdf7;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.code-challenge-card--collapsed {
+  padding: 10px 4px;
+  align-items: center;
 }
 
 .code-challenge-card-header {
@@ -3625,27 +3632,30 @@ select.field:focus {
   font-weight: 600;
 }
 
-/* ── Code Studio: Problem Mini (collapsed) ── */
-.code-problem-mini {
+/* ── Code Studio: Problem Mini (collapsed — vertical strip) ── */
+.code-problem-mini-v {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  justify-content: flex-start;
+  gap: 10px;
+  padding-top: 12px;
+  height: 100%;
 }
-.code-problem-mini-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  flex: 1;
-}
-.code-problem-mini-title {
-  font-size: 0.88rem;
+.code-problem-mini-v-label {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-size: 0.85rem;
   font-weight: 600;
-  color: #14213d;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  color: #0f766e;
+  letter-spacing: 0.3em;
+}
+
+/* ── Code Studio: Test Count in Problem Panel ── */
+.code-challenge-card-test-count {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-bottom: 12px;
 }
 
 /* ── Code Studio: Collapse Button ── */
@@ -3883,6 +3893,17 @@ select.field:focus {
   gap: 12px;
 }
 
+@media (max-width: 1200px) {
+  .code-studio-assistant {
+    width: 280px !important;
+    min-width: 280px !important;
+  }
+  .code-challenge-card:not(.code-challenge-card--collapsed) {
+    width: 320px !important;
+    min-width: 280px !important;
+  }
+}
+
 @media (max-width: 900px) {
   .code-studio-shell {
     flex-direction: column !important;
@@ -3899,6 +3920,33 @@ select.field:focus {
     border-top: 1px solid #e9edf4;
     max-height: 40vh;
     width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  /* Stack problem panel above editor on small screens */
+  .code-studio-editor > div:first-of-type {
+    flex-direction: column !important;
+  }
+  .code-challenge-card:not(.code-challenge-card--collapsed) {
+    width: 100% !important;
+    max-height: 35vh;
+    border-right: none;
+    border-bottom: 1px solid #e9edf4;
+  }
+  .code-challenge-card--collapsed {
+    width: 100% !important;
+    flex-direction: row !important;
+    padding: 6px 12px !important;
+  }
+  .code-problem-mini-v {
+    flex-direction: row;
+    padding-top: 0;
+    gap: 8px;
+    width: 100%;
+  }
+  .code-problem-mini-v-label {
+    writing-mode: horizontal-tb;
+    letter-spacing: 0;
   }
 
   .code-resize-handle--h {
