@@ -4826,9 +4826,8 @@ def _run_c_code_in_docker(code: str, stdin: str = "") -> dict:
         with open(source_path, "w", encoding="utf-8") as f:
             f.write(code)
 
-        if stdin:
-            with open(input_path, "w", encoding="utf-8") as f:
-                f.write(stdin)
+        with open(input_path, "w", encoding="utf-8") as f:
+            f.write(stdin or "")
 
         # Shell script inside container:
         # 1. gcc compile, redirect errors to a temp file
