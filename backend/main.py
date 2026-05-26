@@ -6,7 +6,9 @@ import secrets
 import subprocess
 import tempfile
 import hashlib
+import threading
 import time
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timezone
 from io import BytesIO
@@ -4488,14 +4490,28 @@ def create_code_session(req: schemas.CodeSessionCreate, db: Session = Depends(ge
     language = (req.language or "Python").strip()
     if language not in CODE_TEMPLATES:
         language = "Python"
+
+    challenge_id = getattr(req, "challenge_id", None)
+    if challenge_id:
+        challenge = (
+            db.query(models.CodeChallenge)
+            .filter(
+                models.CodeChallenge.id == challenge_id,
+                models.CodeChallenge.username == user.username,
+            )
+            .first()
+        )
+        if not challenge:
+            raise HTTPException(status_code=400, detail="题目不存在或不属于当前用户")
+
     session = models.CodeSession(
         username=user.username,
         course_id=normalize_subject(req.course_id),
         title=(req.title or "未命名练习").strip()[:255] or "未命名练习",
         language=language,
         code=req.code or CODE_TEMPLATES.get(language, ""),
-        challenge_id=getattr(req, "challenge_id", None),
-        session_type="challenge" if getattr(req, "challenge_id", None) else "normal",
+        challenge_id=challenge_id,
+        session_type="challenge" if challenge_id else "normal",
     )
     db.add(session)
     db.commit()
@@ -4584,14 +4600,39 @@ def delete_code_session(session_id: int, username: str, db: Session = Depends(ge
     return {"success": True, "message": "代码练习已删除"}
 
 
-MAX_CODE_EXECUTE_CHARS = 50000
-MAX_STDIN_CHARS = 10000
+MAX_CODE_EXECUTE_CHARS = 20000
+MAX_STDIN_CHARS = 5000
 MAX_OUTPUT_CHARS = 8000
+MAX_TEST_CASES = 10
+MAX_TEST_CASE_INPUT_CHARS = 5000
+MAX_TEST_CASE_OUTPUT_CHARS = 5000
 EXECUTE_TIMEOUT_SECONDS = 3
 DOCKER_MEMORY_LIMIT = "128m"
 DOCKER_CPU_LIMIT = 1.0
 DOCKER_PIDS_LIMIT = 64
 DOCKER_IMAGE = "python:3.11-slim"
+
+# ── Rate limiting (in-memory, cleared on restart) ──
+CODE_RUN_RATE_LIMITS: dict[str, list[float]] = defaultdict(list)
+CODE_RUN_RATE_WINDOW = 60  # seconds
+CODE_RUN_RATE_EXECUTE = 10  # per window
+CODE_RUN_RATE_TESTS = 5     # per window
+
+# ── Docker concurrency semaphore ──
+DOCKER_SEMAPHORE = threading.Semaphore(2)
+DOCKER_SEMAPHORE_TIMEOUT = 8  # seconds
+
+
+def _check_code_run_rate(username: str, limit: int, window: int = CODE_RUN_RATE_WINDOW) -> bool:
+    """Return True if rate limit is NOT exceeded."""
+    now = time.time()
+    bucket = CODE_RUN_RATE_LIMITS[username]
+    # Remove entries outside the window
+    bucket[:] = [t for t in bucket if now - t < window]
+    if len(bucket) >= limit:
+        return False
+    bucket.append(now)
+    return True
 
 
 def _classify_docker_error(stderr: str) -> str | None:
@@ -4821,9 +4862,21 @@ def execute_code(req: schemas.CodeExecuteRequest, db: Session = Depends(get_db))
         if not session:
             raise HTTPException(status_code=404, detail="代码练习不存在")
 
-    result = _run_code_in_docker(code, stdin)
-    result["success"] = True
-    return result
+    # Rate limit check
+    if not _check_code_run_rate(user.username, CODE_RUN_RATE_EXECUTE):
+        raise HTTPException(status_code=429, detail="运行过于频繁，每分钟最多运行 10 次，请稍后再试。")
+
+    # Acquire semaphore with timeout
+    acquired = DOCKER_SEMAPHORE.acquire(timeout=DOCKER_SEMAPHORE_TIMEOUT)
+    if not acquired:
+        raise HTTPException(status_code=503, detail="当前代码运行任务较多，请稍后重试。")
+
+    try:
+        result = _run_code_in_docker(code, stdin)
+        result["success"] = True
+        return result
+    finally:
+        DOCKER_SEMAPHORE.release()
 
 
 @app.post("/code/analyze")
@@ -5492,6 +5545,17 @@ def run_challenge_tests(challenge_id: int, req: schemas.CodeChallengeRunTestsReq
     if not session:
         raise HTTPException(status_code=404, detail="代码练习不存在")
 
+    # If session has a challenge_id, verify it matches the requested challenge
+    session_challenge_id = getattr(session, "challenge_id", None)
+    if session_challenge_id and session_challenge_id != challenge_id:
+        return {
+            "success": True,
+            "total": 0,
+            "passed": 0,
+            "results": [],
+            "error_message": "当前练习关联的题目与请求不一致，请重新选择练习。",
+        }
+
     code = (req.code or "").strip()
     if not code:
         return {
@@ -5511,6 +5575,10 @@ def run_challenge_tests(challenge_id: int, req: schemas.CodeChallengeRunTestsReq
             "error_message": f"代码过长（{len(code)} 字符），当前限制 {MAX_CODE_EXECUTE_CHARS} 字符。",
         }
 
+    # Rate limit check
+    if not _check_code_run_rate(user.username, CODE_RUN_RATE_TESTS):
+        raise HTTPException(status_code=429, detail="运行测试过于频繁，每分钟最多运行 5 次，请稍后再试。")
+
     # Parse test_cases
     test_cases_json = getattr(challenge, "test_cases", None) or "[]"
     try:
@@ -5527,17 +5595,26 @@ def run_challenge_tests(challenge_id: int, req: schemas.CodeChallengeRunTestsReq
             "error_message": "当前题目暂无测试用例，可使用 AI 判定功能分析答案。",
         }
 
-    results = []
-    passed_count = 0
+    if len(test_cases) > MAX_TEST_CASES:
+        test_cases = test_cases[:MAX_TEST_CASES]
 
-    for idx, tc in enumerate(test_cases):
-        if not isinstance(tc, dict):
-            continue
-        test_input = str(tc.get("input", ""))
-        expected = str(tc.get("expected_output", "")).strip()
-        description = str(tc.get("description", ""))[:100]
+    # Acquire semaphore with timeout
+    acquired = DOCKER_SEMAPHORE.acquire(timeout=DOCKER_SEMAPHORE_TIMEOUT)
+    if not acquired:
+        raise HTTPException(status_code=503, detail="当前代码运行任务较多，请稍后重试。")
 
-        exec_result = _run_code_in_docker(code, test_input)
+    try:
+        results = []
+        passed_count = 0
+
+        for idx, tc in enumerate(test_cases):
+            if not isinstance(tc, dict):
+                continue
+            test_input = str(tc.get("input", ""))[:MAX_TEST_CASE_INPUT_CHARS]
+            expected = str(tc.get("expected_output", ""))[:MAX_TEST_CASE_OUTPUT_CHARS].strip()
+            description = str(tc.get("description", ""))[:100]
+
+            exec_result = _run_code_in_docker(code, test_input)
 
         actual_output = (exec_result.get("stdout") or "").strip()
         stderr = (exec_result.get("stderr") or "")
@@ -5584,12 +5661,14 @@ def run_challenge_tests(challenge_id: int, req: schemas.CodeChallengeRunTestsReq
             "diff_summary": diff_summary,
         })
 
-    return {
-        "success": True,
-        "total": len(results),
-        "passed": passed_count,
-        "results": results,
-    }
+        return {
+            "success": True,
+            "total": len(results),
+            "passed": passed_count,
+            "results": results,
+        }
+    finally:
+        DOCKER_SEMAPHORE.release()
 
 
 CODE_CHALLENGE_EXPLAIN_FAILURE_PROMPT = """你是编程学习辅导助手。用户在练习一道编程题时，某个测试用例没有通过。请根据用户代码、题目信息、测试用例的输入输出和实际运行结果，分析失败原因并给出学习指导。

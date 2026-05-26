@@ -367,6 +367,26 @@ export default function CodeStudio({
           duration_ms: data.duration_ms || 0,
           timed_out: data.timed_out || false,
           error_message: data.error_message || null,
+          stdout_truncated: data.stdout_truncated || false,
+          stderr_truncated: data.stderr_truncated || false,
+        });
+      } else if (res.status === 429) {
+        setRunResult({
+          stdout: "",
+          stderr: "",
+          exit_code: -1,
+          duration_ms: 0,
+          timed_out: false,
+          error_message: "运行过于频繁，请稍后再试。",
+        });
+      } else if (res.status === 503) {
+        setRunResult({
+          stdout: "",
+          stderr: "",
+          exit_code: -1,
+          duration_ms: 0,
+          timed_out: false,
+          error_message: "当前代码运行任务较多，请稍后重试。",
         });
       } else {
         setRunResult({
@@ -427,6 +447,20 @@ export default function CodeStudio({
       const data = await safeJson(res);
       if (res.ok) {
         setTestResults(data);
+      } else if (res.status === 429) {
+        setTestResults({
+          total: 0,
+          passed: 0,
+          results: [],
+          error_message: "运行测试过于频繁，每分钟最多运行 5 次，请稍后再试。",
+        });
+      } else if (res.status === 503) {
+        setTestResults({
+          total: 0,
+          passed: 0,
+          results: [],
+          error_message: "当前代码运行任务较多，请稍后重试。",
+        });
       } else {
         setTestResults({
           total: 0,
