@@ -4293,6 +4293,23 @@ select.field:focus {
   border-radius: 6px;
 }
 
+/* ── Compile Error ── */
+.code-compile-error {
+  margin: 8px 0;
+}
+
+.code-compile-error-label {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #fef2f2;
+  color: #dc2626;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border: 1px solid #fecaca;
+  border-radius: 4px;
+  margin-bottom: 4px;
+}
+
 /* ── Task Center ── */
 
 .task-center-panel {

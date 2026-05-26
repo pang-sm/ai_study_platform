@@ -4607,10 +4607,13 @@ MAX_TEST_CASES = 10
 MAX_TEST_CASE_INPUT_CHARS = 5000
 MAX_TEST_CASE_OUTPUT_CHARS = 5000
 EXECUTE_TIMEOUT_SECONDS = 3
+EXECUTE_TIMEOUT_SECONDS_C = 6  # C compile+run needs more time
 DOCKER_MEMORY_LIMIT = "128m"
+DOCKER_MEMORY_LIMIT_C = "256m"  # gcc compilation needs more memory
 DOCKER_CPU_LIMIT = 1.0
 DOCKER_PIDS_LIMIT = 64
 DOCKER_IMAGE = "python:3.11-slim"
+DOCKER_IMAGE_C = "gcc:13"
 
 # ── Rate limiting (in-memory, cleared on restart) ──
 CODE_RUN_RATE_LIMITS: dict[str, list[float]] = defaultdict(list)
@@ -4643,7 +4646,7 @@ def _classify_docker_error(stderr: str) -> str | None:
     if "permission denied" in lower or "daemon" in lower and ("connect" in lower or "cannot" in lower):
         return "后端服务暂无 Docker 权限，无法运行代码。请联系管理员配置 Docker 权限。"
     if "image" in lower and ("not found" in lower or "pull" in lower or "unable" in lower):
-        return "Python 运行镜像尚未准备完成（python:3.11-slim），请先执行 docker pull python:3.11-slim。"
+        return "运行镜像尚未准备完成，请先执行 docker pull python:3.11-slim 和 docker pull gcc:13。"
     if "no such file" in lower and "docker" in lower:
         return "服务器 Docker 环境未就绪，Docker 命令不存在。请联系管理员安装 Docker。"
     return None
@@ -4808,11 +4811,172 @@ def _run_code_in_docker(code: str, stdin: str = "") -> dict:
             pass
 
 
+def _run_c_code_in_docker(code: str, stdin: str = "") -> dict:
+    """Compile and run user C code inside a locked-down Docker container.
+
+    Uses gcc:13 image. Compiles main.c then executes the binary.
+    User code is mounted read-only; binary is compiled to /tmp inside the container.
+    --tmpfs for C uses :rw,nosuid (without noexec) so the compiled binary can run.
+    """
+    tmp_dir = tempfile.mkdtemp(prefix="code_exec_c_")
+    source_path = os.path.join(tmp_dir, "main.c")
+    input_path = os.path.join(tmp_dir, "stdin.txt")
+
+    try:
+        with open(source_path, "w", encoding="utf-8") as f:
+            f.write(code)
+
+        if stdin:
+            with open(input_path, "w", encoding="utf-8") as f:
+                f.write(stdin)
+
+        # Shell script inside container:
+        # 1. gcc compile, redirect errors to a temp file
+        # 2. If compile fails (non-zero), cat errors to stderr, exit 101
+        # 3. If compile succeeds, run the binary with stdin
+        compile_and_run = (
+            "gcc /code/main.c -O2 -std=c11 -Wall -Wextra -o /tmp/main 2>/tmp/compile_err.txt; "
+            "if [ $? -ne 0 ]; then cat /tmp/compile_err.txt >&2; exit 101; fi; "
+            "/tmp/main < /code/stdin.txt"
+        )
+
+        # Security: --network none, --read-only root,
+        # --tmpfs /tmp:rw,nosuid (exec allowed, needed for compiled binary)
+        docker_cmd = [
+            "docker", "run", "--rm",
+            "--network", "none",
+            "--memory", DOCKER_MEMORY_LIMIT_C,
+            "--cpus", str(DOCKER_CPU_LIMIT),
+            "--pids-limit", str(DOCKER_PIDS_LIMIT),
+            "--read-only",
+            "--tmpfs", "/tmp:rw,nosuid,size=128m",
+            "-v", f"{tmp_dir}:/code:ro",
+            "-w", "/code",
+            DOCKER_IMAGE_C,
+            "sh", "-c", compile_and_run,
+        ]
+
+        start = time.time()
+        proc = subprocess.run(
+            docker_cmd,
+            capture_output=True,
+            text=True,
+            timeout=EXECUTE_TIMEOUT_SECONDS_C,
+            cwd=tmp_dir,
+        )
+        elapsed_ms = int((time.time() - start) * 1000)
+
+        stdout = proc.stdout or ""
+        stderr = proc.stderr or ""
+        compile_error = None
+        compiled = True
+
+        # Exit code 101 = compile error
+        if proc.returncode == 101:
+            compile_error = (proc.stderr or "").strip()
+            compiled = False
+            stdout = ""
+            stderr = ""
+
+        stdout_truncated = False
+        if len(stdout) > MAX_OUTPUT_CHARS:
+            stdout = stdout[:MAX_OUTPUT_CHARS]
+            stdout_truncated = True
+
+        stderr_truncated = False
+        if len(stderr) > MAX_OUTPUT_CHARS:
+            stderr = stderr[:MAX_OUTPUT_CHARS]
+            stderr_truncated = True
+
+        docker_error = _classify_docker_error(proc.stderr or "")
+
+        return {
+            "stdout": stdout,
+            "stderr": stderr,
+            "exit_code": proc.returncode if proc.returncode != 101 else 1,
+            "duration_ms": elapsed_ms,
+            "timed_out": False,
+            "error_message": docker_error,
+            "compile_error": compile_error,
+            "compiled": compiled,
+            "stdout_truncated": stdout_truncated,
+            "stderr_truncated": stderr_truncated,
+        }
+    except subprocess.TimeoutExpired:
+        elapsed_ms = int((time.time() - start) * 1000)
+        return {
+            "stdout": "",
+            "stderr": f"执行超时（超过 {EXECUTE_TIMEOUT_SECONDS_C} 秒），您的代码可能包含死循环或复杂度过高的算法。",
+            "exit_code": -1,
+            "duration_ms": elapsed_ms,
+            "timed_out": True,
+            "error_message": None,
+            "compile_error": None,
+            "compiled": False,
+            "stdout_truncated": False,
+            "stderr_truncated": False,
+        }
+    except FileNotFoundError:
+        return {
+            "stdout": "",
+            "stderr": "",
+            "exit_code": -1,
+            "duration_ms": 0,
+            "timed_out": False,
+            "error_message": "服务器 Docker 环境未就绪，Docker 命令不存在。请联系管理员安装 Docker。",
+            "compile_error": None,
+            "compiled": False,
+            "stdout_truncated": False,
+            "stderr_truncated": False,
+        }
+    except PermissionError:
+        return {
+            "stdout": "",
+            "stderr": "",
+            "exit_code": -1,
+            "duration_ms": 0,
+            "timed_out": False,
+            "error_message": "后端服务暂无 Docker 权限，无法运行代码。请联系管理员配置 Docker 权限。",
+            "compile_error": None,
+            "compiled": False,
+            "stdout_truncated": False,
+            "stderr_truncated": False,
+        }
+    except Exception as exc:
+        return {
+            "stdout": "",
+            "stderr": "",
+            "exit_code": -1,
+            "duration_ms": 0,
+            "timed_out": False,
+            "error_message": f"代码执行环境异常：{str(exc)[:200]}",
+            "compile_error": None,
+            "compiled": False,
+            "stdout_truncated": False,
+            "stderr_truncated": False,
+        }
+    finally:
+        try:
+            if os.path.exists(input_path):
+                os.remove(input_path)
+        except OSError:
+            pass
+        try:
+            if os.path.exists(source_path):
+                os.remove(source_path)
+        except OSError:
+            pass
+        try:
+            os.rmdir(tmp_dir)
+        except OSError:
+            pass
+
+
 @app.post("/code/execute")
 def execute_code(req: schemas.CodeExecuteRequest, db: Session = Depends(get_db)):
     language = (req.language or "").strip().lower()
 
-    if language != "python":
+    if language not in ("python", "c"):
         return {
             "success": True,
             "stdout": "",
@@ -4820,7 +4984,11 @@ def execute_code(req: schemas.CodeExecuteRequest, db: Session = Depends(get_db))
             "exit_code": -1,
             "duration_ms": 0,
             "timed_out": False,
-            "error_message": f"当前真实运行暂只支持 Python，{req.language or '该语言'} 暂不支持。请使用 AI 判定功能分析代码。",
+            "error_message": f"当前真实运行暂支持 Python 和 C，{req.language or '该语言'} 暂不支持。请使用 AI 判定功能分析代码。",
+            "compile_error": None,
+            "compiled": False,
+            "stdout_truncated": False,
+            "stderr_truncated": False,
         }
 
     code = (req.code or "").strip()
@@ -4833,6 +5001,10 @@ def execute_code(req: schemas.CodeExecuteRequest, db: Session = Depends(get_db))
             "duration_ms": 0,
             "timed_out": False,
             "error_message": None,
+            "compile_error": None,
+            "compiled": False,
+            "stdout_truncated": False,
+            "stderr_truncated": False,
         }
 
     if len(code) > MAX_CODE_EXECUTE_CHARS:
@@ -4844,11 +5016,16 @@ def execute_code(req: schemas.CodeExecuteRequest, db: Session = Depends(get_db))
             "duration_ms": 0,
             "timed_out": False,
             "error_message": f"代码过长（{len(code)} 字符），当前限制 {MAX_CODE_EXECUTE_CHARS} 字符。",
+            "compile_error": None,
+            "compiled": False,
+            "stdout_truncated": False,
+            "stderr_truncated": False,
         }
 
     stdin = (req.stdin or "")[:MAX_STDIN_CHARS]
 
     # Session ownership check (if session_id provided)
+    user = None
     if req.session_id:
         user = get_user_by_username(req.username, db)
         session = (
@@ -4862,8 +5039,9 @@ def execute_code(req: schemas.CodeExecuteRequest, db: Session = Depends(get_db))
         if not session:
             raise HTTPException(status_code=404, detail="代码练习不存在")
 
-    # Rate limit check
-    if not _check_code_run_rate(user.username, CODE_RUN_RATE_EXECUTE):
+    # Rate limit check (use same limit for both languages)
+    username = user.username if user else req.username
+    if not _check_code_run_rate(username, CODE_RUN_RATE_EXECUTE):
         raise HTTPException(status_code=429, detail="运行过于频繁，每分钟最多运行 10 次，请稍后再试。")
 
     # Acquire semaphore with timeout
@@ -4872,7 +5050,10 @@ def execute_code(req: schemas.CodeExecuteRequest, db: Session = Depends(get_db))
         raise HTTPException(status_code=503, detail="当前代码运行任务较多，请稍后重试。")
 
     try:
-        result = _run_code_in_docker(code, stdin)
+        if language == "c":
+            result = _run_c_code_in_docker(code, stdin)
+        else:
+            result = _run_code_in_docker(code, stdin)
         result["success"] = True
         return result
     finally:
@@ -5512,13 +5693,13 @@ def submit_code_challenge(challenge_id: int, req: schemas.CodeChallengeSubmitReq
 def run_challenge_tests(challenge_id: int, req: schemas.CodeChallengeRunTestsRequest, db: Session = Depends(get_db)):
     language = (req.language or "").strip().lower()
 
-    if language != "python":
+    if language not in ("python", "c"):
         return {
             "success": True,
             "total": 0,
             "passed": 0,
             "results": [],
-            "error_message": f"当前测试运行暂只支持 Python，{req.language or '该语言'} 暂不支持。",
+            "error_message": f"当前测试运行暂支持 Python 和 C，{req.language or '该语言'} 暂不支持。",
         }
 
     user = get_user_by_username(req.username, db)
@@ -5603,6 +5784,8 @@ def run_challenge_tests(challenge_id: int, req: schemas.CodeChallengeRunTestsReq
     if not acquired:
         raise HTTPException(status_code=503, detail="当前代码运行任务较多，请稍后重试。")
 
+    is_c = language == "c"
+
     try:
         results = []
         passed_count = 0
@@ -5614,52 +5797,62 @@ def run_challenge_tests(challenge_id: int, req: schemas.CodeChallengeRunTestsReq
             expected = str(tc.get("expected_output", ""))[:MAX_TEST_CASE_OUTPUT_CHARS].strip()
             description = str(tc.get("description", ""))[:100]
 
-            exec_result = _run_code_in_docker(code, test_input)
+            if is_c:
+                exec_result = _run_c_code_in_docker(code, test_input)
+            else:
+                exec_result = _run_code_in_docker(code, test_input)
 
-        actual_output = (exec_result.get("stdout") or "").strip()
-        stderr = (exec_result.get("stderr") or "")
-        exit_code = exec_result.get("exit_code", -1)
-        duration_ms = exec_result.get("duration_ms", 0)
-        timed_out = exec_result.get("timed_out", False)
-        error_message = exec_result.get("error_message")
+            actual_output = (exec_result.get("stdout") or "").strip()
+            stderr = (exec_result.get("stderr") or "")
+            exit_code = exec_result.get("exit_code", -1)
+            duration_ms = exec_result.get("duration_ms", 0)
+            timed_out = exec_result.get("timed_out", False)
+            error_message = exec_result.get("error_message")
+            compile_error = exec_result.get("compile_error")
+            compiled = exec_result.get("compiled", True)
 
-        # Determine pass/fail
-        if error_message:
-            passed = False
-        elif timed_out:
-            passed = False
-        elif exit_code != 0:
-            passed = False
-        elif actual_output == expected:
-            passed = True
-        else:
-            # Allow minor whitespace-only differences (the strip() above handles trailing newlines)
-            passed = False
+            # Determine pass/fail
+            if error_message:
+                passed = False
+            elif compile_error:
+                passed = False
+            elif timed_out:
+                passed = False
+            elif not compiled:
+                passed = False
+            elif exit_code != 0:
+                passed = False
+            elif actual_output == expected:
+                passed = True
+            else:
+                passed = False
 
-        if passed:
-            passed_count += 1
+            if passed:
+                passed_count += 1
 
-        # Compute diff summary for failed test cases
-        diff_summary = ""
-        if not passed and not error_message and not timed_out and exit_code == 0:
-            diff_summary = _compute_diff_summary(expected, actual_output)
+            # Compute diff summary for failed test cases
+            diff_summary = ""
+            if not passed and not error_message and not timed_out and not compile_error and compiled and exit_code == 0:
+                diff_summary = _compute_diff_summary(expected, actual_output)
 
-        results.append({
-            "index": idx + 1,
-            "description": description,
-            "input": test_input,
-            "expected_output": expected,
-            "actual_output": actual_output,
-            "stderr": stderr,
-            "exit_code": exit_code,
-            "passed": passed,
-            "duration_ms": duration_ms,
-            "timed_out": timed_out,
-            "error_message": error_message,
-            "stdout_truncated": exec_result.get("stdout_truncated", False),
-            "stderr_truncated": exec_result.get("stderr_truncated", False),
-            "diff_summary": diff_summary,
-        })
+            results.append({
+                "index": idx + 1,
+                "description": description,
+                "input": test_input,
+                "expected_output": expected,
+                "actual_output": actual_output,
+                "stderr": stderr,
+                "exit_code": exit_code,
+                "passed": passed,
+                "duration_ms": duration_ms,
+                "timed_out": timed_out,
+                "error_message": error_message,
+                "stdout_truncated": exec_result.get("stdout_truncated", False),
+                "stderr_truncated": exec_result.get("stderr_truncated", False),
+                "diff_summary": diff_summary,
+                "compile_error": compile_error,
+                "compiled": compiled,
+            })
 
         return {
             "success": True,
@@ -5706,10 +5899,10 @@ CODE_CHALLENGE_EXPLAIN_FAILURE_PROMPT = """你是编程学习辅导助手。用�
 def explain_challenge_failure(challenge_id: int, req: schemas.CodeChallengeExplainFailureRequest, db: Session = Depends(get_db)):
     language = (req.language or "").strip().lower()
 
-    if language != "python":
+    if language not in ("python", "c"):
         return {
             "success": True,
-            "explanation": f"当前 AI 解释暂只支持 Python，{req.language or '该语言'} 暂不支持。",
+            "explanation": f"当前 AI 解释暂支持 Python 和 C，{req.language or '该语言'} 暂不支持。",
         }
 
     user = get_user_by_username(req.username, db)
@@ -5841,11 +6034,11 @@ CODE_CHALLENGE_GENERATE_TESTS_PROMPT = """你是编程教学助手。你需要�
 def generate_challenge_tests(challenge_id: int, req: schemas.CodeChallengeGenerateTestsRequest, db: Session = Depends(get_db)):
     language = (req.language or "").strip().lower()
 
-    if language != "python":
+    if language not in ("python", "c"):
         return {
             "success": True,
             "test_cases": "[]",
-            "message": f"当前测试用例生成暂只支持 Python，{req.language or '该语言'} 暂不支持。",
+            "message": f"当前测试用例生成暂支持 Python 和 C，{req.language or '该语言'} 暂不支持。",
         }
 
     user = get_user_by_username(req.username, db)

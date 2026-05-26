@@ -419,8 +419,8 @@ export default function CodeStudio({
       setTip("请先编写代码再运行测试。");
       return;
     }
-    if (language !== "Python") {
-      setTip("当前测试运行暂只支持 Python");
+    if (language !== "Python" && language !== "C") {
+      setTip("当前测试运行暂支持 Python 和 C");
       return;
     }
     setTesting(true);
@@ -541,8 +541,8 @@ export default function CodeStudio({
 
   const generateTests = async () => {
     if (!user?.username || !selectedSession?.challenge_id) return;
-    if (language !== "Python") {
-      setTip("当前测试用例生成暂只支持 Python");
+    if (language !== "Python" && language !== "C") {
+      setTip("当前测试用例生成暂支持 Python 和 C");
       return;
     }
     setGeneratingTests(true);
@@ -1012,7 +1012,7 @@ export default function CodeStudio({
     }
   };
 
-  const canRun = language === "Python";
+  const canRun = language === "Python" || language === "C";
 
   return (
     <section className="code-studio-shell">
@@ -1281,18 +1281,18 @@ export default function CodeStudio({
             className={`primary-button compact code-run-btn ${!canRun ? "code-run-btn--disabled" : ""}`}
             onClick={runCode}
             disabled={running || !canRun || !code.trim()}
-            title={canRun ? "运行代码（Docker 沙箱）" : "当前真实运行暂只支持 Python"}
+            title={canRun ? "运行代码（Docker 沙箱）" : "当前真实运行暂支持 Python 和 C"}
           >
-            {running ? "运行中..." : canRun ? "运行代码" : `运行 (仅Python)`}
+            {running ? "运行中..." : canRun ? "运行代码" : "运行 (仅Python/C)"}
           </button>
           {selectedSession?.challenge_id && (
             <button
               className={`primary-button compact code-test-btn ${!canRun ? "code-run-btn--disabled" : ""}`}
               onClick={runTests}
               disabled={testing || !canRun || !code.trim()}
-              title={canRun ? "运行测试用例" : "当前测试运行暂只支持 Python"}
+              title={canRun ? "运行测试用例" : "当前测试运行暂支持 Python 和 C"}
             >
-              {testing ? "测试中..." : canRun ? "运行测试" : `测试 (仅Python)`}
+              {testing ? "测试中..." : canRun ? "运行测试" : "测试 (仅Python/C)"}
             </button>
           )}
           {selectedSession?.challenge_id && (
@@ -1410,8 +1410,8 @@ export default function CodeStudio({
                 <button
                   className="ghost-button compact code-test-gen-btn"
                   onClick={generateTests}
-                  disabled={generatingTests || language !== "Python"}
-                  title={language !== "Python" ? "当前仅支持 Python 题目" : "AI 为本题补全测试用例"}
+                  disabled={generatingTests || (language !== "Python" && language !== "C")}
+                  title={(language !== "Python" && language !== "C") ? "当前仅支持 Python 和 C 题目" : "AI 为本题补全测试用例"}
                 >
                   {generatingTests ? "AI 生成中..." : "AI 补全测试用例"}
                 </button>
@@ -1588,6 +1588,16 @@ export default function CodeStudio({
                                 </div>
                               )}
 
+                              {/* Compile error */}
+                              {tc.compile_error && (
+                                <div className="code-compile-error">
+                                  <span className="code-compile-error-label">编译错误</span>
+                                  <pre className="code-run-pre code-run-pre--err" style={{ maxHeight: 120 }}>
+                                    {tc.compile_error}
+                                  </pre>
+                                </div>
+                              )}
+
                               {/* Truncation warning */}
                               {(tc.stdout_truncated || tc.stderr_truncated) && (
                                 <div className="code-run-truncated-warning">
@@ -1627,7 +1637,7 @@ export default function CodeStudio({
                           <button
                             className="ghost-button compact code-test-gen-btn"
                             onClick={generateTests}
-                            disabled={generatingTests || language !== "Python"}
+                            disabled={generatingTests || (language !== "Python" && language !== "C")}
                           >
                             {generatingTests ? "AI 生成中..." : "AI 补全测试用例"}
                           </button>
@@ -1649,6 +1659,15 @@ export default function CodeStudio({
                       {runResult.timed_out && (
                         <div className="code-run-timeout-warning">
                           执行超时（超过 3 秒），进程已被终止。
+                        </div>
+                      )}
+
+                      {runResult.compile_error && (
+                        <div className="code-compile-error" style={{ marginBottom: 8 }}>
+                          <span className="code-compile-error-label">编译错误</span>
+                          <pre className="code-run-pre code-run-pre--err" style={{ maxHeight: 160 }}>
+                            {runResult.compile_error}
+                          </pre>
                         </div>
                       )}
 
