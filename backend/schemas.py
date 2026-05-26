@@ -144,6 +144,58 @@ class CodeChallengeExplainFailureRequest(BaseModel):
     timed_out: bool = False
 
 
+# ── Code Attempt History ──────────────────────────────
+
+
+class CodeAttemptListRequest(BaseModel):
+    username: str
+    status: str | None = None
+    course_id: str = ""
+    language: str | None = None
+    limit: int = 30
+
+
+class CodeAttemptOut(BaseModel):
+    id: int
+    username: str
+    session_id: int
+    challenge_id: int
+    challenge_title: str | None = None
+    language: str | None = None
+    difficulty: str | None = None
+    knowledge_point: str | None = None
+    status: str | None = None
+    ai_feedback_summary: str | None = None
+    mastered: int = 0
+    created_at: str | None = None
+
+
+class CodeAttemptDetailOut(BaseModel):
+    id: int
+    username: str
+    session_id: int
+    challenge_id: int
+    language: str | None = None
+    code: str
+    status: str | None = None
+    ai_feedback: str | None = None
+    mastered: int = 0
+    mastered_at: str | None = None
+    note: str | None = None
+    created_at: str | None = None
+    challenge_title: str | None = None
+    challenge_difficulty: str | None = None
+    challenge_knowledge_point: str | None = None
+    challenge_description: str | None = None
+    challenge_reference_solution: str | None = None
+    challenge_test_cases: str | None = None
+
+
+class CodeAttemptMasteredUpdate(BaseModel):
+    username: str
+    mastered: int = 1
+
+
 class LearningTaskCreate(BaseModel):
     username: str
     course_id: str = ""

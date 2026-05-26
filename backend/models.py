@@ -199,6 +199,9 @@ class CodeChallengeAttempt(Base):
     code = Column(Text, nullable=False)
     status = Column(String(30), nullable=True)
     ai_feedback = Column(Text, nullable=True)
+    mastered = Column(Integer, nullable=True, default=0)
+    mastered_at = Column(Text, nullable=True)
+    note = Column(Text, nullable=True)
     created_at = Column(DateTime, default=utc_now)
 
 

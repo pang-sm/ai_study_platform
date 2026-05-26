@@ -260,6 +260,9 @@ CODE_CHALLENGE_ATTEMPTS_COLUMNS = {
     "code": "TEXT NOT NULL",
     "status": "VARCHAR(30)",
     "ai_feedback": "TEXT",
+    "mastered": "INTEGER DEFAULT 0",
+    "mastered_at": "TEXT",
+    "note": "TEXT",
     "created_at": "DATETIME NOT NULL",
 }
 

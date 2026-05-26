@@ -90,6 +90,15 @@ export default function CodeStudio({
   const [testExplanations, setTestExplanations] = useState({});
   const [explainingTestCase, setExplainingTestCase] = useState({});
 
+  // Attempt history
+  const [showAttemptHistory, setShowAttemptHistory] = useState(false);
+  const [attempts, setAttempts] = useState([]);
+  const [attemptsLoading, setAttemptsLoading] = useState(false);
+  const [attemptFilter, setAttemptFilter] = useState("all");
+  const [selectedAttempt, setSelectedAttempt] = useState(null);
+  const [attemptDetailLoading, setAttemptDetailLoading] = useState(false);
+  const [togglingMastered, setTogglingMastered] = useState({});
+
   // Reference solution & starter code
   const [showReference, setShowReference] = useState(false);
   const [starterConfirmOpen, setStarterConfirmOpen] = useState(false);
@@ -490,6 +499,83 @@ export default function CodeStudio({
     }
   };
 
+  const loadAttempts = async () => {
+    if (!user?.username) return;
+    setAttemptsLoading(true);
+    try {
+      const params = new URLSearchParams({ username: user.username, limit: "30" });
+      if (attemptFilter !== "all" && attemptFilter !== "mastered" && attemptFilter !== "unmastered") {
+        params.set("status", attemptFilter);
+      }
+      if (normalizeSubject(codeCourseId)) params.set("course_id", normalizeSubject(codeCourseId));
+      const res = await fetch(`${API_BASE}/code/attempts?${params.toString()}`);
+      const data = await safeJson(res);
+      if (res.ok) {
+        let list = data.attempts || [];
+        if (attemptFilter === "mastered") list = list.filter((a) => a.mastered === 1);
+        if (attemptFilter === "unmastered") list = list.filter((a) => a.mastered !== 1);
+        setAttempts(list);
+      }
+    } catch (error) {
+      console.error("Failed to load attempts:", error);
+    } finally {
+      setAttemptsLoading(false);
+    }
+  };
+
+  const loadAttemptDetail = async (attemptId) => {
+    if (!user?.username || !attemptId) return;
+    setAttemptDetailLoading(true);
+    setSelectedAttempt(null);
+    try {
+      const res = await fetch(
+        `${API_BASE}/code/attempts/${attemptId}?username=${encodeURIComponent(user.username)}`
+      );
+      const data = await safeJson(res);
+      if (res.ok) {
+        setSelectedAttempt(data.attempt);
+      }
+    } catch (error) {
+      console.error("Failed to load attempt detail:", error);
+    } finally {
+      setAttemptDetailLoading(false);
+    }
+  };
+
+  const toggleMastered = async (attemptId, currentMastered) => {
+    if (!user?.username || !attemptId) return;
+    setTogglingMastered((prev) => ({ ...prev, [attemptId]: true }));
+    const newMastered = currentMastered ? 0 : 1;
+    try {
+      const res = await fetch(`${API_BASE}/code/attempts/${attemptId}/mastered`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: user.username, mastered: newMastered }),
+      });
+      const data = await safeJson(res);
+      if (res.ok) {
+        setAttempts((prev) =>
+          prev.map((a) =>
+            a.id === attemptId ? { ...a, mastered: data.mastered } : a
+          )
+        );
+        if (selectedAttempt?.id === attemptId) {
+          setSelectedAttempt((prev) => prev ? { ...prev, mastered: data.mastered, mastered_at: data.mastered_at } : prev);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to toggle mastered:", error);
+    } finally {
+      setTogglingMastered((prev) => ({ ...prev, [attemptId]: false }));
+    }
+  };
+
+  useEffect(() => {
+    if (showAttemptHistory) {
+      loadAttempts();
+    }
+  }, [showAttemptHistory, attemptFilter]);
+
   const analyzeCode = async () => {
     if (!code.trim()) {
       setTip("请先输入代码再进行分析。");
@@ -801,48 +887,203 @@ export default function CodeStudio({
           </div>
         </div>
 
-        <button className="primary-button compact code-studio-new-btn" onClick={newSession}>
-          新建练习
-        </button>
-
-        <div className="code-studio-session-list">
-          {sessionsLoading ? (
-            <div className="empty-inline">加载中...</div>
-          ) : sessions.length === 0 ? (
-            <div className="empty-inline">暂无代码练习</div>
-          ) : (
-            sessions.map((s) => (
-              <div
-                key={s.id}
-                className={`code-session-item ${selectedSession?.id === s.id ? "code-session-item--active" : ""}`}
-                onClick={() => selectSession(s)}
-              >
-                <div className="code-session-item-title">
-                  {s.title}
-                  {s.session_type === "challenge" && (
-                    <span className={`code-session-type-badge ${s.challenge_source === "diagnosis" ? "code-session-type-badge--diagnosis" : ""}`}>
-                      {s.challenge_source === "diagnosis" ? "诊断推荐" : "AI题"}
-                    </span>
-                  )}
-                </div>
-                <div className="code-session-item-meta">
-                  <span className="subject-pill small">{s.language}</span>
-                  <span>{formatDate(s.updated_at)}</span>
-                </div>
-                <button
-                  className="code-session-delete-btn"
-                  title="删除该练习"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setDeleteTarget(s);
-                  }}
-                >
-                  &times;
-                </button>
-              </div>
-            ))
-          )}
+        <div className="code-studio-sidebar-actions">
+          <button className="primary-button compact" onClick={newSession}>
+            新建练习
+          </button>
+          <button
+            className={`ghost-button compact ${showAttemptHistory ? "code-history-btn--active" : ""}`}
+            onClick={() => { setShowAttemptHistory(!showAttemptHistory); setSelectedAttempt(null); }}
+          >
+            提交历史
+          </button>
         </div>
+
+        {showAttemptHistory ? (
+          <div className="code-attempt-history-panel">
+            {/* Filters */}
+            <div className="code-attempt-filters">
+              {[
+                { value: "all", label: "全部" },
+                { value: "failed", label: "不通过" },
+                { value: "partial", label: "部分通过" },
+                { value: "probable_pass", label: "通过" },
+                { value: "mastered", label: "已掌握" },
+                { value: "unmastered", label: "未掌握" },
+              ].map((f) => (
+                <button
+                  key={f.value}
+                  className={`code-attempt-filter-btn ${attemptFilter === f.value ? "code-attempt-filter-btn--active" : ""}`}
+                  onClick={() => setAttemptFilter(f.value)}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Attempt list */}
+            <div className="code-attempt-list">
+              {attemptsLoading ? (
+                <div className="empty-inline">加载中...</div>
+              ) : attempts.length === 0 ? (
+                <div className="empty-inline" style={{ padding: "24px 0" }}>
+                  {attemptFilter !== "all"
+                    ? "该筛选条件下暂无提交记录"
+                    : "暂无提交记录，完成练习并提交判定后即可在此查看"}
+                </div>
+              ) : (
+                attempts.map((a) => (
+                  <div key={a.id}>
+                    <div
+                      className={`code-attempt-item ${selectedAttempt?.id === a.id ? "code-attempt-item--active" : ""}`}
+                      onClick={() => {
+                        if (selectedAttempt?.id === a.id) {
+                          setSelectedAttempt(null);
+                        } else {
+                          loadAttemptDetail(a.id);
+                        }
+                      }}
+                    >
+                      <div className="code-attempt-item-header">
+                        <span
+                          className={`code-attempt-status-badge ${
+                            a.status === "probable_pass"
+                              ? "code-attempt-status--pass"
+                              : a.status === "partial"
+                              ? "code-attempt-status--partial"
+                              : a.status === "failed"
+                              ? "code-attempt-status--fail"
+                              : "code-attempt-status--unknown"
+                          }`}
+                        >
+                          {STATUS_LABELS[a.status] || a.status || "未知"}
+                        </span>
+                        {a.mastered === 1 && (
+                          <span className="code-attempt-mastered-badge">已掌握</span>
+                        )}
+                      </div>
+                      <div className="code-attempt-item-title">
+                        {a.challenge_title || `提交 #${a.id}`}
+                      </div>
+                      <div className="code-attempt-item-meta">
+                        {a.language && <span className="subject-pill small">{a.language}</span>}
+                        {a.difficulty && <span className="subject-pill small">{a.difficulty}</span>}
+                        {a.knowledge_point && (
+                          <span className="subject-pill small">{a.knowledge_point}</span>
+                        )}
+                        <span className="code-attempt-date">{a.created_at ? formatDate(a.created_at) : ""}</span>
+                      </div>
+                      {a.ai_feedback_summary && (
+                        <div className="code-attempt-item-summary">{a.ai_feedback_summary}</div>
+                      )}
+                    </div>
+
+                    {/* Expanded detail */}
+                    {selectedAttempt?.id === a.id && (
+                      <div className="code-attempt-detail">
+                        {attemptDetailLoading ? (
+                          <div className="empty-inline" style={{ padding: "12px" }}>加载详情中...</div>
+                        ) : selectedAttempt ? (
+                          <>
+                            {/* Challenge info */}
+                            {selectedAttempt.challenge_description && (
+                              <div className="code-attempt-detail-section">
+                                <div className="code-attempt-detail-label">题目描述</div>
+                                <p style={{ whiteSpace: "pre-wrap", fontSize: "0.82rem" }}>
+                                  {selectedAttempt.challenge_description}
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Submitted code */}
+                            <div className="code-attempt-detail-section">
+                              <div className="code-attempt-detail-label">提交代码</div>
+                              <pre className="code-run-pre" style={{ maxHeight: 160, fontSize: "0.72rem" }}>
+                                {selectedAttempt.code || "(无)"}
+                              </pre>
+                            </div>
+
+                            {/* AI feedback */}
+                            <div className="code-attempt-detail-section">
+                              <div className="code-attempt-detail-label">AI 判定反馈</div>
+                              <div className="code-attempt-detail-feedback">
+                                {selectedAttempt.ai_feedback || "(无反馈)"}
+                              </div>
+                            </div>
+
+                            {/* Reference solution */}
+                            {selectedAttempt.challenge_reference_solution && (
+                              <div className="code-attempt-detail-section">
+                                <div className="code-attempt-detail-label">参考解法</div>
+                                <pre className="code-run-pre" style={{ maxHeight: 160, fontSize: "0.72rem" }}>
+                                  {selectedAttempt.challenge_reference_solution}
+                                </pre>
+                              </div>
+                            )}
+
+                            {/* Mastered toggle */}
+                            <div className="code-attempt-detail-actions">
+                              <button
+                                className={`ghost-button compact ${selectedAttempt.mastered ? "code-mastered-btn--active" : ""}`}
+                                onClick={() => toggleMastered(selectedAttempt.id, selectedAttempt.mastered)}
+                                disabled={togglingMastered[selectedAttempt.id]}
+                              >
+                                {togglingMastered[selectedAttempt.id]
+                                  ? "处理中..."
+                                  : selectedAttempt.mastered
+                                  ? "取消已掌握"
+                                  : "标记已掌握"}
+                              </button>
+                            </div>
+                          </>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="code-studio-session-list">
+            {sessionsLoading ? (
+              <div className="empty-inline">加载中...</div>
+            ) : sessions.length === 0 ? (
+              <div className="empty-inline">暂无代码练习</div>
+            ) : (
+              sessions.map((s) => (
+                <div
+                  key={s.id}
+                  className={`code-session-item ${selectedSession?.id === s.id ? "code-session-item--active" : ""}`}
+                  onClick={() => selectSession(s)}
+                >
+                  <div className="code-session-item-title">
+                    {s.title}
+                    {s.session_type === "challenge" && (
+                      <span className={`code-session-type-badge ${s.challenge_source === "diagnosis" ? "code-session-type-badge--diagnosis" : ""}`}>
+                        {s.challenge_source === "diagnosis" ? "诊断推荐" : "AI题"}
+                      </span>
+                    )}
+                  </div>
+                  <div className="code-session-item-meta">
+                    <span className="subject-pill small">{s.language}</span>
+                    <span>{formatDate(s.updated_at)}</span>
+                  </div>
+                  <button
+                    className="code-session-delete-btn"
+                    title="删除该练习"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleteTarget(s);
+                    }}
+                  >
+                    &times;
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        )}
       </aside>
 
       {/* Center Panel — Code Editor */}

@@ -5651,6 +5651,151 @@ def explain_challenge_failure(challenge_id: int, req: schemas.CodeChallengeExpla
         }
 
 
+# ── Code Attempt History ──────────────────────────────
+
+
+@app.get("/code/attempts")
+def list_code_attempts(
+    username: str,
+    status: str | None = None,
+    course_id: str = "",
+    language: str | None = None,
+    limit: int = 30,
+    db: Session = Depends(get_db),
+):
+    user = get_user_by_username(username, db)
+
+    query = (
+        db.query(models.CodeChallengeAttempt)
+        .filter(models.CodeChallengeAttempt.username == user.username)
+    )
+
+    if status:
+        query = query.filter(models.CodeChallengeAttempt.status == status)
+    if language:
+        query = query.filter(models.CodeChallengeAttempt.language == language)
+
+    query = query.order_by(models.CodeChallengeAttempt.created_at.desc()).limit(max(1, min(limit, 100)))
+
+    attempts = query.all()
+
+    result = []
+    for a in attempts:
+        challenge = None
+        if a.challenge_id:
+            challenge = (
+                db.query(models.CodeChallenge)
+                .filter(models.CodeChallenge.id == a.challenge_id)
+                .first()
+            )
+
+        ai_summary = ""
+        if a.ai_feedback:
+            lines = [l.strip() for l in a.ai_feedback.split("\n") if l.strip() and not l.startswith("#")]
+            ai_summary = (lines[0][:120] + "..." if len(lines[0]) > 120 else lines[0]) if lines else ""
+
+        if course_id and challenge and (not challenge.course_id or challenge.course_id != course_id):
+            continue
+
+        result.append({
+            "id": a.id,
+            "username": a.username,
+            "session_id": a.session_id,
+            "challenge_id": a.challenge_id,
+            "challenge_title": challenge.title if challenge else None,
+            "language": a.language,
+            "difficulty": challenge.difficulty if challenge else None,
+            "knowledge_point": challenge.knowledge_point if challenge else None,
+            "status": a.status,
+            "ai_feedback_summary": ai_summary,
+            "mastered": a.mastered or 0,
+            "created_at": serialize_datetime(a.created_at),
+        })
+
+    return {"success": True, "attempts": result}
+
+
+@app.get("/code/attempts/{attempt_id}")
+def get_code_attempt(attempt_id: int, username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+
+    attempt = (
+        db.query(models.CodeChallengeAttempt)
+        .filter(
+            models.CodeChallengeAttempt.id == attempt_id,
+            models.CodeChallengeAttempt.username == user.username,
+        )
+        .first()
+    )
+    if not attempt:
+        raise HTTPException(status_code=404, detail="提交记录不存在")
+
+    challenge = None
+    if attempt.challenge_id:
+        challenge = (
+            db.query(models.CodeChallenge)
+            .filter(models.CodeChallenge.id == attempt.challenge_id)
+            .first()
+        )
+
+    return {
+        "success": True,
+        "attempt": {
+            "id": attempt.id,
+            "username": attempt.username,
+            "session_id": attempt.session_id,
+            "challenge_id": attempt.challenge_id,
+            "language": attempt.language,
+            "code": attempt.code,
+            "status": attempt.status,
+            "ai_feedback": attempt.ai_feedback,
+            "mastered": attempt.mastered or 0,
+            "mastered_at": attempt.mastered_at,
+            "note": attempt.note,
+            "created_at": serialize_datetime(attempt.created_at),
+            "challenge_title": challenge.title if challenge else None,
+            "challenge_difficulty": challenge.difficulty if challenge else None,
+            "challenge_knowledge_point": challenge.knowledge_point if challenge else None,
+            "challenge_description": challenge.description[:800] if challenge and challenge.description else None,
+            "challenge_reference_solution": challenge.reference_solution if challenge else None,
+            "challenge_test_cases": getattr(challenge, "test_cases", None) if challenge else None,
+        },
+    }
+
+
+@app.put("/code/attempts/{attempt_id}/mastered")
+def update_attempt_mastered(attempt_id: int, req: schemas.CodeAttemptMasteredUpdate, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+
+    attempt = (
+        db.query(models.CodeChallengeAttempt)
+        .filter(
+            models.CodeChallengeAttempt.id == attempt_id,
+            models.CodeChallengeAttempt.username == user.username,
+        )
+        .first()
+    )
+    if not attempt:
+        raise HTTPException(status_code=404, detail="提交记录不存在")
+
+    attempt.mastered = req.mastered
+    if req.mastered:
+        from datetime import datetime, timezone as tz
+        attempt.mastered_at = datetime.now(tz.utc).isoformat()
+    else:
+        attempt.mastered_at = None
+
+    db.commit()
+    db.refresh(attempt)
+
+    return {
+        "success": True,
+        "attempt_id": attempt.id,
+        "mastered": attempt.mastered,
+        "mastered_at": attempt.mastered_at,
+    }
+
+
 CODE_LEARNING_DIAGNOSIS_PROMPT = """你是编程学习诊断助手。根据用户的代码练习记录、AI 分析历史和出题记录，生成一份结构化的编程学习诊断报告。
 
 要求：
