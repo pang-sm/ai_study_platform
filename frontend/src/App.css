@@ -4242,6 +4242,57 @@ select.field:focus {
   margin-bottom: 2px;
 }
 
+/* ── No test cases notice ── */
+.code-no-tests-notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  color: #92400e;
+  margin-top: 8px;
+}
+
+.code-test-gen-btn {
+  color: #0f766e !important;
+  font-weight: 600;
+}
+
+.code-test-gen-btn:hover {
+  background: rgba(15, 118, 110, 0.08) !important;
+}
+
+/* ── Diff summary ── */
+.code-test-diff-summary {
+  margin-top: 6px;
+  padding: 8px 12px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  color: #991b1b;
+  line-height: 1.5;
+}
+
+.code-test-diff-label {
+  font-weight: 600;
+  color: #dc2626;
+}
+
+/* ── Truncation warning ── */
+.code-run-truncated-warning {
+  padding: 6px 14px;
+  margin: 4px 0;
+  font-size: 0.78rem;
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 6px;
+}
+
 /* ── Task Center ── */
 
 .task-center-panel {

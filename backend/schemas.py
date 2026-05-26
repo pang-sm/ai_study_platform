@@ -28,6 +28,7 @@ class CodeSessionCreate(BaseModel):
     title: str = "未命名练习"
     language: str = "Python"
     code: str = ""
+    challenge_id: int | None = None
 
 
 class CodeSessionUpdate(BaseModel):
@@ -142,6 +143,11 @@ class CodeChallengeExplainFailureRequest(BaseModel):
     stderr: str = ""
     exit_code: int = 0
     timed_out: bool = False
+
+
+class CodeChallengeGenerateTestsRequest(BaseModel):
+    username: str
+    language: str = ""
 
 
 # ── Code Attempt History ──────────────────────────────

@@ -102,6 +102,9 @@ export default function CodeStudio({
   // Code progress stats
   const [codeProgress, setCodeProgress] = useState(null);
 
+  // Generate test cases for old challenges
+  const [generatingTests, setGeneratingTests] = useState(false);
+
   // Reference solution & starter code
   const [showReference, setShowReference] = useState(false);
   const [starterConfirmOpen, setStarterConfirmOpen] = useState(false);
@@ -499,6 +502,93 @@ export default function CodeStudio({
       }));
     } finally {
       setExplainingTestCase((prev) => ({ ...prev, [tcIndex]: false }));
+    }
+  };
+
+  const generateTests = async () => {
+    if (!user?.username || !selectedSession?.challenge_id) return;
+    if (language !== "Python") {
+      setTip("当前测试用例生成暂只支持 Python");
+      return;
+    }
+    setGeneratingTests(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/code/challenges/${selectedSession.challenge_id}/generate-tests`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: user.username,
+            language,
+          }),
+        }
+      );
+      const data = await safeJson(res);
+      if (res.ok && data.success) {
+        if (data.test_cases && data.test_cases !== "[]") {
+          setTip(data.message || "测试用例已生成");
+          setTimeout(() => setTip(""), 2000);
+          // Refresh challenge to get updated test_cases
+          loadChallenge(selectedSession.challenge_id);
+        } else {
+          setTip(data.message || "生成测试用例失败，请重试");
+          setTimeout(() => setTip(""), 4000);
+        }
+      } else if (res.status === 429) {
+        setTip("今日 AI 使用次数已达上限，请明天再试或升级套餐");
+        setTimeout(() => setTip(""), 4000);
+      } else {
+        setTip(data.detail || data.message || "生成测试用例失败，请重试");
+      }
+    } catch (error) {
+      console.error("Failed to generate tests:", error);
+      setTip("生成测试用例失败，请稍后重试");
+    } finally {
+      setGeneratingTests(false);
+    }
+  };
+
+  const retryChallenge = async () => {
+    if (!user?.username || !selectedAttempt?.challenge_id) return;
+    try {
+      const body = {
+        username: user.username,
+        course_id: normalizeSubject(codeCourseId),
+        title: `复做：${selectedAttempt.challenge_title || "未命名题目"}`,
+        language: selectedAttempt.language || "Python",
+        code: selectedAttempt.code || CODE_TEMPLATES[selectedAttempt.language || "Python"],
+        challenge_id: selectedAttempt.challenge_id,
+      };
+      const res = await fetch(`${API_BASE}/code/sessions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await safeJson(res);
+      if (res.ok && data.session) {
+        // Close attempt history and switch to the new session
+        setShowAttemptHistory(false);
+        setSelectedAttempt(null);
+        setShowFeedbackPanel(false);
+        setRunResult(null);
+        setTestResults(null);
+        setTestExplanations({});
+        setExplainingTestCase({});
+        setOutputPanelTab("feedback");
+        await loadSessions();
+        selectSession(data.session);
+        if (data.session.challenge_id) {
+          loadChallenge(data.session.challenge_id);
+        }
+        setTip("已创建复做练习");
+        setTimeout(() => setTip(""), 2000);
+      } else {
+        setTip(data.detail || "创建复做练习失败");
+      }
+    } catch (error) {
+      console.error("Failed to retry challenge:", error);
+      setTip("创建复做练习失败，请稍后重试");
     }
   };
 
@@ -1048,7 +1138,7 @@ export default function CodeStudio({
                               </div>
                             )}
 
-                            {/* Mastered toggle */}
+                            {/* Mastered toggle & Retry */}
                             <div className="code-attempt-detail-actions">
                               <button
                                 className={`ghost-button compact ${selectedAttempt.mastered ? "code-mastered-btn--active" : ""}`}
@@ -1061,6 +1151,15 @@ export default function CodeStudio({
                                   ? "取消已掌握"
                                   : "标记已掌握"}
                               </button>
+                              {selectedAttempt.challenge_id && (
+                                <button
+                                  className="primary-button compact"
+                                  onClick={retryChallenge}
+                                  style={{ marginLeft: 8 }}
+                                >
+                                  重新练习这道题
+                                </button>
+                              )}
                             </div>
                           </>
                         ) : null}
@@ -1260,6 +1359,30 @@ export default function CodeStudio({
                 )}
               </div>
             )}
+
+            {/* No test cases notice */}
+            {(() => {
+              try {
+                const tc = currentChallenge.test_cases ? JSON.parse(
+                  typeof currentChallenge.test_cases === "string"
+                    ? currentChallenge.test_cases
+                    : JSON.stringify(currentChallenge.test_cases)
+                ) : [];
+                return !Array.isArray(tc) || tc.length === 0;
+              } catch { return true; }
+            })() && (
+              <div className="code-no-tests-notice">
+                <span>当前题目暂无测试用例</span>
+                <button
+                  className="ghost-button compact code-test-gen-btn"
+                  onClick={generateTests}
+                  disabled={generatingTests || language !== "Python"}
+                  title={language !== "Python" ? "当前仅支持 Python 题目" : "AI 为本题补全测试用例"}
+                >
+                  {generatingTests ? "AI 生成中..." : "AI 补全测试用例"}
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -1423,6 +1546,21 @@ export default function CodeStudio({
                                 )}
                               </div>
 
+                              {/* Diff summary for failed test cases */}
+                              {!tc.passed && tc.diff_summary && (
+                                <div className="code-test-diff-summary">
+                                  <span className="code-test-diff-label">差异提示：</span>
+                                  {tc.diff_summary}
+                                </div>
+                              )}
+
+                              {/* Truncation warning */}
+                              {(tc.stdout_truncated || tc.stderr_truncated) && (
+                                <div className="code-run-truncated-warning">
+                                  输出较长，已截断显示前 {8000} 字符
+                                </div>
+                              )}
+
                               {/* AI Explain button for failed test cases */}
                               {!tc.passed && (
                                 <div className="code-test-explain-area">
@@ -1449,9 +1587,20 @@ export default function CodeStudio({
                             </div>
                           ))}
                         </>
+                      ) : testResults.total === 0 && !testResults.error_message ? (
+                        <div className="code-no-tests-notice" style={{ margin: "8px 0" }}>
+                          <span>当前题目暂无测试用例</span>
+                          <button
+                            className="ghost-button compact code-test-gen-btn"
+                            onClick={generateTests}
+                            disabled={generatingTests || language !== "Python"}
+                          >
+                            {generatingTests ? "AI 生成中..." : "AI 补全测试用例"}
+                          </button>
+                        </div>
                       ) : (
                         <div className="empty-inline" style={{ padding: "16px" }}>
-                          当前题目暂无测试用例，可使用 AI 判定功能分析答案
+                          {testResults.error_message || "当前题目暂无测试用例，可使用 AI 判定功能分析答案"}
                         </div>
                       )}
                     </div>
@@ -1474,6 +1623,12 @@ export default function CodeStudio({
                         <span>耗时: {runResult.duration_ms} ms</span>
                         {runResult.timed_out && <span className="code-run-timeout-tag">超时</span>}
                       </div>
+
+                      {(runResult.stdout_truncated || runResult.stderr_truncated) && (
+                        <div className="code-run-truncated-warning">
+                          输出较长，已截断显示前 {8000} 字符
+                        </div>
+                      )}
 
                       {runResult.stdout !== undefined && runResult.stdout !== null && (
                         <div className="code-run-section">
