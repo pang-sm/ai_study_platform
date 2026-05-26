@@ -105,6 +105,14 @@ export default function CodeStudio({
   // Collapse passed test cases
   const [collapsePassed, setCollapsePassed] = useState(true);
 
+  // Sidebar collapse
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [assistantCollapsed, setAssistantCollapsed] = useState(false);
+
+  // Mock diagnostic counts (IDE-style error/warning indicators)
+  const [diagErrors, setDiagErrors] = useState(0);
+  const [diagWarnings, setDiagWarnings] = useState(0);
+
   // Generate test cases for old challenges
   const [generatingTests, setGeneratingTests] = useState(false);
 
@@ -1020,9 +1028,30 @@ export default function CodeStudio({
   return (
     <section className="code-studio-shell">
       {/* Left Panel — Session List */}
-      <aside className="code-studio-sidebar">
+      <aside className={`code-studio-sidebar ${sidebarCollapsed ? "code-studio-sidebar--collapsed" : ""}`}>
+        {sidebarCollapsed ? (
+          <div className="code-sidebar-collapsed-bar">
+            <button
+              className="code-sidebar-toggle-btn"
+              onClick={() => setSidebarCollapsed(false)}
+              title="展开侧边栏"
+            >
+              &rang;&rang;
+            </button>
+          </div>
+        ) : (
+          <>
         <div className="code-studio-sidebar-header">
-          <h3>代码练习</h3>
+          <div className="code-sidebar-header-row">
+            <h3>代码练习</h3>
+            <button
+              className="code-sidebar-toggle-btn"
+              onClick={() => setSidebarCollapsed(true)}
+              title="折叠侧边栏"
+            >
+              &lang;&lang;
+            </button>
+          </div>
           <div className="code-studio-course-picker">
             <select
               className="field"
@@ -1247,6 +1276,8 @@ export default function CodeStudio({
             )}
           </div>
         )}
+          </>
+        )}
       </aside>
 
       {/* Center Panel — Code Editor */}
@@ -1308,12 +1339,6 @@ export default function CodeStudio({
                   </button>
                 );
               })}
-              <input
-                className="field code-studio-title-input"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="练习标题"
-              />
             </div>
 
             {/* Action buttons */}
@@ -1328,29 +1353,26 @@ export default function CodeStudio({
                 >
                   {running ? "⏳ 运行中..." : "▶ 运行"}
                 </button>
-                {selectedSession?.challenge_id && (
-                  <button
-                    className={`code-action-btn code-action-btn--test ${!canRun ? "code-action-btn--disabled" : ""}`}
-                    onClick={runTests}
-                    disabled={testing || !canRun || !code.trim()}
-                    title={canRun ? "运行测试用例" : language === "Java" ? "Java 暂仅支持 AI 分析" : "当前语言暂不支持测试运行"}
-                  >
-                    {testing ? "⏳ 测试中..." : "✔ 测试"}
-                  </button>
-                )}
+                <button
+                  className={`code-action-btn code-action-btn--test ${!canRun ? "code-action-btn--disabled" : ""}`}
+                  onClick={runTests}
+                  disabled={testing || !canRun || !code.trim()}
+                  title={!selectedSession?.challenge_id ? "请先 AI 出题或选择一道题目" : canRun ? "运行测试用例" : language === "Java" ? "Java 暂仅支持 AI 分析" : "当前语言暂不支持测试运行"}
+                >
+                  {testing ? "⏳ 测试中..." : "✔ 测试"}
+                </button>
               </div>
 
               {/* AI group */}
               <div className="code-editor-btn-group">
-                {selectedSession?.challenge_id && (
-                  <button
-                    className="code-action-btn code-action-btn--submit"
-                    onClick={submitAnswer}
-                    disabled={submitting || !code.trim()}
-                  >
-                    {submitting ? "⏳ 判定中..." : "🐍 AI 判定"}
-                  </button>
-                )}
+                <button
+                  className="code-action-btn code-action-btn--submit"
+                  onClick={submitAnswer}
+                  disabled={submitting || !code.trim()}
+                  title={!selectedSession?.challenge_id ? "请先 AI 出题或选择一道题目" : "提交答案由 AI 判定"}
+                >
+                  {submitting ? "⏳ 判定中..." : "AI 判定"}
+                </button>
                 <button
                   className="code-action-btn code-action-btn--challenge"
                   onClick={() => {
@@ -1360,7 +1382,7 @@ export default function CodeStudio({
                   }}
                   title="AI 出题"
                 >
-                  📝 出题
+                  出题
                 </button>
               </div>
 
@@ -1370,7 +1392,7 @@ export default function CodeStudio({
                 onClick={saveSession}
                 disabled={saving || !title.trim()}
               >
-                {saving ? "⏳ 保存中..." : hasUnsaved ? "💾 保存 *" : "💾 保存"}
+                {saving ? "⏳..." : hasUnsaved ? "保存 *" : "保存"}
               </button>
             </div>
           </div>
@@ -1484,6 +1506,17 @@ export default function CodeStudio({
         )}
 
         <div className="code-studio-monaco-wrapper">
+          {/* IDE-style diagnostic indicators */}
+          <div className="code-editor-diag-bar">
+            <span className="code-diag-item code-diag-item--err" title={`${diagErrors} 个错误`}>
+              <span className="code-diag-icon">&#x25B2;</span>
+              <span className="code-diag-count">{diagErrors}</span>
+            </span>
+            <span className="code-diag-item code-diag-item--warn" title={`${diagWarnings} 个警告`}>
+              <span className="code-diag-icon">&#x25B2;</span>
+              <span className="code-diag-count">{diagWarnings}</span>
+            </span>
+          </div>
           <Editor
             language={getMonacoLanguage(language)}
             value={code}
@@ -1822,9 +1855,30 @@ export default function CodeStudio({
       </main>
 
       {/* Right Panel — AI Coach */}
-      <aside className="code-studio-assistant">
+      <aside className={`code-studio-assistant ${assistantCollapsed ? "code-studio-assistant--collapsed" : ""}`}>
+        {assistantCollapsed ? (
+          <div className="code-assistant-collapsed-bar">
+            <button
+              className="code-sidebar-toggle-btn"
+              onClick={() => setAssistantCollapsed(false)}
+              title="展开 AI 教练"
+            >
+              &lang;&lang;
+            </button>
+          </div>
+        ) : (
+          <>
         <div className="code-studio-assistant-header">
-          <h3>AI 教练</h3>
+          <div className="code-sidebar-header-row">
+            <h3>AI 教练</h3>
+            <button
+              className="code-sidebar-toggle-btn"
+              onClick={() => setAssistantCollapsed(true)}
+              title="折叠 AI 教练"
+            >
+              &rang;&rang;
+            </button>
+          </div>
           <button
             className="ghost-button compact code-diagnosis-btn"
             onClick={fetchDiagnosis}
@@ -1835,22 +1889,37 @@ export default function CodeStudio({
         </div>
 
         {/* Code progress stats card */}
-        {codeProgress && codeProgress.total_attempts > 0 && (
+        {(() => {
+          const total = codeProgress?.total_attempts || 0;
+          const mastered = codeProgress?.mastered_attempts || 0;
+          const unmastered = codeProgress?.unmastered_attempts || 0;
+          const masteryPct = total > 0 ? Math.round((mastered / total) * 100) : 0;
+          return total > 0 ? (
           <div className="code-progress-mini-card">
             <div className="code-progress-mini-title">编程进度概览</div>
             <div className="code-progress-mini-stats">
               <div className="code-progress-mini-stat">
-                <span className="code-progress-mini-num">{codeProgress.total_attempts}</span>
+                <span className="code-progress-mini-num">{total}</span>
                 <span className="code-progress-mini-label">总提交</span>
               </div>
               <div className="code-progress-mini-stat">
-                <span className="code-progress-mini-num code-progress-mini-num--warn">{codeProgress.unmastered_attempts}</span>
+                <span className="code-progress-mini-num code-progress-mini-num--warn">{unmastered}</span>
                 <span className="code-progress-mini-label">未掌握</span>
               </div>
               <div className="code-progress-mini-stat">
-                <span className="code-progress-mini-num code-progress-mini-num--ok">{codeProgress.mastered_attempts}</span>
+                <span className="code-progress-mini-num code-progress-mini-num--ok">{mastered}</span>
                 <span className="code-progress-mini-label">已掌握</span>
               </div>
+            </div>
+            {/* Mastery progress bar */}
+            <div className="code-mastery-bar-wrap">
+              <div className="code-mastery-bar">
+                <div
+                  className="code-mastery-bar-fill"
+                  style={{ width: `${masteryPct}%` }}
+                />
+              </div>
+              <span className="code-mastery-bar-label">掌握度 {masteryPct}%</span>
             </div>
             {codeProgress.weak_points_from_attempts?.length > 0 && (
               <div className="code-progress-mini-weak">
@@ -1863,7 +1932,8 @@ export default function CodeStudio({
               </div>
             )}
           </div>
-        )}
+          ) : null;
+        })()}
 
         <div className="code-studio-assistant-chat">
           {diagnosisReport ? (
@@ -1978,6 +2048,8 @@ export default function CodeStudio({
             {aiLoading ? "分析中..." : "发送"}
           </button>
         </div>
+          </>
+        )}
       </aside>
 
       {tip && (

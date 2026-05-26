@@ -3052,6 +3052,49 @@ select.field:focus {
   border-right: 1px solid #e9edf4;
   background: #fafbfc;
   overflow: hidden;
+  transition: width 0.2s ease;
+}
+
+.code-studio-sidebar--collapsed {
+  width: 44px;
+  min-width: 44px;
+}
+
+.code-sidebar-collapsed-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 0;
+}
+
+.code-sidebar-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.code-sidebar-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #fff;
+  color: #94a3b8;
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.code-sidebar-toggle-btn:hover {
+  background: #f1f5f9;
+  color: #475569;
+  border-color: #cbd5e1;
 }
 
 .code-studio-sidebar-header {
@@ -3444,6 +3487,54 @@ select.field:focus {
 .code-studio-monaco-wrapper {
   flex: 1;
   min-height: 0;
+  position: relative;
+}
+
+/* IDE-style diagnostic indicators (editor top-right) */
+.code-editor-diag-bar {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  z-index: 10;
+  display: flex;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.code-diag-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: rgba(30, 41, 59, 0.85);
+  backdrop-filter: blur(4px);
+  pointer-events: auto;
+}
+
+.code-diag-item--err {
+  color: #fca5a5;
+}
+
+.code-diag-item--err .code-diag-icon {
+  color: #ef4444;
+  font-size: 0.65rem;
+}
+
+.code-diag-item--warn {
+  color: #fde68a;
+}
+
+.code-diag-item--warn .code-diag-icon {
+  color: #f59e0b;
+  font-size: 0.65rem;
+}
+
+.code-diag-count {
+  min-width: 12px;
+  text-align: center;
 }
 
 .code-studio-monaco-loading {
@@ -3540,6 +3631,19 @@ select.field:focus {
   border-left: 1px solid #e9edf4;
   background: #fff;
   overflow: hidden;
+  transition: width 0.2s ease;
+}
+
+.code-studio-assistant--collapsed {
+  width: 44px;
+  min-width: 44px;
+}
+
+.code-assistant-collapsed-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 0;
 }
 
 .code-studio-assistant-header {
@@ -4031,6 +4135,37 @@ select.field:focus {
   background: #fef3c7;
   color: #92400e;
   border-radius: 4px;
+}
+
+/* ── Code Studio: Mastery Progress Bar ── */
+.code-mastery-bar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.code-mastery-bar {
+  flex: 1;
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.code-mastery-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #0f766e, #14b8a6);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+  min-width: 0;
+}
+
+.code-mastery-bar-label {
+  font-size: 0.68rem;
+  color: #64748b;
+  white-space: nowrap;
+  font-weight: 500;
 }
 
 /* ── Code Studio: Session Delete ── */
