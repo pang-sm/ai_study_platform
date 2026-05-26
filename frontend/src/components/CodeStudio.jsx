@@ -3,17 +3,16 @@ import Editor from "@monaco-editor/react";
 
 const API_BASE = "/api";
 
-const LANGUAGES = ["Python", "C", "Java"];
+const LANGUAGES = ["Python", "C"];
 
 function getMonacoLanguage(language) {
-  const map = { Python: "python", Java: "java", C: "c", "C++": "cpp" };
+  const map = { Python: "python", C: "c", "C++": "cpp" };
   return map[language] || "plaintext";
 }
 
 const CODE_TEMPLATES = {
   Python: 'def main():\n    print("Hello, World!")\n\nif __name__ == "__main__":\n    main()',
   C: '#include <stdio.h>\n\nint main() {\n    printf("Hello, World!\\n");\n    return 0;\n}',
-  Java: 'public class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello, World!");\n    }\n}',
 };
 
 const STATUS_LABELS = {
@@ -32,6 +31,232 @@ const STATUS_CLASSES = {
 
 function safeJson(res) {
   return res.json().catch(() => ({}));
+}
+
+// ── Autocompletion data ──────────────────────────────
+
+const PYTHON_KEYWORDS = [
+  "def", "class", "if", "elif", "else", "for", "while", "try", "except",
+  "finally", "import", "from", "return", "break", "continue", "pass",
+  "with", "lambda", "global", "nonlocal", "and", "or", "not", "in", "is",
+  "True", "False", "None", "as", "assert", "async", "await", "del",
+  "raise", "yield",
+];
+
+const PYTHON_BUILTINS = [
+  "print", "input", "len", "range", "int", "str", "float", "list", "dict",
+  "set", "tuple", "enumerate", "zip", "map", "filter", "sum", "max", "min",
+  "abs", "type", "isinstance", "open", "sorted", "reversed", "round",
+  "bool", "chr", "ord", "hex", "oct", "bin", "id", "dir", "help",
+  "any", "all", "next", "iter", "slice", "super", "object", "hasattr",
+  "getattr", "setattr", "delattr", "callable", "format", "pow", "divmod",
+];
+
+const PYTHON_SNIPPETS = [
+  {
+    label: "if __name__ == \"__main__\"",
+    insertText: 'if __name__ == "__main__":\n    ${1:main()}',
+    detail: "主入口",
+  },
+  {
+    label: "def",
+    insertText: "def ${1:name}(${2:args}):\n    ${3:pass}",
+    detail: "函数定义",
+  },
+  {
+    label: "class",
+    insertText: "class ${1:ClassName}(${2:object}):\n    ${3:pass}",
+    detail: "类定义",
+  },
+  {
+    label: "for",
+    insertText: "for ${1:i} in ${2:range}:\n    ${3:pass}",
+    detail: "for 循环",
+  },
+  {
+    label: "while",
+    insertText: "while ${1:condition}:\n    ${2:pass}",
+    detail: "while 循环",
+  },
+  {
+    label: "if",
+    insertText: "if ${1:condition}:\n    ${2:pass}",
+    detail: "if 语句",
+  },
+  {
+    label: "if/else",
+    insertText: "if ${1:condition}:\n    ${2:pass}\nelse:\n    ${3:pass}",
+    detail: "if-else 语句",
+  },
+  {
+    label: "try/except",
+    insertText: "try:\n    ${1:pass}\nexcept ${2:Exception} as ${3:e}:\n    ${4:pass}",
+    detail: "异常处理",
+  },
+  {
+    label: "try/except/finally",
+    insertText: "try:\n    ${1:pass}\nexcept ${2:Exception} as ${3:e}:\n    ${4:pass}\nfinally:\n    ${5:pass}",
+    detail: "try-except-finally",
+  },
+  {
+    label: "list comprehension",
+    insertText: "[${1:expr} for ${2:x} in ${3:iterable}]",
+    detail: "列表推导式",
+  },
+];
+
+const C_KEYWORDS = [
+  "int", "char", "float", "double", "void", "if", "else", "for", "while",
+  "do", "switch", "case", "break", "continue", "return", "struct",
+  "typedef", "const", "static", "sizeof", "enum", "long", "short",
+  "unsigned", "signed", "auto", "extern", "register", "volatile",
+  "default", "goto", "union",
+];
+
+const C_FUNCTIONS = [
+  "printf", "scanf", "getchar", "putchar", "strlen", "strcpy", "strcmp",
+  "strcat", "malloc", "free", "memset", "memcpy", "memmove", "fopen",
+  "fclose", "fgets", "fprintf", "sprintf", "qsort", "atoi", "atof",
+  "abs", "rand", "srand", "time", "clock", "exit", "system",
+  "gets", "puts", "fread", "fwrite", "fscanf", "sscanf", "perror",
+  "tolower", "toupper", "isalpha", "isdigit", "isalnum", "isspace",
+];
+
+const C_SNIPPETS = [
+  {
+    label: "int main",
+    insertText: "int main() {\n    ${1}\n    return 0;\n}",
+    detail: "main 函数",
+  },
+  {
+    label: "#include <stdio.h>",
+    insertText: "#include <stdio.h>",
+    detail: "标准 I/O 头文件",
+  },
+  {
+    label: "#include <stdlib.h>",
+    insertText: "#include <stdlib.h>",
+    detail: "标准库头文件",
+  },
+  {
+    label: "for",
+    insertText: "for (int ${1:i} = 0; ${1:i} < ${2:n}; ${1:i}++) {\n    ${3}\n}",
+    detail: "for 循环",
+  },
+  {
+    label: "while",
+    insertText: "while (${1:condition}) {\n    ${2}\n}",
+    detail: "while 循环",
+  },
+  {
+    label: "if",
+    insertText: "if (${1:condition}) {\n    ${2}\n}",
+    detail: "if 语句",
+  },
+  {
+    label: "if/else",
+    insertText: "if (${1:condition}) {\n    ${2}\n} else {\n    ${3}\n}",
+    detail: "if-else 语句",
+  },
+  {
+    label: "struct",
+    insertText: "struct ${1:Name} {\n    ${2:int field};\n};",
+    detail: "结构体定义",
+  },
+  {
+    label: "malloc",
+    insertText: "${1:int *}${2:p} = (${1:int *})malloc(${3:n} * sizeof(${1:int}));\nif (${2:p} == NULL) {\n    ${4:perror(\"malloc\"); return 1;}\n}",
+    detail: "malloc 安全分配",
+  },
+  {
+    label: "switch",
+    insertText: "switch (${1:expr}) {\n    case ${2:0}:\n        ${3:break;}\n    default:\n        break;\n}",
+    detail: "switch 语句",
+  },
+  {
+    label: "do/while",
+    insertText: "do {\n    ${1}\n} while (${2:condition});",
+    detail: "do-while 循环",
+  },
+];
+
+function makeCompletionItem(label, kind, detail, insertText, range) {
+  return {
+    label,
+    kind,
+    detail,
+    insertText: insertText || label,
+    range,
+    sortText: `0${label}`,
+  };
+}
+
+function makeSnippetItem(label, detail, insertText, kind, range) {
+  return {
+    label,
+    kind,
+    detail,
+    insertText,
+    insertTextRules: 4, // monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet
+    range,
+    sortText: `1${label}`,
+  };
+}
+
+function registerAutocomplete(monaco) {
+  // ── Python ──
+  monaco.languages.registerCompletionItemProvider("python", {
+    provideCompletionItems: (model, position) => {
+      const word = model.getWordUntilPosition(position);
+      const range = {
+        startLineNumber: position.lineNumber,
+        endLineNumber: position.lineNumber,
+        startColumn: word.startColumn,
+        endColumn: word.endColumn,
+      };
+      const suggestions = [];
+
+      PYTHON_KEYWORDS.forEach((kw) => {
+        suggestions.push(makeCompletionItem(kw, monaco.languages.CompletionItemKind.Keyword, "关键词", kw, range));
+      });
+      PYTHON_BUILTINS.forEach((fn) => {
+        suggestions.push(makeCompletionItem(fn, monaco.languages.CompletionItemKind.Function, "内置函数", fn, range));
+      });
+      PYTHON_SNIPPETS.forEach((snip) => {
+        suggestions.push(makeSnippetItem(snip.label, snip.detail, snip.insertText, monaco.languages.CompletionItemKind.Snippet, range));
+      });
+
+      return { suggestions };
+    },
+    triggerCharacters: [".", " "],
+  });
+
+  // ── C ──
+  monaco.languages.registerCompletionItemProvider("c", {
+    provideCompletionItems: (model, position) => {
+      const word = model.getWordUntilPosition(position);
+      const range = {
+        startLineNumber: position.lineNumber,
+        endLineNumber: position.lineNumber,
+        startColumn: word.startColumn,
+        endColumn: word.endColumn,
+      };
+      const suggestions = [];
+
+      C_KEYWORDS.forEach((kw) => {
+        suggestions.push(makeCompletionItem(kw, monaco.languages.CompletionItemKind.Keyword, "关键词", kw, range));
+      });
+      C_FUNCTIONS.forEach((fn) => {
+        suggestions.push(makeCompletionItem(fn, monaco.languages.CompletionItemKind.Function, "库函数", fn, range));
+      });
+      C_SNIPPETS.forEach((snip) => {
+        suggestions.push(makeSnippetItem(snip.label, snip.detail, snip.insertText, monaco.languages.CompletionItemKind.Snippet, range));
+      });
+
+      return { suggestions };
+    },
+    triggerCharacters: ["#", ".", " "],
+  });
 }
 
 export default function CodeStudio({
@@ -108,10 +333,6 @@ export default function CodeStudio({
   // Sidebar collapse
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [assistantCollapsed, setAssistantCollapsed] = useState(false);
-
-  // Mock diagnostic counts (IDE-style error/warning indicators)
-  const [diagErrors, setDiagErrors] = useState(0);
-  const [diagWarnings, setDiagWarnings] = useState(0);
 
   // Generate test cases for old challenges
   const [generatingTests, setGeneratingTests] = useState(false);
@@ -1023,7 +1244,7 @@ export default function CodeStudio({
     }
   };
 
-  const canRun = language === "Python" || language === "C";
+  const canRun = true; // Only Python and C remain, both are runnable
 
   return (
     <section className="code-studio-shell">
@@ -1306,15 +1527,12 @@ export default function CodeStudio({
             )}
           </div>
           <div className="code-status-bar-right">
-            {LANGUAGES.map((lang) => {
-              const runnable = lang === "Python" || lang === "C";
-              return (
-                <span key={lang} className="code-status-run-badge" title={runnable ? `${lang}：支持运行` : `${lang}：暂仅支持 AI 分析`}>
-                  <span className={`code-status-run-dot ${runnable ? "code-status-run-dot--ok" : "code-status-run-dot--ai"}`} />
-                  {lang}{runnable ? " 可运行" : " AI分析"}
-                </span>
-              );
-            })}
+            {LANGUAGES.map((lang) => (
+              <span key={lang} className="code-status-run-badge" title={`${lang}：支持运行`}>
+                <span className="code-status-run-dot code-status-run-dot--ok" />
+                {lang} 可运行
+              </span>
+            ))}
           </div>
         </div>
 
@@ -1323,22 +1541,17 @@ export default function CodeStudio({
           <div className="code-editor-toolbar-row">
             {/* Language selector */}
             <div className="code-editor-lang-group">
-              {LANGUAGES.map((lang) => {
-                const runnable = lang === "Python" || lang === "C";
-                return (
-                  <button
-                    key={lang}
-                    className={`code-lang-btn ${language === lang ? "code-lang-btn--active" : ""}`}
-                    onClick={() => handleLanguageChange(lang)}
-                    title={runnable ? `${lang} — 支持真实运行` : `${lang} — 暂仅支持 AI 分析`}
-                  >
-                    {lang}
-                    <span className={`code-lang-btn-sub ${runnable ? "" : "code-lang-btn-sub--ai"}`}>
-                      {runnable ? "可运行" : "AI分析"}
-                    </span>
-                  </button>
-                );
-              })}
+              {LANGUAGES.map((lang) => (
+                <button
+                  key={lang}
+                  className={`code-lang-btn ${language === lang ? "code-lang-btn--active" : ""}`}
+                  onClick={() => handleLanguageChange(lang)}
+                  title={`${lang} — 支持真实运行`}
+                >
+                  {lang}
+                  <span className="code-lang-btn-sub">可运行</span>
+                </button>
+              ))}
             </div>
 
             {/* Action buttons */}
@@ -1349,7 +1562,7 @@ export default function CodeStudio({
                   className={`code-action-btn code-action-btn--run ${!canRun ? "code-action-btn--disabled" : ""}`}
                   onClick={runCode}
                   disabled={running || !canRun || !code.trim()}
-                  title={canRun ? "运行代码（Docker 沙箱）" : language === "Java" ? "Java 暂仅支持 AI 分析" : "当前语言暂不支持运行"}
+                  title="运行代码（Docker 沙箱）"
                 >
                   {running ? "⏳ 运行中..." : "▶ 运行"}
                 </button>
@@ -1357,7 +1570,7 @@ export default function CodeStudio({
                   className={`code-action-btn code-action-btn--test ${!canRun ? "code-action-btn--disabled" : ""}`}
                   onClick={runTests}
                   disabled={testing || !canRun || !code.trim()}
-                  title={!selectedSession?.challenge_id ? "请先 AI 出题或选择一道题目" : canRun ? "运行测试用例" : language === "Java" ? "Java 暂仅支持 AI 分析" : "当前语言暂不支持测试运行"}
+                  title={!selectedSession?.challenge_id ? "请先 AI 出题或选择一道题目" : "运行测试用例"}
                 >
                   {testing ? "⏳ 测试中..." : "✔ 测试"}
                 </button>
@@ -1506,28 +1719,25 @@ export default function CodeStudio({
         )}
 
         <div className="code-studio-monaco-wrapper">
-          {/* IDE-style diagnostic indicators */}
-          <div className="code-editor-diag-bar">
-            <span className="code-diag-item code-diag-item--err" title={`${diagErrors} 个错误`}>
-              <span className="code-diag-icon">&#x25B2;</span>
-              <span className="code-diag-count">{diagErrors}</span>
-            </span>
-            <span className="code-diag-item code-diag-item--warn" title={`${diagWarnings} 个警告`}>
-              <span className="code-diag-icon">&#x25B2;</span>
-              <span className="code-diag-count">{diagWarnings}</span>
-            </span>
-          </div>
           <Editor
             language={getMonacoLanguage(language)}
             value={code}
             onChange={(value) => setCode(value || "")}
             theme="vs-dark"
+            beforeMount={registerAutocomplete}
             options={{
               fontSize: 14,
               minimap: { enabled: false },
               automaticLayout: true,
               scrollBeyondLastLine: false,
               wordWrap: "on",
+              quickSuggestions: true,
+              suggestOnTriggerCharacters: true,
+              acceptSuggestionOnEnter: "on",
+              tabCompletion: "on",
+              wordBasedSuggestions: "currentDocument",
+              snippetSuggestions: "inline",
+              parameterHints: { enabled: true },
             }}
             loading={
               <div className="code-studio-monaco-loading">
