@@ -345,6 +345,80 @@ export default function CodeStudio({
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
+  // ── Layout: resizable panes ──────────────────────────
+  const LAYOUT_KEY = "codestudio.layout.v1";
+  const LAYOUT_DEFAULTS = { leftWidth: 260, rightWidth: 320, problemHeight: 180, outputHeight: 220 };
+  const [layout, setLayout] = useState(() => {
+    try {
+      const raw = localStorage.getItem(LAYOUT_KEY);
+      if (raw) return { ...LAYOUT_DEFAULTS, ...JSON.parse(raw) };
+    } catch {}
+    return LAYOUT_DEFAULTS;
+  });
+  const layoutRef = useRef(layout);
+  layoutRef.current = layout;
+
+  const [resizing, setResizing] = useState(null);
+  const resizeRef = useRef({});
+  const editorRef = useRef(null);
+
+  // persist layout
+  useEffect(() => {
+    const t = setTimeout(() => {
+      try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout)); } catch {}
+    }, 300);
+    return () => clearTimeout(t);
+  }, [layout]);
+
+  // drag-resize listeners
+  useEffect(() => {
+    if (!resizing) return;
+    const onMove = (e) => {
+      const { type, startX, startY, startLayout } = resizeRef.current;
+      setLayout((prev) => {
+        const next = { ...prev };
+        if (type === "left") next.leftWidth = Math.min(360, Math.max(56, startLayout.leftWidth + (e.clientX - startX)));
+        if (type === "right") next.rightWidth = Math.min(420, Math.max(56, startLayout.rightWidth - (e.clientX - startX)));
+        if (type === "problem") next.problemHeight = Math.min(320, Math.max(48, startLayout.problemHeight + (e.clientY - startY)));
+        if (type === "output") next.outputHeight = Math.min(window.innerHeight * 0.45, Math.max(48, startLayout.outputHeight - (e.clientY - startY)));
+        return next;
+      });
+      if (editorRef.current) editorRef.current.layout();
+    };
+    const onUp = () => {
+      setResizing(null);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    return () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+  }, [resizing]);
+
+  const startResize = (e, type) => {
+    e.preventDefault();
+    setResizing(type);
+    resizeRef.current = { type, startX: e.clientX, startY: e.clientY, startLayout: { ...layoutRef.current } };
+    document.body.style.cursor = type === "left" || type === "right" ? "col-resize" : "row-resize";
+    document.body.style.userSelect = "none";
+  };
+
+  // focus mode
+  const [focusMode, setFocusMode] = useState(false);
+  const preFocusLayout = useRef(null);
+  const enterFocus = () => { preFocusLayout.current = { ...layoutRef.current }; setFocusMode(true); };
+  const exitFocus = () => {
+    if (preFocusLayout.current) setLayout(preFocusLayout.current);
+    setFocusMode(false);
+  };
+
+  // problem-card & output-panel collapse
+  const [problemCollapsed, setProblemCollapsed] = useState(false);
+  const [outputCollapsed, setOutputCollapsed] = useState(false);
+
   const hasUnsaved =
     selectedSession &&
     (selectedSession.title !== title ||
@@ -423,6 +497,7 @@ export default function CodeStudio({
     setTestExplanations({});
     setExplainingTestCase({});
     setOutputPanelTab("feedback");
+    setProblemCollapsed(false);
     if (session.id) {
       loadMessages(session.id);
       if (session.challenge_id) {
@@ -458,6 +533,7 @@ export default function CodeStudio({
     setTestExplanations({});
     setExplainingTestCase({});
     setOutputPanelTab("feedback");
+    setProblemCollapsed(false);
   };
 
   const loadChallenge = async (challengeId) => {
@@ -1247,9 +1323,17 @@ export default function CodeStudio({
   const canRun = true; // Only Python and C remain, both are runnable
 
   return (
-    <section className="code-studio-shell">
+    <section
+      className={`code-studio-shell${focusMode ? " code-studio-shell--focus" : ""}${resizing ? " code-studio-shell--resizing" : ""}`}
+      style={{ display: "flex", flexDirection: "row", height: "calc(100vh - 56px)", overflow: "hidden" }}
+    >
       {/* Left Panel — Session List */}
-      <aside className={`code-studio-sidebar ${sidebarCollapsed ? "code-studio-sidebar--collapsed" : ""}`}>
+      {!focusMode && (
+        <>
+          <aside
+            className={`code-studio-sidebar ${sidebarCollapsed ? "code-studio-sidebar--collapsed" : ""}`}
+            style={{ width: sidebarCollapsed ? 44 : layout.leftWidth, minWidth: sidebarCollapsed ? 44 : 56, flexShrink: 0 }}
+          >
         {sidebarCollapsed ? (
           <div className="code-sidebar-collapsed-bar">
             <button
@@ -1500,9 +1584,17 @@ export default function CodeStudio({
           </>
         )}
       </aside>
+          {!sidebarCollapsed && (
+            <div
+              className={`code-resize-handle code-resize-handle--h${resizing === "left" ? " code-resize-handle--active" : ""}`}
+              onMouseDown={(e) => startResize(e, "left")}
+            />
+          )}
+        </>
+      )}
 
       {/* Center Panel — Code Editor */}
-      <main className="code-studio-editor">
+      <main className="code-studio-editor" style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
         {/* Status Bar */}
         <div className="code-status-bar">
           <div className="code-status-bar-left">
@@ -1533,6 +1625,13 @@ export default function CodeStudio({
                 {lang} 可运行
               </span>
             ))}
+            <button
+              className={`code-focus-btn ${focusMode ? "code-focus-btn--active" : ""}`}
+              onClick={focusMode ? exitFocus : enterFocus}
+              title={focusMode ? "退出专注模式" : "专注模式：收起侧边栏和面板，专注编辑"}
+            >
+              {focusMode ? "退出专注" : "专注模式"}
+            </button>
           </div>
         </div>
 
@@ -1617,8 +1716,31 @@ export default function CodeStudio({
           </div>
         )}
 
-        {currentChallenge && (
-          <div className="code-challenge-card">
+        {currentChallenge && !focusMode && (
+          <>
+            <div className="code-challenge-card" style={{ height: problemCollapsed ? "auto" : layout.problemHeight, overflow: "auto", flexShrink: 0 }}>
+            {problemCollapsed ? (
+              <div className="code-problem-mini">
+                <div className="code-problem-mini-left">
+                  <span className="code-problem-mini-title">{currentChallenge.title}</span>
+                  <span className="subject-pill small">{currentChallenge.difficulty || "基础"}</span>
+                  {currentChallenge.knowledge_point && (
+                    <span className="subject-pill small">{currentChallenge.knowledge_point}</span>
+                  )}
+                  {(() => {
+                    try {
+                      const tc = JSON.parse(typeof currentChallenge.test_cases === "string" ? currentChallenge.test_cases : JSON.stringify(currentChallenge.test_cases || "[]"));
+                      const count = Array.isArray(tc) ? tc.length : 0;
+                      return count > 0 ? <span className="subject-pill small">{count} 组测试</span> : null;
+                    } catch { return null; }
+                  })()}
+                </div>
+                <button className="code-collapse-btn" onClick={() => setProblemCollapsed(false)} title="展开题目">
+                  &#9650;
+                </button>
+              </div>
+            ) : (
+              <>
             <div className="code-challenge-card-header">
               <span className="subject-pill small">{currentChallenge.difficulty || "基础"}</span>
               {currentChallenge.knowledge_point && (
@@ -1634,6 +1756,9 @@ export default function CodeStudio({
                   薄弱点：{currentChallenge.target_weak_point}
                 </span>
               )}
+              <button className="code-collapse-btn code-collapse-btn--card" onClick={() => setProblemCollapsed(true)} title="收起题目" style={{ marginLeft: "auto" }}>
+                &#9660;
+              </button>
             </div>
             <h4 className="code-challenge-card-title">{currentChallenge.title}</h4>
             {currentChallenge.description && (
@@ -1715,16 +1840,26 @@ export default function CodeStudio({
                 </button>
               </div>
             )}
-          </div>
+              </>
+            )}
+            </div>
+            {!problemCollapsed && (
+              <div
+                className={`code-resize-handle code-resize-handle--v${resizing === "problem" ? " code-resize-handle--active" : ""}`}
+                onMouseDown={(e) => startResize(e, "problem")}
+              />
+            )}
+          </>
         )}
 
-        <div className="code-studio-monaco-wrapper">
+        <div className="code-studio-monaco-wrapper" style={{ flex: focusMode ? 1 : undefined, minHeight: focusMode ? 0 : 280 }}>
           <Editor
             language={getMonacoLanguage(language)}
             value={code}
             onChange={(value) => setCode(value || "")}
             theme="vs-dark"
             beforeMount={registerAutocomplete}
+            onMount={(editor) => { editorRef.current = editor; }}
             options={{
               fontSize: 14,
               minimap: { enabled: false },
@@ -1754,8 +1889,15 @@ export default function CodeStudio({
         )}
 
         {/* Output Panel with Tabs */}
-        {showFeedbackPanel && (
-          <div className="code-feedback-panel">
+        {showFeedbackPanel && !focusMode && (
+          <>
+            {!outputCollapsed && (
+              <div
+                className={`code-resize-handle code-resize-handle--v${resizing === "output" ? " code-resize-handle--active" : ""}`}
+                onMouseDown={(e) => startResize(e, "output")}
+              />
+            )}
+          <div className="code-feedback-panel" style={{ height: outputCollapsed ? "auto" : layout.outputHeight, flexShrink: 0 }}>
             <div className="code-feedback-panel-header">
               <div className="code-output-tabs">
                 <button
@@ -1777,6 +1919,9 @@ export default function CodeStudio({
                     {STATUS_LABELS[feedbackStatus] || feedbackStatus}
                   </span>
                 )}
+                <button className="code-collapse-btn code-collapse-btn--panel" onClick={() => setOutputCollapsed(!outputCollapsed)} title={outputCollapsed ? "展开面板" : "收起面板"}>
+                  {outputCollapsed ? "▲" : "▼"}
+                </button>
                 <button
                   className="code-feedback-panel-close"
                   onClick={() => { setShowFeedbackPanel(false); setRunResult(null); setTestResults(null); setTestExplanations({}); setExplainingTestCase({}); }}
@@ -1785,6 +1930,8 @@ export default function CodeStudio({
                 </button>
               </div>
             </div>
+            {!outputCollapsed && (
+            <>
             <div className="code-feedback-panel-body">
               {/* Run Output Tab */}
               {outputPanelTab === "run" && (
@@ -2060,12 +2207,26 @@ export default function CodeStudio({
                 </>
               )}
             </div>
+            </>
+            )}
           </div>
+          </>
         )}
       </main>
 
       {/* Right Panel — AI Coach */}
-      <aside className={`code-studio-assistant ${assistantCollapsed ? "code-studio-assistant--collapsed" : ""}`}>
+      {!focusMode && (
+        <>
+          {!assistantCollapsed && (
+            <div
+              className={`code-resize-handle code-resize-handle--h${resizing === "right" ? " code-resize-handle--active" : ""}`}
+              onMouseDown={(e) => startResize(e, "right")}
+            />
+          )}
+      <aside
+        className={`code-studio-assistant ${assistantCollapsed ? "code-studio-assistant--collapsed" : ""}`}
+        style={{ width: assistantCollapsed ? 44 : layout.rightWidth, minWidth: assistantCollapsed ? 44 : 56, flexShrink: 0 }}
+      >
         {assistantCollapsed ? (
           <div className="code-assistant-collapsed-bar">
             <button
@@ -2261,6 +2422,8 @@ export default function CodeStudio({
           </>
         )}
       </aside>
+        </>
+      )}
 
       {tip && (
         <div className="code-studio-tip">
