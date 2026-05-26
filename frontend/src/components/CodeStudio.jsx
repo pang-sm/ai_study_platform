@@ -99,6 +99,9 @@ export default function CodeStudio({
   const [attemptDetailLoading, setAttemptDetailLoading] = useState(false);
   const [togglingMastered, setTogglingMastered] = useState({});
 
+  // Code progress stats
+  const [codeProgress, setCodeProgress] = useState(null);
+
   // Reference solution & starter code
   const [showReference, setShowReference] = useState(false);
   const [starterConfirmOpen, setStarterConfirmOpen] = useState(false);
@@ -567,6 +570,23 @@ export default function CodeStudio({
       console.error("Failed to toggle mastered:", error);
     } finally {
       setTogglingMastered((prev) => ({ ...prev, [attemptId]: false }));
+      loadCodeProgress();
+    }
+  };
+
+  const loadCodeProgress = async () => {
+    if (!user?.username) return;
+    try {
+      const params = new URLSearchParams({ username: user.username });
+      const course = normalizeSubject(codeCourseId);
+      if (course) params.set("course_id", course);
+      const res = await fetch(`${API_BASE}/code/progress?${params.toString()}`);
+      const data = await safeJson(res);
+      if (res.ok) {
+        setCodeProgress(data);
+      }
+    } catch (error) {
+      console.error("Failed to load code progress:", error);
     }
   };
 
@@ -575,6 +595,12 @@ export default function CodeStudio({
       loadAttempts();
     }
   }, [showAttemptHistory, attemptFilter]);
+
+  useEffect(() => {
+    if (user?.username) {
+      loadCodeProgress();
+    }
+  }, [user?.username, codeCourseId]);
 
   const analyzeCode = async () => {
     if (!code.trim()) {
@@ -669,6 +695,7 @@ export default function CodeStudio({
         if (selectedSession?.id) {
           loadMessages(selectedSession.id);
         }
+        loadCodeProgress();
       } else if (res.status === 429) {
         setFeedbackContent(
           "## 额度不足\n\n今日 AI 使用次数已达上限，请明天再试或升级套餐。"
@@ -1519,6 +1546,37 @@ export default function CodeStudio({
             {diagnosisLoading ? "分析中..." : "生成学习诊断"}
           </button>
         </div>
+
+        {/* Code progress stats card */}
+        {codeProgress && codeProgress.total_attempts > 0 && (
+          <div className="code-progress-mini-card">
+            <div className="code-progress-mini-title">编程进度概览</div>
+            <div className="code-progress-mini-stats">
+              <div className="code-progress-mini-stat">
+                <span className="code-progress-mini-num">{codeProgress.total_attempts}</span>
+                <span className="code-progress-mini-label">总提交</span>
+              </div>
+              <div className="code-progress-mini-stat">
+                <span className="code-progress-mini-num code-progress-mini-num--warn">{codeProgress.unmastered_attempts}</span>
+                <span className="code-progress-mini-label">未掌握</span>
+              </div>
+              <div className="code-progress-mini-stat">
+                <span className="code-progress-mini-num code-progress-mini-num--ok">{codeProgress.mastered_attempts}</span>
+                <span className="code-progress-mini-label">已掌握</span>
+              </div>
+            </div>
+            {codeProgress.weak_points_from_attempts?.length > 0 && (
+              <div className="code-progress-mini-weak">
+                <span className="code-progress-mini-weak-title">高频薄弱点：</span>
+                {codeProgress.weak_points_from_attempts.slice(0, 3).map((wp, i) => (
+                  <span key={i} className="code-progress-mini-weak-tag">
+                    {wp.knowledge_point} ({wp.unmastered_count})
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="code-studio-assistant-chat">
           {diagnosisReport ? (

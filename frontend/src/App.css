@@ -3612,6 +3612,81 @@ select.field:focus {
   background: #d1fae5 !important;
 }
 
+/* ── Code Studio: Progress Mini Card ── */
+.code-progress-mini-card {
+  padding: 12px 14px;
+  margin: 4px 12px 0;
+  background: #f8fafc;
+  border: 1px solid #e9edf4;
+  border-radius: 10px;
+}
+
+.code-progress-mini-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #0f766e;
+  margin-bottom: 8px;
+}
+
+.code-progress-mini-stats {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.code-progress-mini-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+}
+
+.code-progress-mini-num {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+.code-progress-mini-num--warn {
+  color: #dc2626;
+}
+
+.code-progress-mini-num--ok {
+  color: #065f46;
+}
+
+.code-progress-mini-label {
+  font-size: 0.65rem;
+  color: #94a3b8;
+  margin-top: 1px;
+}
+
+.code-progress-mini-weak {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #e9edf4;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.code-progress-mini-weak-title {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: #92400e;
+}
+
+.code-progress-mini-weak-tag {
+  display: inline-block;
+  padding: 1px 7px;
+  font-size: 0.66rem;
+  font-weight: 500;
+  background: #fef3c7;
+  color: #92400e;
+  border-radius: 4px;
+}
+
 /* ── Code Studio: Session Delete ── */
 .code-session-item {
   position: relative;
