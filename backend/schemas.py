@@ -464,7 +464,7 @@ class MaterialKnowledgeApplyRequest(BaseModel):
 class AdminUpdatePlanRequest(BaseModel):
     admin_username: str
     plan: str = "free"
-    plan_expire_at: str | None = None
+    plan_expires_at: str | None = None
 
 
 # ── Learning Reports ──────────────────────────────────────

@@ -222,7 +222,7 @@ export default function AdminCenter({ user }) {
           body: JSON.stringify({
             admin_username: user.username,
             plan: planForm.plan,
-            plan_expire_at: planForm.expire || null,
+            plan_expires_at: planForm.expire || null,
           }),
         }
       );
@@ -448,7 +448,7 @@ export default function AdminCenter({ user }) {
                         <td>{u.username}</td>
                         <td>{u.nickname || "-"}</td>
                         <td><span className={`plan-tag plan-${u.plan}`}>{PLAN_NAMES[u.plan] || u.plan}</span></td>
-                        <td>{u.plan_expire_at ? new Date(u.plan_expire_at).toLocaleDateString("zh-CN") : "-"}</td>
+                        <td>{u.plan_expires_at ? new Date(u.plan_expires_at).toLocaleDateString("zh-CN") : "-"}</td>
                         <td>{u.today_ai_call_count}</td>
                         <td>{u.ai_call_count}</td>
                         <td>{u.material_count}</td>
@@ -478,7 +478,7 @@ export default function AdminCenter({ user }) {
                 <h3>{userDetail.username} 详情</h3>
                 <div className="admin-detail-grid">
                   <div><span>套餐：</span>{PLAN_NAMES[userDetail.plan] || userDetail.plan}</div>
-                  <div><span>到期：</span>{userDetail.plan_expire_at ? new Date(userDetail.plan_expire_at).toLocaleDateString("zh-CN") : "无"}</div>
+                  <div><span>到期：</span>{userDetail.plan_expires_at ? new Date(userDetail.plan_expires_at).toLocaleDateString("zh-CN") : "无"}</div>
                   <div><span>资料数：</span>{userDetail.material_count}</div>
                   <div><span>课程数：</span>{userDetail.course_count}</div>
                   <div><span>知识点数：</span>{userDetail.knowledge_point_count}</div>

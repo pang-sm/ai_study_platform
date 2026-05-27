@@ -1,0 +1,648 @@
+/* ═══════════════════════════════════════════════════════════
+   MEMBERSHIP PAGE
+   ═══════════════════════════════════════════════════════════ */
+
+.mp-shell {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 28px 24px 48px;
+  min-height: 100vh;
+  background: #f8fafc;
+}
+
+.mp-loading {
+  text-align: center;
+  padding: 80px 0;
+  color: #9ca3af;
+  font-size: 15px;
+}
+
+/* ── Header ── */
+
+.mp-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.mp-back-btn {
+  background: none;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 7px 14px;
+  font-size: 13px;
+  color: #6b7280;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.2s;
+  white-space: nowrap;
+  margin-top: 2px;
+}
+
+.mp-back-btn:hover {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.mp-title {
+  font-size: 24px;
+  font-weight: 800;
+  color: #111827;
+  margin: 0;
+  letter-spacing: -0.5px;
+}
+
+.mp-subtitle {
+  font-size: 13px;
+  color: #6b7280;
+  margin: 4px 0 0;
+}
+
+/* ── Cards ── */
+
+.mp-card {
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  padding: 20px 24px;
+  margin-bottom: 16px;
+}
+
+/* ── Recommendation ── */
+
+.mp-recommend-card {
+  border-color: #bfdbfe;
+  background: linear-gradient(135deg, #eff6ff, #fff);
+}
+
+.mp-rec-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.mp-rec-icon {
+  font-size: 28px;
+  flex-shrink: 0;
+}
+
+.mp-rec-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1d4ed8;
+}
+
+.mp-rec-major {
+  font-size: 13px;
+  color: #6b7280;
+  margin-top: 2px;
+}
+
+.mp-rec-body {
+  font-size: 14px;
+  color: #374151;
+  line-height: 1.6;
+}
+
+.mp-rec-reason {
+  margin-bottom: 10px;
+}
+
+.mp-rec-courses {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.mp-rec-courses-label {
+  font-size: 12.5px;
+  color: #6b7280;
+}
+
+.mp-rec-course-tag {
+  display: inline-block;
+  padding: 3px 10px;
+  background: #dbeafe;
+  color: #1e40af;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.mp-rec-source {
+  font-size: 12px;
+  color: #9ca3af;
+  margin-top: 6px;
+}
+
+/* ── Unknown / manual choice ── */
+
+.mp-unknown-card {
+  text-align: center;
+  border-color: #fcd34d;
+  background: #fffbeb;
+}
+
+.mp-unknown-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #92400e;
+  margin-bottom: 6px;
+}
+
+.mp-unknown-desc {
+  font-size: 13px;
+  color: #a16207;
+  margin-bottom: 4px;
+}
+
+.mp-manual-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.mp-btn-manual {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  background: #fff;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 14px 18px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+  width: 100%;
+}
+
+.mp-btn-manual:hover {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.mp-manual-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.mp-manual-hint {
+  font-size: 12px;
+  color: #9ca3af;
+  margin-top: 2px;
+  font-weight: 400;
+}
+
+/* ── Plan Grid ── */
+
+.mp-section-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 14px;
+}
+
+.mp-plans-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.mp-plan-card {
+  background: #fff;
+  border-radius: 14px;
+  border: 1.5px solid #e5e7eb;
+  padding: 20px;
+  position: relative;
+  transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
+}
+
+.mp-plan-card:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+}
+
+.mp-plan-recommended {
+  border-color: #2563eb;
+  box-shadow: 0 2px 12px rgba(37,99,235,0.12);
+}
+
+.mp-plan-current {
+  border-color: #10b981;
+  background: #f0fdf4;
+}
+
+.mp-plan-badge {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 0 14px 0 10px;
+}
+
+.mp-plan-badge-current {
+  background: linear-gradient(135deg, #059669, #10b981);
+}
+
+.mp-plan-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 8px;
+  padding-right: 36px;
+}
+
+.mp-plan-price {
+  margin-bottom: 10px;
+}
+
+.mp-plan-amount {
+  font-size: 28px;
+  font-weight: 800;
+  color: #111827;
+}
+
+.mp-plan-unit {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.mp-plan-free {
+  font-size: 20px;
+  font-weight: 700;
+  color: #10b981;
+}
+
+.mp-plan-desc {
+  font-size: 12.5px;
+  color: #6b7280;
+  line-height: 1.5;
+  margin-bottom: 14px;
+  flex: 1;
+}
+
+.mp-plan-limits {
+  border-top: 1px solid #f3f4f6;
+  padding-top: 12px;
+  margin-bottom: 14px;
+}
+
+.mp-plan-limit-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+  font-size: 12.5px;
+}
+
+.mp-limit-label {
+  color: #6b7280;
+}
+
+.mp-limit-value {
+  font-weight: 600;
+  color: #374151;
+}
+
+.mp-plan-action {
+  margin-top: auto;
+}
+
+.mp-plan-ads-note {
+  font-size: 11px;
+  color: #f59e0b;
+  margin-top: 8px;
+  text-align: center;
+}
+
+/* ── Developer Card ── */
+
+.mp-dev-card {
+  text-align: center;
+  padding: 48px 24px;
+  border-color: #bfdbfe;
+  background: linear-gradient(135deg, #eff6ff, #fff);
+}
+
+.mp-dev-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.mp-dev-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: #111827;
+  margin-bottom: 8px;
+}
+
+.mp-dev-desc {
+  font-size: 14px;
+  color: #6b7280;
+  margin-bottom: 20px;
+}
+
+.mp-dev-perks {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.mp-dev-perks span {
+  padding: 6px 14px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* ── Ad Card ── */
+
+.mp-ad-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: #f9fafb;
+  border-style: dashed;
+  border-color: #d1d5db;
+}
+
+.mp-ad-icon {
+  font-size: 28px;
+  flex-shrink: 0;
+}
+
+.mp-ad-content {
+  flex: 1;
+}
+
+.mp-ad-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.mp-ad-text {
+  font-size: 12.5px;
+  color: #9ca3af;
+  margin-top: 2px;
+}
+
+.mp-ad-badge {
+  padding: 4px 10px;
+  background: #f3f4f6;
+  color: #6b7280;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+/* ── Redeem Card ── */
+
+.mp-redeem-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.mp-redeem-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mp-redeem-icon {
+  font-size: 28px;
+  flex-shrink: 0;
+}
+
+.mp-redeem-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.mp-redeem-desc {
+  font-size: 12.5px;
+  color: #9ca3af;
+  margin-top: 2px;
+}
+
+/* ── Modal ── */
+
+.mp-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: mp-fade-in 0.2s ease;
+}
+
+.mp-modal {
+  background: #fff;
+  border-radius: 16px;
+  padding: 28px;
+  width: 380px;
+  max-width: 90vw;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+}
+
+.mp-modal-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 4px;
+}
+
+.mp-modal-desc {
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 16px;
+}
+
+.mp-modal-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid #d1d5db;
+  border-radius: 10px;
+  font-size: 15px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.mp-modal-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+}
+
+.mp-redeem-result {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.mp-redeem-ok {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.mp-redeem-fail {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.mp-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+/* ── Buttons ── */
+
+.mp-btn {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.mp-btn-primary {
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(37,99,235,0.25);
+}
+
+.mp-btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(37,99,235,0.35);
+}
+
+.mp-btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.mp-btn-outline {
+  padding: 9px 18px;
+  background: #fff;
+  color: #2563eb;
+  border: 1.5px solid #2563eb;
+}
+
+.mp-btn-outline:hover {
+  background: #eff6ff;
+}
+
+.mp-btn-outline:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #f9fafb;
+  color: #9ca3af;
+  border-color: #e5e7eb;
+}
+
+.mp-btn-cancel {
+  padding: 9px 18px;
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #e5e7eb;
+}
+
+.mp-btn-cancel:hover {
+  background: #e5e7eb;
+}
+
+/* ── Toast ── */
+
+.mp-toast {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #111827;
+  color: #fff;
+  padding: 10px 22px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  z-index: 1100;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  animation: mp-toast-in 0.25s ease;
+}
+
+@keyframes mp-toast-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(-8px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+@keyframes mp-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ── Responsive ── */
+
+@media (max-width: 640px) {
+  .mp-shell {
+    padding: 20px 14px 36px;
+  }
+
+  .mp-plans-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mp-card {
+    padding: 16px;
+  }
+
+  .mp-title {
+    font-size: 20px;
+  }
+
+  .mp-redeem-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .mp-header {
+    flex-direction: column;
+    gap: 10px;
+  }
+}

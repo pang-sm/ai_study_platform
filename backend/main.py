@@ -39,6 +39,18 @@ import models
 import schemas
 from auth import hash_password, verify_password
 from database import Base, SessionLocal, engine, get_db, init_user_profile_schema, update_conversation_title
+from membership import (
+    PLAN_DEFINITIONS,
+    VALID_PLANS,
+    get_effective_plan,
+    get_plan_limits_v2,
+    check_user_entitlement,
+    normalize_major,
+    recommend_plan_by_major,
+    redeem_code,
+    preload_redemption_codes,
+    is_developer_account,
+)
 from prompts import build_system_prompt
 from qwen_parser import (
     SCANNED_PDF_PAGE_PROMPT,
@@ -62,6 +74,13 @@ app = FastAPI()
 
 Base.metadata.create_all(bind=engine)
 init_user_profile_schema()
+
+# Preload redemption codes from env var on startup
+with SessionLocal() as _db:
+    try:
+        preload_redemption_codes(_db)
+    except Exception:
+        pass  # Table may not exist on first run
 
 app.add_middleware(
     CORSMiddleware,
@@ -286,6 +305,8 @@ def user_profile(user: models.User):
         "learning_goals": learning_goals,
         "is_admin": bool(user.is_admin),
         "plan": user.plan or "free",
+        "plan_source": user.plan_source or "",
+        "plan_expires_at": serialize_datetime(user.plan_expire_at) if user.plan_expire_at else None,
     }
 
 
@@ -831,7 +852,7 @@ def get_user_plan(username: str, db: Session):
     return {
         "plan": plan,
         "is_admin": is_admin,
-        "plan_expire_at": serialize_datetime(user.plan_expire_at) if user.plan_expire_at else None,
+        "plan_expires_at": serialize_datetime(user.plan_expire_at) if user.plan_expire_at else None,
     }
 
 
@@ -9969,6 +9990,145 @@ def apply_material_knowledge_recommendations(material_id: int, req: schemas.Mate
     }
 
 
+# ══════════════════════════════════════════════════════════════
+#  MEMBERSHIP SYSTEM
+# ══════════════════════════════════════════════════════════════
+
+
+class RedeemRequest(BaseModel):
+    code: str
+
+
+class ManualRecommendRequest(BaseModel):
+    selected_plan: str
+
+
+@app.get("/membership/plans")
+def get_membership_plans(username: str, db: Session = Depends(get_db)):
+    """Return visible plans. Developer accounts also get their special plan."""
+    user = get_user_by_username(username, db)
+    effective = get_effective_plan(user, db)
+    is_dev = effective["is_developer"]
+
+    plans = []
+    for code, defn in PLAN_DEFINITIONS.items():
+        if not defn["visible"] and code not in ("gift_pro", "developer"):
+            continue
+        if code == "gift_pro":
+            continue
+        if code == "developer" and not is_dev:
+            continue
+        plans.append({
+            "plan_code": code,
+            "name": defn["name"],
+            "price_cents": defn["price_cents"],
+            "price_yuan": defn["price_cents"] / 100,
+            "daily_ai_limit": defn["daily_ai_limit"],
+            "daily_upload_limit": defn["daily_upload_limit"],
+            "daily_code_limit": defn["daily_code_limit"],
+            "requires_ads": defn.get("requires_ads", False),
+            "description": defn.get("description", ""),
+            "perks": defn.get("perks", ""),
+            "allowed_languages": defn.get("allowed_languages", []),
+            "is_recommended": False,
+        })
+
+    return {
+        "plans": plans,
+        "effective_plan": effective,
+    }
+
+
+@app.get("/membership/summary")
+def get_membership_summary(username: str, db: Session = Depends(get_db)):
+    """Return user's membership status summary."""
+    user = get_user_by_username(username, db)
+    effective = get_effective_plan(user, db)
+    limits = get_plan_limits_v2(effective["plan_code"])
+
+    return {
+        "username": username,
+        "current_plan": user.plan or "free",
+        "effective_plan": effective,
+        "limits": limits,
+        "major": user.major or "",
+        "grade": user.grade or "",
+        "is_member": effective["plan_code"] not in ("free",),
+        "requires_ads": PLAN_DEFINITIONS.get(effective["plan_code"], {}).get("requires_ads", False),
+    }
+
+
+@app.get("/membership/recommendation")
+def get_membership_recommendation(username: str, db: Session = Depends(get_db)):
+    """Get plan recommendation based on user's major."""
+    user = get_user_by_username(username, db)
+    effective = get_effective_plan(user, db)
+
+    if effective["is_developer"]:
+        return {
+            "recommended_plan": "developer",
+            "category": "developer",
+            "confidence": 1.0,
+            "reason": "开发者账号，已开放所有功能",
+            "suggested_courses": [],
+            "source": "role",
+            "normalized_major": user.major or "",
+            "needs_manual_choice": False,
+        }
+
+    major = user.major or ""
+    grade = user.grade or ""
+
+    if not major:
+        return {
+            "recommended_plan": "free",
+            "category": "unknown",
+            "confidence": 0.3,
+            "reason": "未设置专业信息，请先在个人主页完善专业后再获取推荐",
+            "suggested_courses": [],
+            "source": "fallback",
+            "normalized_major": "",
+            "needs_manual_choice": True,
+        }
+
+    openai_client = OpenAI(
+        api_key=os.getenv("DEEPSEEK_API_KEY"),
+        base_url=os.getenv("DEEPSEEK_BASE_URL"),
+    )
+    result = recommend_plan_by_major(major, grade, db, openai_client)
+    return result
+
+
+@app.post("/membership/recommendation/manual")
+def manual_recommendation(req: ManualRecommendRequest, username: str, db: Session = Depends(get_db)):
+    """User manually selects a plan preference. Only affects this user."""
+    if req.selected_plan not in ("python_basic", "engineering_plus", "cs_pro"):
+        raise HTTPException(status_code=400, detail="无效的套餐选择")
+
+    user = get_user_by_username(username, db)
+    user.plan_source = f"manual:{req.selected_plan}"
+    db.commit()
+
+    return {
+        "success": True,
+        "selected_plan": req.selected_plan,
+        "message": "已记录你的学习方向偏好",
+    }
+
+
+@app.post("/membership/redeem")
+def redeem_membership_code(req: RedeemRequest, username: str, db: Session = Depends(get_db)):
+    """Redeem a membership code."""
+    if not req.code or not req.code.strip():
+        raise HTTPException(status_code=400, detail="请输入兑换码")
+
+    result = redeem_code(username, req.code.strip(), db)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+
+    return result
+
+
 # ── Admin / Usage ──────────────────────────────────────────
 
 
@@ -10185,7 +10345,7 @@ def admin_users_list(
             "nickname": u.nickname or "",
             "plan": u.plan or "free",
             "is_admin": bool(u.is_admin),
-            "plan_expire_at": serialize_datetime(u.plan_expire_at),
+            "plan_expires_at": serialize_datetime(u.plan_expire_at),
             "material_count": material_count,
             "ai_call_count": ai_call_count,
             "today_ai_call_count": today_ai_call_count,
@@ -10258,7 +10418,7 @@ def admin_user_detail(target_username: str, admin_username: str, db: Session = D
         "nickname": u.nickname or "",
         "plan": u.plan or "free",
         "is_admin": bool(u.is_admin),
-        "plan_expire_at": serialize_datetime(u.plan_expire_at),
+        "plan_expires_at": serialize_datetime(u.plan_expire_at),
         "material_count": material_count,
         "course_count": len(course_set),
         "knowledge_point_count": kp_count,
@@ -10459,8 +10619,8 @@ def admin_update_user_plan(
         raise HTTPException(status_code=400, detail="无效的套餐类型")
 
     target_user.plan = plan
-    if req.plan_expire_at:
-        target_user.plan_expire_at = req.plan_expire_at
+    if req.plan_expires_at:
+        target_user.plan_expire_at = req.plan_expires_at
     db.commit()
     db.refresh(target_user)
 
@@ -10477,7 +10637,7 @@ def admin_update_user_plan(
         "success": True,
         "username": target_user.username,
         "plan": target_user.plan,
-        "plan_expire_at": serialize_datetime(target_user.plan_expire_at),
+        "plan_expires_at": serialize_datetime(target_user.plan_expire_at),
     }
 
 

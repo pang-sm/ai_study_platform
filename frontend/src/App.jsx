@@ -4,6 +4,7 @@ import ChatMessage from "./components/ChatMessage.jsx";
 import CourseDashboard from "./components/CourseDashboard.jsx";
 import HomePage from "./components/HomePage.jsx";
 import ProfilePage from "./components/ProfilePage.jsx";
+import MembershipPage from "./components/MembershipPage.jsx";
 
 const CodeStudio = lazy(() => import("./components/CodeStudio.jsx"));
 const TaskCenter = lazy(() => import("./components/TaskCenter.jsx"));
@@ -2462,6 +2463,17 @@ function App() {
         onLogout={logout}
         setPage={setPage}
         onProfileUpdate={handleProfileUpdate}
+      />
+    );
+  }
+
+  if (page === "membership") {
+    return (
+      <MembershipPage
+        user={user}
+        apiBase={API_BASE}
+        setPage={setPage}
+        onPlanUpdate={handleProfileUpdate}
       />
     );
   }

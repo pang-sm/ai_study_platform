@@ -71,9 +71,9 @@ export default function QuotaCenter({ user }) {
       <section className="quota-plan-section">
         <div className="quota-plan-card">
           <div className="quota-plan-badge">{PLAN_NAMES[plan.plan] || plan.plan}</div>
-          {plan.plan_expire_at && (
+          {plan.plan_expires_at && (
             <div className="quota-plan-expire">
-              到期时间：{new Date(plan.plan_expire_at).toLocaleDateString("zh-CN")}
+              到期时间：{new Date(plan.plan_expires_at).toLocaleDateString("zh-CN")}
             </div>
           )}
         </div>

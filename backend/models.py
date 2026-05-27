@@ -22,6 +22,7 @@ class User(Base):
     onboarding_completed = Column(Boolean, nullable=False, default=False)
     learning_goals = Column(Text, nullable=True)
     plan = Column(String(20), nullable=True, default="free")
+    plan_source = Column(String(30), nullable=True, default="")
     plan_expire_at = Column(DateTime, nullable=True)
     is_admin = Column(Integer, nullable=True, default=0)
     created_at = Column(DateTime, default=utc_now)
@@ -378,3 +379,37 @@ class LearningReportShare(Base):
     created_at = Column(DateTime, default=utc_now)
     revoked_at = Column(DateTime, nullable=True)
     last_viewed_at = Column(DateTime, nullable=True)
+
+
+class MajorClassificationCache(Base):
+    __tablename__ = "major_classification_cache"
+
+    id = Column(Integer, primary_key=True, index=True)
+    raw_major_example = Column(String(200), nullable=False)
+    normalized_major = Column(String(200), unique=True, nullable=False, index=True)
+    recommended_plan = Column(String(50), nullable=False)
+    category = Column(String(50), nullable=False)
+    confidence = Column(Float, nullable=False, default=0.5)
+    reason = Column(Text, nullable=True)
+    suggested_courses_json = Column(Text, nullable=True)
+    source = Column(String(30), nullable=False, default="rule")
+    review_status = Column(String(20), nullable=True, default="active")
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+
+class RedemptionCode(Base):
+    __tablename__ = "redemption_codes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    code_hash = Column(String(64), unique=True, index=True, nullable=False)
+    plan_code = Column(String(50), nullable=False)
+    max_uses = Column(Integer, nullable=False, default=1)
+    used_count = Column(Integer, nullable=False, default=0)
+    used_by_user_id = Column(Integer, nullable=True)
+    used_by_username = Column(String(50), nullable=True)
+    used_at = Column(DateTime, nullable=True)
+    expires_at = Column(DateTime, nullable=True)
+    status = Column(String(20), nullable=False, default="active")
+    created_at = Column(DateTime, default=utc_now)
+    created_by = Column(String(50), nullable=True)

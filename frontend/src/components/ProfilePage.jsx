@@ -3,6 +3,19 @@ import "./ProfilePage.css";
 
 const GRADE_OPTIONS = ["大一", "大二", "大三", "大四", "研究生"];
 
+const PLAN_DISPLAY_NAMES = {
+  free: "免费用户",
+  python_basic: "Python 入门套餐",
+  engineering_plus: "工科进阶套餐",
+  cs_pro: "计算机全功能套餐",
+  gift_pro: "礼品卡权益",
+  developer: "开发者账号",
+};
+
+function getPlanDisplayName(planCode) {
+  return PLAN_DISPLAY_NAMES[planCode] || "免费用户";
+}
+
 function getLocalAvatar(username) {
   try {
     return localStorage.getItem(`avatar:${username}`);
@@ -385,17 +398,21 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage, onProfil
           <span className="pp-membership-icon">👑</span>
           <div>
             <div className="pp-membership-title">
-              {user?.is_member ? "会员用户" : "普通用户"}
+              {user?.is_admin ? "开发者账号" : (
+                user?.plan && user.plan !== "free" ? getPlanDisplayName(user.plan) : "普通用户"
+              )}
             </div>
             <div className="pp-membership-desc">
-              {user?.is_member
-                ? "您已解锁全部高级功能"
-                : "升级会员，解锁更多 AI 问答和高级功能"}
+              {user?.is_admin
+                ? "已开放所有功能，无需开通会员"
+                : user?.plan && user.plan !== "free"
+                  ? `当前套餐：${getPlanDisplayName(user.plan)}`
+                  : "升级会员，解锁更多 AI 问答和高级功能"}
             </div>
           </div>
         </div>
-        {!user?.is_member && (
-          <button className="pp-btn pp-btn-primary" onClick={() => showToast("充值功能正在开发中")}>
+        {!user?.is_admin && (
+          <button className="pp-btn pp-btn-primary" onClick={() => setPage("membership")}>
             充值 / 开通会员
           </button>
         )}

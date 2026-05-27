@@ -25,6 +25,7 @@ PROFILE_COLUMNS = {
     "onboarding_completed": "BOOLEAN NOT NULL DEFAULT 0",
     "learning_goals": "TEXT",
     "plan": "VARCHAR(20) DEFAULT 'free'",
+    "plan_source": "VARCHAR(30) DEFAULT ''",
     "plan_expire_at": "DATETIME",
     "is_admin": "INTEGER DEFAULT 0",
 }
