@@ -1,5 +1,7 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import "./ProfilePage.css";
+
+const GRADE_OPTIONS = ["大一", "大二", "大三", "大四", "研一", "研二", "研三", "其他"];
 
 function getLocalAvatar(username) {
   try {
@@ -17,10 +19,68 @@ function setLocalAvatar(username, dataUrl) {
   }
 }
 
-export default function ProfilePage({ user, apiBase, onLogout, setPage }) {
+function saveLoginUserToStorage(user) {
+  try {
+    const stored = localStorage.getItem("ai_study_platform_user");
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      const updated = { ...parsed, nickname: user.nickname, grade: user.grade, major: user.major };
+      localStorage.setItem("ai_study_platform_user", JSON.stringify(updated));
+    }
+  } catch {
+    // ignore
+  }
+}
+
+export default function ProfilePage({ user, apiBase, onLogout, setPage, onProfileUpdate }) {
   const [localAvatar, setLocalAvatar] = useState(() => getLocalAvatar(user?.username || ""));
   const [toast, setToast] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
   const fileInputRef = useRef(null);
+
+  // Profile form loaded from backend
+  const [profile, setProfile] = useState({
+    nickname: user?.nickname || "",
+    grade: user?.grade || "",
+    major: user?.major || "",
+  });
+
+  // Snapshot for cancel
+  const [savedProfile, setSavedProfile] = useState({ ...profile });
+
+  // ── Load profile from backend on mount ──
+
+  useEffect(() => {
+    if (!user?.username) return;
+    fetch(`${apiBase}/me/profile?username=${encodeURIComponent(user.username)}`)
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to load profile");
+        return res.json();
+      })
+      .then((data) => {
+        const p = data.profile || data;
+        const fresh = {
+          nickname: p.nickname || "",
+          grade: p.grade || "",
+          major: p.major || "",
+        };
+        setProfile(fresh);
+        setSavedProfile(fresh);
+      })
+      .catch(() => {
+        // Fall back to user prop
+        const fallback = {
+          nickname: user?.nickname || "",
+          grade: user?.grade || "",
+          major: user?.major || "",
+        };
+        setProfile(fallback);
+        setSavedProfile(fallback);
+      });
+  }, [user?.username, apiBase]);
+
+  // ── Helpers ──
 
   const showToast = (msg) => {
     setToast(msg);
@@ -32,6 +92,8 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage }) {
     || (hasBackendAvatar ? `${apiBase}${user.avatar_url}?username=${encodeURIComponent(user?.username || "")}` : null);
   const displayName = user?.nickname || user?.username || "同学";
   const initial = displayName.charAt(0);
+
+  // ── Avatar ──
 
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
@@ -58,15 +120,65 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage }) {
     reader.readAsDataURL(file);
   };
 
-  /* ── info rows ── */
+  // ── Edit actions ──
 
-  const infoItems = [
-    { label: "用户名", value: user?.username || "—" },
-    { label: "昵称", value: user?.nickname || "—" },
-    { label: "年级", value: user?.grade || "—" },
-    { label: "专业", value: user?.major || "—" },
-    { label: "会员状态", value: user?.is_member ? "会员用户" : "普通用户", highlight: user?.is_member },
-  ];
+  const handleEdit = () => {
+    setSavedProfile({ ...profile });
+    setEditing(true);
+  };
+
+  const handleCancel = () => {
+    setProfile({ ...savedProfile });
+    setEditing(false);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch(`${apiBase}/me/profile?username=${encodeURIComponent(user.username)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nickname: profile.nickname,
+          grade: profile.grade,
+          major: profile.major,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        showToast(data.detail || "保存失败，请稍后重试");
+        return;
+      }
+
+      const updated = data.profile || data;
+      const fresh = {
+        nickname: updated.nickname || "",
+        grade: updated.grade || "",
+        major: updated.major || "",
+      };
+      setProfile(fresh);
+      setSavedProfile(fresh);
+
+      // Sync to localStorage for App.jsx
+      saveLoginUserToStorage(fresh);
+
+      // Notify parent to update user state
+      if (onProfileUpdate) {
+        onProfileUpdate(fresh);
+      }
+
+      setEditing(false);
+      showToast("保存成功");
+    } catch {
+      showToast("网络错误，请稍后重试");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ── Security items ──
 
   const securityItems = [
     { label: "手机号", value: "暂未绑定", action: "去绑定" },
@@ -96,25 +208,16 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage }) {
         <h1 className="pp-title">个人主页</h1>
       </div>
 
-      {/* Top profile card */}
-      <div className="pp-card pp-profile-card">
-        <div className="pp-avatar-section">
-          <div className="pp-avatar-wrap" onClick={() => fileInputRef.current?.click()} title="点击更换头像">
-            {avatarSrc ? (
-              <img className="pp-avatar-img" src={avatarSrc} alt="头像" />
-            ) : (
-              <div className="pp-avatar-letter">{initial}</div>
-            )}
-            <div className="pp-avatar-overlay">
-              <span>📷</span>
-            </div>
-          </div>
-          <div className="pp-avatar-info">
-            <div className="pp-display-name">{displayName}</div>
-            <div className="pp-display-role">
-              {user?.grade ? `${user.grade}` : "学习者"}
-              {user?.major ? ` · ${user.major}` : ""}
-            </div>
+      {/* ── Top avatar card (centered, no text beside avatar) ── */}
+      <div className="pp-card pp-avatar-card">
+        <div className="pp-avatar-wrap" onClick={() => fileInputRef.current?.click()} title="点击更换头像">
+          {avatarSrc ? (
+            <img className="pp-avatar-img" src={avatarSrc} alt="头像" />
+          ) : (
+            <div className="pp-avatar-letter">{initial}</div>
+          )}
+          <div className="pp-avatar-overlay">
+            <span>📷</span>
           </div>
         </div>
         <button className="pp-btn pp-btn-outline" onClick={() => fileInputRef.current?.click()}>
@@ -122,22 +225,106 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage }) {
         </button>
       </div>
 
-      {/* Personal info card */}
+      {/* ── Personal info card ── */}
       <div className="pp-card pp-info-card">
-        <h2 className="pp-card-title">个人信息</h2>
-        <div className="pp-info-grid">
-          {infoItems.map((item) => (
-            <div key={item.label} className="pp-info-row">
-              <span className="pp-info-label">{item.label}</span>
-              <span className={`pp-info-value${item.highlight ? " pp-member-badge" : ""}`}>
-                {item.value}
-              </span>
+        <div className="pp-info-header">
+          <h2 className="pp-card-title">个人信息</h2>
+          {!editing ? (
+            <button className="pp-btn pp-btn-outline-sm" onClick={handleEdit}>
+              编辑资料
+            </button>
+          ) : (
+            <div className="pp-edit-actions">
+              <button className="pp-btn pp-btn-cancel" onClick={handleCancel} disabled={saving}>
+                取消
+              </button>
+              <button className="pp-btn pp-btn-save" onClick={handleSave} disabled={saving}>
+                {saving ? "保存中..." : "保存"}
+              </button>
             </div>
-          ))}
+          )}
+        </div>
+
+        {/* Info rows */}
+        <div className="pp-info-grid">
+          {/* Username — read only */}
+          <div className="pp-info-row">
+            <span className="pp-info-label">
+              <span className="pp-info-icon">👤</span> 用户名
+            </span>
+            <span className="pp-info-value">{user?.username || "—"}</span>
+          </div>
+
+          {/* Nickname */}
+          <div className="pp-info-row">
+            <span className="pp-info-label">
+              <span className="pp-info-icon">✏️</span> 昵称
+            </span>
+            {editing ? (
+              <input
+                className="pp-input"
+                value={profile.nickname}
+                onChange={(e) => setProfile((p) => ({ ...p, nickname: e.target.value }))}
+                placeholder="输入昵称"
+                maxLength={30}
+              />
+            ) : (
+              <span className="pp-info-value">{profile.nickname || "未填写"}</span>
+            )}
+          </div>
+
+          {/* Grade */}
+          <div className="pp-info-row">
+            <span className="pp-info-label">
+              <span className="pp-info-icon">🎓</span> 年级
+            </span>
+            {editing ? (
+              <select
+                className="pp-input pp-select"
+                value={profile.grade}
+                onChange={(e) => setProfile((p) => ({ ...p, grade: e.target.value }))}
+              >
+                <option value="">请选择年级</option>
+                {GRADE_OPTIONS.map((g) => (
+                  <option key={g} value={g}>{g}</option>
+                ))}
+              </select>
+            ) : (
+              <span className="pp-info-value">{profile.grade || "未填写"}</span>
+            )}
+          </div>
+
+          {/* Major */}
+          <div className="pp-info-row">
+            <span className="pp-info-label">
+              <span className="pp-info-icon">📘</span> 专业
+            </span>
+            {editing ? (
+              <input
+                className="pp-input"
+                value={profile.major}
+                onChange={(e) => setProfile((p) => ({ ...p, major: e.target.value }))}
+                placeholder="输入专业名称"
+                maxLength={50}
+              />
+            ) : (
+              <span className="pp-info-value">{profile.major || "未填写"}</span>
+            )}
+          </div>
+        </div>
+
+        {/* Info banners */}
+        <div className="pp-info-banner">
+          <span className="pp-banner-icon">💡</span>
+          <span>年级和专业将同步用于 AI 问答、学习计划和课程推荐</span>
+        </div>
+        <div className="pp-sync-hint">
+          <span className="pp-sync-icon">☁️</span>
+          <span>修改后自动同步到云端</span>
         </div>
       </div>
 
-      {/* Membership card */}
+      {/* ── Membership card ── */}
       <div className="pp-card pp-membership-card">
         <div className="pp-membership-left">
           <span className="pp-membership-icon">👑</span>
@@ -148,7 +335,7 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage }) {
             <div className="pp-membership-desc">
               {user?.is_member
                 ? "您已解锁全部高级功能"
-                : "升级会员，解锁无限 AI 问答和更多高级功能"}
+                : "升级会员，解锁更多 AI 问答和高级功能"}
             </div>
           </div>
         </div>
@@ -159,7 +346,7 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage }) {
         )}
       </div>
 
-      {/* Account security card */}
+      {/* ── Account security card ── */}
       <div className="pp-card pp-security-card">
         <h2 className="pp-card-title">账号安全</h2>
         <div className="pp-info-grid">
@@ -180,7 +367,7 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage }) {
         </div>
       </div>
 
-      {/* Danger zone — logout */}
+      {/* ── Danger zone — logout ── */}
       <div className="pp-card pp-danger-card">
         <div className="pp-danger-row">
           <div>

@@ -3473,8 +3473,8 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
         subject,
         req.message,
         {
-            "grade": req.grade or user.grade,
-            "major": req.major or user.major,
+            "grade": user.grade or "",
+            "major": user.major or "",
         },
         has_attachment=bool(material_ids),
         rag_chunks=rag_chunks,
@@ -7613,10 +7613,21 @@ def generate_tasks_from_diagnosis(req: schemas.GenerateTasksFromDiagnosisRequest
             "请在 JSON 输出中增加可选字段 knowledge_point_title（字符串）。"
         )
 
+    user_grade = (user.grade or "").strip()
+    user_major = (user.major or "").strip()
+    profile_context = ""
+    if user_grade or user_major:
+        parts = []
+        if user_grade:
+            parts.append(f"年级：{user_grade}")
+        if user_major:
+            parts.append(f"专业：{user_major}")
+        profile_context = "用户画像：" + "，".join(parts) + "\n"
+
     user_prompt = f"""课程：{course_name or '未指定'}
 编程语言：{language or '未指定'}
-
-{"薄弱知识点参考：" + chr(10) + weak_points_context + chr(10) if weak_points_context else ""}
+{profile_context}
+{chr(10) + "薄弱知识点参考：" + chr(10) + weak_points_context + chr(10) if weak_points_context else ""}
 诊断报告摘要：
 {diagnosis_summary}
 

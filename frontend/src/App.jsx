@@ -2438,6 +2438,22 @@ function App() {
     );
   }
 
+  const handleProfileUpdate = (updatedFields) => {
+    if (!user) return;
+    const updatedUser = { ...user, ...updatedFields };
+    setUser(updatedUser);
+    try {
+      const stored = localStorage.getItem(USER_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        const merged = { ...parsed, ...updatedFields };
+        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(merged));
+      }
+    } catch {
+      // ignore
+    }
+  };
+
   if (page === "profile") {
     return (
       <ProfilePage
@@ -2445,6 +2461,7 @@ function App() {
         apiBase={API_BASE}
         onLogout={logout}
         setPage={setPage}
+        onProfileUpdate={handleProfileUpdate}
       />
     );
   }

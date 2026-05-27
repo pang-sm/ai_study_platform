@@ -20,6 +20,8 @@ Base = declarative_base()
 PROFILE_COLUMNS = {
     "nickname": "VARCHAR(30)",
     "avatar": "VARCHAR(255)",
+    "grade": "VARCHAR(50) NOT NULL DEFAULT ''",
+    "major": "VARCHAR(100) NOT NULL DEFAULT ''",
     "onboarding_completed": "BOOLEAN NOT NULL DEFAULT 0",
     "learning_goals": "TEXT",
     "plan": "VARCHAR(20) DEFAULT 'free'",
