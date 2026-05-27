@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
 import ChatMessage from "./components/ChatMessage.jsx";
 import CourseDashboard from "./components/CourseDashboard.jsx";
+import HomePage from "./components/HomePage.jsx";
 
 const CodeStudio = lazy(() => import("./components/CodeStudio.jsx"));
 const TaskCenter = lazy(() => import("./components/TaskCenter.jsx"));
@@ -2418,135 +2419,32 @@ function App() {
     const hasCustomAvatar = (user?.avatar_url || "").startsWith("/me/avatar/");
 
     return (
-      <div className="home-shell">
-        <div className="home-card">
-          <div className="home-hero">
-            <div
-              className="home-avatar-wrapper"
-              onClick={() => avatarInputRef.current?.click()}
-              title="点击更换头像"
-              style={{ cursor: "pointer" }}
-            >
-              {hasCustomAvatar ? (
-                <img
-                  className="home-avatar"
-                  src={`${API_BASE}${user.avatar_url}?username=${encodeURIComponent(user?.username || "")}`}
-                  alt="头像"
-                />
-              ) : (
-                <div className="home-avatar" style={{ background: avatarObj.background }}>
-                  {(user?.nickname || user?.username || "?").charAt(0)}
-                </div>
-              )}
-              <div className="home-avatar-overlay">换</div>
-            </div>
-            <input
-              ref={avatarInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              onChange={handleAvatarUpload}
-              className="hidden-file-input"
-            />
-            <h1>{user?.nickname || user?.username}</h1>
-            <p className="home-userid">@{user?.username}</p>
-            <div className="home-tags">
-              {user?.grade && <span className="subject-pill">{user.grade}</span>}
-              {user?.major && <span className="subject-pill">{user.major}</span>}
-            </div>
-          </div>
-
-          {Array.isArray(user?.learning_goals) && user.learning_goals.length > 0 && (
-            <section className="home-goals">
-              <h3>学习目标</h3>
-              <div className="home-goals-grid">
-                {user.learning_goals.map((goal, index) => (
-                  <div key={index} className="home-goal-card">
-                    <div className="home-goal-subject">{getSubjectLabel(goal.subject)}</div>
-                    <span className="subject-pill small">{goal.target_level}</span>
-                    {goal.note && <div className="home-goal-note">{goal.note}</div>}
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-
-          <section className="home-entries">
-            <h3>快速入口</h3>
-            <div className="home-entry-cards">
-              <button className="home-entry-card" onClick={() => { setSubject(subject); setPage("dashboard"); }}>
-                <div className="home-entry-icon">💬</div>
-                <div className="home-entry-title">进入课程工作台</div>
-                <div className="home-entry-desc">AI 问答、上传资料、查看资料库和学习记录。</div>
-              </button>
-              <button className="home-entry-card" onClick={() => setPage("codeStudio")}>
-                <div className="home-entry-icon">{"</>"}</div>
-                <div className="home-entry-title">编程学习助手</div>
-                <div className="home-entry-desc">在线练习编程，AI 帮你分析代码和解答编程问题。</div>
-              </button>
-              <button className="home-entry-card" onClick={() => setPage("taskCenter")}>
-                <div className="home-entry-icon">📋</div>
-                <div className="home-entry-title">学习任务中心</div>
-                <div className="home-entry-desc">查看、创建和管理学习任务，让 AI 帮你生成学习计划。</div>
-              </button>
-              <button className="home-entry-card" onClick={() => setPage("practiceCenter")}>
-                <div className="home-entry-icon">📝</div>
-                <div className="home-entry-title">练习中心</div>
-                <div className="home-entry-desc">按知识点刷题练习，AI 自动反馈，支持选择题和简答题。</div>
-              </button>
-              <button className="home-entry-card" onClick={() => setPage("learningDataCenter")}>
-                <div className="home-entry-icon">📊</div>
-                <div className="home-entry-title">学习数据中心</div>
-                <div className="home-entry-desc">查看全局学习统计、薄弱知识点和课程概览。</div>
-              </button>
-              <button className="home-entry-card" onClick={() => setPage("reviewCenter")}>
-                <div className="home-entry-icon">📋</div>
-                <div className="home-entry-title">复盘中心</div>
-                <div className="home-entry-desc">查看错题、薄弱知识点和复盘任务，创建针对性复习计划。</div>
-              </button>
-              <button className="home-entry-card" onClick={() => setPage("learningPlanCenter")}>
-                <div className="home-entry-icon">📅</div>
-                <div className="home-entry-title">AI 学习计划</div>
-                <div className="home-entry-desc">根据知识点掌握度、错题和任务生成个性化学习计划。</div>
-              </button>
-              <button className="home-entry-card" onClick={() => setPage("knowledgeBaseCenter")}>
-                <div className="home-entry-icon">📚</div>
-                <div className="home-entry-title">知识库中心</div>
-                <div className="home-entry-desc">管理课程资料与知识点的关联，查看资料覆盖情况。</div>
-              </button>
-              <button className="home-entry-card" onClick={() => setPage("quotaCenter")}>
-                <div className="home-entry-icon">📊</div>
-                <div className="home-entry-title">我的额度</div>
-                <div className="home-entry-desc">查看 AI 使用额度、上传配额和当前套餐信息。</div>
-              </button>
-              <button className="home-entry-card" onClick={() => setPage("learningReportCenter")}>
-                <div className="home-entry-icon">📄</div>
-                <div className="home-entry-title">学习报告</div>
-                <div className="home-entry-desc">生成今日总结、周报、月报和课程成长档案。</div>
-              </button>
-              {user?.is_admin ? (
-                <button className="home-entry-card" onClick={() => setPage("adminCenter")}>
-                  <div className="home-entry-icon">🛡️</div>
-                  <div className="home-entry-title">管理后台</div>
-                  <div className="home-entry-desc">平台运营管理中心，查看用户、AI 用量、资料和课程统计。</div>
-                </button>
-              ) : null}
-              <button className="home-entry-card" onClick={() => {
-                setLearningGoals(Array.isArray(user?.learning_goals) ? [...user.learning_goals] : []);
-                setPage("profileEdit");
-              }}>
-                <div className="home-entry-icon">⚙️</div>
-                <div className="home-entry-title">编辑学习信息</div>
-                <div className="home-entry-desc">修改专业、科目和学习目标。</div>
-              </button>
-            </div>
-            <p className="home-entries-hint">资料库已整合到课程工作台中，进入工作台后可在顶部切换到「资料库」查看原文件。编程学习助手支持 C / Python / Java 在线练习和 AI 代码分析。</p>
-          </section>
-
-          <div className="home-footer">
-            <button className="ghost-button" onClick={logout}>退出登录</button>
-          </div>
-        </div>
-      </div>
+      <>
+        <input
+          ref={avatarInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/gif"
+          onChange={handleAvatarUpload}
+          className="hidden-file-input"
+        />
+        <HomePage
+          user={user}
+          page={page}
+          setPage={setPage}
+          subject={subject}
+          setSubject={setSubject}
+          avatarObj={avatarObj}
+          hasCustomAvatar={hasCustomAvatar}
+          apiBase={API_BASE}
+          avatarInputRef={avatarInputRef}
+          onAvatarClick={() => avatarInputRef.current?.click()}
+          onLogout={logout}
+          isAdmin={!!user?.is_admin}
+          onBeforeProfileEdit={() => {
+            setLearningGoals(Array.isArray(user?.learning_goals) ? [...user.learning_goals] : []);
+          }}
+        />
+      </>
     );
   }
 
