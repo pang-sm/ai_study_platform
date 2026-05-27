@@ -2896,10 +2896,14 @@ def get_profile(username: str, db: Session = Depends(get_db)):
 def update_profile(req: ProfileUpdateRequest, username: str, db: Session = Depends(get_db)):
     user = get_user_by_username(username, db)
 
+    ALLOWED_GRADES = {"大一", "大二", "大三", "大四", "研究生", ""}
     nickname = (req.nickname or "").strip()[:30]
     grade = (req.grade or "").strip()[:20]
     major = (req.major or "").strip()[:50]
     avatar = (req.avatar or "").strip()
+
+    if grade and grade not in ALLOWED_GRADES:
+        raise HTTPException(status_code=400, detail="年级仅支持：大一、大二、大三、大四、研究生")
 
     if avatar and avatar not in ALLOWED_AVATARS and not avatar.startswith("/"):
         raise HTTPException(status_code=400, detail="头像无效")

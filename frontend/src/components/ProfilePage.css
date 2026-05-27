@@ -223,19 +223,6 @@
   flex-shrink: 0;
 }
 
-.pp-sync-hint {
-  margin-top: 8px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: #9ca3af;
-}
-
-.pp-sync-icon {
-  font-size: 13px;
-}
-
 /* ═══════════════════════════════════════════════════════════════════════════
    MEMBERSHIP CARD
    ═══════════════════════════════════════════════════════════════════════════ */

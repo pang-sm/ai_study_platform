@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import "./ProfilePage.css";
 
-const GRADE_OPTIONS = ["大一", "大二", "大三", "大四", "研一", "研二", "研三", "其他"];
+const GRADE_OPTIONS = ["大一", "大二", "大三", "大四", "研究生"];
 
 function getLocalAvatar(username) {
   try {
@@ -13,19 +13,23 @@ function getLocalAvatar(username) {
 
 function setLocalAvatar(username, dataUrl) {
   try {
-    localStorage.setItem(`avatar:${username}`, dataUrl);
+    if (dataUrl) {
+      localStorage.setItem(`avatar:${username}`, dataUrl);
+    } else {
+      localStorage.removeItem(`avatar:${username}`);
+    }
   } catch {
     // storage full or unavailable
   }
 }
 
-function saveLoginUserToStorage(user) {
+function syncUserToStorage(updatedUser) {
   try {
     const stored = localStorage.getItem("ai_study_platform_user");
     if (stored) {
       const parsed = JSON.parse(stored);
-      const updated = { ...parsed, nickname: user.nickname, grade: user.grade, major: user.major };
-      localStorage.setItem("ai_study_platform_user", JSON.stringify(updated));
+      const merged = { ...parsed, ...updatedUser };
+      localStorage.setItem("ai_study_platform_user", JSON.stringify(merged));
     }
   } catch {
     // ignore
@@ -33,7 +37,9 @@ function saveLoginUserToStorage(user) {
 }
 
 export default function ProfilePage({ user, apiBase, onLogout, setPage, onProfileUpdate }) {
-  const [localAvatar, setLocalAvatar] = useState(() => getLocalAvatar(user?.username || ""));
+  // Cloud avatar_url from profile — primary source
+  const [cloudAvatarUrl, setCloudAvatarUrl] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const [toast, setToast] = useState("");
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -60,23 +66,32 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage, onProfil
       })
       .then((data) => {
         const p = data.profile || data;
-        const fresh = {
+        setProfile({
           nickname: p.nickname || "",
           grade: p.grade || "",
           major: p.major || "",
-        };
-        setProfile(fresh);
-        setSavedProfile(fresh);
+        });
+        setSavedProfile({
+          nickname: p.nickname || "",
+          grade: p.grade || "",
+          major: p.major || "",
+        });
+        // Cloud avatar — primary source
+        if (p.avatar_url && String(p.avatar_url).startsWith("/me/avatar/")) {
+          setCloudAvatarUrl(`${apiBase}${p.avatar_url}?username=${encodeURIComponent(user.username)}`);
+        }
       })
       .catch(() => {
-        // Fall back to user prop
-        const fallback = {
+        setProfile({
           nickname: user?.nickname || "",
           grade: user?.grade || "",
           major: user?.major || "",
-        };
-        setProfile(fallback);
-        setSavedProfile(fallback);
+        });
+        setSavedProfile({
+          nickname: user?.nickname || "",
+          grade: user?.grade || "",
+          major: user?.major || "",
+        });
       });
   }, [user?.username, apiBase]);
 
@@ -87,15 +102,15 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage, onProfil
     setTimeout(() => setToast(""), 2500);
   };
 
-  const hasBackendAvatar = (user?.avatar_url || "").startsWith("/me/avatar/");
-  const avatarSrc = localAvatar
-    || (hasBackendAvatar ? `${apiBase}${user.avatar_url}?username=${encodeURIComponent(user?.username || "")}` : null);
+  // Avatar priority: cloud > localStorage fallback > letter
+  const localFallback = getLocalAvatar(user?.username || "");
+  const avatarSrc = cloudAvatarUrl || localFallback || null;
   const displayName = user?.nickname || user?.username || "同学";
   const initial = displayName.charAt(0);
 
-  // ── Avatar ──
+  // ── Avatar upload to cloud ──
 
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
@@ -109,15 +124,56 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage, onProfil
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result;
-      setLocalAvatar(dataUrl);
-      setLocalAvatar(user.username, dataUrl);
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("username", user.username);
+
+      const res = await fetch(`${apiBase}/me/avatar`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        showToast(data.detail || "头像上传失败");
+        return;
+      }
+
+      // Update cloud avatar URL
+      if (data.avatar_url && String(data.avatar_url).startsWith("/me/avatar/")) {
+        const newUrl = `${apiBase}${data.avatar_url}?username=${encodeURIComponent(user.username)}`;
+        setCloudAvatarUrl(newUrl);
+      }
+
+      // Also save to localStorage as fallback
+      if (data.profile?.avatar_url) {
+        setLocalAvatar(user.username, null);
+      }
+
+      // Sync to parent (App.jsx) so topbar updates
+      if (data.profile) {
+        const p = data.profile;
+        syncUserToStorage({
+          avatar: p.avatar || "",
+          avatar_url: p.avatar_url || null,
+        });
+        if (onProfileUpdate) {
+          onProfileUpdate({
+            avatar: p.avatar || "",
+            avatar_url: p.avatar_url || null,
+          });
+        }
+      }
+
       showToast("头像已更新");
-    };
-    reader.onerror = () => showToast("图片读取失败");
-    reader.readAsDataURL(file);
+    } catch {
+      showToast("网络错误，上传失败");
+    } finally {
+      setUploading(false);
+    }
   };
 
   // ── Edit actions ──
@@ -161,8 +217,7 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage, onProfil
       setProfile(fresh);
       setSavedProfile(fresh);
 
-      // Sync to localStorage for App.jsx
-      saveLoginUserToStorage(fresh);
+      syncUserToStorage(fresh);
 
       // Notify parent to update user state
       if (onProfileUpdate) {
@@ -210,18 +265,22 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage, onProfil
 
       {/* ── Top avatar card (centered, no text beside avatar) ── */}
       <div className="pp-card pp-avatar-card">
-        <div className="pp-avatar-wrap" onClick={() => fileInputRef.current?.click()} title="点击更换头像">
+        <div className="pp-avatar-wrap" onClick={() => !uploading && fileInputRef.current?.click()} title="点击更换头像">
           {avatarSrc ? (
             <img className="pp-avatar-img" src={avatarSrc} alt="头像" />
           ) : (
             <div className="pp-avatar-letter">{initial}</div>
           )}
           <div className="pp-avatar-overlay">
-            <span>📷</span>
+            <span>{uploading ? "⏳" : "📷"}</span>
           </div>
         </div>
-        <button className="pp-btn pp-btn-outline" onClick={() => fileInputRef.current?.click()}>
-          更换头像
+        <button
+          className="pp-btn pp-btn-outline"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+        >
+          {uploading ? "上传中..." : "更换头像"}
         </button>
       </div>
 
@@ -284,7 +343,7 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage, onProfil
                 value={profile.grade}
                 onChange={(e) => setProfile((p) => ({ ...p, grade: e.target.value }))}
               >
-                <option value="">请选择年级</option>
+                <option value="">未设置</option>
                 {GRADE_OPTIONS.map((g) => (
                   <option key={g} value={g}>{g}</option>
                 ))}
@@ -317,10 +376,6 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage, onProfil
         <div className="pp-info-banner">
           <span className="pp-banner-icon">💡</span>
           <span>年级和专业将同步用于 AI 问答、学习计划和课程推荐</span>
-        </div>
-        <div className="pp-sync-hint">
-          <span className="pp-sync-icon">☁️</span>
-          <span>修改后自动同步到云端</span>
         </div>
       </div>
 
