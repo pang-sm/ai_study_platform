@@ -23,58 +23,58 @@ function shufflePool(pool, count) {
 }
 
 export default function AIQuestionPage({
-  user,
-  apiBase,
-  subject,
-  setSubject,
-  setPage,
-  COURSE_OPTIONS,
-  AVATARS,
-  getSubjectLabel,
-  activeSessionId,
-  setActiveSessionSubject,
+  user = null,
+  apiBase = "/api",
+  subject = "computer_organization",
+  setSubject = () => {},
+  setPage = () => {},
+  COURSE_OPTIONS = [],
+  AVATARS = [],
+  getSubjectLabel = (v) => v,
+  activeSessionId = null,
+  setActiveSessionSubject = () => {},
 
-  currentChatSubject,
-  messages,
-  loading,
-  tip,
-  message,
-  setMessage,
-  sendMessage,
-  canSendMessage,
+  currentChatSubject = "computer_organization",
+  messages = [],
+  loading = false,
+  tip = "",
+  message = "",
+  setMessage = () => {},
+  sendMessage = () => {},
+  canSendMessage = false,
 
-  selectedFiles,
-  selectedLibraryMaterials,
-  removeSelectedFile,
-  removeSelectedLibraryMaterial,
-  handleFileChange,
-  formatFileSize,
-  getSelectedFileStatusText,
-  selectedFilesBlockReason,
+  selectedFiles = [],
+  selectedLibraryMaterials = [],
+  removeSelectedFile = () => {},
+  removeSelectedLibraryMaterial = () => {},
+  handleFileChange = () => {},
+  formatFileSize = (v) => v,
+  getSelectedFileStatusText = () => "",
+  selectedFilesBlockReason = "",
 
-  showPlusMenu,
-  setShowPlusMenu,
-  plusMenuRef,
-  openLibraryReferenceModal,
-  fileInputRef,
+  showPlusMenu = false,
+  setShowPlusMenu = () => {},
+  plusMenuRef = null,
+  openLibraryReferenceModal = () => {},
+  fileInputRef = null,
 
-  addToLibraryState,
-  setAddToLibraryState,
-  getFileTypeLabel,
-  getReferenceSnippet,
-  addMessageToLibrary,
-  openMaterialDetail,
-  finishAssistantTyping,
-  getQuestionForAssistantMessage,
-  learningRecordActionState,
-  saveLearningRecord,
-  getRecordTypeLabel,
-  getRecordTypeIcon,
+  addToLibraryState = {},
+  setAddToLibraryState = () => {},
+  getFileTypeLabel = (v) => v,
+  getReferenceSnippet = () => "",
+  addMessageToLibrary = () => {},
+  openMaterialDetail = () => {},
+  finishAssistantTyping = () => {},
+  getQuestionForAssistantMessage = () => "",
+  learningRecordActionState = {},
+  saveLearningRecord = () => {},
+  getRecordTypeLabel = (v) => v,
+  getRecordTypeIcon = () => "",
 
-  startNewConversation,
-  chatSessions,
-  openChatSession,
-  loadChatSessions,
+  startNewConversation = () => {},
+  chatSessions = [],
+  openChatSession = () => {},
+  loadChatSessions = () => {},
 }) {
   const [suggestionBatch, setSuggestionBatch] = useState(() =>
     shufflePool(RECOMMENDATION_POOL, 5)
@@ -95,15 +95,16 @@ export default function AIQuestionPage({
     );
   };
 
-  const avatarObj =
-    AVATARS.find((a) => a.id === (user?.avatar || "")) || AVATARS[0];
+  const avatarObj = Array.isArray(AVATARS)
+    ? (AVATARS.find((a) => a.id === (user?.avatar || "")) || AVATARS[0])
+    : { background: "#2563eb" };
   const hasCustomAvatar = (user?.avatar_url || "").startsWith("/me/avatar/");
 
-  const referencedFiles = selectedFiles.filter((f) => !f.uploading);
+  const referencedFiles = Array.isArray(selectedFiles) ? selectedFiles.filter((f) => !f.uploading) : [];
   const hasReferences =
-    referencedFiles.length > 0 || selectedLibraryMaterials.length > 0;
+    referencedFiles.length > 0 || (Array.isArray(selectedLibraryMaterials) && selectedLibraryMaterials.length > 0);
   const refCount =
-    referencedFiles.length + selectedLibraryMaterials.length;
+    referencedFiles.length + (Array.isArray(selectedLibraryMaterials) ? selectedLibraryMaterials.length : 0);
 
   const openHistoryModal = useCallback(() => {
     setShowHistoryModal(true);
@@ -183,7 +184,7 @@ export default function AIQuestionPage({
               }
             }}
           >
-            {COURSE_OPTIONS.map((item) => (
+            {Array.isArray(COURSE_OPTIONS) && COURSE_OPTIONS.map((item) => (
               <option key={item} value={item}>
                 {getSubjectLabel(item)}
               </option>
@@ -219,10 +220,10 @@ export default function AIQuestionPage({
             onClick={() => setPage("profile")}
             title="个人主页"
           >
-            {hasCustomAvatar ? (
+            {hasCustomAvatar && user ? (
               <img
                 className="aiqp-topbar-avatar"
-                src={`${apiBase}${user.avatar_url}?username=${encodeURIComponent(user?.username || "")}`}
+                src={`${apiBase}${user.avatar_url}?username=${encodeURIComponent(user.username || "")}`}
                 alt="头像"
               />
             ) : (
@@ -299,7 +300,7 @@ export default function AIQuestionPage({
             </div>
 
             <div className="aiqp-messages-board">
-              {messages.length === 0 && (
+              {(!Array.isArray(messages) || messages.length === 0) && (
                 <div className="aiqp-empty-state">
                   <div className="aiqp-empty-robot">
                     <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
@@ -319,7 +320,7 @@ export default function AIQuestionPage({
                 </div>
               )}
 
-              {messages.map((msg, index) => (
+              {Array.isArray(messages) && messages.map((msg, index) => (
                 <ChatMessage
                   key={msg.id || msg.clientId || index}
                   message={msg}
@@ -352,7 +353,7 @@ export default function AIQuestionPage({
             </div>
 
             <div className="aiqp-composer">
-              {selectedFiles.length > 0 && (
+              {Array.isArray(selectedFiles) && selectedFiles.length > 0 && (
                 <div className="aiqp-attachments-row">
                   {selectedFiles.map((item) => (
                     <div
@@ -401,7 +402,7 @@ export default function AIQuestionPage({
                 </div>
               )}
 
-              {selectedLibraryMaterials.length > 0 && (
+              {Array.isArray(selectedLibraryMaterials) && selectedLibraryMaterials.length > 0 && (
                 <div className="aiqp-library-bar">
                   <div className="aiqp-library-bar-title">
                     已引用资料库资料
@@ -528,7 +529,7 @@ export default function AIQuestionPage({
               </div>
               {hasReferences ? (
                 <div className="aiqp-ref-list">
-                  {referencedFiles.map((item, idx) => (
+                  {Array.isArray(referencedFiles) && referencedFiles.map((item, idx) => (
                     <div key={item.localId} className="aiqp-ref-item">
                       <span className="aiqp-ref-icon">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="1.5" strokeLinecap="round">
@@ -550,7 +551,7 @@ export default function AIQuestionPage({
                       </div>
                     </div>
                   ))}
-                  {selectedLibraryMaterials.map((item) => (
+                  {Array.isArray(selectedLibraryMaterials) && selectedLibraryMaterials.map((item) => (
                     <div key={item.id} className="aiqp-ref-item">
                       <span className="aiqp-ref-icon">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="1.5" strokeLinecap="round">
@@ -645,7 +646,7 @@ export default function AIQuestionPage({
                     onChange={(e) => setHistoryFilterSubject(e.target.value)}
                   >
                     <option value="all">全部学科</option>
-                    {COURSE_OPTIONS.map((item) => (
+                    {Array.isArray(COURSE_OPTIONS) && COURSE_OPTIONS.map((item) => (
                       <option key={item} value={item}>
                         {getSubjectLabel(item)}
                       </option>

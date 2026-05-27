@@ -27,39 +27,39 @@ function getTypingStep(textLength) {
 }
 
 export default function ChatMessage({
-  message,
-  currentChatSubject,
-  addToLibraryState,
-  setAddToLibraryState,
-  subjectOptions,
-  getSubjectLabel,
-  getFileTypeLabel,
-  getReferenceSnippet,
-  addMessageToLibrary,
-  openMaterialDetail,
-  onAnimationComplete,
+  message = null,
+  currentChatSubject = "computer_organization",
+  addToLibraryState = {},
+  setAddToLibraryState = () => {},
+  subjectOptions = [],
+  getSubjectLabel = (v) => v,
+  getFileTypeLabel = (v) => v,
+  getReferenceSnippet = () => "",
+  addMessageToLibrary = () => {},
+  openMaterialDetail = () => {},
+  onAnimationComplete = () => {},
   questionText = "",
-  learningRecordActionState,
-  onSaveLearningRecord,
-  getRecordTypeLabel,
-  getRecordTypeIcon,
+  learningRecordActionState = {},
+  onSaveLearningRecord = () => {},
+  getRecordTypeLabel = (v) => v,
+  getRecordTypeIcon = () => "",
 }) {
-  const isAssistant = message.role === "assistant";
+  const isAssistant = message && message.role === "assistant";
   const [displayedContent, setDisplayedContent] = useState("");
   const [copied, setCopied] = useState(false);
   const [liked, setLiked] = useState(false);
   const [disliked, setDisliked] = useState(false);
   const cardRef = useRef(null);
   const visibleContent =
-    isAssistant && message.animateTyping ? displayedContent : message.content || "";
+    isAssistant && message && message.animateTyping ? displayedContent : (message && message.content) || "";
 
   useEffect(() => {
-    if (!isAssistant || !message.animateTyping) return undefined;
+    if (!isAssistant || !message || !message.animateTyping) return undefined;
 
     let cancelled = false;
     let timerId = 0;
     let index = 0;
-    const fullText = message.content || "";
+    const fullText = (message && message.content) || "";
     const step = getTypingStep(fullText.length);
 
     const tick = () => {
@@ -75,8 +75,8 @@ export default function ChatMessage({
 
       if (index < fullText.length) {
         timerId = window.setTimeout(tick, 18);
-      } else if (message.clientId) {
-        onAnimationComplete?.(message.clientId);
+      } else if (message && message.clientId) {
+        if (typeof onAnimationComplete === "function") onAnimationComplete(message.clientId);
       }
     };
 
@@ -86,7 +86,7 @@ export default function ChatMessage({
       cancelled = true;
       window.clearTimeout(timerId);
     };
-  }, [isAssistant, message.animateTyping, message.clientId, message.content, onAnimationComplete]);
+  }, [isAssistant, message && message.animateTyping, message && message.clientId, message && message.content, onAnimationComplete]);
 
   useEffect(() => {
     if (!copied) return undefined;
@@ -96,7 +96,7 @@ export default function ChatMessage({
 
   const handleCopyAnswer = async () => {
     try {
-      await copyText(message.content || "");
+      await copyText((message && message.content) || "");
       setCopied(true);
     } catch {
       setCopied(false);
@@ -113,21 +113,21 @@ export default function ChatMessage({
     if (liked) setLiked(false);
   };
 
-  const messageKey = String(message.id || message.clientId || "");
-  const savedRecordTypes = Array.isArray(message.savedRecordTypes) ? message.savedRecordTypes : [];
+  const messageKey = String((message && (message.id || message.clientId)) || "");
+  const savedRecordTypes = (message && Array.isArray(message.savedRecordTypes)) ? message.savedRecordTypes : [];
 
-  const msgTime = message.timestamp
+  const msgTime = (message && message.timestamp)
     ? new Date(message.timestamp).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })
-    : message.created_at
+    : (message && message.created_at)
       ? new Date(message.created_at).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })
       : "";
 
-  const userInitial = message.userInitial || "?";
+  const userInitial = (message && message.userInitial) || "?";
 
   return (
     <div
       ref={cardRef}
-      className={`message-card ${message.role === "user" ? "user" : "assistant"}`}
+      className={`message-card ${message && message.role === "user" ? "user" : "assistant"}`}
     >
       {/* ── Assistant: avatar + card layout ── */}
       {isAssistant && (
@@ -137,7 +137,7 @@ export default function ChatMessage({
             <div className="message-time">{msgTime}</div>
           </div>
           <div className="message-body-card">
-            <MarkdownMessage content={visibleContent} isTyping={Boolean(message.animateTyping)} />
+            <MarkdownMessage content={visibleContent} isTyping={Boolean(message && message.animateTyping)} />
 
             {/* References */}
             {Array.isArray(message.references) && message.references.length > 0 && (
@@ -226,9 +226,10 @@ export default function ChatMessage({
               {(() => {
                 const recordType = "important";
                 const isSaving =
-                  learningRecordActionState?.loading &&
-                  learningRecordActionState?.messageKey === messageKey &&
-                  learningRecordActionState?.recordType === recordType;
+                  learningRecordActionState &&
+                  learningRecordActionState.loading &&
+                  learningRecordActionState.messageKey === messageKey &&
+                  learningRecordActionState.recordType === recordType;
                 const isSaved = savedRecordTypes.includes(recordType);
 
                 return (
@@ -236,13 +237,15 @@ export default function ChatMessage({
                     className={`message-action-text-btn ${isSaved ? "saved" : ""}`}
                     type="button"
                     disabled={isSaving || isSaved}
-                    onClick={() =>
-                      onSaveLearningRecord?.({
-                        messageItem: message,
-                        question: questionText,
-                        recordType,
-                      })
-                    }
+                    onClick={() => {
+                      if (typeof onSaveLearningRecord === "function") {
+                        onSaveLearningRecord({
+                          messageItem: message,
+                          question: questionText,
+                          recordType,
+                        });
+                      }
+                    }}
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill={isSaved ? "#2563eb" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
@@ -304,19 +307,19 @@ export default function ChatMessage({
               <select
                 className="field attachment-subject-select"
                 value={
-                  addToLibraryState.messageId === message.id
+                  addToLibraryState && addToLibraryState.messageId === (message && message.id)
                     ? addToLibraryState.subject
                     : currentChatSubject
                 }
                 onChange={(event) =>
                   setAddToLibraryState((prev) => ({
                     ...prev,
-                    messageId: message.id,
+                    messageId: message && message.id,
                     subject: event.target.value,
                   }))
                 }
               >
-                {subjectOptions.map((item) => (
+                {Array.isArray(subjectOptions) && subjectOptions.map((item) => (
                   <option key={item} value={item}>
                     {getSubjectLabel(item)}
                   </option>
@@ -327,14 +330,14 @@ export default function ChatMessage({
                 onClick={() =>
                   addMessageToLibrary(
                     message,
-                    addToLibraryState.messageId === message.id
+                    addToLibraryState && addToLibraryState.messageId === (message && message.id)
                       ? addToLibraryState.subject
                       : currentChatSubject
                   )
                 }
-                disabled={addToLibraryState.loading && addToLibraryState.messageId === message.id}
+                disabled={addToLibraryState && addToLibraryState.loading && addToLibraryState.messageId === (message && message.id)}
               >
-                {addToLibraryState.loading && addToLibraryState.messageId === message.id
+                {addToLibraryState && addToLibraryState.loading && addToLibraryState.messageId === (message && message.id)
                   ? "添加中..."
                   : "加入资料库"}
               </button>
