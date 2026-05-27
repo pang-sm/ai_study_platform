@@ -150,15 +150,6 @@
   white-space: nowrap;
 }
 
-/* Sidebar footer */
-
-.hp-sidebar-footer {
-  flex-shrink: 0;
-  padding: 0 14px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
 
 /* Premium upgrade card */
 
@@ -268,31 +259,6 @@
 .hp-sidebar-user-role {
   font-size: 11px;
   color: #94a3b8;
-}
-
-.hp-sidebar-divider {
-  height: 1px;
-  background: #edf0f5;
-  margin: 0;
-}
-
-.hp-logout-btn {
-  width: 100%;
-  padding: 7px;
-  border-radius: 8px;
-  border: 1px solid #e8ecf1;
-  background: #fff;
-  color: #8896a8;
-  font-size: 12px;
-  cursor: pointer;
-  font-family: inherit;
-  transition: all var(--hp-transition);
-}
-
-.hp-logout-btn:hover {
-  background: #fef2f2;
-  color: #ef4444;
-  border-color: #fecaca;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

@@ -309,9 +309,39 @@ function getRecordAnswerPreview(answer) {
   return `${text.slice(0, 180)}...`;
 }
 
+const VALID_PAGES = new Set([
+  "home", "dashboard", "profile", "membership", "codeStudio",
+  "taskCenter", "practiceCenter", "learningDataCenter", "reviewCenter",
+  "learningPlanCenter", "knowledgeBaseCenter", "quotaCenter",
+  "learningReportCenter", "adminUsageCenter", "adminCenter",
+  "materials", "workspaceMaterials", "chat", "records", "history",
+  "profileEdit", "onboarding",
+]);
+
+function getInitialPage() {
+  const savedUser = getSavedUser();
+  if (!savedUser) return "login";
+  try {
+    const savedPage = localStorage.getItem("currentPage");
+    if (savedPage && VALID_PAGES.has(savedPage)) return savedPage;
+  } catch { /* ignore */ }
+  return "login";
+}
+
+function saveCurrentPage(pageName) {
+  if (VALID_PAGES.has(pageName)) {
+    try { localStorage.setItem("currentPage", pageName); } catch { /* ignore */ }
+  }
+}
+
 function App() {
-  const [page, setPage] = useState("login");
+  const [page, setPageRaw] = useState(getInitialPage);
   const [authMode, setAuthMode] = useState("login");
+
+  const setPage = (nextPage) => {
+    saveCurrentPage(nextPage);
+    setPageRaw(nextPage);
+  };
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [user, setUser] = useState(getSavedUser);
@@ -697,6 +727,7 @@ function App() {
     setCourseDashboardData(null);
     setCourseDashboardLoading(false);
     setCourseProgressSavingKey("");
+    try { localStorage.removeItem("currentPage"); } catch { /* ignore */ }
     setPage("login");
     setAuthMode("login");
   };

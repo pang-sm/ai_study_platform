@@ -17,7 +17,7 @@ function getGreeting() {
    SIDEBAR
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function Sidebar({ page, onNavigate, onLogout, isAdmin }) {
+function Sidebar({ page, onNavigate, isAdmin }) {
   const mainNav = [
     { id: "home", icon: "🏠", label: "首页" },
     { id: "dashboard", icon: "💬", label: "AI 问答" },
@@ -73,10 +73,6 @@ function Sidebar({ page, onNavigate, onLogout, isAdmin }) {
         ))}
       </nav>
 
-      <div className="hp-sidebar-footer">
-        <div className="hp-sidebar-divider" />
-        <button className="hp-logout-btn" onClick={onLogout}>退出登录</button>
-      </div>
     </aside>
   );
 }
@@ -606,7 +602,7 @@ export default function HomePage({
 
   return (
     <div className="hp-shell">
-      <Sidebar page={page} onNavigate={handleNavigate} onLogout={onLogout} isAdmin={isAdmin} />
+      <Sidebar page={page} onNavigate={handleNavigate} isAdmin={isAdmin} />
       <div className="hp-main">
         <TopBar
           user={user}
