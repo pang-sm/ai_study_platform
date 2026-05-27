@@ -4,6 +4,7 @@ import AppLayout from "./components/AppLayout.jsx";
 import ChatMessage from "./components/ChatMessage.jsx";
 import CourseDashboard from "./components/CourseDashboard.jsx";
 import HomePage from "./components/HomePage.jsx";
+import AIQuestionPage from "./components/AIQuestionPage.jsx";
 import ProfilePage from "./components/ProfilePage.jsx";
 import MembershipPage from "./components/MembershipPage.jsx";
 
@@ -3140,6 +3141,56 @@ function App() {
           </div>
         </div>
       </div>
+    );
+  }
+
+  if (page === "chat") {
+    return wrapPage(
+      <AIQuestionPage
+        user={user}
+        apiBase={API_BASE}
+        subject={subject}
+        setSubject={setSubject}
+        setPage={setPage}
+        COURSE_OPTIONS={COURSE_OPTIONS}
+        AVATARS={AVATARS}
+        getSubjectLabel={getSubjectLabel}
+        activeSessionId={activeSessionId}
+        setActiveSessionSubject={setActiveSessionSubject}
+        currentChatSubject={currentChatSubject}
+        messages={messages}
+        loading={loading}
+        tip={tip}
+        message={message}
+        setMessage={setMessage}
+        sendMessage={sendMessage}
+        canSendMessage={canSendMessage}
+        selectedFiles={selectedFiles}
+        selectedLibraryMaterials={selectedLibraryMaterials}
+        removeSelectedFile={removeSelectedFile}
+        removeSelectedLibraryMaterial={removeSelectedLibraryMaterial}
+        handleFileChange={handleFileChange}
+        formatFileSize={formatFileSize}
+        getSelectedFileStatusText={getSelectedFileStatusText}
+        selectedFilesBlockReason={selectedFilesBlockReason}
+        showPlusMenu={showPlusMenu}
+        setShowPlusMenu={setShowPlusMenu}
+        plusMenuRef={plusMenuRef}
+        openLibraryReferenceModal={openLibraryReferenceModal}
+        fileInputRef={fileInputRef}
+        addToLibraryState={addToLibraryState}
+        setAddToLibraryState={setAddToLibraryState}
+        getFileTypeLabel={getFileTypeLabel}
+        getReferenceSnippet={getReferenceSnippet}
+        addMessageToLibrary={addMessageToLibrary}
+        openMaterialDetail={openMaterialDetail}
+        finishAssistantTyping={finishAssistantTyping}
+        getQuestionForAssistantMessage={getQuestionForAssistantMessage}
+        learningRecordActionState={learningRecordActionState}
+        saveLearningRecord={saveLearningRecord}
+        getRecordTypeLabel={getRecordTypeLabel}
+        getRecordTypeIcon={getRecordTypeIcon}
+      />
     );
   }
 
