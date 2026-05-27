@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import "./HomePage.css";
-import heroStudyBg from "../assets/home-hero-study-bg.png";
+
 
 /* ── Time-based greeting ── */
 
@@ -137,119 +137,116 @@ function TopBar({ user, avatarObj, hasCustomAvatar, apiBase, onAvatarClick }) {
    HERO SECTION
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function HeroSection({ user, stats, greeting, onStartLearning, onGoPractice }) {
+function HeroSection({ user, greeting, onStartLearning, onGoPractice }) {
+  return (
+    <section className="hp-hero">
+      <div className="hp-hero-content">
+        <div className="hp-hero-text">
+          <h1 className="hp-hero-greeting">
+            Hi, {user?.nickname || user?.username || "同学"}，{greeting.text}
+            <span style={{ marginLeft: 6 }}>{greeting.emoji}</span>
+          </h1>
+          <p className="hp-hero-subtitle">{greeting.subtitle}</p>
+        </div>
+        <div className="hp-hero-actions">
+          <button className="hp-btn-primary" onClick={onStartLearning}>
+            <span>🚀</span> 开始学习
+          </button>
+          <button className="hp-btn-secondary" onClick={onGoPractice}>
+            <span>📝</span> 去练习
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SUMMARY GRID — stat cards below hero
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function SummaryGrid({ stats }) {
   const masteryPct = stats.average_mastery ?? null;
   const taskProgress = stats.total_tasks > 0
     ? Math.round((stats.completed_tasks / stats.total_tasks) * 100)
     : null;
-  const todayDone = stats.today_completed_tasks;
 
   return (
-    <section className="hp-hero">
-      <div className="hp-hero-grid-lines" />
-      <div className="hp-hero-top">
-        <div className="hp-hero-left">
-          <div className="hp-hero-text">
-            <h1 className="hp-hero-greeting">
-              Hi, {user?.nickname || user?.username || "同学"}，{greeting.text}
-              <span style={{ marginLeft: 6 }}>{greeting.emoji}</span>
-            </h1>
-            <p className="hp-hero-subtitle">{greeting.subtitle}</p>
+    <div className="hp-summary-grid">
+      <div className="hp-stat-card">
+        <div className="hp-stat-card-top">
+          <div className="hp-stat-icon-wrap">
+            <span className="hp-stat-icon">📖</span>
           </div>
-
-          <div className="hp-hero-actions">
-            <button className="hp-btn-primary" onClick={onStartLearning}>
-              <span>🚀</span> 开始学习
-            </button>
-            <button className="hp-btn-secondary" onClick={onGoPractice}>
-              <span>📝</span> 去练习
-            </button>
-          </div>
+          {masteryPct !== null && <span className="hp-stat-trend up">已掌握</span>}
         </div>
-
-        {/* Hero study background image */}
-        <div className="hp-hero-study">
-          <img src={heroStudyBg} alt="学生学习场景" className="hp-hero-study-img" />
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div className="hp-hero-stats">
-        <div className="hp-stat-card">
-          <div className="hp-stat-card-top">
-            <div className="hp-stat-icon-wrap">
-              <span className="hp-stat-icon">📖</span>
-            </div>
-            {masteryPct !== null && <span className="hp-stat-trend up">已掌握</span>}
-          </div>
-          <div className="hp-stat-info">
-            {masteryPct !== null ? (
-              <div className="hp-stat-value">{masteryPct}%</div>
-            ) : (
-              <div className="hp-stat-empty">暂无数据</div>
-            )}
-            <div className="hp-stat-label">学习进度</div>
-          </div>
-          {masteryPct !== null && (
-            <div className="hp-stat-bar">
-              <div className="hp-stat-bar-fill" style={{ width: `${masteryPct}%` }} />
-            </div>
-          )}
-        </div>
-
-        <div className="hp-stat-card">
-          <div className="hp-stat-card-top">
-            <div className="hp-stat-icon-wrap">
-              <span className="hp-stat-icon">🎯</span>
-            </div>
-            {taskProgress !== null && <span className="hp-stat-trend up">任务完成率</span>}
-          </div>
-          <div className="hp-stat-info">
-            {taskProgress !== null ? (
-              <div className="hp-stat-value">{taskProgress}%</div>
-            ) : (
-              <div className="hp-stat-empty">暂无数据</div>
-            )}
-            <div className="hp-stat-label">今日目标</div>
-          </div>
-          {taskProgress !== null && (
-            <div className="hp-stat-bar">
-              <div className="hp-stat-bar-fill" style={{ width: `${taskProgress}%` }} />
-            </div>
-          )}
-        </div>
-
-        <div className="hp-stat-card">
-          <div className="hp-stat-card-top">
-            <div className="hp-stat-icon-wrap">
-              <span className="hp-stat-icon">⏱️</span>
-            </div>
-          </div>
-          <div className="hp-stat-info">
+        <div className="hp-stat-info">
+          {masteryPct !== null ? (
+            <div className="hp-stat-value">{masteryPct}%</div>
+          ) : (
             <div className="hp-stat-empty">暂无数据</div>
-            <div className="hp-stat-label">学习时长</div>
+          )}
+          <div className="hp-stat-label">学习进度</div>
+        </div>
+        {masteryPct !== null && (
+          <div className="hp-stat-bar">
+            <div className="hp-stat-bar-fill" style={{ width: `${masteryPct}%` }} />
           </div>
-          <div className="hp-stat-hint">
-            尚未开始记录学习时长
+        )}
+      </div>
+
+      <div className="hp-stat-card">
+        <div className="hp-stat-card-top">
+          <div className="hp-stat-icon-wrap">
+            <span className="hp-stat-icon">🎯</span>
+          </div>
+          {taskProgress !== null && <span className="hp-stat-trend up">任务完成率</span>}
+        </div>
+        <div className="hp-stat-info">
+          {taskProgress !== null ? (
+            <div className="hp-stat-value">{taskProgress}%</div>
+          ) : (
+            <div className="hp-stat-empty">暂无数据</div>
+          )}
+          <div className="hp-stat-label">今日目标</div>
+        </div>
+        {taskProgress !== null && (
+          <div className="hp-stat-bar">
+            <div className="hp-stat-bar-fill" style={{ width: `${taskProgress}%` }} />
+          </div>
+        )}
+      </div>
+
+      <div className="hp-stat-card">
+        <div className="hp-stat-card-top">
+          <div className="hp-stat-icon-wrap">
+            <span className="hp-stat-icon">⏱️</span>
           </div>
         </div>
-
-        <div className="hp-stat-card">
-          <div className="hp-stat-card-top">
-            <div className="hp-stat-icon-wrap">
-              <span className="hp-stat-icon">💡</span>
-            </div>
-            {stats.total_questions > 0 && (
-              <span className="hp-stat-trend up">+{stats.today_questions} 今日</span>
-            )}
-          </div>
-          <div className="hp-stat-info">
-            <div className="hp-stat-value">{stats.total_questions}</div>
-            <div className="hp-stat-label">提问次数</div>
-          </div>
+        <div className="hp-stat-info">
+          <div className="hp-stat-empty">暂无数据</div>
+          <div className="hp-stat-label">学习时长</div>
+        </div>
+        <div className="hp-stat-hint">
+          尚未开始记录学习时长
         </div>
       </div>
-    </section>
+
+      <div className="hp-stat-card">
+        <div className="hp-stat-card-top">
+          <div className="hp-stat-icon-wrap">
+            <span className="hp-stat-icon">💡</span>
+          </div>
+          {stats.total_questions > 0 && (
+            <span className="hp-stat-trend up">+{stats.today_questions} 今日</span>
+          )}
+        </div>
+        <div className="hp-stat-info">
+          <div className="hp-stat-value">{stats.total_questions}</div>
+          <div className="hp-stat-label">提问次数</div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -640,11 +637,11 @@ export default function HomePage({
           <div className="hp-content-left">
             <HeroSection
               user={user}
-              stats={stats}
               greeting={greeting}
               onStartLearning={() => { setSubject(subject); setPage("dashboard"); }}
               onGoPractice={() => setPage("practiceCenter")}
             />
+            <SummaryGrid stats={stats} />
             <CoreFeatures onNavigate={handleNavigate} />
             <LearningTools onNavigate={handleNavigate} />
             <RecommendationSection />
