@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
+import AppLayout from "./components/AppLayout.jsx";
 import ChatMessage from "./components/ChatMessage.jsx";
 import CourseDashboard from "./components/CourseDashboard.jsx";
 import HomePage from "./components/HomePage.jsx";
@@ -2455,11 +2456,17 @@ function App() {
     );
   }
 
+  const wrapPage = (children) => (
+    <AppLayout activePage={page} onNavigate={navigateTo} isAdmin={!!user?.is_admin}>
+      {children}
+    </AppLayout>
+  );
+
   if (page === "home") {
     const avatarObj = AVATARS.find((a) => a.id === (user?.avatar || "")) || AVATARS[0];
     const hasCustomAvatar = (user?.avatar_url || "").startsWith("/me/avatar/");
 
-    return (
+    return wrapPage(
       <HomePage
         user={user}
         page={page}
@@ -2495,7 +2502,7 @@ function App() {
   };
 
   if (page === "profile") {
-    return (
+    return wrapPage(
       <ProfilePage
         user={user}
         apiBase={API_BASE}
@@ -2507,7 +2514,7 @@ function App() {
   }
 
   if (page === "membership") {
-    return (
+    return wrapPage(
       <MembershipPage
         user={user}
         apiBase={API_BASE}
@@ -2518,13 +2525,10 @@ function App() {
   }
 
   if (page === "codeStudio") {
-    return (
+    return wrapPage(
       <div className="app-shell">
         <header className="workspace-topbar">
           <div className="workspace-topbar-left">
-            <button className="ghost-button compact" onClick={() => setPage("home")}>
-              返回首页
-            </button>
             <span className="subject-pill panel-pill">编程学习助手</span>
           </div>
         </header>
@@ -2543,13 +2547,10 @@ function App() {
   }
 
   if (page === "taskCenter") {
-    return (
+    return wrapPage(
       <div className="app-shell">
         <header className="workspace-topbar">
           <div className="workspace-topbar-left">
-            <button className="ghost-button compact" onClick={() => setPage("home")}>
-              返回首页
-            </button>
             <span className="subject-pill panel-pill">学习任务中心</span>
           </div>
         </header>
@@ -2568,13 +2569,10 @@ function App() {
   }
 
   if (page === "practiceCenter") {
-    return (
+    return wrapPage(
       <div className="app-shell">
         <header className="workspace-topbar">
           <div className="workspace-topbar-left">
-            <button className="ghost-button compact" onClick={() => setPage("home")}>
-              返回首页
-            </button>
             <span className="subject-pill panel-pill">练习中心</span>
           </div>
         </header>
@@ -2593,13 +2591,10 @@ function App() {
   }
 
   if (page === "learningDataCenter") {
-    return (
+    return wrapPage(
       <div className="app-shell">
         <header className="workspace-topbar">
           <div className="workspace-topbar-left">
-            <button className="ghost-button compact" onClick={() => setPage("home")}>
-              返回首页
-            </button>
             <span className="subject-pill panel-pill">学习数据中心</span>
           </div>
         </header>
@@ -2614,13 +2609,10 @@ function App() {
   }
 
   if (page === "reviewCenter") {
-    return (
+    return wrapPage(
       <div className="app-shell">
         <header className="workspace-topbar">
           <div className="workspace-topbar-left">
-            <button className="ghost-button compact" onClick={() => setPage("home")}>
-              返回首页
-            </button>
             <span className="subject-pill panel-pill">复盘中心</span>
           </div>
         </header>
@@ -2635,13 +2627,10 @@ function App() {
   }
 
   if (page === "learningPlanCenter") {
-    return (
+    return wrapPage(
       <div className="app-shell">
         <header className="workspace-topbar">
           <div className="workspace-topbar-left">
-            <button className="ghost-button compact" onClick={() => setPage("home")}>
-              返回首页
-            </button>
             <span className="subject-pill panel-pill">AI 学习计划</span>
           </div>
         </header>
@@ -2656,13 +2645,10 @@ function App() {
   }
 
   if (page === "knowledgeBaseCenter") {
-    return (
+    return wrapPage(
       <div className="app-shell">
         <header className="workspace-topbar">
           <div className="workspace-topbar-left">
-            <button className="ghost-button compact" onClick={() => setPage("home")}>
-              返回首页
-            </button>
             <span className="subject-pill panel-pill">知识库中心</span>
           </div>
         </header>
@@ -2677,13 +2663,10 @@ function App() {
   }
 
   if (page === "quotaCenter") {
-    return (
+    return wrapPage(
       <div className="app-shell">
         <header className="workspace-topbar">
           <div className="workspace-topbar-left">
-            <button className="ghost-button compact" onClick={() => setPage("home")}>
-              返回首页
-            </button>
             <span className="subject-pill panel-pill">我的额度</span>
           </div>
         </header>
@@ -2695,13 +2678,10 @@ function App() {
   }
 
   if (page === "learningReportCenter") {
-    return (
+    return wrapPage(
       <div className="app-shell">
         <header className="workspace-topbar">
           <div className="workspace-topbar-left">
-            <button className="ghost-button compact" onClick={() => setPage("home")}>
-              返回首页
-            </button>
             <span className="subject-pill panel-pill">学习报告</span>
           </div>
         </header>
@@ -2713,13 +2693,10 @@ function App() {
   }
 
   if (page === "adminUsageCenter") {
-    return (
+    return wrapPage(
       <div className="app-shell">
         <header className="workspace-topbar">
           <div className="workspace-topbar-left">
-            <button className="ghost-button compact" onClick={() => setPage("home")}>
-              返回首页
-            </button>
             <span className="subject-pill panel-pill">管理后台</span>
           </div>
         </header>
@@ -2731,13 +2708,10 @@ function App() {
   }
 
   if (page === "adminCenter") {
-    return (
+    return wrapPage(
       <div className="app-shell">
         <header className="workspace-topbar">
           <div className="workspace-topbar-left">
-            <button className="ghost-button compact" onClick={() => setPage("home")}>
-              返回首页
-            </button>
             <span className="subject-pill panel-pill">管理后台</span>
           </div>
         </header>
@@ -2864,13 +2838,10 @@ function App() {
   }
 
   if (page === "materials") {
-    return (
+    return wrapPage(
       <div className="materials-shell">
         <div className="materials-page-card">
           <div className="materials-page-header">
-            <button className="ghost-button compact" onClick={() => setPage("home")}>
-              ← 返回主页
-            </button>
             <div>
               <div className="section-eyebrow">个人资料库</div>
               <h2>
@@ -3172,13 +3143,10 @@ function App() {
     );
   }
 
-  return (
+  return wrapPage(
     <div className="workspace-shell">
       <div className="workspace-topbar-wrapper">
         <div className="workspace-topbar">
-          <button className="ghost-button compact" onClick={() => setPage("home")}>
-            ← 返回主页
-          </button>
           <div className="workspace-topbar-center">
             <select
               className="field workspace-subject-select"
@@ -3782,7 +3750,8 @@ function App() {
             </div>
           </section>
         ) : (
-          <section className="chat-panel chat-panel--wide">
+          <div className="ai-qa-layout">
+            <section className="chat-panel ai-qa-chat">
             <div className="panel-header panel-header--chat">
               <div className="subject-pill panel-pill">当前对话</div>
               <div className="subject-pill">学科：{getSubjectLabel(currentChatSubject)}</div>
@@ -3959,6 +3928,52 @@ function App() {
 
             {tip && <p className="tip-text">{tip}</p>}
           </section>
+          <aside className="ai-qa-sidebar">
+            {(selectedFiles.length > 0 || selectedLibraryMaterials.length > 0) && (
+              <div className="ai-qa-sidebar-card">
+                <h4 className="ai-qa-sidebar-card-title">本轮已引用资料</h4>
+                <div className="ai-qa-ref-list">
+                  {selectedFiles.filter(f => !f.uploading).map((item) => (
+                    <div key={item.localId} className="ai-qa-ref-item">
+                      <span className="ai-qa-ref-icon">📄</span>
+                      <span className="ai-qa-ref-name">{item.original_filename}</span>
+                    </div>
+                  ))}
+                  {selectedLibraryMaterials.map((item) => (
+                    <div key={item.id} className="ai-qa-ref-item">
+                      <span className="ai-qa-ref-icon">📚</span>
+                      <span className="ai-qa-ref-name">{item.original_filename}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="ai-qa-sidebar-card">
+              <h4 className="ai-qa-sidebar-card-title">推荐提问</h4>
+              <div className="ai-qa-suggestions">
+                {(() => {
+                  const label = getSubjectLabel(currentChatSubject);
+                  const suggestions = [
+                    `请帮我总结${label}的核心知识点`,
+                    `${label}有哪些常见的考点和难点？`,
+                    `请举例说明${label}中的一个重要概念`,
+                    `帮我整理${label}的知识框架和脉络`,
+                    `在学习${label}时需要注意哪些问题？`,
+                  ];
+                  return suggestions.map((q, i) => (
+                    <button
+                      key={i}
+                      className="ai-qa-suggestion-item"
+                      onClick={() => { setMessage(q); }}
+                    >
+                      {q}
+                    </button>
+                  ));
+                })()}
+              </div>
+            </div>
+          </aside>
+        </div>
         )}
 
         {showLibraryRefModal && (

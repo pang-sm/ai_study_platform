@@ -14,70 +14,6 @@ function getGreeting() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   SIDEBAR
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-function Sidebar({ page, onNavigate, isAdmin }) {
-  const mainNav = [
-    { id: "home", icon: "🏠", label: "首页" },
-    { id: "dashboard", icon: "💬", label: "AI 问答" },
-  ];
-
-  const studyNav = [
-    { id: "dashboard", icon: "📋", label: "课程工作台" },
-    { id: "practiceCenter", icon: "📝", label: "练习中心" },
-    { id: "codeStudio", icon: "</>", label: "编程助手" },
-    { id: "taskCenter", icon: "✅", label: "学习任务" },
-  ];
-
-  const resourceNav = [
-    { id: "knowledgeBaseCenter", icon: "📚", label: "资料库" },
-    { id: "learningReportCenter", icon: "📄", label: "学习报告" },
-    ...(isAdmin ? [{ id: "adminCenter", icon: "🛡️", label: "管理后台" }] : []),
-  ];
-
-  return (
-    <aside className="hp-sidebar">
-      <div className="hp-sidebar-header">
-        <div className="hp-logo">
-          <div className="hp-logo-icon">🧠</div>
-          <span className="hp-logo-text">AI 学习助手</span>
-        </div>
-      </div>
-      <nav className="hp-sidebar-nav">
-        {mainNav.map((item) => (
-          <button
-            key={item.id + item.label}
-            className={`hp-nav-item${page === item.id && item.label === "首页" ? " active" : ""}`}
-            onClick={() => onNavigate(item.id)}
-          >
-            <span className="hp-nav-icon">{item.icon}</span>
-            <span className="hp-nav-label">{item.label}</span>
-          </button>
-        ))}
-
-        <div className="hp-nav-section-label">学习</div>
-        {studyNav.map((item) => (
-          <button key={item.id + item.label} className="hp-nav-item" onClick={() => onNavigate(item.id)}>
-            <span className="hp-nav-icon">{item.icon}</span>
-            <span className="hp-nav-label">{item.label}</span>
-          </button>
-        ))}
-
-        <div className="hp-nav-section-label">资源</div>
-        {resourceNav.map((item) => (
-          <button key={item.id + item.label} className="hp-nav-item" onClick={() => onNavigate(item.id)}>
-            <span className="hp-nav-icon">{item.icon}</span>
-            <span className="hp-nav-label">{item.label}</span>
-          </button>
-        ))}
-      </nav>
-
-    </aside>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
    TOPBAR
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -601,30 +537,27 @@ export default function HomePage({
   };
 
   return (
-    <div className="hp-shell">
-      <Sidebar page={page} onNavigate={handleNavigate} isAdmin={isAdmin} />
-      <div className="hp-main">
-        <TopBar
-          user={user}
-          avatarObj={avatarObj}
-          hasCustomAvatar={hasCustomAvatar}
-          apiBase={apiBase}
-          onProfileClick={() => setPage("profile")}
-        />
-        <div className="hp-content">
-          <div className="hp-content-left">
-            <HeroSection
-              user={user}
-              greeting={greeting}
-              onStartLearning={() => { setSubject(subject); setPage("dashboard"); }}
-              onGoPractice={() => setPage("practiceCenter")}
-            />
-            <CoreFeatures onNavigate={handleNavigate} />
-            <LearningTools onNavigate={handleNavigate} />
-            <RecommendationSection />
-          </div>
-          <RightInsightPanel stats={stats} tasks={[]} achievements={achievements} />
+    <div className="hp-content-area">
+      <TopBar
+        user={user}
+        avatarObj={avatarObj}
+        hasCustomAvatar={hasCustomAvatar}
+        apiBase={apiBase}
+        onProfileClick={() => setPage("profile")}
+      />
+      <div className="hp-content">
+        <div className="hp-content-left">
+          <HeroSection
+            user={user}
+            greeting={greeting}
+            onStartLearning={() => { setSubject(subject); setPage("dashboard"); }}
+            onGoPractice={() => setPage("practiceCenter")}
+          />
+          <CoreFeatures onNavigate={handleNavigate} />
+          <LearningTools onNavigate={handleNavigate} />
+          <RecommendationSection />
         </div>
+        <RightInsightPanel stats={stats} tasks={[]} achievements={achievements} />
       </div>
       {statsLoading && (
         <div className="hp-loading-overlay">
