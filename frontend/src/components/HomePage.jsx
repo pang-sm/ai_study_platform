@@ -619,7 +619,6 @@ export default function HomePage({
               onStartLearning={() => { setSubject(subject); setPage("dashboard"); }}
               onGoPractice={() => setPage("practiceCenter")}
             />
-            <SummaryGrid stats={stats} />
             <CoreFeatures onNavigate={handleNavigate} />
             <LearningTools onNavigate={handleNavigate} />
             <RecommendationSection />

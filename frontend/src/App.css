@@ -2158,6 +2158,227 @@ select.field:focus {
   line-height: 1.5;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   DASHBOARD OVERVIEW HUB (redesigned course workspace overview)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.doh-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* ── Overview card ── */
+
+.doh-overview-card {
+  padding: 24px 28px;
+  border: 1px solid rgba(20, 33, 61, 0.08);
+  border-radius: 22px;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.04), rgba(15, 118, 110, 0.04), #fff);
+}
+
+.doh-overview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.doh-overview-header h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.doh-progress-section {
+  margin-bottom: 18px;
+}
+
+.doh-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+
+.doh-progress-label {
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.doh-progress-pct {
+  font-size: 22px;
+  font-weight: 800;
+  color: #2563eb;
+}
+
+.doh-progress-bar {
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.doh-progress-fill {
+  height: 100%;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #2563eb, #3b82f6);
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.doh-mini-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.doh-mini-stat {
+  text-align: center;
+  padding: 12px 8px;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid #e9edf4;
+}
+
+.doh-mini-stat-value {
+  display: block;
+  font-size: 22px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.doh-mini-stat-value--text {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.doh-mini-stat-label {
+  display: block;
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+/* ── Navigation section ── */
+
+.doh-nav-section {
+  padding: 4px 0;
+}
+
+.doh-nav-section-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 14px;
+}
+
+.doh-nav-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.doh-nav-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px;
+  border-radius: 16px;
+  border: 1px solid #edf0f5;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+
+.doh-nav-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+  border-color: #dde3ed;
+}
+
+.doh-nav-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.doh-nav-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.doh-nav-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 2px;
+}
+
+.doh-nav-desc {
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.4;
+}
+
+.doh-nav-arrow {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: #f4f6fa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: #94a3b8;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.doh-nav-card:hover .doh-nav-arrow {
+  background: #2563eb;
+  color: #fff;
+  transform: translateX(2px);
+}
+
+/* ── Responsive ── */
+
+@media (max-width: 1024px) {
+  .doh-nav-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .doh-mini-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .doh-nav-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .doh-mini-stats {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .doh-overview-card {
+    padding: 18px 16px;
+  }
+}
+
 .dashboard-suggestion-text {
   margin: 14px 0 0;
   color: #1f2937;

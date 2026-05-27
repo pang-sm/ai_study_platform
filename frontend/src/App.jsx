@@ -3246,20 +3246,13 @@ function App() {
             dashboard={courseDashboardData}
             loading={courseDashboardLoading}
             savingPointKey={courseProgressSavingKey}
+            setPage={setPage}
             onCourseChange={setSubject}
             onProgressChange={updateCourseProgress}
-            onOpenMaterial={(materialId) => openMaterialDetail(materialId, "materials")}
-            onOpenChat={openChatSession}
             onStartAsk={() => openChatPageForCourse(subject)}
-            onUploadMaterial={() => openMaterialsPageForCourse(subject)}
-            onViewMaterials={() => openMaterialsPageForCourse(subject)}
-            onViewLearningRecords={() => openLearningRecordPageForCourse(subject)}
-            onNewCourseChat={() => openChatPageForCourse(subject, true)}
             onOpenCodeStudio={() => setPage("codeStudio")}
-            onOpenTaskCenter={() => setPage("taskCenter")}
             onOpenPracticeCenter={() => setPage("practiceCenter")}
             getSubjectLabel={getSubjectLabel}
-            getFileTypeLabel={getFileTypeLabel}
             formatDate={formatDate}
           />
         ) : page === "records" ? (
