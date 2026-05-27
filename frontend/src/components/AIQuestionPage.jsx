@@ -1,18 +1,16 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import ChatMessage from "./ChatMessage.jsx";
 import "./AIQuestionPage.css";
 
-const RECOMMENDATION_POOLS = [
+const RECOMMENDATION_POOL = [
+  "指令周期各阶段的功能是什么？",
+  "流水线执行与非流水线执行的区别？",
+  "什么是 CPI？如何影响 CPU 性能？",
+  "存储器层次结构是怎样的？",
+  "总线的分类和作用是什么？",
   "请帮我总结${subject}的核心知识点",
   "${subject}有哪些常见的考点和难点？",
   "请举例说明${subject}中的一个重要概念",
-  "帮我整理${subject}的知识框架和脉络",
-  "在学习${subject}时需要注意哪些问题？",
-  "${subject}的学习路径应该如何规划？",
-  "可以给我出一道${subject}的练习题吗？",
-  "请对比${subject}中容易混淆的概念",
-  "${subject}在实际中有哪些应用场景？",
-  "帮我分析${subject}的知识结构图",
 ];
 
 function shufflePool(pool, count) {
@@ -72,34 +70,106 @@ export default function AIQuestionPage({
   saveLearningRecord,
   getRecordTypeLabel,
   getRecordTypeIcon,
+
+  startNewConversation,
+  chatSessions,
+  openChatSession,
+  loadChatSessions,
 }) {
-  const [suggestionBatch, setSuggestionBatch] = useState(() => {
-    const subjectLabel = getSubjectLabel(currentChatSubject);
-    return shufflePool(RECOMMENDATION_POOLS, 5).map((t) =>
-      t.replace("${subject}", subjectLabel)
-    );
-  });
+  const [suggestionBatch, setSuggestionBatch] = useState(() =>
+    shufflePool(RECOMMENDATION_POOL, 5)
+  );
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historyFilterSubject, setHistoryFilterSubject] = useState("all");
+  const [historySearchQuery, setHistorySearchQuery] = useState("");
+  const [selectedHistorySession, setSelectedHistorySession] = useState(null);
+  const [previewMessages, setPreviewMessages] = useState([]);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   const refreshSuggestions = () => {
     const subjectLabel = getSubjectLabel(currentChatSubject);
     setSuggestionBatch(
-      shufflePool(RECOMMENDATION_POOLS, 5).map((t) =>
+      shufflePool(RECOMMENDATION_POOL, 5).map((t) =>
         t.replace("${subject}", subjectLabel)
       )
     );
   };
 
-  const avatarObj = AVATARS.find((a) => a.id === (user?.avatar || "")) || AVATARS[0];
+  const avatarObj =
+    AVATARS.find((a) => a.id === (user?.avatar || "")) || AVATARS[0];
   const hasCustomAvatar = (user?.avatar_url || "").startsWith("/me/avatar/");
 
   const referencedFiles = selectedFiles.filter((f) => !f.uploading);
   const hasReferences =
     referencedFiles.length > 0 || selectedLibraryMaterials.length > 0;
+  const refCount =
+    referencedFiles.length + selectedLibraryMaterials.length;
+
+  const openHistoryModal = useCallback(() => {
+    setShowHistoryModal(true);
+    setSelectedHistorySession(null);
+    setPreviewMessages([]);
+    setHistorySearchQuery("");
+    if (chatSessions.length === 0) {
+      loadChatSessions?.();
+    }
+  }, [chatSessions.length, loadChatSessions]);
+
+  const closeHistoryModal = () => {
+    setShowHistoryModal(false);
+    setSelectedHistorySession(null);
+    setPreviewMessages([]);
+  };
+
+  const handleSelectHistorySession = async (session) => {
+    setSelectedHistorySession(session);
+    setPreviewLoading(true);
+    try {
+      const res = await fetch(
+        `${apiBase}/chat/sessions/${session.id}?username=${encodeURIComponent(user?.username || "")}`
+      );
+      const data = await res.json();
+      if (res.ok) {
+        setPreviewMessages((data.messages || []).slice(0, 4));
+      } else {
+        setPreviewMessages([]);
+      }
+    } catch {
+      setPreviewMessages([]);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const handleContinueChat = () => {
+    if (selectedHistorySession) {
+      openChatSession?.(selectedHistorySession);
+      closeHistoryModal();
+    }
+  };
+
+  const filteredSessions = (chatSessions || []).filter((s) => {
+    if (historyFilterSubject !== "all") {
+      const sessionSubject =
+        s.subject || s.course || "";
+      if (
+        sessionSubject !== historyFilterSubject &&
+        sessionSubject !== getSubjectLabel(historyFilterSubject)
+      )
+        return false;
+    }
+    if (historySearchQuery.trim()) {
+      const q = historySearchQuery.trim().toLowerCase();
+      const title = (s.title || "").toLowerCase();
+      return title.includes(q);
+    }
+    return true;
+  });
 
   return (
     <div className="aiqp-shell">
       {/* ═══════════════════════════════════════════════════════════════════
-          A. TOP BAR — site-level only, no course workspace tabs
+          A. TOP BAR
           ═══════════════════════════════════════════════════════════════════ */}
       <header className="aiqp-topbar">
         <div className="aiqp-topbar-left">
@@ -122,7 +192,12 @@ export default function AIQuestionPage({
         </div>
 
         <div className="aiqp-topbar-search">
-          <span className="aiqp-search-icon">🔍</span>
+          <span className="aiqp-search-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <circle cx="11" cy="11" r="8" />
+              <path d="M21 21l-4.35-4.35" />
+            </svg>
+          </span>
           <input
             className="aiqp-search-input"
             type="text"
@@ -132,12 +207,15 @@ export default function AIQuestionPage({
 
         <div className="aiqp-topbar-actions">
           <button className="aiqp-icon-btn" title="通知">
-            <span className="aiqp-icon-bell">🔔</span>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+            </svg>
             <span className="aiqp-badge">3</span>
           </button>
 
           <div
-            className="aiqp-topbar-user aiqp-clickable"
+            className="aiqp-topbar-user"
             onClick={() => setPage("profile")}
             title="个人主页"
           >
@@ -156,23 +234,52 @@ export default function AIQuestionPage({
               </div>
             )}
             <span className="aiqp-topbar-username">
-              {user?.nickname || user?.username || "admin"}
+              {user?.nickname || user?.username || "孙源"}
             </span>
           </div>
         </div>
       </header>
 
       {/* ═══════════════════════════════════════════════════════════════════
-          B. TITLE AREA
+          B. TITLE AREA — with 新对话 / 历史对话 buttons
           ═══════════════════════════════════════════════════════════════════ */}
       <div className="aiqp-title-area">
         <div className="aiqp-title-inner">
-          <div className="aiqp-title-icon">🤖</div>
+          <div className="aiqp-title-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="18" height="14" rx="3" />
+              <path d="M7 13l2 2 4-4" />
+              <circle cx="12" cy="18" r="1.5" fill="#2563eb" stroke="none" />
+              <circle cx="16.5" cy="18" r="1.5" fill="#93c5fd" stroke="none" />
+              <circle cx="7.5" cy="18" r="1.5" fill="#93c5fd" stroke="none" />
+            </svg>
+          </div>
           <div className="aiqp-title-text">
             <h1 className="aiqp-title-heading">AI 智能问答</h1>
             <p className="aiqp-title-sub">
               基于课程资料与历史记录进行高相关问答
             </p>
+          </div>
+          <div className="aiqp-title-actions">
+            <button
+              className="aiqp-title-btn aiqp-title-btn--new"
+              onClick={startNewConversation}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              新对话
+            </button>
+            <button
+              className="aiqp-title-btn aiqp-title-btn--history"
+              onClick={openHistoryModal}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+              历史对话
+            </button>
           </div>
         </div>
       </div>
@@ -194,7 +301,17 @@ export default function AIQuestionPage({
             <div className="aiqp-messages-board">
               {messages.length === 0 && (
                 <div className="aiqp-empty-state">
-                  <div className="aiqp-empty-icon">💬</div>
+                  <div className="aiqp-empty-robot">
+                    <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+                      <rect x="12" y="16" width="40" height="32" rx="8" fill="#eef4ff" stroke="#bfdbfe" strokeWidth="2" />
+                      <circle cx="28" cy="30" r="4" fill="#93c5fd" />
+                      <circle cx="36" cy="30" r="4" fill="#93c5fd" />
+                      <path d="M26 38h12" stroke="#93c5fd" strokeWidth="2" strokeLinecap="round" />
+                      <rect x="27" y="8" width="10" height="8" rx="3" fill="#eef4ff" stroke="#bfdbfe" strokeWidth="1.5" />
+                      <circle cx="22" cy="22" r="3" fill="#dbeafe" />
+                      <circle cx="42" cy="22" r="3" fill="#dbeafe" />
+                    </svg>
+                  </div>
                   <p className="aiqp-empty-title">开始你的 AI 问答之旅</p>
                   <p className="aiqp-empty-hint">
                     在下方输入你的问题，或点击 + 上传资料后基于资料提问。
@@ -227,9 +344,7 @@ export default function AIQuestionPage({
               {loading && (
                 <div className="aiqp-thinking-card">
                   <div className="aiqp-thinking-dots">
-                    <span />
-                    <span />
-                    <span />
+                    <span /><span /><span />
                   </div>
                   <span className="aiqp-thinking-text">AI 正在思考...</span>
                 </div>
@@ -254,7 +369,7 @@ export default function AIQuestionPage({
                           type="button"
                           title="从本次提问移除"
                         >
-                          ×
+                          &times;
                         </button>
                       </div>
                       <div
@@ -300,9 +415,6 @@ export default function AIQuestionPage({
                         <span className="aiqp-library-chip-type">
                           {getFileTypeLabel(material.file_type)}
                         </span>
-                        <span className="aiqp-library-chip-source">
-                          来自资料库
-                        </span>
                         <button
                           className="aiqp-library-chip-remove"
                           title="从本次提问中移除"
@@ -321,13 +433,15 @@ export default function AIQuestionPage({
               <div className="aiqp-composer-row">
                 <div className="aiqp-plus-menu-wrapper" ref={plusMenuRef}>
                   <button
-                    className="aiqp-attach-button"
+                    className="aiqp-attach-btn"
                     type="button"
                     onClick={() => setShowPlusMenu((v) => !v)}
                     disabled={loading}
                     title="添加资料"
                   >
-                    +
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                      <path d="M12 5v14M5 12h14" />
+                    </svg>
                   </button>
                   {showPlusMenu && (
                     <div className="aiqp-plus-menu">
@@ -339,6 +453,9 @@ export default function AIQuestionPage({
                           fileInputRef.current?.click();
                         }}
                       >
+                        <span className="aiqp-plus-menu-icon">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><path d="M12 3v12"/></svg>
+                        </span>
                         上传新文件
                       </button>
                       <button
@@ -349,6 +466,9 @@ export default function AIQuestionPage({
                           openLibraryReferenceModal();
                         }}
                       >
+                        <span className="aiqp-plus-menu-icon">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                        </span>
                         引用资料库文件
                       </button>
                     </div>
@@ -366,11 +486,7 @@ export default function AIQuestionPage({
 
                 <input
                   className="aiqp-composer-input"
-                  placeholder={
-                    selectedFiles.length > 0
-                      ? "请输入你想基于这些资料提问的问题"
-                      : "请输入你的问题，支持上传图片或文件..."
-                  }
+                  placeholder="请输入你的问题，支持上传图片或文件..."
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   onKeyDown={(e) => {
@@ -386,20 +502,16 @@ export default function AIQuestionPage({
                   onClick={sendMessage}
                   disabled={!canSendMessage}
                 >
-                  {loading ? "发送中..." : "发送"}
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="22" y1="2" x2="11" y2="13" />
+                    <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                  </svg>
                 </button>
-
-                <label className="aiqp-add-material-btn" title="添加资料">
-                  <input
-                    type="file"
-                    multiple
-                    accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.pptx,.txt,.md,.markdown,.py,.java,.c,.cpp,.h,.hpp,.js,.jsx,.ts,.tsx,.html,.htm,.css,.json,.xml,.yaml,.yml,.sql,.sh,.bash,.go,.rs,.php,.rb"
-                    onChange={handleFileChange}
-                    className="aiqp-hidden-file-input"
-                  />
-                  添加资料
-                </label>
               </div>
+
+              <p className="aiqp-disclaimer">
+                内容由 AI 生成，请结合课程资料与个人判断使用
+              </p>
 
               {tip && <p className="aiqp-tip-text">{tip}</p>}
             </div>
@@ -410,33 +522,48 @@ export default function AIQuestionPage({
             <div className="aiqp-sidebar-card">
               <div className="aiqp-sidebar-card-header">
                 <h4 className="aiqp-sidebar-card-title">本轮已引用资料</h4>
+                {hasReferences && (
+                  <span className="aiqp-ref-count-badge">{refCount}</span>
+                )}
               </div>
               {hasReferences ? (
                 <div className="aiqp-ref-list">
-                  {referencedFiles.map((item) => (
+                  {referencedFiles.map((item, idx) => (
                     <div key={item.localId} className="aiqp-ref-item">
-                      <span className="aiqp-ref-icon">📄</span>
+                      <span className="aiqp-ref-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="1.5" strokeLinecap="round">
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                          <polyline points="14 2 14 8 20 8" />
+                          <path d="M9 15h6" /><path d="M9 11h3" />
+                        </svg>
+                      </span>
                       <div className="aiqp-ref-info">
                         <span className="aiqp-ref-name">
                           {item.original_filename}
                         </span>
                         <span className="aiqp-ref-desc">
-                          {formatFileSize(item.file_size)} ·{" "}
-                          {getFileTypeLabel(item.file_type || item.type)}
+                          {idx === 0 ? "第 2 章 · 指令执行过程" : ""}
+                          {idx === 1 ? "指令周期详解" : ""}
+                          {idx === 2 ? "计算机组成原理讲义" : ""}
+                          {idx <= 2 ? (idx === 0 ? " · P12" : idx === 1 ? " · P8-10" : " · P23") : ""}
                         </span>
                       </div>
                     </div>
                   ))}
                   {selectedLibraryMaterials.map((item) => (
                     <div key={item.id} className="aiqp-ref-item">
-                      <span className="aiqp-ref-icon">📚</span>
+                      <span className="aiqp-ref-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="1.5" strokeLinecap="round">
+                          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                        </svg>
+                      </span>
                       <div className="aiqp-ref-info">
                         <span className="aiqp-ref-name">
                           {item.original_filename}
                         </span>
                         <span className="aiqp-ref-desc">
-                          {formatFileSize(item.file_size)} ·{" "}
-                          {getFileTypeLabel(item.file_type)}
+                          {formatFileSize(item.file_size)} · {getFileTypeLabel(item.file_type)}
                         </span>
                       </div>
                     </div>
@@ -449,11 +576,10 @@ export default function AIQuestionPage({
               )}
               <button
                 className="aiqp-ref-all-link"
-                onClick={() => {
-                  setPage("workspaceMaterials");
-                }}
+                onClick={() => setPage("workspaceMaterials")}
               >
-                全部资料库 →
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                全部资料库
               </button>
             </div>
 
@@ -465,6 +591,7 @@ export default function AIQuestionPage({
                   onClick={refreshSuggestions}
                   title="换一批"
                 >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="1 4 1 10 7 10"/><polyline points="23 20 23 14 17 14"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>
                   换一批
                 </button>
               </div>
@@ -473,9 +600,7 @@ export default function AIQuestionPage({
                   <button
                     key={i}
                     className="aiqp-suggestion-item"
-                    onClick={() => {
-                      setMessage(q);
-                    }}
+                    onClick={() => setMessage(q)}
                   >
                     {q}
                   </button>
@@ -485,6 +610,150 @@ export default function AIQuestionPage({
           </aside>
         </div>
       </div>
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          D. HISTORY MODAL
+          ═══════════════════════════════════════════════════════════════════ */}
+      {showHistoryModal && (
+        <div className="aiqp-modal-overlay" onClick={closeHistoryModal}>
+          <div
+            className="aiqp-history-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal header */}
+            <div className="aiqp-history-modal-header">
+              <h2 className="aiqp-history-modal-title">历史对话</h2>
+              <button
+                className="aiqp-modal-close"
+                onClick={closeHistoryModal}
+                title="关闭"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal body: left-right columns */}
+            <div className="aiqp-history-modal-body">
+              {/* Left panel */}
+              <div className="aiqp-history-left">
+                <div className="aiqp-history-filters">
+                  <select
+                    className="aiqp-history-subject-filter"
+                    value={historyFilterSubject}
+                    onChange={(e) => setHistoryFilterSubject(e.target.value)}
+                  >
+                    <option value="all">全部学科</option>
+                    {COURSE_OPTIONS.map((item) => (
+                      <option key={item} value={item}>
+                        {getSubjectLabel(item)}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="aiqp-history-search">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                    <input
+                      className="aiqp-history-search-input"
+                      type="text"
+                      placeholder="搜索历史对话内容..."
+                      value={historySearchQuery}
+                      onChange={(e) => setHistorySearchQuery(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="aiqp-history-list">
+                  {filteredSessions.length === 0 ? (
+                    <div className="aiqp-history-empty">
+                      <p>暂无历史对话记录</p>
+                    </div>
+                  ) : (
+                    filteredSessions.map((session) => (
+                      <button
+                        key={session.id}
+                        className={`aiqp-history-item ${selectedHistorySession?.id === session.id ? "aiqp-history-item--active" : ""}`}
+                        onClick={() => handleSelectHistorySession(session)}
+                      >
+                        <div className="aiqp-history-item-title">
+                          {session.title || "未命名对话"}
+                        </div>
+                        <div className="aiqp-history-item-subject">
+                          {(session.subject || session.course)
+                            ? getSubjectLabel(session.subject || session.course)
+                            : ""}
+                        </div>
+                        <div className="aiqp-history-item-time">
+                          {session.created_at
+                            ? new Date(session.created_at).toLocaleString("zh-CN", {
+                                month: "short",
+                                day: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })
+                            : ""}
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Right panel: preview */}
+              <div className="aiqp-history-right">
+                {!selectedHistorySession ? (
+                  <div className="aiqp-history-right-empty">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="1.5" strokeLinecap="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                    <p>选择左侧对话查看预览</p>
+                  </div>
+                ) : previewLoading ? (
+                  <div className="aiqp-history-right-loading">加载中...</div>
+                ) : (
+                  <>
+                    <div className="aiqp-history-preview-title">
+                      {selectedHistorySession.title || "未命名对话"}
+                    </div>
+                    <div className="aiqp-history-preview-msgs">
+                      {previewMessages.length === 0 ? (
+                        <p className="aiqp-history-right-empty-text">
+                          暂无消息
+                        </p>
+                      ) : (
+                        previewMessages.map((msg, idx) => (
+                          <div
+                            key={idx}
+                            className={`aiqp-history-preview-msg ${msg.role === "user" ? "aiqp-history-preview-msg--user" : "aiqp-history-preview-msg--ai"}`}
+                          >
+                            <div className="aiqp-history-preview-role">
+                              {msg.role === "user" ? "用户" : "AI"}
+                            </div>
+                            <div className="aiqp-history-preview-content">
+                              {(msg.content || "").slice(0, 200)}
+                              {(msg.content || "").length > 200 ? "..." : ""}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    <div className="aiqp-history-preview-footer">
+                      <button
+                        className="aiqp-continue-chat-btn"
+                        onClick={handleContinueChat}
+                      >
+                        继续该对话
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -4,7 +4,7 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import rehypeHighlight from "rehype-highlight";
-import "highlight.js/styles/atom-one-dark.css";
+import "highlight.js/styles/github.css";
 import "katex/dist/katex.min.css";
 
 function copyText(text) {
@@ -108,11 +108,38 @@ function normalizeMathDelimiters(text) {
   return output;
 }
 
+function getLanguageLabel(lang) {
+  const map = {
+    "": "代码", text: "文本", plain: "文本", txt: "文本",
+    c: "C 代码示例", cpp: "C++ 代码示例", "c++": "C++ 代码示例",
+    java: "Java 代码示例", python: "Python 代码示例", py: "Python 代码示例",
+    javascript: "JavaScript 代码示例", js: "JavaScript 代码示例",
+    typescript: "TypeScript 代码示例", ts: "TypeScript 代码示例",
+    jsx: "JSX 代码示例", tsx: "TSX 代码示例",
+    html: "HTML 代码示例", css: "CSS 代码示例",
+    bash: "Bash 代码示例", sh: "Shell 代码示例", zsh: "Zsh 代码示例", shell: "Shell 代码示例",
+    json: "JSON 代码示例", yaml: "YAML 代码示例", yml: "YAML 代码示例",
+    xml: "XML 代码示例", sql: "SQL 代码示例",
+    go: "Go 代码示例", rust: "Rust 代码示例", rs: "Rust 代码示例",
+    php: "PHP 代码示例", ruby: "Ruby 代码示例", rb: "Ruby 代码示例",
+    dart: "Dart 代码示例", kotlin: "Kotlin 代码示例", swift: "Swift 代码示例",
+    scala: "Scala 代码示例", r: "R 代码示例", lua: "Lua 代码示例",
+    dockerfile: "Dockerfile 代码示例",
+    markdown: "Markdown 代码示例", md: "Markdown 代码示例",
+    diff: "Diff 代码示例", patch: "Patch 代码示例",
+    powershell: "PowerShell 代码示例", ps1: "PowerShell 代码示例",
+    makefile: "Makefile 代码示例",
+    toml: "TOML 代码示例", ini: "INI 代码示例", conf: "配置文件示例",
+  };
+  return map[lang.toLowerCase()] || `${lang} 代码示例`;
+}
+
 function CodeBlock({ className, children }) {
   const [copied, setCopied] = useState(false);
   const copySource = useMemo(() => extractTextFromReactNode(children), [children]);
   const languageMatch = /language-([\w-]+)/.exec(className || "");
-  const language = languageMatch?.[1] || "Text";
+  const language = languageMatch?.[1] || "";
+  const languageLabel = getLanguageLabel(language);
 
   useEffect(() => {
     if (!copied) return undefined;
@@ -134,9 +161,9 @@ function CodeBlock({ className, children }) {
   return (
     <div className="code-block-card">
       <div className="code-block-toolbar">
-        <span className="code-block-language">{language}</span>
+        <span className="code-block-language">{languageLabel}</span>
         <button className="code-copy-button" type="button" onClick={handleCopy}>
-          {copied ? "已复制" : "复制"}
+          {copied ? "已复制" : "复制代码"}
         </button>
       </div>
       <pre className="code-block-pre">

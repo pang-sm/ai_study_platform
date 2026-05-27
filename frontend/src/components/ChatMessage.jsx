@@ -47,6 +47,8 @@ export default function ChatMessage({
   const isAssistant = message.role === "assistant";
   const [displayedContent, setDisplayedContent] = useState("");
   const [copied, setCopied] = useState(false);
+  const [liked, setLiked] = useState(false);
+  const [disliked, setDisliked] = useState(false);
   const cardRef = useRef(null);
   const visibleContent =
     isAssistant && message.animateTyping ? displayedContent : message.content || "";
@@ -66,7 +68,7 @@ export default function ChatMessage({
       index = Math.min(fullText.length, index + step);
       setDisplayedContent(fullText.slice(0, index));
 
-      const board = cardRef.current?.closest(".messages-board");
+      const board = cardRef.current?.closest(".messages-board") || cardRef.current?.closest(".aiqp-messages-board");
       if (board) {
         board.scrollTop = board.scrollHeight;
       }
@@ -88,7 +90,6 @@ export default function ChatMessage({
 
   useEffect(() => {
     if (!copied) return undefined;
-
     const timer = window.setTimeout(() => setCopied(false), 1500);
     return () => window.clearTimeout(timer);
   }, [copied]);
@@ -97,79 +98,191 @@ export default function ChatMessage({
     try {
       await copyText(message.content || "");
       setCopied(true);
-    } catch (error) {
-      console.error("复制回答失败：", error);
+    } catch {
       setCopied(false);
     }
+  };
+
+  const handleLike = () => {
+    setLiked((v) => !v);
+    if (disliked) setDisliked(false);
+  };
+
+  const handleDislike = () => {
+    setDisliked((v) => !v);
+    if (liked) setLiked(false);
   };
 
   const messageKey = String(message.id || message.clientId || "");
   const savedRecordTypes = Array.isArray(message.savedRecordTypes) ? message.savedRecordTypes : [];
 
+  const msgTime = message.timestamp
+    ? new Date(message.timestamp).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })
+    : message.created_at
+      ? new Date(message.created_at).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })
+      : "";
+
+  const userInitial = message.userInitial || "?";
+
   return (
     <div
       ref={cardRef}
-      className={message.role === "user" ? "message-card user" : "message-card assistant"}
+      className={`message-card ${message.role === "user" ? "user" : "assistant"}`}
     >
-      <div className="message-meta-row">
-        <div className="message-role">{message.role === "user" ? "我" : "AI"}</div>
-        {isAssistant && (
-          <button className="message-copy-button" type="button" onClick={handleCopyAnswer}>
-            {copied ? "已复制" : "复制回答"}
-          </button>
-        )}
-      </div>
-
-      {isAssistant ? (
-        <MarkdownMessage content={visibleContent} isTyping={Boolean(message.animateTyping)} />
-      ) : (
-        <div className="message-text">{visibleContent}</div>
-      )}
-
-      {!isAssistant && Array.isArray(message.attachments) && message.attachments.length > 0 && (
-        <div className="attachment-card">
-          {message.attachments.map((attachment) => (
-            <div key={attachment.material_id || attachment.original_filename} className="attachment-meta">
-              <span className="subject-pill small">{getFileTypeLabel(attachment.file_type)}</span>
-              <span>{attachment.original_filename || "未命名文件"}</span>
-              <span>{attachment.parse_status === "success" ? "已解析" : attachment.parse_status}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
+      {/* ── Assistant: avatar + card layout ── */}
       {isAssistant && (
-        <div className="message-action-row">
-          {["wrong_question", "important", "review"].map((recordType) => {
-            const isSaving =
-              learningRecordActionState?.loading &&
-              learningRecordActionState?.messageKey === messageKey &&
-              learningRecordActionState?.recordType === recordType;
-            const isSaved = savedRecordTypes.includes(recordType);
+        <>
+          <div className="message-avatar-row">
+            <div className="message-avatar message-avatar--ai">AI</div>
+            <div className="message-time">{msgTime}</div>
+          </div>
+          <div className="message-body-card">
+            <MarkdownMessage content={visibleContent} isTyping={Boolean(message.animateTyping)} />
 
-            return (
+            {/* References */}
+            {Array.isArray(message.references) && message.references.length > 0 && (
+              <div className="reference-section">
+                <div className="reference-title">参考资料</div>
+                <div className="reference-list">
+                  {message.references.map((reference, referenceIndex) => (
+                    <div key={`${reference.material_id}-${referenceIndex}`} className="reference-card">
+                      <div className="reference-name">
+                        {referenceIndex + 1}. {reference.filename}
+                      </div>
+                      <div className="reference-meta">
+                        学科：{getSubjectLabel(reference.subject)} | 类型：
+                        {getFileTypeLabel(reference.file_type)}
+                      </div>
+                      <div className="reference-snippet">命中片段：{getReferenceSnippet(reference)}</div>
+                      <button
+                        className="tiny-button"
+                        onClick={() => openMaterialDetail(reference.material_id, "profile")}
+                      >
+                        查看资料
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {(!message.references || message.references.length === 0) &&
+              Array.isArray(message.rag_sources) &&
+              message.rag_sources.length > 0 && (
+                <div className="reference-section">
+                  <div className="reference-title">参考文件</div>
+                  <div className="rag-sources-summary">
+                    {message.rag_sources.join("、")}
+                  </div>
+                </div>
+              )}
+
+            {(!message.references || message.references.length === 0) &&
+              (!message.rag_sources || message.rag_sources.length === 0) &&
+              message.has_bound_materials && (
+                <div className="reference-section reference-section--fallback">
+                  <div className="reference-title">参考资料</div>
+                  <div className="rag-sources-fallback">
+                    本轮上传资料中没有找到足够相关的可引用片段，本次回答可能包含模型补充说明。
+                  </div>
+                </div>
+              )}
+
+            {/* Action row: like / dislike / copy / add to 重点 */}
+            <div className="message-action-row">
               <button
-                key={recordType}
-                className={isSaved ? "record-action-button saved" : "record-action-button"}
+                className={`message-action-icon-btn ${liked ? "active" : ""}`}
+                onClick={handleLike}
+                title="点赞"
                 type="button"
-                disabled={isSaving || isSaved}
-                onClick={() =>
-                  onSaveLearningRecord?.({
-                    messageItem: message,
-                    question: questionText,
-                    recordType,
-                  })
-                }
               >
-                {getRecordTypeIcon?.(recordType)}{" "}
-                {isSaving ? "保存中..." : `加入${getRecordTypeLabel?.(recordType)}`}
+                <svg width="15" height="15" viewBox="0 0 24 24" fill={liked ? "#2563eb" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
+                </svg>
               </button>
-            );
-          })}
-        </div>
+              <button
+                className={`message-action-icon-btn ${disliked ? "active" : ""}`}
+                onClick={handleDislike}
+                title="点踩"
+                type="button"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill={disliked ? "#ef4444" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17" />
+                </svg>
+              </button>
+              <span className="message-action-divider" />
+              <button
+                className="message-action-text-btn"
+                onClick={handleCopyAnswer}
+                type="button"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+                {copied ? "已复制" : "复制"}
+              </button>
+
+              {/* Only "加入重点" — removed 错题本/待复习 */}
+              {(() => {
+                const recordType = "important";
+                const isSaving =
+                  learningRecordActionState?.loading &&
+                  learningRecordActionState?.messageKey === messageKey &&
+                  learningRecordActionState?.recordType === recordType;
+                const isSaved = savedRecordTypes.includes(recordType);
+
+                return (
+                  <button
+                    className={`message-action-text-btn ${isSaved ? "saved" : ""}`}
+                    type="button"
+                    disabled={isSaving || isSaved}
+                    onClick={() =>
+                      onSaveLearningRecord?.({
+                        messageItem: message,
+                        question: questionText,
+                        recordType,
+                      })
+                    }
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill={isSaved ? "#2563eb" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                    </svg>
+                    {isSaving ? "保存中..." : isSaved ? "已加入重点" : "加入重点"}
+                  </button>
+                );
+              })()}
+            </div>
+          </div>
+        </>
       )}
 
-      {message.attachment_type && (
+      {/* ── User message: right-aligned bubble ── */}
+      {!isAssistant && (
+        <>
+          <div className="message-avatar-row message-avatar-row--user">
+            <div className="message-time">{msgTime}</div>
+            <div className="message-avatar message-avatar--user">{userInitial}</div>
+          </div>
+          <div className="message-bubble-user">
+            <div className="message-text">{visibleContent}</div>
+          </div>
+
+          {Array.isArray(message.attachments) && message.attachments.length > 0 && (
+            <div className="attachment-card">
+              {message.attachments.map((attachment) => (
+                <div key={attachment.material_id || attachment.original_filename} className="attachment-meta">
+                  <span className="subject-pill small">{getFileTypeLabel(attachment.file_type)}</span>
+                  <span>{attachment.original_filename || "未命名文件"}</span>
+                  <span>{attachment.parse_status === "success" ? "已解析" : attachment.parse_status}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── Attachment info for assistant ── */}
+      {isAssistant && message.attachment_type && (
         <div className="attachment-card">
           <div className="attachment-meta">
             <span className="subject-pill small">{getFileTypeLabel(message.attachment_type)}</span>
@@ -229,56 +342,6 @@ export default function ChatMessage({
           )}
         </div>
       )}
-
-      {isAssistant && Array.isArray(message.references) && message.references.length > 0 && (
-        <div className="reference-section">
-          <div className="reference-title">参考资料</div>
-          <div className="reference-list">
-            {message.references.map((reference, referenceIndex) => (
-              <div key={`${reference.material_id}-${referenceIndex}`} className="reference-card">
-                <div className="reference-name">
-                  {referenceIndex + 1}. {reference.filename}
-                </div>
-                <div className="reference-meta">
-                  学科：{getSubjectLabel(reference.subject)} | 类型：
-                  {getFileTypeLabel(reference.file_type)}
-                </div>
-                <div className="reference-snippet">命中片段：{getReferenceSnippet(reference)}</div>
-                <button
-                  className="tiny-button"
-                  onClick={() => openMaterialDetail(reference.material_id, "profile")}
-                >
-                  查看资料
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {isAssistant &&
-        (!message.references || message.references.length === 0) &&
-        Array.isArray(message.rag_sources) &&
-        message.rag_sources.length > 0 && (
-          <div className="reference-section">
-            <div className="reference-title">参考文件</div>
-            <div className="rag-sources-summary">
-              {message.rag_sources.join("、")}
-            </div>
-          </div>
-        )}
-
-      {isAssistant &&
-        (!message.references || message.references.length === 0) &&
-        (!message.rag_sources || message.rag_sources.length === 0) &&
-        message.has_bound_materials && (
-          <div className="reference-section reference-section--fallback">
-            <div className="reference-title">参考资料</div>
-            <div className="rag-sources-fallback">
-              本轮上传资料中没有找到足够相关的可引用片段，本次回答可能包含模型补充说明。
-            </div>
-          </div>
-        )}
     </div>
   );
 }

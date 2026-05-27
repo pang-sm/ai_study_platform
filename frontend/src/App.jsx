@@ -3190,6 +3190,10 @@ function App() {
         saveLearningRecord={saveLearningRecord}
         getRecordTypeLabel={getRecordTypeLabel}
         getRecordTypeIcon={getRecordTypeIcon}
+        startNewConversation={startNewConversation}
+        chatSessions={chatSessions}
+        openChatSession={openChatSession}
+        loadChatSessions={loadChatSessions}
       />
     );
   }
