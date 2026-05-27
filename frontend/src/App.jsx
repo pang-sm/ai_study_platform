@@ -3,6 +3,7 @@ import "./App.css";
 import ChatMessage from "./components/ChatMessage.jsx";
 import CourseDashboard from "./components/CourseDashboard.jsx";
 import HomePage from "./components/HomePage.jsx";
+import ProfilePage from "./components/ProfilePage.jsx";
 
 const CodeStudio = lazy(() => import("./components/CodeStudio.jsx"));
 const TaskCenter = lazy(() => import("./components/TaskCenter.jsx"));
@@ -2419,32 +2420,32 @@ function App() {
     const hasCustomAvatar = (user?.avatar_url || "").startsWith("/me/avatar/");
 
     return (
-      <>
-        <input
-          ref={avatarInputRef}
-          type="file"
-          accept="image/jpeg,image/png,image/webp,image/gif"
-          onChange={handleAvatarUpload}
-          className="hidden-file-input"
-        />
-        <HomePage
-          user={user}
-          page={page}
-          setPage={setPage}
-          subject={subject}
-          setSubject={setSubject}
-          avatarObj={avatarObj}
-          hasCustomAvatar={hasCustomAvatar}
-          apiBase={API_BASE}
-          avatarInputRef={avatarInputRef}
-          onAvatarClick={() => avatarInputRef.current?.click()}
-          onLogout={logout}
-          isAdmin={!!user?.is_admin}
-          onBeforeProfileEdit={() => {
-            setLearningGoals(Array.isArray(user?.learning_goals) ? [...user.learning_goals] : []);
-          }}
-        />
-      </>
+      <HomePage
+        user={user}
+        page={page}
+        setPage={setPage}
+        subject={subject}
+        setSubject={setSubject}
+        avatarObj={avatarObj}
+        hasCustomAvatar={hasCustomAvatar}
+        apiBase={API_BASE}
+        onLogout={logout}
+        isAdmin={!!user?.is_admin}
+        onBeforeProfileEdit={() => {
+          setLearningGoals(Array.isArray(user?.learning_goals) ? [...user.learning_goals] : []);
+        }}
+      />
+    );
+  }
+
+  if (page === "profile") {
+    return (
+      <ProfilePage
+        user={user}
+        apiBase={API_BASE}
+        onLogout={logout}
+        setPage={setPage}
+      />
     );
   }
 

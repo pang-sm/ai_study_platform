@@ -17,7 +17,7 @@ function getGreeting() {
    SIDEBAR
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function Sidebar({ user, page, onNavigate, onLogout, isAdmin }) {
+function Sidebar({ page, onNavigate, onLogout, isAdmin }) {
   const mainNav = [
     { id: "home", icon: "🏠", label: "首页" },
     { id: "dashboard", icon: "💬", label: "AI 问答" },
@@ -74,23 +74,6 @@ function Sidebar({ user, page, onNavigate, onLogout, isAdmin }) {
       </nav>
 
       <div className="hp-sidebar-footer">
-        <div className="hp-premium-card">
-          <div className="hp-premium-top">
-            <span className="hp-premium-icon">👑</span>
-            <span className="hp-premium-title">升级会员</span>
-          </div>
-          <div className="hp-premium-desc">解锁无限 AI 问答和更多高级功能</div>
-          <button className="hp-premium-btn">立即升级</button>
-        </div>
-
-        <div className="hp-sidebar-user-row">
-          <div className="hp-sidebar-avatar">{(user?.nickname || user?.username || "A").charAt(0)}</div>
-          <div className="hp-sidebar-user-info">
-            <div className="hp-sidebar-user-name">{user?.nickname || user?.username || "admin"}</div>
-            <div className="hp-sidebar-user-role">{user?.grade || "学习者"}</div>
-          </div>
-        </div>
-
         <div className="hp-sidebar-divider" />
         <button className="hp-logout-btn" onClick={onLogout}>退出登录</button>
       </div>
@@ -102,7 +85,7 @@ function Sidebar({ user, page, onNavigate, onLogout, isAdmin }) {
    TOPBAR
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function TopBar({ user, avatarObj, hasCustomAvatar, apiBase, onAvatarClick }) {
+function TopBar({ user, avatarObj, hasCustomAvatar, apiBase, onProfileClick }) {
   return (
     <header className="hp-topbar">
       <div className="hp-topbar-search">
@@ -114,7 +97,7 @@ function TopBar({ user, avatarObj, hasCustomAvatar, apiBase, onAvatarClick }) {
           <span className="hp-icon-bell">🔔</span>
           <span className="hp-badge">3</span>
         </button>
-        <div className="hp-topbar-user" onClick={onAvatarClick} title="点击更换头像">
+        <div className="hp-topbar-user hp-clickable" onClick={onProfileClick} title="个人主页">
           {hasCustomAvatar ? (
             <img
               className="hp-topbar-avatar"
@@ -526,7 +509,6 @@ export default function HomePage({
   avatarObj,
   hasCustomAvatar,
   apiBase,
-  onAvatarClick,
   onLogout,
   isAdmin,
   onBeforeProfileEdit,
@@ -624,14 +606,14 @@ export default function HomePage({
 
   return (
     <div className="hp-shell">
-      <Sidebar user={user} page={page} onNavigate={handleNavigate} onLogout={onLogout} isAdmin={isAdmin} />
+      <Sidebar page={page} onNavigate={handleNavigate} onLogout={onLogout} isAdmin={isAdmin} />
       <div className="hp-main">
         <TopBar
           user={user}
           avatarObj={avatarObj}
           hasCustomAvatar={hasCustomAvatar}
           apiBase={apiBase}
-          onAvatarClick={onAvatarClick}
+          onProfileClick={() => setPage("profile")}
         />
         <div className="hp-content">
           <div className="hp-content-left">
