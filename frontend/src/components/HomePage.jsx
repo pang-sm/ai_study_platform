@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import "./HomePage.css";
-import heroStudentImg from "../assets/home-hero-student.png";
+import heroStudyBg from "../assets/home-hero-study-bg.png";
 
 /* ── Time-based greeting ── */
 
@@ -167,34 +167,9 @@ function HeroSection({ user, stats, greeting, onStartLearning, onGoPractice }) {
           </div>
         </div>
 
-        {/* Illustration area */}
-        <div className="hp-hero-illustration">
-          <div className="hp-illust-card">
-            <div className="hp-illust-card-header">
-              <div className="hp-illust-card-dot" style={{ background: "#ef4444" }} />
-              <div className="hp-illust-card-dot" style={{ background: "#f59e0b" }} />
-              <div className="hp-illust-card-dot" style={{ background: "#22c55e" }} />
-            </div>
-            <div className="hp-illust-card-lines">
-              <div className="hp-illust-card-line" style={{ width: "80%" }} />
-              <div className="hp-illust-card-line" style={{ width: "55%", marginLeft: 8 }} />
-              <div className="hp-illust-card-line" style={{ width: "68%" }} />
-              <div className="hp-illust-card-line" style={{ width: "42%", marginLeft: 8 }} />
-            </div>
-          </div>
-
-          <div className="hp-illust-tags">
-            <span className="hp-illust-tag" style={{ background: "rgba(255,255,255,0.18)", color: "#fff" }}>{"</> C++"}</span>
-            <span className="hp-illust-tag" style={{ background: "rgba(255,255,255,0.18)", color: "#fff" }}>{"</> Python"}</span>
-            <span className="hp-illust-tag" style={{ background: "rgba(255,255,255,0.18)", color: "#fff" }}>{"</> C"}</span>
-          </div>
-
-          <div className="hp-illust-book">📘</div>
-        </div>
-
-        {/* Student character image */}
-        <div className="hp-hero-student">
-          <img src={heroStudentImg} alt="学习助手" className="hp-hero-student-img" />
+        {/* Hero study background image */}
+        <div className="hp-hero-study">
+          <img src={heroStudyBg} alt="学生学习场景" className="hp-hero-study-img" />
         </div>
       </div>
 

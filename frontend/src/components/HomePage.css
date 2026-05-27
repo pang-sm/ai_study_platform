@@ -598,101 +598,21 @@
   transform: translateY(-1px);
 }
 
-/* Hero illustration area */
+/* Hero study background image */
 
-.hp-hero-illustration {
-  display: flex;
-  gap: 12px;
-  align-items: flex-end;
+.hp-hero-study {
   flex-shrink: 0;
-}
-
-.hp-illust-card {
-  background: rgba(255,255,255,0.12);
-  backdrop-filter: blur(8px);
-  border-radius: 14px;
-  padding: 14px 16px;
-  border: 1px solid rgba(255,255,255,0.15);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.hp-illust-card-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.hp-illust-card-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-}
-
-.hp-illust-card-lines {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.hp-illust-card-line {
-  height: 3px;
-  border-radius: 3px;
-  background: rgba(255,255,255,0.3);
-}
-
-.hp-illust-tags {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.hp-illust-tag {
-  font-size: 11px;
-  padding: 4px 10px;
-  border-radius: 20px;
-  font-weight: 600;
-}
-
-.hp-illust-book {
-  width: 54px;
-  height: 64px;
-  background: rgba(255,255,255,0.12);
-  border-radius: 8px 14px 14px 8px;
-  border: 1px solid rgba(255,255,255,0.15);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 26px;
-  position: relative;
 }
 
-.hp-illust-book::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: rgba(255,255,255,0.4);
-  border-radius: 2px 0 0 2px;
-}
-
-/* Student image */
-
-.hp-hero-student {
-  flex-shrink: 0;
-  display: flex;
-  align-items: flex-end;
-  margin-top: -12px;
-}
-
-.hp-hero-student-img {
-  height: 220px;
+.hp-hero-study-img {
+  height: 260px;
   width: auto;
+  max-width: 420px;
   object-fit: contain;
-  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.15));
+  filter: drop-shadow(0 8px 24px rgba(0,0,0,0.2));
 }
 
 /* Hero Stats */
@@ -1547,12 +1467,9 @@
 }
 
 @media (max-width: 1320px) {
-  .hp-hero-illustration {
-    display: none;
-  }
-
-  .hp-hero-student-img {
-    height: 180px;
+  .hp-hero-study-img {
+    height: 200px;
+    max-width: 320px;
   }
 
   .hp-features-grid {
@@ -1579,7 +1496,7 @@
     min-width: 210px;
   }
 
-  .hp-hero-illustration {
+  .hp-hero-study {
     display: none;
   }
 
