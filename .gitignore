@@ -25,3 +25,5 @@ frontend/dist/
 uploads/
 backend/uploads/
 .claude/
+design-reference/
+docs/
