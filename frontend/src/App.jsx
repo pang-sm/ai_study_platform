@@ -2457,7 +2457,7 @@ function App() {
   }
 
   const wrapPage = (children) => (
-    <AppLayout activePage={page} onNavigate={navigateTo} isAdmin={!!user?.is_admin}>
+    <AppLayout activePage={page} onNavigate={setPage} isAdmin={!!user?.is_admin}>
       {children}
     </AppLayout>
   );
