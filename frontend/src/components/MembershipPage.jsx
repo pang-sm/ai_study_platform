@@ -1,11 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import "./MembershipPage.css";
 
-const AD_BANNER_PLACEHOLDER = {
-  title: "广告位预留",
-  text: "未来可接入激励广告，免费用户可通过观看广告获得额外次数",
-};
-
 export default function MembershipPage({ user, apiBase, setPage, onPlanUpdate }) {
   const [effectivePlan, setEffectivePlan] = useState(null);
   const [plans, setPlans] = useState([]);
@@ -301,16 +296,6 @@ export default function MembershipPage({ user, apiBase, setPage, onPlanUpdate })
             )}
           </div>
         ))}
-      </div>
-
-      {/* ── Ad Placeholder ── */}
-      <div className="mp-card mp-ad-card">
-        <div className="mp-ad-icon">📢</div>
-        <div className="mp-ad-content">
-          <div className="mp-ad-title">{AD_BANNER_PLACEHOLDER.title}</div>
-          <div className="mp-ad-text">{AD_BANNER_PLACEHOLDER.text}</div>
-        </div>
-        <div className="mp-ad-badge">预留</div>
       </div>
 
       {/* ── Redeem Section ── */}
