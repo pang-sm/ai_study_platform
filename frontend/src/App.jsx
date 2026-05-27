@@ -28,6 +28,7 @@ import {
 
 const USER_STORAGE_KEY = "ai_study_platform_user";
 const ACTIVE_SESSION_STORAGE_KEY = "ai_study_platform_active_session_id";
+const CURRENT_PAGE_KEY = "ai_study_current_page";
 const API_BASE = "/api";
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
@@ -322,7 +323,7 @@ function getInitialPage() {
   const savedUser = getSavedUser();
   if (!savedUser) return "login";
   try {
-    const savedPage = localStorage.getItem("currentPage");
+    const savedPage = localStorage.getItem(CURRENT_PAGE_KEY);
     if (savedPage && VALID_PAGES.has(savedPage)) return savedPage;
   } catch { /* ignore */ }
   return "login";
@@ -330,8 +331,12 @@ function getInitialPage() {
 
 function saveCurrentPage(pageName) {
   if (VALID_PAGES.has(pageName)) {
-    try { localStorage.setItem("currentPage", pageName); } catch { /* ignore */ }
+    try { localStorage.setItem(CURRENT_PAGE_KEY, pageName); } catch { /* ignore */ }
   }
+}
+
+function clearCurrentPage() {
+  try { localStorage.removeItem(CURRENT_PAGE_KEY); } catch { /* ignore */ }
 }
 
 function App() {
@@ -727,7 +732,7 @@ function App() {
     setCourseDashboardData(null);
     setCourseDashboardLoading(false);
     setCourseProgressSavingKey("");
-    try { localStorage.removeItem("currentPage"); } catch { /* ignore */ }
+    clearCurrentPage();
     setPage("login");
     setAuthMode("login");
   };
@@ -1642,10 +1647,13 @@ function App() {
         const checkedUser = data.user || savedUser;
         saveLoginUser(checkedUser);
         await loadProfile(checkedUser);
-        if (checkedUser.onboarding_completed) {
-          setPage("home");
-        } else {
+        const savedPage = (() => {
+          try { return localStorage.getItem(CURRENT_PAGE_KEY); } catch { return null; }
+        })();
+        if (!checkedUser.onboarding_completed) {
           setPage("onboarding");
+        } else if (savedPage && VALID_PAGES.has(savedPage)) {
+          setPage(savedPage);
         }
       } catch (error) {
         console.error("Failed to verify login status:", error);
@@ -3224,9 +3232,6 @@ function App() {
           <div className="workspace-topbar-actions">
             <button className="primary-button compact" onClick={startNewConversation}>
               新建对话
-            </button>
-            <button className="ghost-button compact" onClick={logout}>
-              退出
             </button>
           </div>
         </div>
