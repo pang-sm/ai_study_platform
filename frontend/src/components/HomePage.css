@@ -520,6 +520,13 @@
   z-index: 1;
 }
 
+.hp-hero-left {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
 .hp-hero-text {
   flex: 1;
 }
@@ -672,6 +679,22 @@
   border-radius: 2px 0 0 2px;
 }
 
+/* Student image */
+
+.hp-hero-student {
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-end;
+  margin-top: -12px;
+}
+
+.hp-hero-student-img {
+  height: 220px;
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.15));
+}
+
 /* Hero Stats */
 
 .hp-hero-stats {
@@ -756,6 +779,18 @@
   background: linear-gradient(90deg, rgba(255,255,255,0.7), rgba(255,255,255,0.95));
   border-radius: 3px;
   transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
+}
+
+.hp-stat-empty {
+  font-size: 20px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.55);
+}
+
+.hp-stat-hint {
+  font-size: 11px;
+  color: rgba(255,255,255,0.45);
+  margin-top: 6px;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1214,6 +1249,12 @@
   box-shadow: 0 2px 8px rgba(234,88,12,0.3);
 }
 
+.hp-streak-empty {
+  font-size: 18px;
+  font-weight: 700;
+  color: #94a3b8;
+}
+
 /* ── Tasks Card ── */
 
 .hp-task-header-row {
@@ -1434,6 +1475,59 @@
   margin-top: 1px;
 }
 
+/* ── Panel empty state ── */
+
+.hp-panel-empty {
+  text-align: center;
+  padding: 16px 8px;
+}
+
+.hp-panel-empty-icon {
+  font-size: 28px;
+  margin-bottom: 8px;
+}
+
+.hp-panel-empty-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.hp-panel-empty-hint {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+/* ── Loading overlay ── */
+
+.hp-loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255,255,255,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  pointer-events: none;
+}
+
+.hp-loading-spinner {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 3px solid #e2e8f0;
+  border-top-color: #2563eb;
+  animation: hp-spin 0.7s linear infinite;
+}
+
+@keyframes hp-spin {
+  to { transform: rotate(360deg); }
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    RESPONSIVE
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -1455,6 +1549,10 @@
 @media (max-width: 1320px) {
   .hp-hero-illustration {
     display: none;
+  }
+
+  .hp-hero-student-img {
+    height: 180px;
   }
 
   .hp-features-grid {

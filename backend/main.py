@@ -2739,6 +2739,92 @@ def health():
     return {"status": "ok"}
 
 
+@app.get("/home/summary")
+def get_home_summary(username: str, db: Session = Depends(get_db)):
+    """Minimal dashboard summary for the homepage. Aggregates real data only."""
+    user = get_user_by_username(username, db)
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # ── 学习进度 (average mastery across all knowledge points) ──
+    kp_progresses = (
+        db.query(models.UserKnowledgeProgress)
+        .filter(models.UserKnowledgeProgress.username == user.username)
+        .all()
+    )
+    average_mastery = None
+    if kp_progresses:
+        scores = [p.mastery_score or 0 for p in kp_progresses]
+        average_mastery = round(sum(scores) / len(scores))
+
+    # ── 任务进度 ──
+    all_tasks_q = db.query(models.LearningTask).filter(models.LearningTask.username == user.username)
+    total_tasks = all_tasks_q.count()
+    completed_tasks = all_tasks_q.filter(models.LearningTask.status == "done").count()
+    today_completed_tasks = (
+        all_tasks_q.filter(
+            models.LearningTask.status == "done",
+            models.LearningTask.completed_at >= today_start,
+        ).count()
+    )
+    todo_tasks = all_tasks_q.filter(models.LearningTask.status == "todo").count()
+
+    # ── AI 提问次数 (user messages in chat) ──
+    total_questions = (
+        db.query(models.ChatMessage)
+        .filter(
+            models.ChatMessage.user_id == user.id,
+            models.ChatMessage.role == "user",
+        )
+        .count()
+    )
+    today_questions = (
+        db.query(models.ChatMessage)
+        .filter(
+            models.ChatMessage.user_id == user.id,
+            models.ChatMessage.role == "user",
+            models.ChatMessage.created_at >= today_start,
+        )
+        .count()
+    )
+
+    # ── 练习题目 ──
+    total_practice_questions = (
+        db.query(models.Question)
+        .filter(models.Question.username == user.username)
+        .count()
+    )
+
+    # ── 连续学习天数 (from KnowledgeProgressEvent, naive consecutive-day count) ──
+    streak = None
+    if kp_progresses:
+        study_dates = set()
+        for p in kp_progresses:
+            if p.last_studied_at:
+                study_dates.add(p.last_studied_at.date())
+        if study_dates:
+            sorted_dates = sorted(study_dates, reverse=True)
+            streak = 1
+            for i in range(1, len(sorted_dates)):
+                if (sorted_dates[i - 1] - sorted_dates[i]).days == 1:
+                    streak += 1
+                else:
+                    break
+            if (date.today() - sorted_dates[0]).days > 1:
+                streak = 0
+
+    return {
+        "average_mastery": average_mastery,
+        "total_tasks": total_tasks,
+        "completed_tasks": completed_tasks,
+        "today_completed_tasks": today_completed_tasks,
+        "todo_tasks": todo_tasks,
+        "total_questions": total_questions,
+        "today_questions": today_questions,
+        "total_practice_questions": total_practice_questions,
+        "study_streak": streak,
+    }
+
+
 @app.get("/debug/qwen-status")
 def get_qwen_status():
     return get_qwen_status_payload()
