@@ -59,21 +59,34 @@ const CODE_STRUCTURE_RE =
 
 function shouldRenderAsInlineCode(language, codeText) {
   const lang = (language || "").trim().toLowerCase();
-  if (PRESERVED_LANGUAGES.has(lang)) return false;
-  if (!COLLAPSIBLE_LANGUAGES.has(lang)) return false;
-
   const stripped = (codeText || "").trim();
   if (!stripped) return false;
+
+  // Multi-line content always deserves a code block
   if (stripped.includes("\n")) return false;
-  if (stripped.length > 60) return false;
 
   // Very short bracket-only / symbol-only content is not real code
   const bracketOnlyRe = /^[\{\}\[\]\(\)<>'"`,.:;!?@#$%^&*_+\-=\\\/|~`\s]{0,8}$/;
   if (bracketOnlyRe.test(stripped)) return true;
 
-  // Plain natural-language-looking text (no code syntax) should be inline
   const looksLikeCode = CODE_STRUCTURE_RE.test(stripped);
-  if (!looksLikeCode) return true;
+
+  // Collapsible languages (text, plain, etc.): always downgrade short content
+  if (COLLAPSIBLE_LANGUAGES.has(lang)) {
+    if (stripped.length > 60) return false;
+    if (!looksLikeCode) return true;
+    return false;
+  }
+
+  // Preserved languages with short single-line content that doesn't have
+  // real code structure — likely a fragment the AI accidentally fenced
+  if (PRESERVED_LANGUAGES.has(lang)) {
+    if (stripped.length <= 80 && !looksLikeCode) return true;
+    return false;
+  }
+
+  // Unknown language tags: treat short non-code content as inline
+  if (stripped.length <= 60 && !looksLikeCode) return true;
 
   return false;
 }

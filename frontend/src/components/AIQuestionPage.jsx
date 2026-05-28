@@ -102,6 +102,22 @@ export default function AIQuestionPage({
 
   const referencedFiles = Array.isArray(selectedFiles) ? selectedFiles.filter((f) => !f.uploading) : [];
 
+  function cleanDisplayText(text) {
+    if (!text) return "";
+    let s = String(text);
+    // Strip HTML tags
+    s = s.replace(/<[^>]*>/g, "");
+    // Strip LaTeX math delimiters ($, $$, \(, \), \[, \])
+    s = s.replace(/\$\$/g, "").replace(/\$/g, "").replace(/\\[\(\[]/g, "").replace(/\\[\)\]]/g, "");
+    // Strip Markdown link syntax [...](url)
+    s = s.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1");
+    // Strip Markdown emphasis markers
+    s = s.replace(/[*_~`]{1,3}/g, "");
+    // Collapse whitespace
+    s = s.replace(/\s+/g, " ").trim();
+    return s;
+  }
+
   const dedupeMaterials = (items) => {
     const map = new Map();
     (items || []).forEach((item) => {
@@ -593,6 +609,9 @@ export default function AIQuestionPage({
                     const pageInfo = ref._pages && ref._pages.length > 0
                       ? ` · P${ref._pages.filter(Boolean).join(", P")}`
                       : "";
+                    const displayName = cleanDisplayText(ref.filename || ref.original_filename) || "参考资料";
+                    const subjectLabel = ref.subject ? getSubjectLabel(cleanDisplayText(ref.subject)) : "";
+                    const fileTypeLabel = ref.file_type ? getFileTypeLabel(cleanDisplayText(ref.file_type)) : "";
                     return (
                       <div key={ref.material_id || ref.filename || idx} className="aiqp-ref-item">
                         <span className="aiqp-ref-icon">
@@ -603,10 +622,10 @@ export default function AIQuestionPage({
                           </svg>
                         </span>
                         <div className="aiqp-ref-info">
-                          <span className="aiqp-ref-name">{ref.filename || ref.original_filename || "参考资料"}</span>
+                          <span className="aiqp-ref-name">{displayName}</span>
                           <span className="aiqp-ref-desc">
-                            {ref.subject ? `${getSubjectLabel(ref.subject)} · ` : ""}
-                            {ref.file_type ? `${getFileTypeLabel(ref.file_type)}` : ""}
+                            {subjectLabel ? `${subjectLabel} · ` : ""}
+                            {fileTypeLabel}
                             {pageInfo}
                           </span>
                         </div>

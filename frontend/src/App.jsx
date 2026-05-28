@@ -278,10 +278,18 @@ function getDisplayMessage(detail, fallback) {
 }
 
 function getReferenceSnippet(reference) {
-  const snippet = String(reference?.snippet || "").trim();
-  if (!snippet) return "暂无片段预览";
-  if (snippet.length <= 180) return snippet;
-  return `${snippet.slice(0, 180)}...`;
+  const raw = String(reference?.snippet || "").trim();
+  if (!raw) return "暂无片段预览";
+  // Clean LaTeX / HTML / Markdown artifacts from display text
+  let s = raw;
+  s = s.replace(/\$\$/g, "").replace(/\$/g, "").replace(/\\[\(\[]/g, "").replace(/\\[\)\]]/g, "");
+  s = s.replace(/<[^>]*>/g, "");
+  s = s.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1");
+  s = s.replace(/[*_~`]{1,3}/g, "");
+  s = s.replace(/\s+/g, " ").trim();
+  if (!s) return "暂无片段预览";
+  if (s.length <= 180) return s;
+  return `${s.slice(0, 180)}...`;
 }
 
 function getRecordTypeLabel(recordType) {
