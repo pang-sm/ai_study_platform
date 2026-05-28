@@ -101,10 +101,36 @@ export default function AIQuestionPage({
   const hasCustomAvatar = (user?.avatar_url || "").startsWith("/me/avatar/");
 
   const referencedFiles = Array.isArray(selectedFiles) ? selectedFiles.filter((f) => !f.uploading) : [];
+
+  const dedupeMaterials = (items) => {
+    const map = new Map();
+    (items || []).forEach((item) => {
+      const key = item.material_id || item.filename || item.file_name || item.title || item.source || item.path || item.original_filename;
+      if (!key) return;
+      if (!map.has(key)) {
+        map.set(key, { ...item, _pages: [] });
+      }
+      const existed = map.get(key);
+      if (item.page) existed._pages.push(item.page);
+      if (item.page_range) existed._pages.push(item.page_range);
+    });
+    return Array.from(map.values());
+  };
+
+  const aiReferences = dedupeMaterials(
+    Array.isArray(messages)
+      ? messages.filter((m) => m && m.role === "assistant").flatMap((m) => m.references || [])
+      : []
+  );
+
   const hasReferences =
-    referencedFiles.length > 0 || (Array.isArray(selectedLibraryMaterials) && selectedLibraryMaterials.length > 0);
+    referencedFiles.length > 0 ||
+    (Array.isArray(selectedLibraryMaterials) && selectedLibraryMaterials.length > 0) ||
+    aiReferences.length > 0;
   const refCount =
-    referencedFiles.length + (Array.isArray(selectedLibraryMaterials) ? selectedLibraryMaterials.length : 0);
+    referencedFiles.length +
+    (Array.isArray(selectedLibraryMaterials) ? selectedLibraryMaterials.length : 0) +
+    aiReferences.length;
 
   const openHistoryModal = useCallback(() => {
     setShowHistoryModal(true);
@@ -324,6 +350,7 @@ export default function AIQuestionPage({
                 <ChatMessage
                   key={msg.id || msg.clientId || index}
                   message={msg}
+                  user={user}
                   currentChatSubject={currentChatSubject}
                   addToLibraryState={addToLibraryState}
                   setAddToLibraryState={setAddToLibraryState}
@@ -529,7 +556,7 @@ export default function AIQuestionPage({
               </div>
               {hasReferences ? (
                 <div className="aiqp-ref-list">
-                  {Array.isArray(referencedFiles) && referencedFiles.map((item, idx) => (
+                  {Array.isArray(referencedFiles) && referencedFiles.map((item) => (
                     <div key={item.localId} className="aiqp-ref-item">
                       <span className="aiqp-ref-icon">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="1.5" strokeLinecap="round">
@@ -539,14 +566,9 @@ export default function AIQuestionPage({
                         </svg>
                       </span>
                       <div className="aiqp-ref-info">
-                        <span className="aiqp-ref-name">
-                          {item.original_filename}
-                        </span>
+                        <span className="aiqp-ref-name">{item.original_filename}</span>
                         <span className="aiqp-ref-desc">
-                          {idx === 0 ? "第 2 章 · 指令执行过程" : ""}
-                          {idx === 1 ? "指令周期详解" : ""}
-                          {idx === 2 ? "计算机组成原理讲义" : ""}
-                          {idx <= 2 ? (idx === 0 ? " · P12" : idx === 1 ? " · P8-10" : " · P23") : ""}
+                          {formatFileSize(item.file_size)} · {getFileTypeLabel(item.file_type || item.type)}
                         </span>
                       </div>
                     </div>
@@ -560,15 +582,37 @@ export default function AIQuestionPage({
                         </svg>
                       </span>
                       <div className="aiqp-ref-info">
-                        <span className="aiqp-ref-name">
-                          {item.original_filename}
-                        </span>
+                        <span className="aiqp-ref-name">{item.original_filename}</span>
                         <span className="aiqp-ref-desc">
                           {formatFileSize(item.file_size)} · {getFileTypeLabel(item.file_type)}
                         </span>
                       </div>
                     </div>
                   ))}
+                  {aiReferences.map((ref, idx) => {
+                    const pageInfo = ref._pages && ref._pages.length > 0
+                      ? ` · P${ref._pages.filter(Boolean).join(", P")}`
+                      : "";
+                    return (
+                      <div key={ref.material_id || ref.filename || idx} className="aiqp-ref-item">
+                        <span className="aiqp-ref-icon">
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="1.5" strokeLinecap="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                            <polyline points="14 2 14 8 20 8" />
+                            <path d="M16 13H8" /><path d="M10 17H8" />
+                          </svg>
+                        </span>
+                        <div className="aiqp-ref-info">
+                          <span className="aiqp-ref-name">{ref.filename || ref.original_filename || "参考资料"}</span>
+                          <span className="aiqp-ref-desc">
+                            {ref.subject ? `${getSubjectLabel(ref.subject)} · ` : ""}
+                            {ref.file_type ? `${getFileTypeLabel(ref.file_type)}` : ""}
+                            {pageInfo}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="aiqp-ref-empty">

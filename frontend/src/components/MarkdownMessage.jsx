@@ -66,9 +66,16 @@ function shouldRenderAsInlineCode(language, codeText) {
   if (!stripped) return false;
   if (stripped.includes("\n")) return false;
   if (stripped.length > 60) return false;
-  if (CODE_STRUCTURE_RE.test(stripped)) return false;
 
-  return true;
+  // Very short bracket-only / symbol-only content is not real code
+  const bracketOnlyRe = /^[\{\}\[\]\(\)<>'"`,.:;!?@#$%^&*_+\-=\\\/|~`\s]{0,8}$/;
+  if (bracketOnlyRe.test(stripped)) return true;
+
+  // Plain natural-language-looking text (no code syntax) should be inline
+  const looksLikeCode = CODE_STRUCTURE_RE.test(stripped);
+  if (!looksLikeCode) return true;
+
+  return false;
 }
 
 function normalizeMathDelimiters(text) {

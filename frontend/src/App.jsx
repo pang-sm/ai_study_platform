@@ -3829,6 +3829,7 @@ function App() {
                 <ChatMessage
                   key={msg.id || msg.clientId || index}
                   message={msg}
+                  user={user}
                   currentChatSubject={currentChatSubject}
                   addToLibraryState={addToLibraryState}
                   setAddToLibraryState={setAddToLibraryState}

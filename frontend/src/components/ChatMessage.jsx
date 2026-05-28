@@ -28,6 +28,7 @@ function getTypingStep(textLength) {
 
 export default function ChatMessage({
   message = null,
+  user = null,
   currentChatSubject = "computer_organization",
   addToLibraryState = {},
   setAddToLibraryState = () => {},
@@ -122,7 +123,8 @@ export default function ChatMessage({
       ? new Date(message.created_at).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })
       : "";
 
-  const userInitial = (message && message.userInitial) || "?";
+  const userDisplayName = (user && (user.nickname || user.username)) || "用户";
+  const userInitial = userDisplayName.charAt(0);
 
   return (
     <div
@@ -138,55 +140,6 @@ export default function ChatMessage({
           </div>
           <div className="message-body-card">
             <MarkdownMessage content={visibleContent} isTyping={Boolean(message && message.animateTyping)} />
-
-            {/* References */}
-            {Array.isArray(message.references) && message.references.length > 0 && (
-              <div className="reference-section">
-                <div className="reference-title">参考资料</div>
-                <div className="reference-list">
-                  {message.references.map((reference, referenceIndex) => (
-                    <div key={`${reference.material_id}-${referenceIndex}`} className="reference-card">
-                      <div className="reference-name">
-                        {referenceIndex + 1}. {reference.filename}
-                      </div>
-                      <div className="reference-meta">
-                        学科：{getSubjectLabel(reference.subject)} | 类型：
-                        {getFileTypeLabel(reference.file_type)}
-                      </div>
-                      <div className="reference-snippet">命中片段：{getReferenceSnippet(reference)}</div>
-                      <button
-                        className="tiny-button"
-                        onClick={() => openMaterialDetail(reference.material_id, "profile")}
-                      >
-                        查看资料
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {(!message.references || message.references.length === 0) &&
-              Array.isArray(message.rag_sources) &&
-              message.rag_sources.length > 0 && (
-                <div className="reference-section">
-                  <div className="reference-title">参考文件</div>
-                  <div className="rag-sources-summary">
-                    {message.rag_sources.join("、")}
-                  </div>
-                </div>
-              )}
-
-            {(!message.references || message.references.length === 0) &&
-              (!message.rag_sources || message.rag_sources.length === 0) &&
-              message.has_bound_materials && (
-                <div className="reference-section reference-section--fallback">
-                  <div className="reference-title">参考资料</div>
-                  <div className="rag-sources-fallback">
-                    本轮上传资料中没有找到足够相关的可引用片段，本次回答可能包含模型补充说明。
-                  </div>
-                </div>
-              )}
 
             {/* Action row: like / dislike / copy / add to 重点 */}
             <div className="message-action-row">
@@ -264,7 +217,13 @@ export default function ChatMessage({
         <>
           <div className="message-avatar-row message-avatar-row--user">
             <div className="message-time">{msgTime}</div>
-            <div className="message-avatar message-avatar--user">{userInitial}</div>
+            <div className="message-avatar message-avatar--user">
+              {(user && user.avatar_url && (user.avatar_url || "").startsWith("/me/avatar/")) ? (
+                <img src={`/api${user.avatar_url}?username=${encodeURIComponent(user.username || "")}`} alt="" className="msg-avatar-img" />
+              ) : (
+                userInitial
+              )}
+            </div>
           </div>
           <div className="message-bubble-user">
             <div className="message-text">{visibleContent}</div>
