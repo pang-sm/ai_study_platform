@@ -2225,6 +2225,12 @@ function App() {
     localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
   };
 
+  const loadChatSessions = () => {
+    if (user?.username) {
+      loadChatHistory(user);
+    }
+  };
+
   if (isSharedReportPath) {
     return (
       <Suspense fallback={<div className="shared-report-shell"><div className="shared-report-card"><div className="shared-report-loading">加载中...</div></div></div>}>
