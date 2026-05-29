@@ -1132,22 +1132,32 @@ select.field:focus {
 
 .inline-code,
 .message-text--markdown :not(pre) > code {
-  padding: 0.15em 0.4em;
-  border-radius: 8px;
-  background: rgba(15, 23, 42, 0.08);
-  color: #0f172a;
+  display: inline;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #1e293b;
+  font-size: 0.92em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .inline-code--block {
-  padding: 0.15em 0.4em;
-  border-radius: 8px;
-  background: rgba(15, 23, 42, 0.08);
-  color: #0f172a;
+  display: inline;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #1e293b;
   font-size: 0.92em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .inline-code-standalone {
-  margin: 0.72em 0;
+  display: block;
+  margin: 0.6em 0;
 }
 
 .message-text--markdown blockquote {
@@ -1383,6 +1393,59 @@ select.field:focus {
   display: block;
   white-space: pre;
   color: #334155;
+}
+
+/* ── Compact code snippet (1-3 lines, no toolbar card) ── */
+
+.compact-code-snippet {
+  position: relative;
+  margin: 0.6em 0;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #e9edf4;
+  background: #f8fafc;
+}
+
+.compact-code-snippet:hover .compact-code-copy {
+  opacity: 1;
+}
+
+.compact-code-pre {
+  margin: 0;
+  padding: 12px 16px;
+  overflow-x: auto;
+  background: transparent;
+  font-size: 0.9em;
+  line-height: 1.6;
+}
+
+.compact-code-pre code {
+  display: block;
+  white-space: pre;
+  color: #334155;
+}
+
+.compact-code-copy {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  opacity: 0;
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+  background: #fff;
+  color: #475569;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.18s ease, background 0.15s ease;
+}
+
+.compact-code-copy:hover {
+  background: #eef4ff;
+  border-color: #93c5fd;
+  color: #2563eb;
 }
 
 .table-wrapper {

@@ -58,37 +58,34 @@ const CODE_STRUCTURE_RE =
   /[;{}]|\bimport\s|\bclass\s|\bpublic\s|\bprivate\s|\bprotected\s|\bfunction\s|\bconst\s|\blet\s|\bvar\s|\bdef\s|\breturn\s|\bthrow\s|\bcatch\s|\btry\s|\bif\s*\(|\bfor\s*\(|\bwhile\s*\(|\bswitch\s*\(|\bnpm\s|\bgit\s|\bsudo\s|\bpip\s|\bapt\s|\bsystemctl|\bdocker\s|\bcd\s|\bls\s|\bmkdir\s|\brm\s|\bcp\s|\bmv\s|&&|\|\||#include|\bexport\s|\brequire\s|\bpackage\s|\bprint\s*\(|\becho\s|=>|\bnew\s+\w+\s*\(/i;
 
 function shouldRenderAsInlineCode(language, codeText) {
-  const lang = (language || "").trim().toLowerCase();
   const stripped = (codeText || "").trim();
   if (!stripped) return false;
 
-  // Multi-line content always deserves a code block
+  // Multi-line content never fits in inline text flow
   if (stripped.includes("\n")) return false;
+
+  // Short single-line content (≤60 chars) always works as an inline chip,
+  // regardless of language or code-like patterns
+  if (stripped.length <= 60) return true;
 
   // Very short bracket-only / symbol-only content is not real code
   const bracketOnlyRe = /^[\{\}\[\]\(\)<>'"`,.:;!?@#$%^&*_+\-=\\\/|~`\s]{0,8}$/;
   if (bracketOnlyRe.test(stripped)) return true;
 
+  // Longer single-line that doesn't look like code → still fine as inline
   const looksLikeCode = CODE_STRUCTURE_RE.test(stripped);
-
-  // Collapsible languages (text, plain, etc.): always downgrade short content
-  if (COLLAPSIBLE_LANGUAGES.has(lang)) {
-    if (stripped.length > 60) return false;
-    if (!looksLikeCode) return true;
-    return false;
-  }
-
-  // Preserved languages with short single-line content that doesn't have
-  // real code structure — likely a fragment the AI accidentally fenced
-  if (PRESERVED_LANGUAGES.has(lang)) {
-    if (stripped.length <= 80 && !looksLikeCode) return true;
-    return false;
-  }
-
-  // Unknown language tags: treat short non-code content as inline
-  if (stripped.length <= 60 && !looksLikeCode) return true;
+  if (!looksLikeCode && stripped.length <= 80) return true;
 
   return false;
+}
+
+function shouldRenderAsCompactCode(language, codeText) {
+  const stripped = (codeText || "").trim();
+  if (!stripped) return false;
+
+  const lines = stripped.split("\n");
+  // 1–3 lines with modest total size → compact snippet (no toolbar)
+  return lines.length <= 3 && stripped.length <= 200;
 }
 
 function normalizeMathDelimiters(text) {
@@ -193,6 +190,37 @@ function CodeBlock({ className, children }) {
   );
 }
 
+function CompactCodeBlock({ className, children }) {
+  const [copied, setCopied] = useState(false);
+  const copySource = useMemo(() => extractTextFromReactNode(children), [children]);
+
+  useEffect(() => {
+    if (!copied) return undefined;
+    const timer = window.setTimeout(() => setCopied(false), 1500);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
+
+  const handleCopy = async () => {
+    try {
+      await copyText(copySource);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  return (
+    <div className="compact-code-snippet">
+      <pre className="compact-code-pre">
+        <code className={className}>{children}</code>
+      </pre>
+      <button className="compact-code-copy" type="button" onClick={handleCopy}>
+        {copied ? "已复制" : "复制"}
+      </button>
+    </div>
+  );
+}
+
 export default function MarkdownMessage({ content, isTyping = false }) {
   const safeContent = useMemo(() => normalizeMathDelimiters(content || ""), [content]);
 
@@ -211,15 +239,28 @@ export default function MarkdownMessage({ content, isTyping = false }) {
             const language = langMatch?.[1] || "";
             const rawText = extractTextFromReactNode(children);
 
+            // Tier 1 — inline chip
             if (shouldRenderAsInlineCode(language, rawText)) {
               return <code className="inline-code inline-code--block">{rawText}</code>;
             }
 
+            // Tier 2 — compact snippet (no toolbar, subtle styling)
+            if (shouldRenderAsCompactCode(language, rawText)) {
+              return <CompactCodeBlock className={className}>{children}</CompactCodeBlock>;
+            }
+
+            // Tier 3 — full code block with toolbar & highlight
             return <CodeBlock className={className}>{children}</CodeBlock>;
           },
           pre({ children }) {
-            if (isValidElement(children) && children.props?.className?.includes("inline-code--block")) {
-              return <div className="inline-code-standalone">{children}</div>;
+            if (isValidElement(children)) {
+              if (children.props?.className?.includes("inline-code--block")) {
+                return <div className="inline-code-standalone">{children}</div>;
+              }
+              // Compact / full blocks supply their own layout — don't double-wrap
+              if (children.type === CodeBlock || children.type === CompactCodeBlock) {
+                return children;
+              }
             }
             return <pre>{children}</pre>;
           },
