@@ -2154,6 +2154,98 @@ function App() {
     }
   };
 
+  const editUserMessage = async (messageClientId, newContent) => {
+    if (!user?.username) {
+      logout();
+      return;
+    }
+    if (!newContent || !String(newContent).trim()) return;
+
+    setTip("");
+
+    let foundIndex = -1;
+    let foundMsg = null;
+
+    setMessages((prev) => {
+      const idx = prev.findIndex(
+        (m) => (m && (m.id || m.clientId)) === messageClientId
+      );
+      if (idx === -1 || (prev[idx] && prev[idx].role) !== "user") return prev;
+
+      foundIndex = idx;
+      foundMsg = prev[idx];
+
+      const existingVersions =
+        Array.isArray(foundMsg.versions) && foundMsg.versions.length > 0
+          ? [...foundMsg.versions]
+          : [{ content: foundMsg.content, created_at: foundMsg.created_at || foundMsg.timestamp || new Date().toISOString() }];
+
+      existingVersions.push({
+        content: newContent.trim(),
+        created_at: new Date().toISOString(),
+      });
+
+      const editedMsg = {
+        ...foundMsg,
+        content: newContent.trim(),
+        versions: existingVersions,
+        currentVersionIndex: existingVersions.length - 1,
+        edited: true,
+      };
+
+      return [...prev.slice(0, idx), editedMsg];
+    });
+
+    if (!foundMsg || foundIndex === -1) return;
+
+    setLoading(true);
+
+    try {
+      const res = await fetch(`${API_BASE}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: newContent.trim(),
+          subject: normalizeSubject(currentChatSubject),
+          grade: user.grade || "",
+          major: user.major || "",
+          username: user.username,
+          session_id: activeSessionId,
+          material_ids: [],
+        }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          logout();
+          setTip(getDisplayMessage(data.detail, "登录已过期，请重新登录。"));
+        }
+        appendAssistantError(getDisplayMessage(data.detail, "AI 回复失败。"));
+        return;
+      }
+
+      setMessages((prev) => [
+        ...prev,
+        createLocalMessage({
+          id: data.assistant_message_id || undefined,
+          role: "assistant",
+          content: data.answer,
+          references: data.references || [],
+          rag_sources: data.rag_sources || [],
+          animateTyping: true,
+        }),
+      ]);
+      refreshChatSessionState(data.session);
+      await loadChatHistory(user);
+    } catch (error) {
+      console.error("Failed to edit message:", error);
+      appendAssistantError("无法连接后端服务。");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const sendMessage = async () => {
     if (!user?.username) {
       setTip("请先登录。");
@@ -3208,6 +3300,7 @@ function App() {
         chatSessions={chatSessions}
         openChatSession={openChatSession}
         loadChatSessions={loadChatSessions}
+        onEditMessage={editUserMessage}
       />
     );
   }
@@ -3853,6 +3946,7 @@ function App() {
                   onSaveLearningRecord={saveLearningRecord}
                   getRecordTypeLabel={getRecordTypeLabel}
                   getRecordTypeIcon={getRecordTypeIcon}
+                  onEditMessage={editUserMessage}
                 />
               ))}
 

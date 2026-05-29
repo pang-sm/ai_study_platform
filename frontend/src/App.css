@@ -1038,6 +1038,218 @@ select.field:focus {
   color: #1e293b;
 }
 
+/* ── User message wrapper & action bar ── */
+
+.user-message-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.user-msg-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0 4px;
+  min-height: 24px;
+}
+
+.user-msg-action-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.user-msg-action-right {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.user-msg-edited-badge {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+/* Version switcher */
+.user-msg-version-switcher {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.user-msg-version-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.user-msg-version-btn:hover {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+  color: #475569;
+}
+
+.user-msg-version-num {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 500;
+  min-width: 28px;
+  text-align: center;
+  user-select: none;
+}
+
+/* Icon buttons (edit / copy) */
+.user-msg-icon-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.user-msg-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.12s, color 0.12s;
+}
+
+.user-msg-icon-btn:hover {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+/* Tooltip */
+.user-msg-tooltip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 10px;
+  border-radius: 7px;
+  background: #1e293b;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 10;
+}
+
+.user-msg-tooltip--show {
+  opacity: 1;
+}
+
+.user-msg-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 4px solid transparent;
+  border-top-color: #1e293b;
+}
+
+/* Edit mode */
+.message-bubble-user--editing {
+  width: 100%;
+  max-width: 480px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1.5px solid #bfdbfe;
+}
+
+.user-msg-edit-input {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  font-size: 14px;
+  font-family: inherit;
+  color: #1e293b;
+  line-height: 1.6;
+  resize: none;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.user-msg-edit-input:focus {
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.06);
+  background: #fff;
+}
+
+.user-msg-edit-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+
+.user-msg-edit-hint {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.user-msg-edit-btns {
+  display: flex;
+  gap: 8px;
+}
+
+.user-msg-edit-btn {
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.user-msg-edit-btn--cancel {
+  background: #f1f5f9;
+  color: #64748b;
+  border-color: #e2e8f0;
+}
+
+.user-msg-edit-btn--cancel:hover {
+  background: #e2e8f0;
+}
+
+.user-msg-edit-btn--submit {
+  background: #2563eb;
+  color: #fff;
+}
+
+.user-msg-edit-btn--submit:hover {
+  background: #1d4ed8;
+}
+
 /* Legacy */
 .message-role {
   font-size: 12px;

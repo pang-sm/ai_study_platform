@@ -75,6 +75,7 @@ export default function AIQuestionPage({
   chatSessions = [],
   openChatSession = () => {},
   loadChatSessions = () => {},
+  onEditMessage = () => {},
 }) {
   const [suggestionBatch, setSuggestionBatch] = useState(() =>
     shufflePool(RECOMMENDATION_POOL, 5)
@@ -382,6 +383,7 @@ export default function AIQuestionPage({
                   onSaveLearningRecord={saveLearningRecord}
                   getRecordTypeLabel={getRecordTypeLabel}
                   getRecordTypeIcon={getRecordTypeIcon}
+                  onEditMessage={onEditMessage}
                 />
               ))}
 
