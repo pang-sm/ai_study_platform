@@ -2175,14 +2175,48 @@ function App() {
       foundIndex = idx;
       foundMsg = prev[idx];
 
-      const existingVersions =
-        Array.isArray(foundMsg.versions) && foundMsg.versions.length > 0
-          ? [...foundMsg.versions]
-          : [{ content: foundMsg.content, created_at: foundMsg.created_at || foundMsg.timestamp || new Date().toISOString() }];
+      // Collect assistant messages that follow this user message
+      const followingAssistants = [];
+      for (let i = idx + 1; i < prev.length && prev[i] && prev[i].role === "assistant"; i++) {
+        followingAssistants.push({ ...prev[i] });
+      }
 
+      // Build or migrate versions with userContent + assistantMessages
+      const oldVersions = Array.isArray(foundMsg.versions) && foundMsg.versions.length > 0
+        ? [...foundMsg.versions]
+        : [];
+      const currentIdx = foundMsg.currentVersionIndex ?? (oldVersions.length > 0 ? oldVersions.length - 1 : 0);
+
+      let existingVersions;
+      if (oldVersions.length === 0 || oldVersions[0].userContent == null) {
+        existingVersions = oldVersions.length > 0
+          ? oldVersions.map((v) => ({
+              userContent: v.content || "",
+              assistantMessages: [],
+              createdAt: v.created_at || foundMsg.created_at || foundMsg.timestamp || new Date().toISOString(),
+            }))
+          : [{
+              userContent: foundMsg.content || "",
+              assistantMessages: [],
+              createdAt: foundMsg.created_at || foundMsg.timestamp || new Date().toISOString(),
+            }];
+      } else {
+        existingVersions = oldVersions;
+      }
+
+      // Save current assistant messages into the current version
+      if (existingVersions[currentIdx]) {
+        existingVersions[currentIdx] = {
+          ...existingVersions[currentIdx],
+          assistantMessages: followingAssistants,
+        };
+      }
+
+      // Create new version
       existingVersions.push({
-        content: newContent.trim(),
-        created_at: new Date().toISOString(),
+        userContent: newContent.trim(),
+        assistantMessages: [],
+        createdAt: new Date().toISOString(),
       });
 
       const editedMsg = {
@@ -2225,17 +2259,38 @@ function App() {
         return;
       }
 
-      setMessages((prev) => [
-        ...prev,
-        createLocalMessage({
-          id: data.assistant_message_id || undefined,
-          role: "assistant",
-          content: data.answer,
-          references: data.references || [],
-          rag_sources: data.rag_sources || [],
-          animateTyping: true,
-        }),
-      ]);
+      const newAssistant = createLocalMessage({
+        id: data.assistant_message_id || undefined,
+        role: "assistant",
+        content: data.answer,
+        references: data.references || [],
+        rag_sources: data.rag_sources || [],
+        animateTyping: true,
+      });
+
+      setMessages((prev) => {
+        const userIdx = prev.findIndex(
+          (m) => (m && (m.id || m.clientId)) === messageClientId
+        );
+        if (userIdx === -1) return [...prev, newAssistant];
+
+        const userMsg = prev[userIdx];
+        const versions = Array.isArray(userMsg.versions) ? [...userMsg.versions] : [];
+        const cur = userMsg.currentVersionIndex ?? (versions.length - 1);
+
+        if (versions[cur]) {
+          versions[cur] = {
+            ...versions[cur],
+            assistantMessages: [newAssistant],
+          };
+        }
+
+        return [
+          ...prev.slice(0, userIdx),
+          { ...userMsg, versions },
+          newAssistant,
+        ];
+      });
       refreshChatSessionState(data.session);
       await loadChatHistory(user);
     } catch (error) {
@@ -2245,6 +2300,54 @@ function App() {
       setLoading(false);
     }
   };
+
+  const switchMessageVersion = (messageClientId, newVersionIndex) => {
+    setMessages((prev) => {
+      const userIdx = prev.findIndex(
+        (m) => (m && (m.id || m.clientId)) === messageClientId
+      );
+      if (userIdx === -1 || (prev[userIdx] && prev[userIdx].role) !== "user") return prev;
+
+      const userMsg = prev[userIdx];
+      const versions = Array.isArray(userMsg.versions) ? userMsg.versions : [];
+      if (versions.length <= 1) return prev;
+      if (newVersionIndex < 0 || newVersionIndex >= versions.length) return prev;
+
+      const oldIndex = userMsg.currentVersionIndex ?? 0;
+      if (oldIndex === newVersionIndex) return prev;
+
+      // Collect current assistant messages
+      const currentAssistants = [];
+      for (let i = userIdx + 1; i < prev.length && prev[i] && prev[i].role === "assistant"; i++) {
+        currentAssistants.push({ ...prev[i] });
+      }
+
+      // Save into old version
+      const updatedVersions = versions.map((v, i) => {
+        if (i === oldIndex) {
+          return { ...v, assistantMessages: currentAssistants };
+        }
+        return v;
+      });
+
+      // Restore from target version
+      const targetVersion = updatedVersions[newVersionIndex];
+      const restored = (Array.isArray(targetVersion.assistantMessages) ? targetVersion.assistantMessages : []).map((a) => ({
+        ...a,
+        animateTyping: false,
+      }));
+
+      const updatedUser = {
+        ...userMsg,
+        content: targetVersion.userContent || targetVersion.content || userMsg.content,
+        versions: updatedVersions,
+        currentVersionIndex: newVersionIndex,
+      };
+
+      return [...prev.slice(0, userIdx), updatedUser, ...restored];
+    });
+  };
+
 
   const sendMessage = async () => {
     if (!user?.username) {
@@ -3301,6 +3404,7 @@ function App() {
         openChatSession={openChatSession}
         loadChatSessions={loadChatSessions}
         onEditMessage={editUserMessage}
+        onVersionChange={switchMessageVersion}
       />
     );
   }
@@ -3947,6 +4051,7 @@ function App() {
                   getRecordTypeLabel={getRecordTypeLabel}
                   getRecordTypeIcon={getRecordTypeIcon}
                   onEditMessage={editUserMessage}
+                  onVersionChange={switchMessageVersion}
                 />
               ))}
 

@@ -151,12 +151,89 @@ function getLanguageLabel(lang) {
   return map[lang.toLowerCase()] || `${lang} 代码示例`;
 }
 
+// Block-type heuristic — tells us whether a fenced block is real code,
+// a table/process demonstration, command output, plain text, or math.
+const CODE_LANGUAGE_SET = new Set([
+  "java", "python", "py", "c", "cpp", "c++", "bash", "sh", "zsh", "shell",
+  "javascript", "js", "typescript", "ts", "tsx", "jsx", "html", "css",
+  "json", "yaml", "yml", "xml", "sql", "go", "rust", "rs", "php", "ruby", "rb",
+  "powershell", "ps1", "dockerfile", "swift", "kotlin", "scala",
+  "r", "lua", "dart", "perl", "groovy", "toml", "ini", "conf", "makefile",
+  "diff", "patch",
+]);
+
+const TABLE_HEADER_RE = /[一-鿿]+\s*[|｜\/]\s*[一-鿿]+/;
+const TABLE_ROW_RE = /^[|｜].*[|｜].*[|｜]/m;
+const OUTPUT_PATTERN_RE = /(true|false|success|error|fail|运行|输出|结果)/i;
+
+function getBlockType(lang, rawText) {
+  const text = (rawText || "").trim();
+  if (!text) return { type: "code", label: "代码", copyLabel: "复制代码" };
+
+  const langLower = (lang || "").trim().toLowerCase();
+
+  // Explicit programming language → real code
+  if (langLower && CODE_LANGUAGE_SET.has(langLower)) {
+    if (text.includes("\n") || text.length > 120) {
+      return { type: "code", label: getLanguageLabel(langLower), copyLabel: "复制代码" };
+    }
+  }
+
+  // Table detection: pipe-delimited rows or table-style headers
+  const lines = text.split("\n").filter(Boolean);
+  if (lines.length >= 2) {
+    const pipeCount = lines.filter((l) => (l.match(/\|/g) || []).length >= 2).length;
+    if (pipeCount >= 2 && pipeCount >= Math.min(lines.length, 3)) {
+      return { type: "table", label: "表格内容", copyLabel: "复制内容" };
+    }
+    // Chinese table header patterns like "字符 | 栈内容 | 操作"
+    if (TABLE_HEADER_RE.test(lines[0]) && lines.length >= 2) {
+      return { type: "table", label: "执行过程", copyLabel: "复制内容" };
+    }
+    if (String(lines[0]).includes("|") && lines.length >= 2 && TEXT_TABLE_KEYWORDS.some((kw) => text.includes(kw))) {
+      return { type: "table", label: "执行过程", copyLabel: "复制内容" };
+    }
+  }
+
+  // Output patterns: repeated true/false lines, "运行结果" indicators
+  if (lines.length >= 2 && lines.every((l) => /^(true|false)$/i.test(l.trim()))) {
+    return { type: "output", label: "输出结果", copyLabel: "复制内容" };
+  }
+  if (OUTPUT_PATTERN_RE.test(lines[0]) && lines.length <= 4) {
+    return { type: "output", label: "输出结果", copyLabel: "复制内容" };
+  }
+
+  // LaTeX / math
+  if (langLower === "latex" || langLower === "tex" || text.startsWith("\\") || /\$[^$]+\$/.test(text) || /\\begin\{/.test(text)) {
+    return { type: "math", label: "公式说明", copyLabel: "复制内容" };
+  }
+
+  // Generic text
+  if (!langLower || langLower === "text" || langLower === "plain" || langLower === "txt" || langLower === "markdown" || langLower === "md") {
+    return { type: "text", label: "示例内容", copyLabel: "复制内容" };
+  }
+
+  // Has code structure → real code
+  if (CODE_STRUCTURE_RE.test(text)) {
+    return { type: "code", label: getLanguageLabel(langLower), copyLabel: "复制代码" };
+  }
+
+  return { type: "text", label: "示例内容", copyLabel: "复制内容" };
+}
+
+const TEXT_TABLE_KEYWORDS = ["栈", "字符", "操作", "步骤", "过程", "演示", "输出", "结果"];
+
 function CodeBlock({ className, children }) {
   const [copied, setCopied] = useState(false);
   const copySource = useMemo(() => extractTextFromReactNode(children), [children]);
   const languageMatch = /language-([\w-]+)/.exec(className || "");
   const language = languageMatch?.[1] || "";
-  const languageLabel = getLanguageLabel(language);
+  const blockType = useMemo(
+    () => getBlockType(language, copySource),
+    [language, copySource],
+  );
+  const blockLabel = blockType.label;
+  const copyLabel = blockType.copyLabel;
 
   useEffect(() => {
     if (!copied) return undefined;
@@ -170,7 +247,7 @@ function CodeBlock({ className, children }) {
       await copyText(copySource);
       setCopied(true);
     } catch (error) {
-      console.error("复制代码失败：", error);
+      console.error("复制失败：", error);
       setCopied(false);
     }
   };
@@ -178,9 +255,9 @@ function CodeBlock({ className, children }) {
   return (
     <div className="code-block-card">
       <div className="code-block-toolbar">
-        <span className="code-block-language">{languageLabel}</span>
+        <span className="code-block-language">{blockLabel}</span>
         <button className="code-copy-button" type="button" onClick={handleCopy}>
-          {copied ? "已复制" : "复制代码"}
+          {copied ? "已复制" : copyLabel}
         </button>
       </div>
       <pre className="code-block-pre">
@@ -193,6 +270,13 @@ function CodeBlock({ className, children }) {
 function CompactCodeBlock({ className, children }) {
   const [copied, setCopied] = useState(false);
   const copySource = useMemo(() => extractTextFromReactNode(children), [children]);
+  const languageMatch = /language-([\w-]+)/.exec(className || "");
+  const language = languageMatch?.[1] || "";
+  const blockType = useMemo(
+    () => getBlockType(language, copySource),
+    [language, copySource],
+  );
+  const compactCopyLabel = blockType.copyLabel === "复制代码" ? "复制" : "复制";
 
   useEffect(() => {
     if (!copied) return undefined;
@@ -215,7 +299,7 @@ function CompactCodeBlock({ className, children }) {
         <code className={className}>{children}</code>
       </pre>
       <button className="compact-code-copy" type="button" onClick={handleCopy}>
-        {copied ? "已复制" : "复制"}
+        {copied ? "已复制" : compactCopyLabel}
       </button>
     </div>
   );

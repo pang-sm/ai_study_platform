@@ -76,6 +76,7 @@ export default function AIQuestionPage({
   openChatSession = () => {},
   loadChatSessions = () => {},
   onEditMessage = () => {},
+  onVersionChange = () => {},
 }) {
   const [suggestionBatch, setSuggestionBatch] = useState(() =>
     shufflePool(RECOMMENDATION_POOL, 5)
@@ -384,6 +385,7 @@ export default function AIQuestionPage({
                   getRecordTypeLabel={getRecordTypeLabel}
                   getRecordTypeIcon={getRecordTypeIcon}
                   onEditMessage={onEditMessage}
+                  onVersionChange={onVersionChange}
                 />
               ))}
 

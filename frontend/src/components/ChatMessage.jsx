@@ -45,6 +45,7 @@ export default function ChatMessage({
   getRecordTypeLabel = (v) => v,
   getRecordTypeIcon = () => "",
   onEditMessage = () => {},
+  onVersionChange = () => {},
 }) {
   const isAssistant = message && message.role === "assistant";
   const [displayedContent, setDisplayedContent] = useState("");
@@ -74,7 +75,7 @@ export default function ChatMessage({
 
   const totalVersions = versions ? versions.length : 1;
   const currentVersionContent = versions && versions[localVersionIndex]
-    ? versions[localVersionIndex].content
+    ? (versions[localVersionIndex].userContent || versions[localVersionIndex].content || "")
     : (message && message.content) || "";
 
   const visibleContent =
@@ -160,12 +161,17 @@ export default function ChatMessage({
   };
 
   const goToVersion = (dir) => {
-    setLocalVersionIndex((prev) => {
-      const next = prev + dir;
-      if (next < 0) return totalVersions - 1;
-      if (next >= totalVersions) return 0;
-      return next;
-    });
+    const currentIdx = localVersionIndex;
+    let next = currentIdx + dir;
+    if (next < 0) next = totalVersions - 1;
+    if (next >= totalVersions) next = 0;
+    if (next === currentIdx) return;
+
+    setLocalVersionIndex(next);
+    const msgKey = (message && (message.id || message.clientId)) || "";
+    if (typeof onVersionChange === "function" && versions && versions.length > 1) {
+      onVersionChange(msgKey, next);
+    }
   };
 
   const handleCopyAnswer = async () => {
