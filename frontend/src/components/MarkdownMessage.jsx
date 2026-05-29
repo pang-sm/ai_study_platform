@@ -64,17 +64,13 @@ function shouldRenderAsInlineCode(language, codeText) {
   // Multi-line content never fits in inline text flow
   if (stripped.includes("\n")) return false;
 
-  // Short single-line content (≤60 chars) always works as an inline chip,
-  // regardless of language or code-like patterns
-  if (stripped.length <= 60) return true;
-
-  // Very short bracket-only / symbol-only content is not real code
-  const bracketOnlyRe = /^[\{\}\[\]\(\)<>'"`,.:;!?@#$%^&*_+\-=\\\/|~`\s]{0,8}$/;
+  // Bracket-only / symbol-only content (e.g. `{}`, `[]`, `()`) — not real code
+  const bracketOnlyRe = /^[\{\}\[\]\(\)<>'"`,.:;!?@#$%^&*_+\-=\\\/|~`\s]{0,10}$/;
   if (bracketOnlyRe.test(stripped)) return true;
 
-  // Longer single-line that doesn't look like code → still fine as inline
-  const looksLikeCode = CODE_STRUCTURE_RE.test(stripped);
-  if (!looksLikeCode && stripped.length <= 80) return true;
+  // Single-line content ≤90 chars → always inline chip
+  // A single line is never "big" enough to warrant a full code-block card
+  if (stripped.length <= 90) return true;
 
   return false;
 }
@@ -84,8 +80,16 @@ function shouldRenderAsCompactCode(language, codeText) {
   if (!stripped) return false;
 
   const lines = stripped.split("\n");
-  // 1–3 lines with modest total size → compact snippet (no toolbar)
-  return lines.length <= 3 && stripped.length <= 200;
+  // Only multi-line content reaches compact tier; single-line is inline above
+  const langLower = (language || "").trim().toLowerCase();
+  const hasExplicitLang = PRESERVED_LANGUAGES.has(langLower);
+
+  // 2–3 lines, no explicit programming language → compact snippet
+  if (lines.length >= 2 && lines.length <= 3 && !hasExplicitLang && stripped.length <= 200) {
+    return true;
+  }
+
+  return false;
 }
 
 function normalizeMathDelimiters(text) {
@@ -268,39 +272,13 @@ function CodeBlock({ className, children }) {
 }
 
 function CompactCodeBlock({ className, children }) {
-  const [copied, setCopied] = useState(false);
   const copySource = useMemo(() => extractTextFromReactNode(children), [children]);
-  const languageMatch = /language-([\w-]+)/.exec(className || "");
-  const language = languageMatch?.[1] || "";
-  const blockType = useMemo(
-    () => getBlockType(language, copySource),
-    [language, copySource],
-  );
-  const compactCopyLabel = blockType.copyLabel === "复制代码" ? "复制" : "复制";
-
-  useEffect(() => {
-    if (!copied) return undefined;
-    const timer = window.setTimeout(() => setCopied(false), 1500);
-    return () => window.clearTimeout(timer);
-  }, [copied]);
-
-  const handleCopy = async () => {
-    try {
-      await copyText(copySource);
-      setCopied(true);
-    } catch {
-      setCopied(false);
-    }
-  };
 
   return (
     <div className="compact-code-snippet">
       <pre className="compact-code-pre">
         <code className={className}>{children}</code>
       </pre>
-      <button className="compact-code-copy" type="button" onClick={handleCopy}>
-        {copied ? "已复制" : compactCopyLabel}
-      </button>
     </div>
   );
 }
