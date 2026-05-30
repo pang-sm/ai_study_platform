@@ -17,6 +17,7 @@ export default function Sidebar({
 
   const studyNav = [
     { id: "dashboard", icon: "📋", label: "课程概览" },
+    { id: "knowledgeLearning", icon: "🎯", label: "知识点学习" },
     { id: "workspaceMaterials", icon: "📚", label: "资料库" },
     { id: "practiceCenter", icon: "📝", label: "练习中心" },
     { id: "codeStudio", icon: "</>", label: "编程助手" },

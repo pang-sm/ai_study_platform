@@ -3,6 +3,7 @@ import "./App.css";
 import AppLayout from "./components/AppLayout.jsx";
 import ChatMessage from "./components/ChatMessage.jsx";
 import CourseDashboard from "./components/CourseDashboard.jsx";
+import KnowledgeLearningPage from "./components/KnowledgeLearningPage.jsx";
 import HomePage from "./components/HomePage.jsx";
 import AIQuestionPage from "./components/AIQuestionPage.jsx";
 import MaterialPickerModal from "./components/MaterialPickerModal.jsx";
@@ -327,6 +328,7 @@ const VALID_PAGES = new Set([
   "learningPlanCenter", "knowledgeBaseCenter", "quotaCenter",
   "learningReportCenter", "adminUsageCenter", "adminCenter",
   "materials", "workspaceMaterials", "chat", "records", "history",
+  "knowledgeLearning",
   "profileEdit", "onboarding",
 ]);
 
@@ -424,6 +426,7 @@ function App() {
   const [courseDashboardLoading, setCourseDashboardLoading] = useState(false);
   const [courseDashboardData, setCourseDashboardData] = useState(null);
   const [courseProgressSavingKey, setCourseProgressSavingKey] = useState("");
+  const [pendingAIContext, setPendingAIContext] = useState(null);
 
   const fileInputRef = useRef(null);
   const materialsFileInputRef = useRef(null);
@@ -3407,6 +3410,8 @@ function App() {
         loadChatSessions={loadChatSessions}
         onEditMessage={editUserMessage}
         onVersionChange={switchMessageVersion}
+        pendingAIContext={pendingAIContext}
+        setPendingAIContext={setPendingAIContext}
       />
         <MaterialPickerModal
           open={showLibraryRefModal}
@@ -3449,7 +3454,7 @@ function App() {
                 </option>
               ))}
             </select>
-            {page !== "dashboard" && (
+            {(page !== "dashboard" && page !== "knowledgeLearning") && (
               <nav className="workspace-tabs">
                 <button
                   className={`workspace-tab ${page === "chat" ? "active" : ""}`}
@@ -3478,7 +3483,7 @@ function App() {
               </nav>
             )}
           </div>
-          {page !== "dashboard" && (
+          {(page !== "dashboard" && page !== "knowledgeLearning") && (
             <div className="workspace-topbar-actions">
               <button className="primary-button compact" onClick={startNewConversation}>
                 新建对话
@@ -3508,6 +3513,20 @@ function App() {
             onOpenPracticeCenter={() => setPage("practiceCenter")}
             getSubjectLabel={getSubjectLabel}
             formatDate={formatDate}
+            materials={materials}
+            loadMaterials={(target) => loadMaterials(normalizeSubject(target || subject))}
+          />
+        ) : page === "knowledgeLearning" ? (
+          <KnowledgeLearningPage
+            user={user}
+            course={subject}
+            courseOptions={COURSE_OPTIONS}
+            getSubjectLabel={getSubjectLabel}
+            setPage={setPage}
+            onNavigateToAI={(ctx) => {
+              setPendingAIContext(ctx);
+              setPage("chat");
+            }}
             materials={materials}
             loadMaterials={(target) => loadMaterials(normalizeSubject(target || subject))}
           />

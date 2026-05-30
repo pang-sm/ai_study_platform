@@ -122,6 +122,89 @@ const C_LANGUAGE_PLANNED_ROUTE = [
   },
 ];
 
+const CPP_PLANNED_ROUTE = [
+  {
+    id: "cpp-stage-1",
+    title: "C++ 基础语法与编译",
+    subtitle: "认识C++程序结构，掌握基本输入输出与命名空间",
+    knowledgePoints: [
+      "C++ 程序结构", "输入输出 cin / cout", "命名空间 namespace",
+      "基本数据类型", "表达式与控制流", "编译与运行",
+    ],
+    sourceType: "planned", status: "locked", progress: 0,
+  },
+  {
+    id: "cpp-stage-2",
+    title: "函数、引用与重载",
+    subtitle: "掌握函数定义、参数传递和函数重载",
+    knowledgePoints: [
+      "函数定义与声明", "默认参数", "函数重载",
+      "引用 &", "const 引用", "作用域与生命周期",
+    ],
+    sourceType: "planned", status: "locked", progress: 0,
+  },
+  {
+    id: "cpp-stage-3",
+    title: "类与对象",
+    subtitle: "理解面向对象基础，掌握类的定义与使用",
+    knowledgePoints: [
+      "class / struct", "成员变量", "成员函数",
+      "构造函数", "析构函数", "this 指针", "访问控制 public / private / protected",
+    ],
+    sourceType: "planned", status: "locked", progress: 0,
+  },
+  {
+    id: "cpp-stage-4",
+    title: "面向对象进阶",
+    subtitle: "掌握继承、多态和运算符重载",
+    knowledgePoints: [
+      "封装", "继承", "多态", "虚函数 virtual",
+      "抽象类与纯虚函数", "运算符重载", "友元函数",
+    ],
+    sourceType: "planned", status: "locked", progress: 0,
+  },
+  {
+    id: "cpp-stage-5",
+    title: "模板与泛型编程",
+    subtitle: "掌握模板语法和泛型编程思想",
+    knowledgePoints: [
+      "函数模板", "类模板", "模板实例化",
+      "模板特化", "STL 基础概念",
+    ],
+    sourceType: "planned", status: "locked", progress: 0,
+  },
+  {
+    id: "cpp-stage-6",
+    title: "STL 容器与算法",
+    subtitle: "掌握标准库容器和常用算法",
+    knowledgePoints: [
+      "vector", "string", "map / set",
+      "iterator 迭代器", "algorithm 算法库", "sort / find / count",
+    ],
+    sourceType: "planned", status: "locked", progress: 0,
+  },
+  {
+    id: "cpp-stage-7",
+    title: "内存管理与智能指针",
+    subtitle: "掌握C++内存管理和RAII编程范式",
+    knowledgePoints: [
+      "new / delete", "RAII 资源管理", "unique_ptr",
+      "shared_ptr / weak_ptr", "内存泄漏检测", "资源管理最佳实践",
+    ],
+    sourceType: "planned", status: "locked", progress: 0,
+  },
+  {
+    id: "cpp-stage-8",
+    title: "工程实践",
+    subtitle: "多文件组织、构建系统和项目实战",
+    knowledgePoints: [
+      "多文件组织", "头文件与实现分离", "CMake 构建",
+      "调试技巧", "单元测试", "小项目实践",
+    ],
+    sourceType: "planned", status: "locked", progress: 0,
+  },
+];
+
 /** Courses that should use the planned C language route */
 const C_LANGUAGE_COURSE_KEYS = new Set([
   "c_programming",
@@ -131,32 +214,60 @@ const C_LANGUAGE_COURSE_KEYS = new Set([
   "programming_fundamentals",
 ]);
 
+/** Courses that should use the planned C++ route */
+const CPP_COURSE_KEYS = new Set([
+  "c++",
+  "c++_programming",
+  "cpp",
+  "cpp_programming",
+  "cplusplus",
+]);
+
 /** Courses whose display name contains C-language-related keywords */
 const C_LANGUAGE_NAME_PATTERNS = [
   "C语言", "C语言程序设计", "CPL", "程序设计基础",
 ];
 
+/** Courses whose display name contains C++-related keywords */
+const CPP_NAME_PATTERNS = [
+  "C++", "C＋+", "cpp", "CPP",
+];
+
 /**
  * Determine the knowledge route source for a course.
- * Returns "planned" if the course is C-language-related, "materials" otherwise.
+ * Returns "planned_c" for C-language, "planned_cpp" for C++, "materials" otherwise.
  */
 export function getRouteSource(courseKey, courseLabel) {
   const normalizedKey = (courseKey || "").toLowerCase().replace(/[_-]/g, "");
   if (C_LANGUAGE_COURSE_KEYS.has(normalizedKey)) return "planned";
+  if (CPP_COURSE_KEYS.has(normalizedKey)) return "planned";
 
   const label = (courseLabel || "").toLowerCase();
   for (const pattern of C_LANGUAGE_NAME_PATTERNS) {
+    if (label.includes(pattern.toLowerCase())) return "planned";
+  }
+  for (const pattern of CPP_NAME_PATTERNS) {
     if (label.includes(pattern.toLowerCase())) return "planned";
   }
   return "materials";
 }
 
 /**
- * Get the planned route for C-language courses.
+ * Get the planned route for a course.
  * Status and progress should be merged with existing learning records.
+ * @param {string} courseKey - course identifier
+ * @param {object} progressMap - map of knowledge point → progress status
+ * @param {object} statusMap - map of knowledge point → status
  */
-export function getPlannedRoute(progressMap = {}, statusMap = {}) {
-  return C_LANGUAGE_PLANNED_ROUTE.map((stage) => {
+export function getPlannedRoute(courseKey, progressMap = {}, statusMap = {}) {
+  const routeSource = getRouteSource(courseKey, courseKey);
+  let route;
+  if (routeSource === "materials") return [];
+  // Both C and C++ use "planned" routeSource, but we distinguish by course key patterns
+  const isCpp = CPP_COURSE_KEYS.has((courseKey || "").toLowerCase().replace(/[_-]/g, ""));
+  route = isCpp ? CPP_PLANNED_ROUTE : C_LANGUAGE_PLANNED_ROUTE;
+
+  return route.map((stage) => {
     const masteredCount = stage.knowledgePoints.filter(
       (kp) => (statusMap[kp] || progressMap[kp]) === "mastered"
     ).length;
@@ -174,9 +285,6 @@ export function getPlannedRoute(progressMap = {}, statusMap = {}) {
         status = "mastered";
       } else if (learningCount > 0 || masteredCount > 0) {
         status = "learning";
-      } else {
-        // First stage is unlocked by default
-        status = "locked";
       }
     }
 

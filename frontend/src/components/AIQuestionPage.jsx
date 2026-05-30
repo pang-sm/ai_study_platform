@@ -77,6 +77,8 @@ export default function AIQuestionPage({
   loadChatSessions = () => {},
   onEditMessage = () => {},
   onVersionChange = () => {},
+  pendingAIContext = null,
+  setPendingAIContext = () => {},
 }) {
   const [suggestionBatch, setSuggestionBatch] = useState(() =>
     shufflePool(RECOMMENDATION_POOL, 5)
@@ -328,6 +330,108 @@ export default function AIQuestionPage({
           </div>
         </div>
       </div>
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          KP CONTEXT CARD — shown when navigating from knowledge learning
+          ═══════════════════════════════════════════════════════════════════ */}
+      {pendingAIContext && pendingAIContext.type === "knowledge_point" && (
+        <div className="aiqp-kp-context">
+          <div className="aiqp-kp-context-header">
+            <div className="aiqp-kp-context-left">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round">
+                <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                <path d="M2 17l10 5 10-5" />
+                <path d="M2 12l10 5 10-5" />
+              </svg>
+              <span className="aiqp-kp-context-label">当前学习知识点</span>
+            </div>
+            <button
+              className="aiqp-kp-context-close"
+              type="button"
+              onClick={() => setPendingAIContext(null)}
+              title="关闭"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+          <div className="aiqp-kp-context-body">
+            <div className="aiqp-kp-context-info">
+              <p className="aiqp-kp-context-course">课程：{pendingAIContext.courseName}</p>
+              <p className="aiqp-kp-context-node">阶段：{pendingAIContext.nodeTitle || pendingAIContext.knowledgePointTitle}</p>
+              <p className="aiqp-kp-context-kp">知识点：{pendingAIContext.knowledgePointTitle}</p>
+              <p className="aiqp-kp-context-source">
+                路线来源：{pendingAIContext.routeSource === "platform" ? "平台推荐路线" : "我的资料路线"}
+              </p>
+            </div>
+            <div className="aiqp-kp-context-suggestions">
+              <p className="aiqp-kp-suggest-label">推荐问题</p>
+              {[
+                "给我这个知识点的定义",
+                "用一个简单例子解释",
+                "这个知识点考试怎么考",
+                "给我 3 道练习题",
+                "帮我判断我是否掌握了",
+                "总结这个知识点的易错点",
+              ].map((q) => (
+                <button
+                  key={q}
+                  className="aiqp-kp-suggest-btn"
+                  type="button"
+                  onClick={() => sendMessage(q)}
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+          </div>
+          {/* Knowledge point status marking */}
+          <div className="aiqp-kp-context-status">
+            <span className="aiqp-kp-status-label">这个知识点学得怎么样？</span>
+            <div className="aiqp-kp-status-btns">
+              {[
+                { status: "mastered", label: "已掌握", color: "#059669" },
+                { status: "review", label: "需要复习", color: "#d97706" },
+                { status: "weak", label: "还没理解", color: "#dc2626" },
+                { status: "not_started", label: "稍后再学", color: "#94a3b8" },
+              ].map((btn) => (
+                <button
+                  key={btn.status}
+                  className="aiqp-kp-status-btn"
+                  type="button"
+                  style={{ borderColor: btn.color, color: btn.color }}
+                  onClick={() => {
+                    // Save status via API if available, otherwise localStorage
+                    const kpId = pendingAIContext.knowledgePointId;
+                    const courseId = pendingAIContext.courseId;
+                    const username = user?.username;
+                    if (username && kpId) {
+                      fetch(`${apiBase}/learning/knowledge-points/mark`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          username,
+                          course_id: courseId,
+                          knowledge_point_id: kpId,
+                          status: btn.status,
+                          source: "ai_chat",
+                          route_source: pendingAIContext.routeSource,
+                        }),
+                      }).catch(() => {});
+                    }
+                    // Dismiss context card
+                    setPendingAIContext(null);
+                  }}
+                >
+                  {btn.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ═══════════════════════════════════════════════════════════════════
           C. MAIN CONTENT — two-column layout
