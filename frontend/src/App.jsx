@@ -3581,7 +3581,11 @@ function App() {
               if (!activeSessionId) setActiveSessionSubject(newCourse);
             }}
             onProgressChange={updateCourseProgress}
-            onStartAsk={() => openChatPageForCourse(subject)}
+            onStartAsk={() => {
+              openChatPageForCourse(subject, true);
+              setSelectedLibraryMaterials([]);
+              setPendingAIContext(null);
+            }}
             onOpenCodeStudio={() => setPage("codeStudio")}
             onOpenPracticeCenter={() => setPage("practiceCenter")}
             getSubjectLabel={getSubjectLabel}
@@ -3599,8 +3603,9 @@ function App() {
             getSubjectLabel={getSubjectLabel}
             setPage={setPage}
             onNavigateToAI={(ctx) => {
+              openChatPageForCourse(subject, true);
+              setSelectedLibraryMaterials([]);
               setPendingAIContext(ctx);
-              setPage("chat");
             }}
             materials={materials}
             loadMaterials={(target) => loadMaterials(normalizeSubject(target || subject))}

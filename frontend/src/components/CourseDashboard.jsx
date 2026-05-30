@@ -94,6 +94,7 @@ export default function CourseDashboard({
   materials = [],
   goalConfig = null,
   setGoalConfig = () => {},
+  onStartAsk = () => {},
 }) {
   const stats = dashboard?.stats || {};
   const courseLabel = getSubjectLabel(course);
@@ -328,7 +329,7 @@ export default function CourseDashboard({
             <button
               className="co-btn co-btn--primary co-btn--lg"
               type="button"
-              onClick={() => setPage("chat")}
+              onClick={onStartAsk}
             >
               打开 AI 问答
             </button>
