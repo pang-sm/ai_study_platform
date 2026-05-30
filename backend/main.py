@@ -57,6 +57,7 @@ from qwen_parser import (
     get_qwen_pdf_ocr_model,
     get_qwen_parse_max_pages,
     get_qwen_status_payload,
+    is_qwen_enabled,
     parse_image_with_qwen,
 )
 from rag import (
@@ -114,7 +115,8 @@ MAX_HISTORY_EXTRACT_CHARS = 4000
 TOP_K_CHUNKS = 4
 MIN_QWEN_CHINESE_CHARS = 30
 MIN_QWEN_ALNUM_CHARS = 80
-MIN_PDF_AVG_PAGE_CHARS = 120
+MIN_PDF_AVG_PAGE_CHARS = 30
+MIN_PDF_MIN_TEXT_CHARS = 100
 DEFAULT_LOCAL_PDF_SYNC_MAX_PAGES = 200
 DEFAULT_PDF_OCR_RENDER_DPI = 150
 DEFAULT_PDF_OCR_IMAGE_FORMAT = "jpeg"
@@ -541,14 +543,12 @@ def build_pdf_text_from_pages(page_texts: list[dict]) -> str:
 
 
 def should_use_qwen_for_pdf(extracted_text: str, total_pages: int) -> bool:
-    cleaned = (extracted_text or "").strip()
-    if not cleaned:
-        return True
+    """Returns True only when NO usable text could be extracted locally.
 
-    if total_pages > 0:
-        return len(cleaned) / total_pages < MIN_PDF_AVG_PAGE_CHARS
-
-    return False
+    This matches is_pdf_text_usable(): text PDFs (even sparse slides)
+    are handled locally; only truly unextractable PDFs need Qwen OCR.
+    """
+    return not is_pdf_text_usable(extracted_text, total_pages)
 
 
 def render_pdf_pages_to_images(file_bytes: bytes, max_pages: int) -> list[str]:
@@ -1782,10 +1782,24 @@ def update_material_parse_state(db: Session, material_id: int, **updates):
 
 
 def is_pdf_text_usable(extracted_text: str, total_pages: int) -> bool:
+    """Determine whether extracted PDF text is usable for indexing.
+
+    Returns True if ANY text was extracted — even low-density slide PDFs
+    have valuable text content.  Only completely unextractable PDFs
+    (truly scanned/image-only) need OCR fallback.
+    """
     cleaned = (extracted_text or "").strip()
     if not cleaned:
         return False
 
+    # If there is at least a minimal amount of text, treat it as a text-based
+    # PDF and keep the locally extracted content.  Slide-style courseware
+    # typically has 50–100 chars per page which is perfectly usable for RAG.
+    if len(cleaned) >= MIN_PDF_MIN_TEXT_CHARS:
+        return True
+
+    # For extremely sparse PDFs (< 100 chars total) fall back to the
+    # average-per-page check with a generous threshold.
     checked_pages = max(1, min(total_pages or 1, 15))
     return len(cleaned) / checked_pages >= MIN_PDF_AVG_PAGE_CHARS
 
@@ -2052,6 +2066,42 @@ def parse_scanned_pdf_in_background(
     failed_pages: list[int] = []
     errors: list[str] = []
     max_pages = get_pdf_ocr_max_pages()
+
+    # Fail fast if Qwen OCR is not available — save the local text if any exists
+    if not is_qwen_enabled():
+        local_text = (local_pdf_text or "").strip()
+        if local_text:
+            update_material_parse_state(
+                db, material.id,
+                extracted_text=local_text,
+                summary=local_text[:300] or "PDF 文本提取完成（OCR 未启用，仅使用直接提取的文本）。",
+                parse_status="parsing", parse_progress=80,
+                total_pages=0, parsed_pages=0,
+                ocr_required=0, qwen_used=False,
+                extract_method="local",
+            )
+            chunk_count = replace_material_chunks(db, material)
+            update_material_parse_state(
+                db, material.id,
+                parse_status="success", parse_progress=100,
+                chunk_count=chunk_count,
+                parse_error=None,
+                ocr_required=0, qwen_used=False,
+                extract_method="local",
+                parsed_at=utc_now(),
+                parse_completed_at=serialize_datetime(utc_now()),
+            )
+            return
+        update_material_parse_state(
+            db, material.id,
+            parse_status="failed",
+            parse_error="PDF 无法直接提取文本且 Qwen OCR 未启用，请上传可选择文本的 PDF 或联系管理员配置 OCR。",
+            parse_progress=0,
+            ocr_required=1, qwen_used=False,
+            extract_method="failed",
+            parse_completed_at=serialize_datetime(utc_now()),
+        )
+        return
 
     try:
         document = fitz.open(stream=file_bytes, filetype="pdf")
@@ -3953,11 +4003,10 @@ def reparse_single_material(material_id: int, username: str, db: Session = Depen
 
             if is_text:
                 material, chunk_count = complete_material_with_local_pdf_text(
-                    db, material_id, extracted_text, total_pages,
+                    db, material, extracted_text, total_pages,
                 )
             else:
                 # Try OCR fallback via Qwen
-                material = get_material_for_parsing(db, material_id)
                 parse_scanned_pdf_in_background(db, material, file_bytes, extracted_text)
                 db.refresh(material)
                 chunk_count = material.chunk_count or 0
