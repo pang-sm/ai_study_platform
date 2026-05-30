@@ -2150,8 +2150,8 @@ function App() {
     ].filter(Boolean).join("\n");
   }
 
-  const sendTextMessage = async () => {
-    const currentMessage = trimmedMessage;
+  const sendTextMessage = async (overrideText) => {
+    const currentMessage = (overrideText?.trim() ?? trimmedMessage) || overrideText || "";
 
     // Build hidden learning instruction from pendingAIContext (not shown in chat bubble)
     const hiddenInstruction = buildHiddenLearningInstruction(pendingAIContext);
@@ -2424,23 +2424,27 @@ function App() {
   };
 
 
-  const sendMessage = async () => {
+  const sendMessage = async (overrideText) => {
+    const hasOverride = typeof overrideText === "string" && overrideText.trim().length > 0;
+
     if (!user?.username) {
       setTip("请先登录。");
       logout();
       return;
     }
 
-    if (!canSendMessage) {
+    if (!hasOverride && !canSendMessage) {
       if (selectedFilesBlockReason) {
         setTip("请先输入问题后再发送文件。");
       }
       return;
     }
 
+    if (loading) return;
+
     setTip("");
 
-    await sendTextMessage();
+    await sendTextMessage(overrideText);
   };
 
   const addMessageToLibrary = async (messageItem, selectedSubject) => {

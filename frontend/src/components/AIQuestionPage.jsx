@@ -373,10 +373,9 @@ export default function AIQuestionPage({
         };
         const questions = questionsByGoal[ctx.goal] || questionsByGoal.systematic;
 
-        // sendMessage() reads trimmedMessage from state, hidden instruction auto-injected in sendTextMessage
+        // sendMessage(overrideText) bypasses async setState, sends exact text immediately
         const handleSendWithContext = (questionText) => {
-          setMessage(questionText);
-          sendMessage();
+          sendMessage(questionText);
         };
 
         return (
