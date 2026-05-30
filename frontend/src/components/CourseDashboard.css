@@ -209,6 +209,42 @@
   color: #0f172a;
 }
 
+/* ── Route source toggle tabs ── */
+.co-route-tabs {
+  display: flex;
+  gap: 4px;
+  margin-top: 10px;
+  background: #f1f5f9;
+  padding: 3px;
+  border-radius: 10px;
+  width: fit-content;
+}
+
+.co-route-tab {
+  padding: 5px 14px;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #64748b;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.18s;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.co-route-tab:hover {
+  color: #475569;
+}
+
+.co-route-tab--active {
+  background: #fff;
+  color: #2563eb;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
 .co-roadmap-subtitle {
   margin: 4px 0 0;
   font-size: 0.82rem;

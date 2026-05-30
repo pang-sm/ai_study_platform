@@ -85,6 +85,30 @@ export default function CourseDashboard({
 
   const courseLabel = getSubjectLabel(course);
   const routeSource = useMemo(() => getRouteSource(course, courseLabel), [course, courseLabel]);
+  const hasPlannedRoute = routeSource === "planned";
+
+  // Course-scoped materials filter
+  const courseMaterials = useMemo(() => {
+    const list = Array.isArray(materials) ? materials : [];
+    if (!courseLabel) return list;
+    return list.filter((m) => getSubjectLabel(m.subject) === courseLabel);
+  }, [materials, courseLabel, getSubjectLabel]);
+
+  // Route source toggle: "materials" | "platform"
+  const [activeRouteSource, setActiveRouteSource] = useState(() => {
+    return "materials"; // initial default, may be adjusted
+  });
+
+  // Reset route source when course changes
+  useEffect(() => {
+    if (courseMaterials.length > 0) {
+      setActiveRouteSource("materials");
+    } else if (hasPlannedRoute) {
+      setActiveRouteSource("platform");
+    } else {
+      setActiveRouteSource("materials");
+    }
+  }, [course]);
 
   // Build progress/status map from API data (course dashboard progress list)
   const progressMap = useMemo(() => {
@@ -93,37 +117,42 @@ export default function CourseDashboard({
     return m;
   }, [progress]);
 
-  // Route nodes — either planned or derived from API knowledge points
+  // Platform route nodes (always available for C courses from planned route)
+  const platformRouteNodes = useMemo(() => {
+    if (!hasPlannedRoute) return [];
+    return getPlannedRoute(progressMap, progressMap);
+  }, [hasPlannedRoute, progressMap]);
+
+  // Material route nodes — derived from API knowledge points for current course
   const [apiKnowledgePoints, setApiKnowledgePoints] = useState([]);
   const [kpLoading, setKpLoading] = useState(false);
 
   useEffect(() => {
-    if (!user?.username || !course) return;
-    if (routeSource !== "materials") return;
+    if (!user?.username || !course) {
+      setApiKnowledgePoints([]);
+      return;
+    }
+    setApiKnowledgePoints([]);
     setKpLoading(true);
+    let cancelled = false;
     fetch(`/api/knowledge-points?username=${encodeURIComponent(user.username)}&course_id=${encodeURIComponent(course)}`)
       .then((r) => r.json())
       .then((data) => {
-        if (data.knowledge_points) setApiKnowledgePoints(data.knowledge_points);
+        if (!cancelled && data.knowledge_points) setApiKnowledgePoints(data.knowledge_points);
       })
       .catch(() => {})
-      .finally(() => setKpLoading(false));
-  }, [user?.username, course, routeSource]);
+      .finally(() => { if (!cancelled) setKpLoading(false); });
+    return () => { cancelled = true; };
+  }, [user?.username, course]);
 
-  const routeNodes = useMemo(() => {
-    if (routeSource === "planned") {
-      return getPlannedRoute(progressMap, progressMap);
-    }
-    // Materials route: derive from API knowledge points
+  const materialRouteNodes = useMemo(() => {
     if (apiKnowledgePoints.length > 0) {
       const nodes = [];
-      // Group by parent -> children structure
       const rootPoints = apiKnowledgePoints.filter((p) => !p.parent_id);
       rootPoints.forEach((root, idx) => {
         const children = apiKnowledgePoints.filter((p) => p.parent_id === root.id);
         const allPoints = [root, ...children];
         const mastered = allPoints.filter((p) => p.status === "mastered").length;
-        const learning = allPoints.filter((p) => p.status === "learning").length;
         nodes.push({
           id: `kp-${root.id}`,
           title: root.title,
@@ -137,7 +166,10 @@ export default function CourseDashboard({
       if (nodes.length > 0) return nodes;
     }
     return [];
-  }, [routeSource, apiKnowledgePoints, progressMap]);
+  }, [apiKnowledgePoints]);
+
+  // Active route nodes based on selected route source
+  const routeNodes = activeRouteSource === "platform" ? platformRouteNodes : materialRouteNodes;
 
   const overallProgress = useMemo(() => {
     if (routeNodes.length > 0) return calculateOverallProgress(routeNodes);
@@ -150,21 +182,25 @@ export default function CourseDashboard({
     return [];
   }, [routeNodes]);
 
-  // AI suggestion
+  // AI suggestion — dynamic based on route source and material availability
   const aiSuggestion = useMemo(() => {
-    const materialCount = Array.isArray(materials) ? materials.length : (stats.materials_count ?? 0);
-    if (materialCount === 0) return "还没有上传课程资料。建议上传PDF、图片或文档后，AI将自动生成学习路线与知识点结构。";
+    if (activeRouteSource === "materials") {
+      if (courseMaterials.length === 0) return "还没有上传课程资料。建议上传PDF、图片或文档后，AI将自动生成学习路线与知识点结构。";
+      if (materialRouteNodes.length === 0) return "已上传资料，AI正在分析中。分析完成后将自动生成学习路线与知识点结构。";
+      if (overallProgress.reviewCount > 1) return `当前有 ${overallProgress.reviewCount} 个阶段需要复习，建议优先巩固薄弱知识点。`;
+      if (materialRouteNodes.some((n) => n.status === "learning")) return "继续完成当前学习中的阶段，按路线逐步推进可以更高效地掌握知识体系。";
+      return "根据已上传资料生成的学习路线，保持当前节奏持续学习。";
+    }
+    // Platform route
     if (overallProgress.reviewCount > 1) return `当前有 ${overallProgress.reviewCount} 个阶段需要复习，建议优先巩固薄弱知识点。`;
-    if (routeNodes.some((n) => n.status === "learning")) return "继续完成当前学习中的阶段，按路线逐步推进可以更高效地掌握知识体系。";
-    if (routeSource === "planned") return "这是C语言课程预设学习路线，建议从基础开始逐步推进到指针与数据结构。";
-    return "根据已上传资料生成的学习路线，保持当前节奏持续学习。";
-  }, [materials, stats.materials_count, overallProgress.reviewCount, routeNodes, routeSource]);
+    if (platformRouteNodes.some((n) => n.status === "learning")) return "继续完成当前学习中的阶段，按路线逐步推进可以更高效地掌握知识体系。";
+    return "这是平台预设学习路线，建议从基础开始逐步推进到高级内容。";
+  }, [activeRouteSource, courseMaterials.length, materialRouteNodes, platformRouteNodes, overallProgress.reviewCount]);
 
-  // Top 5 recent materials for sidebar
+  // Top 5 recent materials for sidebar (strictly filtered by current course)
   const recentMaterials = useMemo(() => {
-    const list = Array.isArray(materials) ? materials : [];
-    return list.slice(0, 5);
-  }, [materials]);
+    return courseMaterials.slice(0, 5);
+  }, [courseMaterials]);
 
   const [selectedMaterialId, setSelectedMaterialId] = useState(null);
   const [selectedMaterialDetail, setSelectedMaterialDetail] = useState(null);
@@ -233,7 +269,7 @@ export default function CourseDashboard({
             </div>
             <div className="co-progress-stats">
               <div className="co-progress-stat">
-                <span className="co-progress-stat-val">{stats.materials_count ?? materials.length}</span>
+                <span className="co-progress-stat-val">{stats.materials_count ?? courseMaterials.length}</span>
                 <span className="co-progress-stat-lbl">已上传资料</span>
               </div>
               <div className="co-progress-stat">
@@ -251,11 +287,30 @@ export default function CourseDashboard({
           <div className="co-card co-roadmap-card">
             <div className="co-roadmap-header">
               <div>
-                <h2 className="co-roadmap-title">资料驱动学习路线</h2>
+                <h2 className="co-roadmap-title">学习路线</h2>
+                {/* Route source toggle tabs */}
+                <div className="co-route-tabs">
+                  <button
+                    className={`co-route-tab${activeRouteSource === "materials" ? " co-route-tab--active" : ""}`}
+                    type="button"
+                    onClick={() => setActiveRouteSource("materials")}
+                  >
+                    我的资料路线
+                  </button>
+                  {hasPlannedRoute && (
+                    <button
+                      className={`co-route-tab${activeRouteSource === "platform" ? " co-route-tab--active" : ""}`}
+                      type="button"
+                      onClick={() => setActiveRouteSource("platform")}
+                    >
+                      平台推荐路线
+                    </button>
+                  )}
+                </div>
                 <p className="co-roadmap-subtitle">
-                  {routeSource === "planned"
+                  {activeRouteSource === "platform"
                     ? "基于C语言课程预设学习路线，从基础语法到高级编程逐步推进"
-                    : routeNodes.length > 0
+                    : materialRouteNodes.length > 0
                       ? "根据上传资料自动生成学习路线，并同步绘制知识点路线"
                       : "上传课程资料后，AI将自动生成学习路线与知识点结构"}
                 </p>
@@ -277,9 +332,9 @@ export default function CourseDashboard({
                 </div>
                 <div className="co-roadmap-footer">
                   <span className="co-roadmap-source-label">
-                    {routeSource === "planned" ? "预设学习路线" : "基于已上传资料生成"}
+                    {activeRouteSource === "platform" ? "平台预设学习路线" : "基于已上传资料生成"}
                   </span>
-                  {recentMaterials.length > 0 && (
+                  {activeRouteSource === "materials" && recentMaterials.length > 0 && (
                     <div className="co-roadmap-materials">
                       {recentMaterials.slice(0, 4).map((m) => (
                         <span key={m.id} className="co-roadmap-chip">{m.original_filename}</span>
@@ -287,13 +342,23 @@ export default function CourseDashboard({
                     </div>
                   )}
                   <div className="co-roadmap-actions">
-                    <button className="co-btn co-btn--primary" type="button" onClick={() => setPage("workspaceMaterials")}>
-                      上传资料生成路线
-                    </button>
-                    {routeSource === "materials" && (
-                      <button className="co-btn co-btn--ghost" type="button" onClick={() => loadMaterials(course)}>
-                        重新分析资料
-                      </button>
+                    {activeRouteSource === "materials" ? (
+                      <>
+                        <button className="co-btn co-btn--primary" type="button" onClick={() => setPage("workspaceMaterials")}>
+                          上传资料生成路线
+                        </button>
+                        {materialRouteNodes.length > 0 && (
+                          <button className="co-btn co-btn--ghost" type="button" onClick={() => loadMaterials(course)}>
+                            重新分析资料
+                          </button>
+                        )}
+                      </>
+                    ) : (
+                      courseMaterials.length === 0 && (
+                        <button className="co-btn co-btn--ghost" type="button" onClick={() => { setActiveRouteSource("materials"); setPage("workspaceMaterials"); }}>
+                          上传资料自定义路线
+                        </button>
+                      )
                     )}
                   </div>
                 </div>
@@ -308,11 +373,23 @@ export default function CourseDashboard({
                     <line x1="9" y1="15" x2="15" y2="15" />
                   </svg>
                 </div>
-                <p className="co-roadmap-empty-title">还没有可用于生成路线的资料</p>
-                <p className="co-roadmap-empty-hint">上传PDF、图片或文档后，AI将自动生成学习路线与知识点结构。</p>
-                <button className="co-btn co-btn--primary" type="button" onClick={() => setPage("workspaceMaterials")}>
-                  上传资料生成路线
-                </button>
+                {activeRouteSource === "materials" ? (
+                  <>
+                    <p className="co-roadmap-empty-title">还没有可用于生成路线的资料</p>
+                    <p className="co-roadmap-empty-hint">上传PDF、图片或文档后，AI将自动生成学习路线与知识点结构。</p>
+                    <button className="co-btn co-btn--primary" type="button" onClick={() => setPage("workspaceMaterials")}>
+                      上传资料生成路线
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p className="co-roadmap-empty-title">暂无可用的平台推荐路线</p>
+                    <p className="co-roadmap-empty-hint">请切换到「我的资料路线」上传资料后生成。</p>
+                    <button className="co-btn co-btn--primary" type="button" onClick={() => setActiveRouteSource("materials")}>
+                      切换至资料路线
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>
