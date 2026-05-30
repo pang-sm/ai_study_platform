@@ -1,0 +1,632 @@
+/* ── Course Overview Page ── */
+.co-page {
+  padding: 0;
+  width: 100%;
+}
+
+/* ── Loading ── */
+.co-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 0;
+  color: #64748b;
+  font-size: 0.92rem;
+}
+
+.co-loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #e2e8f0;
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation: co-spin 0.7s linear infinite;
+  margin-bottom: 12px;
+}
+
+@keyframes co-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Page title ── */
+.co-page-title-area {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 4px 0 20px;
+}
+
+.co-page-title-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: #eff6ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.co-page-title {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+}
+
+.co-page-subtitle {
+  margin: 4px 0 0;
+  font-size: 0.86rem;
+  color: #64748b;
+}
+
+/* ── Two-column layout ── */
+.co-layout {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.co-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.co-sidebar {
+  width: 324px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── Cards ── */
+.co-card {
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #e8ecf1;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  margin-bottom: 20px;
+  overflow: hidden;
+}
+
+/* ── Progress card ── */
+.co-progress-card {
+  padding: 24px;
+}
+
+.co-progress-top {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+}
+
+.co-progress-donut-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.co-donut {
+  display: block;
+}
+
+.co-progress-label {
+  font-size: 0.78rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.co-progress-right {
+  flex: 1;
+  min-width: 0;
+}
+
+.co-progress-encourage {
+  margin: 0 0 16px;
+  font-size: 0.9rem;
+  color: #475569;
+  line-height: 1.55;
+}
+
+.co-progress-bar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.co-progress-bar {
+  flex: 1;
+  height: 8px;
+  border-radius: 10px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.co-progress-bar-fill {
+  height: 100%;
+  border-radius: 10px;
+  background: linear-gradient(90deg, #2563eb, #3b82f6);
+  transition: width 0.5s ease;
+}
+
+.co-progress-bar-pct {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #2563eb;
+  min-width: 32px;
+  text-align: right;
+}
+
+.co-progress-stats {
+  display: flex;
+  gap: 0;
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.co-progress-stat {
+  flex: 1;
+  text-align: center;
+}
+
+.co-progress-stat-val {
+  display: block;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.co-progress-stat-lbl {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.76rem;
+  color: #94a3b8;
+}
+
+/* ── Roadmap card ── */
+.co-roadmap-card {
+  padding: 24px;
+  margin-bottom: 20px;
+}
+
+.co-roadmap-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.co-roadmap-title {
+  margin: 0;
+  font-size: 1.08rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.co-roadmap-subtitle {
+  margin: 4px 0 0;
+  font-size: 0.82rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+/* ── Route track ── */
+.co-route-track {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  align-items: flex-start;
+}
+
+.co-route-node-wrap {
+  display: flex;
+  align-items: flex-start;
+}
+
+.co-route-node {
+  width: 168px;
+  padding: 14px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: border-color 0.18s, background 0.18s, box-shadow 0.18s;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.co-route-node:hover {
+  border-color: #bfdbfe;
+  background: #f8fafc;
+}
+
+.co-route-node--active {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.08);
+}
+
+.co-route-node--done {
+  border-color: #a7f3d0;
+  background: #f0fdf4;
+}
+
+.co-route-node-seq {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  background: #f1f5f9;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #64748b;
+  margin-bottom: 8px;
+}
+
+.co-route-node--active .co-route-node-seq {
+  background: #2563eb;
+  color: #fff;
+}
+
+.co-route-node--done .co-route-node-seq {
+  background: #059669;
+  color: #fff;
+}
+
+.co-route-node-body {
+  min-width: 0;
+}
+
+.co-route-node-title {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.35;
+}
+
+.co-route-node-sub {
+  font-size: 0.74rem;
+  color: #94a3b8;
+  margin-top: 3px;
+  line-height: 1.35;
+}
+
+.co-route-node-status {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.co-route-connector {
+  width: 20px;
+  height: 2px;
+  background: #e2e8f0;
+  margin: 36px 0 0;
+  flex-shrink: 0;
+}
+
+/* ── Roadmap footer ── */
+.co-roadmap-footer {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.co-roadmap-source-label {
+  display: block;
+  font-size: 0.78rem;
+  color: #94a3b8;
+  margin-bottom: 8px;
+}
+
+.co-roadmap-materials {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.co-roadmap-chip {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: #f1f5f9;
+  font-size: 0.74rem;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+.co-roadmap-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ── Roadmap empty ── */
+.co-roadmap-empty {
+  text-align: center;
+  padding: 32px 16px;
+}
+
+.co-roadmap-empty-icon {
+  margin-bottom: 12px;
+  opacity: 0.4;
+}
+
+.co-roadmap-empty-title {
+  margin: 0 0 6px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.co-roadmap-empty-hint {
+  margin: 0 0 18px;
+  font-size: 0.82rem;
+  color: #94a3b8;
+}
+
+/* ── Buttons ── */
+.co-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 10px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s;
+  border: none;
+}
+
+.co-btn--primary {
+  background: #2563eb;
+  color: #fff;
+}
+
+.co-btn--primary:hover {
+  background: #1d4ed8;
+}
+
+.co-btn--ghost {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1.5px solid #e2e8f0;
+}
+
+.co-btn--ghost:hover {
+  background: #e2e8f0;
+}
+
+/* ── Sidebar cards ── */
+.co-side-card {
+  padding: 18px 20px;
+  margin-bottom: 0;
+}
+
+.co-side-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.co-side-card-title {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+}
+
+.co-side-card-action {
+  font-size: 0.76rem;
+  color: #2563eb;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-weight: 500;
+  padding: 0;
+}
+
+.co-side-card-action:hover {
+  color: #1d4ed8;
+}
+
+.co-side-empty {
+  text-align: center;
+  padding: 20px 0;
+  color: #94a3b8;
+  font-size: 0.82rem;
+}
+
+.co-side-empty p {
+  margin: 0;
+}
+
+.co-side-empty-hint {
+  font-size: 0.74rem !important;
+  margin-top: 4px !important;
+  color: #cbd5e1;
+}
+
+/* ── Material list (sidebar) ── */
+.co-material-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.co-material-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border: 1px solid #f1f5f9;
+  border-radius: 10px;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  font-family: inherit;
+}
+
+.co-material-item:hover {
+  border-color: #bfdbfe;
+  background: #fff;
+}
+
+.co-material-item--open {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.co-material-item-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.co-material-item-meta {
+  margin-top: 3px;
+  font-size: 0.72rem;
+  color: #94a3b8;
+}
+
+.co-material-detail {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.co-material-detail p {
+  margin: 0;
+  font-size: 0.76rem;
+  color: #475569;
+  line-height: 1.45;
+}
+
+/* ── Knowledge points list (sidebar) ── */
+.co-kp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.co-kp-stage {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #f1f5f9;
+}
+
+.co-kp-stage-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.co-kp-stage-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.co-kp-stage-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #0f172a;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.co-kp-stage-tag {
+  padding: 1px 7px;
+  border-radius: 5px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.co-kp-stage-count {
+  margin-top: 3px;
+  margin-left: 16px;
+  font-size: 0.72rem;
+  color: #94a3b8;
+}
+
+/* ── AI suggestion ── */
+.co-ai-card {
+  background: linear-gradient(135deg, #f8faff 0%, #eff6ff 100%);
+  border-color: #dbeafe;
+}
+
+.co-ai-suggestion {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #475569;
+  line-height: 1.55;
+}
+
+/* ── Responsive ── */
+@media (max-width: 960px) {
+  .co-layout {
+    flex-direction: column;
+  }
+
+  .co-sidebar {
+    width: 100%;
+  }
+
+  .co-route-node {
+    width: 140px;
+  }
+}
+
+@media (max-width: 640px) {
+  .co-progress-top {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .co-progress-stats {
+    flex-wrap: wrap;
+  }
+
+  .co-progress-stat {
+    flex: none;
+    width: 33%;
+  }
+
+  .co-route-track {
+    flex-direction: column;
+  }
+
+  .co-route-node-wrap {
+    flex-direction: column;
+  }
+
+  .co-route-connector {
+    width: 2px;
+    height: 14px;
+    margin: 0 0 0 11px;
+  }
+}

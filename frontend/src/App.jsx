@@ -3449,38 +3449,34 @@ function App() {
                 </option>
               ))}
             </select>
-            <nav className="workspace-tabs">
-              <button
-                className={`workspace-tab ${page === "dashboard" ? "active" : ""}`}
-                onClick={() => { setPage("dashboard"); }}
-              >
-                课程概览
-              </button>
-              <button
-                className={`workspace-tab ${page === "chat" ? "active" : ""}`}
-                onClick={() => setPage("chat")}
-              >
-                AI 问答
-              </button>
-              <button
-                className={`workspace-tab ${page === "workspaceMaterials" ? "active" : ""}`}
-                onClick={() => { setMaterialSubjectFilter(normalizeSubject(subject)); setMaterialCurrentPage(1); setPage("workspaceMaterials"); loadMaterials(normalizeSubject(subject)); }}
-              >
-                资料库
-              </button>
-              <button
-                className={`workspace-tab ${page === "records" ? "active" : ""}`}
-                onClick={openLearningRecordPage}
-              >
-                学习记录
-              </button>
-              <button
-                className={`workspace-tab ${page === "history" ? "active" : ""}`}
-                onClick={() => setPage("history")}
-              >
-                历史对话
-              </button>
-            </nav>
+            {page !== "dashboard" && (
+              <nav className="workspace-tabs">
+                <button
+                  className={`workspace-tab ${page === "chat" ? "active" : ""}`}
+                  onClick={() => setPage("chat")}
+                >
+                  AI 问答
+                </button>
+                <button
+                  className={`workspace-tab ${page === "workspaceMaterials" ? "active" : ""}`}
+                  onClick={() => { setMaterialSubjectFilter(normalizeSubject(subject)); setMaterialCurrentPage(1); setPage("workspaceMaterials"); loadMaterials(normalizeSubject(subject)); }}
+                >
+                  资料库
+                </button>
+                <button
+                  className={`workspace-tab ${page === "records" ? "active" : ""}`}
+                  onClick={openLearningRecordPage}
+                >
+                  学习记录
+                </button>
+                <button
+                  className={`workspace-tab ${page === "history" ? "active" : ""}`}
+                  onClick={() => setPage("history")}
+                >
+                  历史对话
+                </button>
+              </nav>
+            )}
           </div>
           <div className="workspace-topbar-actions">
             <button className="primary-button compact" onClick={startNewConversation}>
@@ -3500,13 +3496,18 @@ function App() {
             loading={courseDashboardLoading}
             savingPointKey={courseProgressSavingKey}
             setPage={setPage}
-            onCourseChange={setSubject}
+            onCourseChange={(newCourse) => {
+              setSubject(newCourse);
+              if (!activeSessionId) setActiveSessionSubject(newCourse);
+            }}
             onProgressChange={updateCourseProgress}
             onStartAsk={() => openChatPageForCourse(subject)}
             onOpenCodeStudio={() => setPage("codeStudio")}
             onOpenPracticeCenter={() => setPage("practiceCenter")}
             getSubjectLabel={getSubjectLabel}
             formatDate={formatDate}
+            materials={materials}
+            loadMaterials={(target) => loadMaterials(normalizeSubject(target || subject))}
           />
         ) : page === "records" ? (
           <section className="chat-panel chat-panel--wide learning-records-panel">
