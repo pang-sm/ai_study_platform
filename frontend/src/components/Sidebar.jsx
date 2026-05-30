@@ -17,13 +17,13 @@ export default function Sidebar({
 
   const studyNav = [
     { id: "dashboard", icon: "📋", label: "课程概览" },
+    { id: "workspaceMaterials", icon: "📚", label: "资料库" },
     { id: "practiceCenter", icon: "📝", label: "练习中心" },
     { id: "codeStudio", icon: "</>", label: "编程助手" },
     { id: "taskCenter", icon: "✅", label: "学习任务" },
   ];
 
   const resourceNav = [
-    { id: "workspaceMaterials", icon: "📚", label: "资料库" },
     { id: "learningReportCenter", icon: "📄", label: "学习报告" },
     ...(isAdmin ? [{ id: "adminCenter", icon: "🛡️", label: "管理后台" }] : []),
   ];

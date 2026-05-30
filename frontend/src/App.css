@@ -841,7 +841,8 @@ select.field:focus {
 .workspace-main {
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   padding: 12px 24px 12px 0;

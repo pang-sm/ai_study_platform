@@ -3478,11 +3478,13 @@ function App() {
               </nav>
             )}
           </div>
-          <div className="workspace-topbar-actions">
-            <button className="primary-button compact" onClick={startNewConversation}>
-              新建对话
-            </button>
-          </div>
+          {page !== "dashboard" && (
+            <div className="workspace-topbar-actions">
+              <button className="primary-button compact" onClick={startNewConversation}>
+                新建对话
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
