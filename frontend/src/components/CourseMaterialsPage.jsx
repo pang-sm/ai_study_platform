@@ -158,9 +158,15 @@ function MaterialCard({
   onDownload,
   onDetail,
   onDelete,
+  onReparse,
 }) {
+  const parseStatus = material.parse_status || "unknown";
+  const isFailed = parseStatus === "failed";
+  const isParsing = parseStatus === "parsing" || parseStatus === "pending";
+  const parseError = material.parse_error || "";
+
   return (
-    <div className="cmp-material-card">
+    <div className={`cmp-material-card${isFailed ? " cmp-material-card--failed" : ""}`}>
       <div className="cmp-material-card-top">
         <span className={`cmp-file-icon ${getFileIconClass(material.file_type)}`}>
           {getFileIconEmoji(material.file_type)}
@@ -177,11 +183,24 @@ function MaterialCard({
         </div>
       </div>
       <div className="cmp-material-card-index">
-        <span className={`cmp-index-badge cmp-index-badge--${material.parse_status || "unknown"}`}>
-          {getParseStatusLabel(material.parse_status)}
+        <span className={`cmp-index-badge cmp-index-badge--${parseStatus}`}>
+          {isParsing ? "解析中..." : getParseStatusLabel(parseStatus)}
         </span>
         <span className="cmp-index-chunks">{Number(material.chunk_count || 0)} 个知识片段</span>
+        {isParsing && (
+          <span className="cmp-index-progress">
+            {Number(material.parse_progress || 0)}%
+          </span>
+        )}
       </div>
+      {isFailed && parseError && (
+        <div className="cmp-parse-error" title={parseError}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          {parseError.length > 80 ? parseError.slice(0, 80) + "..." : parseError}
+        </div>
+      )}
       <div className="cmp-material-card-actions">
         <button className="cmp-action-btn" title="查看原文件" onClick={() => onPreview(material)} disabled={!material.can_preview}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -195,6 +214,16 @@ function MaterialCard({
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           下载
         </button>
+        {isFailed && (
+          <button className="cmp-action-btn cmp-action-btn--reparse" title="重新解析" onClick={() => onReparse(material.id)}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <polyline points="23 4 23 10 17 10" />
+              <polyline points="1 20 1 14 7 14" />
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+            </svg>
+            重新解析
+          </button>
+        )}
         <button className="cmp-action-btn cmp-action-btn--danger" title="删除" onClick={() => onDelete(material.id)}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
           删除
@@ -237,6 +266,7 @@ export default function CourseMaterialsPage({
   previewMaterial,
   downloadMaterial,
   deleteMaterial,
+  reparseMaterial,
   setPage,
 }) {
   const [filterType, setFilterType] = useState("all");
@@ -596,6 +626,7 @@ export default function CourseMaterialsPage({
                   onDownload={downloadMaterial}
                   onDetail={openMaterialDetail}
                   onDelete={deleteMaterial}
+                  onReparse={reparseMaterial}
                 />
               ))}
               {displayTotalPages > 1 && (

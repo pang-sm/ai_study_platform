@@ -3885,6 +3885,186 @@ def reindex_user_materials(req: ReindexMaterialsRequest, db: Session = Depends(g
     }
 
 
+@app.post("/materials/{material_id}/reparse")
+def reparse_single_material(material_id: int, username: str, db: Session = Depends(get_db)):
+    """Re-parse a single material from its source file: re-extract text, re-OCR if needed, re-chunk."""
+    user = get_user_by_username(username, db)
+    material = db.query(models.StudyMaterial).filter(
+        models.StudyMaterial.id == material_id,
+        models.StudyMaterial.username == user.username,
+        models.StudyMaterial.is_deleted.is_(False),
+    ).first()
+
+    if not material:
+        raise HTTPException(status_code=404, detail="资料不存在")
+
+    file_path = resolve_stored_file_path(material.file_path)
+    if not file_path.exists() or not file_path.is_file():
+        material.parse_status = "failed"
+        material.parse_error = "上传文件不存在，无法重新解析。"
+        db.commit()
+        return {
+            "material_id": material.id,
+            "parse_status": "failed",
+            "parse_error": material.parse_error,
+            "message": "原文件不存在，无法重新解析。",
+            "material": serialize_material_detail(material),
+        }
+
+    try:
+        file_bytes = file_path.read_bytes()
+    except Exception:
+        material.parse_status = "failed"
+        material.parse_error = "读取原文件失败，请重新上传。"
+        db.commit()
+        return {
+            "material_id": material.id,
+            "parse_status": "failed",
+            "parse_error": material.parse_error,
+            "message": "读取原文件失败。",
+            "material": serialize_material_detail(material),
+        }
+
+    material.parse_status = "parsing"
+    material.parse_error = None
+    material.parse_progress = 1
+    material.parse_started_at = serialize_datetime(utc_now())
+    db.commit()
+    db.refresh(material)
+
+    extracted_text = ""
+    chunk_count = 0
+    file_type = (material.file_type or "").lower()
+    original_filename = material.original_filename or ""
+
+    try:
+        if file_type == "pdf":
+            total_pages, page_texts = extract_pdf_pages(file_bytes)
+            extracted_text = build_pdf_text_from_pages(page_texts)
+            is_text = is_pdf_text_usable(extracted_text, total_pages)
+
+            update_material_parse_state(
+                db, material_id,
+                total_pages=total_pages,
+                parse_progress=20,
+                parsed_pages=0,
+                ocr_required=0 if is_text else 1,
+            )
+
+            if is_text:
+                material, chunk_count = complete_material_with_local_pdf_text(
+                    db, material_id, extracted_text, total_pages,
+                )
+            else:
+                # Try OCR fallback via Qwen
+                material = get_material_for_parsing(db, material_id)
+                parse_scanned_pdf_in_background(db, material, file_bytes, extracted_text)
+                db.refresh(material)
+                chunk_count = material.chunk_count or 0
+
+        elif file_type == "image":
+            extracted_text = extract_image_text(file_bytes)
+            if (extracted_text or "").strip():
+                update_material_parse_state(
+                    db, material_id,
+                    extracted_text=extracted_text,
+                    extract_method="local",
+                    parse_progress=40,
+                )
+                chunk_count = replace_material_chunks(db, material)
+                update_material_parse_state(
+                    db, material_id,
+                    parse_status="success",
+                    parse_progress=100,
+                    parse_completed_at=serialize_datetime(utc_now()),
+                    chunk_count=chunk_count,
+                )
+            else:
+                # Image: try Qwen OCR
+                update_material_parse_state(db, material_id, parse_status="parsing", parse_progress=10)
+                material = get_material_for_parsing(db, material_id)
+                qwen_result = parse_image_with_qwen(str(file_path), prompt=SCANNED_PDF_PAGE_PROMPT)
+                qwen_text = (qwen_result.get("extracted_text") or "").strip()
+                if qwen_result.get("success") and qwen_text:
+                    update_material_parse_state(
+                        db, material_id,
+                        extracted_text=qwen_text,
+                        extract_method="qwen",
+                        qwen_used=True,
+                        parse_progress=50,
+                    )
+                    chunk_count = replace_material_chunks(db, material)
+                    update_material_parse_state(
+                        db, material_id,
+                        parse_status="success",
+                        parse_progress=100,
+                        parse_completed_at=serialize_datetime(utc_now()),
+                        chunk_count=chunk_count,
+                    )
+                else:
+                    update_material_parse_state(
+                        db, material_id,
+                        parse_status="failed",
+                        parse_error=qwen_result.get("error") or "图片 OCR 解析失败，未能提取文字。",
+                        parse_progress=0,
+                        parse_completed_at=serialize_datetime(utc_now()),
+                    )
+
+        elif file_type in ("docx", "pptx", "text", "code"):
+            from document_parser import extract_supported_file_text
+            result = extract_supported_file_text(file_bytes, original_filename)
+            extracted_text = result["text"]
+            if (extracted_text or "").strip():
+                update_material_parse_state(
+                    db, material_id,
+                    extracted_text=extracted_text,
+                    extract_method="local",
+                    parse_progress=40,
+                )
+                chunk_count = replace_material_chunks(db, material)
+                update_material_parse_state(
+                    db, material_id,
+                    parse_status="success",
+                    parse_progress=100,
+                    parse_completed_at=serialize_datetime(utc_now()),
+                    chunk_count=chunk_count,
+                )
+            else:
+                update_material_parse_state(
+                    db, material_id,
+                    parse_status="failed",
+                    parse_error="文件内容为空，无法解析。",
+                    parse_progress=0,
+                    parse_completed_at=serialize_datetime(utc_now()),
+                )
+        else:
+            update_material_parse_state(
+                db, material_id,
+                parse_status="failed",
+                parse_error=f"暂不支持 {file_type} 类型的重新解析。",
+                parse_progress=0,
+                parse_completed_at=serialize_datetime(utc_now()),
+            )
+    except Exception as exc:
+        update_material_parse_state(
+            db, material_id,
+            parse_status="failed",
+            parse_error=f"重新解析失败：{str(exc)[:200]}",
+            parse_progress=0,
+            parse_completed_at=serialize_datetime(utc_now()),
+        )
+
+    db.refresh(material)
+    return {
+        "material_id": material.id,
+        "parse_status": material.parse_status,
+        "parse_error": material.parse_error,
+        "chunk_count": material.chunk_count or 0,
+        "message": "重新解析完成" if material.parse_status == "success" else "重新解析失败",
+        "material": serialize_material_detail(material),
+    }
+
+
 @app.get("/materials/search")
 def search_materials(
     username: str,

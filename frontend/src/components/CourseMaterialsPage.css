@@ -373,6 +373,31 @@
 .cmp-action-btn--danger { color: #dc2626; border-color: #fecaca; }
 .cmp-action-btn--danger:hover { background: #fef2f2; }
 
+.cmp-action-btn--reparse { color: #d97706; border-color: #fcd34d; }
+.cmp-action-btn--reparse:hover { background: #fffbeb; }
+
+.cmp-material-card--failed { border-color: #fecaca; }
+
+.cmp-parse-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px 12px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: #dc2626;
+  line-height: 1.4;
+}
+
+.cmp-index-progress {
+  font-size: 11px;
+  color: #2563eb;
+  font-weight: 600;
+}
+
 /* ── Empty States ── */
 
 .cmp-empty-state {

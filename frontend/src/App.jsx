@@ -1494,6 +1494,50 @@ function App() {
     }
   };
 
+  const reparseMaterial = async (materialId) => {
+    if (!user?.username) return;
+    setTip("");
+
+    try {
+      const res = await fetch(
+        `${API_BASE}/materials/${materialId}/reparse?username=${encodeURIComponent(user.username)}`,
+        { method: "POST" }
+      );
+      const data = await res.json();
+
+      if (!res.ok) {
+        setTip(getDisplayMessage(data.detail, "重新解析失败"));
+        return;
+      }
+
+      // Update the material in state with the new parse status
+      setMaterials((prev) =>
+        prev.map((item) =>
+          item.id === materialId
+            ? { ...item, ...data.material, parse_status: data.parse_status, parse_error: data.parse_error, chunk_count: data.chunk_count }
+            : item
+        )
+      );
+
+      if (selectedMaterialId === materialId) {
+        setSelectedMaterialDetail((prev) =>
+          prev && prev.id === materialId
+            ? { ...prev, ...data.material, parse_status: data.parse_status, parse_error: data.parse_error, chunk_count: data.chunk_count }
+            : prev
+        );
+      }
+
+      setTip(
+        data.parse_status === "success"
+          ? "重新解析完成。"
+          : `重新解析失败：${data.parse_error || "未知错误"}`
+      );
+    } catch (error) {
+      console.error("Failed to reparse material:", error);
+      setTip("暂时无法重新解析。");
+    }
+  };
+
   const openChatSession = async (session) => {
     if (!user?.username) {
       setTip("请先登录。");
@@ -3967,6 +4011,7 @@ function App() {
             previewMaterial={previewMaterial}
             downloadMaterial={downloadMaterial}
             deleteMaterial={deleteMaterial}
+            reparseMaterial={reparseMaterial}
             setPage={setPage}
           />
         ) : (
