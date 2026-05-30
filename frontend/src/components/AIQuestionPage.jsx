@@ -343,21 +343,6 @@ export default function AIQuestionPage({
         const examDaysLabel = ({ "3": "3 天内", "7": "1 周内", "14": "2 周内", "30": "1 个月内" })[ctx.examDays] || "";
         const routeLabel = ctx.routeSource === "platform" ? "平台推荐路线" : "我的资料路线";
 
-        // Learning context text to prepend to AI messages
-        const learningContextText = [
-          `[学习上下文]`,
-          `课程：${ctx.courseName}`,
-          `知识点：${ctx.knowledgePointTitle}`,
-          `学习目标：${goalLabel}`,
-          `学习难度：${diffLabel}`,
-          `知识点细度：${depthLabel}`,
-          `每日学习时间：${dailyTimeLabel}`,
-          `路线来源：${routeLabel}`,
-          ctx.examMode ? `考试速成：是` : "",
-          ctx.examMode && examDaysLabel ? `距离考试：${examDaysLabel}` : "",
-          ctx.examMode && ctx.examCustomDate ? `考试日期：${ctx.examCustomDate}` : "",
-        ].filter(Boolean).join("；");
-
         // Dynamic recommended questions based on goal
         const questionsByGoal = {
           overview: [
@@ -388,10 +373,10 @@ export default function AIQuestionPage({
         };
         const questions = questionsByGoal[ctx.goal] || questionsByGoal.systematic;
 
-        // Build sendMessage wrapper that includes learning context
+        // sendMessage() reads trimmedMessage from state, hidden instruction auto-injected in sendTextMessage
         const handleSendWithContext = (questionText) => {
-          const contextMsg = learningContextText + "\n\n请根据以上学习目标调整回答深度、例子类型和练习建议。\n\n用户问题：" + questionText;
-          sendMessage(contextMsg);
+          setMessage(questionText);
+          sendMessage();
         };
 
         return (

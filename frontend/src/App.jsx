@@ -2113,8 +2113,52 @@ function App() {
     });
   };
 
+  function buildHiddenLearningInstruction(ctx) {
+    if (!ctx || ctx.type !== "knowledge_point") return "";
+    const goalLabel = ({ overview: "大概了解", systematic: "系统学习", project: "项目实践", exam: "期中/期末速成" })[ctx.goal] || "系统学习";
+    const diffLabel = ({ intro: "入门", standard: "标准", advanced: "提高", challenge: "挑战" })[ctx.difficulty] || "标准";
+    const depthLabel = ({ brief: "粗略", standard: "标准", detailed: "详细" })[ctx.depth] || "标准";
+    const dailyTimeLabel = ctx.dailyTime ? `${ctx.dailyTime} 分钟` : "30 分钟";
+    const examDaysLabel = ({ "3": "3 天内", "7": "1 周内", "14": "2 周内", "30": "1 个月内" })[ctx.examDays] || "";
+    const routeLabel = ctx.routeSource === "platform" ? "平台推荐路线" : "我的资料路线";
+
+    return [
+      "你是学生的学习导师。以下是学生当前的隐藏学习配置。不要在回答中机械复述这些配置，直接据此调整回答方式和深度——",
+      `课程：${ctx.courseName}`,
+      `当前学习知识点：${ctx.knowledgePointTitle}`,
+      `学习目标：${goalLabel}`,
+      `学习难度：${diffLabel}`,
+      `知识点细度：${depthLabel}`,
+      `每日学习时间：${dailyTimeLabel}`,
+      `路线来源：${routeLabel}`,
+      ctx.examMode ? `考试速成：是，距离考试${examDaysLabel}` : "",
+      "",
+      "回答要求：",
+      goalLabel === "大概了解" ? "- 回答要简短，先讲核心概念，少讲底层细节，少给复杂代码，多用生活类比" : "",
+      goalLabel === "系统学习" ? "- 回答结构完整，包含定义、原理、例子、易错点和基础练习" : "",
+      goalLabel === "项目实践" ? "- 回答偏实际应用和代码场景，多讲工程使用方式、调试方法和实践建议" : "",
+      goalLabel === "期中/期末速成" ? "- 回答偏考试导向，标明考点频率，给出常见题型、速记版总结和复习优先级" : "",
+      diffLabel === "入门" ? "- 使用简单语言，少用专业术语，多用类比" : "",
+      diffLabel === "挑战" ? "- 可以深入讲解底层原理、边界情况和复杂例子" : "",
+      depthLabel === "粗略" ? "- 控制篇幅，只讲核心要点" : "",
+      depthLabel === "详细" ? "- 充分展开，补充步骤、例子、易错点和练习题" : "",
+      dailyTimeLabel === "15 分钟" ? "- 学习建议要短平快，适合碎片化学习" : "",
+      dailyTimeLabel === "90 分钟" ? "- 可以给出更完整的学习任务和练习计划" : "",
+      ctx.examMode && examDaysLabel ? `- 考试迫近（${examDaysLabel}），优先高频考点和速记内容` : "",
+      "",
+      `不要在回答开头说"根据你的学习目标"，直接自然地给出回答。`,
+    ].filter(Boolean).join("\n");
+  }
+
   const sendTextMessage = async () => {
     const currentMessage = trimmedMessage;
+
+    // Build hidden learning instruction from pendingAIContext (not shown in chat bubble)
+    const hiddenInstruction = buildHiddenLearningInstruction(pendingAIContext);
+    const apiMessage = hiddenInstruction
+      ? `${hiddenInstruction}\n\n---\n学生问题：${currentMessage}`
+      : currentMessage;
+
     const attachedFiles = validAttachedFiles.map((item) => ({
       material_id: item.material_id,
       original_filename: item.original_filename,
@@ -2122,6 +2166,7 @@ function App() {
       parse_status: item.parse_status,
       chunk_count: item.chunk_count,
     }));
+    // Only show user's original message in chat bubble
     setMessages((prev) => [
       ...prev,
       createLocalMessage({ role: "user", content: currentMessage, attachments: attachedFiles }),
@@ -2134,7 +2179,7 @@ function App() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          message: currentMessage,
+          message: apiMessage,
           subject: normalizeSubject(currentChatSubject),
           grade: user.grade || "",
           major: user.major || "",
