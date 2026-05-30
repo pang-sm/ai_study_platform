@@ -68,6 +68,7 @@ export default function KnowledgeLearningPage({
   onNavigateToAI,
   materials = [],
   loadMaterials = () => {},
+  goalConfig = null,
 }) {
   const courseLabel = getSubjectLabel(course);
   const routeSource = useMemo(() => getRouteSource(course, courseLabel), [course, courseLabel]);
@@ -194,6 +195,7 @@ export default function KnowledgeLearningPage({
       (n.knowledgePoints || []).some((kp) => kp.id === selectedKp.id)
     );
     if (onNavigateToAI) {
+      const config = goalConfig || {};
       onNavigateToAI({
         type: "knowledge_point",
         courseId: course,
@@ -204,6 +206,14 @@ export default function KnowledgeLearningPage({
         knowledgePointId: selectedKp.id,
         knowledgePointTitle: selectedKp.title,
         materialIds: parentNode?.materialIds || [],
+        goal: config.goal || "systematic",
+        difficulty: config.difficulty || "standard",
+        depth: config.depth || "standard",
+        dailyTime: config.dailyTime || 30,
+        examMode: config.goal === "exam",
+        examDays: config.examDays || "",
+        examCustomDate: config.examCustomDate || "",
+        examPaperUploaded: config.examPaperUploaded || false,
         aiPromptContext: `当前学习知识点：${selectedKp.title}，课程：${courseLabel}。`,
       });
     }

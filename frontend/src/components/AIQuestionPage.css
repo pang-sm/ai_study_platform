@@ -318,6 +318,38 @@
   color: #0f172a !important;
 }
 
+.aiqp-kp-context-goal {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.aiqp-kp-context-goal-label {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.aiqp-kp-context-goal-badge {
+  padding: 2px 8px;
+  border-radius: 5px;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.aiqp-kp-context-exam {
+  margin: 4px 0 0;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #d97706;
+}
+
 .aiqp-kp-context-suggestions {
   display: flex;
   flex-wrap: wrap;

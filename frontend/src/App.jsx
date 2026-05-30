@@ -428,6 +428,32 @@ function App() {
   const [courseProgressSavingKey, setCourseProgressSavingKey] = useState("");
   const [pendingAIContext, setPendingAIContext] = useState(null);
 
+  // Learning goal config — lifted from CourseDashboard, read from localStorage
+  const GOAL_STORAGE_PREFIX = "ai_study_goal_config_";
+  const [goalConfig, setGoalConfig] = useState(() => {
+    try {
+      const raw = localStorage.getItem(GOAL_STORAGE_PREFIX + subject);
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  });
+
+  // Sync goalConfig when subject changes
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(GOAL_STORAGE_PREFIX + subject);
+      setGoalConfig(raw ? JSON.parse(raw) : null);
+    } catch { setGoalConfig(null); }
+  }, [subject]);
+
+  const updateGoalConfig = (patch) => {
+    setGoalConfig((prev) => {
+      const current = prev || { goal: "systematic", difficulty: "standard", depth: "standard", dailyTime: 30, examDays: "7", examCustomDate: "", examPaperUploaded: false };
+      const next = { ...current, ...patch };
+      try { localStorage.setItem(GOAL_STORAGE_PREFIX + subject, JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  };
+
   const fileInputRef = useRef(null);
   const materialsFileInputRef = useRef(null);
   const avatarInputRef = useRef(null);
@@ -3515,6 +3541,8 @@ function App() {
             formatDate={formatDate}
             materials={materials}
             loadMaterials={(target) => loadMaterials(normalizeSubject(target || subject))}
+            goalConfig={goalConfig}
+            setGoalConfig={updateGoalConfig}
           />
         ) : page === "knowledgeLearning" ? (
           <KnowledgeLearningPage
@@ -3529,6 +3557,7 @@ function App() {
             }}
             materials={materials}
             loadMaterials={(target) => loadMaterials(normalizeSubject(target || subject))}
+            goalConfig={goalConfig}
           />
         ) : page === "records" ? (
           <section className="chat-panel chat-panel--wide learning-records-panel">

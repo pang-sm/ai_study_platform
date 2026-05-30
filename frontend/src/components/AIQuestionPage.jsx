@@ -334,7 +334,67 @@ export default function AIQuestionPage({
       {/* ═══════════════════════════════════════════════════════════════════
           KP CONTEXT CARD — shown when navigating from knowledge learning
           ═══════════════════════════════════════════════════════════════════ */}
-      {pendingAIContext && pendingAIContext.type === "knowledge_point" && (
+      {pendingAIContext && pendingAIContext.type === "knowledge_point" && (() => {
+        const ctx = pendingAIContext;
+        const goalLabel = ({ overview: "大概了解", systematic: "系统学习", project: "项目实践", exam: "期中/期末速成" })[ctx.goal] || "系统学习";
+        const diffLabel = ({ intro: "入门", standard: "标准", advanced: "提高", challenge: "挑战" })[ctx.difficulty] || "标准";
+        const depthLabel = ({ brief: "粗略", standard: "标准", detailed: "详细" })[ctx.depth] || "标准";
+        const dailyTimeLabel = ctx.dailyTime ? `${ctx.dailyTime} 分钟` : "30 分钟";
+        const examDaysLabel = ({ "3": "3 天内", "7": "1 周内", "14": "2 周内", "30": "1 个月内" })[ctx.examDays] || "";
+        const routeLabel = ctx.routeSource === "platform" ? "平台推荐路线" : "我的资料路线";
+
+        // Learning context text to prepend to AI messages
+        const learningContextText = [
+          `[学习上下文]`,
+          `课程：${ctx.courseName}`,
+          `知识点：${ctx.knowledgePointTitle}`,
+          `学习目标：${goalLabel}`,
+          `学习难度：${diffLabel}`,
+          `知识点细度：${depthLabel}`,
+          `每日学习时间：${dailyTimeLabel}`,
+          `路线来源：${routeLabel}`,
+          ctx.examMode ? `考试速成：是` : "",
+          ctx.examMode && examDaysLabel ? `距离考试：${examDaysLabel}` : "",
+          ctx.examMode && ctx.examCustomDate ? `考试日期：${ctx.examCustomDate}` : "",
+        ].filter(Boolean).join("；");
+
+        // Dynamic recommended questions based on goal
+        const questionsByGoal = {
+          overview: [
+            "这个知识点是什么？",
+            "用一句话解释它的作用",
+            "给我一个生活类比",
+            "我需要掌握到什么程度？",
+          ],
+          systematic: [
+            "给我完整讲解这个知识点",
+            "用例子说明",
+            "有哪些易错点？",
+            "给我 3 道基础练习题",
+          ],
+          project: [
+            "这个知识点在项目中怎么用？",
+            "给我一个实际代码案例",
+            "常见 bug 有哪些？",
+            "帮我设计一个小练习项目",
+          ],
+          exam: [
+            "这个知识点考试怎么考？",
+            "给我高频题型",
+            "给我速记版总结",
+            "给我 3 道可能考试题",
+            "哪些细节最容易丢分？",
+          ],
+        };
+        const questions = questionsByGoal[ctx.goal] || questionsByGoal.systematic;
+
+        // Build sendMessage wrapper that includes learning context
+        const handleSendWithContext = (questionText) => {
+          const contextMsg = learningContextText + "\n\n请根据以上学习目标调整回答深度、例子类型和练习建议。\n\n用户问题：" + questionText;
+          sendMessage(contextMsg);
+        };
+
+        return (
         <div className="aiqp-kp-context">
           <div className="aiqp-kp-context-header">
             <div className="aiqp-kp-context-left">
@@ -359,28 +419,31 @@ export default function AIQuestionPage({
           </div>
           <div className="aiqp-kp-context-body">
             <div className="aiqp-kp-context-info">
-              <p className="aiqp-kp-context-course">课程：{pendingAIContext.courseName}</p>
-              <p className="aiqp-kp-context-node">阶段：{pendingAIContext.nodeTitle || pendingAIContext.knowledgePointTitle}</p>
-              <p className="aiqp-kp-context-kp">知识点：{pendingAIContext.knowledgePointTitle}</p>
-              <p className="aiqp-kp-context-source">
-                路线来源：{pendingAIContext.routeSource === "platform" ? "平台推荐路线" : "我的资料路线"}
-              </p>
+              <p className="aiqp-kp-context-course">课程：{ctx.courseName}</p>
+              <p className="aiqp-kp-context-node">阶段：{ctx.nodeTitle || ctx.knowledgePointTitle}</p>
+              <p className="aiqp-kp-context-kp">知识点：{ctx.knowledgePointTitle}</p>
+              <p className="aiqp-kp-context-source">路线来源：{routeLabel}</p>
+              <div className="aiqp-kp-context-goal">
+                <span className="aiqp-kp-context-goal-label">学习目标：</span>
+                <span className="aiqp-kp-context-goal-badge">{goalLabel}</span>
+                <span className="aiqp-kp-context-goal-badge">{diffLabel}</span>
+                <span className="aiqp-kp-context-goal-badge">{depthLabel}</span>
+                <span className="aiqp-kp-context-goal-badge">{dailyTimeLabel}</span>
+              </div>
+              {ctx.examMode && (
+                <p className="aiqp-kp-context-exam">
+                  考试速成 · 距离考试：{examDaysLabel || ctx.examCustomDate || "未设置"}
+                </p>
+              )}
             </div>
             <div className="aiqp-kp-context-suggestions">
-              <p className="aiqp-kp-suggest-label">推荐问题</p>
-              {[
-                "给我这个知识点的定义",
-                "用一个简单例子解释",
-                "这个知识点考试怎么考",
-                "给我 3 道练习题",
-                "帮我判断我是否掌握了",
-                "总结这个知识点的易错点",
-              ].map((q) => (
+              <p className="aiqp-kp-suggest-label">推荐问题（{goalLabel}）</p>
+              {questions.map((q) => (
                 <button
                   key={q}
                   className="aiqp-kp-suggest-btn"
                   type="button"
-                  onClick={() => sendMessage(q)}
+                  onClick={() => handleSendWithContext(q)}
                 >
                   {q}
                 </button>
@@ -403,9 +466,8 @@ export default function AIQuestionPage({
                   type="button"
                   style={{ borderColor: btn.color, color: btn.color }}
                   onClick={() => {
-                    // Save status via API if available, otherwise localStorage
-                    const kpId = pendingAIContext.knowledgePointId;
-                    const courseId = pendingAIContext.courseId;
+                    const kpId = ctx.knowledgePointId;
+                    const courseId = ctx.courseId;
                     const username = user?.username;
                     if (username && kpId) {
                       fetch(`${apiBase}/learning/knowledge-points/mark`, {
@@ -417,11 +479,13 @@ export default function AIQuestionPage({
                           knowledge_point_id: kpId,
                           status: btn.status,
                           source: "ai_chat",
-                          route_source: pendingAIContext.routeSource,
+                          route_source: ctx.routeSource,
+                          goal: ctx.goal,
+                          difficulty: ctx.difficulty,
+                          depth: ctx.depth,
                         }),
                       }).catch(() => {});
                     }
-                    // Dismiss context card
                     setPendingAIContext(null);
                   }}
                 >
@@ -431,7 +495,8 @@ export default function AIQuestionPage({
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* ═══════════════════════════════════════════════════════════════════
           C. MAIN CONTENT — two-column layout

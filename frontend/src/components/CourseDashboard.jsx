@@ -92,6 +92,8 @@ export default function CourseDashboard({
   onCourseChange,
   getSubjectLabel,
   materials = [],
+  goalConfig = null,
+  setGoalConfig = () => {},
 }) {
   const stats = dashboard?.stats || {};
   const courseLabel = getSubjectLabel(course);
@@ -105,24 +107,11 @@ export default function CourseDashboard({
     return list.filter((m) => getSubjectLabel(m.subject) === courseLabel);
   }, [materials, courseLabel, getSubjectLabel]);
 
-  // Goal config state
-  const [goalConfig, setGoalConfig] = useState(() => {
-    return loadGoalConfig(course) || getDefaultGoalConfig();
-  });
+  // Goal config — lifted from App.jsx, fallback to defaults
+  const effectiveGoalConfig = goalConfig || getDefaultGoalConfig();
 
-  // Reload goal config when course changes
-  useEffect(() => {
-    const saved = loadGoalConfig(course);
-    setGoalConfig(saved || getDefaultGoalConfig());
-  }, [course]);
-
-  // Save goal config on change
   const updateGoalConfig = (patch) => {
-    setGoalConfig((prev) => {
-      const next = { ...prev, ...patch };
-      saveGoalConfig(course, next);
-      return next;
-    });
+    setGoalConfig({ ...effectiveGoalConfig, ...patch });
   };
 
   const overallPct = stats.progress_percent ?? 0;
@@ -167,7 +156,7 @@ export default function CourseDashboard({
                   <button
                     key={opt.value}
                     type="button"
-                    className={`co-option-card${goalConfig.goal === opt.value ? " co-option-card--active" : ""}`}
+                    className={`co-option-card${effectiveGoalConfig.goal === opt.value ? " co-option-card--active" : ""}`}
                     onClick={() => updateGoalConfig({ goal: opt.value })}
                   >
                     <span className="co-option-card-label">{opt.label}</span>
@@ -185,7 +174,7 @@ export default function CourseDashboard({
                   <button
                     key={opt.value}
                     type="button"
-                    className={`co-chip${goalConfig.difficulty === opt.value ? " co-chip--active" : ""}`}
+                    className={`co-chip${effectiveGoalConfig.difficulty === opt.value ? " co-chip--active" : ""}`}
                     onClick={() => updateGoalConfig({ difficulty: opt.value })}
                   >
                     {opt.label}
@@ -202,7 +191,7 @@ export default function CourseDashboard({
                   <button
                     key={opt.value}
                     type="button"
-                    className={`co-chip${goalConfig.depth === opt.value ? " co-chip--active" : ""}`}
+                    className={`co-chip${effectiveGoalConfig.depth === opt.value ? " co-chip--active" : ""}`}
                     onClick={() => updateGoalConfig({ depth: opt.value })}
                   >
                     {opt.label}
@@ -219,7 +208,7 @@ export default function CourseDashboard({
                   <button
                     key={min}
                     type="button"
-                    className={`co-chip${goalConfig.dailyTime === min ? " co-chip--active" : ""}`}
+                    className={`co-chip${effectiveGoalConfig.dailyTime === min ? " co-chip--active" : ""}`}
                     onClick={() => updateGoalConfig({ dailyTime: min })}
                   >
                     {min} 分钟
@@ -230,7 +219,7 @@ export default function CourseDashboard({
           </div>
 
           {/* ── Exam config card (conditional) ── */}
-          {goalConfig.goal === "exam" && (
+          {effectiveGoalConfig.goal === "exam" && (
             <div className="co-card co-exam-card">
               <h2 className="co-card-title">考试速成配置</h2>
               <p className="co-card-desc">配置考试信息，AI 将优先安排高频考点</p>
@@ -242,18 +231,18 @@ export default function CourseDashboard({
                     <button
                       key={opt.value}
                       type="button"
-                      className={`co-chip${goalConfig.examDays === opt.value ? " co-chip--active" : ""}`}
+                      className={`co-chip${effectiveGoalConfig.examDays === opt.value ? " co-chip--active" : ""}`}
                       onClick={() => updateGoalConfig({ examDays: opt.value })}
                     >
                       {opt.label}
                     </button>
                   ))}
                 </div>
-                {goalConfig.examDays === "custom" && (
+                {effectiveGoalConfig.examDays === "custom" && (
                   <input
                     type="date"
                     className="co-date-input"
-                    value={goalConfig.examCustomDate}
+                    value={effectiveGoalConfig.examCustomDate}
                     onChange={(e) => updateGoalConfig({ examCustomDate: e.target.value })}
                   />
                 )}
@@ -365,7 +354,7 @@ export default function CourseDashboard({
                 路线来源：{hasPlannedRoute ? "平台预设路线可用" : "需上传资料生成路线"}
               </p>
               <p className="co-course-detail">
-                学习目标：{GOAL_OPTIONS.find((g) => g.value === goalConfig.goal)?.label || "系统学习"}
+                学习目标：{GOAL_OPTIONS.find((g) => g.value === effectiveGoalConfig.goal)?.label || "系统学习"}
               </p>
               <p className="co-course-detail">
                 资料数量：{courseMaterials.length} 个
