@@ -20,6 +20,7 @@ class ChatRequest(BaseModel):
     username: str | None = None
     session_id: int | None = None
     material_ids: list[int] = []
+    hidden_instruction: str = ""
 
 
 class CodeSessionCreate(BaseModel):

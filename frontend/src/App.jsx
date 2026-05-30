@@ -2153,11 +2153,8 @@ function App() {
   const sendTextMessage = async (overrideText) => {
     const currentMessage = (overrideText?.trim() ?? trimmedMessage) || overrideText || "";
 
-    // Build hidden learning instruction from pendingAIContext (not shown in chat bubble)
+    // Build hidden learning instruction from pendingAIContext (not saved to history)
     const hiddenInstruction = buildHiddenLearningInstruction(pendingAIContext);
-    const apiMessage = hiddenInstruction
-      ? `${hiddenInstruction}\n\n---\n学生问题：${currentMessage}`
-      : currentMessage;
 
     const attachedFiles = validAttachedFiles.map((item) => ({
       material_id: item.material_id,
@@ -2166,7 +2163,7 @@ function App() {
       parse_status: item.parse_status,
       chunk_count: item.chunk_count,
     }));
-    // Only show user's original message in chat bubble
+    // Chat bubble shows clean user message only
     setMessages((prev) => [
       ...prev,
       createLocalMessage({ role: "user", content: currentMessage, attachments: attachedFiles }),
@@ -2179,7 +2176,8 @@ function App() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          message: apiMessage,
+          message: currentMessage,
+          hidden_instruction: hiddenInstruction,
           subject: normalizeSubject(currentChatSubject),
           grade: user.grade || "",
           major: user.major || "",

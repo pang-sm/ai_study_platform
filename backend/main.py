@@ -3507,9 +3507,11 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
     )
 
     user_content = req.message
+    if req.hidden_instruction:
+        user_content = f"{req.hidden_instruction}\n\n---\n学生问题：{req.message}"
     if material_ids and selected_materials:
         file_names = "、".join(m.original_filename for m in selected_materials)
-        user_content = f"【用户本轮上传文件：{file_names}】\n{req.message}"
+        user_content = f"【用户本轮上传文件：{file_names}】\n{user_content}"
 
     check_usage_limit(user.username, "chat", db)
 
