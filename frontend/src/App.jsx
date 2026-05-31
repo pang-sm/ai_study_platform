@@ -489,16 +489,10 @@ function App() {
       items: materials.filter(
         (material) => normalizeSubject(material.subject, "") === item
       ),
-    })).filter((group) => group.items.length > 0);
+    }));
   }, [materials]);
 
-  const availableSubjects = useMemo(() => {
-    return groupedMaterials.map((g) => g.subject);
-  }, [groupedMaterials]);
-
-  const currentFilterSubject = availableSubjects.includes(materialSubjectFilter)
-    ? materialSubjectFilter
-    : "";
+  const currentFilterSubject = normalizeSubject(materialSubjectFilter || subject);
 
   const currentFilterItems = useMemo(() => {
     if (!currentFilterSubject) return [];
@@ -915,15 +909,6 @@ function App() {
       setTip("暂时无法加载资料详情。");
     }
   };
-
-  useEffect(() => {
-    if (availableSubjects.length > 0) {
-      if (!materialSubjectFilter || !availableSubjects.includes(materialSubjectFilter)) {
-        setMaterialSubjectFilter(availableSubjects[0]);
-        setMaterialCurrentPage(1);
-      }
-    }
-  }, [availableSubjects, materialSubjectFilter]);
 
   useEffect(() => {
     if (materialCurrentPage > 1 && materialCurrentPage > currentFilterTotalPages) {
@@ -3234,15 +3219,11 @@ function App() {
                 setMaterialListCollapsed(false);
               }}
             >
-              {availableSubjects.length === 0 ? (
-                <option value="">暂无资料</option>
-              ) : (
-                availableSubjects.map((item) => (
+              {COURSE_OPTIONS.map((item) => (
                   <option key={item} value={item}>
                     {getSubjectLabel(item)}
                   </option>
-                ))
-              )}
+                ))}
             </select>
           </div>
 
