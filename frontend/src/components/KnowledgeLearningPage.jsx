@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useState } from "react";
+import { useMemo, useEffect, useState, useRef } from "react";
 import {
   getRouteSource,
   getPlannedRoute,
@@ -20,7 +20,9 @@ const STATUS_CONFIG = {
   weak: { label: "薄弱", color: "#dc2626", bg: "#fef2f2" },
 };
 
-const LEARNING_STATUS_OPTIONS = [
+const ALL_STATUS_OPTIONS = [
+  { value: "not_started", label: "未开始" },
+  { value: "learning", label: "学习中" },
   { value: "mastered", label: "已掌握" },
   { value: "need_review", label: "需要复习" },
   { value: "not_understood", label: "还没理解" },
@@ -46,30 +48,83 @@ function normalizeKnowledgeStatus(status) {
   return status || "not_started";
 }
 
-function StatusSelect({ value, onChange, disabled = false }) {
-  const normalizedValue = normalizeKnowledgeStatus(value);
-  const cfg = getStatusConfig(normalizedValue);
+function KnowledgeStatusControl({ value, onChange, disabled = false }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef(null);
+  const normalized = normalizeKnowledgeStatus(value);
+  const cfg = getStatusConfig(normalized);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleClick = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [menuOpen]);
+
+  const handleSelect = (statusValue, event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setMenuOpen(false);
+    if (statusValue === normalized) return;
+    onChange?.(statusValue, event);
+  };
+
+  if (disabled) {
+    return (
+      <span
+        className="kl-status-badge kl-status-badge--saving"
+        style={{ color: cfg.color, background: cfg.bg }}
+      >
+        {cfg.label}
+        <span className="kl-status-saving-dot" />
+      </span>
+    );
+  }
+
   return (
-    <select
-      className="kl-status-select"
-      value={normalizedValue}
-      disabled={disabled}
-      style={{ borderColor: cfg.color, color: cfg.color, background: cfg.bg }}
-      onClick={(event) => event.stopPropagation()}
-      onChange={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        onChange?.(event.target.value, event);
-      }}
-    >
-      <option value="not_started" disabled>未开始</option>
-      <option value="learning" disabled>学习中</option>
-      {LEARNING_STATUS_OPTIONS.map((option) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-    </select>
+    <div className="kl-status-control" ref={menuRef}>
+      <button
+        type="button"
+        className="kl-status-badge"
+        style={{ color: cfg.color, background: cfg.bg, borderColor: cfg.color }}
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpen((v) => !v); }}
+      >
+        {cfg.label}
+        <svg className="kl-status-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+      {menuOpen && (
+        <div className="kl-status-menu" onClick={(e) => e.stopPropagation()}>
+          {ALL_STATUS_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              className={`kl-status-menu-item${opt.value === normalized ? " kl-status-menu-item--active" : ""}`}
+              style={{
+                color: (STATUS_CONFIG[opt.value] || STATUS_CONFIG.not_started).color,
+              }}
+              onMouseDown={(e) => handleSelect(opt.value, e)}
+            >
+              <span
+                className="kl-status-menu-dot"
+                style={{ background: (STATUS_CONFIG[opt.value] || STATUS_CONFIG.not_started).color }}
+              />
+              {opt.label}
+              {opt.value === normalized && (
+                <svg className="kl-status-menu-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -87,22 +142,21 @@ function RouteNodeCard({ node, index, isLast, onClick, isExpanded, onKnowledgePo
             <div className="kl-route-node-title">{node.title}</div>
             <div className="kl-route-node-sub">{node.subtitle}</div>
             <div className="kl-route-node-meta">
-              <span className="kl-route-node-status" style={{ color: cfg.color, background: cfg.bg }}>
-                {cfg.label}
-              </span>
-              <span className="kl-route-node-kp-count">
-                {(node.knowledgePoints || []).length} 个知识点
-              </span>
-            </div>
-            {onStatusChange && (
-              <div className="kl-route-node-status-row">
-                <StatusSelect
+              {onStatusChange ? (
+                <KnowledgeStatusControl
                   value={node.status}
                   disabled={statusSavingId === node.backendId || statusSavingId === node.id}
                   onChange={(nextStatus, event) => onStatusChange?.(node, nextStatus, event)}
                 />
-              </div>
-            )}
+              ) : (
+                <span className="kl-route-node-status" style={{ color: cfg.color, background: cfg.bg }}>
+                  {cfg.label}
+                </span>
+              )}
+              <span className="kl-route-node-kp-count">
+                {(node.knowledgePoints || []).length} 个知识点
+              </span>
+            </div>
           </div>
         </div>
         {isExpanded && (
@@ -138,15 +192,16 @@ function KnowledgePointItem({ kp, onClick, index, onStatusChange, statusSavingId
     >
       <span className="kl-kp-item-dot" style={{ background: cfg.color }} />
       <span className="kl-kp-item-title">{kp.title}</span>
-      <span className="kl-kp-item-tag" style={{ color: cfg.color, background: cfg.bg }}>
-        {cfg.label}
-      </span>
-      {onStatusChange && (
-        <StatusSelect
+      {onStatusChange ? (
+        <KnowledgeStatusControl
           value={kp.status}
           disabled={statusSavingId === kp.backendId || statusSavingId === kp.id}
           onChange={(nextStatus, event) => onStatusChange?.(kp, nextStatus, event)}
         />
+      ) : (
+        <span className="kl-kp-item-tag" style={{ color: cfg.color, background: cfg.bg }}>
+          {cfg.label}
+        </span>
       )}
     </button>
   );
