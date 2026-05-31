@@ -1995,11 +1995,12 @@ function App() {
     materialStatusPollersRef.current[localId] = window.setInterval(refreshStatus, 2000);
   };
 
-  const uploadSelectedFile = async (file, localId) => {
+  const uploadSelectedFile = async (file, localId, fileSubject) => {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("username", user.username);
-    formData.append("subject", normalizeSubject(currentChatSubject));
+    const uploadSubject = fileSubject || normalizeSubject(currentChatSubject);
+    formData.append("subject", normalizeSubject(uploadSubject));
 
     try {
       const res = await fetch(`${API_BASE}/materials/upload`, {
@@ -2029,9 +2030,12 @@ function App() {
 
       if (["pending", "parsing"].includes(uploaded.parse_status)) {
         pollMaterialStatus(localId, uploaded.material_id);
-      } else if (uploaded.parse_status === "success" && Number(uploaded.chunk_count || 0) > 0) {
-        await loadMaterials("");
       }
+
+      // Reload materials list so the new record appears in the library page.
+      // Use the upload subject (materials page) if given, otherwise reload all.
+      const reloadSubject = fileSubject ? normalizeSubject(fileSubject) : "";
+      await loadMaterials(reloadSubject);
     } catch (error) {
       console.error("Failed to upload selected file:", error);
       setSelectedFiles((prev) =>
@@ -2046,6 +2050,10 @@ function App() {
             : item
         )
       );
+      // Even when upload fails client-side, refresh the materials list
+      // in case the backend created the record before the error.
+      const reloadSubject = fileSubject ? normalizeSubject(fileSubject) : "";
+      await loadMaterials(reloadSubject);
     }
   };
 
@@ -2106,7 +2114,10 @@ function App() {
           item.localId === entry.localId ? { ...item, uploading: true, parse_status: "pending" } : item
         )
       );
-      uploadSelectedFile(file, entry.localId);
+      const upSubject = page === "workspaceMaterials" && materialSubjectFilter
+        ? materialSubjectFilter
+        : null;
+      uploadSelectedFile(file, entry.localId, upSubject);
     }
   };
 
