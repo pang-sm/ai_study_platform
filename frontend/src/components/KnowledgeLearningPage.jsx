@@ -44,9 +44,28 @@ function getStatusConfig(status) {
 }
 
 function normalizeKnowledgeStatus(status) {
+  if (!status) return "not_started";
+  // Chinese label → English key (handles cases where DB/API returns Chinese text)
+  const CN_MAP = {
+    "未开始": "not_started",
+    "学习中": "learning",
+    "已掌握": "mastered",
+    "需要复习": "need_review",
+    "还没理解": "not_understood",
+    "稍后再学": "later",
+    "待复习": "need_review",
+    "薄弱": "not_understood",
+  };
+  if (CN_MAP[status]) return CN_MAP[status];
+  // Legacy English aliases
   if (status === "review" || status === "reviewing") return "need_review";
   if (status === "weak") return "not_understood";
-  return status || "not_started";
+  // Additional legacy aliases
+  if (status === "in_progress" || status === "studying") return "learning";
+  if (status === "done" || status === "completed") return "mastered";
+  if (status === "confused") return "not_understood";
+  if (status === "postponed") return "later";
+  return status;
 }
 
 function computeParentStatusFromChildren(children) {
