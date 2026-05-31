@@ -411,6 +411,7 @@ export default function AIQuestionPage({
           event?.stopPropagation?.();
           const rawId = ctx.knowledgePointBackendId || ctx.knowledgePointId;
           let knowledgePointId = Number(String(rawId || "").replace(/^kp-/, ""));
+          const isLeafKp = ctx.knowledgePointTitle !== ctx.nodeTitle;
           if (!user?.username) {
             setKpStatusError("无法识别当前知识点，状态保存失败。");
             return;
@@ -430,16 +431,17 @@ export default function AIQuestionPage({
           );
           try {
             if (!knowledgePointId) {
+              const createBody = {
+                username: user.username,
+                course_id: ctx.courseId || subject,
+                title: ctx.knowledgePointTitle,
+                description: "",
+                level: isLeafKp ? 1 : 0,
+              };
               const createRes = await fetch(`${apiBase}/knowledge-points`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  username: user.username,
-                  course_id: ctx.courseId || subject,
-                  title: ctx.knowledgePointTitle,
-                  description: ctx.nodeTitle || "",
-                  level: 1,
-                }),
+                body: JSON.stringify(createBody),
               });
               const createData = await createRes.json();
               if (!createRes.ok) throw new Error(createData.detail || "创建知识点失败");
