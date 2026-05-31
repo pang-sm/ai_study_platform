@@ -195,7 +195,7 @@ function RouteNodeCard({ node, index, isLast, onClick, isExpanded, onKnowledgePo
   const masteredChildren = children.filter((c) => normalizeKnowledgeStatus(c.status) === "mastered").length;
   const totalChildren = children.length;
   const progressPct = totalChildren > 0 ? Math.round((masteredChildren / totalChildren) * 100) : (node.status === "mastered" ? 100 : 0);
-  const parentDisabled = statusSavingId === node.backendId || statusSavingId === node.id;
+  const parentDisabled = statusSavingId != null && (statusSavingId === node.backendId || statusSavingId === node.id);
 
   return (
     <div className={`kl-rnc-card${isExpanded ? " kl-rnc-card--expanded" : ""}${node.status === "mastered" ? " kl-rnc-card--mastered" : ""}${node.status === "learning" ? " kl-rnc-card--active" : ""}`}>
@@ -269,7 +269,7 @@ function RouteNodeCard({ node, index, isLast, onClick, isExpanded, onKnowledgePo
 
 function KnowledgePointItem({ kp, onClick, index, onStatusChange, statusSavingId }) {
   const cfg = getStatusConfig(kp.status);
-  const childDisabled = statusSavingId === kp.backendId || statusSavingId === kp.id;
+  const childDisabled = statusSavingId != null && (statusSavingId === kp.backendId || statusSavingId === kp.id);
   const normalizedStatus = normalizeKnowledgeStatus(kp.status);
 
   return (
