@@ -2057,7 +2057,7 @@ function App() {
     }
   };
 
-  const handleFileChange = (event) => {
+  const handleFileChange = (event, explicitSubject = null) => {
     const files = Array.from(event.target.files || []);
     event.target.value = "";
 
@@ -2114,8 +2114,8 @@ function App() {
           item.localId === entry.localId ? { ...item, uploading: true, parse_status: "pending" } : item
         )
       );
-      const upSubject = page === "workspaceMaterials" && materialSubjectFilter
-        ? materialSubjectFilter
+      const upSubject = explicitSubject
+        ? normalizeSubject(explicitSubject)
         : null;
       uploadSelectedFile(file, entry.localId, upSubject);
     }
@@ -4014,7 +4014,8 @@ function App() {
             setMaterialCurrentPage={setMaterialCurrentPage}
             selectedMaterialDetail={selectedMaterialDetail}
             materialsFileInputRef={materialsFileInputRef}
-            handleFileChange={handleFileChange}
+            materialSubjectFilter={materialSubjectFilter}
+            handleFileChange={(event) => handleFileChange(event, materialSubjectFilter)}
             loadMaterials={loadMaterials}
             searchMaterials={searchMaterials}
             reindexLibrary={reindexLibrary}
