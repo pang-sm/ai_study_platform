@@ -400,6 +400,16 @@
   white-space: nowrap;
 }
 
+.aiqp-kp-status-current {
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 0.76rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .aiqp-kp-status-btns {
   display: flex;
   gap: 6px;
@@ -420,6 +430,21 @@
 
 .aiqp-kp-status-btn:hover {
   opacity: 0.8;
+}
+
+.aiqp-kp-status-btn:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.aiqp-kp-status-btn--active {
+  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.08);
+}
+
+.aiqp-kp-status-error {
+  color: #b91c1c;
+  font-size: 0.76rem;
+  font-weight: 600;
 }
 
 /* ── MAIN CONTENT AREA ── */

@@ -13,6 +13,31 @@ const RECOMMENDATION_POOL = [
   "请举例说明${subject}中的一个重要概念",
 ];
 
+const KNOWLEDGE_STATUS_OPTIONS = [
+  { status: "mastered", label: "已掌握", color: "#059669", bg: "#ecfdf5", score: 100 },
+  { status: "need_review", label: "需要复习", color: "#d97706", bg: "#fffbeb", score: 55 },
+  { status: "not_understood", label: "还没理解", color: "#dc2626", bg: "#fef2f2", score: 25 },
+  { status: "later", label: "稍后再学", color: "#64748b", bg: "#f1f5f9", score: 0 },
+];
+
+const KNOWLEDGE_STATUS_LABELS = {
+  mastered: "已掌握",
+  need_review: "需要复习",
+  reviewing: "需要复习",
+  review: "需要复习",
+  not_understood: "还没理解",
+  weak: "还没理解",
+  later: "稍后再学",
+  not_started: "未开始",
+  learning: "学习中",
+};
+
+function normalizeKnowledgeStatus(status) {
+  if (status === "review" || status === "reviewing") return "need_review";
+  if (status === "weak") return "not_understood";
+  return status || "not_started";
+}
+
 function shufflePool(pool, count) {
   const shuffled = [...pool];
   for (let i = shuffled.length - 1; i > 0; i--) {
@@ -89,6 +114,8 @@ export default function AIQuestionPage({
   const [selectedHistorySession, setSelectedHistorySession] = useState(null);
   const [previewMessages, setPreviewMessages] = useState([]);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [kpStatusSaving, setKpStatusSaving] = useState(false);
+  const [kpStatusError, setKpStatusError] = useState("");
 
   const refreshSuggestions = () => {
     const subjectLabel = getSubjectLabel(currentChatSubject);
@@ -377,6 +404,84 @@ export default function AIQuestionPage({
         const handleSendWithContext = (questionText) => {
           sendMessage(questionText);
         };
+        const currentStatus = normalizeKnowledgeStatus(ctx.knowledgePointStatus || ctx.status);
+        const currentStatusLabel = KNOWLEDGE_STATUS_LABELS[currentStatus] || "未开始";
+        const handleUpdateKnowledgeStatus = async (nextStatus, event) => {
+          event?.preventDefault?.();
+          event?.stopPropagation?.();
+          const rawId = ctx.knowledgePointBackendId || ctx.knowledgePointId;
+          let knowledgePointId = Number(String(rawId || "").replace(/^kp-/, ""));
+          if (!user?.username) {
+            setKpStatusError("无法识别当前知识点，状态保存失败。");
+            return;
+          }
+          const oldContext = ctx;
+          const option = KNOWLEDGE_STATUS_OPTIONS.find((item) => item.status === nextStatus);
+          setKpStatusError("");
+          setKpStatusSaving(true);
+          setPendingAIContext((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  knowledgePointStatus: nextStatus,
+                  status: nextStatus,
+                }
+              : prev
+          );
+          try {
+            if (!knowledgePointId) {
+              const createRes = await fetch(`${apiBase}/knowledge-points`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  username: user.username,
+                  course_id: ctx.courseId || subject,
+                  title: ctx.knowledgePointTitle,
+                  description: ctx.nodeTitle || "",
+                  level: 1,
+                }),
+              });
+              const createData = await createRes.json();
+              if (!createRes.ok) throw new Error(createData.detail || "创建知识点失败");
+              knowledgePointId = createData.knowledge_point?.id;
+              if (!knowledgePointId) throw new Error("无法识别当前知识点，状态保存失败。");
+              setPendingAIContext((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      knowledgePointBackendId: knowledgePointId,
+                    }
+                  : prev
+              );
+            }
+            const res = await fetch(`${apiBase}/knowledge-points/${knowledgePointId}/progress`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                username: user.username,
+                status: nextStatus,
+                mastery_score: option?.score ?? 0,
+              }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || "状态保存失败");
+            const savedStatus = normalizeKnowledgeStatus(data.progress?.status || nextStatus);
+            setPendingAIContext((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    knowledgePointStatus: savedStatus,
+                    status: savedStatus,
+                  }
+                : prev
+            );
+          } catch (error) {
+            setPendingAIContext(oldContext);
+            setKpStatusError(error.message || "状态保存失败，请稍后重试。");
+          } finally {
+            setKpStatusSaving(false);
+          }
+        };
 
         return (
         <div className="aiqp-kp-context">
@@ -437,46 +542,29 @@ export default function AIQuestionPage({
           {/* Knowledge point status marking */}
           <div className="aiqp-kp-context-status">
             <span className="aiqp-kp-status-label">这个知识点学得怎么样？</span>
+            <span className="aiqp-kp-status-current">当前：{currentStatusLabel}</span>
             <div className="aiqp-kp-status-btns">
-              {[
-                { status: "mastered", label: "已掌握", color: "#059669" },
-                { status: "review", label: "需要复习", color: "#d97706" },
-                { status: "weak", label: "还没理解", color: "#dc2626" },
-                { status: "not_started", label: "稍后再学", color: "#94a3b8" },
-              ].map((btn) => (
-                <button
-                  key={btn.status}
-                  className="aiqp-kp-status-btn"
-                  type="button"
-                  style={{ borderColor: btn.color, color: btn.color }}
-                  onClick={() => {
-                    const kpId = ctx.knowledgePointId;
-                    const courseId = ctx.courseId;
-                    const username = user?.username;
-                    if (username && kpId) {
-                      fetch(`${apiBase}/learning/knowledge-points/mark`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          username,
-                          course_id: courseId,
-                          knowledge_point_id: kpId,
-                          status: btn.status,
-                          source: "ai_chat",
-                          route_source: ctx.routeSource,
-                          goal: ctx.goal,
-                          difficulty: ctx.difficulty,
-                          depth: ctx.depth,
-                        }),
-                      }).catch(() => {});
-                    }
-                    setPendingAIContext(null);
-                  }}
-                >
-                  {btn.label}
-                </button>
-              ))}
+              {KNOWLEDGE_STATUS_OPTIONS.map((btn) => {
+                const active = currentStatus === btn.status;
+                return (
+                  <button
+                    key={btn.status}
+                    className={`aiqp-kp-status-btn${active ? " aiqp-kp-status-btn--active" : ""}`}
+                    type="button"
+                    disabled={kpStatusSaving}
+                    style={{
+                      borderColor: btn.color,
+                      color: active ? "#fff" : btn.color,
+                      background: active ? btn.color : btn.bg,
+                    }}
+                    onClick={(event) => handleUpdateKnowledgeStatus(btn.status, event)}
+                  >
+                    {btn.label}
+                  </button>
+                );
+              })}
             </div>
+            {kpStatusError && <span className="aiqp-kp-status-error">{kpStatusError}</span>}
           </div>
         </div>
         );

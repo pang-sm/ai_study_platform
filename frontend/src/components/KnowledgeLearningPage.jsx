@@ -10,13 +10,71 @@ import "./KnowledgeLearningPage.css";
 const STATUS_CONFIG = {
   mastered: { label: "已掌握", color: "#059669", bg: "#ecfdf5" },
   learning: { label: "学习中", color: "#2563eb", bg: "#eff6ff" },
+  need_review: { label: "需要复习", color: "#d97706", bg: "#fffbeb" },
+  reviewing: { label: "需要复习", color: "#d97706", bg: "#fffbeb" },
   review: { label: "待复习", color: "#d97706", bg: "#fffbeb" },
+  not_understood: { label: "还没理解", color: "#dc2626", bg: "#fef2f2" },
+  later: { label: "稍后再学", color: "#64748b", bg: "#f1f5f9" },
+  not_started: { label: "未开始", color: "#94a3b8", bg: "#f8fafc" },
   locked: { label: "未开始", color: "#94a3b8", bg: "#f8fafc" },
   weak: { label: "薄弱", color: "#dc2626", bg: "#fef2f2" },
 };
 
-function RouteNodeCard({ node, index, isLast, onClick, isExpanded, onKnowledgePointClick }) {
-  const cfg = STATUS_CONFIG[node.status] || STATUS_CONFIG.locked;
+const LEARNING_STATUS_OPTIONS = [
+  { value: "mastered", label: "已掌握" },
+  { value: "need_review", label: "需要复习" },
+  { value: "not_understood", label: "还没理解" },
+  { value: "later", label: "稍后再学" },
+];
+
+const STATUS_MASTERY_SCORE = {
+  mastered: 100,
+  need_review: 55,
+  not_understood: 25,
+  later: 0,
+  learning: 40,
+  not_started: 0,
+};
+
+function getStatusConfig(status) {
+  return STATUS_CONFIG[normalizeKnowledgeStatus(status)] || STATUS_CONFIG.not_started;
+}
+
+function normalizeKnowledgeStatus(status) {
+  if (status === "review" || status === "reviewing") return "need_review";
+  if (status === "weak") return "not_understood";
+  return status || "not_started";
+}
+
+function StatusSelect({ value, onChange, disabled = false }) {
+  const normalizedValue = normalizeKnowledgeStatus(value);
+  const cfg = getStatusConfig(normalizedValue);
+  return (
+    <select
+      className="kl-status-select"
+      value={normalizedValue}
+      disabled={disabled}
+      style={{ borderColor: cfg.color, color: cfg.color, background: cfg.bg }}
+      onClick={(event) => event.stopPropagation()}
+      onChange={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onChange?.(event.target.value, event);
+      }}
+    >
+      <option value="not_started" disabled>未开始</option>
+      <option value="learning" disabled>学习中</option>
+      {LEARNING_STATUS_OPTIONS.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function RouteNodeCard({ node, index, isLast, onClick, isExpanded, onKnowledgePointClick, onStatusChange, statusSavingId }) {
+  const cfg = getStatusConfig(node.status);
   return (
     <div className="kl-route-node-wrap">
       <div className="kl-route-node-stack">
@@ -36,6 +94,15 @@ function RouteNodeCard({ node, index, isLast, onClick, isExpanded, onKnowledgePo
                 {(node.knowledgePoints || []).length} 个知识点
               </span>
             </div>
+            {onStatusChange && (
+              <div className="kl-route-node-status-row">
+                <StatusSelect
+                  value={node.status}
+                  disabled={statusSavingId === node.backendId || statusSavingId === node.id}
+                  onChange={(nextStatus, event) => onStatusChange?.(node, nextStatus, event)}
+                />
+              </div>
+            )}
           </div>
         </div>
         {isExpanded && (
@@ -48,6 +115,8 @@ function RouteNodeCard({ node, index, isLast, onClick, isExpanded, onKnowledgePo
                   kp={kp}
                   index={kpIndex}
                   onClick={onKnowledgePointClick}
+                  onStatusChange={onStatusChange}
+                  statusSavingId={statusSavingId}
                 />
               ))}
             </div>
@@ -59,8 +128,8 @@ function RouteNodeCard({ node, index, isLast, onClick, isExpanded, onKnowledgePo
   );
 }
 
-function KnowledgePointItem({ kp, onClick, index }) {
-  const cfg = STATUS_CONFIG[kp.status] || STATUS_CONFIG.locked;
+function KnowledgePointItem({ kp, onClick, index, onStatusChange, statusSavingId }) {
+  const cfg = getStatusConfig(kp.status);
   return (
     <button
       type="button"
@@ -72,6 +141,13 @@ function KnowledgePointItem({ kp, onClick, index }) {
       <span className="kl-kp-item-tag" style={{ color: cfg.color, background: cfg.bg }}>
         {cfg.label}
       </span>
+      {onStatusChange && (
+        <StatusSelect
+          value={kp.status}
+          disabled={statusSavingId === kp.backendId || statusSavingId === kp.id}
+          onChange={(nextStatus, event) => onStatusChange?.(kp, nextStatus, event)}
+        />
+      )}
     </button>
   );
 }
@@ -242,6 +318,8 @@ export default function KnowledgeLearningPage({
   const [pathError, setPathError] = useState("");
   const [pathNotice, setPathNotice] = useState("");
   const [knowledgeLoading, setKnowledgeLoading] = useState(false);
+  const [statusSavingId, setStatusSavingId] = useState(null);
+  const [statusError, setStatusError] = useState("");
 
   // Reset route source when course changes
   useEffect(() => {
@@ -299,16 +377,18 @@ export default function KnowledgeLearningPage({
         const mastered = allPoints.filter((p) => p.status === "mastered").length;
         nodes.push({
           id: `kp-${root.id}`,
+          backendId: root.id,
           title: root.title,
           subtitle: root.description || "",
           knowledgePoints: children.map((c) => ({
             id: `kp-${c.id}`,
+            backendId: c.id,
             title: c.title,
-            status: c.status || "locked",
+            status: normalizeKnowledgeStatus(c.status || "not_started"),
             importance: "medium",
           })),
           sourceType: "materials",
-          status: nodes.length <= 1 ? "learning" : "locked",
+          status: normalizeKnowledgeStatus(root.status || (nodes.length <= 1 ? "learning" : "not_started")),
           progress: allPoints.length > 0 ? mastered / allPoints.length : 0,
         });
       });
@@ -321,14 +401,25 @@ export default function KnowledgeLearningPage({
   const normalizedPlatformNodes = useMemo(() => {
     return platformRouteNodes.map((node) => ({
       ...node,
+      backendId: apiKnowledgePoints.find((point) => !point.parent_id && point.title === node.title)?.id || null,
+      status: normalizeKnowledgeStatus(
+        apiKnowledgePoints.find((point) => !point.parent_id && point.title === node.title)?.status || node.status
+      ),
       knowledgePoints: (node.knowledgePoints || []).map((kp, i) => ({
         id: `${node.id}-${i}`,
+        backendId: apiKnowledgePoints.find((point) => point.title === (typeof kp === "string" ? kp : kp.title || kp))?.id || null,
+        parentBackendId: apiKnowledgePoints.find((point) => !point.parent_id && point.title === node.title)?.id || null,
+        parentTitle: node.title,
+        parentSubtitle: node.subtitle || "",
         title: typeof kp === "string" ? kp : kp.title || kp,
-        status: node.status === "mastered" ? "mastered" : node.status === "learning" ? "learning" : "locked",
+        status: normalizeKnowledgeStatus(
+          apiKnowledgePoints.find((point) => point.title === (typeof kp === "string" ? kp : kp.title || kp))?.status ||
+            (node.status === "mastered" ? "mastered" : node.status === "learning" ? "learning" : "not_started")
+        ),
         importance: i < 3 ? "high" : "medium",
       })),
     }));
-  }, [platformRouteNodes]);
+  }, [platformRouteNodes, apiKnowledgePoints]);
 
   const routeNodes = activeRouteSource === "platform" ? normalizedPlatformNodes : materialRouteNodes;
 
@@ -357,6 +448,108 @@ export default function KnowledgeLearningPage({
     setSelectedKp(kp);
   };
 
+  const applyLocalKnowledgeStatus = (knowledgePointId, status) => {
+    setApiKnowledgePoints((prev) =>
+      prev.map((point) =>
+        point.id === knowledgePointId
+          ? {
+              ...point,
+              status: normalizeKnowledgeStatus(status),
+              mastery_score: STATUS_MASTERY_SCORE[status] ?? point.mastery_score ?? 0,
+            }
+          : point
+      )
+    );
+    setSelectedKp((prev) =>
+      prev?.backendId === knowledgePointId
+        ? { ...prev, status: normalizeKnowledgeStatus(status), mastery_score: STATUS_MASTERY_SCORE[status] ?? prev.mastery_score ?? 0 }
+        : prev
+    );
+  };
+
+  const createKnowledgePointRecord = async (item) => {
+    let parentId = item.parentBackendId || null;
+    if (!parentId && item.parentTitle) {
+      const existingParent = apiKnowledgePoints.find((point) => !point.parent_id && point.title === item.parentTitle);
+      if (existingParent) {
+        parentId = existingParent.id;
+      } else {
+        const parentRes = await fetch("/api/knowledge-points", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: user.username,
+            course_id: course,
+            title: item.parentTitle,
+            description: item.parentSubtitle || "",
+            level: 0,
+          }),
+        });
+        const parentData = await parentRes.json();
+        if (!parentRes.ok) throw new Error(parentData.detail || "创建阶段知识点失败");
+        const parentPoint = parentData.knowledge_point;
+        parentId = parentPoint?.id || null;
+        if (parentPoint) {
+          setApiKnowledgePoints((prev) => (prev.some((point) => point.id === parentPoint.id) ? prev : [...prev, parentPoint]));
+        }
+      }
+    }
+
+    const res = await fetch("/api/knowledge-points", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: user.username,
+        course_id: course,
+        parent_id: parentId,
+        title: item.title,
+        description: item.subtitle || "",
+        level: parentId ? 1 : 0,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "创建知识点失败");
+    const point = data.knowledge_point;
+    setApiKnowledgePoints((prev) => (point && !prev.some((p) => p.id === point.id) ? [...prev, point] : prev));
+    return point;
+  };
+
+  const handleUpdateKnowledgeStatus = async (item, status, event) => {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    if (!user?.username || !item) return;
+
+    const oldPoint = apiKnowledgePoints.find((point) => point.id === item.backendId);
+    const oldStatus = oldPoint?.status || item.status || "not_started";
+    setStatusError("");
+    setStatusSavingId(item.backendId || item.id);
+
+    try {
+      const savedItem = item.backendId ? item : { ...item, backendId: (await createKnowledgePointRecord(item))?.id };
+      const knowledgePointId = savedItem.backendId;
+      if (!knowledgePointId) throw new Error("无法识别当前知识点，状态保存失败");
+      setSelectedKp((prev) => (prev?.id === item.id ? { ...prev, backendId: knowledgePointId, status } : prev));
+      applyLocalKnowledgeStatus(knowledgePointId, status);
+      const res = await fetch(`/api/knowledge-points/${knowledgePointId}/progress`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: user.username,
+          status,
+          mastery_score: STATUS_MASTERY_SCORE[status] ?? 0,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "状态保存失败");
+      applyLocalKnowledgeStatus(knowledgePointId, normalizeKnowledgeStatus(data.progress?.status || status));
+    } catch (error) {
+      if (item.backendId) applyLocalKnowledgeStatus(item.backendId, oldStatus);
+      setStatusError(error.message || "状态保存失败，请稍后重试");
+    } finally {
+      setStatusSavingId(null);
+    }
+  };
+
   const handleStartAIWithKp = () => {
     if (!selectedKp) return;
     const parentNode = routeNodes.find((n) =>
@@ -372,7 +565,9 @@ export default function KnowledgeLearningPage({
         nodeId: parentNode?.id || "",
         nodeTitle: parentNode?.title || "",
         knowledgePointId: selectedKp.id,
+        knowledgePointBackendId: selectedKp.backendId,
         knowledgePointTitle: selectedKp.title,
+        knowledgePointStatus: selectedKp.status || "not_started",
         materialIds: parentNode?.materialIds || [],
         goal: config.goal || "systematic",
         difficulty: config.difficulty || "standard",
@@ -492,6 +687,7 @@ export default function KnowledgeLearningPage({
 
           {/* ── Route nodes ── */}
           {pathNotice && <div className="kl-route-notice">{pathNotice}</div>}
+          {statusError && <div className="kl-route-error">{statusError}</div>}
           {routeNodes.length > 0 ? (
             <div className="kl-route-section">
               <div className="kl-route-track">
@@ -504,6 +700,8 @@ export default function KnowledgeLearningPage({
                     onClick={handleNodeClick}
                     isExpanded={expandedNodeId === node.id}
                     onKnowledgePointClick={handleKpClick}
+                    onStatusChange={handleUpdateKnowledgeStatus}
+                    statusSavingId={statusSavingId}
                   />
                 ))}
               </div>

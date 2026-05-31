@@ -303,6 +303,30 @@
   font-weight: 600;
 }
 
+.kl-route-node-status-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.kl-status-select {
+  max-width: 112px;
+  min-height: 28px;
+  padding: 3px 24px 3px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+}
+
+.kl-status-select:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
 .kl-route-node-kp-count {
   font-size: 0.7rem;
   color: #94a3b8;
@@ -342,6 +366,16 @@
   border-radius: 10px;
   background: #f0fdf4;
   color: #047857;
+  font-size: 0.84rem;
+}
+
+.kl-route-error {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: #b91c1c;
   font-size: 0.84rem;
 }
 
@@ -420,6 +454,7 @@
 
 .kl-kp-item-title {
   flex: 1;
+  min-width: 0;
   font-size: 0.82rem;
   font-weight: 500;
   color: #0f172a;
