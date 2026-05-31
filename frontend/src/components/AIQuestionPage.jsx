@@ -450,11 +450,26 @@ export default function AIQuestionPage({
           );
           try {
             if (!knowledgePointId) {
+              // Look up parent node so leaf points aren't created as root orphans
+              let parentId = null;
+              if (isLeafKp && ctx.nodeTitle) {
+                try {
+                  const lookupRes = await fetch(`${apiBase}/knowledge-points?username=${encodeURIComponent(user.username)}&course_id=${encodeURIComponent(ctx.courseId || subject)}`);
+                  const lookupData = await lookupRes.json();
+                  if (lookupRes.ok) {
+                    const parent = (lookupData.knowledge_points || []).find(
+                      (p) => !p.parent_id && p.title === ctx.nodeTitle
+                    );
+                    if (parent) parentId = parent.id;
+                  }
+                } catch { /* non-critical */ }
+              }
               const createBody = {
                 username: user.username,
                 course_id: ctx.courseId || subject,
                 title: ctx.knowledgePointTitle,
                 description: "",
+                parent_id: parentId,
                 level: isLeafKp ? 1 : 0,
               };
               const createRes = await fetch(`${apiBase}/knowledge-points`, {

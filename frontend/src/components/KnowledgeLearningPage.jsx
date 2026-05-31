@@ -478,6 +478,7 @@ export default function KnowledgeLearningPage({
   const [knowledgeLoading, setKnowledgeLoading] = useState(false);
   const [statusSavingId, setStatusSavingId] = useState(null);
   const [statusError, setStatusError] = useState("");
+  const childKpIdMap = useRef({});
 
   useEffect(() => {
     if (courseMaterials.length > 0) {
@@ -555,12 +556,53 @@ export default function KnowledgeLearningPage({
   }, [apiKnowledgePoints]);
 
   const normalizedPlatformNodes = useMemo(() => {
+    const DEBUG = true;
+    if (DEBUG) console.debug("[normalizedPlatformNodes] recomputing — apiKnowledgePoints count:", apiKnowledgePoints.length);
+
     return platformRouteNodes.map((node) => {
       const parentApiPoint = apiKnowledgePoints.find((point) => !point.parent_id && point.title === node.title);
       const parentBackendId = parentApiPoint?.id || null;
+
       const childPoints = (node.knowledgePoints || []).map((kp, i) => {
         const kpTitle = typeof kp === "string" ? kp : kp.title || kp;
-        const apiChild = apiKnowledgePoints.find((point) => point.title === kpTitle);
+        const mapKey = `${node.title}::${kpTitle}`;
+
+        // 1) Ref-based: remember backendId across renders to survive title collisions
+        const rememberedId = childKpIdMap.current[mapKey];
+        let apiChild;
+        if (rememberedId) {
+          apiChild = apiKnowledgePoints.find((p) => p.id === rememberedId);
+          if (DEBUG && apiChild) console.debug(`[normalizedPlatformNodes] ref-hit  "${mapKey}" → id=${apiChild.id} status=${apiChild.status}`);
+        }
+
+        // 2) parent_id match: prefer child points that belong to this parent
+        if (!apiChild && parentBackendId) {
+          apiChild = apiKnowledgePoints.find((p) => p.title === kpTitle && p.parent_id === parentBackendId);
+          if (DEBUG && apiChild) console.debug(`[normalizedPlatformNodes] parent-match "${mapKey}" → id=${apiChild.id} status=${apiChild.status}`);
+        }
+
+        // 3) Any child point (parent_id != null) with matching title
+        if (!apiChild) {
+          apiChild = apiKnowledgePoints.find((p) => p.title === kpTitle && p.parent_id != null);
+          if (DEBUG && apiChild) console.debug(`[normalizedPlatformNodes] child-match "${mapKey}" → id=${apiChild.id} status=${apiChild.status}`);
+        }
+
+        // 4) Fallback: any point with matching title (last resort)
+        if (!apiChild) {
+          apiChild = apiKnowledgePoints.find((p) => p.title === kpTitle);
+          if (DEBUG && apiChild) console.debug(`[normalizedPlatformNodes] title-fallback "${mapKey}" → id=${apiChild.id} parent_id=${apiChild.parent_id} status=${apiChild.status}`);
+        }
+
+        if (!apiChild && DEBUG) {
+          console.debug(`[normalizedPlatformNodes] no-match  "${mapKey}" — will show not_started`);
+        }
+
+        // Remember for next render
+        if (apiChild?.id) {
+          childKpIdMap.current[mapKey] = apiChild.id;
+        }
+
+        const resolvedStatus = normalizeKnowledgeStatus(apiChild?.status || "not_started");
         return {
           id: `${node.id}-${i}`,
           backendId: apiChild?.id || null,
@@ -568,12 +610,11 @@ export default function KnowledgeLearningPage({
           parentTitle: node.title,
           parentSubtitle: node.subtitle || "",
           title: kpTitle,
-          status: normalizeKnowledgeStatus(
-            apiChild?.status || "not_started"
-          ),
+          status: resolvedStatus,
           importance: i < 3 ? "high" : "medium",
         };
       });
+
       const computedStatus = computeParentStatusFromChildren(childPoints) ||
         normalizeKnowledgeStatus(parentApiPoint?.status || node.status);
       return {
@@ -629,7 +670,41 @@ export default function KnowledgeLearningPage({
   };
 
   const createKnowledgePointRecord = async (item) => {
-    const parentId = item.parentBackendId || null;
+    let parentId = item.parentBackendId || null;
+
+    // If this is a child point (has parentTitle) but parent doesn't exist in API yet,
+    // first find or create the parent so the child isn't created as a root orphan.
+    if (!parentId && item.parentTitle) {
+      const existingParent = apiKnowledgePoints.find(
+        (p) => !p.parent_id && p.title === item.parentTitle
+      );
+      if (existingParent) {
+        parentId = existingParent.id;
+        console.debug("[createKnowledgePointRecord] found existing parent:", item.parentTitle, "id=", parentId);
+      } else {
+        console.debug("[createKnowledgePointRecord] creating parent first:", item.parentTitle);
+        const parentRes = await fetch("/api/knowledge-points", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: user.username,
+            course_id: course,
+            parent_id: null,
+            title: item.parentTitle,
+            description: item.parentSubtitle || "",
+            level: 0,
+          }),
+        });
+        const parentData = await parentRes.json();
+        if (parentRes.ok && parentData.knowledge_point) {
+          parentId = parentData.knowledge_point.id;
+          setApiKnowledgePoints((prev) =>
+            prev.some((p) => p.id === parentId) ? prev : [...prev, parentData.knowledge_point]
+          );
+          console.debug("[createKnowledgePointRecord] parent created id=", parentId);
+        }
+      }
+    }
 
     const res = await fetch("/api/knowledge-points", {
       method: "POST",
@@ -647,6 +722,7 @@ export default function KnowledgeLearningPage({
     if (!res.ok) throw new Error(data.detail || "创建知识点失败");
     const point = data.knowledge_point;
     setApiKnowledgePoints((prev) => (point && !prev.some((p) => p.id === point.id) ? [...prev, point] : prev));
+    console.debug("[createKnowledgePointRecord] child created id=", point?.id, "title=", item.title, "parent_id=", parentId);
     return point;
   };
 
@@ -655,11 +731,17 @@ export default function KnowledgeLearningPage({
     event?.stopPropagation?.();
     if (!user?.username || !item) return;
 
+    console.debug("══════════════════════════════════════════");
+    console.debug("[handleUpdateKnowledgeStatus] STEP 1 — menu click value:", status);
+    console.debug("[handleUpdateKnowledgeStatus] item:", JSON.stringify({ id: item.id, backendId: item.backendId, parentBackendId: item.parentBackendId, parentTitle: item.parentTitle, title: item.title, currentStatus: item.status }));
+
     const oldPoint = apiKnowledgePoints.find((point) => point.id === item.backendId);
     const oldStatus = oldPoint?.status || item.status || "not_started";
     const normalizedNewStatus = normalizeKnowledgeStatus(status);
     const isParent = !item.parentBackendId && !item.parentTitle;
     const shouldCascade = isParent && normalizedNewStatus === "mastered";
+
+    console.debug("[handleUpdateKnowledgeStatus] normalizedNewStatus:", normalizedNewStatus, "isParent:", isParent, "oldStatus:", oldStatus);
 
     setStatusError("");
     setStatusSavingId(item.backendId || item.id);
@@ -668,24 +750,42 @@ export default function KnowledgeLearningPage({
       const savedItem = item.backendId ? item : { ...item, backendId: (await createKnowledgePointRecord(item))?.id };
       const knowledgePointId = savedItem.backendId;
       if (!knowledgePointId) throw new Error("无法识别当前知识点，状态保存失败");
+      console.debug("[handleUpdateKnowledgeStatus] STEP 2 — knowledgePointId:", knowledgePointId);
       setSelectedKp((prev) => (prev?.id === item.id ? { ...prev, backendId: knowledgePointId, status } : prev));
+
+      // Optimistic update
       applyLocalKnowledgeStatus(knowledgePointId, status);
+      console.debug("[handleUpdateKnowledgeStatus] STEP 3 — optimistic update applied, status:", status);
+
+      const requestBody = {
+        username: user.username,
+        status,
+        mastery_score: STATUS_MASTERY_SCORE[status] ?? 0,
+      };
+      console.debug("[handleUpdateKnowledgeStatus] STEP 4 — request body:", JSON.stringify(requestBody));
+      console.debug("[handleUpdateKnowledgeStatus] STEP 4 — PUT URL:", `/api/knowledge-points/${knowledgePointId}/progress`);
 
       const res = await fetch(`/api/knowledge-points/${knowledgePointId}/progress`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: user.username,
-          status,
-          mastery_score: STATUS_MASTERY_SCORE[status] ?? 0,
-        }),
+        body: JSON.stringify(requestBody),
       });
       const data = await res.json();
+      console.debug("[handleUpdateKnowledgeStatus] STEP 5 — response ok:", res.ok, "status:", res.status);
+      console.debug("[handleUpdateKnowledgeStatus] STEP 5 — response body:", JSON.stringify(data));
+
       if (!res.ok) throw new Error(data.detail || "状态保存失败");
-      applyLocalKnowledgeStatus(knowledgePointId, normalizeKnowledgeStatus(data.progress?.status || status));
+
+      const responseStatus = data.progress?.status;
+      console.debug("[handleUpdateKnowledgeStatus] STEP 6 — response progress.status:", responseStatus);
+      const finalStatus = normalizeKnowledgeStatus(responseStatus || status);
+      console.debug("[handleUpdateKnowledgeStatus] STEP 6 — after normalize:", finalStatus);
+      applyLocalKnowledgeStatus(knowledgePointId, finalStatus);
+      console.debug("[handleUpdateKnowledgeStatus] STEP 7 — final render status:", finalStatus);
 
       // Cascade: parent → children when parent set to mastered
       if (shouldCascade) {
+        console.debug("[handleUpdateKnowledgeStatus] CASCADE — parent→children triggered");
         const children = apiKnowledgePoints.filter((p) => p.parent_id === knowledgePointId);
         if (children.length > 0) {
           await Promise.all(children.map((child) =>
@@ -706,6 +806,7 @@ export default function KnowledgeLearningPage({
 
       // Aggregate: children → parent after child update
       if (!isParent) {
+        console.debug("[handleUpdateKnowledgeStatus] AGGREGATE — children→parent triggered");
         const targetPoint = apiKnowledgePoints.find((p) => p.id === knowledgePointId);
         if (targetPoint?.parent_id) {
           const parentId = targetPoint.parent_id;
@@ -714,6 +815,7 @@ export default function KnowledgeLearningPage({
             s.id === knowledgePointId ? { ...s, status: normalizedNewStatus } : s
           );
           const parentStatus = computeParentStatusFromChildren(merged);
+          console.debug("[handleUpdateKnowledgeStatus] AGGREGATE — parentId:", parentId, "computedParentStatus:", parentStatus);
           if (parentStatus) {
             applyLocalKnowledgeStatus(parentId, parentStatus);
             await fetch(`/api/knowledge-points/${parentId}/progress`, {
@@ -728,7 +830,9 @@ export default function KnowledgeLearningPage({
           }
         }
       }
+      console.debug("══════════════════════════════════════════");
     } catch (error) {
+      console.debug("[handleUpdateKnowledgeStatus] ERROR — rolling back to:", oldStatus);
       if (item.backendId) applyLocalKnowledgeStatus(item.backendId, oldStatus);
       setStatusError(error.message || "状态保存失败，请稍后重试");
     } finally {
