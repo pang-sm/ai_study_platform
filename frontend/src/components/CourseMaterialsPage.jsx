@@ -22,9 +22,14 @@ const INDEX_STATUSES = [
 ];
 
 const SORT_OPTIONS = [
-  { value: "recent", label: "最近上传" },
-  { value: "name", label: "文件名" },
-  { value: "chunks", label: "知识片段数" },
+  { value: "newest", label: "最新上传" },
+  { value: "oldest", label: "最早上传" },
+  { value: "nameAsc", label: "文件名↑" },
+  { value: "nameDesc", label: "文件名↓" },
+  { value: "sizeDesc", label: "大小↓" },
+  { value: "sizeAsc", label: "大小↑" },
+  { value: "chunksDesc", label: "片段↓" },
+  { value: "chunksAsc", label: "片段↑" },
 ];
 
 function formatDate(value) {
@@ -44,6 +49,52 @@ function formatFileSize(value) {
   if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + " MB";
   if (n >= 1024) return (n / 1024).toFixed(1) + " KB";
   return n + " B";
+}
+
+function getMaterialFileSize(material) {
+  return Number(material?.file_size ?? material?.size ?? material?.fileSize ?? 0) || 0;
+}
+
+function getMaterialChunkCount(material) {
+  return Number(material?.chunk_count ?? material?.chunks ?? material?.chunkCount ?? 0) || 0;
+}
+
+function getMaterialCreatedTime(material) {
+  const value = material?.created_at || material?.uploaded_at || material?.upload_time || material?.updated_at || 0;
+  const time = new Date(value).getTime();
+  return Number.isNaN(time) ? 0 : time;
+}
+
+function getMaterialFilename(material) {
+  return String(material?.original_filename || material?.filename || material?.name || "").trim();
+}
+
+function sortMaterials(items, sortMode) {
+  const sorted = [...items];
+  sorted.sort((a, b) => {
+    if (sortMode === "oldest") return getMaterialCreatedTime(a) - getMaterialCreatedTime(b);
+    if (sortMode === "nameAsc") return getMaterialFilename(a).localeCompare(getMaterialFilename(b), "zh-CN");
+    if (sortMode === "nameDesc") return getMaterialFilename(b).localeCompare(getMaterialFilename(a), "zh-CN");
+    if (sortMode === "sizeDesc") return getMaterialFileSize(b) - getMaterialFileSize(a);
+    if (sortMode === "sizeAsc") return getMaterialFileSize(a) - getMaterialFileSize(b);
+    if (sortMode === "chunksDesc") return getMaterialChunkCount(b) - getMaterialChunkCount(a);
+    if (sortMode === "chunksAsc") return getMaterialChunkCount(a) - getMaterialChunkCount(b);
+    return getMaterialCreatedTime(b) - getMaterialCreatedTime(a);
+  });
+  return sorted;
+}
+
+function getMaterialHitSnippet(material) {
+  const value =
+    material?.matched_snippet ??
+    material?.snippet ??
+    material?.match_snippet ??
+    material?.highlight ??
+    material?.content_preview ??
+    material?.chunk_text ??
+    "";
+  if (Array.isArray(value)) return "";
+  return typeof value === "string" ? value.trim() : "";
 }
 
 function getParseStatusLabel(status) {
@@ -252,6 +303,8 @@ export default function CourseMaterialsPage({
   materialSearchLoading,
   materialSearchResults = [],
   paginatedSearchResults = [],
+  materialSortMode = "newest",
+  setMaterialSortMode,
   safeSearchPage,
   searchTotalPages,
   materialCurrentPage,
@@ -271,7 +324,6 @@ export default function CourseMaterialsPage({
 }) {
   const [filterType, setFilterType] = useState("all");
   const [filterIndex, setFilterIndex] = useState("all");
-  const [sortBy, setSortBy] = useState("recent");
   const [searchInput, setSearchInput] = useState("");
 
   const courseLabel = getSubjectLabel(subject);
@@ -317,16 +369,7 @@ export default function CourseMaterialsPage({
       });
     }
 
-    // Sort
-    if (sortBy === "name") {
-      items.sort((a, b) => (a.original_filename || "").localeCompare(b.original_filename || ""));
-    } else if (sortBy === "chunks") {
-      items.sort((a, b) => Number(b.chunk_count || 0) - Number(a.chunk_count || 0));
-    } else {
-      items.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
-    }
-
-    return items;
+    return sortMaterials(items, materialSortMode);
   })();
 
   const displayTotalPages = Math.max(1, Math.ceil(displayedItems.length / PAGE_SIZE));
@@ -347,6 +390,22 @@ export default function CourseMaterialsPage({
     setMaterialCurrentPage(1);
     loadMaterials(subject);
   };
+
+  const selectedParseStatus = selectedMaterialDetail?.parse_status || "";
+  const selectedChunkCount = getMaterialChunkCount(selectedMaterialDetail);
+  const selectedDetailNotice = (() => {
+    if (!selectedMaterialDetail) return "";
+    if (selectedParseStatus === "pending" || selectedParseStatus === "parsing") {
+      return "资料正在解析 / 索引中，请稍后刷新。";
+    }
+    if (selectedParseStatus === "failed") {
+      return "解析失败，可尝试重新索引。";
+    }
+    if (selectedChunkCount === 0) {
+      return "暂无知识片段，请点击左侧资料卡片中的 AI 索引。";
+    }
+    return "";
+  })();
 
   return (
     <div className="cmp-shell">
@@ -484,8 +543,11 @@ export default function CourseMaterialsPage({
                 <button
                   key={so.value}
                   type="button"
-                  className={`cmp-chip${sortBy === so.value ? " cmp-chip--active" : ""}`}
-                  onClick={() => { setSortBy(so.value); setMaterialCurrentPage(1); }}
+                  className={`cmp-chip${materialSortMode === so.value ? " cmp-chip--active" : ""}`}
+                  onClick={() => {
+                    if (setMaterialSortMode) setMaterialSortMode(so.value);
+                    setMaterialCurrentPage(1);
+                  }}
                 >
                   {so.label}
                 </button>
@@ -515,7 +577,9 @@ export default function CourseMaterialsPage({
               </div>
             ) : (
               <div className="cmp-list">
-                {paginatedSearchResults.map((item) => (
+                {paginatedSearchResults.map((item) => {
+                  const hitSnippet = getMaterialHitSnippet(item);
+                  return (
                   <div key={`${item.material_id}-${item.chunk_id}`} className="cmp-material-card">
                     <div className="cmp-material-card-top">
                       <span className={`cmp-file-icon ${getFileIconClass(item.file_type)}`}>
@@ -526,9 +590,12 @@ export default function CourseMaterialsPage({
                         <span className="cmp-material-card-meta">
                           {getFileTypeLabel(item.file_type)} · {getSubjectLabel(item.subject)}
                         </span>
-                        <span className="cmp-material-card-snippet">
-                          命中片段：{getReferenceSnippet(item)}
-                        </span>
+                        {hitSnippet && (
+                          <span className="cmp-material-card-snippet material-hit-snippet">
+                            <span>命中片段：</span>
+                            <span>{hitSnippet}</span>
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="cmp-material-card-actions">
@@ -537,7 +604,8 @@ export default function CourseMaterialsPage({
                       </button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
                 <Pagination
                   page={safeSearchPage}
                   totalPages={searchTotalPages}
@@ -655,7 +723,9 @@ export default function CourseMaterialsPage({
                       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                       <polyline points="14 2 14 8 20 8" />
                     </svg>
-                    <p>上传资料后，可在这里查看解析摘要和 AI 索引详情</p>
+                    <h4>选择资料查看详情</h4>
+                    <p>上传资料后，可在这里查看原文、解析摘要和 AI 索引详情。</p>
+                    <p>资料生成知识片段后，即可在 AI 问答中引用。</p>
                   </>
                 ) : (
                   <>
@@ -663,7 +733,9 @@ export default function CourseMaterialsPage({
                       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                       <polyline points="14 2 14 8 20 8" />
                     </svg>
-                    <p>选择左侧资料查看详情</p>
+                    <h4>选择资料查看详情</h4>
+                    <p>点击左侧资料卡片可查看原文、索引状态和知识片段。</p>
+                    <p>如果该资料还没有生成知识片段，请先点击左侧资料卡片中的 AI 索引，索引完成后即可在 AI 问答中引用该资料。</p>
                   </>
                 )}
               </div>
@@ -680,9 +752,12 @@ export default function CourseMaterialsPage({
                   <span className={`cmp-index-badge cmp-index-badge--${selectedMaterialDetail.parse_status || "unknown"}`}>
                     {getParseStatusLabel(selectedMaterialDetail.parse_status)}
                   </span>
-                  <span>{Number(selectedMaterialDetail.chunk_count || 0)} 个知识片段</span>
+                  <span>{selectedChunkCount} 个知识片段</span>
                 </div>
                 <div className="cmp-detail-hint">{getParseStatusHint(selectedMaterialDetail)}</div>
+                {selectedDetailNotice && (
+                  <div className="cmp-detail-callout">{selectedDetailNotice}</div>
+                )}
                 <div className="cmp-detail-actions">
                   <button className="cmp-action-btn" onClick={() => previewMaterial(selectedMaterialDetail)} disabled={!selectedMaterialDetail.can_preview}>
                     查看原文件

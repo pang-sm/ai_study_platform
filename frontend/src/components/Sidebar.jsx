@@ -7,6 +7,7 @@ export default function Sidebar({
   activePage,
   onNavigate,
   isAdmin,
+  showMembershipAd = true,
   collapsed,
   onToggle,
 }) {
@@ -78,32 +79,33 @@ export default function Sidebar({
         {resourceNav.map(renderNavItem)}
       </nav>
 
-      {/* Premium card / membership entry */}
-      <div className="sb-footer">
-        {collapsed ? (
-          <button
-            className="sb-premium-btn-collapsed"
-            onClick={() => onNavigate("membership")}
-            title="开通会员"
-          >
-            <span className="sb-premium-crown">👑</span>
-          </button>
-        ) : (
-          <div className="sb-premium-card">
-            <div className="sb-premium-top">
-              <span className="sb-premium-crown">👑</span>
-              <span className="sb-premium-title">开通会员</span>
-            </div>
-            <p className="sb-premium-desc">解锁更多高级学习功能</p>
+      {showMembershipAd && (
+        <div className="sb-footer">
+          {collapsed ? (
             <button
-              className="sb-premium-btn"
+              className="sb-premium-btn-collapsed"
               onClick={() => onNavigate("membership")}
+              title="开通会员"
             >
-              立即开通
+              <span className="sb-premium-crown">👑</span>
             </button>
-          </div>
-        )}
-      </div>
+          ) : (
+            <div className="sb-premium-card">
+              <div className="sb-premium-top">
+                <span className="sb-premium-crown">👑</span>
+                <span className="sb-premium-title">开通会员</span>
+              </div>
+              <p className="sb-premium-desc">解锁更多高级学习功能</p>
+              <button
+                className="sb-premium-btn"
+                onClick={() => onNavigate("membership")}
+              >
+                立即开通
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </aside>
   );
 }

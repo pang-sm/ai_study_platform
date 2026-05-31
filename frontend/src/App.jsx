@@ -34,6 +34,7 @@ import {
 const USER_STORAGE_KEY = "ai_study_platform_user";
 const ACTIVE_SESSION_STORAGE_KEY = "ai_study_platform_active_session_id";
 const CURRENT_PAGE_KEY = "ai_study_current_page";
+const CURRENT_SUBJECT_KEY = "ai_study_current_subject";
 const API_BASE = "/api";
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
@@ -164,6 +165,80 @@ function getSavedUser() {
     localStorage.removeItem(USER_STORAGE_KEY);
     return null;
   }
+}
+
+function getInitialSubject() {
+  try {
+    const saved = localStorage.getItem(CURRENT_SUBJECT_KEY);
+    return COURSE_OPTIONS.includes(saved) ? saved : DEFAULT_SUBJECT;
+  } catch {
+    return DEFAULT_SUBJECT;
+  }
+}
+
+function getMaterialSortValue(material, key) {
+  if (key === "size") {
+    return Number(material?.file_size ?? material?.size ?? material?.fileSize ?? 0) || 0;
+  }
+  if (key === "chunks") {
+    return Number(material?.chunk_count ?? material?.chunks ?? material?.chunkCount ?? 0) || 0;
+  }
+  if (key === "date") {
+    const value = material?.created_at || material?.uploaded_at || material?.upload_time || material?.updated_at || 0;
+    const time = new Date(value).getTime();
+    return Number.isNaN(time) ? 0 : time;
+  }
+  return String(material?.original_filename || material?.filename || material?.name || "").trim();
+}
+
+function sortMaterialsByMode(items, mode) {
+  const sorted = [...items];
+  sorted.sort((a, b) => {
+    if (mode === "oldest") {
+      return getMaterialSortValue(a, "date") - getMaterialSortValue(b, "date");
+    }
+    if (mode === "nameAsc") {
+      return getMaterialSortValue(a, "name").localeCompare(getMaterialSortValue(b, "name"), "zh-CN");
+    }
+    if (mode === "nameDesc") {
+      return getMaterialSortValue(b, "name").localeCompare(getMaterialSortValue(a, "name"), "zh-CN");
+    }
+    if (mode === "sizeDesc") {
+      return getMaterialSortValue(b, "size") - getMaterialSortValue(a, "size");
+    }
+    if (mode === "sizeAsc") {
+      return getMaterialSortValue(a, "size") - getMaterialSortValue(b, "size");
+    }
+    if (mode === "chunksAsc") {
+      return getMaterialSortValue(a, "chunks") - getMaterialSortValue(b, "chunks");
+    }
+    if (mode === "chunksDesc") {
+      return getMaterialSortValue(b, "chunks") - getMaterialSortValue(a, "chunks");
+    }
+    return getMaterialSortValue(b, "date") - getMaterialSortValue(a, "date");
+  });
+  return sorted;
+}
+
+function isPrivilegedAccount(user) {
+  const role = String(user?.role || user?.profile?.role || "").toLowerCase();
+  const plan = String(user?.plan || user?.membership_plan || user?.profile?.plan || "").toLowerCase();
+  const username = String(user?.username || "").toLowerCase();
+  return (
+    user?.is_admin === true ||
+    user?.profile?.is_admin === true ||
+    role === "admin" ||
+    role === "developer" ||
+    role === "dev" ||
+    plan === "admin" ||
+    plan === "developer" ||
+    username === "admin"
+  );
+}
+
+function shouldShowMembershipAd(user) {
+  const plan = String(user?.plan || user?.membership_plan || user?.profile?.plan || "free").toLowerCase();
+  return !isPrivilegedAccount(user) && (!plan || plan === "free");
 }
 
 function formatDate(value) {
@@ -373,7 +448,7 @@ function App() {
   const [learningGoals, setLearningGoals] = useState([]);
   const [onboardingSaving, setOnboardingSaving] = useState(false);
 
-  const [subject, setSubject] = useState(DEFAULT_SUBJECT);
+  const [subject, setSubject] = useState(getInitialSubject);
   const [message, setMessage] = useState("");
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [showPlusMenu, setShowPlusMenu] = useState(false);
@@ -402,6 +477,7 @@ function App() {
   const [selectedMaterialId, setSelectedMaterialId] = useState(null);
   const [selectedMaterialDetail, setSelectedMaterialDetail] = useState(null);
   const [materialCurrentPage, setMaterialCurrentPage] = useState(1);
+  const [materialSortMode, setMaterialSortMode] = useState("newest");
   const [materialListCollapsed, setMaterialListCollapsed] = useState(false);
   const PAGE_SIZE = 5;
   const [addToLibraryState, setAddToLibraryState] = useState({
@@ -464,6 +540,12 @@ function App() {
   const materialPollCountRef = useRef({});
   const MAX_POLL_COUNT = 150;
 
+  useEffect(() => {
+    if (COURSE_OPTIONS.includes(subject)) {
+      try { localStorage.setItem(CURRENT_SUBJECT_KEY, subject); } catch { /* ignore */ }
+    }
+  }, [subject]);
+
   const currentChatSubject = activeSessionId ? activeSessionSubject : subject;
   const selectedFile = selectedFiles[0]
     ? {
@@ -497,8 +579,8 @@ function App() {
   const currentFilterItems = useMemo(() => {
     if (!currentFilterSubject) return [];
     const group = groupedMaterials.find((g) => g.subject === currentFilterSubject);
-    return group?.items || [];
-  }, [groupedMaterials, currentFilterSubject]);
+    return sortMaterialsByMode(group?.items || [], materialSortMode);
+  }, [groupedMaterials, currentFilterSubject, materialSortMode]);
 
   const currentFilterTotalPages = Math.max(1, Math.ceil(currentFilterItems.length / PAGE_SIZE));
 
@@ -514,7 +596,11 @@ function App() {
     Math.ceil(materialSearchResults.length / PAGE_SIZE)
   );
   const safeSearchPage = Math.min(materialCurrentPage, searchTotalPages);
-  const paginatedSearchResults = materialSearchResults.slice(
+  const sortedMaterialSearchResults = useMemo(
+    () => sortMaterialsByMode(materialSearchResults, materialSortMode),
+    [materialSearchResults, materialSortMode]
+  );
+  const paginatedSearchResults = sortedMaterialSearchResults.slice(
     (safeSearchPage - 1) * PAGE_SIZE,
     safeSearchPage * PAGE_SIZE
   );
@@ -581,6 +667,7 @@ function App() {
       material_id: data.material_id || material.id,
       original_filename: data.filename || material.original_filename || fallbackFile?.name || "未命名文件",
       file_type: material.file_type || fallbackFile?.type || "",
+      file_size: material.file_size ?? material.size ?? material.fileSize ?? data.file_size ?? data.size ?? data.fileSize ?? fallbackFile?.size ?? 0,
       parse_status: data.parse_status || material.parse_status || "pending",
       parse_progress: data.parse_progress ?? material.parse_progress ?? 0,
       chunk_count: data.chunk_count ?? material.chunk_count ?? 0,
@@ -2785,7 +2872,12 @@ function App() {
   }
 
   const wrapPage = (children) => (
-    <AppLayout activePage={page} onNavigate={setPage} isAdmin={!!user?.is_admin}>
+    <AppLayout
+      activePage={page}
+      onNavigate={setPage}
+      isAdmin={!!user?.is_admin}
+      showMembershipAd={shouldShowMembershipAd(user)}
+    >
       {children}
     </AppLayout>
   );
@@ -3989,6 +4081,8 @@ function App() {
             materialSearchLoading={materialSearchLoading}
             materialSearchResults={materialSearchResults}
             paginatedSearchResults={paginatedSearchResults}
+            materialSortMode={materialSortMode}
+            setMaterialSortMode={setMaterialSortMode}
             safeSearchPage={safeSearchPage}
             searchTotalPages={searchTotalPages}
             materialCurrentPage={materialCurrentPage}

@@ -5,6 +5,7 @@ export default function AppLayout({
   activePage,
   onNavigate,
   isAdmin,
+  showMembershipAd = true,
   children,
 }) {
   const { collapsed, toggle } = useSidebarCollapsed();
@@ -15,6 +16,7 @@ export default function AppLayout({
         activePage={activePage}
         onNavigate={onNavigate}
         isAdmin={isAdmin}
+        showMembershipAd={showMembershipAd}
         collapsed={collapsed}
         onToggle={toggle}
       />

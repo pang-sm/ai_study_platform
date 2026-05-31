@@ -583,7 +583,13 @@
 }
 
 .cmp-detail-empty svg { margin-bottom: 10px; }
+.cmp-detail-empty h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: #334155;
+}
 .cmp-detail-empty p { margin: 0; }
+.cmp-detail-empty p + p { margin-top: 6px; }
 
 .cmp-detail-body {
   padding: 16px 18px;
@@ -626,6 +632,23 @@
   color: #94a3b8;
   margin-bottom: 12px;
   line-height: 1.5;
+}
+
+.cmp-detail-callout {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.material-hit-snippet {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
 }
 
 .cmp-detail-actions {
