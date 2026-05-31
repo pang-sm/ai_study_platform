@@ -1,4 +1,5 @@
 import { useMemo, useEffect, useState, useRef } from "react";
+import { createPortal } from "react-dom";
 import {
   getRouteSource,
   getPlannedRoute,
@@ -64,10 +65,41 @@ function computeParentStatusFromChildren(children) {
 
 function KnowledgeStatusControl({ value, onChange, disabled = false }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0, openUp: false });
+  const buttonRef = useRef(null);
   const menuRef = useRef(null);
   const normalized = normalizeKnowledgeStatus(value);
   const cfg = getStatusConfig(normalized);
 
+  const openMenu = () => {
+    if (!buttonRef.current) return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    const estimatedMenuHeight = 220;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const openUp = spaceBelow < estimatedMenuHeight && rect.top > estimatedMenuHeight;
+    setMenuPos({
+      top: openUp ? rect.top - 4 : rect.bottom + 4,
+      left: Math.min(rect.left, window.innerWidth - 170),
+      openUp,
+    });
+    setMenuOpen(true);
+  };
+
+  const closeMenu = () => setMenuOpen(false);
+
+  // Close on scroll and resize so the menu never gets detached
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = () => setMenuOpen(false);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [menuOpen]);
+
+  // Click outside to close
   useEffect(() => {
     if (!menuOpen) return;
     const handleClick = (e) => {
@@ -82,7 +114,7 @@ function KnowledgeStatusControl({ value, onChange, disabled = false }) {
   const handleSelect = (statusValue, event) => {
     event.preventDefault();
     event.stopPropagation();
-    setMenuOpen(false);
+    closeMenu();
     if (statusValue === normalized) return;
     onChange?.(statusValue, event);
   };
@@ -99,45 +131,60 @@ function KnowledgeStatusControl({ value, onChange, disabled = false }) {
     );
   }
 
+  const menu = menuOpen && createPortal(
+    <div
+      className="kl-status-menu kl-status-menu--portal"
+      ref={menuRef}
+      style={{
+        position: "fixed",
+        top: `${menuPos.top}px`,
+        left: `${menuPos.left}px`,
+        transform: menuPos.openUp ? "translateY(-100%)" : "none",
+        zIndex: 9999,
+      }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {ALL_STATUS_OPTIONS.map((opt) => (
+        <button
+          key={opt.value}
+          type="button"
+          className={`kl-status-menu-item${opt.value === normalized ? " kl-status-menu-item--active" : ""}`}
+          style={{
+            color: (STATUS_CONFIG[opt.value] || STATUS_CONFIG.not_started).color,
+          }}
+          onMouseDown={(e) => handleSelect(opt.value, e)}
+        >
+          <span
+            className="kl-status-menu-dot"
+            style={{ background: (STATUS_CONFIG[opt.value] || STATUS_CONFIG.not_started).color }}
+          />
+          {opt.label}
+          {opt.value === normalized && (
+            <svg className="kl-status-menu-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          )}
+        </button>
+      ))}
+    </div>,
+    document.body
+  );
+
   return (
-    <div className="kl-status-control" ref={menuRef}>
+    <div className="kl-status-control">
       <button
+        ref={buttonRef}
         type="button"
         className="kl-status-badge"
         style={{ color: cfg.color, background: cfg.bg, borderColor: cfg.color }}
-        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpen((v) => !v); }}
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); menuOpen ? closeMenu() : openMenu(); }}
       >
         {cfg.label}
         <svg className="kl-status-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
           <polyline points="6 9 12 15 18 9" />
         </svg>
       </button>
-      {menuOpen && (
-        <div className="kl-status-menu" onClick={(e) => e.stopPropagation()}>
-          {ALL_STATUS_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              className={`kl-status-menu-item${opt.value === normalized ? " kl-status-menu-item--active" : ""}`}
-              style={{
-                color: (STATUS_CONFIG[opt.value] || STATUS_CONFIG.not_started).color,
-              }}
-              onMouseDown={(e) => handleSelect(opt.value, e)}
-            >
-              <span
-                className="kl-status-menu-dot"
-                style={{ background: (STATUS_CONFIG[opt.value] || STATUS_CONFIG.not_started).color }}
-              />
-              {opt.label}
-              {opt.value === normalized && (
-                <svg className="kl-status-menu-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              )}
-            </button>
-          ))}
-        </div>
-      )}
+      {menu}
     </div>
   );
 }

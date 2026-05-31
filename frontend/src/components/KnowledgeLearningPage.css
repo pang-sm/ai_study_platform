@@ -497,18 +497,26 @@
 }
 
 /* ── Status Menu ── */
-.kl-status-control .kl-status-menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  z-index: 100;
-  min-width: 130px;
+.kl-status-control .kl-status-menu,
+.kl-status-menu {
+  min-width: 150px;
   background: #fff;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
   padding: 4px;
+}
+
+.kl-status-control .kl-status-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 100;
   animation: kl-menu-in 0.12s ease-out;
+}
+
+.kl-status-menu--portal {
+  animation: none;
 }
 
 @keyframes kl-menu-in {
