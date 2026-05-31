@@ -4,8 +4,6 @@ COURSE_PROGRESS_STATUSES = (
     "未开始",
     "学习中",
     "已掌握",
-    "薄弱",
-    "待复习",
 )
 
 COURSE_ROADMAPS = {
@@ -144,8 +142,6 @@ COURSE_ROADMAPS = {
 STATUS_PROGRESS_SCORES = {
     "未开始": 0.0,
     "学习中": 0.45,
-    "薄弱": 0.2,
-    "待复习": 0.65,
     "已掌握": 1.0,
 }
 

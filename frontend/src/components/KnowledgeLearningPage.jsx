@@ -11,30 +11,17 @@ import "./KnowledgeLearningPage.css";
 const STATUS_CONFIG = {
   mastered: { label: "已掌握", color: "#059669", bg: "#ecfdf5" },
   learning: { label: "学习中", color: "#2563eb", bg: "#eff6ff" },
-  need_review: { label: "需要复习", color: "#d97706", bg: "#fffbeb" },
-  reviewing: { label: "需要复习", color: "#d97706", bg: "#fffbeb" },
-  review: { label: "待复习", color: "#d97706", bg: "#fffbeb" },
-  not_understood: { label: "还没理解", color: "#dc2626", bg: "#fef2f2" },
-  later: { label: "稍后再学", color: "#64748b", bg: "#f1f5f9" },
   not_started: { label: "未开始", color: "#94a3b8", bg: "#f8fafc" },
-  locked: { label: "未开始", color: "#94a3b8", bg: "#f8fafc" },
-  weak: { label: "薄弱", color: "#dc2626", bg: "#fef2f2" },
 };
 
 const ALL_STATUS_OPTIONS = [
   { value: "not_started", label: "未开始" },
   { value: "learning", label: "学习中" },
   { value: "mastered", label: "已掌握" },
-  { value: "need_review", label: "需要复习" },
-  { value: "not_understood", label: "还没理解" },
-  { value: "later", label: "稍后再学" },
 ];
 
 const STATUS_MASTERY_SCORE = {
   mastered: 100,
-  need_review: 55,
-  not_understood: 25,
-  later: 0,
   learning: 40,
   not_started: 0,
 };
@@ -63,41 +50,31 @@ function getStatusConfig(status) {
 
 function normalizeKnowledgeStatus(status) {
   if (!status) return "not_started";
-  // Chinese label → English key (handles cases where DB/API returns Chinese text)
-  const CN_MAP = {
-    "未开始": "not_started",
-    "学习中": "learning",
-    "已掌握": "mastered",
-    "需要复习": "need_review",
-    "还没理解": "not_understood",
-    "稍后再学": "later",
-    "待复习": "need_review",
-    "薄弱": "not_understood",
-  };
-  if (CN_MAP[status]) return CN_MAP[status];
-  // Legacy English aliases
-  if (status === "review" || status === "reviewing") return "need_review";
-  if (status === "weak") return "not_understood";
-  // Additional legacy aliases
-  if (status === "in_progress" || status === "studying") return "learning";
-  if (status === "done" || status === "completed") return "mastered";
-  if (status === "confused") return "not_understood";
-  if (status === "postponed") return "later";
-  return status;
+  const s = String(status).trim();
+  // Direct 3-state values
+  if (s === "not_started" || s === "未开始") return "not_started";
+  if (s === "learning" || s === "学习中") return "learning";
+  if (s === "mastered" || s === "已掌握") return "mastered";
+  // Legacy → learning (need_review, not_understood, and variants)
+  if (s === "need_review" || s === "需要复习" || s === "待复习" ||
+      s === "review" || s === "reviewing" || s === "needs_review" ||
+      s === "not_understood" || s === "还没理解" || s === "薄弱" ||
+      s === "weak" || s === "confused" ||
+      s === "in_progress" || s === "studying") return "learning";
+  // Legacy → mastered
+  if (s === "done" || s === "completed") return "mastered";
+  // Legacy → not_started
+  if (s === "later" || s === "稍后再学" || s === "postponed") return "not_started";
+  // Unknown → not_started
+  return "not_started";
 }
 
 function computeParentStatusFromChildren(children) {
-  if (!children || children.length === 0) return null;
+  if (!children || children.length === 0) return "not_started";
   const statuses = children.map((c) => normalizeKnowledgeStatus(c.status || "not_started"));
-  const allMastered = statuses.every((s) => s === "mastered");
-  const allNotStarted = statuses.every((s) => s === "not_started");
-  if (allMastered) return "mastered";
-  if (allNotStarted) return "not_started";
-  const masteredCount = statuses.filter((s) => s === "mastered").length;
-  if (masteredCount > 0 && masteredCount / statuses.length >= 0.5) return "learning";
-  const anyLearning = statuses.some((s) => s === "learning");
-  if (anyLearning) return "learning";
-  return "learning";
+  if (statuses.every((s) => s === "mastered")) return "mastered";
+  if (statuses.some((s) => s === "learning" || s === "mastered")) return "learning";
+  return "not_started";
 }
 
 function KnowledgeStatusControl({ value, onChange, disabled = false }) {
@@ -810,7 +787,7 @@ export default function KnowledgeLearningPage({
     const oldStatus = oldPoint?.status || item.status || "not_started";
     const normalizedNewStatus = normalizeKnowledgeStatus(status);
     const isParent = item.type === "stage" || (!item.parentNodeKey && !item.parentBackendId);
-    const shouldCascade = isParent && normalizedNewStatus === "mastered";
+    const shouldCascade = isParent && (normalizedNewStatus === "mastered" || normalizedNewStatus === "not_started" || normalizedNewStatus === "learning");
 
     setStatusError("");
     setStatusSavingId(item.backendId || item.id);
@@ -852,18 +829,26 @@ export default function KnowledgeLearningPage({
       if (shouldCascade) {
         const children = apiKnowledgePoints.filter((p) => p.parent_id === knowledgePointId);
         if (children.length > 0) {
-          await Promise.all(children.map((child) =>
-            fetch(`/api/knowledge-points/${child.id}/progress`, {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                username: user.username,
-                status: "mastered",
-                mastery_score: 100,
-              }),
-            }).then((r) => r.json()).catch(() => null)
-          ));
-          children.forEach((child) => applyLocalKnowledgeStatus(child.id, "mastered"));
+          const cascadeStatus = normalizedNewStatus;
+          const cascadeScore = STATUS_MASTERY_SCORE[cascadeStatus] ?? 0;
+          // When parent set to "learning", only update not_started children (keep mastered intact)
+          const childrenToUpdate = cascadeStatus === "learning"
+            ? children.filter((c) => normalizeKnowledgeStatus(c.status) === "not_started")
+            : children;
+          if (childrenToUpdate.length > 0) {
+            await Promise.all(childrenToUpdate.map((child) =>
+              fetch(`/api/knowledge-points/${child.id}/progress`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  username: user.username,
+                  status: cascadeStatus,
+                  mastery_score: cascadeScore,
+                }),
+              }).then((r) => r.json()).catch(() => null)
+            ));
+            childrenToUpdate.forEach((child) => applyLocalKnowledgeStatus(child.id, cascadeStatus));
+          }
         }
         await fetchKnowledgePoints();
       }
@@ -1133,10 +1118,10 @@ export default function KnowledgeLearningPage({
               <div className="kl-kp-detail">
                 <p className="kl-kp-detail-name">{selectedKp.title}</p>
                 <span className="kl-kp-detail-status" style={{
-                  color: (STATUS_CONFIG[selectedKp.status] || STATUS_CONFIG.locked).color,
-                  background: (STATUS_CONFIG[selectedKp.status] || STATUS_CONFIG.locked).bg,
+                  color: (STATUS_CONFIG[selectedKp.status] || STATUS_CONFIG.not_started).color,
+                  background: (STATUS_CONFIG[selectedKp.status] || STATUS_CONFIG.not_started).bg,
                 }}>
-                  {(STATUS_CONFIG[selectedKp.status] || STATUS_CONFIG.locked).label}
+                  {(STATUS_CONFIG[selectedKp.status] || STATUS_CONFIG.not_started).label}
                 </span>
                 <div className="kl-kp-actions">
                   <button className="kl-btn kl-btn--primary" type="button" onClick={handleStartAIWithKp}>
@@ -1184,7 +1169,7 @@ export default function KnowledgeLearningPage({
             ) : (
               <div className="kl-kp-stages">
                 {knowledgeOverview.map((stage) => {
-                  const cfg = STATUS_CONFIG[stage.status] || STATUS_CONFIG.locked;
+                  const cfg = STATUS_CONFIG[stage.status] || STATUS_CONFIG.not_started;
                   return (
                     <div key={stage.stageId} className="kl-kp-stage">
                       <div className="kl-kp-stage-header">

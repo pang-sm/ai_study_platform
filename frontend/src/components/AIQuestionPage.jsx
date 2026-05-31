@@ -14,47 +14,42 @@ const RECOMMENDATION_POOL = [
 ];
 
 const KNOWLEDGE_STATUS_OPTIONS = [
+  { status: "not_started", label: "未开始", color: "#94a3b8", bg: "#f8fafc", score: 0 },
+  { status: "learning", label: "学习中", color: "#2563eb", bg: "#eff6ff", score: 40 },
   { status: "mastered", label: "已掌握", color: "#059669", bg: "#ecfdf5", score: 100 },
-  { status: "need_review", label: "需要复习", color: "#d97706", bg: "#fffbeb", score: 55 },
-  { status: "not_understood", label: "还没理解", color: "#dc2626", bg: "#fef2f2", score: 25 },
-  { status: "later", label: "稍后再学", color: "#64748b", bg: "#f1f5f9", score: 0 },
 ];
 
 const KNOWLEDGE_STATUS_LABELS = {
   mastered: "已掌握",
-  need_review: "需要复习",
-  reviewing: "需要复习",
-  review: "需要复习",
-  not_understood: "还没理解",
-  weak: "还没理解",
-  later: "稍后再学",
-  not_started: "未开始",
   learning: "学习中",
+  not_started: "未开始",
+  // Legacy aliases (all map to 3-state via normalizeKnowledgeStatus)
+  need_review: "学习中",
+  reviewing: "学习中",
+  review: "学习中",
+  not_understood: "学习中",
+  weak: "学习中",
+  later: "未开始",
 };
 
 function normalizeKnowledgeStatus(status) {
   if (!status) return "not_started";
-  // Chinese label → English key (handles cases where DB/API returns Chinese text)
-  const CN_MAP = {
-    "未开始": "not_started",
-    "学习中": "learning",
-    "已掌握": "mastered",
-    "需要复习": "need_review",
-    "还没理解": "not_understood",
-    "稍后再学": "later",
-    "待复习": "need_review",
-    "薄弱": "not_understood",
-  };
-  if (CN_MAP[status]) return CN_MAP[status];
-  // Legacy English aliases
-  if (status === "review" || status === "reviewing") return "need_review";
-  if (status === "weak") return "not_understood";
-  // Additional legacy aliases
-  if (status === "in_progress" || status === "studying") return "learning";
-  if (status === "done" || status === "completed") return "mastered";
-  if (status === "confused") return "not_understood";
-  if (status === "postponed") return "later";
-  return status;
+  const s = String(status).trim();
+  // Direct 3-state values
+  if (s === "not_started" || s === "未开始") return "not_started";
+  if (s === "learning" || s === "学习中") return "learning";
+  if (s === "mastered" || s === "已掌握") return "mastered";
+  // Legacy → learning
+  if (s === "need_review" || s === "需要复习" || s === "待复习" ||
+      s === "review" || s === "reviewing" || s === "needs_review" ||
+      s === "not_understood" || s === "还没理解" || s === "薄弱" ||
+      s === "weak" || s === "confused" ||
+      s === "in_progress" || s === "studying") return "learning";
+  // Legacy → mastered
+  if (s === "done" || s === "completed") return "mastered";
+  // Legacy → not_started
+  if (s === "later" || s === "稍后再学" || s === "postponed") return "not_started";
+  return "not_started";
 }
 
 function shufflePool(pool, count) {

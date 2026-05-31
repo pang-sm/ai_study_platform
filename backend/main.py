@@ -8044,7 +8044,7 @@ def list_knowledge_points(
             p,
             progress_info={
                 "mastery_score": progress_map[p.id].mastery_score if p.id in progress_map else 0,
-                "status": progress_map[p.id].status if p.id in progress_map else "not_started",
+                "status": normalize_knowledge_status(progress_map[p.id].status) if p.id in progress_map else "not_started",
             } if p.id in progress_map else None,
         )
         for p in points
@@ -8265,6 +8265,36 @@ def delete_knowledge_point(
     return {"success": True, "message": "知识点已删除"}
 
 
+def normalize_knowledge_status(status: str | None) -> str:
+    """Map any legacy status into the 3-state model: not_started | learning | mastered."""
+    if not status:
+        return "not_started"
+    s = status.strip()
+    # Direct 3-state values
+    if s in ("not_started", "learning", "mastered"):
+        return s
+    # Chinese 3-state
+    if s in ("未开始",):
+        return "not_started"
+    if s in ("学习中",):
+        return "learning"
+    if s in ("已掌握",):
+        return "mastered"
+    # Legacy → learning
+    if s in ("need_review", "需要复习", "待复习", "review", "reviewing", "needs_review",
+             "not_understood", "还没理解", "weak", "薄弱", "confused",
+             "in_progress", "studying"):
+        return "learning"
+    # Legacy → mastered
+    if s in ("done", "completed"):
+        return "mastered"
+    # Legacy → not_started
+    if s in ("later", "稍后再学", "postponed"):
+        return "not_started"
+    # Unknown → not_started
+    return "not_started"
+
+
 @app.put("/knowledge-points/{point_id}/progress")
 def update_knowledge_point_progress(
     point_id: int,
@@ -8309,7 +8339,7 @@ def update_knowledge_point_progress(
     if req.mastery_score is not None:
         progress.mastery_score = max(0, min(100, req.mastery_score))
     if req.status is not None:
-        progress.status = req.status
+        progress.status = normalize_knowledge_status(req.status)
     progress.updated_at = utc_now()
     progress.last_studied_at = utc_now()
 
