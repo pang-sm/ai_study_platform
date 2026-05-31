@@ -313,6 +313,17 @@ USER_KNOWLEDGE_PROGRESS_COLUMNS = {
     "updated_at": "DATETIME NOT NULL",
 }
 
+USER_LEARNING_PATHS_COLUMNS = {
+    "username": "VARCHAR(50) NOT NULL",
+    "subject": "VARCHAR(100) NOT NULL",
+    "path_type": "VARCHAR(30) NOT NULL DEFAULT 'material'",
+    "title": "VARCHAR(255) NOT NULL",
+    "source_material_ids": "TEXT",
+    "modules_json": "TEXT NOT NULL",
+    "created_at": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+    "updated_at": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+}
+
 
 def get_db():
     db = SessionLocal()
@@ -620,6 +631,27 @@ def ensure_user_knowledge_progress_schema(conn):
     ensure_columns(conn, "user_knowledge_progress", USER_KNOWLEDGE_PROGRESS_COLUMNS)
 
 
+def ensure_user_learning_paths_schema(conn):
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS user_learning_paths (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username VARCHAR(50) NOT NULL,
+                subject VARCHAR(100) NOT NULL,
+                path_type VARCHAR(30) NOT NULL DEFAULT 'material',
+                title VARCHAR(255) NOT NULL,
+                source_material_ids TEXT,
+                modules_json TEXT NOT NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+    )
+    ensure_columns(conn, "user_learning_paths", USER_LEARNING_PATHS_COLUMNS)
+
+
 def ensure_ai_usage_logs_schema(conn):
     conn.execute(
         text(
@@ -886,6 +918,7 @@ def init_user_profile_schema():
         ensure_question_attempts_schema(conn)
         ensure_knowledge_points_schema(conn)
         ensure_user_knowledge_progress_schema(conn)
+        ensure_user_learning_paths_schema(conn)
         ensure_knowledge_progress_events_schema(conn)
         ensure_material_knowledge_links_schema(conn)
         ensure_ai_usage_logs_schema(conn)

@@ -3737,6 +3737,7 @@ function App() {
               setPendingAIContext(ctx);
             }}
             materials={materials}
+            materialsLoading={materialsLoading}
             loadMaterials={(target) => loadMaterials(normalizeSubject(target || subject))}
             goalConfig={goalConfig}
           />

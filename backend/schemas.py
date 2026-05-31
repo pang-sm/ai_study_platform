@@ -418,6 +418,13 @@ class KnowledgePointImportRequest(BaseModel):
     import_mode: str = "append"
 
 
+class KnowledgePathGenerateFromMaterialsRequest(BaseModel):
+    username: str
+    subject: str
+    material_ids: list[int]
+    overwrite: bool = True
+
+
 # ── AI Learning Plan ─────────────────────────────────────
 
 

@@ -8620,6 +8620,310 @@ def import_generated_knowledge_points(req: schemas.KnowledgePointImportRequest, 
 # ── Practice / Question Bank ──────────────────────────────────────
 
 
+def _parse_learning_path_json(raw: str):
+    text_value = (raw or "").strip()
+    if text_value.startswith("```"):
+        text_value = re.sub(r"^```(?:json)?\s*", "", text_value, flags=re.IGNORECASE).strip()
+        text_value = re.sub(r"\s*```$", "", text_value).strip()
+    start = text_value.find("{")
+    end = text_value.rfind("}")
+    if start == -1 or end == -1 or end <= start:
+        raise ValueError("AI 未返回 JSON 对象")
+    data = json.loads(text_value[start:end + 1])
+    if not isinstance(data, dict):
+        raise ValueError("AI 返回内容不是 JSON 对象")
+    modules = data.get("modules")
+    if not isinstance(modules, list) or not modules:
+        raise ValueError("JSON 中缺少 modules")
+    return data
+
+
+def _normalize_generated_path(data: dict, subject: str, material_ids: list[int]):
+    title = str(data.get("title") or f"基于资料生成的{subject}学习路线").strip()[:255]
+    clean_modules = []
+    for module_index, module in enumerate(data.get("modules") or []):
+        if not isinstance(module, dict):
+            continue
+        module_title = str(module.get("title") or "").strip()
+        if not module_title:
+            continue
+        points = []
+        raw_points = module.get("knowledge_points") or module.get("children") or []
+        if isinstance(raw_points, list):
+            for point in raw_points[:10]:
+                if isinstance(point, str):
+                    point = {"title": point}
+                if not isinstance(point, dict):
+                    continue
+                point_title = str(point.get("title") or "").strip()
+                if not point_title:
+                    continue
+                points.append({
+                    "title": point_title[:255],
+                    "description": str(point.get("description") or "").strip()[:500],
+                    "difficulty": str(point.get("difficulty") or "基础").strip()[:50],
+                    "estimated_minutes": int(point.get("estimated_minutes") or 20) if str(point.get("estimated_minutes") or "").isdigit() else 20,
+                    "source_hint": str(point.get("source_hint") or "").strip()[:255],
+                })
+        if not points:
+            continue
+        clean_modules.append({
+            "title": module_title[:255],
+            "description": str(module.get("description") or "").strip()[:500],
+            "order": int(module.get("order") or module_index + 1) if str(module.get("order") or "").isdigit() else module_index + 1,
+            "knowledge_points": points,
+        })
+    if not clean_modules:
+        raise ValueError("AI 返回的路线中没有有效知识点")
+    return {
+        "title": title,
+        "subject": subject,
+        "source_material_ids": material_ids,
+        "modules": clean_modules[:8],
+    }
+
+
+def _replace_material_learning_points(db: Session, username: str, subject: str, modules: list[dict]):
+    existing_points = (
+        db.query(models.KnowledgePoint)
+        .filter(
+            models.KnowledgePoint.username == username,
+            models.KnowledgePoint.course_id == subject,
+        )
+        .all()
+    )
+    existing_ids = [p.id for p in existing_points]
+    if existing_ids:
+        db.query(models.UserKnowledgeProgress).filter(
+            models.UserKnowledgeProgress.username == username,
+            models.UserKnowledgeProgress.knowledge_point_id.in_(existing_ids),
+        ).delete(synchronize_session=False)
+        db.query(models.MaterialKnowledgeLink).filter(
+            models.MaterialKnowledgeLink.username == username,
+            models.MaterialKnowledgeLink.course_id == subject,
+            models.MaterialKnowledgeLink.knowledge_point_id.in_(existing_ids),
+        ).delete(synchronize_session=False)
+        db.query(models.KnowledgePoint).filter(
+            models.KnowledgePoint.username == username,
+            models.KnowledgePoint.id.in_(existing_ids),
+        ).delete(synchronize_session=False)
+        db.flush()
+
+    created = []
+    for module_index, module in enumerate(modules):
+        parent = models.KnowledgePoint(
+            username=username,
+            course_id=subject,
+            parent_id=None,
+            title=module["title"][:255],
+            description=(module.get("description") or "")[:255],
+            order_index=module_index,
+            level=1,
+        )
+        db.add(parent)
+        db.flush()
+        db.add(models.UserKnowledgeProgress(
+            username=username,
+            course_id=subject,
+            knowledge_point_id=parent.id,
+            mastery_score=0,
+            status="not_started",
+            practice_count=0,
+            task_count=0,
+        ))
+        created.append(parent)
+
+        for point_index, point in enumerate(module.get("knowledge_points") or []):
+            child = models.KnowledgePoint(
+                username=username,
+                course_id=subject,
+                parent_id=parent.id,
+                title=point["title"][:255],
+                description=(point.get("description") or "")[:255],
+                order_index=point_index,
+                level=2,
+            )
+            db.add(child)
+            db.flush()
+            db.add(models.UserKnowledgeProgress(
+                username=username,
+                course_id=subject,
+                knowledge_point_id=child.id,
+                mastery_score=0,
+                status="not_started",
+                practice_count=0,
+                task_count=0,
+            ))
+            created.append(child)
+    return created
+
+
+@app.post("/knowledge-path/generate-from-materials")
+def generate_knowledge_path_from_materials(
+    req: schemas.KnowledgePathGenerateFromMaterialsRequest,
+    db: Session = Depends(get_db),
+):
+    user = get_user_by_username(req.username, db)
+    subject = normalize_subject(req.subject, default="")
+    if not subject:
+        raise HTTPException(status_code=400, detail="subject 不能为空")
+
+    material_ids = []
+    for raw_id in req.material_ids or []:
+        try:
+            material_id = int(raw_id)
+        except (TypeError, ValueError):
+            continue
+        if material_id > 0 and material_id not in material_ids:
+            material_ids.append(material_id)
+    if not material_ids:
+        raise HTTPException(status_code=400, detail="请至少选择 1 个资料")
+
+    materials = (
+        db.query(models.StudyMaterial)
+        .filter(
+            models.StudyMaterial.id.in_(material_ids),
+            models.StudyMaterial.username == user.username,
+            models.StudyMaterial.subject == subject,
+            models.StudyMaterial.is_deleted == False,
+        )
+        .all()
+    )
+    if len(materials) != len(material_ids):
+        raise HTTPException(status_code=400, detail="所选资料不存在，或不属于当前用户/科目")
+
+    chunks = (
+        db.query(models.MaterialChunk)
+        .filter(
+            models.MaterialChunk.material_id.in_(material_ids),
+            models.MaterialChunk.username == user.username,
+            models.MaterialChunk.subject == subject,
+            models.MaterialChunk.is_deleted == False,
+        )
+        .order_by(models.MaterialChunk.material_id, models.MaterialChunk.chunk_index)
+        .all()
+    )
+    if not chunks:
+        raise HTTPException(status_code=400, detail="所选资料暂无知识片段，请先在资料库进行 AI 索引。")
+
+    material_map = {m.id: m for m in materials}
+    selected_names = [material_map[mid].original_filename for mid in material_ids if mid in material_map]
+    chunk_lines = []
+    total_chars = 0
+    max_chars = 18000
+    per_material_count = defaultdict(int)
+    for chunk in chunks:
+        if per_material_count[chunk.material_id] >= 12:
+            continue
+        text_value = (chunk.chunk_summary or chunk.chunk_text or "").strip()
+        if not text_value:
+            continue
+        material = material_map.get(chunk.material_id)
+        source_name = material.original_filename if material else chunk.source_filename
+        line = f"【{source_name} - 片段 {chunk.chunk_index + 1}】\n{text_value[:1200]}"
+        if total_chars + len(line) > max_chars:
+            break
+        chunk_lines.append(line)
+        total_chars += len(line)
+        per_material_count[chunk.material_id] += 1
+
+    if not chunk_lines:
+        raise HTTPException(status_code=400, detail="所选资料暂无可用知识片段，请先在资料库点击 AI 索引。")
+
+    system_prompt = (
+        "你是一个大学课程学习路线规划助手。请根据用户提供的课程资料片段，"
+        "为该课程生成结构化学习路线。输出必须是严格 JSON，不要包含 Markdown，不要解释。"
+    )
+    user_prompt = f"""
+课程：{subject}
+所选资料：
+{chr(10).join(f"- {name}" for name in selected_names)}
+
+资料片段：
+{chr(10).join(chunk_lines)}
+
+请生成 JSON：
+{{
+  "title": "基于资料生成的{subject}学习路线",
+  "subject": "{subject}",
+  "modules": [
+    {{
+      "title": "模块标题",
+      "description": "模块说明",
+      "order": 1,
+      "knowledge_points": [
+        {{
+          "title": "知识点标题",
+          "description": "简洁中文说明",
+          "difficulty": "基础/中等/进阶",
+          "estimated_minutes": 20,
+          "source_hint": "来自某资料文件名"
+        }}
+      ]
+    }}
+  ]
+}}
+
+要求：
+1. 拆成 4-8 个大模块。
+2. 每个模块包含 3-8 个知识点。
+3. 知识点从基础到进阶排序。
+4. 标题要短，适合前端卡片展示。
+5. 以资料内容为主，不要编造资料中完全没有的章节。
+6. 输出严格 JSON，不能包含 ```json。
+""".strip()
+
+    try:
+        raw = call_deepseek([
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ])
+        path_data = _normalize_generated_path(
+            _parse_learning_path_json(raw),
+            subject,
+            material_ids,
+        )
+    except (json.JSONDecodeError, ValueError, KeyError) as exc:
+        raise HTTPException(status_code=500, detail=f"AI 生成结果解析失败，请重试：{str(exc)}")
+
+    created_points = _replace_material_learning_points(db, user.username, subject, path_data["modules"])
+
+    existing_path = (
+        db.query(models.UserLearningPath)
+        .filter(
+            models.UserLearningPath.username == user.username,
+            models.UserLearningPath.subject == subject,
+            models.UserLearningPath.path_type == "material",
+        )
+        .first()
+    )
+    modules_json = json.dumps(path_data["modules"], ensure_ascii=False)
+    material_ids_json = json.dumps(material_ids, ensure_ascii=False)
+    if existing_path:
+        existing_path.title = path_data["title"]
+        existing_path.source_material_ids = material_ids_json
+        existing_path.modules_json = modules_json
+        existing_path.updated_at = utc_now()
+    else:
+        db.add(models.UserLearningPath(
+            username=user.username,
+            subject=subject,
+            path_type="material",
+            title=path_data["title"],
+            source_material_ids=material_ids_json,
+            modules_json=modules_json,
+        ))
+
+    db.commit()
+
+    return {
+        "success": True,
+        "message": "已根据所选资料生成学习路线",
+        "path": path_data,
+        "created_knowledge_point_count": len(created_points),
+    }
+
+
 def serialize_question(q, knowledge_point_title=None):
     return {
         "id": q.id,

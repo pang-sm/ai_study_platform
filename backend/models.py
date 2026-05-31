@@ -322,6 +322,20 @@ class MaterialKnowledgeLink(Base):
     created_at = Column(DateTime, default=utc_now)
 
 
+class UserLearningPath(Base):
+    __tablename__ = "user_learning_paths"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), index=True, nullable=False)
+    subject = Column(String(100), index=True, nullable=False)
+    path_type = Column(String(30), index=True, nullable=False, default="material")
+    title = Column(String(255), nullable=False)
+    source_material_ids = Column(Text, nullable=True)
+    modules_json = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+
 class AiUsageLog(Base):
     __tablename__ = "ai_usage_logs"
 

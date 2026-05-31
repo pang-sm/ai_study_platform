@@ -15,27 +15,44 @@ const STATUS_CONFIG = {
   weak: { label: "薄弱", color: "#dc2626", bg: "#fef2f2" },
 };
 
-function RouteNodeCard({ node, index, isLast, onClick, isExpanded }) {
+function RouteNodeCard({ node, index, isLast, onClick, isExpanded, onKnowledgePointClick }) {
   const cfg = STATUS_CONFIG[node.status] || STATUS_CONFIG.locked;
   return (
     <div className="kl-route-node-wrap">
-      <div
-        className={`kl-route-node${node.status === "learning" ? " kl-route-node--active" : ""}${node.status === "mastered" ? " kl-route-node--done" : ""}${isExpanded ? " kl-route-node--expanded" : ""}`}
-        onClick={() => onClick && onClick(node)}
-      >
-        <span className="kl-route-node-seq">{index + 1}</span>
-        <div className="kl-route-node-body">
-          <div className="kl-route-node-title">{node.title}</div>
-          <div className="kl-route-node-sub">{node.subtitle}</div>
-          <div className="kl-route-node-meta">
-            <span className="kl-route-node-status" style={{ color: cfg.color, background: cfg.bg }}>
-              {cfg.label}
-            </span>
-            <span className="kl-route-node-kp-count">
-              {(node.knowledgePoints || []).length} 个知识点
-            </span>
+      <div className="kl-route-node-stack">
+        <div
+          className={`kl-route-node${node.status === "learning" ? " kl-route-node--active" : ""}${node.status === "mastered" ? " kl-route-node--done" : ""}${isExpanded ? " kl-route-node--expanded" : ""}`}
+          onClick={() => onClick && onClick(node)}
+        >
+          <span className="kl-route-node-seq">{index + 1}</span>
+          <div className="kl-route-node-body">
+            <div className="kl-route-node-title">{node.title}</div>
+            <div className="kl-route-node-sub">{node.subtitle}</div>
+            <div className="kl-route-node-meta">
+              <span className="kl-route-node-status" style={{ color: cfg.color, background: cfg.bg }}>
+                {cfg.label}
+              </span>
+              <span className="kl-route-node-kp-count">
+                {(node.knowledgePoints || []).length} 个知识点
+              </span>
+            </div>
           </div>
         </div>
+        {isExpanded && (
+          <div className="kl-node-inline-detail">
+            {node.description && <p className="kl-node-inline-desc">{node.description}</p>}
+            <div className="kl-kp-list">
+              {(node.knowledgePoints || []).map((kp, kpIndex) => (
+                <KnowledgePointItem
+                  key={kp.id}
+                  kp={kp}
+                  index={kpIndex}
+                  onClick={onKnowledgePointClick}
+                />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
       {!isLast && <div className="kl-route-connector" />}
     </div>
@@ -59,6 +76,140 @@ function KnowledgePointItem({ kp, onClick, index }) {
   );
 }
 
+function isMaterialUsableForPath(material) {
+  const status = String(material?.parse_status || "").toLowerCase();
+  return ["success", "partial", "indexed"].includes(status) && Number(material?.chunk_count || 0) > 0;
+}
+
+function formatDate(value) {
+  if (!value) return "-";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "-";
+  return d.toLocaleDateString("zh-CN");
+}
+
+function formatFileSize(value) {
+  const bytes = Number(value || 0);
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
+  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${bytes} B`;
+}
+
+function getParseStatusLabel(status) {
+  if (status === "success" || status === "indexed") return "已索引";
+  if (status === "partial") return "部分索引";
+  if (status === "parsing") return "解析中";
+  if (status === "pending") return "等待解析";
+  if (status === "failed") return "解析失败";
+  return "未索引";
+}
+
+function MaterialPathModal({
+  open,
+  materials,
+  loading,
+  generating,
+  selectedIds,
+  searchQuery,
+  error,
+  onSearchChange,
+  onToggle,
+  onSelectAll,
+  onClear,
+  onCancel,
+  onGenerate,
+}) {
+  if (!open) return null;
+  const filtered = searchQuery.trim()
+    ? materials.filter((m) => String(m.original_filename || "").toLowerCase().includes(searchQuery.trim().toLowerCase()))
+    : materials;
+  const usableMaterials = filtered.filter(isMaterialUsableForPath);
+  const usableSelectedCount = selectedIds.filter((id) => materials.some((m) => m.id === id && isMaterialUsableForPath(m))).length;
+
+  return (
+    <div className="kl-modal-overlay">
+      <div className="kl-material-modal" role="dialog" aria-modal="true">
+        <div className="kl-modal-header">
+          <div>
+            <h2 className="kl-modal-title">选择资料生成学习路线</h2>
+            <p className="kl-modal-subtitle">请选择当前科目下已上传的资料，AI 将根据资料中的知识片段生成学习路线。</p>
+          </div>
+          <button className="kl-modal-close" type="button" onClick={onCancel} disabled={generating}>×</button>
+        </div>
+
+        <div className="kl-modal-toolbar">
+          <input
+            className="kl-modal-search"
+            value={searchQuery}
+            onChange={(event) => onSearchChange(event.target.value)}
+            placeholder="搜索资料文件名"
+            disabled={generating}
+          />
+          <div className="kl-modal-tools">
+            <button type="button" className="kl-link-btn" onClick={() => onSelectAll(usableMaterials)} disabled={generating || usableMaterials.length === 0}>全选可用</button>
+            <button type="button" className="kl-link-btn" onClick={onClear} disabled={generating || selectedIds.length === 0}>清空选择</button>
+          </div>
+        </div>
+
+        <div className="kl-material-list">
+          {loading ? (
+            <div className="kl-modal-empty">正在加载资料...</div>
+          ) : materials.length === 0 ? (
+            <div className="kl-modal-empty">当前科目暂无资料，请先去资料库上传并索引。</div>
+          ) : usableMaterials.length === 0 && filtered.length > 0 ? (
+            <div className="kl-modal-empty">当前资料还没有知识片段，请先在资料库点击 AI 索引。</div>
+          ) : filtered.length === 0 ? (
+            <div className="kl-modal-empty">没有匹配的资料。</div>
+          ) : (
+            filtered.map((material) => {
+              const usable = isMaterialUsableForPath(material);
+              const selected = selectedIds.includes(material.id);
+              return (
+                <label key={material.id} className={`kl-material-row${selected ? " kl-material-row--selected" : ""}${!usable ? " kl-material-row--disabled" : ""}`}>
+                  <input
+                    type="checkbox"
+                    checked={selected}
+                    disabled={!usable || generating}
+                    onChange={() => onToggle(material)}
+                  />
+                  <div className="kl-material-row-main">
+                    <div className="kl-material-name">{material.original_filename}</div>
+                    <div className="kl-material-meta">
+                      <span>{String(material.file_type || "").toUpperCase() || "文件"}</span>
+                      <span>{formatFileSize(material.file_size)}</span>
+                      <span>{formatDate(material.created_at)}</span>
+                      <span>{getParseStatusLabel(material.parse_status)}</span>
+                      <span>{Number(material.chunk_count || 0)} 个知识片段</span>
+                    </div>
+                    {!usable && (
+                      <div className="kl-material-disabled-reason">暂无知识片段，请先前往资料库点击 AI 索引</div>
+                    )}
+                  </div>
+                </label>
+              );
+            })
+          )}
+        </div>
+
+        {error && <div className="kl-modal-error">{error}</div>}
+        {generating && <div className="kl-modal-generating">AI 正在分析资料并生成路线...</div>}
+
+        <div className="kl-modal-footer">
+          <span className="kl-modal-count">已选择 {usableSelectedCount} 个可用资料</span>
+          <div className="kl-modal-actions">
+            <button className="kl-btn kl-btn--ghost" type="button" onClick={onCancel} disabled={generating}>取消</button>
+            <button className="kl-btn kl-btn--ghost" type="button" onClick={onClear} disabled={generating || selectedIds.length === 0}>重新选择</button>
+            <button className="kl-btn kl-btn--primary" type="button" onClick={onGenerate} disabled={generating || usableSelectedCount === 0}>
+              {generating ? "生成中..." : "生成学习路线"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function KnowledgeLearningPage({
   user,
   course,
@@ -67,6 +218,7 @@ export default function KnowledgeLearningPage({
   setPage,
   onNavigateToAI,
   materials = [],
+  materialsLoading = false,
   loadMaterials = () => {},
   goalConfig = null,
 }) {
@@ -83,6 +235,13 @@ export default function KnowledgeLearningPage({
 
   // Route source toggle
   const [activeRouteSource, setActiveRouteSource] = useState(() => "materials");
+  const [materialPathModalOpen, setMaterialPathModalOpen] = useState(false);
+  const [materialPathSearch, setMaterialPathSearch] = useState("");
+  const [selectedPathMaterialIds, setSelectedPathMaterialIds] = useState([]);
+  const [pathGenerating, setPathGenerating] = useState(false);
+  const [pathError, setPathError] = useState("");
+  const [pathNotice, setPathNotice] = useState("");
+  const [knowledgeLoading, setKnowledgeLoading] = useState(false);
 
   // Reset route source when course changes
   useEffect(() => {
@@ -104,21 +263,30 @@ export default function KnowledgeLearningPage({
   // Material route nodes from API knowledge points
   const [apiKnowledgePoints, setApiKnowledgePoints] = useState([]);
 
-  useEffect(() => {
+  const fetchKnowledgePoints = async () => {
     if (!user?.username || !course) {
       setApiKnowledgePoints([]);
       return;
     }
-    setApiKnowledgePoints([]);
-    let cancelled = false;
-    fetch(`/api/knowledge-points?username=${encodeURIComponent(user.username)}&course_id=${encodeURIComponent(course)}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (!cancelled && data.knowledge_points) setApiKnowledgePoints(data.knowledge_points);
-      })
-      .catch(() => {})
-      .finally(() => {});
-    return () => { cancelled = true; };
+    setKnowledgeLoading(true);
+    try {
+      const res = await fetch(`/api/knowledge-points?username=${encodeURIComponent(user.username)}&course_id=${encodeURIComponent(course)}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "加载知识点失败");
+      setApiKnowledgePoints(data.knowledge_points || []);
+    } catch {
+      setApiKnowledgePoints([]);
+    } finally {
+      setKnowledgeLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchKnowledgePoints();
+  }, [user?.username, course]);
+
+  useEffect(() => {
+    if (user?.username && course) loadMaterials(course);
   }, [user?.username, course]);
 
   const materialRouteNodes = useMemo(() => {
@@ -219,7 +387,60 @@ export default function KnowledgeLearningPage({
     }
   };
 
-  const expandedNode = routeNodes.find((n) => n.id === expandedNodeId);
+  const openMaterialPathModal = () => {
+    setPathError("");
+    setPathNotice("");
+    setMaterialPathSearch("");
+    setSelectedPathMaterialIds([]);
+    setMaterialPathModalOpen(true);
+    loadMaterials(course);
+  };
+
+  const togglePathMaterial = (material) => {
+    if (!isMaterialUsableForPath(material)) return;
+    setSelectedPathMaterialIds((prev) =>
+      prev.includes(material.id) ? prev.filter((id) => id !== material.id) : [...prev, material.id]
+    );
+  };
+
+  const selectAllPathMaterials = (items) => {
+    setSelectedPathMaterialIds(items.filter(isMaterialUsableForPath).map((item) => item.id));
+  };
+
+  const generateMaterialPath = async () => {
+    const usableIds = selectedPathMaterialIds.filter((id) =>
+      courseMaterials.some((material) => material.id === id && isMaterialUsableForPath(material))
+    );
+    if (usableIds.length === 0) {
+      setPathError("请至少选择 1 个已生成知识片段的资料。");
+      return;
+    }
+    setPathGenerating(true);
+    setPathError("");
+    try {
+      const res = await fetch("/api/knowledge-path/generate-from-materials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: user.username,
+          subject: course,
+          material_ids: usableIds,
+          overwrite: true,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "生成学习路线失败");
+      await fetchKnowledgePoints();
+      setActiveRouteSource("materials");
+      setMaterialPathModalOpen(false);
+      setSelectedPathMaterialIds([]);
+      setPathNotice("已根据所选资料生成学习路线");
+    } catch (error) {
+      setPathError(error.message || "生成学习路线失败，请稍后重试。");
+    } finally {
+      setPathGenerating(false);
+    }
+  };
 
   return (
     <div className="kl-page">
@@ -270,6 +491,7 @@ export default function KnowledgeLearningPage({
           </div>
 
           {/* ── Route nodes ── */}
+          {pathNotice && <div className="kl-route-notice">{pathNotice}</div>}
           {routeNodes.length > 0 ? (
             <div className="kl-route-section">
               <div className="kl-route-track">
@@ -281,32 +503,10 @@ export default function KnowledgeLearningPage({
                     isLast={i === routeNodes.length - 1}
                     onClick={handleNodeClick}
                     isExpanded={expandedNodeId === node.id}
+                    onKnowledgePointClick={handleKpClick}
                   />
                 ))}
               </div>
-
-              {/* ── Expanded node detail ── */}
-              {expandedNode && (
-                <div className="kl-node-detail">
-                  <div className="kl-node-detail-header">
-                    <h3 className="kl-node-detail-title">{expandedNode.title}</h3>
-                    <span className="kl-node-detail-subtitle">{expandedNode.subtitle}</span>
-                  </div>
-                  <div className="kl-node-detail-body">
-                    <p className="kl-node-detail-desc">{expandedNode.description || ""}</p>
-                    <div className="kl-kp-list">
-                      {(expandedNode.knowledgePoints || []).map((kp) => (
-                        <KnowledgePointItem
-                          key={kp.id}
-                          kp={kp}
-                          index={0}
-                          onClick={handleKpClick}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
 
               <div className="kl-route-footer">
                 <span className="kl-route-source-label">
@@ -314,12 +514,12 @@ export default function KnowledgeLearningPage({
                 </span>
                 {activeRouteSource === "materials" && (
                   <div className="kl-route-actions">
-                    <button className="kl-btn kl-btn--primary" type="button" onClick={() => setPage("workspaceMaterials")}>
-                      上传资料生成路线
+                    <button className="kl-btn kl-btn--primary" type="button" onClick={openMaterialPathModal}>
+                      {materialRouteNodes.length > 0 ? "重新选择资料生成路线" : "选择已上传资料来生成路线"}
                     </button>
                     {materialRouteNodes.length > 0 && (
                       <button className="kl-btn kl-btn--ghost" type="button" onClick={() => loadMaterials(course)}>
-                        重新分析资料
+                        刷新资料
                       </button>
                     )}
                   </div>
@@ -338,13 +538,13 @@ export default function KnowledgeLearningPage({
               </div>
               {activeRouteSource === "materials" ? (
                 <>
-                  <p className="kl-empty-title">当前课程还没有上传资料</p>
+                  <p className="kl-empty-title">当前课程还没有基于资料生成的学习路线</p>
                   <p className="kl-empty-hint">
-                    你可以上传教材、课件或笔记，让 AI 按你的资料生成个性化学习路线。
+                    你可以选择资料库中已上传并完成索引的资料，AI 会根据资料内容生成适合当前课程的学习路线。
                   </p>
                   <div className="kl-empty-actions">
-                    <button className="kl-btn kl-btn--primary" type="button" onClick={() => setPage("workspaceMaterials")}>
-                      上传资料生成路线
+                    <button className="kl-btn kl-btn--primary" type="button" onClick={openMaterialPathModal}>
+                      选择已上传资料来生成路线
                     </button>
                     {hasPlannedRoute && (
                       <button className="kl-btn kl-btn--ghost" type="button" onClick={() => setActiveRouteSource("platform")}>
@@ -467,6 +667,21 @@ export default function KnowledgeLearningPage({
           </div>
         </aside>
       </div>
+      <MaterialPathModal
+        open={materialPathModalOpen}
+        materials={courseMaterials}
+        loading={materialsLoading}
+        generating={pathGenerating}
+        selectedIds={selectedPathMaterialIds}
+        searchQuery={materialPathSearch}
+        error={pathError}
+        onSearchChange={setMaterialPathSearch}
+        onToggle={togglePathMaterial}
+        onSelectAll={selectAllPathMaterials}
+        onClear={() => setSelectedPathMaterialIds([])}
+        onCancel={() => !pathGenerating && setMaterialPathModalOpen(false)}
+        onGenerate={generateMaterialPath}
+      />
     </div>
   );
 }
