@@ -240,6 +240,7 @@ class KnowledgePoint(Base):
     description = Column(Text, nullable=True)
     order_index = Column(Integer, nullable=True)
     level = Column(Integer, nullable=True)
+    node_key = Column(String(500), nullable=True, index=True)
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 

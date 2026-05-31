@@ -270,6 +270,7 @@ class KnowledgePointCreate(BaseModel):
     description: str = ""
     order_index: int | None = None
     level: int | None = None
+    node_key: str | None = None
 
 
 class KnowledgePointUpdate(BaseModel):
@@ -279,6 +280,7 @@ class KnowledgePointUpdate(BaseModel):
     parent_id: int | None = None
     order_index: int | None = None
     level: int | None = None
+    node_key: str | None = None
 
 
 class KnowledgePointOut(BaseModel):
@@ -290,6 +292,7 @@ class KnowledgePointOut(BaseModel):
     description: str | None = None
     order_index: int | None = None
     level: int | None = None
+    node_key: str | None = None
     mastery_score: int | None = None
     status: str | None = None
     children: list["KnowledgePointOut"] | None = None

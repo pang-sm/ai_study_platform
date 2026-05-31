@@ -4751,6 +4751,7 @@ def serialize_knowledge_point(point, progress_info=None):
         "description": point.description,
         "order_index": point.order_index,
         "level": point.level,
+        "node_key": getattr(point, "node_key", None) or None,
         "mastery_score": progress_info.get("mastery_score", 0) if progress_info else 0,
         "status": progress_info.get("status", "not_started") if progress_info else "not_started",
         "created_at": serialize_datetime(point.created_at) if point.created_at else None,
@@ -8075,6 +8076,36 @@ def create_knowledge_point(req: schemas.KnowledgePointCreate, db: Session = Depe
     if not normalized_course:
         raise HTTPException(status_code=400, detail="course_id 不能为空")
 
+    # Dedup by node_key first (stable identity) — if a point with this node_key
+    # already exists for this user+course, return it instead of creating a duplicate.
+    if req.node_key:
+        existing = (
+            db.query(models.KnowledgePoint)
+            .filter(
+                models.KnowledgePoint.username == user.username,
+                models.KnowledgePoint.course_id == normalized_course,
+                models.KnowledgePoint.node_key == req.node_key,
+            )
+            .first()
+        )
+        if existing:
+            progress = (
+                db.query(models.UserKnowledgeProgress)
+                .filter(
+                    models.UserKnowledgeProgress.username == user.username,
+                    models.UserKnowledgeProgress.knowledge_point_id == existing.id,
+                )
+                .first()
+            )
+            return {
+                "success": True,
+                "knowledge_point": serialize_knowledge_point(
+                    existing,
+                    progress_info={"mastery_score": progress.mastery_score if progress else 0,
+                                   "status": progress.status if progress else "not_started"},
+                ),
+            }
+
     if req.parent_id:
         parent = (
             db.query(models.KnowledgePoint)
@@ -8112,6 +8143,7 @@ def create_knowledge_point(req: schemas.KnowledgePointCreate, db: Session = Depe
         description=req.description or "",
         order_index=req.order_index if req.order_index is not None else max_order,
         level=level,
+        node_key=req.node_key,
     )
     db.add(point)
     db.flush()
@@ -8306,6 +8338,7 @@ def update_knowledge_point_progress(
             "username": progress.username,
             "course_id": progress.course_id,
             "knowledge_point_id": progress.knowledge_point_id,
+            "node_key": getattr(point, "node_key", None) or None,
             "mastery_score": progress.mastery_score,
             "status": progress.status,
             "practice_count": progress.practice_count,

@@ -428,9 +428,13 @@ export default function AIQuestionPage({
         const handleUpdateKnowledgeStatus = async (nextStatus, event) => {
           event?.preventDefault?.();
           event?.stopPropagation?.();
-          const rawId = ctx.knowledgePointBackendId || ctx.knowledgePointId;
-          let knowledgePointId = Number(String(rawId || "").replace(/^kp-/, ""));
+          let knowledgePointId = ctx.knowledgePointBackendId || null;
+          if (knowledgePointId) {
+            knowledgePointId = Number(String(knowledgePointId).replace(/^kp-/, ""));
+          }
           const isLeafKp = ctx.knowledgePointTitle !== ctx.nodeTitle;
+          const nodeKey = ctx.knowledgePointNodeKey || "";
+          const parentNodeKey = ctx.knowledgePointParentNodeKey || "";
           if (!user?.username) {
             setKpStatusError("无法识别当前知识点，状态保存失败。");
             return;
@@ -450,28 +454,16 @@ export default function AIQuestionPage({
           );
           try {
             if (!knowledgePointId) {
-              // Look up parent node so leaf points aren't created as root orphans
-              let parentId = null;
-              if (isLeafKp && ctx.nodeTitle) {
-                try {
-                  const lookupRes = await fetch(`${apiBase}/knowledge-points?username=${encodeURIComponent(user.username)}&course_id=${encodeURIComponent(ctx.courseId || subject)}`);
-                  const lookupData = await lookupRes.json();
-                  if (lookupRes.ok) {
-                    const parent = (lookupData.knowledge_points || []).find(
-                      (p) => !p.parent_id && p.title === ctx.nodeTitle
-                    );
-                    if (parent) parentId = parent.id;
-                  }
-                } catch { /* non-critical */ }
-              }
               const createBody = {
                 username: user.username,
                 course_id: ctx.courseId || subject,
                 title: ctx.knowledgePointTitle,
                 description: "",
-                parent_id: parentId,
+                parent_id: null,
                 level: isLeafKp ? 1 : 0,
+                node_key: nodeKey || null,
               };
+              console.debug("[node-key:ai-create-payload]", { nodeKey, parentNodeKey, isLeafKp, createBody });
               const createRes = await fetch(`${apiBase}/knowledge-points`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -502,6 +494,7 @@ export default function AIQuestionPage({
             const data = await res.json();
             if (!res.ok) throw new Error(data.detail || "状态保存失败");
             const savedStatus = normalizeKnowledgeStatus(data.progress?.status || nextStatus);
+            console.debug("[node-key:ai-update-response]", { pointId: knowledgePointId, nodeKey, requestStatus: nextStatus, savedStatus });
             setPendingAIContext((prev) =>
               prev
                 ? {

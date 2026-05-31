@@ -185,6 +185,7 @@ KNOWLEDGE_POINTS_COLUMNS = {
     "description": "TEXT",
     "order_index": "INTEGER",
     "level": "INTEGER",
+    "node_key": "VARCHAR(500)",
     "created_at": "DATETIME NOT NULL",
     "updated_at": "DATETIME NOT NULL",
 }
