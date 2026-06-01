@@ -60,6 +60,51 @@ const parseOptionItems = (optionsText = "") => {
   return OPTION_LABELS.map((label) => ({ label, content: byLabel.get(label) || "" }));
 };
 
+const normalizeEditableOptions = (options = "") => {
+  if (Array.isArray(options)) {
+    const parsed = options
+      .map((item, index) => {
+        if (typeof item === "string") {
+          const text = item.trim();
+          const match = text.match(/^([A-Z])[\.\u3001)]?\s*(.*)$/i);
+          return {
+            label: (match?.[1] || OPTION_LABELS[index] || String.fromCharCode(65 + index)).toUpperCase(),
+            content: (match?.[2] ?? text).trim(),
+          };
+        }
+        return {
+          label: String(item?.label || item?.key || item?.option || OPTION_LABELS[index] || String.fromCharCode(65 + index)).toUpperCase(),
+          content: String(item?.content ?? item?.text ?? item?.value ?? item?.option_text ?? "").trim(),
+        };
+      })
+      .filter((item) => item.label || item.content);
+    const byLabel = new Map(parsed.map((item) => [item.label, item.content]));
+    const labels = Array.from(new Set([...OPTION_LABELS, ...parsed.map((item) => item.label)]));
+    return labels.map((label) => ({ label, content: byLabel.get(label) || "" }));
+  }
+
+  if (options && typeof options === "object") {
+    const parsed = Object.entries(options).map(([label, content]) => ({
+      label: String(label).toUpperCase(),
+      content: String(content ?? "").trim(),
+    }));
+    const byLabel = new Map(parsed.map((item) => [item.label, item.content]));
+    const labels = Array.from(new Set([...OPTION_LABELS, ...parsed.map((item) => item.label)]));
+    return labels.map((label) => ({ label, content: byLabel.get(label) || "" }));
+  }
+
+  const optionsText = String(options || "").trim();
+  if (optionsText.startsWith("[") || optionsText.startsWith("{")) {
+    try {
+      return normalizeEditableOptions(JSON.parse(optionsText));
+    } catch {
+      return parseOptionItems(optionsText);
+    }
+  }
+
+  return parseOptionItems(optionsText);
+};
+
 const formatOptionItems = (items) =>
   (items || [])
     .filter((item) => (item.content || "").trim())
@@ -578,7 +623,7 @@ export default function PracticeCenter({
     const form = buildEditFormFromQuestion(question);
     setEditingQuestion(question);
     setEditQuestionForm(form);
-    setEditOptionItems(parseOptionItems(question.options || ""));
+    setEditOptionItems(normalizeEditableOptions(question.options));
     setEditError("");
 
     let points = knowledgePoints;
@@ -1670,7 +1715,7 @@ export default function PracticeCenter({
 
               <label className="field-label">题干内容 *</label>
               <textarea
-                className="field"
+                className="field question-edit-content"
                 rows={6}
                 value={editQuestionForm.content}
                 onChange={(e) => setEditQuestionForm((form) => ({ ...form, content: e.target.value }))}

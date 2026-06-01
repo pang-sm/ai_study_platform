@@ -7302,6 +7302,14 @@ select.field:focus {
   background: #f8fafc;
 }
 
+.question-edit-content {
+  min-height: 180px;
+  max-height: 360px;
+  resize: vertical;
+  overflow-y: auto;
+  line-height: 1.7;
+}
+
 .question-edit-option-row {
   display: grid;
   grid-template-columns: 28px minmax(0, 1fr);
