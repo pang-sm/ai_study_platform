@@ -614,7 +614,7 @@ def render_pdf_pages_to_images(file_bytes: bytes, max_pages: int) -> list[str]:
 def parse_scanned_pdf_with_qwen(file_bytes: bytes) -> dict:
     max_pages = get_qwen_parse_max_pages()
     image_paths = render_pdf_pages_to_images(file_bytes, max_pages)
-    page_texts: dict[int, str] = {}
+    page_texts: list[str] = []
     errors: list[str] = []
     success_pages = 0
     failed_pages = 0
@@ -9334,6 +9334,59 @@ def extract_practice_import_text(file_bytes: bytes, filename: str, content_type:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+def normalize_ai_paper_payload(payload) -> dict:
+    """
+    把 AI 返回的任意结构统一成：
+    {
+      "paper_title": str,
+      "questions": list[dict]
+    }
+
+    兼容格式：
+    1. payload 是 list → 当成 questions 数组
+    2. payload 是 dict.questions 是 list → 直接使用
+    3. payload 是 dict.questions 是 dict → values() 转 list
+    4. payload 是 dict.question 是 dict → 包成 [dict]
+    5. payload 是 dict.data.questions 存在 → 按上述逻辑递归
+    6. payload 是 dict 但无 questions 字段 → 如果像单道题就包成 [payload]
+    """
+    if isinstance(payload, list):
+        return {"paper_title": "", "questions": [item for item in payload if isinstance(item, dict)]}
+
+    if not isinstance(payload, dict):
+        return {"paper_title": "", "questions": []}
+
+    # 解包 .data 外层
+    if "data" in payload and isinstance(payload["data"], dict):
+        inner = payload["data"]
+        if "questions" in inner or "question" in inner:
+            payload = inner
+
+    paper_title = str(payload.get("paper_title") or "").strip()
+
+    # 提取 questions
+    questions = payload.get("questions")
+    if isinstance(questions, list):
+        pass  # 理想情况
+    elif isinstance(questions, dict):
+        questions = list(questions.values())
+    elif isinstance(payload.get("question"), dict):
+        questions = [payload["question"]]
+    elif isinstance(payload.get("question"), list):
+        questions = payload["question"]
+    else:
+        # 如果 payload 自己就像一个题目对象（有 content 或 question_text）
+        if payload.get("content") or payload.get("question_text") or payload.get("title"):
+            questions = [payload]
+        else:
+            questions = []
+
+    # 确保 questions 里每个元素都是 dict
+    questions = [q for q in questions if isinstance(q, dict)]
+
+    return {"paper_title": paper_title, "questions": questions}
+
+
 def extract_json_from_ai_response(text: str) -> str:
     """
     从 AI 回复中提取 JSON：
@@ -9395,6 +9448,14 @@ def extract_json_object(text_value: str) -> dict:
 def format_question_options(raw_options) -> str | None:
     if raw_options is None:
         return None
+
+    # ── 强制确保 raw_options 不是空容器 ──
+    if not raw_options:
+        return None
+    if isinstance(raw_options, (list, dict)) and len(raw_options) == 0:
+        return None
+
+    # ── list 格式：[{label, content}, ...] 或 ["A. xxx", ...] ──
     if isinstance(raw_options, list):
         lines = []
         for idx, option in enumerate(raw_options):
@@ -9405,11 +9466,27 @@ def format_question_options(raw_options) -> str | None:
             else:
                 text_option = str(option).strip()
                 matched = re.match(r"^([A-H])[\.\、\)]\s*(.+)$", text_option, re.I)
-                label = matched.group(1).upper() if matched else fallback_label
-                content = matched.group(2).strip() if matched else text_option
+                if matched:
+                    label = matched.group(1).upper()
+                    content = matched.group(2).strip()
+                else:
+                    label = fallback_label
+                    content = text_option
             if content:
                 lines.append(f"{label.upper()}. {content}")
-        return "\n".join(lines) or None
+        return "\n".join(lines) if lines else None
+
+    # ── dict 格式：{"A": "...", "B": "...", ...} ──
+    if isinstance(raw_options, dict):
+        lines = []
+        for key in sorted(raw_options.keys()):
+            label = str(key).strip().rstrip(".、)")
+            content = str(raw_options[key]).strip()
+            if content:
+                lines.append(f"{label.upper()}. {content}")
+        return "\n".join(lines) if lines else None
+
+    # ── string 格式：尝试按 A./A、/A．/(A) 解析 ──
     options_text = str(raw_options).strip()
     if not options_text:
         return None
@@ -9620,16 +9697,24 @@ title, question_text, type(single_choice/multiple_choice/true_false/fill_blank/s
             {"role": "user", "content": prompt},
         ])
         record_ai_usage(user.username, "question_generate", db, estimated_tokens=estimate_tokens_from_text(raw), status="success")
+        # 尝试多种解析方式，用 normalize_ai_paper_payload 统一结构
         parsed_object = extract_json_object(raw)
-        paper_title = str(parsed_object.get("paper_title") or paper_title).strip()
-        parsed = parsed_object.get("questions") if isinstance(parsed_object.get("questions"), list) else extract_json_array(raw)
+        if parsed_object:
+            normalized = normalize_ai_paper_payload(parsed_object)
+        else:
+            # extract_json_object 返回空 dict，尝试直接作为数组解析
+            normalized = normalize_ai_paper_payload(extract_json_array(raw))
+        paper_title = str(normalized.get("paper_title") or paper_title).strip()
+        parsed = normalized.get("questions") or []
     except json.JSONDecodeError as exc:
+        logger.exception("[practice-paper-import] JSON decode failed")
         record_ai_usage(user.username, "question_generate", db, status="failed", error_message=str(exc))
         raise HTTPException(
             status_code=500,
             detail=f"试卷题目识别失败，AI 返回了包含公式或特殊符号的内容导致解析失败。请重试，或先上传文字版 PDF/TXT。错误详情：{exc}"
         ) from exc
     except Exception as exc:
+        logger.exception("[practice-paper-import] unexpected error")
         record_ai_usage(user.username, "question_generate", db, status="failed", error_message=str(exc))
         raise HTTPException(status_code=500, detail=f"试卷题目识别失败：{str(exc)}") from exc
 
