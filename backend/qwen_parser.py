@@ -10,7 +10,7 @@ load_dotenv()
 
 DEFAULT_QWEN_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 DEFAULT_QWEN_OCR_MODEL = "qwen-vl-ocr-2025-11-20"
-DEFAULT_QWEN_PARSE_MAX_PAGES = 5
+DEFAULT_QWEN_PARSE_MAX_PAGES = 10
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
 
 IMAGE_MIME_TYPES = {

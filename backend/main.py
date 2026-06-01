@@ -139,6 +139,7 @@ MATERIAL_UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024
 MAX_PDF_CHARS = 12000
 MAX_OCR_CHARS = 12000
+PRACTICE_PAPER_MAX_CHARS = 50000  # 试卷识别用更高上限，避免截断多页试卷
 MAX_HISTORY_EXTRACT_CHARS = 4000
 TOP_K_CHUNKS = 4
 MIN_QWEN_CHINESE_CHARS = 30
@@ -9265,7 +9266,15 @@ def extract_practice_import_text(file_bytes: bytes, filename: str, content_type:
       - parse_error: str | None
     """
     suffix = Path(filename or "").suffix.lower()
-    meta = {"file_type": suffix.lstrip("."), "extract_method": "local", "qwen_used": False, "parse_error": None}
+    meta = {
+        "file_type": suffix.lstrip("."),
+        "extract_method": "local",
+        "qwen_used": False,
+        "parse_error": None,
+        "total_pages": 0,
+        "parsed_pages": 0,
+        "page_limit_hit": False,
+    }
 
     # ── PDF ──────────────────────────────────────────────────────
     if suffix == ".pdf" or content_type == "application/pdf":
@@ -9275,29 +9284,41 @@ def extract_practice_import_text(file_bytes: bytes, filename: str, content_type:
             total_pages, page_texts = extract_pdf_pages(file_bytes)
         except HTTPException:
             total_pages, page_texts = 0, []
+        meta["total_pages"] = total_pages or get_pdf_total_pages(file_bytes)
+        meta["parsed_pages"] = len(page_texts)  # 有文本的页数
         extracted_text = build_pdf_text_from_pages(page_texts).strip()
         meta["extract_method"] = "local"
 
+        # 文本截断检测
+        full_text_len = len(extracted_text)
+        if full_text_len > PRACTICE_PAPER_MAX_CHARS:
+            meta["page_limit_hit"] = True
+        extracted_text = extracted_text[:PRACTICE_PAPER_MAX_CHARS]
+
         # 如果文本不可用（扫描版 PDF），尝试 Qwen 视觉识别
-        if not is_pdf_text_usable(extracted_text, total_pages or get_pdf_total_pages(file_bytes)):
+        if not is_pdf_text_usable(extracted_text, meta["total_pages"]):
             if is_qwen_enabled():
                 pdf_qwen_result = parse_scanned_pdf_with_qwen(file_bytes)
                 qwen_text = (pdf_qwen_result.get("text") or "").strip()
+                qwen_rendered = pdf_qwen_result.get("rendered_pages", 0)
                 if qwen_text:
                     had_local = bool(extracted_text)
                     extracted_text = merge_pdf_extracted_text(extracted_text, qwen_text)
                     meta["extract_method"] = "mixed" if had_local else "qwen"
                     meta["qwen_used"] = True
+                    meta["parsed_pages"] = max(meta["parsed_pages"], qwen_rendered)
                     meta["parse_error"] = build_pdf_qwen_parse_error(
-                        pdf_qwen_result, total_pages or get_pdf_total_pages(file_bytes)
+                        pdf_qwen_result, meta["total_pages"]
                     )
             else:
                 meta["parse_error"] = "PDF 文本提取不足，Qwen 视觉识别未启用"
-        return extracted_text.strip()[:MAX_PDF_CHARS], meta
+        return extracted_text.strip(), meta
 
     # ── Image ────────────────────────────────────────────────────
     if suffix in {".png", ".jpg", ".jpeg", ".webp"} or (content_type or "").startswith("image/"):
         meta["file_type"] = "image"
+        meta["total_pages"] = 1
+        meta["parsed_pages"] = 1
         local_text = ""
         try:
             local_text = extract_image_text(file_bytes)
@@ -9316,20 +9337,22 @@ def extract_practice_import_text(file_bytes: bytes, filename: str, content_type:
                 if qwen_text:
                     meta["qwen_used"] = True
                     meta["extract_method"] = "mixed" if local_text.strip() else "qwen"
-                    return merge_image_extracted_text(local_text, qwen_text).strip()[:MAX_OCR_CHARS], meta
+                    return merge_image_extracted_text(local_text, qwen_text).strip()[:PRACTICE_PAPER_MAX_CHARS], meta
             finally:
                 try:
                     Path(temp_path).unlink(missing_ok=True)
                 except OSError:
                     pass
-        return local_text.strip()[:MAX_OCR_CHARS], meta
+        return local_text.strip()[:PRACTICE_PAPER_MAX_CHARS], meta
 
     # ── Word / TXT / Markdown ────────────────────────────────────
     from document_parser import extract_supported_file_text
     meta["file_type"] = suffix.lstrip(".") or "doc"
+    meta["total_pages"] = 1
+    meta["parsed_pages"] = 1
     try:
         result = extract_supported_file_text(file_bytes, filename, content_type)
-        return result.get("text", "").strip()[:MAX_PDF_CHARS], meta
+        return result.get("text", "").strip()[:PRACTICE_PAPER_MAX_CHARS], meta
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -9602,6 +9625,7 @@ def normalize_paper_draft(item: dict, fallback_course_id: str, fallback_kp_id: i
         "options": formatted_options,
         "answer": str(item.get("answer") or "").strip() or None,
         "explanation": str(item.get("explanation") or "").strip() or None,
+        "score": str(item.get("score") or "").strip() or None,
         "course_id": normalize_subject(str(item.get("course_id") or fallback_course_id), default=""),
         "knowledge_point_id": item.get("knowledge_point_id") or fallback_kp_id,
         "difficulty": normalize_question_difficulty(str(item.get("difficulty") or "medium"), "medium"),
@@ -9644,51 +9668,52 @@ async def parse_practice_paper(
         )
 
     course_norm = normalize_subject(course_id, default="")
-    prompt = f"""请从以下试卷文本中识别练习题，输出 JSON 数组。每个元素字段：
-title, question_text, type(single_choice/multiple_choice/true_false/fill_blank/short_answer/programming), options, answer, explanation, difficulty(easy/medium/hard), confidence。
-要求：保留题干中的表格/代码/选项；如果答案缺失可留空；不要编造文件中不存在的题目。
-课程：{course_norm or '未指定'}
-试卷文件名：{original_filename}
-文本：
-{extracted_text[:12000]}"""
 
-    prompt = f"""请从以下试卷文本中识别题目，并只输出严格 JSON 对象：
+    # 提示：如果文本被截断，告知 AI
+    truncation_note = ""
+    if extract_meta.get("page_limit_hit"):
+        truncation_note = "\n注意：试卷文本较长，已被截断。请基于已有内容尽可能多地提取题目。"
+
+    prompt = f"""请从以下试卷文本中识别题目，并只输出严格 JSON 对象。本试卷共 {extract_meta.get('total_pages', '?')} 页，已提取 {extract_meta.get('parsed_pages', '?')} 页。
+
+输出格式：
 {{
-  "paper_title": "试卷标题",
+  "paper_title": "从文本中提取的试卷标题",
   "course": "{course_norm or '未指定'}",
   "questions": [
     {{
       "question_order": 1,
       "type": "single_choice|multiple_choice|true_false|fill_blank|short_answer|programming|unknown",
       "title": "简短标题",
-      "content": "题干，不要混入选项",
-      "options": [
-        {{"label": "A", "content": "选项内容"}},
-        {{"label": "B", "content": "选项内容"}},
-        {{"label": "C", "content": "选项内容"}},
-        {{"label": "D", "content": "选项内容"}}
-      ],
+      "content": "完整题干，保留函数签名/输入输出/样例/代码/表格/公式",
+      "score": "分值（如10%）",
+      "options": [{{"label": "A", "content": "选项内容"}}, ...],
       "answer": "",
       "explanation": "",
       "knowledge_point": "",
       "difficulty": "easy|medium|hard",
-      "raw_text": "原始识别文本"
+      "raw_text": "原始识别文本（保留完整题面，包括题号/分值/说明）"
     }}
   ]
 }}
 
-识别规则：
-1. 检测到 A./B./C./D. 或 A、B、C、D 选项时，必须拆成 options 数组，不要混在 content。
-2. 没有识别到答案或解析时保持空字符串，不要编造。
-3. 每道题必须保留 raw_text 方便用户二次编辑。
-4. 不确定题型时 type 使用 unknown。
-5. 字符串中的反斜杠必须双写，例如 \\\\forall、\\\\exists、\\\\rightarrow、\\\\land、\\\\lor、\\\\subset、\\\\emptyset，确保输出是合法 JSON。
-6. 如果题目含数学公式，请保留公式文本，但反斜杠必须双写以符合 JSON 字符串规范。
-7. 只输出 JSON 对象，不要输出 Markdown 代码块或解释文字。
+识别规则（重要）：
+1. 必须尽可能多地提取整份试卷的所有题目，包括选择题、填空题、简答题、编程题、证明题。
+2. 不要只提取前几道题！整份文本里识别到的每道题都要提取。
+3. 每道题保留完整题干，不要删减、概括或改写。
+4. 编程题必须保留函数签名、输入输出格式、样例、要求、main函数说明，type 用 programming。
+5. 如果题目有多个小问 (1)(2)(3)，小问之间用换行分隔，保留在 content 中。
+6. 检测到 A./A、/A．/(A) 等选项时，拆成 options 数组。
+7. 如果题目有分值标注（如 10%），填入 score 字段。
+8. 没有答案或解析时留空，不要编造。
+9. 每道题必须保留 raw_text 方便二次编辑。
+10. 字符串反斜杠必须双写（\\n、\\forall 等），确保合法 JSON。
+11. 只输出 JSON 对象，不用 Markdown 代码块。
+{truncation_note}
 
 试卷文件名：{original_filename}
 文本：
-{extracted_text[:12000]}"""
+{extracted_text[:PRACTICE_PAPER_MAX_CHARS]}"""
     paper_title = Path(original_filename).stem or "导入试卷"
     check_usage_limit(user.username, "question_generate", db)
     try:
@@ -9722,13 +9747,37 @@ title, question_text, type(single_choice/multiple_choice/true_false/fill_blank/s
     drafts = [item for item in drafts if item["question_text"]]
     if not drafts:
         raise HTTPException(status_code=500, detail="未识别到可导入的题目草稿")
+
+    # ── 后处理校验与警告 ──
+    warnings: list[str] = []
+    total_pages = extract_meta.get("total_pages", 0)
+    parsed_pages = extract_meta.get("parsed_pages", 0)
+
+    # 题目数过少 + 页数较多 → 可能不完整
+    if len(drafts) <= 2 and total_pages > 2:
+        warnings.append(f"识别题目数量较少（{len(drafts)} 道），原试卷共 {total_pages} 页，可能未完整识别整份试卷。")
+
+    # 部分页识别
+    if extract_meta.get("page_limit_hit"):
+        warnings.append(f"试卷文本较长，当前仅使用了前 {PRACTICE_PAPER_MAX_CHARS} 字符。可减小文件或提高限制后重新识别。")
+
+    # 扫描 PDF 部分页
+    if parsed_pages > 0 and total_pages > 0 and parsed_pages < total_pages:
+        warnings.append(f"当前仅识别了前 {parsed_pages} / {total_pages} 页，如需识别全卷可重新上传。")
+
+    # 页数提示
+    message_parts = [f"已识别 {len(drafts)} 道题目草稿"]
+    if total_pages > 0:
+        message_parts.append(f"（{parsed_pages}/{total_pages} 页）")
+
     return {
         "success": True,
         "paper_title": paper_title,
         "original_file_name": original_filename,
         "drafts": drafts,
-        "message": f"已识别 {len(drafts)} 道题目草稿",
+        "message": "".join(message_parts),
         "extract_meta": extract_meta,
+        "warnings": warnings if warnings else None,
     }
 
 

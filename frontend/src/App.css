@@ -6992,6 +6992,232 @@ select.field:focus {
   line-height: 1;
 }
 
+.practice-extract-info-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+  margin-bottom: 6px;
+}
+
+.practice-extract-pages {
+  font-size: 12px;
+  color: #475569;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.practice-extract-page-limit-hint {
+  color: #b45309;
+  font-weight: 500;
+}
+
+.practice-import-warnings {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.practice-import-warning-item {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+/* ── Exam Paper Layout ── */
+.practice-exam-paper {
+  width: min(860px, 94vw);
+  max-height: 88vh;
+  background: #fff;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 16px 48px rgba(0,0,0,.18);
+  overflow: hidden;
+}
+
+.exam-paper-header {
+  padding: 20px 28px 14px;
+  border-bottom: 2px solid #e2e8f0;
+  background: #fafbfc;
+  position: relative;
+}
+.exam-paper-header .modal-close {
+  position: absolute;
+  right: 14px;
+  top: 12px;
+}
+
+.exam-paper-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 6px;
+  padding-right: 28px;
+}
+
+.exam-paper-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  font-size: 12.5px;
+}
+
+.exam-paper-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 28px 32px;
+  background: #fff;
+}
+
+/* ── Each question in exam paper ── */
+.exam-question {
+  padding: 16px 0;
+  border-bottom: 1px dashed #e2e8f0;
+}
+.exam-question:last-child {
+  border-bottom: none;
+}
+
+.exam-question-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.exam-question-number {
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: #1e293b;
+  min-width: 28px;
+}
+
+.exam-difficulty {
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.exam-score {
+  font-size: 12px;
+  color: #6366f1;
+  font-weight: 500;
+}
+
+.exam-question-title {
+  font-size: 1.02rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 4px 0 8px;
+}
+
+.exam-question-content {
+  font-size: 14px;
+  line-height: 1.75;
+  color: #334155;
+  margin-bottom: 8px;
+}
+.exam-question-content p {
+  margin: 0 0 4px;
+}
+.exam-question-content--code {
+  background: #f8fafc;
+  border-left: 3px solid #6366f1;
+  padding: 8px 12px;
+  border-radius: 0 8px 8px 0;
+}
+.exam-question-content--code,
+.exam-question-content--code p {
+  font-family: "Cascadia Code", "Fira Code", "JetBrains Mono", Consolas, monospace;
+  font-size: 13px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ── Options in exam paper ── */
+.exam-options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0 4px 8px;
+}
+.exam-option {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: #334155;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+
+/* ── Answer section ── */
+.exam-answer-section {
+  margin-top: 10px;
+  padding: 10px 14px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  font-size: 13px;
+}
+.exam-answer-section summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #166534;
+  user-select: none;
+}
+.exam-answer {
+  margin-top: 6px;
+  line-height: 1.5;
+}
+.exam-explanation {
+  margin-top: 4px;
+  line-height: 1.6;
+  color: #475569;
+}
+
+/* ── Raw text ── */
+.exam-raw-text {
+  margin-top: 10px;
+  font-size: 12.5px;
+}
+.exam-raw-text summary {
+  cursor: pointer;
+  color: #94a3b8;
+  font-size: 12px;
+  user-select: none;
+}
+.exam-raw-text pre {
+  margin-top: 6px;
+  padding: 10px 12px;
+  background: #f1f5f9;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* ── Actions ── */
+.exam-question-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
 .practice-draft-list {
   display: flex;
   flex-direction: column;

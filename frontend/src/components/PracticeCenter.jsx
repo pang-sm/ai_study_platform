@@ -141,6 +141,7 @@ export default function PracticeCenter({
   const [importSaving, setImportSaving] = useState(false);
   const [importError, setImportError] = useState("");
   const [importExtractMeta, setImportExtractMeta] = useState(null);
+  const [importWarnings, setImportWarnings] = useState(null);
 
   const loadKnowledgePoints = async (courseId) => {
     if (!user?.username || !courseId) {
@@ -582,6 +583,7 @@ export default function PracticeCenter({
     setImportOriginalFileName("");
     setImportError("");
     setImportExtractMeta(null);
+    setImportWarnings(null);
     setShowImportModal(true);
   };
   const updateImportDraft = (index, patch) => {
@@ -672,6 +674,7 @@ export default function PracticeCenter({
       setImportOriginalFileName(data.original_file_name || importFile.name || "");
       setImportSelected(Object.fromEntries(drafts.map((_, idx) => [idx, true])));
       setImportExtractMeta(data.extract_meta || null);
+      setImportWarnings(data.warnings || null);
     } catch (error) {
       const errMsg = error.message || "识别失败，请稍后重试";
       if (errMsg.includes("Invalid \\escape") || errMsg.includes("JSON") || errMsg.includes("转义")) {
@@ -1239,95 +1242,106 @@ export default function PracticeCenter({
         </div>
       )}
 
-      {/* Paper Detail Drawer */}
+      {/* Paper Detail Drawer — Exam Style */}
       {paperDetail && (
         <div className="practice-drawer-overlay" onClick={() => setPaperDetail(null)}>
-          <div className="practice-detail-drawer practice-paper-drawer" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <div>
-                <h3>{paperDetail.title}</h3>
-                <div className="question-card-meta">
-                  {paperDetail.course_id && (
-                    <span className="subject-pill small practice-course-pill">{getSubjectLabel(paperDetail.course_id)}</span>
-                  )}
-                  <span className="subject-pill small practice-source-pill">试卷识别</span>
-                  <span className="subject-pill small practice-difficulty-pill">{paperQuestions.length} 道题</span>
-                  <span className="history-meta">{formatDate(paperDetail.updated_at || paperDetail.created_at)}</span>
-                </div>
+          <div className="practice-detail-drawer practice-exam-paper" onClick={(e) => e.stopPropagation()}>
+            {/* ── 试卷头 ── */}
+            <div className="exam-paper-header">
+              <button className="modal-close" onClick={() => setPaperDetail(null)}>&times;</button>
+              <h2 className="exam-paper-title">{paperDetail.title}</h2>
+              <div className="exam-paper-meta">
+                {paperDetail.course_id && (
+                  <span className="subject-pill small practice-course-pill">{getSubjectLabel(paperDetail.course_id)}</span>
+                )}
+                <span className="subject-pill small practice-source-pill">试卷识别</span>
+                <span className="subject-pill small">{paperQuestions.length} 道题</span>
+                <span className="history-meta">{formatDate(paperDetail.updated_at || paperDetail.created_at)}</span>
               </div>
-              <button className="modal-close" onClick={() => setPaperDetail(null)}>
-                &times;
-              </button>
             </div>
-            <div className="practice-paper-toc">
-              {paperQuestions.map((q, idx) => (
-                <button
-                  key={q.id}
-                  type="button"
-                  onClick={() => setExpandedPaperQuestions((prev) => ({ ...prev, [q.id]: !prev[q.id] }))}
-                >
-                  {q.question_order || idx + 1}
-                </button>
-              ))}
-            </div>
-            <div className="practice-paper-question-list">
+
+            {/* ── 试卷正文 ── */}
+            <div className="exam-paper-body">
               {paperLoading ? (
                 <div className="empty-state">加载试卷中...</div>
-              ) : paperQuestions.map((q, idx) => {
-                const expanded = Boolean(expandedPaperQuestions[q.id]);
-                return (
-                  <div key={q.id} className="practice-paper-question">
-                    <button
-                      type="button"
-                      className="practice-paper-question-head"
-                      onClick={() => setExpandedPaperQuestions((prev) => ({ ...prev, [q.id]: !expanded }))}
-                    >
-                      <span>第 {q.question_order || idx + 1} 题</span>
-                      <strong>{q.title}</strong>
-                      <em>{expanded ? "收起" : "展开"}</em>
-                    </button>
-                    {expanded && (
-                      <div className="practice-paper-question-body">
-                        <div className="question-detail-meta">
-                          <span className={`q-type-badge ${getTypeClass(q.type)}`}>{TYPE_LABELS[q.type] || q.type}</span>
-                          {q.difficulty && <span className="subject-pill small practice-difficulty-pill">{DIFFICULTY_LABELS[q.difficulty] || q.difficulty}</span>}
-                          {q.knowledge_point_title && <span className="subject-pill small practice-kp-pill">{q.knowledge_point_title}</span>}
-                        </div>
-                        <div className="question-content-text">{q.content}</div>
-                        {q.options && (
-                          <div className="question-options">
-                            {q.options.split("\n").filter(Boolean).map((opt, optIdx) => (
-                              <div key={optIdx} className="question-option-label">{opt.trim()}</div>
-                            ))}
-                          </div>
+              ) : paperQuestions.length === 0 ? (
+                <div className="empty-state">暂无题目</div>
+              ) : (
+                paperQuestions.map((q, idx) => {
+                  const isProgramming = q.type === "programming";
+                  return (
+                    <div key={q.id} className="exam-question" id={`paper-q-${q.id}`}>
+                      {/* 题号行 */}
+                      <div className="exam-question-head">
+                        <span className="exam-question-number">{q.question_order || idx + 1}.</span>
+                        <span className={`q-type-badge ${getTypeClass(q.type)}`}>{TYPE_LABELS[q.type] || q.type}</span>
+                        {q.difficulty && (
+                          <span className="exam-difficulty">{DIFFICULTY_LABELS[q.difficulty] || q.difficulty}</span>
                         )}
-                        {(q.answer || q.explanation) && (
-                          <div className="question-answer-section">
-                            {q.answer && <p><strong>答案：</strong>{q.answer}</p>}
-                            {q.explanation && <p><strong>解析：</strong>{q.explanation}</p>}
-                          </div>
-                        )}
-                        {q.raw_text && (
-                          <details className="practice-raw-text">
-                            <summary>查看原始识别文本</summary>
-                            <pre>{q.raw_text}</pre>
-                          </details>
-                        )}
-                        <div className="question-detail-actions">
-                          <button className="ghost-button compact" onClick={() => openDetail(q)}>编辑 / 练习</button>
-                          <button
-                            className="ghost-button compact"
-                            disabled={aiExplainLoadingId === q.id}
-                            onClick={() => requestQuestionAiExplain(q, true)}
-                          >
-                            {aiExplainLoadingId === q.id ? "解析中..." : "AI 解析"}
-                          </button>
-                        </div>
+                        {q.score && <span className="exam-score">（{q.score}）</span>}
                       </div>
-                    )}
-                  </div>
-                );
-              })}
+
+                      {/* 标题 */}
+                      {q.title && <h4 className="exam-question-title">{q.title}</h4>}
+
+                      {/* 题干 — 编程题用等宽字体 */}
+                      <div className={`exam-question-content${isProgramming ? " exam-question-content--code" : ""}`}>
+                        {q.content.split("\n").map((line, li) => (
+                          <p key={li}>{line || " "}</p>
+                        ))}
+                      </div>
+
+                      {/* 选项 */}
+                      {q.options && (
+                        <div className="exam-options">
+                          {q.options.split("\n").filter(Boolean).map((opt, oi) => (
+                            <div key={oi} className="exam-option">{opt.trim()}</div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* 答案与解析 — 默认收起 */}
+                      {(q.answer || q.explanation) && (
+                        <details className="exam-answer-section">
+                          <summary>查看答案与解析</summary>
+                          {q.answer && (
+                            <div className="exam-answer">
+                              <strong>参考答案：</strong>
+                              <span>{q.answer}</span>
+                            </div>
+                          )}
+                          {q.explanation && (
+                            <div className="exam-explanation">
+                              <strong>解析：</strong>
+                              <span>{q.explanation}</span>
+                            </div>
+                          )}
+                        </details>
+                      )}
+
+                      {/* 原始识别文本 — 默认收起 */}
+                      {q.raw_text && (
+                        <details className="exam-raw-text">
+                          <summary>查看原始识别文本</summary>
+                          <pre>{q.raw_text}</pre>
+                        </details>
+                      )}
+
+                      {/* 操作按钮 */}
+                      <div className="exam-question-actions">
+                        <button className="ghost-button compact" onClick={() => openDetail(q)}>编辑 / 练习</button>
+                        <button
+                          className="ghost-button compact"
+                          disabled={aiExplainLoadingId === q.id}
+                          onClick={() => requestQuestionAiExplain(q, true)}
+                        >
+                          {aiExplainLoadingId === q.id ? "解析中..." : "AI 解析"}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>
@@ -1781,11 +1795,28 @@ export default function PracticeCenter({
                   />
                   <h4>识别结果草稿</h4>
                   {importExtractMeta && formatExtractMethodLabel(importExtractMeta) && (
-                    <div className={`practice-extract-method-badge ${formatExtractMethodLabel(importExtractMeta).cssClass}`}>
-                      <span className="practice-extract-method-icon" aria-hidden="true">
-                        {importExtractMeta.qwen_used ? "🤖" : "📄"}
-                      </span>
-                      <span>{formatExtractMethodLabel(importExtractMeta).label}</span>
+                    <div className="practice-extract-info-row">
+                      <div className={`practice-extract-method-badge ${formatExtractMethodLabel(importExtractMeta).cssClass}`}>
+                        <span className="practice-extract-method-icon" aria-hidden="true">
+                          {importExtractMeta.qwen_used ? "🤖" : "📄"}
+                        </span>
+                        <span>{formatExtractMethodLabel(importExtractMeta).label}</span>
+                      </div>
+                      {importExtractMeta.total_pages > 0 && (
+                        <span className="practice-extract-pages">
+                          📖 已识别 {importExtractMeta.parsed_pages || "?"} / {importExtractMeta.total_pages} 页
+                          {importExtractMeta.page_limit_hit && (
+                            <span className="practice-extract-page-limit-hint">（部分页）</span>
+                          )}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {importWarnings && importWarnings.length > 0 && (
+                    <div className="practice-import-warnings">
+                      {importWarnings.map((w, i) => (
+                        <div key={i} className="practice-import-warning-item">⚠️ {w}</div>
+                      ))}
                     </div>
                   )}
                   {importDrafts.map((draft, idx) => (
