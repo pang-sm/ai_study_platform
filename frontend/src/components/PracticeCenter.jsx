@@ -363,247 +363,302 @@ export default function PracticeCenter({
     resetCreateForm();
     setShowCreateModal(true);
   };
+  const clearFilters = () => {
+    setCourseFilter("");
+    setKpFilter("");
+    setTypeFilter("");
+  };
 
   return (
     <section className="chat-panel chat-panel--wide practice-panel">
-      <div className="practice-hero">
-        <div className="practice-hero-copy">
-          <div className="practice-hero-kicker">
+      <div className="practice-workbench">
+        <div className="practice-hero">
+          <div className="practice-hero-copy">
             <span className="practice-hero-icon" aria-hidden="true">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 11l3 3L22 4" />
-                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-              </svg>
+              🎯
             </span>
-            <span>核心练习模块</span>
+            <div>
+              <h2>练习中心</h2>
+              <p>按课程、知识点和题型生成练习，巩固薄弱知识点</p>
+            </div>
           </div>
-          <h2>练习中心</h2>
-          <p>按课程、知识点和题型筛选练习，巩固薄弱知识点</p>
-        </div>
-        <div className="practice-hero-actions">
-          <button
-            className="primary-button compact practice-action-button"
-            onClick={openCreateModal}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-            新建题目
-          </button>
-          <button
-            className="ghost-button compact practice-action-button practice-action-button--secondary"
-            onClick={openGenerateModal}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 3l1.7 5.1L19 10l-5.3 1.9L12 17l-1.7-5.1L5 10l5.3-1.9L12 3z" />
-              <path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15z" />
-            </svg>
-            AI 生成题目
-          </button>
-        </div>
-      </div>
-
-      <div className="practice-overview-grid">
-        <div className="practice-stat-card">
-          <span className="practice-stat-icon practice-stat-icon--total" aria-hidden="true">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <path d="M4 19.5V5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-1.5z" />
-              <path d="M8 7h6M8 11h8" />
-            </svg>
-          </span>
-          <div>
-            <strong>{totalCount}</strong>
-            <span>题目总数</span>
-          </div>
-        </div>
-        <div className="practice-stat-card">
-          <span className="practice-stat-icon practice-stat-icon--today" aria-hidden="true">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <rect x="3" y="4" width="18" height="17" rx="2" />
-              <path d="M8 2v4M16 2v4M3 10h18" />
-            </svg>
-          </span>
-          <div>
-            <strong>{todayCount}</strong>
-            <span>今日练习</span>
-          </div>
-        </div>
-        <div className="practice-stat-card">
-          <span className="practice-stat-icon practice-stat-icon--done" aria-hidden="true">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M20 6L9 17l-5-5" />
-            </svg>
-          </span>
-          <div>
-            <strong>{completedCount}</strong>
-            <span>已完成</span>
-          </div>
-        </div>
-        <div className="practice-stat-card">
-          <span className="practice-stat-icon practice-stat-icon--pending" aria-hidden="true">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <circle cx="12" cy="12" r="9" />
-              <path d="M12 7v5l3 2" />
-            </svg>
-          </span>
-          <div>
-            <strong>{pendingCount}</strong>
-            <span>待练习</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="practice-filter-card">
-        <div className="practice-filter-head">
-          <div>
-            <h3>筛选练习</h3>
-            <p>快速定位当前要训练的课程、知识点和题型</p>
-          </div>
-          <button className="ghost-button compact practice-refresh-button" onClick={loadQuestions}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="23 4 23 10 17 10" />
-              <polyline points="1 20 1 14 7 14" />
-              <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10" />
-              <path d="M3.51 15a9 9 0 0 0 14.85 3.36L23 14" />
-            </svg>
-            刷新
-          </button>
-        </div>
-        <div className="task-center-filters practice-filters">
-          <div className="task-filter-item practice-filter-item">
-            <label className="field-label">课程筛选</label>
-            <select
-              className="field"
-              value={courseFilter}
-              onChange={(e) => { setCourseFilter(e.target.value); setKpFilter(""); }}
-            >
-              <option value="">全部课程</option>
-              {courseOptions.map((item) => (
-                <option key={item} value={item}>
-                  {getSubjectLabel(item)}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="task-filter-item practice-filter-item">
-            <label className="field-label">知识点筛选</label>
-            <select
-              className="field"
-              value={kpFilter}
-              onChange={(e) => setKpFilter(e.target.value)}
-            >
-              <option value="">全部知识点</option>
-              {knowledgePoints.map((kp) => (
-                <option key={kp.id} value={kp.id}>
-                  {kp.title}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="task-filter-item practice-filter-item">
-            <label className="field-label">题型筛选</label>
-            <select
-              className="field"
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-            >
-              {TYPE_OPTIONS.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <div className="practice-filter-summary">
-          当前筛选：{selectedCourseLabel} / {selectedKnowledgePointLabel} / {selectedTypeLabel}
-        </div>
-      </div>
-
-      {loading ? (
-        <div className="empty-state practice-loading">加载中...</div>
-      ) : questions.length === 0 ? (
-        <div className="empty-inline practice-empty">
-          <div className="practice-empty-icon" aria-hidden="true">
-            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 11l2 2 4-4" />
-              <path d="M20 6v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h8" />
-              <path d="M16 4h4v4" />
-            </svg>
-          </div>
-          <h3>还没有匹配的练习题</h3>
-          <p>你可以新建题目，或让 AI 根据当前课程与知识点生成练习</p>
-          <div className="practice-empty-actions">
+          <div className="practice-hero-actions">
             <button
-              className="primary-button compact practice-action-button"
-              onClick={openGenerateModal}
-            >
-              AI 生成题目
-            </button>
-            <button
-              className="ghost-button compact practice-action-button practice-action-button--secondary"
+              className="ghost-button compact practice-action-button"
               onClick={openCreateModal}
             >
-              新建题目
+              ＋ 新建题目
+            </button>
+            <button
+              className="primary-button compact practice-action-button practice-action-button--ai"
+              onClick={openGenerateModal}
+            >
+              ✨ AI 生成题目
             </button>
           </div>
-          <span className="practice-empty-tip">建议先选择具体知识点，AI 生成会更精准</span>
         </div>
-      ) : (
-        <div className="question-list">
-          {questions.map((q) => (
-            <div key={q.id} className="question-card">
-              <div className="question-card-main">
-                <div className="question-card-header">
-                  <h4 className="question-card-title">{q.title}</h4>
-                  <div className="question-card-badges">
-                    <span className={`q-type-badge ${getTypeClass(q.type)}`}>
-                      {TYPE_LABELS[q.type] || q.type}
-                    </span>
-                    {q.difficulty && (
-                      <span className="subject-pill small practice-difficulty-pill">{q.difficulty}</span>
-                    )}
-                  </div>
+
+        <div className="practice-overview-grid">
+          <div className="practice-stat-card">
+            <span className="practice-stat-icon practice-stat-icon--total" aria-hidden="true">▣</span>
+            <div>
+              <strong>{totalCount}</strong>
+              <span>题目总数</span>
+              <em>共保存 {totalCount} 道题</em>
+            </div>
+          </div>
+          <div className="practice-stat-card">
+            <span className="practice-stat-icon practice-stat-icon--today" aria-hidden="true">▤</span>
+            <div>
+              <strong>{todayCount}</strong>
+              <span>今日练习</span>
+              <em>今日完成 {completedCount > 0 ? completedCount : 0} 道</em>
+            </div>
+          </div>
+          <div className="practice-stat-card">
+            <span className="practice-stat-icon practice-stat-icon--done" aria-hidden="true">✓</span>
+            <div>
+              <strong>{completedCount}</strong>
+              <span>已完成</span>
+              <em>累计完成 {completedCount} 道</em>
+            </div>
+          </div>
+          <div className="practice-stat-card practice-stat-card--hint">
+            <span className="practice-stat-icon practice-stat-icon--pending" aria-hidden="true">💡</span>
+            <div>
+              <strong>{pendingCount > 0 ? pendingCount : "暂无"}</strong>
+              <span>{pendingCount > 0 ? "待练习" : "练习记录"}</span>
+              <em>{pendingCount > 0 ? "继续完成待练题" : "生成一组题开始吧"}</em>
+            </div>
+          </div>
+        </div>
+
+        <div className="practice-workbench-grid">
+          <main className="practice-main-column">
+            <div className="practice-filter-card">
+              <div className="task-center-filters practice-filters">
+                <div className="task-filter-item practice-filter-item">
+                  <label className="field-label">课程筛选</label>
+                  <select
+                    className="field"
+                    value={courseFilter}
+                    onChange={(e) => { setCourseFilter(e.target.value); setKpFilter(""); }}
+                  >
+                    <option value="">全部课程</option>
+                    {courseOptions.map((item) => (
+                      <option key={item} value={item}>
+                        {getSubjectLabel(item)}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <div className="question-card-meta">
-                  {q.course_id && (
-                    <span className="subject-pill small practice-course-pill">
-                      {getSubjectLabel(q.course_id)}
-                    </span>
-                  )}
-                  {q.knowledge_point_title && (
-                    <span className="subject-pill small practice-kp-pill">
-                      {q.knowledge_point_title}
-                    </span>
-                  )}
-                  {q.source && (
-                    <span className="subject-pill small practice-source-pill">
-                      {SOURCE_LABELS[q.source] || q.source}
-                    </span>
-                  )}
-                  <span className="history-meta">
-                    {formatDate(q.updated_at || q.created_at)}
-                  </span>
+                <div className="task-filter-item practice-filter-item practice-filter-item--wide">
+                  <label className="field-label">知识点筛选</label>
+                  <select
+                    className="field"
+                    value={kpFilter}
+                    onChange={(e) => setKpFilter(e.target.value)}
+                  >
+                    <option value="">全部知识点</option>
+                    {knowledgePoints.map((kp) => (
+                      <option key={kp.id} value={kp.id}>
+                        {kp.title}
+                      </option>
+                    ))}
+                  </select>
                 </div>
+                <div className="task-filter-item practice-filter-item">
+                  <label className="field-label">题型筛选</label>
+                  <select
+                    className="field"
+                    value={typeFilter}
+                    onChange={(e) => setTypeFilter(e.target.value)}
+                  >
+                    {TYPE_OPTIONS.map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <button className="ghost-button compact practice-refresh-button" onClick={loadQuestions}>
+                  ↻ 刷新
+                </button>
               </div>
-              <div className="question-card-actions">
-                <button className="primary-button compact question-start-button" onClick={() => openDetail(q)}>
-                  开始练习
-                </button>
-                <button className="tiny-button" onClick={() => openDetail(q)}>
-                  查看详情
-                </button>
-                <button
-                  className="tiny-button danger"
-                  onClick={() => deleteQuestion(q)}
-                >
-                  删除
-                </button>
+              <div className="practice-filter-summary">
+                <span>当前筛选：{selectedCourseLabel} / {selectedKnowledgePointLabel} / {selectedTypeLabel}</span>
+                <button type="button" onClick={clearFilters}>清空筛选</button>
               </div>
             </div>
-          ))}
+
+            {loading ? (
+              <div className="empty-state practice-loading">加载中...</div>
+            ) : questions.length === 0 ? (
+              <div className="empty-inline practice-empty">
+                <div className="practice-empty-left">
+                  <div className="practice-empty-icon" aria-hidden="true">📋</div>
+                  <h3>还没有匹配的练习题</h3>
+                  <p>你可以根据当前课程和知识点生成一组练习，也可以手动创建题目</p>
+                  <div className="practice-empty-actions">
+                    <button
+                      className="primary-button compact practice-action-button practice-action-button--ai"
+                      onClick={openGenerateModal}
+                    >
+                      ✨ AI 生成题目
+                    </button>
+                    <button
+                      className="ghost-button compact practice-action-button"
+                      onClick={openCreateModal}
+                    >
+                      ＋ 新建题目
+                    </button>
+                  </div>
+                </div>
+                <div className="practice-empty-tips">
+                  <div className="practice-tip-card">
+                    <span>🎯</span>
+                    <div>
+                      <strong>选择具体知识点</strong>
+                      <p>选择更具体的知识点，生成更精准</p>
+                    </div>
+                  </div>
+                  <div className="practice-tip-card">
+                    <span>📊</span>
+                    <div>
+                      <strong>从基础题开始</strong>
+                      <p>先从基础题开始，逐步提高难度</p>
+                    </div>
+                  </div>
+                  <div className="practice-tip-card">
+                    <span>🏆</span>
+                    <div>
+                      <strong>完成后查看解析</strong>
+                      <p>做完练习后，查看解析，巩固知识</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="question-section-card">
+                <div className="question-section-head">
+                  <h3>练习题列表</h3>
+                  <span>共 {totalCount} 条</span>
+                </div>
+                <div className="question-list">
+                  {questions.map((q) => (
+                    <div key={q.id} className="question-card">
+                      <div className="question-card-main">
+                        <h4 className="question-card-title">{q.title}</h4>
+                        <div className="question-card-meta">
+                          {q.course_id && (
+                            <span className="subject-pill small practice-course-pill">
+                              {getSubjectLabel(q.course_id)}
+                            </span>
+                          )}
+                          {q.knowledge_point_title && (
+                            <span className="subject-pill small practice-kp-pill">
+                              {q.knowledge_point_title}
+                            </span>
+                          )}
+                          <span className={`q-type-badge ${getTypeClass(q.type)}`}>
+                            {TYPE_LABELS[q.type] || q.type}
+                          </span>
+                          {q.difficulty && (
+                            <span className="subject-pill small practice-difficulty-pill">{q.difficulty}</span>
+                          )}
+                          {q.source && (
+                            <span className="subject-pill small practice-source-pill">
+                              {SOURCE_LABELS[q.source] || q.source}
+                            </span>
+                          )}
+                          <span className="history-meta">
+                            {formatDate(q.updated_at || q.created_at)}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="question-card-actions">
+                        <button className="primary-button compact question-start-button" onClick={() => openDetail(q)}>
+                          开始练习
+                        </button>
+                        <button className="tiny-button" onClick={() => openDetail(q)}>
+                          查看详情
+                        </button>
+                        <button
+                          className="tiny-button danger"
+                          onClick={() => deleteQuestion(q)}
+                        >
+                          删除
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </main>
+
+          <aside className="practice-side-column">
+            <div className="practice-side-card practice-ai-card">
+              <div className="practice-side-card-title">
+                <span>🤖</span>
+                <h3>AI 练习助手</h3>
+              </div>
+              <p>根据当前课程和知识点，AI 帮你智能生成练习题</p>
+              <button className="primary-button compact practice-side-action" onClick={openGenerateModal}>
+                ✨ AI 生成题目
+              </button>
+            </div>
+
+            <div className="practice-side-card">
+              <h3>推荐练习方式</h3>
+              <ol className="practice-steps">
+                <li>
+                  <span>1</span>
+                  <div>
+                    <strong>先选择知识点</strong>
+                    <p>选择具体知识点，生成更精准</p>
+                  </div>
+                </li>
+                <li>
+                  <span>2</span>
+                  <div>
+                    <strong>生成 3~5 道题</strong>
+                    <p>建议每次练习 3~5 道题目</p>
+                  </div>
+                </li>
+                <li>
+                  <span>3</span>
+                  <div>
+                    <strong>做完查看解析</strong>
+                    <p>巩固知识，总结错题点</p>
+                  </div>
+                </li>
+              </ol>
+            </div>
+
+            <div className="practice-side-card">
+              <div className="practice-side-card-title">
+                <span>☷</span>
+                <h3>当前筛选</h3>
+              </div>
+              <div className="practice-current-filter">
+                <div><span>课程：</span><strong>{selectedCourseLabel}</strong></div>
+                <div><span>知识点：</span><strong>{selectedKnowledgePointLabel}</strong></div>
+                <div><span>题型：</span><strong>{selectedTypeLabel}</strong></div>
+              </div>
+              <button className="practice-clear-link" type="button" onClick={clearFilters}>清空筛选</button>
+            </div>
+
+            <div className="practice-side-card">
+              <h3>快捷入口</h3>
+              <div className="practice-quick-grid">
+                <button type="button">题型分布</button>
+                <button type="button">知识点分布</button>
+              </div>
+            </div>
+          </aside>
         </div>
-      )}
+      </div>
 
       {/* Detail Modal */}
       {detailQuestion && (
