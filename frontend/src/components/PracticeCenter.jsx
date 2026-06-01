@@ -43,6 +43,14 @@ const TYPE_LABELS = {
 
 const isChoiceLikeType = (type) => ["choice", "single_choice", "multiple_choice", "true_false"].includes(type);
 
+// Strip common placeholder strings from parsed option content.
+const stripPlaceholderContent = (content) => {
+  const trimmed = (content || "").trim();
+  if (/^[A-Za-z]\s*选项内容$/.test(trimmed)) return "";
+  if (/^选项内容$/.test(trimmed)) return "";
+  return trimmed;
+};
+
 const parseOptionItems = (optionsText = "") => {
   const lines = (optionsText || "").split("\n");
   const parsed = [];
@@ -56,12 +64,12 @@ const parseOptionItems = (optionsText = "") => {
     if (match) {
       parsed.push({
         label: match[1].toUpperCase(),
-        content: match[2].trim(),
+        content: stripPlaceholderContent(match[2]),
       });
     } else {
       parsed.push({
         label: String.fromCharCode(65 + parsed.length),
-        content: text,
+        content: stripPlaceholderContent(text),
       });
     }
   }
@@ -110,12 +118,12 @@ const normalizeEditableOptions = (question) => {
             const match = text.match(/^[(\uff08]?\s*([A-Za-z])\s*[)\uff09.\u3001]?\s*(.*)$/);
             return {
               label: (match?.[1] || String.fromCharCode(65 + index)).toUpperCase(),
-              content: (match?.[2] ?? text).trim(),
+              content: stripPlaceholderContent(match?.[2] ?? text),
             };
           }
           return {
             label: String(item?.label || item?.key || String.fromCharCode(65 + index)).toUpperCase(),
-            content: String(item?.content ?? item?.text ?? item?.value ?? "").trim(),
+            content: stripPlaceholderContent(item?.content ?? item?.text ?? item?.value ?? ""),
           };
         })
         .filter((item) => item.label);
@@ -127,7 +135,7 @@ const normalizeEditableOptions = (question) => {
         .filter(([, v]) => v != null && String(v).trim() !== "")
         .map(([label, content]) => ({
           label: String(label).toUpperCase(),
-          content: String(content).trim(),
+          content: stripPlaceholderContent(content),
         }));
       if (parsed.length > 0) return parsed;
     }
@@ -252,8 +260,6 @@ export default function PracticeCenter({
   const [editOptionItems, setEditOptionItems] = useState(parseOptionItems(""));
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState("");
-  const [editExplanationOpen, setEditExplanationOpen] = useState(false);
-  const [editRawTextOpen, setEditRawTextOpen] = useState(false);
 
   // Create modal
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -344,9 +350,9 @@ export default function PracticeCenter({
     }
   };
 
-  // ── Body scroll lock when any modal/drawer is open ──
+  // ── Body / html / container scroll lock when any modal/drawer is open ──
   useEffect(() => {
-    const isLocked =
+    const shouldLock =
       showCreateModal ||
       showGenerateModal ||
       showImportModal ||
@@ -354,20 +360,62 @@ export default function PracticeCenter({
       !!paperDetail ||
       !!detailQuestion;
 
-    if (!isLocked) return;
+    if (!shouldLock) return;
 
-    const prevOverflow = document.body.style.overflow;
-    const prevPaddingRight = document.body.style.paddingRight;
+    const scrollY = window.scrollY;
+    const originalBodyOverflow = document.body.style.overflow;
+    const originalHtmlOverflow = document.documentElement.style.overflow;
+    const originalBodyPosition = document.body.style.position;
+    const originalBodyTop = document.body.style.top;
+    const originalBodyWidth = document.body.style.width;
+    const originalPaddingRight = document.body.style.paddingRight;
+
     const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
 
+    document.documentElement.style.overflow = "hidden";
     document.body.style.overflow = "hidden";
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = "100%";
+
     if (scrollbarWidth > 0) {
       document.body.style.paddingRight = `${scrollbarWidth}px`;
     }
 
+    const possibleScrollContainers = [
+      document.querySelector(".workspace-main"),
+      document.querySelector(".datacenter-shell"),
+      document.querySelector(".app-main"),
+      document.querySelector(".main-content"),
+      document.querySelector(".page-content"),
+      document.querySelector(".practice-workbench"),
+    ].filter(Boolean);
+
+    const previousContainerStyles = possibleScrollContainers.map((el) => ({
+      el,
+      overflow: el.style.overflow,
+      overflowY: el.style.overflowY,
+    }));
+
+    possibleScrollContainers.forEach((el) => {
+      el.style.overflow = "hidden";
+      el.style.overflowY = "hidden";
+    });
+
     return () => {
-      document.body.style.overflow = prevOverflow;
-      document.body.style.paddingRight = prevPaddingRight;
+      document.body.style.overflow = originalBodyOverflow;
+      document.documentElement.style.overflow = originalHtmlOverflow;
+      document.body.style.position = originalBodyPosition;
+      document.body.style.top = originalBodyTop;
+      document.body.style.width = originalBodyWidth;
+      document.body.style.paddingRight = originalPaddingRight;
+
+      previousContainerStyles.forEach(({ el, overflow, overflowY }) => {
+        el.style.overflow = overflow;
+        el.style.overflowY = overflowY;
+      });
+
+      window.scrollTo(0, scrollY);
     };
   }, [showCreateModal, showGenerateModal, showImportModal, editingQuestion, paperDetail, detailQuestion]);
 
@@ -680,6 +728,26 @@ export default function PracticeCenter({
     }
   };
 
+  // ── Option editing helpers ──
+  const updateEditOption = (index, patch) => {
+    setEditOptionItems((items) =>
+      items.map((item, i) => (i === index ? { ...item, ...patch } : item))
+    );
+  };
+
+  const addEditOption = () => {
+    setEditOptionItems((items) => {
+      const usedLabels = new Set((items || []).map((o) => String(o.label || "").toUpperCase()));
+      const candidates = ["A", "B", "C", "D", "E", "F", "G", "H"];
+      const nextLabel = candidates.find((label) => !usedLabels.has(label)) || String((items || []).length + 1);
+      return [...(items || []), { label: nextLabel, content: "" }];
+    });
+  };
+
+  const removeEditOption = (index) => {
+    setEditOptionItems((items) => (items || []).filter((_, i) => i !== index));
+  };
+
   const buildEditFormFromQuestion = (question) => ({
     title: question.title || "",
     type: question.type || "short_answer",
@@ -697,8 +765,6 @@ export default function PracticeCenter({
     setEditingQuestion(question);
     setEditQuestionForm(form);
     setEditOptionItems(normalizeEditableOptions(question));
-    setEditExplanationOpen(false);
-    setEditRawTextOpen(false);
     setEditError("");
 
     let points = knowledgePoints;
@@ -723,8 +789,6 @@ export default function PracticeCenter({
     setEditModuleId("");
     setEditKpId("");
     setEditOptionItems(parseOptionItems(""));
-    setEditExplanationOpen(false);
-    setEditRawTextOpen(false);
   };
 
   const updateQuestionInState = (updatedQuestion) => {
@@ -754,7 +818,7 @@ export default function PracticeCenter({
         course_id: normalizeSubject(editQuestionForm.course_id, ""),
         knowledge_point_id: selectedKpId ? parseInt(selectedKpId, 10) : null,
         content: editQuestionForm.content.trim(),
-        options: isChoiceLikeType(editQuestionForm.type) ? formatOptionItems(editOptionItems) || null : null,
+        options: isChoiceLikeType(editQuestionForm.type) ? editOptionItems.filter((item) => (item.content || "").trim()) : null,
         answer: editQuestionForm.answer.trim() || null,
         explanation: editQuestionForm.explanation.trim() || null,
         raw_text: editQuestionForm.raw_text.trim() || null,
@@ -1800,23 +1864,35 @@ export default function PracticeCenter({
               />
 
               {isChoiceLikeType(editQuestionForm.type) && (
-                <div className="question-edit-options">
+                <div className="practice-edit-options">
                   <label className="field-label">选项</label>
                   {editOptionItems.map((item, index) => (
-                    <div key={item.label} className="question-edit-option-row">
-                      <span>{item.label}</span>
+                    <div key={`opt-${index}-${item.label}`} className="practice-edit-option-row">
                       <input
-                        className="field"
-                        value={item.content}
-                        onChange={(e) => {
-                          const nextItems = [...editOptionItems];
-                          nextItems[index] = { ...nextItems[index], content: e.target.value };
-                          setEditOptionItems(nextItems);
-                        }}
-                        placeholder={`${item.label} 选项内容`}
+                        className="field practice-edit-option-label"
+                        value={item.label}
+                        onChange={(e) => updateEditOption(index, { label: e.target.value })}
+                        placeholder="选项标号"
                       />
+                      <input
+                        className="field practice-edit-option-content"
+                        value={item.content}
+                        onChange={(e) => updateEditOption(index, { content: e.target.value })}
+                        placeholder={`${item.label || "选项"} 内容`}
+                      />
+                      <button
+                        type="button"
+                        className="tiny-button danger"
+                        onClick={() => removeEditOption(index)}
+                        title="删除此选项"
+                      >
+                        删除
+                      </button>
                     </div>
                   ))}
+                  <button type="button" className="ghost-button compact" onClick={addEditOption}>
+                    ＋ 添加选项
+                  </button>
                 </div>
               )}
 
@@ -1828,41 +1904,23 @@ export default function PracticeCenter({
                 placeholder="请输入标准答案"
               />
 
-              <button
-                type="button"
-                className="practice-collapse-toggle"
-                onClick={() => setEditExplanationOpen((v) => !v)}
-              >
-                <span>{editExplanationOpen ? "收起解析 ▲" : "展开解析 ▼"}</span>
-              </button>
-              {editExplanationOpen && (
-                <textarea
-                  className="field"
-                  rows={6}
-                  value={editQuestionForm.explanation}
-                  onChange={(e) => setEditQuestionForm((form) => ({ ...form, explanation: e.target.value }))}
-                  placeholder="请输入解析"
-                />
-              )}
+              <label className="field-label">解析</label>
+              <textarea
+                className="field practice-edit-explanation"
+                value={editQuestionForm.explanation || ""}
+                onChange={(e) => setEditQuestionForm((form) => ({ ...form, explanation: e.target.value }))}
+                placeholder="请输入解析"
+              />
 
               {editQuestionForm.raw_text && (
                 <>
-                  <button
-                    type="button"
-                    className="practice-collapse-toggle"
-                    onClick={() => setEditRawTextOpen((v) => !v)}
-                  >
-                    <span>{editRawTextOpen ? "收起原始识别文本 ▲" : "查看原始识别文本 ▼"}</span>
-                  </button>
-                  {editRawTextOpen && (
-                    <textarea
-                      className="field question-edit-raw"
-                      rows={6}
-                      value={editQuestionForm.raw_text}
-                      onChange={(e) => setEditQuestionForm((form) => ({ ...form, raw_text: e.target.value }))}
-                      readOnly
-                    />
-                  )}
+                  <label className="field-label">原始识别文本</label>
+                  <textarea
+                    className="field practice-edit-raw-text"
+                    value={editQuestionForm.raw_text}
+                    onChange={(e) => setEditQuestionForm((form) => ({ ...form, raw_text: e.target.value }))}
+                    readOnly
+                  />
                 </>
               )}
             </div>

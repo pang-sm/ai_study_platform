@@ -7305,23 +7305,64 @@ select.field:focus {
 .question-edit-content,
 .practice-edit-question-content {
   min-height: 220px;
-  max-height: 420px;
+  max-height: 460px;
   resize: vertical;
   overflow-y: auto;
   line-height: 1.7;
 }
 
-.question-edit-option-row {
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
+/* ── Editable option rows (label + content + delete) ── */
+.practice-edit-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f8fafc;
 }
 
-.question-edit-option-row span {
-  font-weight: 700;
-  color: #475569;
+.practice-edit-option-row {
+  display: grid;
+  grid-template-columns: 72px 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.practice-edit-option-label {
   text-align: center;
+  min-width: 0;
+}
+
+.practice-edit-option-content {
+  min-width: 0;
+}
+
+.practice-edit-option-row .field {
+  margin-top: 0;
+  margin-bottom: 0;
+  padding: 10px 14px;
+}
+
+/* ── Explanation full textarea ── */
+.practice-edit-explanation {
+  min-height: 180px;
+  max-height: 360px;
+  line-height: 1.7;
+  resize: vertical;
+  overflow-y: auto;
+}
+
+/* ── Raw text full textarea ── */
+.practice-edit-raw-text {
+  min-height: 180px;
+  max-height: 360px;
+  line-height: 1.7;
+  resize: vertical;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
 }
 
 .question-edit-raw {
@@ -7330,28 +7371,9 @@ select.field:focus {
   font-size: 12px;
 }
 
-/* ── Collapsible toggle for edit modal sections ── */
-.practice-collapse-toggle {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  padding: 10px 14px;
-  border: 1px dashed rgba(20, 33, 61, 0.16);
-  border-radius: 10px;
-  background: #f8fafc;
-  color: #475569;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  font-family: inherit;
-  text-align: left;
-  transition: background 0.15s, border-color 0.15s;
-}
-
-.practice-collapse-toggle:hover {
-  background: #f1f5f9;
-  border-color: rgba(15, 118, 110, 0.3);
-  color: #0f766e;
+/* ── Stronger edit modal overlay z-index ── */
+.question-edit-overlay {
+  z-index: 3000;
 }
 
 @media (max-width: 640px) {
