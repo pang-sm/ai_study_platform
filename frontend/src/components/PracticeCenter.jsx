@@ -586,7 +586,15 @@ export default function PracticeCenter({
       setImportOriginalFileName(data.original_file_name || importFile.name || "");
       setImportSelected(Object.fromEntries(drafts.map((_, idx) => [idx, true])));
     } catch (error) {
-      setImportError(error.message || "识别失败，请稍后重试");
+      const errMsg = error.message || "识别失败，请稍后重试";
+      if (errMsg.includes("Invalid \\escape") || errMsg.includes("JSON") || errMsg.includes("转义")) {
+        setImportError(
+          "试卷题目识别失败，可能是公式或特殊符号导致解析失败。请重试，或先上传文字版 PDF/TXT。错误详情：" +
+            errMsg
+        );
+      } else {
+        setImportError(errMsg);
+      }
     } finally {
       setImportLoading(false);
     }

@@ -9258,22 +9258,62 @@ def extract_practice_import_text(file_bytes: bytes, filename: str, content_type:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+def extract_json_from_ai_response(text: str) -> str:
+    """
+    从 AI 回复中提取 JSON：
+    - 去掉 ```json / ``` 包裹
+    - 截取第一个 { 或 [ 到最后一个 } 或 ]
+    - 返回 JSON 字符串
+    """
+    text = (text or "").strip()
+    # Remove markdown code fences
+    fence_match = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
+    if fence_match:
+        text = fence_match.group(1).strip()
+    # Find first { or [ to last } or ]
+    for start_char, end_char in [("{", "}"), ("[", "]")]:
+        start = text.find(start_char)
+        end = text.rfind(end_char)
+        if start != -1 and end != -1 and end > start:
+            return text[start:end + 1]
+    return text
+
+
+def repair_invalid_json_escapes(text: str) -> str:
+    """
+    修复 JSON 字符串里的非法反斜杠转义。
+    Python json 只允许：\\\", \\\\, \\/, \\b, \\f, \\n, \\r, \\t, 以及 \\u 开头的 Unicode 转义。
+
+    其他如 \\forall、\\land、\\subset、\\rightarrow 都需要双写为：
+    \\\\forall、\\\\land、\\\\subset、\\\\rightarrow
+    """
+    return re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', text)
+
+
+def parse_ai_json_safely(text: str):
+    """安全解析 AI 返回的 JSON，自动修复非法转义"""
+    raw = extract_json_from_ai_response(text)
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as first_error:
+        repaired = repair_invalid_json_escapes(raw)
+        try:
+            return json.loads(repaired)
+        except json.JSONDecodeError:
+            raise ValueError(
+                f"AI 返回的题目 JSON 格式不合法，已尝试修复转义但仍失败：{first_error}"
+            ) from first_error
+
+
 def extract_json_object(text_value: str) -> dict:
     text_value = (text_value or "").strip()
     try:
-        parsed = json.loads(text_value)
+        parsed = parse_ai_json_safely(text_value)
         if isinstance(parsed, dict):
             return parsed
     except Exception:
         pass
-    match = re.search(r"\{[\s\S]*\}", text_value)
-    if not match:
-        return {}
-    try:
-        parsed = json.loads(match.group(0))
-        return parsed if isinstance(parsed, dict) else {}
-    except Exception:
-        return {}
+    return {}
 
 
 def format_question_options(raw_options) -> str | None:
@@ -9311,17 +9351,102 @@ def format_question_options(raw_options) -> str | None:
     return options_text
 
 
+OPTION_PATTERNS = [
+    # A. xxx  B. xxx  C. xxx  D. xxx  (English dot)
+    re.compile(r'(?:^|\n)([A-D])\.\s*(.+?)(?=\n[A-D]\.\s|\Z)', re.DOTALL),
+    # A、xxx  B、xxx  C、xxx  D、xxx  (Chinese comma)
+    re.compile(r'(?:^|\n)([A-D])、\s*(.+?)(?=\n[A-D]、\s|\Z)', re.DOTALL),
+    # A．xxx  B．xxx  C．xxx  D．xxx  (full-width dot)
+    re.compile(r'(?:^|\n)([A-D])．\s*(.+?)(?=\n[A-D]．\s|\Z)', re.DOTALL),
+    # (A) xxx  (B) xxx  (C) xxx  (D) xxx
+    re.compile(r'\(([A-D])\)\s*(.+?)(?=\([A-D]\)|\Z)', re.DOTALL),
+    # A xxx  B xxx  C xxx  D xxx  (bare letter + space, must be at start of lines)
+    re.compile(r'(?:^|\n)([A-D])\s+(.+?)(?=\n[A-D]\s|\Z)', re.DOTALL),
+]
+
+
+def detect_options_in_content(content: str) -> tuple[list[dict] | None, str]:
+    """
+    从题干文本中检测 A/B/C/D 选项并提取。
+    返回 (options 数组或 None, 清理后的题干)
+
+    支持的格式：
+    A. xxx / A、xxx / A．xxx / (A) xxx / A xxx
+    """
+    if not content:
+        return None, content
+
+    best_options = None
+    best_count = 0
+
+    for pattern in OPTION_PATTERNS:
+        matches = list(pattern.finditer(content))
+        # 需要至少 2 个匹配（可能是判断题）
+        if len(matches) < 2:
+            continue
+        # 去重：同一 label 只取第一个
+        seen_labels = set()
+        unique_matches = []
+        for m in matches:
+            label = m.group(1)
+            if label not in seen_labels:
+                seen_labels.add(label)
+                unique_matches.append(m)
+        if len(unique_matches) < 2:
+            continue
+        if len(unique_matches) > best_count:
+            best_count = len(unique_matches)
+            # 构建 options 数组
+            options = []
+            for m in unique_matches:
+                opt_content = m.group(2).strip()
+                if opt_content:
+                    options.append({"label": m.group(1), "content": opt_content})
+            if len(options) >= 2:
+                best_options = options
+
+    if not best_options:
+        return None, content
+
+    # 清理题干：移除选项部分
+    cleaned = content
+    for pattern in OPTION_PATTERNS:
+        cleaned = pattern.sub("", cleaned)
+    cleaned = re.sub(r'\n{3,}', '\n\n', cleaned).strip()
+
+    # 如果清理后题干变得很短（可能选项就是题干全部），保留原题干
+    if len(cleaned) < 10:
+        return best_options, content
+
+    return best_options, cleaned
+
+
 def normalize_paper_draft(item: dict, fallback_course_id: str, fallback_kp_id: int | None = None) -> dict:
     qtype = normalize_question_type(str(item.get("type") or item.get("question_type") or "short_answer"), "short_answer")
     content = str(item.get("question_text") or item.get("content") or "").strip()
     raw_text = str(item.get("raw_text") or content).strip()
     title = str(item.get("title") or content[:32] or "识别题目").strip()
+
+    # 处理选项：优先用 AI 返回的 options，否则从 content 中检测
+    ai_options = item.get("options")
+    formatted_options = format_question_options(ai_options)
+
+    if not formatted_options:
+        # AI 没有返回选项，尝试从题干中检测 A/B/C/D
+        detected_opts, cleaned_content = detect_options_in_content(content)
+        if detected_opts:
+            formatted_options = format_question_options(detected_opts)
+            content = cleaned_content
+            # 如果检测到 4 个选项且类型为 short_answer，改为 choice
+            if qtype in ("short_answer", "unknown") and len(detected_opts) >= 2:
+                qtype = "choice" if len(detected_opts) <= 4 else "multiple_choice"
+
     return {
         "question_order": item.get("question_order") or item.get("order"),
         "title": title[:255],
         "question_text": content,
         "type": qtype,
-        "options": format_question_options(item.get("options")),
+        "options": formatted_options,
         "answer": str(item.get("answer") or "").strip() or None,
         "explanation": str(item.get("explanation") or "").strip() or None,
         "course_id": normalize_subject(str(item.get("course_id") or fallback_course_id), default=""),
@@ -9394,6 +9519,9 @@ title, question_text, type(single_choice/multiple_choice/true_false/fill_blank/s
 2. 没有识别到答案或解析时保持空字符串，不要编造。
 3. 每道题必须保留 raw_text 方便用户二次编辑。
 4. 不确定题型时 type 使用 unknown。
+5. 字符串中的反斜杠必须双写，例如 \\\\forall、\\\\exists、\\\\rightarrow、\\\\land、\\\\lor、\\\\subset、\\\\emptyset，确保输出是合法 JSON。
+6. 如果题目含数学公式，请保留公式文本，但反斜杠必须双写以符合 JSON 字符串规范。
+7. 只输出 JSON 对象，不要输出 Markdown 代码块或解释文字。
 
 试卷文件名：{original_filename}
 文本：
@@ -9409,6 +9537,12 @@ title, question_text, type(single_choice/multiple_choice/true_false/fill_blank/s
         parsed_object = extract_json_object(raw)
         paper_title = str(parsed_object.get("paper_title") or paper_title).strip()
         parsed = parsed_object.get("questions") if isinstance(parsed_object.get("questions"), list) else extract_json_array(raw)
+    except json.JSONDecodeError as exc:
+        record_ai_usage(user.username, "question_generate", db, status="failed", error_message=str(exc))
+        raise HTTPException(
+            status_code=500,
+            detail=f"试卷题目识别失败，AI 返回了包含公式或特殊符号的内容导致解析失败。请重试，或先上传文字版 PDF/TXT。错误详情：{exc}"
+        ) from exc
     except Exception as exc:
         record_ai_usage(user.username, "question_generate", db, status="failed", error_message=str(exc))
         raise HTTPException(status_code=500, detail=f"试卷题目识别失败：{str(exc)}") from exc
@@ -10030,12 +10164,14 @@ def normalize_question_difficulty(value: str | None, default: str = "medium") ->
 
 def extract_json_array(raw_text: str) -> list:
     text_value = raw_text or ""
-    json_match = re.search(r"\[[\s\S]*\]", text_value)
-    if json_match:
-        return json.loads(json_match.group(0))
-    obj_match = re.search(r"\{[\s\S]*\}", text_value)
-    if obj_match:
-        return [json.loads(obj_match.group(0))]
+    try:
+        parsed = parse_ai_json_safely(text_value)
+        if isinstance(parsed, list):
+            return parsed
+        if isinstance(parsed, dict):
+            return [parsed]
+    except Exception:
+        pass
     return []
 
 
