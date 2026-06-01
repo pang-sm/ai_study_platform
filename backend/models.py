@@ -279,6 +279,9 @@ class Question(Base):
     explanation = Column(Text, nullable=True)
     difficulty = Column(String(20), nullable=True)
     source = Column(String(50), nullable=True)
+    source_style = Column(String(30), nullable=True)
+    imported_from = Column(String(50), nullable=True)
+    original_file_name = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 

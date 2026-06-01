@@ -336,6 +336,9 @@ class QuestionCreate(BaseModel):
     explanation: str | None = None
     difficulty: str = "基础"
     source: str = "manual"
+    source_style: str | None = None
+    imported_from: str | None = None
+    original_file_name: str | None = None
 
 
 class QuestionUpdate(BaseModel):
@@ -365,6 +368,9 @@ class QuestionOut(BaseModel):
     explanation: str | None = None
     difficulty: str | None = None
     source: str | None = None
+    source_style: str | None = None
+    imported_from: str | None = None
+    original_file_name: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
 
@@ -401,6 +407,31 @@ class GenerateQuestionRequest(BaseModel):
     type: str = "choice"
     difficulty: str = "基础"
     count: int = 1
+    source_style: str = "mixed"
+    require_reasoning: bool = True
+    avoid_too_simple: bool = True
+
+
+class PaperQuestionDraft(BaseModel):
+    title: str = ""
+    question_text: str = ""
+    type: str = "short_answer"
+    options: str | None = None
+    answer: str | None = None
+    explanation: str | None = None
+    course_id: str = ""
+    knowledge_point_id: int | None = None
+    difficulty: str = "中等"
+    source: str = "paper_import"
+    confidence: float | None = None
+    source_style: str | None = None
+
+
+class PaperImportConfirmRequest(BaseModel):
+    username: str
+    course_id: str = ""
+    original_file_name: str | None = None
+    questions: list[PaperQuestionDraft]
 
 
 # ── AI Knowledge Point Generation ────────────────────────

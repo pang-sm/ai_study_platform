@@ -202,6 +202,9 @@ QUESTIONS_COLUMNS = {
     "explanation": "TEXT",
     "difficulty": "VARCHAR(20)",
     "source": "VARCHAR(50)",
+    "source_style": "VARCHAR(30)",
+    "imported_from": "VARCHAR(50)",
+    "original_file_name": "VARCHAR(255)",
     "created_at": "DATETIME NOT NULL",
     "updated_at": "DATETIME NOT NULL",
 }

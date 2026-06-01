@@ -5,20 +5,54 @@ const API_BASE = "/api";
 const TYPE_OPTIONS = [
   { value: "", label: "全部题型" },
   { value: "choice", label: "选择题" },
+  { value: "multiple_choice", label: "多选题" },
+  { value: "true_false", label: "判断题" },
+  { value: "fill_blank", label: "填空题" },
   { value: "short_answer", label: "简答题" },
   { value: "programming", label: "编程题" },
 ];
 
 const DIFFICULTY_OPTIONS = [
-  { value: "基础", label: "基础" },
-  { value: "中等", label: "中等" },
-  { value: "提高", label: "提高" },
+  { value: "easy", label: "简单" },
+  { value: "medium", label: "中等" },
+  { value: "hard", label: "困难" },
+];
+
+const STYLE_OPTIONS = [
+  { value: "exam", label: "考试题" },
+  { value: "leetcode", label: "算法刷题" },
+  { value: "codeforces", label: "竞赛题" },
+  { value: "textbook", label: "教材课后题" },
+  { value: "interview", label: "面试题" },
+  { value: "mixed", label: "混合" },
 ];
 
 const TYPE_LABELS = {
   choice: "选择题",
+  single_choice: "选择题",
+  multiple_choice: "多选题",
+  true_false: "判断题",
+  fill_blank: "填空题",
   short_answer: "简答题",
   programming: "编程题",
+};
+
+const DIFFICULTY_LABELS = {
+  easy: "简单",
+  medium: "中等",
+  hard: "困难",
+  "基础": "简单",
+  "中等": "中等",
+  "提高": "困难",
+};
+
+const STYLE_LABELS = {
+  exam: "考试题",
+  leetcode: "算法刷题",
+  codeforces: "竞赛题",
+  textbook: "教材课后题",
+  interview: "面试题",
+  mixed: "混合",
 };
 
 const SOURCE_LABELS = {
@@ -59,6 +93,7 @@ export default function PracticeCenter({
   const [feedback, setFeedback] = useState("");
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [detailActionLoading, setDetailActionLoading] = useState(false);
+  const [showAnswer, setShowAnswer] = useState(false);
 
   // Create modal
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -71,7 +106,7 @@ export default function PracticeCenter({
   const [createExplanation, setCreateExplanation] = useState("");
   const [createCourse, setCreateCourse] = useState(subject || "");
   const [createKpId, setCreateKpId] = useState("");
-  const [createDifficulty, setCreateDifficulty] = useState("基础");
+  const [createDifficulty, setCreateDifficulty] = useState("medium");
   const [createSaving, setCreateSaving] = useState(false);
 
   // AI generate modal
@@ -81,10 +116,23 @@ export default function PracticeCenter({
   const [genModuleId, setGenModuleId] = useState("");
   const [genKpId, setGenKpId] = useState("");
   const [genType, setGenType] = useState("choice");
-  const [genDifficulty, setGenDifficulty] = useState("基础");
-  const [genCount, setGenCount] = useState(1);
+  const [genDifficulty, setGenDifficulty] = useState("medium");
+  const [genCount, setGenCount] = useState(5);
+  const [genSourceStyle, setGenSourceStyle] = useState("mixed");
+  const [genRequireReasoning, setGenRequireReasoning] = useState(true);
+  const [genAvoidTooSimple, setGenAvoidTooSimple] = useState(true);
   const [genLoading, setGenLoading] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [importCourse, setImportCourse] = useState(subject || "");
+  const [importModuleId, setImportModuleId] = useState("");
+  const [importKpId, setImportKpId] = useState("");
+  const [importFile, setImportFile] = useState(null);
+  const [importDrafts, setImportDrafts] = useState([]);
+  const [importSelected, setImportSelected] = useState({});
+  const [importOriginalFileName, setImportOriginalFileName] = useState("");
+  const [importLoading, setImportLoading] = useState(false);
+  const [importSaving, setImportSaving] = useState(false);
+  const [importError, setImportError] = useState("");
 
   const loadKnowledgePoints = async (courseId) => {
     if (!user?.username || !courseId) {
@@ -148,6 +196,13 @@ export default function PracticeCenter({
     }
   }, [showGenerateModal, genCourse]);
 
+  useEffect(() => {
+    if (showImportModal) {
+      const normalizedCourse = normalizeSubject(importCourse, "");
+      loadKnowledgePoints(normalizedCourse);
+    }
+  }, [showImportModal, importCourse]);
+
   const openDetail = async (q) => {
     try {
       const res = await fetch(
@@ -158,6 +213,7 @@ export default function PracticeCenter({
         setDetailQuestion(data.question);
         setUserAnswer("");
         setFeedback("");
+        setShowAnswer(false);
         await loadAttempts(q.id);
       }
     } catch (e) {
@@ -286,7 +342,7 @@ export default function PracticeCenter({
     setCreateExplanation("");
     setCreateCourse(subject || "");
     setCreateKpId("");
-    setCreateDifficulty("基础");
+    setCreateDifficulty("medium");
   };
 
   const generateQuestions = async () => {
@@ -310,6 +366,9 @@ export default function PracticeCenter({
         type: genType,
         difficulty: genDifficulty,
         count: genCount,
+        source_style: genSourceStyle,
+        require_reasoning: genRequireReasoning,
+        avoid_too_simple: genAvoidTooSimple,
       };
       const res = await fetch(`${API_BASE}/practice/questions/generate`, {
         method: "POST",
@@ -348,8 +407,9 @@ export default function PracticeCenter({
   };
 
   const getTypeClass = (type) => {
-    if (type === "choice") return "q-type-choice";
+    if (type === "choice" || type === "single_choice" || type === "multiple_choice" || type === "true_false") return "q-type-choice";
     if (type === "short_answer") return "q-type-short";
+    if (type === "fill_blank") return "q-type-short";
     return "q-type-prog";
   };
 
@@ -400,8 +460,11 @@ export default function PracticeCenter({
     setGenModuleId("");
     setGenKpId("");
     setGenType(typeFilter || "choice");
-    setGenDifficulty("基础");
-    setGenCount(1);
+    setGenDifficulty("medium");
+    setGenCount(5);
+    setGenSourceStyle("mixed");
+    setGenRequireReasoning(true);
+    setGenAvoidTooSimple(true);
     setShowGenerateModal(true);
   };
   const openCreateModal = () => {
@@ -413,6 +476,74 @@ export default function PracticeCenter({
     setCourseFilter("");
     setKpFilter("");
     setTypeFilter("");
+  };
+  const importModuleChildren = importModuleId ? getModuleChildren(importModuleId) : [];
+  const openImportModal = () => {
+    setImportCourse(courseFilter || subject || "");
+    setImportModuleId("");
+    setImportKpId("");
+    setImportFile(null);
+    setImportDrafts([]);
+    setImportSelected({});
+    setImportOriginalFileName("");
+    setImportError("");
+    setShowImportModal(true);
+  };
+  const updateImportDraft = (index, patch) => {
+    setImportDrafts((items) => items.map((item, i) => (i === index ? { ...item, ...patch } : item)));
+  };
+  const parseImportFile = async () => {
+    if (!importFile || !user?.username) return;
+    setImportLoading(true);
+    setImportError("");
+    try {
+      const form = new FormData();
+      form.append("username", user.username);
+      form.append("course_id", normalizeSubject(importCourse, ""));
+      const selectedKpId = importKpId || importModuleId;
+      if (selectedKpId) form.append("knowledge_point_id", selectedKpId);
+      form.append("file", importFile);
+      const res = await fetch(`${API_BASE}/practice/import-paper/parse`, {
+        method: "POST",
+        body: form,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "识别失败");
+      const drafts = data.drafts || [];
+      setImportDrafts(drafts);
+      setImportOriginalFileName(data.original_file_name || importFile.name || "");
+      setImportSelected(Object.fromEntries(drafts.map((_, idx) => [idx, true])));
+    } catch (error) {
+      setImportError(error.message || "识别失败，请稍后重试");
+    } finally {
+      setImportLoading(false);
+    }
+  };
+  const confirmImportDrafts = async () => {
+    const selectedDrafts = importDrafts.filter((_, idx) => importSelected[idx]);
+    if (selectedDrafts.length === 0 || !user?.username) return;
+    setImportSaving(true);
+    setImportError("");
+    try {
+      const res = await fetch(`${API_BASE}/practice/import-paper/confirm`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: user.username,
+          course_id: normalizeSubject(importCourse, ""),
+          original_file_name: importOriginalFileName,
+          questions: selectedDrafts,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "导入失败");
+      setShowImportModal(false);
+      await loadQuestions();
+    } catch (error) {
+      setImportError(error.message || "导入失败，请稍后重试");
+    } finally {
+      setImportSaving(false);
+    }
   };
 
   return (
@@ -437,7 +568,7 @@ export default function PracticeCenter({
             </button>
             <button
               className="ghost-button compact practice-action-button"
-              onClick={() => setShowImportModal(true)}
+              onClick={openImportModal}
             >
               ⤴ 上传试卷识别
             </button>
@@ -616,11 +747,16 @@ export default function PracticeCenter({
                             {TYPE_LABELS[q.type] || q.type}
                           </span>
                           {q.difficulty && (
-                            <span className="subject-pill small practice-difficulty-pill">{q.difficulty}</span>
+                            <span className="subject-pill small practice-difficulty-pill">{DIFFICULTY_LABELS[q.difficulty] || q.difficulty}</span>
+                          )}
+                          {q.source_style && (
+                            <span className="subject-pill small practice-style-pill">
+                              {STYLE_LABELS[q.source_style] || q.source_style}
+                            </span>
                           )}
                           {q.source && (
                             <span className="subject-pill small practice-source-pill">
-                              {SOURCE_LABELS[q.source] || q.source}
+                              {q.source === "ai" ? "AI 原创生成" : (SOURCE_LABELS[q.source] || q.source)}
                             </span>
                           )}
                           <span className="history-meta">
@@ -673,7 +809,7 @@ export default function PracticeCenter({
               <h3>题库来源</h3>
               <div className="practice-source-actions">
                 <button type="button" onClick={openCreateModal}>手动录入题目</button>
-                <button type="button" onClick={() => setShowImportModal(true)}>上传试卷识别</button>
+                <button type="button" onClick={openImportModal}>上传试卷识别</button>
                 <button type="button" onClick={openGenerateModal}>AI 生成题目</button>
               </div>
             </div>
@@ -745,7 +881,7 @@ export default function PracticeCenter({
                   {TYPE_LABELS[detailQuestion.type] || detailQuestion.type}
                 </span>
                 {detailQuestion.difficulty && (
-                  <span className="subject-pill small">{detailQuestion.difficulty}</span>
+                  <span className="subject-pill small">{DIFFICULTY_LABELS[detailQuestion.difficulty] || detailQuestion.difficulty}</span>
                 )}
                 {detailQuestion.course_id && (
                   <span className="subject-pill small">
@@ -764,7 +900,7 @@ export default function PracticeCenter({
                   {detailQuestion.content}
                 </div>
 
-                {detailQuestion.type === "choice" && detailQuestion.options && (
+                {["choice", "single_choice", "multiple_choice", "true_false"].includes(detailQuestion.type) && detailQuestion.options && (
                   <div className="question-options">
                     {(detailQuestion.options || "").split("\n").filter(Boolean).map((opt, i) => (
                       <label key={i} className="question-option-label">
@@ -781,7 +917,7 @@ export default function PracticeCenter({
                   </div>
                 )}
 
-                {detailQuestion.type === "short_answer" && (
+                {["short_answer", "fill_blank"].includes(detailQuestion.type) && (
                   <textarea
                     className="field"
                     rows={4}
@@ -792,16 +928,31 @@ export default function PracticeCenter({
                 )}
               </div>
 
-              {detailQuestion.answer && (
+              {(detailQuestion.answer || detailQuestion.explanation) && (
                 <div className="question-answer-section">
-                  <strong>参考答案：</strong>
-                  <p>{detailQuestion.answer}</p>
-                </div>
-              )}
-              {detailQuestion.explanation && (
-                <div className="question-answer-section">
-                  <strong>解析：</strong>
-                  <p>{detailQuestion.explanation}</p>
+                  <button
+                    type="button"
+                    className="practice-answer-toggle"
+                    onClick={() => setShowAnswer((v) => !v)}
+                  >
+                    {showAnswer ? "隐藏答案与解析" : "查看答案与解析"}
+                  </button>
+                  {showAnswer && (
+                    <>
+                      {detailQuestion.answer && (
+                        <>
+                          <strong>参考答案：</strong>
+                          <p>{detailQuestion.answer}</p>
+                        </>
+                      )}
+                      {detailQuestion.explanation && (
+                        <>
+                          <strong>解析：</strong>
+                          <p>{detailQuestion.explanation}</p>
+                        </>
+                      )}
+                    </>
+                  )}
                 </div>
               )}
 
@@ -1125,9 +1276,11 @@ export default function PracticeCenter({
                 value={genType}
                 onChange={(e) => setGenType(e.target.value)}
               >
-                <option value="choice">选择题</option>
-                <option value="short_answer">简答题</option>
-                <option value="programming">编程题</option>
+                {TYPE_OPTIONS.filter((item) => item.value).map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
               </select>
 
               {genType === "programming" && (
@@ -1153,15 +1306,51 @@ export default function PracticeCenter({
                 ))}
               </select>
 
-              <label className="field-label">生成数量（1-5）</label>
-              <input
+              <label className="field-label">题型风格</label>
+              <select
                 className="field"
-                type="number"
-                min={1}
-                max={5}
+                value={genSourceStyle}
+                onChange={(e) => setGenSourceStyle(e.target.value)}
+              >
+                {STYLE_OPTIONS.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+
+              <label className="field-label">生成数量</label>
+              <select
+                className="field"
                 value={genCount}
-                onChange={(e) => setGenCount(Math.min(5, Math.max(1, parseInt(e.target.value) || 1)))}
-              />
+                onChange={(e) => setGenCount(Number(e.target.value))}
+              >
+                <option value={3}>3 道</option>
+                <option value={5}>5 道</option>
+                <option value={10}>10 道</option>
+              </select>
+
+              <div className="practice-generate-note">
+                AI 会参考经典计算机学习题型风格生成原创题，不会直接复制网站原题。
+              </div>
+
+              <label className="practice-toggle-row">
+                <input
+                  type="checkbox"
+                  checked={genRequireReasoning}
+                  onChange={(e) => setGenRequireReasoning(e.target.checked)}
+                />
+                <span>生成综合题 / 多步推理题</span>
+              </label>
+
+              <label className="practice-toggle-row">
+                <input
+                  type="checkbox"
+                  checked={genAvoidTooSimple}
+                  onChange={(e) => setGenAvoidTooSimple(e.target.checked)}
+                />
+                <span>避免简单概念题</span>
+              </label>
             </div>
             <div className="task-form-actions">
               <button
@@ -1193,21 +1382,169 @@ export default function PracticeCenter({
             </div>
             <div className="task-modal-body">
               <label className="field-label">课程</label>
-              <select className="field" value="" disabled>
-                <option value="">{selectedCourseLabel}</option>
+              <select
+                className="field"
+                value={importCourse}
+                onChange={(e) => {
+                  setImportCourse(e.target.value);
+                  setImportModuleId("");
+                  setImportKpId("");
+                }}
+              >
+                <option value="">不绑定课程</option>
+                {courseOptions.map((item) => (
+                  <option key={item} value={item}>
+                    {getSubjectLabel(item)}
+                  </option>
+                ))}
               </select>
-              <div className="practice-upload-guide">
-                <strong>试卷识别入口已预留</strong>
-                <p>
-                  下一阶段将接入后端解析接口，支持 PDF、图片、Word、TXT 上传后识别题目草稿，
-                  再由用户勾选导入题库。
-                </p>
-                <span>当前版本不会自动上传文件，也不会影响资料库。</span>
+
+              <div className="practice-kp-picker">
+                <label className="field-label">知识点模块（可选）</label>
+                {knowledgePointModules.length === 0 ? (
+                  <p className="practice-kp-empty">
+                    当前课程暂无知识点路线，可先在知识点学习中生成路线，或不绑定知识点。
+                  </p>
+                ) : (
+                  <>
+                    <select
+                      className="field"
+                      value={importModuleId}
+                      onChange={(e) => {
+                        setImportModuleId(e.target.value);
+                        setImportKpId("");
+                      }}
+                    >
+                      <option value="">不指定知识点模块</option>
+                      {knowledgePointModules.map((kp) => (
+                        <option key={kp.id} value={kp.id}>
+                          {kp.title}
+                        </option>
+                      ))}
+                    </select>
+
+                    <label className="field-label">小知识点（可选）</label>
+                    <select
+                      className="field"
+                      value={importKpId}
+                      onChange={(e) => setImportKpId(e.target.value)}
+                      disabled={!importModuleId || importModuleChildren.length === 0}
+                    >
+                      <option value="">
+                        {importModuleId ? "仅使用大模块" : "请先选择知识点模块"}
+                      </option>
+                      {importModuleChildren.map((kp) => (
+                        <option key={kp.id} value={kp.id}>
+                          {kp.title}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                )}
               </div>
+
+              <label className="field-label">试卷文件</label>
+              <input
+                className="field"
+                type="file"
+                accept=".pdf,.docx,.txt,.md,.markdown,.png,.jpg,.jpeg,.webp"
+                onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+              />
+              <div className="practice-upload-guide">
+                <strong>支持 PDF、图片、Word、TXT、Markdown</strong>
+                <p>文件只用于本次试卷识别，不会自动加入资料库。识别后可勾选并编辑题目草稿再导入。</p>
+              </div>
+
+              {importError && <div className="practice-import-error">{importError}</div>}
+
+              {importDrafts.length > 0 && (
+                <div className="practice-draft-list">
+                  <h4>识别结果草稿</h4>
+                  {importDrafts.map((draft, idx) => (
+                    <div key={idx} className="practice-draft-card">
+                      <label className="practice-draft-check">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(importSelected[idx])}
+                          onChange={(e) => setImportSelected((prev) => ({ ...prev, [idx]: e.target.checked }))}
+                        />
+                        <span>导入这道题</span>
+                      </label>
+                      <input
+                        className="field"
+                        value={draft.title || ""}
+                        onChange={(e) => updateImportDraft(idx, { title: e.target.value })}
+                        placeholder="题目标题"
+                      />
+                      <textarea
+                        className="field"
+                        rows={3}
+                        value={draft.question_text || ""}
+                        onChange={(e) => updateImportDraft(idx, { question_text: e.target.value })}
+                        placeholder="题干"
+                      />
+                      <div className="practice-draft-grid">
+                        <select
+                          className="field"
+                          value={draft.type || "short_answer"}
+                          onChange={(e) => updateImportDraft(idx, { type: e.target.value })}
+                        >
+                          {TYPE_OPTIONS.filter((item) => item.value).map((item) => (
+                            <option key={item.value} value={item.value}>{item.label}</option>
+                          ))}
+                        </select>
+                        <select
+                          className="field"
+                          value={draft.difficulty || "medium"}
+                          onChange={(e) => updateImportDraft(idx, { difficulty: e.target.value })}
+                        >
+                          {DIFFICULTY_OPTIONS.map((item) => (
+                            <option key={item.value} value={item.value}>{item.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <textarea
+                        className="field"
+                        rows={2}
+                        value={draft.options || ""}
+                        onChange={(e) => updateImportDraft(idx, { options: e.target.value })}
+                        placeholder="选项（如有）"
+                      />
+                      <input
+                        className="field"
+                        value={draft.answer || ""}
+                        onChange={(e) => updateImportDraft(idx, { answer: e.target.value })}
+                        placeholder="答案"
+                      />
+                      <textarea
+                        className="field"
+                        rows={2}
+                        value={draft.explanation || ""}
+                        onChange={(e) => updateImportDraft(idx, { explanation: e.target.value })}
+                        placeholder="解析"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="task-form-actions">
-              <button className="primary-button compact" onClick={() => setShowImportModal(false)}>
-                我知道了
+              <button className="ghost-button compact" onClick={() => setShowImportModal(false)}>
+                取消
+              </button>
+              <button
+                className="ghost-button compact"
+                disabled={!importFile || importLoading}
+                onClick={parseImportFile}
+              >
+                {importLoading ? "识别中..." : "开始识别"}
+              </button>
+              <button
+                className="primary-button compact"
+                disabled={importDrafts.length === 0 || importSaving}
+                onClick={confirmImportDrafts}
+              >
+                {importSaving ? "导入中..." : "导入题库"}
               </button>
             </div>
           </div>

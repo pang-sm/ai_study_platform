@@ -9049,6 +9049,9 @@ def serialize_question(q, knowledge_point_title=None):
         "explanation": q.explanation,
         "difficulty": q.difficulty,
         "source": q.source,
+        "source_style": getattr(q, "source_style", None),
+        "imported_from": getattr(q, "imported_from", None),
+        "original_file_name": getattr(q, "original_file_name", None),
         "created_at": serialize_datetime(q.created_at) if q.created_at else None,
         "updated_at": serialize_datetime(q.updated_at) if q.updated_at else None,
     }
@@ -9066,6 +9069,9 @@ def serialize_question_list_item(q, knowledge_point_title=None):
         "content": q.content,
         "difficulty": q.difficulty,
         "source": q.source,
+        "source_style": getattr(q, "source_style", None),
+        "imported_from": getattr(q, "imported_from", None),
+        "original_file_name": getattr(q, "original_file_name", None),
         "created_at": serialize_datetime(q.created_at) if q.created_at else None,
         "updated_at": serialize_datetime(q.updated_at) if q.updated_at else None,
     }
@@ -9102,7 +9108,7 @@ def list_questions(
     if knowledge_point_id is not None:
         query = query.filter(models.Question.knowledge_point_id == knowledge_point_id)
     qtype = (type or "").strip()
-    if qtype and qtype in ("choice", "short_answer", "programming"):
+    if qtype and qtype in ("choice", "single_choice", "multiple_choice", "true_false", "fill_blank", "short_answer", "programming"):
         query = query.filter(models.Question.type == qtype)
 
     questions = query.order_by(models.Question.updated_at.desc()).all()
@@ -9114,9 +9120,43 @@ def list_questions(
         for kp in kps:
             kp_map[kp.id] = kp.title
 
+    question_items = [serialize_question_list_item(q, knowledge_point_title=kp_map.get(q.knowledge_point_id)) for q in questions]
+
+    code_query = db.query(models.CodeChallenge).filter(models.CodeChallenge.username == user.username)
+    if normalized_course:
+        code_query = code_query.filter(models.CodeChallenge.course_id == normalized_course)
+    code_challenges = [] if knowledge_point_id is not None else code_query.order_by(models.CodeChallenge.created_at.desc()).limit(100).all()
+    code_items = []
+    for ch in code_challenges:
+        if qtype and qtype != "programming":
+            continue
+        code_items.append({
+            "id": f"code_{ch.id}",
+            "raw_id": ch.id,
+            "username": ch.username,
+            "course_id": ch.course_id,
+            "knowledge_point_id": None,
+            "knowledge_point_title": ch.knowledge_point or "",
+            "type": "programming",
+            "title": ch.title,
+            "content": ch.description,
+            "difficulty": ch.difficulty,
+            "source": "code_studio",
+            "language": ch.language,
+            "practice_url": "codeStudio",
+            "created_at": serialize_datetime(ch.created_at) if ch.created_at else None,
+            "updated_at": serialize_datetime(ch.created_at) if ch.created_at else None,
+        })
+
+    merged_items = sorted(
+        question_items + code_items,
+        key=lambda item: item.get("updated_at") or item.get("created_at") or "",
+        reverse=True,
+    )
+
     return {
         "success": True,
-        "questions": [serialize_question_list_item(q, knowledge_point_title=kp_map.get(q.knowledge_point_id)) for q in questions],
+        "questions": merged_items,
     }
 
 
@@ -9124,7 +9164,7 @@ def list_questions(
 def create_question(req: schemas.QuestionCreate, db: Session = Depends(get_db)):
     user = get_user_by_username(req.username, db)
     qtype = (req.type or "").strip()
-    if qtype not in ("choice", "short_answer", "programming"):
+    if qtype not in ("choice", "single_choice", "multiple_choice", "true_false", "fill_blank", "short_answer", "programming"):
         raise HTTPException(status_code=400, detail="无效的题型")
     title = (req.title or "").strip()
     if not title:
@@ -9145,11 +9185,159 @@ def create_question(req: schemas.QuestionCreate, db: Session = Depends(get_db)):
         explanation=(req.explanation or "").strip() or None,
         difficulty=req.difficulty or "基础",
         source=req.source or "manual",
+        source_style=(req.source_style or "").strip() or None,
+        imported_from=(req.imported_from or "").strip() or None,
+        original_file_name=(req.original_file_name or "").strip() or None,
     )
     db.add(question)
     db.commit()
     db.refresh(question)
     return {"success": True, "question": serialize_question(question)}
+
+
+def extract_practice_import_text(file_bytes: bytes, filename: str, content_type: str | None) -> str:
+    suffix = Path(filename or "").suffix.lower()
+    if suffix == ".pdf" or content_type == "application/pdf":
+        return extract_pdf_text(file_bytes)
+    if suffix in {".png", ".jpg", ".jpeg", ".webp"} or (content_type or "").startswith("image/"):
+        local_text = ""
+        try:
+            local_text = extract_image_text(file_bytes)
+        except HTTPException:
+            local_text = ""
+        if should_use_qwen_for_image(local_text) and is_qwen_enabled():
+            temp = tempfile.NamedTemporaryFile(suffix=suffix or ".png", delete=False)
+            temp_path = temp.name
+            try:
+                temp.write(file_bytes)
+                temp.close()
+                result = parse_image_with_qwen(temp_path)
+                return merge_image_extracted_text(local_text, result.get("extracted_text") or "")
+            finally:
+                try:
+                    Path(temp_path).unlink(missing_ok=True)
+                except OSError:
+                    pass
+        return local_text
+    from document_parser import extract_supported_file_text
+    try:
+        result = extract_supported_file_text(file_bytes, filename, content_type)
+        return result.get("text", "")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def normalize_paper_draft(item: dict, fallback_course_id: str, fallback_kp_id: int | None = None) -> dict:
+    qtype = normalize_question_type(str(item.get("type") or item.get("question_type") or "short_answer"), "short_answer")
+    content = str(item.get("question_text") or item.get("content") or "").strip()
+    title = str(item.get("title") or content[:32] or "识别题目").strip()
+    return {
+        "title": title[:255],
+        "question_text": content,
+        "type": qtype,
+        "options": str(item.get("options") or "").strip() or None,
+        "answer": str(item.get("answer") or "").strip() or None,
+        "explanation": str(item.get("explanation") or "").strip() or None,
+        "course_id": normalize_subject(str(item.get("course_id") or fallback_course_id), default=""),
+        "knowledge_point_id": item.get("knowledge_point_id") or fallback_kp_id,
+        "difficulty": normalize_question_difficulty(str(item.get("difficulty") or "medium"), "medium"),
+        "source": "paper_import",
+        "confidence": item.get("confidence", None),
+        "source_style": "exam",
+    }
+
+
+@app.post("/practice/import-paper/parse")
+async def parse_practice_paper(
+    username: str = Form(...),
+    course_id: str = Form(""),
+    knowledge_point_id: int | None = Form(None),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    user = get_user_by_username(username, db)
+    file_bytes = await file.read()
+    original_filename = file.filename or "未命名试卷"
+    if len(file_bytes) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="文件过大，当前最大支持 20MB")
+    suffix = Path(original_filename).suffix.lower()
+    if suffix not in {".pdf", ".docx", ".txt", ".md", ".markdown", ".png", ".jpg", ".jpeg", ".webp"}:
+        raise HTTPException(status_code=400, detail="仅支持 PDF、图片、Word(docx)、TXT、Markdown 文件")
+
+    extracted_text = extract_practice_import_text(file_bytes, original_filename, file.content_type)
+    if len((extracted_text or "").strip()) < 30:
+        raise HTTPException(status_code=400, detail="未能从文件中提取足够文本，请上传更清晰的试卷文件")
+
+    course_norm = normalize_subject(course_id, default="")
+    prompt = f"""请从以下试卷文本中识别练习题，输出 JSON 数组。每个元素字段：
+title, question_text, type(single_choice/multiple_choice/true_false/fill_blank/short_answer/programming), options, answer, explanation, difficulty(easy/medium/hard), confidence。
+要求：保留题干中的表格/代码/选项；如果答案缺失可留空；不要编造文件中不存在的题目。
+课程：{course_norm or '未指定'}
+试卷文件名：{original_filename}
+文本：
+{extracted_text[:12000]}"""
+
+    check_usage_limit(user.username, "question_generate", db)
+    try:
+        raw = call_deepseek([
+            {"role": "system", "content": "你是试卷题目结构化识别助手，只输出 JSON 数组。"},
+            {"role": "user", "content": prompt},
+        ])
+        record_ai_usage(user.username, "question_generate", db, estimated_tokens=estimate_tokens_from_text(raw), status="success")
+        parsed = extract_json_array(raw)
+    except Exception as exc:
+        record_ai_usage(user.username, "question_generate", db, status="failed", error_message=str(exc))
+        raise HTTPException(status_code=500, detail=f"试卷题目识别失败：{str(exc)}") from exc
+
+    drafts = [normalize_paper_draft(item, course_norm, knowledge_point_id) for item in parsed if isinstance(item, dict)]
+    drafts = [item for item in drafts if item["question_text"]]
+    if not drafts:
+        raise HTTPException(status_code=500, detail="未识别到可导入的题目草稿")
+    return {
+        "success": True,
+        "original_file_name": original_filename,
+        "drafts": drafts,
+        "message": f"已识别 {len(drafts)} 道题目草稿",
+    }
+
+
+@app.post("/practice/import-paper/confirm")
+def confirm_practice_paper_import(req: schemas.PaperImportConfirmRequest, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+    course_norm = normalize_subject(req.course_id, default="")
+    created = []
+    for draft in req.questions[:50]:
+        content = (draft.question_text or "").strip()
+        if not content:
+            continue
+        question = models.Question(
+            username=user.username,
+            course_id=normalize_subject(draft.course_id or course_norm, default="") or None,
+            knowledge_point_id=draft.knowledge_point_id,
+            type=normalize_question_type(draft.type, "short_answer"),
+            title=(draft.title or content[:32] or "试卷识别题目")[:255],
+            content=content,
+            options=(draft.options or "").strip() or None,
+            answer=(draft.answer or "").strip() or None,
+            explanation=(draft.explanation or "").strip() or None,
+            difficulty=normalize_question_difficulty(draft.difficulty, "medium"),
+            source="paper_import",
+            source_style=draft.source_style or "exam",
+            imported_from="paper_upload",
+            original_file_name=(req.original_file_name or "").strip() or None,
+        )
+        db.add(question)
+        created.append(question)
+    if not created:
+        raise HTTPException(status_code=400, detail="没有可导入的题目")
+    db.commit()
+    for q in created:
+        db.refresh(q)
+    return {
+        "success": True,
+        "questions": [serialize_question(q) for q in created],
+        "message": f"已导入 {len(created)} 道题目",
+    }
 
 
 @app.get("/practice/questions/{question_id}")
@@ -9491,38 +9679,156 @@ def get_practice_summary(
     }
 
 
-GENERATE_QUESTION_PROMPT = """你是教育题库生成助手。根据课程和知识点信息，生成练习题。
+GENERATE_QUESTION_PROMPT = """你是高质量计算机课程题库命题专家。你要参考经典计算机学习题型的结构和难度层次，生成原创题，严禁复制、改写或标注任何网站/教材原题来源。
 
-要求：
-1. 题目必须围绕指定的课程和知识点
-2. 题面清晰，不超纲
-3. 难度适中
-4. 选择题必须有 4 个选项（A/B/C/D），并标注标准答案
-5. 简答题必须有参考答案和解析
-6. 不生成需要运行代码的题
-7. 不生成需要外部文件或网络的题
-8. 输出严格 JSON 格式
+通用要求：
+1. 题目必须围绕指定课程、知识点、题型、难度和风格生成。
+2. 不要只问定义；即使是 easy，也要包含小判断、小计算、代码阅读或应用场景。
+3. medium 至少需要 2 步推理；hard 至少需要 3 步推理，并给出详细解析。
+4. 可参考 LeetCode、Codeforces、洛谷/牛客/PAT、OI Wiki、GFG、MIT OCW、CLRS、经典考试题的题型风格，但题目必须原创，不能出现“来自某网站某题”。
+5. 选择题必须有 A/B/C/D 四个选项，干扰项要有迷惑性且不能重复。
+6. medium/hard 题目必须至少包含一种：代码片段、数据表、图结构描述、输入输出样例、计算过程、多条件场景、复杂度分析、证明或反例。
+7. 解析不少于 30 个中文字符，要讲清思路、关键步骤和易错点。
+8. 输出严格 JSON 数组，不要 Markdown，不要额外解释。
 
-输出格式：
-如果是选择题：
-{"type": "choice", "title": "题目标题", "content": "题面内容", "options": "A. 选项1\\nB. 选项2\\nC. 选项3\\nD. 选项4", "answer": "A", "explanation": "解析说明"}
+课程适配：
+- 数据结构与算法：复杂度分析、树/图/堆/哈希/排序/DP/贪心/最短路等，可给小规模手算、伪代码阅读、原创经典题型变体。
+- 离散数学：集合、关系、函数、图论、组合计数、递推、证明思路，必须有计算或逻辑推理。
+- 操作系统：进程调度、死锁、页面置换、文件系统、同步互斥、信号量，可给表格数据计算。
+- 计算机组成：补码、浮点数、指令格式、流水线、cache、地址映射，优先计算型题目。
+- 数据库：SQL、关系代数、范式、事务并发、索引优化；SQL 题给表结构和样例数据。
+- Java/C/C++/Python：代码阅读、输出判断、bug 修复、边界条件、复杂度分析、基础编程题；编程题只生成题面，不在练习中心判题。
 
-如果是简答题：
-{"type": "short_answer", "title": "题目标题", "content": "题面内容", "answer": "参考答案", "explanation": "解析说明"}"""
+字段格式：
+[
+  {
+    "type": "choice|single_choice|multiple_choice|true_false|fill_blank|short_answer|programming",
+    "title": "题目标题",
+    "content": "完整题面，必要时包含代码/表格/样例",
+    "options": "A. ...\\nB. ...\\nC. ...\\nD. ...",
+    "answer": "标准答案",
+    "explanation": "详细解析",
+    "difficulty": "easy|medium|hard",
+    "source_style": "exam|leetcode|codeforces|textbook|interview|mixed"
+  }
+]"""
+
+
+QUESTION_TYPE_ALIASES = {
+    "choice": "choice",
+    "single_choice": "choice",
+    "multiple_choice": "multiple_choice",
+    "true_false": "true_false",
+    "fill_blank": "fill_blank",
+    "short_answer": "short_answer",
+    "programming": "programming",
+}
+
+DIFFICULTY_ALIASES = {
+    "基础": "easy",
+    "简单": "easy",
+    "easy": "easy",
+    "中等": "medium",
+    "标准": "medium",
+    "medium": "medium",
+    "提高": "hard",
+    "困难": "hard",
+    "hard": "hard",
+}
+
+
+def normalize_question_type(value: str | None, default: str = "short_answer") -> str:
+    raw = (value or default or "short_answer").strip()
+    return QUESTION_TYPE_ALIASES.get(raw, default)
+
+
+def normalize_question_difficulty(value: str | None, default: str = "medium") -> str:
+    raw = (value or default or "medium").strip()
+    return DIFFICULTY_ALIASES.get(raw, raw if raw in {"easy", "medium", "hard"} else default)
+
+
+def extract_json_array(raw_text: str) -> list:
+    text_value = raw_text or ""
+    json_match = re.search(r"\[[\s\S]*\]", text_value)
+    if json_match:
+        return json.loads(json_match.group(0))
+    obj_match = re.search(r"\{[\s\S]*\}", text_value)
+    if obj_match:
+        return [json.loads(obj_match.group(0))]
+    return []
+
+
+def split_question_options(options_text: str | None) -> list[str]:
+    if not options_text:
+        return []
+    lines = [line.strip() for line in str(options_text).replace("\r", "\n").split("\n") if line.strip()]
+    if len(lines) == 1 and "；" in lines[0]:
+        lines = [item.strip() for item in lines[0].split("；") if item.strip()]
+    return lines
+
+
+def has_reasoning_signal(text_value: str) -> bool:
+    markers = ("```", "for ", "while ", "if ", "SELECT", "表", "图", "树", "输入", "输出", "样例", "计算", "复杂度", "证明", "反例", "页面", "调度", "Cache", "cache", "SQL")
+    return any(marker in (text_value or "") for marker in markers)
+
+
+def validate_generated_question(item: dict, expected_type: str, difficulty: str) -> tuple[bool, str]:
+    qtype = normalize_question_type(str(item.get("type") or expected_type), expected_type)
+    content = str(item.get("content") or item.get("question_text") or "").strip()
+    explanation = str(item.get("explanation") or "").strip()
+    if count_chinese_characters(content) + count_alnum_characters(content) < 20:
+        return False, "题干过短"
+    if count_chinese_characters(explanation) + count_alnum_characters(explanation) < 30:
+        return False, "解析过短"
+    if qtype in {"choice", "multiple_choice", "true_false"}:
+        options = split_question_options(item.get("options"))
+        if qtype == "true_false" and len(options) < 2:
+            item["options"] = "A. 正确\nB. 错误"
+            options = split_question_options(item.get("options"))
+        if qtype in {"choice", "multiple_choice"} and len(options) != 4:
+            return False, "选择题选项数量不是 4"
+        normalized_opts = {re.sub(r"^[A-Da-d][\.、\)]\s*", "", opt).strip() for opt in options}
+        if len(normalized_opts) != len(options):
+            return False, "选项重复"
+        answer = str(item.get("answer") or "").strip()
+        if qtype == "choice" and answer and answer[0].upper() not in {"A", "B", "C", "D"}:
+            return False, "答案不在选项中"
+    if difficulty in {"medium", "hard"} and not has_reasoning_signal(content + "\n" + explanation):
+        return False, "缺少推理信号"
+    return True, ""
+
+
+def normalize_generated_question_item(item: dict, expected_type: str, difficulty: str, source_style: str) -> dict:
+    qtype = normalize_question_type(str(item.get("type") or expected_type), expected_type)
+    content = str(item.get("content") or item.get("question_text") or "").strip()
+    title = str(item.get("title") or content[:32] or "AI 原创题目").strip()
+    return {
+        "type": qtype,
+        "title": title[:255],
+        "content": content,
+        "options": str(item.get("options") or "").strip() or None,
+        "answer": str(item.get("answer") or "").strip() or None,
+        "explanation": str(item.get("explanation") or "").strip() or None,
+        "difficulty": normalize_question_difficulty(str(item.get("difficulty") or difficulty), difficulty),
+        "source_style": str(item.get("source_style") or source_style or "mixed").strip(),
+    }
 
 
 @app.post("/practice/questions/generate")
 def generate_questions(req: schemas.GenerateQuestionRequest, db: Session = Depends(get_db)):
     user = get_user_by_username(req.username, db)
-    count = min(max(req.count, 1), 5)
-    qtype = (req.type or "choice").strip()
-    if qtype not in ("choice", "short_answer"):
-        raise HTTPException(status_code=400, detail="AI 生成仅支持 choice 和 short_answer")
+    count = min(max(req.count, 1), 10)
+    qtype = normalize_question_type(req.type or "choice", "choice")
+    if qtype not in ("choice", "multiple_choice", "true_false", "fill_blank", "short_answer", "programming"):
+        raise HTTPException(status_code=400, detail="无效的题型")
 
     course_name = (req.course_name or req.course_id or "").strip()
     kp_title = (req.knowledge_point_title or "").strip()
     kp_id = req.knowledge_point_id
-    difficulty = (req.difficulty or "基础").strip()
+    difficulty = normalize_question_difficulty(req.difficulty or "medium", "medium")
+    source_style = (req.source_style or "mixed").strip()
+    if source_style not in {"exam", "leetcode", "codeforces", "textbook", "interview", "mixed"}:
+        source_style = "mixed"
 
     course_id = normalize_subject(req.course_id, default="") or None
     recommended_kp_id = None
@@ -9548,33 +9854,47 @@ def generate_questions(req: schemas.GenerateQuestionRequest, db: Session = Depen
 知识点：{kp_label}{weak_hint}
 题型：{qtype}
 难度：{difficulty}
+题型风格：{source_style}
+是否要求多步推理：{bool(req.require_reasoning)}
+是否避免简单概念题：{bool(req.avoid_too_simple)}
 数量：{count} 道
 
-请生成 {count} 道{qtype}类型的题目。{"如果选择题，请返回一个 JSON 对象数组。" if qtype == "choice" else "请返回一个 JSON 对象数组。"}
+请生成 {count} 道原创题。为了保证质量，可一次输出 {min(count * 2, 16)} 道候选题，但必须优先保证每题有场景、推理和详细解析。
 
 请直接输出 JSON 数组："""
 
     check_usage_limit(user.username, "question_generate", db)
 
     try:
-        ai_response = call_deepseek(
-            [
-                {"role": "system", "content": GENERATE_QUESTION_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ]
-        )
+        all_candidates = []
+        total_ai_text = ""
+        for attempt_index in range(2):
+            prompt = user_prompt if attempt_index == 0 else (
+                user_prompt + f"\n\n上一轮合格题不足，请补生成 {count} 道更具体、更有推理步骤的题，避免重复。"
+            )
+            ai_response = call_deepseek(
+                [
+                    {"role": "system", "content": GENERATE_QUESTION_PROMPT},
+                    {"role": "user", "content": prompt},
+                ]
+            )
+            total_ai_text += "\n" + ai_response
+            parsed_items = extract_json_array(ai_response)
+            if isinstance(parsed_items, list):
+                all_candidates.extend([item for item in parsed_items if isinstance(item, dict)])
+            valid_count = 0
+            seen_titles = set()
+            for item in all_candidates:
+                normalized = normalize_generated_question_item(item, qtype, difficulty, source_style)
+                ok, _ = validate_generated_question(normalized, qtype, difficulty)
+                if ok and normalized["title"] not in seen_titles:
+                    valid_count += 1
+                    seen_titles.add(normalized["title"])
+            if valid_count >= count:
+                break
 
-        record_ai_usage(user.username, "question_generate", db, estimated_tokens=estimate_tokens_from_text(ai_response), status="success")
-
-        json_match = re.search(r"\[[\s\S]*?\]", ai_response)
-        if json_match:
-            questions_data = json.loads(json_match.group(0))
-        else:
-            obj_match = re.search(r"\{[\s\S]*?\}", ai_response)
-            if obj_match:
-                questions_data = [json.loads(obj_match.group(0))]
-            else:
-                questions_data = []
+        record_ai_usage(user.username, "question_generate", db, estimated_tokens=estimate_tokens_from_text(total_ai_text), status="success")
+        questions_data = all_candidates
     except Exception as e:
         record_ai_usage(user.username, "question_generate", db, status="failed", error_message=str(e))
         raise HTTPException(status_code=500, detail=f"AI 生成题目失败，JSON 解析错误：{str(e)}")
@@ -9583,25 +9903,34 @@ def generate_questions(req: schemas.GenerateQuestionRequest, db: Session = Depen
         raise HTTPException(status_code=500, detail="AI 未能生成有效题目，请稍后重试")
 
     created = []
-    for item in questions_data[:count]:
-        gen_type = (str(item.get("type", qtype))).strip()
-        if gen_type not in ("choice", "short_answer"):
-            gen_type = qtype
+    seen_titles = set()
+    for item in questions_data:
+        normalized = normalize_generated_question_item(item, qtype, difficulty, source_style)
+        ok, _reason = validate_generated_question(normalized, qtype, difficulty)
+        if not ok or normalized["title"] in seen_titles:
+            continue
+        seen_titles.add(normalized["title"])
         question = models.Question(
             username=user.username,
             course_id=course_id,
             knowledge_point_id=kp_id,
-            type=gen_type,
-            title=str(item.get("title", "AI 生成题目"))[:255],
-            content=str(item.get("content", "")),
-            options=str(item.get("options", "")) or None,
-            answer=str(item.get("answer", "")) or None,
-            explanation=str(item.get("explanation", "")) or None,
-            difficulty=difficulty,
+            type=normalized["type"],
+            title=normalized["title"],
+            content=normalized["content"],
+            options=normalized["options"],
+            answer=normalized["answer"],
+            explanation=normalized["explanation"],
+            difficulty=normalized["difficulty"],
             source="ai",
+            source_style=normalized["source_style"],
         )
         db.add(question)
         created.append(question)
+        if len(created) >= count:
+            break
+
+    if not created:
+        raise HTTPException(status_code=500, detail="AI 生成的题目未通过质量检查，请提高题目数量或稍后重试")
 
     db.commit()
     for q in created:
