@@ -140,6 +140,7 @@ export default function PracticeCenter({
   const [importLoading, setImportLoading] = useState(false);
   const [importSaving, setImportSaving] = useState(false);
   const [importError, setImportError] = useState("");
+  const [importExtractMeta, setImportExtractMeta] = useState(null);
 
   const loadKnowledgePoints = async (courseId) => {
     if (!user?.username || !courseId) {
@@ -548,6 +549,28 @@ export default function PracticeCenter({
     setTypeFilter("");
   };
   const importModuleChildren = importModuleId ? getModuleChildren(importModuleId) : [];
+
+  const formatExtractMethodLabel = (meta) => {
+    if (!meta) return null;
+    const ft = meta.file_type || "";
+    const method = meta.extract_method || "local";
+    const qwenUsed = meta.qwen_used || false;
+
+    if (ft === "pdf" || ft === "docx" || ft === "txt" || ft === "md") {
+      if (qwenUsed && method === "qwen") return { label: "Qwen 视觉识别 + DeepSeek", cssClass: "extract-method-qwen" };
+      if (qwenUsed && method === "mixed") return { label: "文本提取 + Qwen 视觉补充 + DeepSeek", cssClass: "extract-method-mixed" };
+      if (ft === "pdf") return { label: "PDF 文本提取 + DeepSeek", cssClass: "extract-method-local" };
+      if (ft === "docx") return { label: "Word 文本提取 + DeepSeek", cssClass: "extract-method-local" };
+      return { label: "文本提取 + DeepSeek", cssClass: "extract-method-local" };
+    }
+    if (ft === "image") {
+      if (qwenUsed && method === "qwen") return { label: "Qwen 视觉识别 + DeepSeek", cssClass: "extract-method-qwen" };
+      if (qwenUsed && method === "mixed") return { label: "OCR 识别 + Qwen 视觉补充 + DeepSeek", cssClass: "extract-method-mixed" };
+      return { label: "OCR 文字识别 + DeepSeek", cssClass: "extract-method-local" };
+    }
+    return { label: "文本提取 + DeepSeek", cssClass: "extract-method-local" };
+  };
+
   const openImportModal = () => {
     setImportCourse(courseFilter || subject || "");
     setImportModuleId("");
@@ -558,6 +581,7 @@ export default function PracticeCenter({
     setImportPaperTitle("");
     setImportOriginalFileName("");
     setImportError("");
+    setImportExtractMeta(null);
     setShowImportModal(true);
   };
   const updateImportDraft = (index, patch) => {
@@ -585,6 +609,7 @@ export default function PracticeCenter({
       setImportPaperTitle(data.paper_title || data.original_file_name || importFile.name || "导入试卷");
       setImportOriginalFileName(data.original_file_name || importFile.name || "");
       setImportSelected(Object.fromEntries(drafts.map((_, idx) => [idx, true])));
+      setImportExtractMeta(data.extract_meta || null);
     } catch (error) {
       const errMsg = error.message || "识别失败，请稍后重试";
       if (errMsg.includes("Invalid \\escape") || errMsg.includes("JSON") || errMsg.includes("转义")) {
@@ -1693,6 +1718,14 @@ export default function PracticeCenter({
                     placeholder="请输入试卷名称"
                   />
                   <h4>识别结果草稿</h4>
+                  {importExtractMeta && formatExtractMethodLabel(importExtractMeta) && (
+                    <div className={`practice-extract-method-badge ${formatExtractMethodLabel(importExtractMeta).cssClass}`}>
+                      <span className="practice-extract-method-icon" aria-hidden="true">
+                        {importExtractMeta.qwen_used ? "🤖" : "📄"}
+                      </span>
+                      <span>{formatExtractMethodLabel(importExtractMeta).label}</span>
+                    </div>
+                  )}
                   {importDrafts.map((draft, idx) => (
                     <div key={idx} className="practice-draft-card">
                       <label className="practice-draft-check">

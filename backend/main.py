@@ -9226,16 +9226,57 @@ def create_question(req: schemas.QuestionCreate, db: Session = Depends(get_db)):
     return {"success": True, "question": serialize_question(question)}
 
 
-def extract_practice_import_text(file_bytes: bytes, filename: str, content_type: str | None) -> str:
+def extract_practice_import_text(file_bytes: bytes, filename: str, content_type: str | None) -> tuple[str, dict]:
+    """
+    从上传的试卷文件提取文本，返回 (extracted_text, meta)。
+
+    meta 包含：
+      - file_type: "pdf" | "image" | "docx" | "txt" | "md"
+      - extract_method: "local" | "qwen" | "mixed"
+      - qwen_used: bool
+      - parse_error: str | None
+    """
     suffix = Path(filename or "").suffix.lower()
+    meta = {"file_type": suffix.lstrip("."), "extract_method": "local", "qwen_used": False, "parse_error": None}
+
+    # ── PDF ──────────────────────────────────────────────────────
     if suffix == ".pdf" or content_type == "application/pdf":
-        return extract_pdf_text(file_bytes)
+        meta["file_type"] = "pdf"
+        # 用 fitz 优先提取（和资料库上传一致）
+        try:
+            total_pages, page_texts = extract_pdf_pages(file_bytes)
+        except HTTPException:
+            total_pages, page_texts = 0, []
+        extracted_text = build_pdf_text_from_pages(page_texts).strip()
+        meta["extract_method"] = "local"
+
+        # 如果文本不可用（扫描版 PDF），尝试 Qwen 视觉识别
+        if not is_pdf_text_usable(extracted_text, total_pages or get_pdf_total_pages(file_bytes)):
+            if is_qwen_enabled():
+                pdf_qwen_result = parse_scanned_pdf_with_qwen(file_bytes)
+                qwen_text = (pdf_qwen_result.get("text") or "").strip()
+                if qwen_text:
+                    had_local = bool(extracted_text)
+                    extracted_text = merge_pdf_extracted_text(extracted_text, qwen_text)
+                    meta["extract_method"] = "mixed" if had_local else "qwen"
+                    meta["qwen_used"] = True
+                    meta["parse_error"] = build_pdf_qwen_parse_error(
+                        pdf_qwen_result, total_pages or get_pdf_total_pages(file_bytes)
+                    )
+            else:
+                meta["parse_error"] = "PDF 文本提取不足，Qwen 视觉识别未启用"
+        return extracted_text.strip()[:MAX_PDF_CHARS], meta
+
+    # ── Image ────────────────────────────────────────────────────
     if suffix in {".png", ".jpg", ".jpeg", ".webp"} or (content_type or "").startswith("image/"):
+        meta["file_type"] = "image"
         local_text = ""
         try:
             local_text = extract_image_text(file_bytes)
         except HTTPException:
             local_text = ""
+        meta["extract_method"] = "local" if local_text.strip() else "failed"
+
         if should_use_qwen_for_image(local_text) and is_qwen_enabled():
             temp = tempfile.NamedTemporaryFile(suffix=suffix or ".png", delete=False)
             temp_path = temp.name
@@ -9243,17 +9284,24 @@ def extract_practice_import_text(file_bytes: bytes, filename: str, content_type:
                 temp.write(file_bytes)
                 temp.close()
                 result = parse_image_with_qwen(temp_path)
-                return merge_image_extracted_text(local_text, result.get("extracted_text") or "")
+                qwen_text = (result.get("extracted_text") or "").strip()
+                if qwen_text:
+                    meta["qwen_used"] = True
+                    meta["extract_method"] = "mixed" if local_text.strip() else "qwen"
+                    return merge_image_extracted_text(local_text, qwen_text).strip()[:MAX_OCR_CHARS], meta
             finally:
                 try:
                     Path(temp_path).unlink(missing_ok=True)
                 except OSError:
                     pass
-        return local_text
+        return local_text.strip()[:MAX_OCR_CHARS], meta
+
+    # ── Word / TXT / Markdown ────────────────────────────────────
     from document_parser import extract_supported_file_text
+    meta["file_type"] = suffix.lstrip(".") or "doc"
     try:
         result = extract_supported_file_text(file_bytes, filename, content_type)
-        return result.get("text", "")
+        return result.get("text", "").strip()[:MAX_PDF_CHARS], meta
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -9476,9 +9524,14 @@ async def parse_practice_paper(
     if suffix not in {".pdf", ".docx", ".txt", ".md", ".markdown", ".png", ".jpg", ".jpeg", ".webp"}:
         raise HTTPException(status_code=400, detail="仅支持 PDF、图片、Word(docx)、TXT、Markdown 文件")
 
-    extracted_text = extract_practice_import_text(file_bytes, original_filename, file.content_type)
+    extracted_text, extract_meta = extract_practice_import_text(file_bytes, original_filename, file.content_type)
     if len((extracted_text or "").strip()) < 30:
-        raise HTTPException(status_code=400, detail="未能从文件中提取足够文本，请上传更清晰的试卷文件")
+        parse_error = extract_meta.get("parse_error") or ""
+        hint = f"（{parse_error}）" if parse_error else ""
+        raise HTTPException(
+            status_code=400,
+            detail=f"未能从文件中提取足够文本，请上传更清晰的试卷文件。{hint}".strip(),
+        )
 
     course_norm = normalize_subject(course_id, default="")
     prompt = f"""请从以下试卷文本中识别练习题，输出 JSON 数组。每个元素字段：
@@ -9557,6 +9610,7 @@ title, question_text, type(single_choice/multiple_choice/true_false/fill_blank/s
         "original_file_name": original_filename,
         "drafts": drafts,
         "message": f"已识别 {len(drafts)} 道题目草稿",
+        "extract_meta": extract_meta,
     }
 
 
