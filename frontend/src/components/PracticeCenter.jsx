@@ -320,104 +320,234 @@ export default function PracticeCenter({
     return "q-type-prog";
   };
 
+  const isSameLocalDay = (dateLike) => {
+    if (!dateLike) return false;
+    const date = new Date(dateLike);
+    if (Number.isNaN(date.getTime())) return false;
+    const today = new Date();
+    return date.getFullYear() === today.getFullYear() &&
+      date.getMonth() === today.getMonth() &&
+      date.getDate() === today.getDate();
+  };
+
+  const isQuestionCompleted = (q) => {
+    const status = String(q.status || q.practice_status || q.state || "").toLowerCase();
+    return Boolean(q.completed || q.is_completed || q.done || q.finished) ||
+      status === "completed" ||
+      status === "done" ||
+      status === "finished" ||
+      Number(q.completed_attempts || 0) > 0;
+  };
+
+  const totalCount = questions.length;
+  const todayCount = questions.filter((q) =>
+    isSameLocalDay(q.last_attempt_at || q.last_practiced_at || q.updated_at || q.created_at)
+  ).length;
+  const completedCount = questions.filter(isQuestionCompleted).length;
+  const pendingCount = Math.max(totalCount - completedCount, 0);
+  const selectedCourseLabel = courseFilter ? getSubjectLabel(courseFilter) : "全部课程";
+  const selectedKnowledgePointLabel = kpFilter
+    ? (knowledgePoints.find((kp) => String(kp.id) === String(kpFilter)) || {}).title || "已选知识点"
+    : "全部知识点";
+  const selectedTypeLabel = (TYPE_OPTIONS.find((item) => item.value === typeFilter) || TYPE_OPTIONS[0]).label;
+  const openGenerateModal = () => {
+    setGenCourse(courseFilter || subject || "");
+    setGenCourseName("");
+    setGenKpId(kpFilter || "");
+    setGenType(typeFilter || "choice");
+    setGenDifficulty("基础");
+    setGenCount(1);
+    setShowGenerateModal(true);
+  };
+  const openCreateModal = () => {
+    resetCreateForm();
+    setShowCreateModal(true);
+  };
+
   return (
     <section className="chat-panel chat-panel--wide practice-panel">
-      <div className="panel-header panel-header--chat practice-header">
-        <div>
-          <div className="subject-pill panel-pill">练习中心</div>
+      <div className="practice-hero">
+        <div className="practice-hero-copy">
+          <div className="practice-hero-kicker">
+            <span className="practice-hero-icon" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 11l3 3L22 4" />
+                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+              </svg>
+            </span>
+            <span>核心练习模块</span>
+          </div>
           <h2>练习中心</h2>
+          <p>按课程、知识点和题型筛选练习，巩固薄弱知识点</p>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div className="practice-hero-actions">
           <button
-            className="primary-button compact"
-            onClick={() => {
-              resetCreateForm();
-              setShowCreateModal(true);
-            }}
+            className="primary-button compact practice-action-button"
+            onClick={openCreateModal}
           >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
             新建题目
           </button>
           <button
-            className="ghost-button compact"
-            onClick={() => {
-              setGenCourse(courseFilter || subject || "");
-              setGenCourseName("");
-              setGenKpId("");
-              setGenType("choice");
-              setGenDifficulty("基础");
-              setGenCount(1);
-              setShowGenerateModal(true);
-            }}
+            className="ghost-button compact practice-action-button practice-action-button--secondary"
+            onClick={openGenerateModal}
           >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 3l1.7 5.1L19 10l-5.3 1.9L12 17l-1.7-5.1L5 10l5.3-1.9L12 3z" />
+              <path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15z" />
+            </svg>
             AI 生成题目
           </button>
         </div>
       </div>
 
-      <div className="task-center-filters">
-        <div className="task-filter-item">
-          <label className="field-label">课程筛选</label>
-          <select
-            className="field"
-            value={courseFilter}
-            onChange={(e) => { setCourseFilter(e.target.value); setKpFilter(""); }}
-          >
-            <option value="">全部课程</option>
-            {courseOptions.map((item) => (
-              <option key={item} value={item}>
-                {getSubjectLabel(item)}
-              </option>
-            ))}
-          </select>
+      <div className="practice-overview-grid">
+        <div className="practice-stat-card">
+          <span className="practice-stat-icon practice-stat-icon--total" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M4 19.5V5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-1.5z" />
+              <path d="M8 7h6M8 11h8" />
+            </svg>
+          </span>
+          <div>
+            <strong>{totalCount}</strong>
+            <span>题目总数</span>
+          </div>
         </div>
-        <div className="task-filter-item">
-          <label className="field-label">知识点筛选</label>
-          <select
-            className="field"
-            value={kpFilter}
-            onChange={(e) => setKpFilter(e.target.value)}
-          >
-            <option value="">全部知识点</option>
-            {knowledgePoints.map((kp) => (
-              <option key={kp.id} value={kp.id}>
-                {kp.title}
-              </option>
-            ))}
-          </select>
+        <div className="practice-stat-card">
+          <span className="practice-stat-icon practice-stat-icon--today" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <rect x="3" y="4" width="18" height="17" rx="2" />
+              <path d="M8 2v4M16 2v4M3 10h18" />
+            </svg>
+          </span>
+          <div>
+            <strong>{todayCount}</strong>
+            <span>今日练习</span>
+          </div>
         </div>
-        <div className="task-filter-item">
-          <label className="field-label">题型筛选</label>
-          <select
-            className="field"
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
-          >
-            {TYPE_OPTIONS.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </select>
+        <div className="practice-stat-card">
+          <span className="practice-stat-icon practice-stat-icon--done" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 6L9 17l-5-5" />
+            </svg>
+          </span>
+          <div>
+            <strong>{completedCount}</strong>
+            <span>已完成</span>
+          </div>
         </div>
-        <button className="ghost-button compact" onClick={loadQuestions}>
-          刷新
-        </button>
+        <div className="practice-stat-card">
+          <span className="practice-stat-icon practice-stat-icon--pending" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 7v5l3 2" />
+            </svg>
+          </span>
+          <div>
+            <strong>{pendingCount}</strong>
+            <span>待练习</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="practice-filter-card">
+        <div className="practice-filter-head">
+          <div>
+            <h3>筛选练习</h3>
+            <p>快速定位当前要训练的课程、知识点和题型</p>
+          </div>
+          <button className="ghost-button compact practice-refresh-button" onClick={loadQuestions}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="23 4 23 10 17 10" />
+              <polyline points="1 20 1 14 7 14" />
+              <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10" />
+              <path d="M3.51 15a9 9 0 0 0 14.85 3.36L23 14" />
+            </svg>
+            刷新
+          </button>
+        </div>
+        <div className="task-center-filters practice-filters">
+          <div className="task-filter-item practice-filter-item">
+            <label className="field-label">课程筛选</label>
+            <select
+              className="field"
+              value={courseFilter}
+              onChange={(e) => { setCourseFilter(e.target.value); setKpFilter(""); }}
+            >
+              <option value="">全部课程</option>
+              {courseOptions.map((item) => (
+                <option key={item} value={item}>
+                  {getSubjectLabel(item)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="task-filter-item practice-filter-item">
+            <label className="field-label">知识点筛选</label>
+            <select
+              className="field"
+              value={kpFilter}
+              onChange={(e) => setKpFilter(e.target.value)}
+            >
+              <option value="">全部知识点</option>
+              {knowledgePoints.map((kp) => (
+                <option key={kp.id} value={kp.id}>
+                  {kp.title}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="task-filter-item practice-filter-item">
+            <label className="field-label">题型筛选</label>
+            <select
+              className="field"
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+            >
+              {TYPE_OPTIONS.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="practice-filter-summary">
+          当前筛选：{selectedCourseLabel} / {selectedKnowledgePointLabel} / {selectedTypeLabel}
+        </div>
       </div>
 
       {loading ? (
-        <div className="empty-state">加载中...</div>
+        <div className="empty-state practice-loading">加载中...</div>
       ) : questions.length === 0 ? (
         <div className="empty-inline practice-empty">
-          <p>当前筛选条件下没有题目。</p>
-          <button
-            className="primary-button compact"
-            onClick={() => {
-              resetCreateForm();
-              setShowCreateModal(true);
-            }}
-          >
-            创建第一道题目
-          </button>
+          <div className="practice-empty-icon" aria-hidden="true">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 11l2 2 4-4" />
+              <path d="M20 6v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h8" />
+              <path d="M16 4h4v4" />
+            </svg>
+          </div>
+          <h3>还没有匹配的练习题</h3>
+          <p>你可以新建题目，或让 AI 根据当前课程与知识点生成练习</p>
+          <div className="practice-empty-actions">
+            <button
+              className="primary-button compact practice-action-button"
+              onClick={openGenerateModal}
+            >
+              AI 生成题目
+            </button>
+            <button
+              className="ghost-button compact practice-action-button practice-action-button--secondary"
+              onClick={openCreateModal}
+            >
+              新建题目
+            </button>
+          </div>
+          <span className="practice-empty-tip">建议先选择具体知识点，AI 生成会更精准</span>
         </div>
       ) : (
         <div className="question-list">
@@ -431,23 +561,23 @@ export default function PracticeCenter({
                       {TYPE_LABELS[q.type] || q.type}
                     </span>
                     {q.difficulty && (
-                      <span className="subject-pill small">{q.difficulty}</span>
+                      <span className="subject-pill small practice-difficulty-pill">{q.difficulty}</span>
                     )}
                   </div>
                 </div>
                 <div className="question-card-meta">
                   {q.course_id && (
-                    <span className="subject-pill small">
+                    <span className="subject-pill small practice-course-pill">
                       {getSubjectLabel(q.course_id)}
                     </span>
                   )}
                   {q.knowledge_point_title && (
-                    <span className="subject-pill small" style={{ background: "#fef3c7", color: "#92400e" }}>
+                    <span className="subject-pill small practice-kp-pill">
                       {q.knowledge_point_title}
                     </span>
                   )}
                   {q.source && (
-                    <span className="subject-pill small" style={{ background: "#ecfdf5", color: "#065f46" }}>
+                    <span className="subject-pill small practice-source-pill">
                       {SOURCE_LABELS[q.source] || q.source}
                     </span>
                   )}
@@ -457,13 +587,15 @@ export default function PracticeCenter({
                 </div>
               </div>
               <div className="question-card-actions">
+                <button className="primary-button compact question-start-button" onClick={() => openDetail(q)}>
+                  开始练习
+                </button>
                 <button className="tiny-button" onClick={() => openDetail(q)}>
                   查看详情
                 </button>
                 <button
-                  className="tiny-button"
+                  className="tiny-button danger"
                   onClick={() => deleteQuestion(q)}
-                  style={{ color: "#dc2626" }}
                 >
                   删除
                 </button>
