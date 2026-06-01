@@ -266,6 +266,7 @@ class KnowledgePointCreate(BaseModel):
     username: str
     course_id: str
     parent_id: int | None = None
+    parent_node_key: str | None = None
     title: str
     description: str = ""
     order_index: int | None = None

@@ -8105,12 +8105,56 @@ def create_knowledge_point(req: schemas.KnowledgePointCreate, db: Session = Depe
                                    "status": progress.status if progress else "not_started"},
                 ),
             }
+    else:
+        legacy_existing = (
+            db.query(models.KnowledgePoint)
+            .filter(
+                models.KnowledgePoint.username == user.username,
+                models.KnowledgePoint.course_id == normalized_course,
+                models.KnowledgePoint.title == req.title,
+                models.KnowledgePoint.parent_id == req.parent_id,
+            )
+            .first()
+        )
+        if legacy_existing:
+            progress = (
+                db.query(models.UserKnowledgeProgress)
+                .filter(
+                    models.UserKnowledgeProgress.username == user.username,
+                    models.UserKnowledgeProgress.knowledge_point_id == legacy_existing.id,
+                )
+                .first()
+            )
+            return {
+                "success": True,
+                "knowledge_point": serialize_knowledge_point(
+                    legacy_existing,
+                    progress_info={
+                        "mastery_score": progress.mastery_score if progress else 0,
+                        "status": progress.status if progress else "not_started",
+                    },
+                ),
+            }
 
-    if req.parent_id:
+    parent_id = req.parent_id
+    if not parent_id and req.parent_node_key:
+        parent_by_node = (
+            db.query(models.KnowledgePoint)
+            .filter(
+                models.KnowledgePoint.username == user.username,
+                models.KnowledgePoint.course_id == normalized_course,
+                models.KnowledgePoint.node_key == req.parent_node_key,
+            )
+            .first()
+        )
+        if parent_by_node:
+            parent_id = parent_by_node.id
+
+    if parent_id:
         parent = (
             db.query(models.KnowledgePoint)
             .filter(
-                models.KnowledgePoint.id == req.parent_id,
+                models.KnowledgePoint.id == parent_id,
                 models.KnowledgePoint.username == user.username,
             )
             .first()
@@ -8129,8 +8173,8 @@ def create_knowledge_point(req: schemas.KnowledgePointCreate, db: Session = Depe
 
     level = req.level
     if level is None:
-        if req.parent_id:
-            parent = db.query(models.KnowledgePoint).filter(models.KnowledgePoint.id == req.parent_id).first()
+        if parent_id:
+            parent = db.query(models.KnowledgePoint).filter(models.KnowledgePoint.id == parent_id).first()
             level = (parent.level or 0) + 1 if parent else 0
         else:
             level = 0
@@ -8138,7 +8182,7 @@ def create_knowledge_point(req: schemas.KnowledgePointCreate, db: Session = Depe
     point = models.KnowledgePoint(
         username=user.username,
         course_id=normalized_course,
-        parent_id=req.parent_id,
+        parent_id=parent_id,
         title=req.title,
         description=req.description or "",
         order_index=req.order_index if req.order_index is not None else max_order,
@@ -8196,6 +8240,8 @@ def update_knowledge_point(
         point.order_index = req.order_index
     if req.level is not None:
         point.level = req.level
+    if req.node_key is not None:
+        point.node_key = req.node_key
     if req.parent_id is not None:
         if req.parent_id == point_id:
             raise HTTPException(status_code=400, detail="父知识点不能是自己")
@@ -8349,7 +8395,7 @@ def update_knowledge_point_progress(
     # Record manual_update event if score changed
     new_score = progress.mastery_score or 0
     if new_score != old_score:
-        apply_knowledge_progress_event(
+        event = models.KnowledgeProgressEvent(
             username=user.username,
             course_id=point.course_id,
             knowledge_point_id=point_id,
@@ -8357,8 +8403,9 @@ def update_knowledge_point_progress(
             delta=new_score - old_score,
             reason="用户手动调整掌握度",
             source_type="manual",
-            db=db,
+            created_at=utc_now(),
         )
+        db.add(event)
         db.commit()
 
     return {

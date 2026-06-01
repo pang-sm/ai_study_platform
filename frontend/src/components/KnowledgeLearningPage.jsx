@@ -26,12 +26,15 @@ const STATUS_MASTERY_SCORE = {
   not_started: 0,
 };
 
-function buildRouteNodeKey({ routeType, course, routeId, stageIndex, childIndex, title, parentTitle, type }) {
+function buildRouteNodeKey({ routeType, course, routeId, stageIndex, childIndex, type }) {
   const safe = (value) =>
     String(value || "")
       .trim()
       .replace(/\s+/g, "-")
       .replace(/[:：/\\?#&]/g, "-");
+
+  const stageNo = Number(stageIndex) + 1;
+  const childNo = Number(childIndex) + 1;
 
   const routePart =
     routeType === "platform"
@@ -39,9 +42,9 @@ function buildRouteNodeKey({ routeType, course, routeId, stageIndex, childIndex,
       : `material_route:${safe(course)}:${safe(routeId || "default")}`;
 
   if (type === "stage") {
-    return `${routePart}:stage:${stageIndex}:${safe(title)}`;
+    return `${routePart}:stage:${stageNo}`;
   }
-  return `${routePart}:stage:${stageIndex}:${safe(parentTitle || "")}:child:${childIndex}:${safe(title)}`;
+  return `${routePart}:stage:${stageNo}:child:${childNo}`;
 }
 
 function getStatusConfig(status) {
@@ -209,7 +212,7 @@ function RouteNodeCard({ node, index, isLast, onClick, isExpanded, onKnowledgePo
   const masteredChildren = children.filter((c) => normalizeKnowledgeStatus(c.status) === "mastered").length;
   const totalChildren = children.length;
   const progressPct = totalChildren > 0 ? Math.round((masteredChildren / totalChildren) * 100) : (node.status === "mastered" ? 100 : 0);
-  const parentDisabled = statusSavingId != null && (statusSavingId === node.backendId || statusSavingId === node.id);
+  const parentDisabled = statusSavingId != null && (statusSavingId === node.nodeKey || statusSavingId === node.backendId || statusSavingId === node.id);
 
   return (
     <div className={`kl-rnc-card${isExpanded ? " kl-rnc-card--expanded" : ""}${node.status === "mastered" ? " kl-rnc-card--mastered" : ""}${node.status === "learning" ? " kl-rnc-card--active" : ""}`}>
@@ -283,7 +286,7 @@ function RouteNodeCard({ node, index, isLast, onClick, isExpanded, onKnowledgePo
 
 function KnowledgePointItem({ kp, onClick, index, onStatusChange, statusSavingId }) {
   const cfg = getStatusConfig(kp.status);
-  const childDisabled = statusSavingId != null && (statusSavingId === kp.backendId || statusSavingId === kp.id);
+  const childDisabled = statusSavingId != null && (statusSavingId === kp.nodeKey || statusSavingId === kp.backendId || statusSavingId === kp.id);
   const normalizedStatus = normalizeKnowledgeStatus(kp.status);
 
   return (
@@ -490,6 +493,7 @@ export default function KnowledgeLearningPage({
   }, [hasPlannedRoute, course]);
 
   const [apiKnowledgePoints, setApiKnowledgePoints] = useState([]);
+  const [localStatusByNodeKey, setLocalStatusByNodeKey] = useState({});
 
   const fetchKnowledgePoints = async () => {
     if (!user?.username || !course) {
@@ -514,6 +518,10 @@ export default function KnowledgeLearningPage({
   }, [user?.username, course]);
 
   useEffect(() => {
+    setLocalStatusByNodeKey({});
+  }, [user?.username, course]);
+
+  useEffect(() => {
     if (user?.username && course) loadMaterials(course);
   }, [user?.username, course]);
 
@@ -525,11 +533,36 @@ export default function KnowledgeLearningPage({
     return map;
   }, [apiKnowledgePoints]);
 
+  const pointIdByNodeKey = useMemo(() => {
+    const map = new Map();
+    apiKnowledgePoints.forEach((point) => {
+      if (point.node_key) map.set(point.node_key, point.id);
+    });
+    return map;
+  }, [apiKnowledgePoints]);
+
+  const getStatusByNodeKey = (nodeKey) => {
+    const backendPoint = backendPointByNodeKey.get(nodeKey);
+    return normalizeKnowledgeStatus(
+      localStatusByNodeKey[nodeKey] ||
+      backendPoint?.progress?.status ||
+      backendPoint?.status ||
+      "not_started"
+    );
+  };
+
   const materialRouteNodes = useMemo(() => {
     if (apiKnowledgePoints.length > 0) {
       const nodes = [];
       const rootPoints = apiKnowledgePoints.filter((p) => !p.parent_id);
       rootPoints.forEach((root, stageIndex) => {
+        const rootNodeKey = root.node_key || buildRouteNodeKey({
+          routeType: "material",
+          course,
+          routeId: "default",
+          stageIndex,
+          type: "stage",
+        });
         const children = apiKnowledgePoints.filter((p) => p.parent_id === root.id);
         const childList = children.map((c, childIndex) => {
           const childNodeKey = c.node_key || buildRouteNodeKey({
@@ -542,46 +575,36 @@ export default function KnowledgeLearningPage({
             parentTitle: root.title,
             type: "child",
           });
+          const resolvedStatus = getStatusByNodeKey(childNodeKey);
           return {
             id: `kp-${c.id}`,
             backendId: c.id,
+            pointId: c.id,
             title: c.title,
-            status: normalizeKnowledgeStatus(c.status || "not_started"),
+            status: resolvedStatus,
             importance: "medium",
             parentBackendId: root.id,
             nodeKey: childNodeKey,
-            parentNodeKey: root.node_key || buildRouteNodeKey({
-              routeType: "material",
-              course,
-              routeId: "default",
-              stageIndex,
-              title: root.title,
-              type: "stage",
-            }),
+            parentNodeKey: rootNodeKey,
             type: "child",
             stageIndex,
             childIndex,
           };
         });
         const mastered = childList.filter((c) => c.status === "mastered").length;
-        const computedStatus = computeParentStatusFromChildren(childList) || normalizeKnowledgeStatus(root.status || "not_started");
+        const rootOwnStatus = getStatusByNodeKey(rootNodeKey);
+        const computedStatus = rootOwnStatus !== "not_started" ? rootOwnStatus : computeParentStatusFromChildren(childList);
         nodes.push({
           id: `kp-${root.id}`,
           backendId: root.id,
+          pointId: root.id,
           title: root.title,
           subtitle: root.description || "",
           knowledgePoints: childList,
           sourceType: "materials",
           status: computedStatus,
           progress: childList.length > 0 ? mastered / childList.length : 0,
-          nodeKey: root.node_key || buildRouteNodeKey({
-            routeType: "material",
-            course,
-            routeId: "default",
-            stageIndex,
-            title: root.title,
-            type: "stage",
-          }),
+          nodeKey: rootNodeKey,
           type: "stage",
           stageIndex,
         });
@@ -589,7 +612,7 @@ export default function KnowledgeLearningPage({
       if (nodes.length > 0) return nodes;
     }
     return [];
-  }, [apiKnowledgePoints, course]);
+  }, [apiKnowledgePoints, course, localStatusByNodeKey, backendPointByNodeKey]);
 
   const normalizedPlatformNodes = useMemo(() => {
     return platformRouteNodes.map((node, stageIndex) => {
@@ -602,7 +625,7 @@ export default function KnowledgeLearningPage({
         type: "stage",
       });
       const stageApiPoint = backendPointByNodeKey.get(stageNodeKey);
-      const parentBackendId = stageApiPoint?.id || null;
+      const parentBackendId = pointIdByNodeKey.get(stageNodeKey) || stageApiPoint?.id || null;
 
       const childPoints = (node.knowledgePoints || []).map((kp, childIndex) => {
         const kpTitle = typeof kp === "string" ? kp : kp.title || kp;
@@ -620,7 +643,7 @@ export default function KnowledgeLearningPage({
 
         // ONLY lookup by nodeKey — no title fallback
         const apiChild = backendPointByNodeKey.get(childNodeKey);
-        const resolvedStatus = normalizeKnowledgeStatus(apiChild?.status || "not_started");
+        const resolvedStatus = getStatusByNodeKey(childNodeKey);
 
         console.debug("[node-key:render-match]", {
           title: kpTitle,
@@ -632,7 +655,8 @@ export default function KnowledgeLearningPage({
 
         return {
           id: `${node.id}-${childIndex}`,
-          backendId: apiChild?.id || null,
+          backendId: pointIdByNodeKey.get(childNodeKey) || apiChild?.id || null,
+          pointId: pointIdByNodeKey.get(childNodeKey) || apiChild?.id || null,
           parentBackendId,
           parentTitle: node.title,
           parentSubtitle: node.subtitle || "",
@@ -647,8 +671,9 @@ export default function KnowledgeLearningPage({
         };
       });
 
-      const computedStatus = computeParentStatusFromChildren(childPoints) ||
-        normalizeKnowledgeStatus(stageApiPoint?.status || node.status);
+      const computedStatus = getStatusByNodeKey(stageNodeKey) !== "not_started"
+        ? getStatusByNodeKey(stageNodeKey)
+        : computeParentStatusFromChildren(childPoints);
 
       console.debug("[node-key:render-match]", {
         title: node.title,
@@ -662,6 +687,7 @@ export default function KnowledgeLearningPage({
       return {
         ...node,
         backendId: parentBackendId,
+        pointId: parentBackendId,
         status: computedStatus,
         knowledgePoints: childPoints,
         nodeKey: stageNodeKey,
@@ -669,7 +695,7 @@ export default function KnowledgeLearningPage({
         stageIndex,
       };
     });
-  }, [platformRouteNodes, course, backendPointByNodeKey]);
+  }, [platformRouteNodes, course, backendPointByNodeKey, pointIdByNodeKey, localStatusByNodeKey]);
 
   const routeNodes = activeRouteSource === "platform" ? normalizedPlatformNodes : materialRouteNodes;
 
@@ -695,13 +721,20 @@ export default function KnowledgeLearningPage({
     setSelectedKp(kp);
   };
 
-  const applyLocalKnowledgeStatus = (knowledgePointId, status) => {
+  const applyLocalKnowledgeStatus = (knowledgePointId, status, nodeKey = "") => {
+    const normalizedStatus = normalizeKnowledgeStatus(status);
+    if (nodeKey) {
+      setLocalStatusByNodeKey((prev) => ({
+        ...prev,
+        [nodeKey]: normalizedStatus,
+      }));
+    }
     setApiKnowledgePoints((prev) =>
       prev.map((point) =>
         point.id === knowledgePointId
           ? {
               ...point,
-              status: normalizeKnowledgeStatus(status),
+              status: normalizedStatus,
               mastery_score: STATUS_MASTERY_SCORE[status] ?? point.mastery_score ?? 0,
             }
           : point
@@ -709,13 +742,13 @@ export default function KnowledgeLearningPage({
     );
     setSelectedKp((prev) =>
       prev?.backendId === knowledgePointId
-        ? { ...prev, status: normalizeKnowledgeStatus(status), mastery_score: STATUS_MASTERY_SCORE[status] ?? prev.mastery_score ?? 0 }
+        ? { ...prev, status: normalizedStatus, mastery_score: STATUS_MASTERY_SCORE[status] ?? prev.mastery_score ?? 0 }
         : prev
     );
   };
 
   const createKnowledgePointRecord = async (item) => {
-    let parentId = item.parentBackendId || null;
+    let parentId = item.parentBackendId || (item.parentNodeKey ? pointIdByNodeKey.get(item.parentNodeKey) : null) || null;
 
     if (!parentId && item.parentNodeKey) {
       const existingParent = backendPointByNodeKey.get(item.parentNodeKey);
@@ -730,6 +763,7 @@ export default function KnowledgeLearningPage({
           description: item.parentSubtitle || "",
           level: 0,
           node_key: item.parentNodeKey,
+          parent_node_key: null,
         };
         console.debug("[node-key:create-payload]", { type: "parent", nodeKey: item.parentNodeKey, payload: parentPayload });
         const parentRes = await fetch("/api/knowledge-points", {
@@ -755,6 +789,7 @@ export default function KnowledgeLearningPage({
       description: item.subtitle || "",
       level: parentId ? 1 : 0,
       node_key: item.nodeKey || null,
+      parent_node_key: item.parentNodeKey || null,
     };
     console.debug("[node-key:create-payload]", { type: item.type || "point", nodeKey: item.nodeKey, payload });
 
@@ -770,114 +805,144 @@ export default function KnowledgeLearningPage({
     return point;
   };
 
+  const saveKnowledgeStatusByTarget = async (target, status) => {
+    const pointId = target.pointId || target.backendId || pointIdByNodeKey.get(target.nodeKey) || (await createKnowledgePointRecord(target))?.id;
+    if (!pointId) throw new Error("无法识别当前知识点，状态保存失败");
+
+    const requestBody = {
+      username: user.username,
+      status,
+      mastery_score: STATUS_MASTERY_SCORE[status] ?? 0,
+    };
+    console.debug("[node-key:update-request]", { pointId, nodeKey: target.nodeKey, body: requestBody });
+
+    const res = await fetch(`/api/knowledge-points/${pointId}/progress`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody),
+    });
+    const data = await res.json().catch(() => ({}));
+    console.debug("[node-key:update-response]", {
+      pointId,
+      nodeKey: target.nodeKey,
+      requestStatus: status,
+      responseNodeKey: data.progress?.node_key,
+      responseStatus: data.progress?.status,
+      finalDisplay: normalizeKnowledgeStatus(data.progress?.status || status),
+    });
+
+    if (!res.ok) throw new Error(data.detail || "状态保存失败");
+    const finalStatus = normalizeKnowledgeStatus(data.progress?.status || status);
+    applyLocalKnowledgeStatus(pointId, finalStatus, target.nodeKey);
+    return { pointId, status: finalStatus, data };
+  };
+
   const handleUpdateKnowledgeStatus = async (item, status, event) => {
     event?.preventDefault?.();
     event?.stopPropagation?.();
-    if (!user?.username || !item) return;
+    if (!user?.username || !item?.nodeKey) return;
 
-    console.debug("[node-key:update]", {
-      targetTitle: item.title,
-      targetType: item.type || (item.parentNodeKey ? "child" : "stage"),
+    const target = {
       nodeKey: item.nodeKey,
-      parentNodeKey: item.parentNodeKey,
+      parentNodeKey: item.parentNodeKey || "",
+      type: item.type || (item.parentNodeKey ? "child" : "stage"),
+      title: item.title,
+      stageIndex: item.stageIndex,
+      childIndex: item.childIndex,
+      pointId: item.pointId || item.backendId || pointIdByNodeKey.get(item.nodeKey) || null,
+      backendId: item.backendId || null,
+      parentBackendId: item.parentBackendId || null,
+      parentTitle: item.parentTitle,
+      parentSubtitle: item.parentSubtitle,
+      subtitle: item.subtitle,
+    };
+    console.debug("[node-key:update]", {
+      target,
       nextStatus: status,
     });
 
-    const oldPoint = item.backendId ? apiKnowledgePoints.find((point) => point.id === item.backendId) : null;
-    const oldStatus = oldPoint?.status || item.status || "not_started";
     const normalizedNewStatus = normalizeKnowledgeStatus(status);
-    const isParent = item.type === "stage" || (!item.parentNodeKey && !item.parentBackendId);
-    const shouldCascade = isParent && (normalizedNewStatus === "mastered" || normalizedNewStatus === "not_started" || normalizedNewStatus === "learning");
+    const isParent = target.type === "stage";
+    const parentNode = routeNodes.find((node) => node.nodeKey === target.nodeKey);
+    const parentForChild = !isParent
+      ? routeNodes.find((node) => (node.knowledgePoints || []).some((kp) => kp.nodeKey === target.nodeKey))
+      : null;
 
     setStatusError("");
-    setStatusSavingId(item.backendId || item.id);
+    setStatusSavingId(target.nodeKey);
+    setLocalStatusByNodeKey((prev) => ({
+      ...prev,
+      [target.nodeKey]: normalizedNewStatus,
+    }));
+    setSelectedKp((prev) =>
+      prev?.nodeKey === target.nodeKey ? { ...prev, status: normalizedNewStatus } : prev
+    );
+
+    let cascadeChildren = [];
+    if (isParent) {
+      cascadeChildren = (parentNode?.knowledgePoints || []).filter((child) => {
+        if (normalizedNewStatus === "learning") {
+          return getStatusByNodeKey(child.nodeKey) === "not_started";
+        }
+        return true;
+      });
+      if (cascadeChildren.length > 0) {
+        setLocalStatusByNodeKey((prev) => {
+          const next = { ...prev, [target.nodeKey]: normalizedNewStatus };
+          cascadeChildren.forEach((child) => {
+            next[child.nodeKey] = normalizedNewStatus;
+          });
+          return next;
+        });
+      }
+    }
 
     try {
-      const savedItem = item.backendId ? item : { ...item, backendId: (await createKnowledgePointRecord(item))?.id };
-      const knowledgePointId = savedItem.backendId;
-      if (!knowledgePointId) throw new Error("无法识别当前知识点，状态保存失败");
-      setSelectedKp((prev) => (prev?.id === item.id ? { ...prev, backendId: knowledgePointId, status } : prev));
+      const saved = await saveKnowledgeStatusByTarget(target, normalizedNewStatus);
+      setSelectedKp((prev) =>
+        prev?.nodeKey === target.nodeKey
+          ? { ...prev, backendId: saved.pointId, pointId: saved.pointId, status: saved.status }
+          : prev
+      );
 
-      applyLocalKnowledgeStatus(knowledgePointId, status);
-
-      const requestBody = {
-        username: user.username,
-        status,
-        mastery_score: STATUS_MASTERY_SCORE[status] ?? 0,
-      };
-      console.debug("[node-key:update-request]", { pointId: knowledgePointId, nodeKey: item.nodeKey, body: requestBody });
-
-      const res = await fetch(`/api/knowledge-points/${knowledgePointId}/progress`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody),
-      });
-      const data = await res.json();
-      console.debug("[node-key:update-response]", {
-        pointId: knowledgePointId,
-        nodeKey: item.nodeKey,
-        requestStatus: status,
-        responseNodeKey: data.progress?.node_key,
-        responseStatus: data.progress?.status,
-      });
-
-      if (!res.ok) throw new Error(data.detail || "状态保存失败");
-
-      const finalStatus = normalizeKnowledgeStatus(data.progress?.status || status);
-      applyLocalKnowledgeStatus(knowledgePointId, finalStatus);
-
-      if (shouldCascade) {
-        const children = apiKnowledgePoints.filter((p) => p.parent_id === knowledgePointId);
-        if (children.length > 0) {
-          const cascadeStatus = normalizedNewStatus;
-          const cascadeScore = STATUS_MASTERY_SCORE[cascadeStatus] ?? 0;
-          // When parent set to "learning", only update not_started children (keep mastered intact)
-          const childrenToUpdate = cascadeStatus === "learning"
-            ? children.filter((c) => normalizeKnowledgeStatus(c.status) === "not_started")
-            : children;
-          if (childrenToUpdate.length > 0) {
-            await Promise.all(childrenToUpdate.map((child) =>
-              fetch(`/api/knowledge-points/${child.id}/progress`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  username: user.username,
-                  status: cascadeStatus,
-                  mastery_score: cascadeScore,
-                }),
-              }).then((r) => r.json()).catch(() => null)
-            ));
-            childrenToUpdate.forEach((child) => applyLocalKnowledgeStatus(child.id, cascadeStatus));
-          }
-        }
-        await fetchKnowledgePoints();
+      if (isParent && cascadeChildren.length > 0) {
+        await Promise.all(cascadeChildren.map((child) =>
+          saveKnowledgeStatusByTarget(
+            {
+              ...child,
+              pointId: child.pointId || child.backendId || pointIdByNodeKey.get(child.nodeKey) || null,
+              parentBackendId: saved.pointId,
+            },
+            normalizedNewStatus
+          ).catch((error) => {
+            console.debug("[node-key:cascade-error]", { nodeKey: child.nodeKey, error: error.message });
+            return null;
+          })
+        ));
       }
 
-      if (!isParent) {
-        const targetPoint = apiKnowledgePoints.find((p) => p.id === knowledgePointId);
-        if (targetPoint?.parent_id) {
-          const parentId = targetPoint.parent_id;
-          const siblings = apiKnowledgePoints.filter((p) => p.parent_id === parentId);
-          const merged = siblings.map((s) =>
-            s.id === knowledgePointId ? { ...s, status: normalizedNewStatus } : s
-          );
-          const parentStatus = computeParentStatusFromChildren(merged);
-          if (parentStatus) {
-            applyLocalKnowledgeStatus(parentId, parentStatus);
-            await fetch(`/api/knowledge-points/${parentId}/progress`, {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                username: user.username,
-                status: parentStatus,
-                mastery_score: STATUS_MASTERY_SCORE[parentStatus] ?? 0,
-              }),
-            }).catch(() => {});
-          }
-        }
+      if (!isParent && parentForChild?.nodeKey) {
+        const siblings = parentForChild.knowledgePoints || [];
+        const mergedChildren = siblings.map((child) => ({
+          ...child,
+          status: child.nodeKey === target.nodeKey ? normalizedNewStatus : getStatusByNodeKey(child.nodeKey),
+        }));
+        const parentStatus = computeParentStatusFromChildren(mergedChildren);
+        setLocalStatusByNodeKey((prev) => ({
+          ...prev,
+          [parentForChild.nodeKey]: parentStatus,
+        }));
+        await saveKnowledgeStatusByTarget(
+          {
+            ...parentForChild,
+            pointId: parentForChild.pointId || parentForChild.backendId || pointIdByNodeKey.get(parentForChild.nodeKey) || null,
+          },
+          parentStatus
+        ).catch((error) => {
+          console.debug("[node-key:parent-sync-error]", { nodeKey: parentForChild.nodeKey, error: error.message });
+        });
       }
     } catch (error) {
-      if (item.backendId) applyLocalKnowledgeStatus(item.backendId, oldStatus);
       setStatusError(error.message || "状态保存失败，请稍后重试");
     } finally {
       setStatusSavingId(null);
@@ -907,6 +972,12 @@ export default function KnowledgeLearningPage({
         knowledgePointType: selectedKp.type || "child",
         knowledgePointStageIndex: selectedKp.stageIndex,
         knowledgePointChildIndex: selectedKp.childIndex,
+        nodeKey: selectedKp.nodeKey || "",
+        parentNodeKey: selectedKp.parentNodeKey || "",
+        pointId: selectedKp.pointId || selectedKp.backendId || null,
+        title: selectedKp.title,
+        nodeType: selectedKp.type || "child",
+        course,
         materialIds: parentNode?.materialIds || [],
         goal: config.goal || "systematic",
         difficulty: config.difficulty || "standard",

@@ -607,6 +607,14 @@ def ensure_knowledge_points_schema(conn):
         )
     )
     ensure_columns(conn, "knowledge_points", KNOWLEDGE_POINTS_COLUMNS)
+    conn.execute(
+        text(
+            """
+            CREATE INDEX IF NOT EXISTS idx_knowledge_points_user_course_node_key
+            ON knowledge_points (username, course_id, node_key)
+            """
+        )
+    )
 
 
 def ensure_user_knowledge_progress_schema(conn):

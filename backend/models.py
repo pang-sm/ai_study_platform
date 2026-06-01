@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, String, Text
 
 from database import Base
 
@@ -231,6 +231,9 @@ class LearningTask(Base):
 
 class KnowledgePoint(Base):
     __tablename__ = "knowledge_points"
+    __table_args__ = (
+        Index("idx_knowledge_points_user_course_node_key", "username", "course_id", "node_key"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(50), index=True, nullable=False)
