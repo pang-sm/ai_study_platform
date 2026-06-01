@@ -9644,6 +9644,7 @@ async def parse_practice_paper(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
+    t_start = time.perf_counter()
     user = get_user_by_username(username, db)
     file_bytes = await file.read()
     original_filename = file.filename or "未命名试卷"
@@ -9655,10 +9656,14 @@ async def parse_practice_paper(
     if suffix not in {".pdf", ".docx", ".txt", ".md", ".markdown", ".png", ".jpg", ".jpeg", ".webp"}:
         raise HTTPException(status_code=400, detail="仅支持 PDF、图片、Word(docx)、TXT、Markdown 文件")
 
+    t_extract = time.perf_counter()
     extracted_text, extract_meta = extract_practice_import_text(file_bytes, original_filename, file.content_type)
-    logger.info("[practice-paper-import] extracted_text_len=%d method=%s qwen_used=%s",
+    t_extract_elapsed = time.perf_counter() - t_extract
+    logger.info("[practice-paper-import] extracted_text_len=%d method=%s qwen_used=%s pages=%d/%d elapsed=%.2fs",
                 len((extracted_text or "").strip()), extract_meta.get("extract_method", "?"),
-                extract_meta.get("qwen_used", False))
+                extract_meta.get("qwen_used", False),
+                extract_meta.get("parsed_pages", 0), extract_meta.get("total_pages", 0),
+                t_extract_elapsed)
     if len((extracted_text or "").strip()) < 30:
         parse_error = extract_meta.get("parse_error") or ""
         hint = f"（{parse_error}）" if parse_error else ""
@@ -9717,10 +9722,14 @@ async def parse_practice_paper(
     paper_title = Path(original_filename).stem or "导入试卷"
     check_usage_limit(user.username, "question_generate", db)
     try:
+        logger.info("[practice-paper-import] deepseek start input_text_len=%d", len(extracted_text[:PRACTICE_PAPER_MAX_CHARS]))
+        t_deepseek = time.perf_counter()
         raw = call_deepseek([
             {"role": "system", "content": "你是试卷题目结构化识别助手，只输出 JSON 数组。"},
             {"role": "user", "content": prompt},
         ])
+        t_deepseek_elapsed = time.perf_counter() - t_deepseek
+        logger.info("[practice-paper-import] deepseek done elapsed=%.2fs output_len=%d", t_deepseek_elapsed, len(raw))
         record_ai_usage(user.username, "question_generate", db, estimated_tokens=estimate_tokens_from_text(raw), status="success")
         # 尝试多种解析方式，用 normalize_ai_paper_payload 统一结构
         parsed_object = extract_json_object(raw)
@@ -9770,6 +9779,9 @@ async def parse_practice_paper(
     if total_pages > 0:
         message_parts.append(f"（{parsed_pages}/{total_pages} 页）")
 
+    t_total = time.perf_counter() - t_start
+    logger.info("[practice-paper-import] done total_elapsed=%.2fs question_count=%d extract=%.2fs deepseek=%.2fs",
+                t_total, len(drafts), t_extract_elapsed, t_deepseek_elapsed)
     return {
         "success": True,
         "paper_title": paper_title,

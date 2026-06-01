@@ -183,6 +183,32 @@ export default function PracticeCenter({
     }
   };
 
+  // ── Body scroll lock when any modal/drawer is open ──
+  useEffect(() => {
+    const isLocked =
+      showCreateModal ||
+      showGenerateModal ||
+      showImportModal ||
+      !!paperDetail ||
+      !!detailQuestion;
+
+    if (!isLocked) return;
+
+    const prevOverflow = document.body.style.overflow;
+    const prevPaddingRight = document.body.style.paddingRight;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+
+    document.body.style.overflow = "hidden";
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.body.style.paddingRight = prevPaddingRight;
+    };
+  }, [showCreateModal, showGenerateModal, showImportModal, paperDetail, detailQuestion]);
+
   useEffect(() => {
     const normalizedCourse = normalizeSubject(courseFilter, "");
     loadKnowledgePoints(normalizedCourse);
@@ -643,7 +669,10 @@ export default function PracticeCenter({
         } else if (rawText.includes("502") || rawText.includes("Bad Gateway")) {
           throw new Error("后端服务暂时不可用（HTTP 502）。请稍后重试或联系管理员检查后端服务状态。");
         } else if (rawText.includes("504") || rawText.includes("Gateway Time-out")) {
-          throw new Error("试卷识别超时（HTTP 504）。文件可能较大或服务器繁忙，请重试或换一个更小的文件。");
+          throw new Error(
+            "试卷识别超时（HTTP 504）。文件不一定过大，可能是扫描识别或 AI 结构化耗时较长。" +
+            "建议上传文字版 PDF，或减少页数后重试。"
+          );
         } else if (rawText.includes("404") || rawText.includes("Not Found")) {
           throw new Error("试卷识别接口不存在（HTTP 404）。可能是接口路径变更，请联系管理员。");
         } else {
