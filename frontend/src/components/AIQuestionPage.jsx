@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import ChatMessage from "./ChatMessage.jsx";
+import MarkdownMessage from "./MarkdownMessage.jsx";
 import "./AIQuestionPage.css";
 
 const RECOMMENDATION_POOL = [
@@ -123,6 +124,11 @@ export default function AIQuestionPage({
   const [previewLoading, setPreviewLoading] = useState(false);
   const [kpStatusSaving, setKpStatusSaving] = useState(false);
   const [kpStatusError, setKpStatusError] = useState("");
+  const [isKpContextExpanded, setIsKpContextExpanded] = useState(false);
+
+  useEffect(() => {
+    setIsKpContextExpanded(false);
+  }, [pendingAIContext?.pointId, pendingAIContext?.knowledgePointTitle]);
 
   const refreshSuggestions = () => {
     const subjectLabel = getSubjectLabel(currentChatSubject);
@@ -406,6 +412,8 @@ export default function AIQuestionPage({
           ],
         };
         const questions = questionsByGoal[ctx.goal] || questionsByGoal.systematic;
+        const knowledgePointTitle = ctx.knowledgePointTitle || ctx.title || "当前知识点";
+        const knowledgePointDescription = ctx.knowledgePointDescription || ctx.description || "";
 
         // sendMessage(overrideText) bypasses async setState, sends exact text immediately
         const handleSendWithContext = (questionText) => {
@@ -529,7 +537,7 @@ export default function AIQuestionPage({
         };
 
         return (
-        <div className="aiqp-kp-context">
+        <div className={`aiqp-kp-context${isKpContextExpanded ? " aiqp-kp-context--expanded" : " aiqp-kp-context--collapsed"}`}>
           <div className="aiqp-kp-context-header">
             <div className="aiqp-kp-context-left">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round">
@@ -539,55 +547,104 @@ export default function AIQuestionPage({
               </svg>
               <span className="aiqp-kp-context-label">当前学习知识点</span>
             </div>
-            <button
-              className="aiqp-kp-context-close"
-              type="button"
-              onClick={() => setPendingAIContext(null)}
-              title="关闭"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
+            <div className="aiqp-kp-context-header-actions">
+              <button
+                className="aiqp-kp-context-toggle"
+                type="button"
+                onClick={() => setIsKpContextExpanded((v) => !v)}
+                aria-expanded={isKpContextExpanded}
+              >
+                {isKpContextExpanded ? "收起详情" : "展开详情"}
+                <svg
+                  className="aiqp-kp-context-toggle-icon"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+              <button
+                className="aiqp-kp-context-close"
+                type="button"
+                onClick={() => setPendingAIContext(null)}
+                title="关闭"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
           </div>
           <div className="aiqp-kp-context-body">
             <div className="aiqp-kp-context-info">
-              <p className="aiqp-kp-context-course">课程：{ctx.courseName}</p>
-              <p className="aiqp-kp-context-node">阶段：{ctx.nodeTitle || ctx.knowledgePointTitle}</p>
-              <p className="aiqp-kp-context-kp">知识点：{ctx.knowledgePointTitle}</p>
-              <p className="aiqp-kp-context-source">路线来源：{routeLabel}</p>
-              <div className="aiqp-kp-context-goal">
-                <span className="aiqp-kp-context-goal-label">学习目标：</span>
-                <span className="aiqp-kp-context-goal-badge">{goalLabel}</span>
-                <span className="aiqp-kp-context-goal-badge">{diffLabel}</span>
-                <span className="aiqp-kp-context-goal-badge">{depthLabel}</span>
-                <span className="aiqp-kp-context-goal-badge">{dailyTimeLabel}</span>
+              <div className="aiqp-kp-context-summary">
+                <div className="aiqp-kp-context-summary-main">
+                  <span className="aiqp-kp-context-summary-label">知识点</span>
+                  <div className="aiqp-kp-context-title">
+                    <MarkdownMessage content={knowledgePointTitle} />
+                  </div>
+                </div>
+                <div className="aiqp-kp-context-summary-meta">
+                  <span className="aiqp-kp-context-course">课程：{ctx.courseName || getSubjectLabel(ctx.course || ctx.courseId || subject)}</span>
+                  <span className="aiqp-kp-status-current">当前：{currentStatusLabel}</span>
+                </div>
               </div>
-              {ctx.examMode && (
-                <p className="aiqp-kp-context-exam">
-                  考试速成 · 距离考试：{examDaysLabel || ctx.examCustomDate || "未设置"}
-                </p>
+              {isKpContextExpanded && (
+                <div className="aiqp-kp-context-details">
+                  <div className="aiqp-kp-context-detail-row">
+                    <span className="aiqp-kp-context-detail-label">阶段：</span>
+                    <div className="aiqp-kp-context-detail-content">
+                      <MarkdownMessage content={ctx.nodeTitle || knowledgePointTitle} />
+                    </div>
+                  </div>
+                  <p className="aiqp-kp-context-source">路线来源：{routeLabel}</p>
+                  {knowledgePointDescription && (
+                    <div className="aiqp-kp-context-description">
+                      <span className="aiqp-kp-context-detail-label">知识点说明：</span>
+                      <MarkdownMessage content={knowledgePointDescription} />
+                    </div>
+                  )}
+                  <div className="aiqp-kp-context-goal">
+                    <span className="aiqp-kp-context-goal-label">学习目标：</span>
+                    <span className="aiqp-kp-context-goal-badge">{goalLabel}</span>
+                    <span className="aiqp-kp-context-goal-badge">{diffLabel}</span>
+                    <span className="aiqp-kp-context-goal-badge">{depthLabel}</span>
+                    <span className="aiqp-kp-context-goal-badge">{dailyTimeLabel}</span>
+                  </div>
+                  {ctx.examMode && (
+                    <p className="aiqp-kp-context-exam">
+                      考试速成 · 距离考试：{examDaysLabel || ctx.examCustomDate || "未设置"}
+                    </p>
+                  )}
+                </div>
               )}
             </div>
-            <div className="aiqp-kp-context-suggestions">
-              <p className="aiqp-kp-suggest-label">推荐问题（{goalLabel}）</p>
-              {questions.map((q) => (
-                <button
-                  key={q}
-                  className="aiqp-kp-suggest-btn"
-                  type="button"
-                  onClick={() => handleSendWithContext(q)}
-                >
-                  {q}
-                </button>
-              ))}
-            </div>
+            {isKpContextExpanded && (
+              <div className="aiqp-kp-context-suggestions">
+                <p className="aiqp-kp-suggest-label">推荐问题（{goalLabel}）</p>
+                {questions.map((q) => (
+                  <button
+                    key={q}
+                    className="aiqp-kp-suggest-btn"
+                    type="button"
+                    onClick={() => handleSendWithContext(q)}
+                  >
+                    <MarkdownMessage content={q} />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           {/* Knowledge point status marking */}
           <div className="aiqp-kp-context-status">
             <span className="aiqp-kp-status-label">这个知识点学得怎么样？</span>
-            <span className="aiqp-kp-status-current">当前：{currentStatusLabel}</span>
             <div className="aiqp-kp-status-btns">
               {KNOWLEDGE_STATUS_OPTIONS.map((btn) => {
                 const active = currentStatus === btn.status;
@@ -956,7 +1013,7 @@ export default function AIQuestionPage({
                     className="aiqp-suggestion-item"
                     onClick={() => setMessage(q)}
                   >
-                    {q}
+                    <MarkdownMessage content={q} />
                   </button>
                 ))}
               </div>
