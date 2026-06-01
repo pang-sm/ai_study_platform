@@ -10286,30 +10286,46 @@ def update_question(question_id: int, req: schemas.QuestionUpdate, db: Session =
     if not question:
         raise HTTPException(status_code=404, detail="题目不存在")
 
-    if req.type is not None:
+    updated_fields = getattr(req, "model_fields_set", getattr(req, "__fields_set__", set()))
+
+    if "type" in updated_fields:
         new_type = (req.type or "").strip()
         if new_type not in ("choice", "single_choice", "multiple_choice", "true_false", "fill_blank", "short_answer", "programming", "unknown"):
             raise HTTPException(status_code=400, detail="无效的题型")
         question.type = new_type
-    if req.title is not None:
+    if "title" in updated_fields:
         question.title = (req.title or "").strip()[:255]
-    if req.content is not None:
+    if "content" in updated_fields:
         question.content = (req.content or "").strip()
-    if req.options is not None:
-        question.options = (req.options or "").strip() or None
-    if req.answer is not None:
+    if "options" in updated_fields:
+        if isinstance(req.options, list):
+            option_lines = []
+            for idx, option in enumerate(req.options):
+                fallback_label = chr(ord("A") + idx)
+                if isinstance(option, dict):
+                    label = str(option.get("label") or fallback_label).strip().rstrip(".、)")
+                    content = str(option.get("content") or option.get("text") or "").strip()
+                else:
+                    label = fallback_label
+                    content = str(option or "").strip()
+                if content:
+                    option_lines.append(f"{label.upper()}. {content}")
+            question.options = "\n".join(option_lines) or None
+        else:
+            question.options = (req.options or "").strip() or None
+    if "answer" in updated_fields:
         question.answer = (req.answer or "").strip() or None
-    if req.explanation is not None:
+    if "explanation" in updated_fields:
         question.explanation = (req.explanation or "").strip() or None
-    if req.difficulty is not None:
-        question.difficulty = req.difficulty
-    if req.question_order is not None:
+    if "difficulty" in updated_fields:
+        question.difficulty = (req.difficulty or "").strip() or None
+    if "question_order" in updated_fields and req.question_order is not None:
         question.question_order = req.question_order
-    if req.raw_text is not None:
+    if "raw_text" in updated_fields:
         question.raw_text = (req.raw_text or "").strip() or None
-    if req.course_id is not None:
+    if "course_id" in updated_fields:
         question.course_id = normalize_subject(req.course_id, default="") or None
-    if req.knowledge_point_id is not None:
+    if "knowledge_point_id" in updated_fields:
         question.knowledge_point_id = req.knowledge_point_id
 
     question.updated_at = utc_now()

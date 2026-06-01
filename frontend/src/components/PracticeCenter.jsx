@@ -20,6 +20,8 @@ const DIFFICULTY_OPTIONS = [
   { value: "hard", label: "困难" },
 ];
 
+const OPTION_LABELS = ["A", "B", "C", "D"];
+
 const STYLE_OPTIONS = [
   { value: "exam", label: "考试题" },
   { value: "leetcode", label: "算法刷题" },
@@ -38,6 +40,31 @@ const TYPE_LABELS = {
   short_answer: "简答题",
   programming: "编程题",
 };
+
+const isChoiceLikeType = (type) => ["choice", "single_choice", "multiple_choice", "true_false"].includes(type);
+
+const parseOptionItems = (optionsText = "") => {
+  const parsed = (optionsText || "")
+    .split("\n")
+    .map((line, index) => {
+      const text = line.trim();
+      const match = text.match(/^([A-Z])[\.\、\)]?\s*(.*)$/i);
+      return {
+        label: (match?.[1] || OPTION_LABELS[index] || String.fromCharCode(65 + index)).toUpperCase(),
+        content: (match?.[2] ?? text).trim(),
+      };
+    })
+    .filter((item) => item.label || item.content);
+
+  const byLabel = new Map(parsed.map((item) => [item.label, item.content]));
+  return OPTION_LABELS.map((label) => ({ label, content: byLabel.get(label) || "" }));
+};
+
+const formatOptionItems = (items) =>
+  (items || [])
+    .filter((item) => (item.content || "").trim())
+    .map((item) => `${item.label}. ${item.content.trim()}`)
+    .join("\n");
 
 const DIFFICULTY_LABELS = {
   easy: "简单",
@@ -102,6 +129,13 @@ export default function PracticeCenter({
   const [expandedPaperQuestions, setExpandedPaperQuestions] = useState({});
   const [paperLoading, setPaperLoading] = useState(false);
   const [aiExplainLoadingId, setAiExplainLoadingId] = useState(null);
+  const [editingQuestion, setEditingQuestion] = useState(null);
+  const [editQuestionForm, setEditQuestionForm] = useState(null);
+  const [editModuleId, setEditModuleId] = useState("");
+  const [editKpId, setEditKpId] = useState("");
+  const [editOptionItems, setEditOptionItems] = useState(parseOptionItems(""));
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState("");
 
   // Create modal
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -152,7 +186,7 @@ export default function PracticeCenter({
   const loadKnowledgePoints = async (courseId) => {
     if (!user?.username || !courseId) {
       setKnowledgePoints([]);
-      return;
+      return [];
     }
     try {
       const res = await fetch(
@@ -160,11 +194,14 @@ export default function PracticeCenter({
       );
       const data = await res.json();
       if (res.ok) {
-        setKnowledgePoints(data.knowledge_points || []);
+        const items = data.knowledge_points || [];
+        setKnowledgePoints(items);
+        return items;
       }
     } catch (e) {
       console.error("Failed to load knowledge points:", e);
     }
+    return [];
   };
 
   const loadQuestions = async () => {
@@ -195,6 +232,7 @@ export default function PracticeCenter({
       showCreateModal ||
       showGenerateModal ||
       showImportModal ||
+      !!editingQuestion ||
       !!paperDetail ||
       !!detailQuestion;
 
@@ -213,7 +251,7 @@ export default function PracticeCenter({
       document.body.style.overflow = prevOverflow;
       document.body.style.paddingRight = prevPaddingRight;
     };
-  }, [showCreateModal, showGenerateModal, showImportModal, paperDetail, detailQuestion]);
+  }, [showCreateModal, showGenerateModal, showImportModal, editingQuestion, paperDetail, detailQuestion]);
 
   useEffect(() => {
     const normalizedCourse = normalizeSubject(courseFilter, "");
@@ -270,6 +308,11 @@ export default function PracticeCenter({
     } catch (e) {
       console.error("Failed to load question detail:", e);
     }
+  };
+
+  const startPracticeFromPaper = (question) => {
+    setPaperDetail(null);
+    openDetail(question);
   };
 
   const loadAttempts = async (questionId) => {
@@ -519,6 +562,97 @@ export default function PracticeCenter({
     }
   };
 
+  const buildEditFormFromQuestion = (question) => ({
+    title: question.title || "",
+    type: question.type || "short_answer",
+    difficulty: question.difficulty || "medium",
+    course_id: normalizeSubject(question.course_id || paperDetail?.course_id || courseFilter || subject || "", ""),
+    content: question.content || "",
+    answer: question.answer || "",
+    explanation: question.explanation || "",
+    raw_text: question.raw_text || "",
+  });
+
+  const openEditQuestion = async (question) => {
+    if (!question) return;
+    const form = buildEditFormFromQuestion(question);
+    setEditingQuestion(question);
+    setEditQuestionForm(form);
+    setEditOptionItems(parseOptionItems(question.options || ""));
+    setEditError("");
+
+    let points = knowledgePoints;
+    if (form.course_id) {
+      points = await loadKnowledgePoints(form.course_id);
+    }
+    const kpId = question.knowledge_point_id ? String(question.knowledge_point_id) : "";
+    const selectedKp = points.find((kp) => String(kp.id) === kpId);
+    if (selectedKp?.parent_id) {
+      setEditModuleId(String(selectedKp.parent_id));
+      setEditKpId(kpId);
+    } else {
+      setEditModuleId(kpId);
+      setEditKpId("");
+    }
+  };
+
+  const closeEditQuestion = () => {
+    setEditingQuestion(null);
+    setEditQuestionForm(null);
+    setEditError("");
+    setEditModuleId("");
+    setEditKpId("");
+    setEditOptionItems(parseOptionItems(""));
+  };
+
+  const updateQuestionInState = (updatedQuestion) => {
+    if (!updatedQuestion?.id) return;
+    setQuestions((items) => items.map((item) => (item.id === updatedQuestion.id ? { ...item, ...updatedQuestion } : item)));
+    setPaperQuestions((items) => items.map((item) => (item.id === updatedQuestion.id ? { ...item, ...updatedQuestion } : item)));
+    if (detailQuestion?.id === updatedQuestion.id) {
+      setDetailQuestion((current) => ({ ...current, ...updatedQuestion }));
+    }
+  };
+
+  const saveEditedQuestion = async () => {
+    if (!editingQuestion?.id || !editQuestionForm || !user?.username) return;
+    if (!editQuestionForm.title.trim() || !editQuestionForm.content.trim()) {
+      setEditError("题目标题和题干不能为空");
+      return;
+    }
+    setEditSaving(true);
+    setEditError("");
+    try {
+      const selectedKpId = editKpId || editModuleId;
+      const body = {
+        username: user.username,
+        title: editQuestionForm.title.trim(),
+        type: editQuestionForm.type,
+        difficulty: editQuestionForm.difficulty,
+        course_id: normalizeSubject(editQuestionForm.course_id, ""),
+        knowledge_point_id: selectedKpId ? parseInt(selectedKpId, 10) : null,
+        content: editQuestionForm.content.trim(),
+        options: isChoiceLikeType(editQuestionForm.type) ? formatOptionItems(editOptionItems) || null : null,
+        answer: editQuestionForm.answer.trim() || null,
+        explanation: editQuestionForm.explanation.trim() || null,
+        raw_text: editQuestionForm.raw_text.trim() || null,
+      };
+      const res = await fetch(`${API_BASE}/practice/questions/${editingQuestion.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "保存失败");
+      updateQuestionInState(data.question);
+      closeEditQuestion();
+    } catch (e) {
+      setEditError(e.message || "保存失败，请稍后重试");
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
   const getTypeClass = (type) => {
     if (type === "choice" || type === "single_choice" || type === "multiple_choice" || type === "true_false") return "q-type-choice";
     if (type === "short_answer") return "q-type-short";
@@ -566,6 +700,7 @@ export default function PracticeCenter({
       .sort((a, b) => (Number(a.order_index || a.sort_order || 0) - Number(b.order_index || b.sort_order || 0)) || String(a.title || "").localeCompare(String(b.title || ""), "zh-CN"));
   const createModuleChildren = createModuleId ? getModuleChildren(createModuleId) : [];
   const genModuleChildren = genModuleId ? getModuleChildren(genModuleId) : [];
+  const editModuleChildren = editModuleId ? getModuleChildren(editModuleId) : [];
   const goCodeStudio = () => setPage("codeStudio");
   const openGenerateModal = () => {
     setGenCourse(courseFilter || subject || "");
@@ -1410,7 +1545,8 @@ export default function PracticeCenter({
 
                       {/* 操作按钮 */}
                       <div className="exam-question-actions">
-                        <button className="ghost-button compact" onClick={() => openDetail(q)}>编辑 / 练习</button>
+                        <button className="ghost-button compact" onClick={() => openEditQuestion(q)}>编辑题目</button>
+                        <button className="primary-button compact" onClick={() => startPracticeFromPaper(q)}>开始练习</button>
                         <button
                           className="ghost-button compact"
                           disabled={aiExplainLoadingId === q.id}
@@ -1423,6 +1559,181 @@ export default function PracticeCenter({
                   );
                 })
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Question Edit Modal */}
+      {editingQuestion && editQuestionForm && (
+        <div className="modal-overlay question-edit-overlay" onClick={closeEditQuestion}>
+          <div className="modal-card question-edit-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>编辑题目</h3>
+              <button className="modal-close" onClick={closeEditQuestion}>
+                &times;
+              </button>
+            </div>
+            <div className="task-modal-body question-edit-body">
+              {editError && <div className="practice-import-error">{editError}</div>}
+
+              <label className="field-label">题目标题 *</label>
+              <input
+                className="field"
+                value={editQuestionForm.title}
+                onChange={(e) => setEditQuestionForm((form) => ({ ...form, title: e.target.value }))}
+                placeholder="请输入题目标题"
+              />
+
+              <div className="question-edit-grid">
+                <div>
+                  <label className="field-label">题型</label>
+                  <select
+                    className="field"
+                    value={editQuestionForm.type}
+                    onChange={(e) => setEditQuestionForm((form) => ({ ...form, type: e.target.value }))}
+                  >
+                    {TYPE_OPTIONS.filter((item) => item.value).map((item) => (
+                      <option key={item.value} value={item.value}>{item.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="field-label">难度</label>
+                  <select
+                    className="field"
+                    value={editQuestionForm.difficulty}
+                    onChange={(e) => setEditQuestionForm((form) => ({ ...form, difficulty: e.target.value }))}
+                  >
+                    {DIFFICULTY_OPTIONS.map((item) => (
+                      <option key={item.value} value={item.value}>{item.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <label className="field-label">课程</label>
+              <select
+                className="field"
+                value={editQuestionForm.course_id}
+                onChange={async (e) => {
+                  const nextCourse = e.target.value;
+                  setEditQuestionForm((form) => ({ ...form, course_id: nextCourse }));
+                  setEditModuleId("");
+                  setEditKpId("");
+                  await loadKnowledgePoints(normalizeSubject(nextCourse, ""));
+                }}
+              >
+                <option value="">不绑定课程</option>
+                {courseOptions.map((item) => (
+                  <option key={item} value={item}>
+                    {getSubjectLabel(item)}
+                  </option>
+                ))}
+              </select>
+
+              <div className="practice-kp-picker">
+                <label className="field-label">知识点模块（可选）</label>
+                {knowledgePointModules.length === 0 ? (
+                  <p className="practice-kp-empty">当前课程暂无知识点路线，可不绑定知识点。</p>
+                ) : (
+                  <>
+                    <select
+                      className="field"
+                      value={editModuleId}
+                      onChange={(e) => {
+                        setEditModuleId(e.target.value);
+                        setEditKpId("");
+                      }}
+                    >
+                      <option value="">不绑定知识点模块</option>
+                      {knowledgePointModules.map((kp) => (
+                        <option key={kp.id} value={kp.id}>{kp.title}</option>
+                      ))}
+                    </select>
+
+                    <label className="field-label">小知识点（可选）</label>
+                    <select
+                      className="field"
+                      value={editKpId}
+                      onChange={(e) => setEditKpId(e.target.value)}
+                      disabled={!editModuleId || editModuleChildren.length === 0}
+                    >
+                      <option value="">{editModuleId ? "仅绑定大模块" : "请先选择知识点模块"}</option>
+                      {editModuleChildren.map((kp) => (
+                        <option key={kp.id} value={kp.id}>{kp.title}</option>
+                      ))}
+                    </select>
+                  </>
+                )}
+              </div>
+
+              <label className="field-label">题干内容 *</label>
+              <textarea
+                className="field"
+                rows={6}
+                value={editQuestionForm.content}
+                onChange={(e) => setEditQuestionForm((form) => ({ ...form, content: e.target.value }))}
+                placeholder="请输入题干内容"
+              />
+
+              {isChoiceLikeType(editQuestionForm.type) && (
+                <div className="question-edit-options">
+                  <label className="field-label">选项</label>
+                  {editOptionItems.map((item, index) => (
+                    <div key={item.label} className="question-edit-option-row">
+                      <span>{item.label}</span>
+                      <input
+                        className="field"
+                        value={item.content}
+                        onChange={(e) => {
+                          const nextItems = [...editOptionItems];
+                          nextItems[index] = { ...nextItems[index], content: e.target.value };
+                          setEditOptionItems(nextItems);
+                        }}
+                        placeholder={`${item.label} 选项内容`}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <label className="field-label">标准答案</label>
+              <input
+                className="field"
+                value={editQuestionForm.answer}
+                onChange={(e) => setEditQuestionForm((form) => ({ ...form, answer: e.target.value }))}
+                placeholder="请输入标准答案"
+              />
+
+              <label className="field-label">解析</label>
+              <textarea
+                className="field"
+                rows={4}
+                value={editQuestionForm.explanation}
+                onChange={(e) => setEditQuestionForm((form) => ({ ...form, explanation: e.target.value }))}
+                placeholder="请输入解析"
+              />
+
+              {editQuestionForm.raw_text && (
+                <>
+                  <label className="field-label">原始识别文本</label>
+                  <textarea
+                    className="field question-edit-raw"
+                    rows={4}
+                    value={editQuestionForm.raw_text}
+                    onChange={(e) => setEditQuestionForm((form) => ({ ...form, raw_text: e.target.value }))}
+                  />
+                </>
+              )}
+            </div>
+            <div className="task-form-actions">
+              <button className="ghost-button compact" onClick={closeEditQuestion} disabled={editSaving}>
+                取消
+              </button>
+              <button className="primary-button compact" onClick={saveEditedQuestion} disabled={editSaving}>
+                {editSaving ? "保存中..." : "保存修改"}
+              </button>
             </div>
           </div>
         </div>

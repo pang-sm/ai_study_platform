@@ -333,7 +333,7 @@ class QuestionCreate(BaseModel):
     type: str
     title: str
     content: str
-    options: str | None = None
+    options: str | list | None = None
     answer: str | None = None
     explanation: str | None = None
     difficulty: str = "基础"
@@ -351,7 +351,7 @@ class QuestionUpdate(BaseModel):
     type: str | None = None
     title: str | None = None
     content: str | None = None
-    options: str | None = None
+    options: str | list | None = None
     answer: str | None = None
     explanation: str | None = None
     difficulty: str | None = None

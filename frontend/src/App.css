@@ -7266,8 +7266,65 @@ select.field:focus {
 /* ── Actions ── */
 .exam-question-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 10px;
+}
+
+.question-edit-overlay {
+  z-index: 1100;
+}
+
+.question-edit-modal {
+  max-width: 760px;
+  max-height: 90vh;
+}
+
+.question-edit-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.question-edit-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
+
+.question-edit-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.question-edit-option-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.question-edit-option-row span {
+  font-weight: 700;
+  color: #475569;
+  text-align: center;
+}
+
+.question-edit-raw {
+  color: #64748b;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+
+@media (max-width: 640px) {
+  .question-edit-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .practice-draft-list {
