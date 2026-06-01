@@ -9,7 +9,7 @@ import hashlib
 import threading
 import time
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError, as_completed
 from datetime import date, datetime, timezone
 from io import BytesIO
 from pathlib import Path
@@ -142,6 +142,11 @@ MAX_UPLOAD_SIZE = 10 * 1024 * 1024
 MAX_PDF_CHARS = 12000
 MAX_OCR_CHARS = 12000
 PRACTICE_PAPER_MAX_CHARS = 50000  # 试卷识别用更高上限，避免截断多页试卷
+PRACTICE_IMPORT_JOB_TIMEOUT_SECONDS = 600
+PRACTICE_IMPORT_QWEN_PAGE_TIMEOUT_SECONDS = 60
+PRACTICE_IMPORT_DEEPSEEK_TIMEOUT_SECONDS = 180
+PRACTICE_IMPORT_PDF_MIN_TEXT_CHARS = 1000
+PRACTICE_IMPORT_PDF_MIN_AVG_PAGE_CHARS = 100
 MAX_HISTORY_EXTRACT_CHARS = 4000
 TOP_K_CHUNKS = 4
 MIN_QWEN_CHINESE_CHARS = 30
@@ -582,6 +587,19 @@ def should_use_qwen_for_pdf(extracted_text: str, total_pages: int) -> bool:
     return not is_pdf_text_usable(extracted_text, total_pages)
 
 
+def should_use_qwen_for_practice_pdf(extracted_text: str, total_pages: int) -> bool:
+    cleaned = (extracted_text or "").strip()
+    if not cleaned:
+        return True
+    checked_pages = max(1, total_pages or 1)
+    avg_chars = len(cleaned) / checked_pages
+    if len(cleaned) >= PRACTICE_IMPORT_PDF_MIN_TEXT_CHARS:
+        return False
+    if avg_chars >= PRACTICE_IMPORT_PDF_MIN_AVG_PAGE_CHARS:
+        return False
+    return True
+
+
 def render_pdf_pages_to_images(file_bytes: bytes, max_pages: int) -> list[str]:
     image_paths: list[str] = []
     document = None
@@ -614,7 +632,33 @@ def render_pdf_pages_to_images(file_bytes: bytes, max_pages: int) -> list[str]:
     return image_paths
 
 
-def parse_scanned_pdf_with_qwen(file_bytes: bytes) -> dict:
+def run_qwen_pdf_page_with_timeout(image_path: str, timeout_seconds: int | float) -> dict:
+    executor = ThreadPoolExecutor(max_workers=1)
+    future = executor.submit(
+        parse_image_with_qwen,
+        image_path,
+        SCANNED_PDF_PAGE_PROMPT,
+        None,
+        timeout_seconds,
+    )
+    try:
+        return future.result(timeout=timeout_seconds + 5)
+    except FuturesTimeoutError:
+        future.cancel()
+        return {
+            "success": False,
+            "extracted_text": "",
+            "error": f"Qwen 单页识别超过 {int(timeout_seconds)} 秒",
+        }
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
+
+
+def parse_scanned_pdf_with_qwen(
+    file_bytes: bytes,
+    progress_callback=None,
+    page_timeout_seconds: int | float = PRACTICE_IMPORT_QWEN_PAGE_TIMEOUT_SECONDS,
+) -> dict:
     max_pages = get_qwen_parse_max_pages()
     image_paths = render_pdf_pages_to_images(file_bytes, max_pages)
     page_texts: list[str] = []
@@ -624,10 +668,9 @@ def parse_scanned_pdf_with_qwen(file_bytes: bytes) -> dict:
 
     try:
         for page_index, image_path in enumerate(image_paths, start=1):
-            result = parse_image_with_qwen(
-                image_path,
-                prompt=SCANNED_PDF_PAGE_PROMPT,
-            )
+            if progress_callback:
+                progress_callback(page_index, len(image_paths))
+            result = run_qwen_pdf_page_with_timeout(image_path, page_timeout_seconds)
             page_text = (result.get("extracted_text") or "").strip()
             if result.get("success") and page_text:
                 success_pages += 1
@@ -646,6 +689,7 @@ def parse_scanned_pdf_with_qwen(file_bytes: bytes) -> dict:
         "text": "\n\n".join(page_texts).strip()[:MAX_PDF_CHARS],
         "success_pages": success_pages,
         "failed_pages": failed_pages,
+        "qwen_pages": success_pages,
         "max_pages": max_pages,
         "rendered_pages": len(image_paths),
         "errors": errors,
@@ -796,11 +840,12 @@ def get_material_preview_metadata(material: models.StudyMaterial):
     }
 
 
-def call_deepseek(messages: list[dict]):
+def call_deepseek(messages: list[dict], timeout_seconds: int | float | None = None):
     try:
         response = client.chat.completions.create(
             model="deepseek-chat",
             messages=messages,
+            timeout=timeout_seconds,
         )
         return (response.choices[0].message.content or "").strip()
     except Exception as exc:
@@ -9257,7 +9302,12 @@ def create_question(req: schemas.QuestionCreate, db: Session = Depends(get_db)):
     return {"success": True, "question": serialize_question(question)}
 
 
-def extract_practice_import_text(file_bytes: bytes, filename: str, content_type: str | None) -> tuple[str, dict]:
+def extract_practice_import_text(
+    file_bytes: bytes,
+    filename: str,
+    content_type: str | None,
+    progress_callback=None,
+) -> tuple[str, dict]:
     """
     从上传的试卷文件提取文本，返回 (extracted_text, meta)。
 
@@ -9276,6 +9326,9 @@ def extract_practice_import_text(file_bytes: bytes, filename: str, content_type:
         "total_pages": 0,
         "parsed_pages": 0,
         "page_limit_hit": False,
+        "text_length": 0,
+        "qwen_pages": 0,
+        "qwen_errors": [],
     }
 
     # ── PDF ──────────────────────────────────────────────────────
@@ -9290,6 +9343,7 @@ def extract_practice_import_text(file_bytes: bytes, filename: str, content_type:
         meta["parsed_pages"] = len(page_texts)  # 有文本的页数
         extracted_text = build_pdf_text_from_pages(page_texts).strip()
         meta["extract_method"] = "local"
+        meta["text_length"] = len(extracted_text)
 
         # 文本截断检测
         full_text_len = len(extracted_text)
@@ -9297,12 +9351,18 @@ def extract_practice_import_text(file_bytes: bytes, filename: str, content_type:
             meta["page_limit_hit"] = True
         extracted_text = extracted_text[:PRACTICE_PAPER_MAX_CHARS]
 
-        # 如果文本不可用（扫描版 PDF），尝试 Qwen 视觉识别
-        if not is_pdf_text_usable(extracted_text, meta["total_pages"]):
+        # 优先走本地文本提取；只有文本严重不足时才对扫描页走 Qwen。
+        if should_use_qwen_for_practice_pdf(extracted_text, meta["total_pages"]):
             if is_qwen_enabled():
-                pdf_qwen_result = parse_scanned_pdf_with_qwen(file_bytes)
+                pdf_qwen_result = parse_scanned_pdf_with_qwen(
+                    file_bytes,
+                    progress_callback=progress_callback,
+                    page_timeout_seconds=PRACTICE_IMPORT_QWEN_PAGE_TIMEOUT_SECONDS,
+                )
                 qwen_text = (pdf_qwen_result.get("text") or "").strip()
                 qwen_rendered = pdf_qwen_result.get("rendered_pages", 0)
+                meta["qwen_pages"] = int(pdf_qwen_result.get("qwen_pages") or pdf_qwen_result.get("success_pages") or 0)
+                meta["qwen_errors"] = pdf_qwen_result.get("errors") or []
                 if qwen_text:
                     had_local = bool(extracted_text)
                     extracted_text = merge_pdf_extracted_text(extracted_text, qwen_text)
@@ -9312,8 +9372,13 @@ def extract_practice_import_text(file_bytes: bytes, filename: str, content_type:
                     meta["parse_error"] = build_pdf_qwen_parse_error(
                         pdf_qwen_result, meta["total_pages"]
                     )
+                elif qwen_rendered > 0:
+                    meta["parse_error"] = build_pdf_qwen_parse_error(
+                        pdf_qwen_result, meta["total_pages"]
+                    ) or "Qwen 未识别到有效文本"
             else:
                 meta["parse_error"] = "PDF 文本提取不足，Qwen 视觉识别未启用"
+        meta["text_length"] = len(extracted_text or "")
         return extracted_text.strip(), meta
 
     # ── Image ────────────────────────────────────────────────────
@@ -9710,7 +9775,7 @@ def structure_practice_paper_text(
         raw = call_deepseek([
             {"role": "system", "content": "你是试卷题目结构化识别助手，只输出 JSON 对象。"},
             {"role": "user", "content": prompt},
-        ])
+        ], timeout_seconds=PRACTICE_IMPORT_DEEPSEEK_TIMEOUT_SECONDS)
         t_deepseek_elapsed = time.perf_counter() - t_deepseek
         logger.info("%s deepseek done elapsed=%.2fs output_len=%d", log_prefix, t_deepseek_elapsed, len(raw))
         if username and db:
@@ -9736,6 +9801,11 @@ def structure_practice_paper_text(
         raise ValueError(
             f"试卷题目识别失败，AI 返回了包含公式或特殊符号的内容导致解析失败。请重试，或先上传文字版 PDF/TXT。错误详情：{exc}"
         ) from exc
+    except HTTPException as exc:
+        elapsed = time.perf_counter() - locals().get("t_deepseek", time.perf_counter())
+        if elapsed >= PRACTICE_IMPORT_DEEPSEEK_TIMEOUT_SECONDS - 1:
+            raise ValueError("AI 结构化题目超时，请减少页数后重试。") from exc
+        raise
     except Exception as exc:
         logger.exception("%s unexpected error", log_prefix)
         if username and db:
@@ -9767,12 +9837,44 @@ def structure_practice_paper_text(
         "original_file_name": original_filename,
         "drafts": drafts,
         "message": "".join(message_parts),
-        "extract_meta": extract_meta,
+        "extract_meta": {
+            **extract_meta,
+            "deepseek_input_length": len(extracted_text[:PRACTICE_PAPER_MAX_CHARS]),
+        },
+        "deepseek_input_length": len(extracted_text[:PRACTICE_PAPER_MAX_CHARS]),
         "warnings": warnings if warnings else None,
     }, t_deepseek_elapsed
 
 
 # ── Async Paper Import Job ──────────────────────────────────────
+
+def practice_job_elapsed_seconds(job: models.PracticeImportJob) -> int:
+    start_at = job.started_at or job.created_at
+    if not start_at:
+        return 0
+    if start_at.tzinfo is None:
+        start_at = start_at.replace(tzinfo=timezone.utc)
+    return max(0, int((utc_now() - start_at).total_seconds()))
+
+
+def fail_practice_import_job(db: Session, job: models.PracticeImportJob, error_message: str):
+    job.status = "failed"
+    job.error_message = (error_message or "试卷识别失败")[:2000]
+    job.progress_message = "识别失败"
+    job.finished_at = utc_now()
+    job.updated_at = utc_now()
+    db.commit()
+
+
+def ensure_practice_import_job_not_timed_out(db: Session, job: models.PracticeImportJob, stage: str = ""):
+    elapsed = practice_job_elapsed_seconds(job)
+    if elapsed > PRACTICE_IMPORT_JOB_TIMEOUT_SECONDS:
+        message = "试卷识别超时，请减少页数、上传文字版 PDF，或稍后重试。"
+        if stage:
+            message = f"{message} 超时阶段：{stage}"
+        fail_practice_import_job(db, job, message)
+        raise TimeoutError(message)
+
 
 def run_practice_import_job(job_id: int):
     """后台任务：执行试卷识别全流程，更新 job 状态"""
@@ -9787,6 +9889,7 @@ def run_practice_import_job(job_id: int):
         job.status = "processing"
         job.started_at = utc_now()
         job.progress_message = "正在提取试卷文本"
+        job.updated_at = utc_now()
         db.commit()
         logger.info("[practice-import-job] start job_id=%s file=%s size=%s", job_id, job.filename, job.file_size)
 
@@ -9800,8 +9903,22 @@ def run_practice_import_job(job_id: int):
         # Phase 1: 文本提取
         t_extract = time.perf_counter()
         job.progress_message = "正在提取试卷文本"
+        job.updated_at = utc_now()
         db.commit()
-        extracted_text, extract_meta = extract_practice_import_text(file_bytes, original_filename, "application/pdf")
+
+        def update_qwen_progress(page_index: int, page_count: int):
+            ensure_practice_import_job_not_timed_out(db, job, "Qwen 视觉识别")
+            job.progress_message = f"正在进行 Qwen 视觉识别：第 {page_index} / {page_count} 页"
+            job.parsed_pages = max(job.parsed_pages or 0, page_index - 1)
+            job.updated_at = utc_now()
+            db.commit()
+
+        extracted_text, extract_meta = extract_practice_import_text(
+            file_bytes,
+            original_filename,
+            "application/pdf",
+            progress_callback=update_qwen_progress,
+        )
         t_extract_elapsed = time.perf_counter() - t_extract
         logger.info("[practice-import-job] extract done job_id=%s elapsed=%.2fs method=%s qwen=%s",
                     job_id, t_extract_elapsed, extract_meta.get("extract_method"), extract_meta.get("qwen_used"))
@@ -9811,6 +9928,10 @@ def run_practice_import_job(job_id: int):
         job.total_pages = extract_meta.get("total_pages", 0) or 0
         job.parsed_pages = extract_meta.get("parsed_pages", 0) or 0
         job.page_limit_hit = bool(extract_meta.get("page_limit_hit"))
+        job.qwen_pages = int(extract_meta.get("qwen_pages") or 0)
+        job.deepseek_input_length = len((extracted_text or "")[:PRACTICE_PAPER_MAX_CHARS])
+        job.updated_at = utc_now()
+        ensure_practice_import_job_not_timed_out(db, job, "文本提取")
         if extract_meta.get("qwen_used"):
             job.progress_message = "Qwen 视觉识别完成，正在 AI 结构化题目"
             db.commit()
@@ -9821,7 +9942,9 @@ def run_practice_import_job(job_id: int):
         # Phase 2: DeepSeek 结构化
         course_norm = normalize_subject(job.course_id or "", default="")
         job.progress_message = "正在 AI 结构化题目"
+        job.updated_at = utc_now()
         db.commit()
+        ensure_practice_import_job_not_timed_out(db, job, "AI 结构化题目")
         result_data, t_ds_elapsed = structure_practice_paper_text(
             extracted_text=extracted_text,
             extract_meta=extract_meta,
@@ -9832,14 +9955,17 @@ def run_practice_import_job(job_id: int):
             db=db,
             log_prefix="[practice-import-job]",
         )
+        ensure_practice_import_job_not_timed_out(db, job, "AI 结构化题目")
         drafts = result_data.get("drafts") or []
 
         # Phase 5: 成功
         job.status = "succeeded"
         job.progress_message = "识别完成"
         job.question_count = len(drafts)
+        job.deepseek_input_length = int(result_data.get("deepseek_input_length") or job.deepseek_input_length or 0)
         job.result_json = json.dumps(result_data, ensure_ascii=False)
         job.finished_at = utc_now()
+        job.updated_at = utc_now()
         db.commit()
 
         t_total = time.perf_counter() - t_start
@@ -9851,11 +9977,7 @@ def run_practice_import_job(job_id: int):
         try:
             job = db.query(models.PracticeImportJob).filter(models.PracticeImportJob.id == job_id).first()
             if job:
-                job.status = "failed"
-                job.error_message = str(exc)[:2000]
-                job.progress_message = "识别失败"
-                job.finished_at = utc_now()
-                db.commit()
+                fail_practice_import_job(db, job, str(exc))
         except Exception:
             pass
     finally:
@@ -9867,6 +9989,7 @@ async def create_practice_import_job(
     background_tasks: BackgroundTasks,
     username: str = Form(...),
     course_id: str = Form(""),
+    course: str = Form(""),
     module_id: str | None = Form(None),
     knowledge_point_id: int | None = Form(None),
     file: UploadFile = File(...),
@@ -9890,7 +10013,7 @@ async def create_practice_import_job(
     # 创建 job
     job = models.PracticeImportJob(
         username=user.username,
-        course_id=normalize_subject(course_id, default="") or "",
+        course_id=normalize_subject(course_id or course, default="") or "",
         module_id=(module_id or "").strip() or None,
         knowledge_point_id=knowledge_point_id,
         filename=original_filename,
@@ -9921,6 +10044,16 @@ def get_practice_import_job(job_id: int, db: Session = Depends(get_db)):
     if not job:
         raise HTTPException(status_code=404, detail="识别任务不存在")
 
+    if job.status in {"pending", "processing"}:
+        elapsed = practice_job_elapsed_seconds(job)
+        if elapsed > PRACTICE_IMPORT_JOB_TIMEOUT_SECONDS:
+            fail_practice_import_job(
+                db,
+                job,
+                "试卷识别超时，请减少页数、上传文字版 PDF，或稍后重试。",
+            )
+            db.refresh(job)
+
     result = None
     if job.status == "succeeded" and job.result_json:
         try:
@@ -9937,6 +10070,10 @@ def get_practice_import_job(job_id: int, db: Session = Depends(get_db)):
         "total_pages": job.total_pages or 0,
         "parsed_pages": job.parsed_pages or 0,
         "page_limit_hit": bool(job.page_limit_hit),
+        "elapsed_seconds": practice_job_elapsed_seconds(job),
+        "text_length": job.text_length or 0,
+        "qwen_pages": job.qwen_pages or 0,
+        "deepseek_input_length": job.deepseek_input_length or 0,
         "question_count": job.question_count or 0,
         "error_message": job.error_message,
         "result": result,

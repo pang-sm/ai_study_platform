@@ -473,6 +473,8 @@ class PracticeImportJob(Base):
     parsed_pages = Column(Integer, nullable=True, default=0)
     page_limit_hit = Column(Boolean, nullable=True, default=False)
     text_length = Column(Integer, nullable=True, default=0)
+    qwen_pages = Column(Integer, nullable=True, default=0)
+    deepseek_input_length = Column(Integer, nullable=True, default=0)
     question_count = Column(Integer, nullable=True, default=0)
     result_json = Column(Text, nullable=True)
     error_message = Column(Text, nullable=True)

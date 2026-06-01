@@ -623,6 +623,8 @@ PRACTICE_IMPORT_JOBS_COLUMNS = {
     "parsed_pages": "INTEGER DEFAULT 0",
     "page_limit_hit": "BOOLEAN DEFAULT 0",
     "text_length": "INTEGER DEFAULT 0",
+    "qwen_pages": "INTEGER DEFAULT 0",
+    "deepseek_input_length": "INTEGER DEFAULT 0",
     "question_count": "INTEGER DEFAULT 0",
     "result_json": "TEXT",
     "error_message": "TEXT",

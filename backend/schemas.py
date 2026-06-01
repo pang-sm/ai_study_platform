@@ -582,6 +582,10 @@ class PracticeImportJobOut(BaseModel):
     total_pages: int | None = 0
     parsed_pages: int | None = 0
     page_limit_hit: bool | None = False
+    elapsed_seconds: int | None = 0
+    text_length: int | None = 0
+    qwen_pages: int | None = 0
+    deepseek_input_length: int | None = 0
     question_count: int | None = 0
     error_message: str | None = None
     result: dict | None = None

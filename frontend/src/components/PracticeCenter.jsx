@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 
 const API_BASE = "/api";
+const IMPORT_JOB_STORAGE_KEY = "practice_import_job_id";
+const IMPORT_JOB_LONG_RUNNING_SECONDS = 180;
 
 const TYPE_OPTIONS = [
   { value: "", label: "全部题型" },
@@ -242,6 +244,15 @@ export default function PracticeCenter({
       loadKnowledgePoints(normalizedCourse);
     }
   }, [showImportModal, importCourse]);
+
+  useEffect(() => {
+    const savedJobId = window.localStorage.getItem(IMPORT_JOB_STORAGE_KEY);
+    if (!savedJobId) return;
+    setImportJobId(savedJobId);
+    setImportJobStatus("processing");
+    setImportJobProgress("正在恢复上次试卷识别任务...");
+    setShowImportModal(true);
+  }, []);
 
   const openDetail = async (q) => {
     try {
@@ -603,6 +614,7 @@ export default function PracticeCenter({
   };
 
   const openImportModal = () => {
+    const savedJobId = window.localStorage.getItem(IMPORT_JOB_STORAGE_KEY);
     setImportCourse(courseFilter || subject || "");
     setImportModuleId("");
     setImportKpId("");
@@ -614,10 +626,17 @@ export default function PracticeCenter({
     setImportError("");
     setImportExtractMeta(null);
     setImportWarnings(null);
-    setImportJobId(null);
-    setImportJobStatus(null);
-    setImportJobProgress("");
-    setImportJob(null);
+    if (savedJobId) {
+      setImportJobId(savedJobId);
+      setImportJobStatus("processing");
+      setImportJobProgress("正在恢复上次试卷识别任务...");
+      setImportJob(null);
+    } else {
+      setImportJobId(null);
+      setImportJobStatus(null);
+      setImportJobProgress("");
+      setImportJob(null);
+    }
     setShowImportModal(true);
   };
   const updateImportDraft = (index, patch) => {
@@ -665,6 +684,7 @@ export default function PracticeCenter({
 
       setImportJobId(data.job_id);
       setImportJob({ job_id: data.job_id, status: data.status, progress_message: data.message });
+      window.localStorage.setItem(IMPORT_JOB_STORAGE_KEY, String(data.job_id));
       setImportJobStatus("processing");
       setImportJobProgress("正在提取试卷文本...");
       setImportLoading(false);  // 不再 loading，改轮询
@@ -713,10 +733,12 @@ export default function PracticeCenter({
           setImportSelected(Object.fromEntries(drafts.map((_, idx) => [idx, true])));
           setImportExtractMeta(r.extract_meta || null);
           setImportWarnings(r.warnings || null);
+          window.localStorage.removeItem(IMPORT_JOB_STORAGE_KEY);
         }
 
         if (data.status === "failed") {
           setImportError(data.error_message || "试卷识别失败");
+          window.localStorage.removeItem(IMPORT_JOB_STORAGE_KEY);
         }
       } catch (e) {
         if (!cancelled) {
@@ -766,12 +788,16 @@ export default function PracticeCenter({
     succeeded: "已完成",
     failed: "失败",
   }[importJobStatus] || "准备中";
-  const importJobElapsedSeconds = importJob?.created_at
+  const importJobElapsedSeconds = Number.isFinite(Number(importJob?.elapsed_seconds))
+    ? Number(importJob.elapsed_seconds)
+    : importJob?.created_at
     ? Math.max(0, Math.floor((Date.now() - new Date(importJob.created_at).getTime()) / 1000))
     : null;
   const importJobElapsedText = importJobElapsedSeconds === null
     ? ""
     : `${Math.floor(importJobElapsedSeconds / 60)}分${importJobElapsedSeconds % 60}秒`;
+  const importJobLongRunning = ["pending", "processing"].includes(importJobStatus)
+    && Number(importJobElapsedSeconds || 0) >= IMPORT_JOB_LONG_RUNNING_SECONDS;
 
   return (
     <section className="chat-panel chat-panel--wide practice-panel">
@@ -1862,14 +1888,21 @@ export default function PracticeCenter({
                         {importExtractMeta.qwen_used && "（Qwen 视觉识别）"}
                       </div>
                     )}
-                    {Number(importJob?.question_count || 0) > 0 && (
+                    {importJob && (
                       <div className="practice-import-progress-meta">
-                        已识别题目数：{importJob.question_count}
+                        已识别题目数：{importJob.question_count || 0}
+                      </div>
+                    )}
+                    {importJob?.error_message && (
+                      <div className="practice-import-progress-meta">
+                        错误信息：{importJob.error_message}
                       </div>
                     )}
                   </div>
                   <div className="practice-import-progress-hint">
-                    扫描版 PDF 识别可能需要 1～3 分钟，请不要关闭页面
+                    {importJobLongRunning
+                      ? "识别时间较长，可能正在处理扫描页或等待 AI 返回。你可以继续等待，或关闭弹窗稍后查看。"
+                      : "扫描版 PDF 识别可能需要 1～3 分钟，请不要关闭页面"}
                   </div>
                 </div>
               )}
