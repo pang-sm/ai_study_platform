@@ -17,9 +17,10 @@ from urllib.parse import quote
 
 import fitz
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.exceptions import RequestValidationError
 from openai import OpenAI
 from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel
@@ -93,6 +94,33 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ── Global Exception Handlers ── ensure ALL responses are JSON ──
+@app.exception_handler(HTTPException)
+async def http_exception_json_handler(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": str(exc.detail)},
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_json_handler(request: Request, exc: RequestValidationError):
+    logger.warning("[validation-error] %s %s → %s", request.method, request.url.path, str(exc.errors())[:500])
+    return JSONResponse(
+        status_code=422,
+        content={"detail": f"请求参数校验失败：{str(exc.errors())[:500]}"},
+    )
+
+
+@app.exception_handler(Exception)
+async def global_exception_json_handler(request: Request, exc: Exception):
+    logger.exception("[global-exception] %s %s → %s", request.method, request.url.path, str(exc)[:500])
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"服务器内部错误，请稍后重试。详情：{str(exc)[:300]}"},
+    )
 
 client = OpenAI(
     api_key=os.getenv("DEEPSEEK_API_KEY"),
@@ -9518,6 +9546,8 @@ async def parse_practice_paper(
     user = get_user_by_username(username, db)
     file_bytes = await file.read()
     original_filename = file.filename or "未命名试卷"
+    logger.info("[practice-paper-import] start user=%s file=%s size=%d course=%s",
+                username, original_filename, len(file_bytes), course_id)
     if len(file_bytes) > 20 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="文件过大，当前最大支持 20MB")
     suffix = Path(original_filename).suffix.lower()
@@ -9525,6 +9555,9 @@ async def parse_practice_paper(
         raise HTTPException(status_code=400, detail="仅支持 PDF、图片、Word(docx)、TXT、Markdown 文件")
 
     extracted_text, extract_meta = extract_practice_import_text(file_bytes, original_filename, file.content_type)
+    logger.info("[practice-paper-import] extracted_text_len=%d method=%s qwen_used=%s",
+                len((extracted_text or "").strip()), extract_meta.get("extract_method", "?"),
+                extract_meta.get("qwen_used", False))
     if len((extracted_text or "").strip()) < 30:
         parse_error = extract_meta.get("parse_error") or ""
         hint = f"（{parse_error}）" if parse_error else ""

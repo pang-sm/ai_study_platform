@@ -598,12 +598,74 @@ export default function PracticeCenter({
       const selectedKpId = importKpId || importModuleId;
       if (selectedKpId) form.append("knowledge_point_id", selectedKpId);
       form.append("file", importFile);
-      const res = await fetch(`${API_BASE}/practice/import-paper/parse`, {
+
+      const url = `${API_BASE}/practice/import-paper/parse`;
+      console.debug("[paper-import:request]", {
+        url,
+        fileName: importFile?.name,
+        fileSize: importFile?.size,
+        course: importCourse,
+        moduleId: importModuleId,
+        pointId: importKpId,
+      });
+
+      const res = await fetch(url, {
         method: "POST",
         body: form,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "识别失败");
+
+      const contentType = res.headers.get("content-type") || "";
+      const rawText = await res.text();
+      console.debug("[paper-import:response]", {
+        status: res.status,
+        contentType,
+        bodyPreview: rawText.slice(0, 500),
+      });
+
+      // ── 安全 JSON 解析 ──
+      let data = null;
+      if (contentType.includes("application/json")) {
+        try {
+          data = JSON.parse(rawText);
+        } catch (parseErr) {
+          console.error("[paper-import:json-parse-error]", parseErr.message, rawText.slice(0, 300));
+          throw new Error(
+            "试卷识别接口返回的 JSON 格式异常，可能是后端服务出现问题。请稍后重试或联系管理员。" +
+              " 错误详情：" + parseErr.message
+          );
+        }
+      } else if (rawText.trim().startsWith("<")) {
+        // 收到了 HTML 响应 — 通常是 nginx 错误页或 SPA index.html
+        if (rawText.includes("413") || rawText.includes("Request Entity Too Large")) {
+          throw new Error("试卷文件过大，服务器上传限制导致请求被拒绝（HTTP 413）。请压缩 PDF 或上传更小的文件。");
+        } else if (rawText.includes("502") || rawText.includes("Bad Gateway")) {
+          throw new Error("后端服务暂时不可用（HTTP 502）。请稍后重试或联系管理员检查后端服务状态。");
+        } else if (rawText.includes("504") || rawText.includes("Gateway Time-out")) {
+          throw new Error("试卷识别超时（HTTP 504）。文件可能较大或服务器繁忙，请重试或换一个更小的文件。");
+        } else if (rawText.includes("404") || rawText.includes("Not Found")) {
+          throw new Error("试卷识别接口不存在（HTTP 404）。可能是接口路径变更，请联系管理员。");
+        } else {
+          throw new Error(
+            "试卷识别接口返回了非 JSON 响应（可能是 HTML），HTTP " +
+              res.status +
+              "。这通常表示后端接口报错、地址错误或服务器代理异常。请检查后端服务或部署状态。" +
+              " 响应预览：" + rawText.slice(0, 200)
+          );
+        }
+      } else {
+        throw new Error(
+          "试卷识别接口返回了未知格式的响应（HTTP " +
+            res.status +
+            "），content-type: " +
+            contentType +
+            "。响应预览：" + rawText.slice(0, 300)
+        );
+      }
+
+      if (!res.ok) {
+        throw new Error(data?.detail || data?.message || "识别失败，HTTP " + res.status);
+      }
+
       const drafts = data.drafts || [];
       setImportDrafts(drafts);
       setImportPaperTitle(data.paper_title || data.original_file_name || importFile.name || "导入试卷");
