@@ -7302,9 +7302,10 @@ select.field:focus {
   background: #f8fafc;
 }
 
-.question-edit-content {
-  min-height: 180px;
-  max-height: 360px;
+.question-edit-content,
+.practice-edit-question-content {
+  min-height: 220px;
+  max-height: 420px;
   resize: vertical;
   overflow-y: auto;
   line-height: 1.7;
@@ -7327,6 +7328,30 @@ select.field:focus {
   color: #64748b;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12px;
+}
+
+/* ── Collapsible toggle for edit modal sections ── */
+.practice-collapse-toggle {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px dashed rgba(20, 33, 61, 0.16);
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.practice-collapse-toggle:hover {
+  background: #f1f5f9;
+  border-color: rgba(15, 118, 110, 0.3);
+  color: #0f766e;
 }
 
 @media (max-width: 640px) {

@@ -44,65 +44,136 @@ const TYPE_LABELS = {
 const isChoiceLikeType = (type) => ["choice", "single_choice", "multiple_choice", "true_false"].includes(type);
 
 const parseOptionItems = (optionsText = "") => {
-  const parsed = (optionsText || "")
-    .split("\n")
-    .map((line, index) => {
-      const text = line.trim();
-      const match = text.match(/^([A-Z])[\.\、\)]?\s*(.*)$/i);
-      return {
-        label: (match?.[1] || OPTION_LABELS[index] || String.fromCharCode(65 + index)).toUpperCase(),
-        content: (match?.[2] ?? text).trim(),
-      };
-    })
-    .filter((item) => item.label || item.content);
+  const lines = (optionsText || "").split("\n");
+  const parsed = [];
 
-  const byLabel = new Map(parsed.map((item) => [item.label, item.content]));
-  return OPTION_LABELS.map((label) => ({ label, content: byLabel.get(label) || "" }));
-};
+  for (let i = 0; i < lines.length; i++) {
+    const text = lines[i].trim();
+    if (!text) continue;
 
-const normalizeEditableOptions = (options = "") => {
-  if (Array.isArray(options)) {
-    const parsed = options
-      .map((item, index) => {
-        if (typeof item === "string") {
-          const text = item.trim();
-          const match = text.match(/^([A-Z])[\.\u3001)]?\s*(.*)$/i);
-          return {
-            label: (match?.[1] || OPTION_LABELS[index] || String.fromCharCode(65 + index)).toUpperCase(),
-            content: (match?.[2] ?? text).trim(),
-          };
-        }
-        return {
-          label: String(item?.label || item?.key || item?.option || OPTION_LABELS[index] || String.fromCharCode(65 + index)).toUpperCase(),
-          content: String(item?.content ?? item?.text ?? item?.value ?? item?.option_text ?? "").trim(),
-        };
-      })
-      .filter((item) => item.label || item.content);
-    const byLabel = new Map(parsed.map((item) => [item.label, item.content]));
-    const labels = Array.from(new Set([...OPTION_LABELS, ...parsed.map((item) => item.label)]));
-    return labels.map((label) => ({ label, content: byLabel.get(label) || "" }));
-  }
-
-  if (options && typeof options === "object") {
-    const parsed = Object.entries(options).map(([label, content]) => ({
-      label: String(label).toUpperCase(),
-      content: String(content ?? "").trim(),
-    }));
-    const byLabel = new Map(parsed.map((item) => [item.label, item.content]));
-    const labels = Array.from(new Set([...OPTION_LABELS, ...parsed.map((item) => item.label)]));
-    return labels.map((label) => ({ label, content: byLabel.get(label) || "" }));
-  }
-
-  const optionsText = String(options || "").trim();
-  if (optionsText.startsWith("[") || optionsText.startsWith("{")) {
-    try {
-      return normalizeEditableOptions(JSON.parse(optionsText));
-    } catch {
-      return parseOptionItems(optionsText);
+    // Match: (A) xxx, A. xxx, A xxx, (e) xxx, e. xxx, etc.
+    const match = text.match(/^[(（]?\s*([A-Za-z])\s*[)）.、]?\s*(.*)$/);
+    if (match) {
+      parsed.push({
+        label: match[1].toUpperCase(),
+        content: match[2].trim(),
+      });
+    } else {
+      parsed.push({
+        label: String.fromCharCode(65 + parsed.length),
+        content: text,
+      });
     }
   }
 
-  return parseOptionItems(optionsText);
+  // Deduplicate by label
+  const seen = new Set();
+  const deduped = [];
+  for (const item of parsed) {
+    if (!seen.has(item.label)) {
+      seen.add(item.label);
+      deduped.push(item);
+    }
+  }
+  return deduped;
+};
+
+// Try to extract option lines from raw text (question stem + options mixed).
+const extractOptionsFromText = (text) => {
+  if (!text) return [];
+  const lines = text.split("\n");
+  const optionLines = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    // Match option-like lines: (A), A., A, (e), etc.
+    if (/^[(\uff08]?\s*[A-Za-z]\s*[)\uff09.\u3001]/.test(trimmed)) {
+      optionLines.push(trimmed);
+    }
+  }
+
+  return optionLines.length > 0 ? parseOptionItems(optionLines.join("\n")) : [];
+};
+
+// Normalize options from the full question object.
+const normalizeEditableOptions = (question) => {
+  if (!question) return OPTION_LABELS.map((label) => ({ label, content: "" }));
+
+  // Priority 1: question.options
+  if (question.options != null && question.options !== "") {
+    if (Array.isArray(question.options)) {
+      const parsed = question.options
+        .map((item, index) => {
+          if (typeof item === "string") {
+            const text = item.trim();
+            const match = text.match(/^[(\uff08]?\s*([A-Za-z])\s*[)\uff09.\u3001]?\s*(.*)$/);
+            return {
+              label: (match?.[1] || String.fromCharCode(65 + index)).toUpperCase(),
+              content: (match?.[2] ?? text).trim(),
+            };
+          }
+          return {
+            label: String(item?.label || item?.key || String.fromCharCode(65 + index)).toUpperCase(),
+            content: String(item?.content ?? item?.text ?? item?.value ?? "").trim(),
+          };
+        })
+        .filter((item) => item.label);
+      if (parsed.length > 0) return parsed;
+    }
+
+    if (typeof question.options === "object" && !Array.isArray(question.options)) {
+      const parsed = Object.entries(question.options)
+        .filter(([, v]) => v != null && String(v).trim() !== "")
+        .map(([label, content]) => ({
+          label: String(label).toUpperCase(),
+          content: String(content).trim(),
+        }));
+      if (parsed.length > 0) return parsed;
+    }
+
+    if (typeof question.options === "string") {
+      const trimmed = question.options.trim();
+      if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+        try {
+          const obj = JSON.parse(trimmed);
+          if (obj != null) {
+            const subResult = normalizeEditableOptions({ options: obj });
+            if (subResult.some((item) => item.content)) return subResult;
+          }
+        } catch { /* fall through */ }
+      }
+      const parsed = parseOptionItems(trimmed);
+      if (parsed.some((item) => item.content)) return parsed;
+    }
+  }
+
+  // Priority 2: question.options_json
+  if (question.options_json != null && question.options_json !== "") {
+    let obj = question.options_json;
+    if (typeof obj === "string") {
+      try { obj = JSON.parse(obj); } catch { obj = null; }
+    }
+    if (obj != null) {
+      const subResult = normalizeEditableOptions({ options: obj });
+      if (subResult.some((item) => item.content)) return subResult;
+    }
+  }
+
+  // Priority 3: parse from question.raw_text
+  if (question.raw_text) {
+    const fromRaw = extractOptionsFromText(question.raw_text);
+    if (fromRaw.length > 0) return fromRaw;
+  }
+
+  // Priority 4: parse from question.content
+  if (question.content) {
+    const fromContent = extractOptionsFromText(question.content);
+    if (fromContent.length > 0) return fromContent;
+  }
+
+  // Priority 5: empty fallback
+  return OPTION_LABELS.map((label) => ({ label, content: "" }));
 };
 
 const formatOptionItems = (items) =>
@@ -181,6 +252,8 @@ export default function PracticeCenter({
   const [editOptionItems, setEditOptionItems] = useState(parseOptionItems(""));
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState("");
+  const [editExplanationOpen, setEditExplanationOpen] = useState(false);
+  const [editRawTextOpen, setEditRawTextOpen] = useState(false);
 
   // Create modal
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -623,7 +696,9 @@ export default function PracticeCenter({
     const form = buildEditFormFromQuestion(question);
     setEditingQuestion(question);
     setEditQuestionForm(form);
-    setEditOptionItems(normalizeEditableOptions(question.options));
+    setEditOptionItems(normalizeEditableOptions(question));
+    setEditExplanationOpen(false);
+    setEditRawTextOpen(false);
     setEditError("");
 
     let points = knowledgePoints;
@@ -648,6 +723,8 @@ export default function PracticeCenter({
     setEditModuleId("");
     setEditKpId("");
     setEditOptionItems(parseOptionItems(""));
+    setEditExplanationOpen(false);
+    setEditRawTextOpen(false);
   };
 
   const updateQuestionInState = (updatedQuestion) => {
@@ -1715,8 +1792,8 @@ export default function PracticeCenter({
 
               <label className="field-label">题干内容 *</label>
               <textarea
-                className="field question-edit-content"
-                rows={6}
+                className="field practice-edit-question-content"
+                rows={12}
                 value={editQuestionForm.content}
                 onChange={(e) => setEditQuestionForm((form) => ({ ...form, content: e.target.value }))}
                 placeholder="请输入题干内容"
@@ -1751,24 +1828,41 @@ export default function PracticeCenter({
                 placeholder="请输入标准答案"
               />
 
-              <label className="field-label">解析</label>
-              <textarea
-                className="field"
-                rows={4}
-                value={editQuestionForm.explanation}
-                onChange={(e) => setEditQuestionForm((form) => ({ ...form, explanation: e.target.value }))}
-                placeholder="请输入解析"
-              />
+              <button
+                type="button"
+                className="practice-collapse-toggle"
+                onClick={() => setEditExplanationOpen((v) => !v)}
+              >
+                <span>{editExplanationOpen ? "收起解析 ▲" : "展开解析 ▼"}</span>
+              </button>
+              {editExplanationOpen && (
+                <textarea
+                  className="field"
+                  rows={6}
+                  value={editQuestionForm.explanation}
+                  onChange={(e) => setEditQuestionForm((form) => ({ ...form, explanation: e.target.value }))}
+                  placeholder="请输入解析"
+                />
+              )}
 
               {editQuestionForm.raw_text && (
                 <>
-                  <label className="field-label">原始识别文本</label>
-                  <textarea
-                    className="field question-edit-raw"
-                    rows={4}
-                    value={editQuestionForm.raw_text}
-                    onChange={(e) => setEditQuestionForm((form) => ({ ...form, raw_text: e.target.value }))}
-                  />
+                  <button
+                    type="button"
+                    className="practice-collapse-toggle"
+                    onClick={() => setEditRawTextOpen((v) => !v)}
+                  >
+                    <span>{editRawTextOpen ? "收起原始识别文本 ▲" : "查看原始识别文本 ▼"}</span>
+                  </button>
+                  {editRawTextOpen && (
+                    <textarea
+                      className="field question-edit-raw"
+                      rows={6}
+                      value={editQuestionForm.raw_text}
+                      onChange={(e) => setEditQuestionForm((form) => ({ ...form, raw_text: e.target.value }))}
+                      readOnly
+                    />
+                  )}
                 </>
               )}
             </div>
