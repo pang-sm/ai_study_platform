@@ -2991,11 +2991,6 @@ function App() {
   if (page === "practiceCenter") {
     return wrapPage(
       <div className="app-shell">
-        <header className="workspace-topbar">
-          <div className="workspace-topbar-left">
-            <span className="subject-pill panel-pill">练习中心</span>
-          </div>
-        </header>
         <Suspense fallback={<div className="empty-state">练习中心加载中...</div>}>
           <PracticeCenter
             user={user}
@@ -3004,6 +2999,7 @@ function App() {
             getSubjectLabel={getSubjectLabel}
             normalizeSubject={normalizeSubject}
             formatDate={formatDate}
+            setPage={setPage}
           />
         </Suspense>
       </div>

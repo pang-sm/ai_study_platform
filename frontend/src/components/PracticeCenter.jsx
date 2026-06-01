@@ -25,6 +25,8 @@ const SOURCE_LABELS = {
   manual: "手动创建",
   ai: "AI 生成",
   imported: "导入",
+  paper_upload: "试卷识别",
+  code_studio: "编程助手",
 };
 
 const RESULT_LABELS = {
@@ -41,6 +43,7 @@ export default function PracticeCenter({
   getSubjectLabel,
   normalizeSubject,
   formatDate,
+  setPage = () => {},
 }) {
   const [questions, setQuestions] = useState([]);
   const [knowledgePoints, setKnowledgePoints] = useState([]);
@@ -60,6 +63,7 @@ export default function PracticeCenter({
   // Create modal
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createType, setCreateType] = useState("choice");
+  const [createModuleId, setCreateModuleId] = useState("");
   const [createTitle, setCreateTitle] = useState("");
   const [createContent, setCreateContent] = useState("");
   const [createOptions, setCreateOptions] = useState("");
@@ -74,11 +78,13 @@ export default function PracticeCenter({
   const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [genCourse, setGenCourse] = useState(subject || "");
   const [genCourseName, setGenCourseName] = useState("");
+  const [genModuleId, setGenModuleId] = useState("");
   const [genKpId, setGenKpId] = useState("");
   const [genType, setGenType] = useState("choice");
   const [genDifficulty, setGenDifficulty] = useState("基础");
   const [genCount, setGenCount] = useState(1);
   const [genLoading, setGenLoading] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   const loadKnowledgePoints = async (courseId) => {
     if (!user?.username || !courseId) {
@@ -127,6 +133,20 @@ export default function PracticeCenter({
   useEffect(() => {
     loadQuestions();
   }, [user?.username, courseFilter, kpFilter, typeFilter]);
+
+  useEffect(() => {
+    if (showCreateModal) {
+      const normalizedCourse = normalizeSubject(createCourse, "");
+      loadKnowledgePoints(normalizedCourse);
+    }
+  }, [showCreateModal, createCourse]);
+
+  useEffect(() => {
+    if (showGenerateModal) {
+      const normalizedCourse = normalizeSubject(genCourse, "");
+      loadKnowledgePoints(normalizedCourse);
+    }
+  }, [showGenerateModal, genCourse]);
 
   const openDetail = async (q) => {
     try {
@@ -215,13 +235,18 @@ export default function PracticeCenter({
   };
 
   const createQuestion = async () => {
+    if (createType === "programming") {
+      setPage("codeStudio");
+      return;
+    }
     if (!createTitle.trim() || !createContent.trim()) return;
     setCreateSaving(true);
     try {
+      const selectedKpId = createKpId || createModuleId;
       const body = {
         username: user.username,
         course_id: normalizeSubject(createCourse, ""),
-        knowledge_point_id: createKpId ? parseInt(createKpId) : null,
+        knowledge_point_id: selectedKpId ? parseInt(selectedKpId) : null,
         type: createType,
         title: createTitle.trim(),
         content: createContent.trim(),
@@ -253,6 +278,7 @@ export default function PracticeCenter({
 
   const resetCreateForm = () => {
     setCreateType("choice");
+    setCreateModuleId("");
     setCreateTitle("");
     setCreateContent("");
     setCreateOptions("");
@@ -264,16 +290,23 @@ export default function PracticeCenter({
   };
 
   const generateQuestions = async () => {
+    if (genType === "programming") {
+      setPage("codeStudio");
+      setShowGenerateModal(false);
+      return;
+    }
     setGenLoading(true);
     try {
+      const selectedKpId = genKpId || genModuleId;
+      const selectedKp = selectedKpId
+        ? knowledgePoints.find((kp) => String(kp.id) === String(selectedKpId))
+        : null;
       const body = {
         username: user.username,
         course_id: normalizeSubject(genCourse, ""),
         course_name: genCourseName || getSubjectLabel(genCourse),
-        knowledge_point_id: genKpId ? parseInt(genKpId) : null,
-        knowledge_point_title: genKpId
-          ? (knowledgePoints.find((kp) => kp.id === parseInt(genKpId)) || {}).title || ""
-          : "",
+        knowledge_point_id: selectedKpId ? parseInt(selectedKpId) : null,
+        knowledge_point_title: selectedKp?.title || "",
         type: genType,
         difficulty: genDifficulty,
         count: genCount,
@@ -350,10 +383,22 @@ export default function PracticeCenter({
     ? (knowledgePoints.find((kp) => String(kp.id) === String(kpFilter)) || {}).title || "已选知识点"
     : "全部知识点";
   const selectedTypeLabel = (TYPE_OPTIONS.find((item) => item.value === typeFilter) || TYPE_OPTIONS[0]).label;
+  const knowledgePointMap = new Map(knowledgePoints.map((kp) => [String(kp.id), kp]));
+  const knowledgePointModules = knowledgePoints
+    .filter((kp) => !kp.parent_id || !knowledgePointMap.has(String(kp.parent_id)) || Number(kp.level || 0) <= 1)
+    .sort((a, b) => (Number(a.order_index || a.sort_order || 0) - Number(b.order_index || b.sort_order || 0)) || String(a.title || "").localeCompare(String(b.title || ""), "zh-CN"));
+  const getModuleChildren = (moduleId) =>
+    knowledgePoints
+      .filter((kp) => String(kp.parent_id || "") === String(moduleId))
+      .sort((a, b) => (Number(a.order_index || a.sort_order || 0) - Number(b.order_index || b.sort_order || 0)) || String(a.title || "").localeCompare(String(b.title || ""), "zh-CN"));
+  const createModuleChildren = createModuleId ? getModuleChildren(createModuleId) : [];
+  const genModuleChildren = genModuleId ? getModuleChildren(genModuleId) : [];
+  const goCodeStudio = () => setPage("codeStudio");
   const openGenerateModal = () => {
     setGenCourse(courseFilter || subject || "");
     setGenCourseName("");
-    setGenKpId(kpFilter || "");
+    setGenModuleId("");
+    setGenKpId("");
     setGenType(typeFilter || "choice");
     setGenDifficulty("基础");
     setGenCount(1);
@@ -361,6 +406,7 @@ export default function PracticeCenter({
   };
   const openCreateModal = () => {
     resetCreateForm();
+    setCreateCourse(courseFilter || subject || "");
     setShowCreateModal(true);
   };
   const clearFilters = () => {
@@ -387,7 +433,13 @@ export default function PracticeCenter({
               className="ghost-button compact practice-action-button"
               onClick={openCreateModal}
             >
-              ＋ 新建题目
+              ＋ 手动录入
+            </button>
+            <button
+              className="ghost-button compact practice-action-button"
+              onClick={() => setShowImportModal(true)}
+            >
+              ⤴ 上传试卷识别
             </button>
             <button
               className="primary-button compact practice-action-button practice-action-button--ai"
@@ -577,12 +629,20 @@ export default function PracticeCenter({
                         </div>
                       </div>
                       <div className="question-card-actions">
-                        <button className="primary-button compact question-start-button" onClick={() => openDetail(q)}>
-                          开始练习
-                        </button>
-                        <button className="tiny-button" onClick={() => openDetail(q)}>
-                          查看详情
-                        </button>
+                        {q.type === "programming" || q.source === "code_studio" ? (
+                          <button className="primary-button compact question-start-button" onClick={goCodeStudio}>
+                            去编程助手练习
+                          </button>
+                        ) : (
+                          <>
+                            <button className="primary-button compact question-start-button" onClick={() => openDetail(q)}>
+                              开始练习
+                            </button>
+                            <button className="tiny-button" onClick={() => openDetail(q)}>
+                              查看详情
+                            </button>
+                          </>
+                        )}
                         <button
                           className="tiny-button danger"
                           onClick={() => deleteQuestion(q)}
@@ -607,6 +667,15 @@ export default function PracticeCenter({
               <button className="primary-button compact practice-side-action" onClick={openGenerateModal}>
                 ✨ AI 生成题目
               </button>
+            </div>
+
+            <div className="practice-side-card">
+              <h3>题库来源</h3>
+              <div className="practice-source-actions">
+                <button type="button" onClick={openCreateModal}>手动录入题目</button>
+                <button type="button" onClick={() => setShowImportModal(true)}>上传试卷识别</button>
+                <button type="button" onClick={openGenerateModal}>AI 生成题目</button>
+              </div>
             </div>
 
             <div className="practice-side-card">
@@ -815,7 +884,11 @@ export default function PracticeCenter({
               <select
                 className="field"
                 value={createCourse}
-                onChange={(e) => setCreateCourse(e.target.value)}
+                onChange={(e) => {
+                  setCreateCourse(e.target.value);
+                  setCreateModuleId("");
+                  setCreateKpId("");
+                }}
               >
                 <option value="">不绑定课程</option>
                 {courseOptions.map((item) => (
@@ -825,19 +898,49 @@ export default function PracticeCenter({
                 ))}
               </select>
 
-              <label className="field-label">知识点（可选）</label>
-              <select
-                className="field"
-                value={createKpId}
-                onChange={(e) => setCreateKpId(e.target.value)}
-              >
-                <option value="">不绑定知识点</option>
-                {knowledgePoints.map((kp) => (
-                  <option key={kp.id} value={kp.id}>
-                    {kp.title}
-                  </option>
-                ))}
-              </select>
+              <div className="practice-kp-picker">
+                <label className="field-label">知识点模块（可选）</label>
+                {knowledgePointModules.length === 0 ? (
+                  <p className="practice-kp-empty">
+                    当前课程暂无知识点路线，可先在知识点学习中生成路线，或不绑定知识点。
+                  </p>
+                ) : (
+                  <>
+                    <select
+                      className="field"
+                      value={createModuleId}
+                      onChange={(e) => {
+                        setCreateModuleId(e.target.value);
+                        setCreateKpId("");
+                      }}
+                    >
+                      <option value="">不绑定知识点模块</option>
+                      {knowledgePointModules.map((kp) => (
+                        <option key={kp.id} value={kp.id}>
+                          {kp.title}
+                        </option>
+                      ))}
+                    </select>
+
+                    <label className="field-label">小知识点（可选）</label>
+                    <select
+                      className="field"
+                      value={createKpId}
+                      onChange={(e) => setCreateKpId(e.target.value)}
+                      disabled={!createModuleId || createModuleChildren.length === 0}
+                    >
+                      <option value="">
+                        {createModuleId ? "仅绑定大模块" : "请先选择知识点模块"}
+                      </option>
+                      {createModuleChildren.map((kp) => (
+                        <option key={kp.id} value={kp.id}>
+                          {kp.title}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                )}
+              </div>
 
               <label className="field-label">题型 *</label>
               <select
@@ -852,65 +955,77 @@ export default function PracticeCenter({
                 ))}
               </select>
 
-              <label className="field-label">难度</label>
-              <select
-                className="field"
-                value={createDifficulty}
-                onChange={(e) => setCreateDifficulty(e.target.value)}
-              >
-                {DIFFICULTY_OPTIONS.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-
-              <label className="field-label">题目标题 *</label>
-              <input
-                className="field"
-                placeholder="例如：数组排序的时间复杂度"
-                value={createTitle}
-                onChange={(e) => setCreateTitle(e.target.value)}
-              />
-
-              <label className="field-label">题目内容 *</label>
-              <textarea
-                className="field"
-                rows={4}
-                placeholder="输入题面内容..."
-                value={createContent}
-                onChange={(e) => setCreateContent(e.target.value)}
-              />
-
-              {createType === "choice" && (
+              {createType === "programming" ? (
+                <div className="practice-code-guide">
+                  <strong>编程题请前往编程助手创建和练习。</strong>
+                  <p>编程题需要运行环境、测试用例和代码反馈，已在编程助手中集中处理。</p>
+                  <button className="primary-button compact" type="button" onClick={goCodeStudio}>
+                    前往编程助手
+                  </button>
+                </div>
+              ) : (
                 <>
-                  <label className="field-label">选项（每行一个，格式：A. xxx）</label>
+                  <label className="field-label">难度</label>
+                  <select
+                    className="field"
+                    value={createDifficulty}
+                    onChange={(e) => setCreateDifficulty(e.target.value)}
+                  >
+                    {DIFFICULTY_OPTIONS.map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+
+                  <label className="field-label">题目标题 *</label>
+                  <input
+                    className="field"
+                    placeholder="例如：数组排序的时间复杂度"
+                    value={createTitle}
+                    onChange={(e) => setCreateTitle(e.target.value)}
+                  />
+
+                  <label className="field-label">题目内容 *</label>
                   <textarea
                     className="field"
                     rows={4}
-                    placeholder={"A. 选项一\nB. 选项二\nC. 选项三\nD. 选项四"}
-                    value={createOptions}
-                    onChange={(e) => setCreateOptions(e.target.value)}
+                    placeholder="输入题面内容..."
+                    value={createContent}
+                    onChange={(e) => setCreateContent(e.target.value)}
+                  />
+
+                  {createType === "choice" && (
+                    <>
+                      <label className="field-label">选项（每行一个，格式：A. xxx）</label>
+                      <textarea
+                        className="field"
+                        rows={4}
+                        placeholder={"A. 选项一\nB. 选项二\nC. 选项三\nD. 选项四"}
+                        value={createOptions}
+                        onChange={(e) => setCreateOptions(e.target.value)}
+                      />
+                    </>
+                  )}
+
+                  <label className="field-label">参考答案</label>
+                  <input
+                    className="field"
+                    placeholder="选择题填选项字母（A/B/C/D），简答题填参考答案"
+                    value={createAnswer}
+                    onChange={(e) => setCreateAnswer(e.target.value)}
+                  />
+
+                  <label className="field-label">解析（可选）</label>
+                  <textarea
+                    className="field"
+                    rows={3}
+                    placeholder="题目解析..."
+                    value={createExplanation}
+                    onChange={(e) => setCreateExplanation(e.target.value)}
                   />
                 </>
               )}
-
-              <label className="field-label">参考答案</label>
-              <input
-                className="field"
-                placeholder="选择题填选项字母（A/B/C/D），简答题填参考答案"
-                value={createAnswer}
-                onChange={(e) => setCreateAnswer(e.target.value)}
-              />
-
-              <label className="field-label">解析（可选）</label>
-              <textarea
-                className="field"
-                rows={3}
-                placeholder="题目解析..."
-                value={createExplanation}
-                onChange={(e) => setCreateExplanation(e.target.value)}
-              />
             </div>
             <div className="task-form-actions">
               <button
@@ -921,10 +1036,10 @@ export default function PracticeCenter({
               </button>
               <button
                 className="primary-button compact"
-                disabled={createSaving || !createTitle.trim() || !createContent.trim()}
+                disabled={createSaving || (createType !== "programming" && (!createTitle.trim() || !createContent.trim()))}
                 onClick={createQuestion}
               >
-                {createSaving ? "创建中..." : "创建题目"}
+                {createType === "programming" ? "前往编程助手" : (createSaving ? "创建中..." : "创建题目")}
               </button>
             </div>
           </div>
@@ -946,7 +1061,11 @@ export default function PracticeCenter({
               <select
                 className="field"
                 value={genCourse}
-                onChange={(e) => setGenCourse(e.target.value)}
+                onChange={(e) => {
+                  setGenCourse(e.target.value);
+                  setGenModuleId("");
+                  setGenKpId("");
+                }}
               >
                 <option value="">不绑定课程</option>
                 {courseOptions.map((item) => (
@@ -956,19 +1075,49 @@ export default function PracticeCenter({
                 ))}
               </select>
 
-              <label className="field-label">知识点（可选）</label>
-              <select
-                className="field"
-                value={genKpId}
-                onChange={(e) => setGenKpId(e.target.value)}
-              >
-                <option value="">不指定知识点</option>
-                {knowledgePoints.map((kp) => (
-                  <option key={kp.id} value={kp.id}>
-                    {kp.title}
-                  </option>
-                ))}
-              </select>
+              <div className="practice-kp-picker">
+                <label className="field-label">知识点模块（可选）</label>
+                {knowledgePointModules.length === 0 ? (
+                  <p className="practice-kp-empty">
+                    当前课程暂无知识点路线，可先在知识点学习中生成路线，或不绑定知识点。
+                  </p>
+                ) : (
+                  <>
+                    <select
+                      className="field"
+                      value={genModuleId}
+                      onChange={(e) => {
+                        setGenModuleId(e.target.value);
+                        setGenKpId("");
+                      }}
+                    >
+                      <option value="">不指定知识点模块</option>
+                      {knowledgePointModules.map((kp) => (
+                        <option key={kp.id} value={kp.id}>
+                          {kp.title}
+                        </option>
+                      ))}
+                    </select>
+
+                    <label className="field-label">小知识点（可选）</label>
+                    <select
+                      className="field"
+                      value={genKpId}
+                      onChange={(e) => setGenKpId(e.target.value)}
+                      disabled={!genModuleId || genModuleChildren.length === 0}
+                    >
+                      <option value="">
+                        {genModuleId ? "仅使用大模块" : "请先选择知识点模块"}
+                      </option>
+                      {genModuleChildren.map((kp) => (
+                        <option key={kp.id} value={kp.id}>
+                          {kp.title}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                )}
+              </div>
 
               <label className="field-label">题型</label>
               <select
@@ -978,7 +1127,18 @@ export default function PracticeCenter({
               >
                 <option value="choice">选择题</option>
                 <option value="short_answer">简答题</option>
+                <option value="programming">编程题</option>
               </select>
+
+              {genType === "programming" && (
+                <div className="practice-code-guide">
+                  <strong>编程题请前往编程助手生成。</strong>
+                  <p>编程题需要测试用例、代码运行和反馈流程，建议在编程助手中完成。</p>
+                  <button className="primary-button compact" type="button" onClick={goCodeStudio}>
+                    前往编程助手
+                  </button>
+                </div>
+              )}
 
               <label className="field-label">难度</label>
               <select
@@ -1015,7 +1175,39 @@ export default function PracticeCenter({
                 disabled={genLoading}
                 onClick={generateQuestions}
               >
-                {genLoading ? "生成中..." : "开始生成"}
+                {genType === "programming" ? "前往编程助手" : (genLoading ? "生成中..." : "开始生成")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showImportModal && (
+        <div className="modal-overlay" onClick={() => setShowImportModal(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>上传试卷识别题目</h3>
+              <button className="modal-close" onClick={() => setShowImportModal(false)}>
+                &times;
+              </button>
+            </div>
+            <div className="task-modal-body">
+              <label className="field-label">课程</label>
+              <select className="field" value="" disabled>
+                <option value="">{selectedCourseLabel}</option>
+              </select>
+              <div className="practice-upload-guide">
+                <strong>试卷识别入口已预留</strong>
+                <p>
+                  下一阶段将接入后端解析接口，支持 PDF、图片、Word、TXT 上传后识别题目草稿，
+                  再由用户勾选导入题库。
+                </p>
+                <span>当前版本不会自动上传文件，也不会影响资料库。</span>
+              </div>
+            </div>
+            <div className="task-form-actions">
+              <button className="primary-button compact" onClick={() => setShowImportModal(false)}>
+                我知道了
               </button>
             </div>
           </div>
