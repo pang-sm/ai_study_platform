@@ -569,3 +569,20 @@ class LearningReportSaveRequest(BaseModel):
 class LearningReportShareCreateRequest(BaseModel):
     username: str
     report_id: int
+
+
+# ── Practice Paper Import Jobs ───────────────────────────
+
+class PracticeImportJobOut(BaseModel):
+    job_id: int
+    status: str
+    progress_message: str | None = None
+    parse_method: str | None = None
+    module_id: str | None = None
+    total_pages: int | None = 0
+    parsed_pages: int | None = 0
+    page_limit_hit: bool | None = False
+    question_count: int | None = 0
+    error_message: str | None = None
+    result: dict | None = None
+    created_at: str | None = None

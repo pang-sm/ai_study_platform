@@ -142,6 +142,10 @@ export default function PracticeCenter({
   const [importError, setImportError] = useState("");
   const [importExtractMeta, setImportExtractMeta] = useState(null);
   const [importWarnings, setImportWarnings] = useState(null);
+  const [importJobId, setImportJobId] = useState(null);
+  const [importJobStatus, setImportJobStatus] = useState(null);  // pending | processing | succeeded | failed
+  const [importJobProgress, setImportJobProgress] = useState("");
+  const [importJob, setImportJob] = useState(null);
 
   const loadKnowledgePoints = async (courseId) => {
     if (!user?.username || !courseId) {
@@ -610,114 +614,123 @@ export default function PracticeCenter({
     setImportError("");
     setImportExtractMeta(null);
     setImportWarnings(null);
+    setImportJobId(null);
+    setImportJobStatus(null);
+    setImportJobProgress("");
+    setImportJob(null);
     setShowImportModal(true);
   };
   const updateImportDraft = (index, patch) => {
     setImportDrafts((items) => items.map((item, i) => (i === index ? { ...item, ...patch } : item)));
   };
   const parseImportFile = async () => {
+    // 新逻辑：创建异步 job 然后轮询
     if (!importFile || !user?.username) return;
     setImportLoading(true);
     setImportError("");
+    setImportDrafts([]);
+    setImportSelected({});
+    setImportExtractMeta(null);
+    setImportWarnings(null);
+    setImportJob(null);
+    setImportJobStatus("pending");
+    setImportJobProgress("正在提交识别任务...");
+
     try {
       const form = new FormData();
       form.append("username", user.username);
       form.append("course_id", normalizeSubject(importCourse, ""));
+      if (importModuleId) form.append("module_id", importModuleId);
       const selectedKpId = importKpId || importModuleId;
       if (selectedKpId) form.append("knowledge_point_id", selectedKpId);
       form.append("file", importFile);
 
-      const url = `${API_BASE}/practice/import-paper/parse`;
-      console.debug("[paper-import:request]", {
-        url,
-        fileName: importFile?.name,
-        fileSize: importFile?.size,
-        course: importCourse,
-        moduleId: importModuleId,
-        pointId: importKpId,
-      });
+      const url = `${API_BASE}/practice/import-paper/jobs`;
+      console.debug("[paper-import:create-job]", { url, fileName: importFile?.name, fileSize: importFile?.size });
 
-      const res = await fetch(url, {
-        method: "POST",
-        body: form,
-      });
-
-      const contentType = res.headers.get("content-type") || "";
+      const res = await fetch(url, { method: "POST", body: form });
       const rawText = await res.text();
-      console.debug("[paper-import:response]", {
-        status: res.status,
-        contentType,
-        bodyPreview: rawText.slice(0, 500),
-      });
+      const contentType = res.headers.get("content-type") || "";
 
-      // ── 安全 JSON 解析 ──
       let data = null;
       if (contentType.includes("application/json")) {
-        try {
-          data = JSON.parse(rawText);
-        } catch (parseErr) {
-          console.error("[paper-import:json-parse-error]", parseErr.message, rawText.slice(0, 300));
-          throw new Error(
-            "试卷识别接口返回的 JSON 格式异常，可能是后端服务出现问题。请稍后重试或联系管理员。" +
-              " 错误详情：" + parseErr.message
-          );
-        }
-      } else if (rawText.trim().startsWith("<")) {
-        // 收到了 HTML 响应 — 通常是 nginx 错误页或 SPA index.html
-        if (rawText.includes("413") || rawText.includes("Request Entity Too Large")) {
-          throw new Error("试卷文件过大，服务器上传限制导致请求被拒绝（HTTP 413）。请压缩 PDF 或上传更小的文件。");
-        } else if (rawText.includes("502") || rawText.includes("Bad Gateway")) {
-          throw new Error("后端服务暂时不可用（HTTP 502）。请稍后重试或联系管理员检查后端服务状态。");
-        } else if (rawText.includes("504") || rawText.includes("Gateway Time-out")) {
-          throw new Error(
-            "试卷识别超时（HTTP 504）。文件不一定过大，可能是扫描识别或 AI 结构化耗时较长。" +
-            "建议上传文字版 PDF，或减少页数后重试。"
-          );
-        } else if (rawText.includes("404") || rawText.includes("Not Found")) {
-          throw new Error("试卷识别接口不存在（HTTP 404）。可能是接口路径变更，请联系管理员。");
-        } else {
-          throw new Error(
-            "试卷识别接口返回了非 JSON 响应（可能是 HTML），HTTP " +
-              res.status +
-              "。这通常表示后端接口报错、地址错误或服务器代理异常。请检查后端服务或部署状态。" +
-              " 响应预览：" + rawText.slice(0, 200)
-          );
-        }
+        data = JSON.parse(rawText);
       } else {
-        throw new Error(
-          "试卷识别接口返回了未知格式的响应（HTTP " +
-            res.status +
-            "），content-type: " +
-            contentType +
-            "。响应预览：" + rawText.slice(0, 300)
-        );
+        throw new Error("创建识别任务时收到非 JSON 响应，HTTP " + res.status);
       }
 
       if (!res.ok) {
-        throw new Error(data?.detail || data?.message || "识别失败，HTTP " + res.status);
+        throw new Error(data?.detail || "创建任务失败");
       }
 
-      const drafts = data.drafts || [];
-      setImportDrafts(drafts);
-      setImportPaperTitle(data.paper_title || data.original_file_name || importFile.name || "导入试卷");
-      setImportOriginalFileName(data.original_file_name || importFile.name || "");
-      setImportSelected(Object.fromEntries(drafts.map((_, idx) => [idx, true])));
-      setImportExtractMeta(data.extract_meta || null);
-      setImportWarnings(data.warnings || null);
+      setImportJobId(data.job_id);
+      setImportJob({ job_id: data.job_id, status: data.status, progress_message: data.message });
+      setImportJobStatus("processing");
+      setImportJobProgress("正在提取试卷文本...");
+      setImportLoading(false);  // 不再 loading，改轮询
     } catch (error) {
-      const errMsg = error.message || "识别失败，请稍后重试";
-      if (errMsg.includes("Invalid \\escape") || errMsg.includes("JSON") || errMsg.includes("转义")) {
-        setImportError(
-          "试卷题目识别失败，可能是公式或特殊符号导致解析失败。请重试，或先上传文字版 PDF/TXT。错误详情：" +
-            errMsg
-        );
-      } else {
-        setImportError(errMsg);
-      }
-    } finally {
+      setImportJobStatus("failed");
+      setImportError(error.message || "创建识别任务失败");
       setImportLoading(false);
     }
   };
+
+  // ── 轮询 job 状态 ──
+  useEffect(() => {
+    if (!importJobId || !["pending", "processing"].includes(importJobStatus)) return;
+
+    let cancelled = false;
+    const poll = async () => {
+      if (cancelled) return;
+      try {
+        const res = await fetch(`${API_BASE}/practice/import-paper/jobs/${importJobId}`);
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data?.detail || "查询识别任务失败");
+        }
+        if (cancelled) return;
+
+        setImportJob(data);
+        setImportJobStatus(data.status);
+        setImportJobProgress(data.progress_message || "");
+
+        if (data.parse_method || data.total_pages > 0) {
+          setImportExtractMeta({
+            extract_method: data.parse_method || "local",
+            qwen_used: data.parse_method === "qwen" || data.parse_method === "mixed",
+            total_pages: data.total_pages || 0,
+            parsed_pages: data.parsed_pages || 0,
+            page_limit_hit: data.page_limit_hit || false,
+          });
+        }
+
+        if (data.status === "succeeded" && data.result) {
+          const r = data.result;
+          const drafts = r.drafts || [];
+          setImportDrafts(drafts);
+          setImportPaperTitle(r.paper_title || data.result?.paper_title || importFile?.name || "导入试卷");
+          setImportOriginalFileName(r.original_file_name || importFile?.name || "");
+          setImportSelected(Object.fromEntries(drafts.map((_, idx) => [idx, true])));
+          setImportExtractMeta(r.extract_meta || null);
+          setImportWarnings(r.warnings || null);
+        }
+
+        if (data.status === "failed") {
+          setImportError(data.error_message || "试卷识别失败");
+        }
+      } catch (e) {
+        if (!cancelled) {
+          console.error("[paper-import:poll-error]", e);
+          setImportError(e.message || "查询识别任务失败，请稍后重试");
+        }
+      }
+    };
+
+    // 立即轮询一次，然后每 2 秒一次
+    poll();
+    const timer = setInterval(poll, 2000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [importJobId, importJobStatus, importFile]);
   const confirmImportDrafts = async () => {
     const selectedDrafts = importDrafts.filter((_, idx) => importSelected[idx]);
     if (selectedDrafts.length === 0 || !user?.username) return;
@@ -746,6 +759,19 @@ export default function PracticeCenter({
       setImportSaving(false);
     }
   };
+
+  const importJobStatusLabel = {
+    pending: "排队中",
+    processing: "识别中",
+    succeeded: "已完成",
+    failed: "失败",
+  }[importJobStatus] || "准备中";
+  const importJobElapsedSeconds = importJob?.created_at
+    ? Math.max(0, Math.floor((Date.now() - new Date(importJob.created_at).getTime()) / 1000))
+    : null;
+  const importJobElapsedText = importJobElapsedSeconds === null
+    ? ""
+    : `${Math.floor(importJobElapsedSeconds / 60)}分${importJobElapsedSeconds % 60}秒`;
 
   return (
     <section className="chat-panel chat-panel--wide practice-panel">
@@ -1813,6 +1839,41 @@ export default function PracticeCenter({
 
               {importError && <div className="practice-import-error">{importError}</div>}
 
+              {/* ── 异步识别进度 ── */}
+              {importJobStatus && ["pending", "processing"].includes(importJobStatus) && (
+                <div className="practice-import-progress">
+                  <div className="practice-import-progress-header">
+                    <span className="practice-import-progress-spinner" aria-hidden="true">⏳</span>
+                    <span>正在识别试卷，请稍候...</span>
+                  </div>
+                  <div className="practice-import-progress-body">
+                    <div className="practice-import-progress-status">状态：{importJobStatusLabel}</div>
+                    <div className="practice-import-progress-step">{importJobProgress || "准备中..."}</div>
+                    {(importJob?.parse_method || importJobElapsedText) && (
+                      <div className="practice-import-progress-meta">
+                        {importJob?.parse_method && <>识别方式：{formatExtractMethodLabel({ extract_method: importJob.parse_method, qwen_used: importJob.parse_method === "qwen" || importJob.parse_method === "mixed", file_type: "pdf" })?.label || importJob.parse_method}</>}
+                        {importJob?.parse_method && importJobElapsedText && " ｜ "}
+                        {importJobElapsedText && <>已耗时：{importJobElapsedText}</>}
+                      </div>
+                    )}
+                    {importExtractMeta?.total_pages > 0 && (
+                      <div className="practice-import-progress-meta">
+                        已处理 {importExtractMeta.parsed_pages || 0} / {importExtractMeta.total_pages} 页
+                        {importExtractMeta.qwen_used && "（Qwen 视觉识别）"}
+                      </div>
+                    )}
+                    {Number(importJob?.question_count || 0) > 0 && (
+                      <div className="practice-import-progress-meta">
+                        已识别题目数：{importJob.question_count}
+                      </div>
+                    )}
+                  </div>
+                  <div className="practice-import-progress-hint">
+                    扫描版 PDF 识别可能需要 1～3 分钟，请不要关闭页面
+                  </div>
+                </div>
+              )}
+
               {importDrafts.length > 0 && (
                 <div className="practice-draft-list">
                   <label className="field-label">试卷名称</label>
@@ -1922,10 +1983,14 @@ export default function PracticeCenter({
               </button>
               <button
                 className="ghost-button compact"
-                disabled={!importFile || importLoading}
+                disabled={!importFile || importLoading || ["pending", "processing"].includes(importJobStatus)}
                 onClick={parseImportFile}
               >
-                {importLoading ? "识别中..." : "开始识别"}
+                {importLoading || ["pending", "processing"].includes(importJobStatus)
+                  ? "识别中..."
+                  : importJobStatus === "succeeded"
+                  ? "已识别"
+                  : "开始识别"}
               </button>
               <button
                 className="primary-button compact"

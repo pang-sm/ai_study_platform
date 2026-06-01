@@ -7021,6 +7021,58 @@ select.field:focus {
   margin: 8px 0;
 }
 
+/* ── Async Import Progress ── */
+.practice-import-progress {
+  margin: 10px 0;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+.practice-import-progress-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  color: #1e40af;
+  margin-bottom: 8px;
+}
+.practice-import-progress-spinner {
+  font-size: 18px;
+  animation: practice-spin 1.2s linear infinite;
+}
+@keyframes practice-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.practice-import-progress-body {
+  font-size: 13px;
+  color: #475569;
+  line-height: 1.5;
+}
+.practice-import-progress-step {
+  font-weight: 500;
+  color: #334155;
+}
+.practice-import-progress-status {
+  margin-bottom: 3px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1d4ed8;
+}
+.practice-import-progress-meta {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #64748b;
+}
+.practice-import-progress-hint {
+  margin-top: 8px;
+  font-size: 11.5px;
+  color: #94a3b8;
+  line-height: 1.4;
+}
+
 .practice-import-warning-item {
   padding: 8px 12px;
   border-radius: 8px;

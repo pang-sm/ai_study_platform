@@ -452,3 +452,31 @@ class RedemptionCode(Base):
     status = Column(String(20), nullable=False, default="active")
     created_at = Column(DateTime, default=utc_now)
     created_by = Column(String(50), nullable=True)
+
+
+class PracticeImportJob(Base):
+    """试卷识别异步任务"""
+    __tablename__ = "practice_import_jobs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), index=True, nullable=False)
+    course_id = Column(String(100), nullable=True, default="")
+    module_id = Column(String(100), nullable=True)
+    knowledge_point_id = Column(Integer, nullable=True)
+    filename = Column(String(255), nullable=True)
+    file_path = Column(String(500), nullable=True)
+    file_size = Column(Integer, nullable=True, default=0)
+    status = Column(String(30), nullable=False, default="pending")
+    progress_message = Column(String(500), nullable=True)
+    parse_method = Column(String(50), nullable=True)
+    total_pages = Column(Integer, nullable=True, default=0)
+    parsed_pages = Column(Integer, nullable=True, default=0)
+    page_limit_hit = Column(Boolean, nullable=True, default=False)
+    text_length = Column(Integer, nullable=True, default=0)
+    question_count = Column(Integer, nullable=True, default=0)
+    result_json = Column(Text, nullable=True)
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+    started_at = Column(DateTime, nullable=True)
+    finished_at = Column(DateTime, nullable=True)

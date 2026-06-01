@@ -135,6 +135,8 @@ UPLOAD_ROOT = BASE_DIR / "uploads"
 UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
 MATERIAL_UPLOAD_ROOT = UPLOAD_ROOT / "materials"
 MATERIAL_UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
+PRACTICE_IMPORT_ROOT = UPLOAD_ROOT / "practice_imports"
+PRACTICE_IMPORT_ROOT.mkdir(parents=True, exist_ok=True)
 
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024
 MAX_PDF_CHARS = 12000
@@ -9636,6 +9638,312 @@ def normalize_paper_draft(item: dict, fallback_course_id: str, fallback_kp_id: i
     }
 
 
+def build_practice_paper_prompt(
+    extract_meta: dict,
+    course_norm: str,
+    original_filename: str,
+    extracted_text: str,
+) -> str:
+    truncation_note = ""
+    if extract_meta.get("page_limit_hit"):
+        truncation_note = "\n注意：试卷文本较长，已被截断。请基于已有内容尽可能多地提取题目。"
+
+    return f"""请从以下试卷文本中识别题目，并只输出严格 JSON 对象。本试卷共 {extract_meta.get('total_pages', '?')} 页，已提取 {extract_meta.get('parsed_pages', '?')} 页。
+
+输出格式：
+{{
+  "paper_title": "从文本中提取的试卷标题",
+  "course": "{course_norm or '未指定'}",
+  "questions": [
+    {{
+      "question_order": 1,
+      "type": "single_choice|multiple_choice|true_false|fill_blank|short_answer|programming|unknown",
+      "title": "简短标题",
+      "content": "完整题干，保留函数签名/输入输出/样例/代码/表格/公式",
+      "score": "分值（如10%）",
+      "options": [{{"label": "A", "content": "选项内容"}}],
+      "answer": "",
+      "explanation": "",
+      "knowledge_point": "",
+      "difficulty": "easy|medium|hard",
+      "raw_text": "原始识别文本（保留完整题面，包括题号/分值/说明）"
+    }}
+  ]
+}}
+
+识别规则（重要）：
+1. 必须尽可能多地提取整份试卷的所有题目，包括选择题、填空题、简答题、编程题、证明题。
+2. 不要只提取前几道题；整份文本里识别到的每道题都要提取。
+3. 每道题保留完整题干，不要删减、概括或改写。
+4. 编程题必须保留函数签名、输入输出格式、样例、要求、main 函数说明，type 用 programming。
+5. 如果题目有多个小问 (1)(2)(3)，小问之间用换行分隔，保留在 content 中。
+6. 检测到 A./A、/A．/(A) 等选项时，拆成 options 数组。
+7. 如果题目有分值标注（如 10%），填入 score 字段。
+8. 没有答案或解析时留空，不要编造。
+9. 每道题必须保留 raw_text 方便二次编辑。
+10. 字符串反斜杠必须双写（\\n、\\forall 等），确保合法 JSON。
+11. 只输出 JSON 对象，不用 Markdown 代码块。
+{truncation_note}
+
+试卷文件名：{original_filename}
+文本：
+{extracted_text[:PRACTICE_PAPER_MAX_CHARS]}"""
+
+
+def structure_practice_paper_text(
+    extracted_text: str,
+    extract_meta: dict,
+    original_filename: str,
+    course_norm: str,
+    knowledge_point_id: int | None,
+    username: str | None = None,
+    db: Session | None = None,
+    log_prefix: str = "[practice-paper-import]",
+) -> tuple[dict, float]:
+    prompt = build_practice_paper_prompt(extract_meta, course_norm, original_filename, extracted_text)
+    paper_title = Path(original_filename).stem or "导入试卷"
+    try:
+        if username and db:
+            check_usage_limit(username, "question_generate", db)
+        logger.info("%s deepseek start input_text_len=%d", log_prefix, len(extracted_text[:PRACTICE_PAPER_MAX_CHARS]))
+        t_deepseek = time.perf_counter()
+        raw = call_deepseek([
+            {"role": "system", "content": "你是试卷题目结构化识别助手，只输出 JSON 对象。"},
+            {"role": "user", "content": prompt},
+        ])
+        t_deepseek_elapsed = time.perf_counter() - t_deepseek
+        logger.info("%s deepseek done elapsed=%.2fs output_len=%d", log_prefix, t_deepseek_elapsed, len(raw))
+        if username and db:
+            record_ai_usage(
+                username,
+                "question_generate",
+                db,
+                estimated_tokens=estimate_tokens_from_text(raw),
+                status="success",
+            )
+
+        parsed_object = extract_json_object(raw)
+        if parsed_object:
+            normalized = normalize_ai_paper_payload(parsed_object)
+        else:
+            normalized = normalize_ai_paper_payload(extract_json_array(raw))
+        paper_title = str(normalized.get("paper_title") or paper_title).strip()
+        parsed = normalized.get("questions") or []
+    except json.JSONDecodeError as exc:
+        logger.exception("%s JSON decode failed", log_prefix)
+        if username and db:
+            record_ai_usage(username, "question_generate", db, status="failed", error_message=str(exc))
+        raise ValueError(
+            f"试卷题目识别失败，AI 返回了包含公式或特殊符号的内容导致解析失败。请重试，或先上传文字版 PDF/TXT。错误详情：{exc}"
+        ) from exc
+    except Exception as exc:
+        logger.exception("%s unexpected error", log_prefix)
+        if username and db:
+            record_ai_usage(username, "question_generate", db, status="failed", error_message=str(exc))
+        raise
+
+    drafts = [normalize_paper_draft(item, course_norm, knowledge_point_id) for item in parsed if isinstance(item, dict)]
+    drafts = [item for item in drafts if item["question_text"]]
+    if not drafts:
+        raise ValueError("未识别到可导入的题目草稿")
+
+    total_pages = extract_meta.get("total_pages", 0) or 0
+    parsed_pages = extract_meta.get("parsed_pages", 0) or 0
+    warnings: list[str] = []
+    if len(drafts) <= 2 and total_pages > 2:
+        warnings.append(f"识别题目数量较少（{len(drafts)} 道），原试卷共 {total_pages} 页，可能未完整识别整份试卷。")
+    if extract_meta.get("page_limit_hit"):
+        warnings.append(f"试卷文本较长，当前仅使用了前 {PRACTICE_PAPER_MAX_CHARS} 字符。可减小文件或提高限制后重新识别。")
+    if parsed_pages > 0 and total_pages > 0 and parsed_pages < total_pages:
+        warnings.append(f"当前仅识别了前 {parsed_pages} / {total_pages} 页，如需识别全卷可重新上传。")
+
+    message_parts = [f"已识别 {len(drafts)} 道题目草稿"]
+    if total_pages > 0:
+        message_parts.append(f"（{parsed_pages}/{total_pages} 页）")
+
+    return {
+        "success": True,
+        "paper_title": paper_title,
+        "original_file_name": original_filename,
+        "drafts": drafts,
+        "message": "".join(message_parts),
+        "extract_meta": extract_meta,
+        "warnings": warnings if warnings else None,
+    }, t_deepseek_elapsed
+
+
+# ── Async Paper Import Job ──────────────────────────────────────
+
+def run_practice_import_job(job_id: int):
+    """后台任务：执行试卷识别全流程，更新 job 状态"""
+    db = SessionLocal()
+    t_start = time.perf_counter()
+    try:
+        job = db.query(models.PracticeImportJob).filter(models.PracticeImportJob.id == job_id).first()
+        if not job:
+            logger.error("[practice-import-job] job_id=%s not found", job_id)
+            return
+
+        job.status = "processing"
+        job.started_at = utc_now()
+        job.progress_message = "正在提取试卷文本"
+        db.commit()
+        logger.info("[practice-import-job] start job_id=%s file=%s size=%s", job_id, job.filename, job.file_size)
+
+        file_path = job.file_path
+        if not file_path or not Path(file_path).exists():
+            raise FileNotFoundError(f"上传文件不存在：{file_path}")
+
+        file_bytes = Path(file_path).read_bytes()
+        original_filename = job.filename or "未命名试卷"
+
+        # Phase 1: 文本提取
+        t_extract = time.perf_counter()
+        job.progress_message = "正在提取试卷文本"
+        db.commit()
+        extracted_text, extract_meta = extract_practice_import_text(file_bytes, original_filename, "application/pdf")
+        t_extract_elapsed = time.perf_counter() - t_extract
+        logger.info("[practice-import-job] extract done job_id=%s elapsed=%.2fs method=%s qwen=%s",
+                    job_id, t_extract_elapsed, extract_meta.get("extract_method"), extract_meta.get("qwen_used"))
+
+        job.text_length = len(extracted_text or "")
+        job.parse_method = extract_meta.get("extract_method", "local")
+        job.total_pages = extract_meta.get("total_pages", 0) or 0
+        job.parsed_pages = extract_meta.get("parsed_pages", 0) or 0
+        job.page_limit_hit = bool(extract_meta.get("page_limit_hit"))
+        if extract_meta.get("qwen_used"):
+            job.progress_message = "Qwen 视觉识别完成，正在 AI 结构化题目"
+            db.commit()
+
+        if len(extracted_text.strip()) < 30:
+            raise ValueError(f"未能从文件中提取足够文本。{extract_meta.get('parse_error') or ''}".strip())
+
+        # Phase 2: DeepSeek 结构化
+        course_norm = normalize_subject(job.course_id or "", default="")
+        job.progress_message = "正在 AI 结构化题目"
+        db.commit()
+        result_data, t_ds_elapsed = structure_practice_paper_text(
+            extracted_text=extracted_text,
+            extract_meta=extract_meta,
+            original_filename=original_filename,
+            course_norm=course_norm,
+            knowledge_point_id=job.knowledge_point_id,
+            username=job.username,
+            db=db,
+            log_prefix="[practice-import-job]",
+        )
+        drafts = result_data.get("drafts") or []
+
+        # Phase 5: 成功
+        job.status = "succeeded"
+        job.progress_message = "识别完成"
+        job.question_count = len(drafts)
+        job.result_json = json.dumps(result_data, ensure_ascii=False)
+        job.finished_at = utc_now()
+        db.commit()
+
+        t_total = time.perf_counter() - t_start
+        logger.info("[practice-import-job] succeeded job_id=%s total=%.2fs extract=%.2fs ds=%.2fs questions=%s",
+                    job_id, t_total, t_extract_elapsed, t_ds_elapsed, len(drafts))
+
+    except Exception as exc:
+        logger.exception("[practice-import-job] failed job_id=%s", job_id)
+        try:
+            job = db.query(models.PracticeImportJob).filter(models.PracticeImportJob.id == job_id).first()
+            if job:
+                job.status = "failed"
+                job.error_message = str(exc)[:2000]
+                job.progress_message = "识别失败"
+                job.finished_at = utc_now()
+                db.commit()
+        except Exception:
+            pass
+    finally:
+        db.close()
+
+
+@app.post("/practice/import-paper/jobs")
+async def create_practice_import_job(
+    background_tasks: BackgroundTasks,
+    username: str = Form(...),
+    course_id: str = Form(""),
+    module_id: str | None = Form(None),
+    knowledge_point_id: int | None = Form(None),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    user = get_user_by_username(username, db)
+    file_bytes = await file.read()
+    original_filename = Path(file.filename or "未命名试卷").name
+    if len(file_bytes) > 50 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="文件过大，当前最大支持 50MB")
+    suffix = Path(original_filename).suffix.lower()
+    if suffix not in {".pdf", ".docx", ".txt", ".md", ".markdown", ".png", ".jpg", ".jpeg", ".webp"}:
+        raise HTTPException(status_code=400, detail="仅支持 PDF、图片、Word(docx)、TXT、Markdown 文件")
+
+    # 保存文件
+    file_id = secrets.token_hex(6)
+    stored_name = f"{int(time.time())}_{file_id}_{original_filename}"
+    stored_path = PRACTICE_IMPORT_ROOT / stored_name
+    stored_path.write_bytes(file_bytes)
+
+    # 创建 job
+    job = models.PracticeImportJob(
+        username=user.username,
+        course_id=normalize_subject(course_id, default="") or "",
+        module_id=(module_id or "").strip() or None,
+        knowledge_point_id=knowledge_point_id,
+        filename=original_filename,
+        file_path=str(stored_path),
+        file_size=len(file_bytes),
+        status="pending",
+        progress_message="任务已创建，等待识别",
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+
+    logger.info("[practice-import-job] created job_id=%s file=%s size=%s", job.id, original_filename, len(file_bytes))
+
+    # 启动后台任务
+    background_tasks.add_task(run_practice_import_job, job.id)
+
+    return {
+        "job_id": job.id,
+        "status": "pending",
+        "message": "试卷识别任务已创建",
+    }
+
+
+@app.get("/practice/import-paper/jobs/{job_id}")
+def get_practice_import_job(job_id: int, db: Session = Depends(get_db)):
+    job = db.query(models.PracticeImportJob).filter(models.PracticeImportJob.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="识别任务不存在")
+
+    result = None
+    if job.status == "succeeded" and job.result_json:
+        try:
+            result = json.loads(job.result_json)
+        except Exception:
+            result = None
+
+    return {
+        "job_id": job.id,
+        "status": job.status,
+        "progress_message": job.progress_message,
+        "parse_method": job.parse_method,
+        "module_id": job.module_id,
+        "total_pages": job.total_pages or 0,
+        "parsed_pages": job.parsed_pages or 0,
+        "page_limit_hit": bool(job.page_limit_hit),
+        "question_count": job.question_count or 0,
+        "error_message": job.error_message,
+        "result": result,
+        "created_at": serialize_datetime(job.created_at),
+    }
+
+
 @app.post("/practice/import-paper/parse")
 async def parse_practice_paper(
     username: str = Form(...),
@@ -9672,125 +9980,24 @@ async def parse_practice_paper(
             detail=f"未能从文件中提取足够文本，请上传更清晰的试卷文件。{hint}".strip(),
         )
 
-    course_norm = normalize_subject(course_id, default="")
-
-    # 提示：如果文本被截断，告知 AI
-    truncation_note = ""
-    if extract_meta.get("page_limit_hit"):
-        truncation_note = "\n注意：试卷文本较长，已被截断。请基于已有内容尽可能多地提取题目。"
-
-    prompt = f"""请从以下试卷文本中识别题目，并只输出严格 JSON 对象。本试卷共 {extract_meta.get('total_pages', '?')} 页，已提取 {extract_meta.get('parsed_pages', '?')} 页。
-
-输出格式：
-{{
-  "paper_title": "从文本中提取的试卷标题",
-  "course": "{course_norm or '未指定'}",
-  "questions": [
-    {{
-      "question_order": 1,
-      "type": "single_choice|multiple_choice|true_false|fill_blank|short_answer|programming|unknown",
-      "title": "简短标题",
-      "content": "完整题干，保留函数签名/输入输出/样例/代码/表格/公式",
-      "score": "分值（如10%）",
-      "options": [{{"label": "A", "content": "选项内容"}}, ...],
-      "answer": "",
-      "explanation": "",
-      "knowledge_point": "",
-      "difficulty": "easy|medium|hard",
-      "raw_text": "原始识别文本（保留完整题面，包括题号/分值/说明）"
-    }}
-  ]
-}}
-
-识别规则（重要）：
-1. 必须尽可能多地提取整份试卷的所有题目，包括选择题、填空题、简答题、编程题、证明题。
-2. 不要只提取前几道题！整份文本里识别到的每道题都要提取。
-3. 每道题保留完整题干，不要删减、概括或改写。
-4. 编程题必须保留函数签名、输入输出格式、样例、要求、main函数说明，type 用 programming。
-5. 如果题目有多个小问 (1)(2)(3)，小问之间用换行分隔，保留在 content 中。
-6. 检测到 A./A、/A．/(A) 等选项时，拆成 options 数组。
-7. 如果题目有分值标注（如 10%），填入 score 字段。
-8. 没有答案或解析时留空，不要编造。
-9. 每道题必须保留 raw_text 方便二次编辑。
-10. 字符串反斜杠必须双写（\\n、\\forall 等），确保合法 JSON。
-11. 只输出 JSON 对象，不用 Markdown 代码块。
-{truncation_note}
-
-试卷文件名：{original_filename}
-文本：
-{extracted_text[:PRACTICE_PAPER_MAX_CHARS]}"""
-    paper_title = Path(original_filename).stem or "导入试卷"
-    check_usage_limit(user.username, "question_generate", db)
     try:
-        logger.info("[practice-paper-import] deepseek start input_text_len=%d", len(extracted_text[:PRACTICE_PAPER_MAX_CHARS]))
-        t_deepseek = time.perf_counter()
-        raw = call_deepseek([
-            {"role": "system", "content": "你是试卷题目结构化识别助手，只输出 JSON 数组。"},
-            {"role": "user", "content": prompt},
-        ])
-        t_deepseek_elapsed = time.perf_counter() - t_deepseek
-        logger.info("[practice-paper-import] deepseek done elapsed=%.2fs output_len=%d", t_deepseek_elapsed, len(raw))
-        record_ai_usage(user.username, "question_generate", db, estimated_tokens=estimate_tokens_from_text(raw), status="success")
-        # 尝试多种解析方式，用 normalize_ai_paper_payload 统一结构
-        parsed_object = extract_json_object(raw)
-        if parsed_object:
-            normalized = normalize_ai_paper_payload(parsed_object)
-        else:
-            # extract_json_object 返回空 dict，尝试直接作为数组解析
-            normalized = normalize_ai_paper_payload(extract_json_array(raw))
-        paper_title = str(normalized.get("paper_title") or paper_title).strip()
-        parsed = normalized.get("questions") or []
-    except json.JSONDecodeError as exc:
-        logger.exception("[practice-paper-import] JSON decode failed")
-        record_ai_usage(user.username, "question_generate", db, status="failed", error_message=str(exc))
-        raise HTTPException(
-            status_code=500,
-            detail=f"试卷题目识别失败，AI 返回了包含公式或特殊符号的内容导致解析失败。请重试，或先上传文字版 PDF/TXT。错误详情：{exc}"
-        ) from exc
+        result, t_deepseek_elapsed = structure_practice_paper_text(
+            extracted_text=extracted_text,
+            extract_meta=extract_meta,
+            original_filename=original_filename,
+            course_norm=normalize_subject(course_id, default=""),
+            knowledge_point_id=knowledge_point_id,
+            username=user.username,
+            db=db,
+            log_prefix="[practice-paper-import]",
+        )
     except Exception as exc:
-        logger.exception("[practice-paper-import] unexpected error")
-        record_ai_usage(user.username, "question_generate", db, status="failed", error_message=str(exc))
         raise HTTPException(status_code=500, detail=f"试卷题目识别失败：{str(exc)}") from exc
-
-    drafts = [normalize_paper_draft(item, course_norm, knowledge_point_id) for item in parsed if isinstance(item, dict)]
-    drafts = [item for item in drafts if item["question_text"]]
-    if not drafts:
-        raise HTTPException(status_code=500, detail="未识别到可导入的题目草稿")
-
-    # ── 后处理校验与警告 ──
-    warnings: list[str] = []
-    total_pages = extract_meta.get("total_pages", 0)
-    parsed_pages = extract_meta.get("parsed_pages", 0)
-
-    # 题目数过少 + 页数较多 → 可能不完整
-    if len(drafts) <= 2 and total_pages > 2:
-        warnings.append(f"识别题目数量较少（{len(drafts)} 道），原试卷共 {total_pages} 页，可能未完整识别整份试卷。")
-
-    # 部分页识别
-    if extract_meta.get("page_limit_hit"):
-        warnings.append(f"试卷文本较长，当前仅使用了前 {PRACTICE_PAPER_MAX_CHARS} 字符。可减小文件或提高限制后重新识别。")
-
-    # 扫描 PDF 部分页
-    if parsed_pages > 0 and total_pages > 0 and parsed_pages < total_pages:
-        warnings.append(f"当前仅识别了前 {parsed_pages} / {total_pages} 页，如需识别全卷可重新上传。")
-
-    # 页数提示
-    message_parts = [f"已识别 {len(drafts)} 道题目草稿"]
-    if total_pages > 0:
-        message_parts.append(f"（{parsed_pages}/{total_pages} 页）")
 
     t_total = time.perf_counter() - t_start
     logger.info("[practice-paper-import] done total_elapsed=%.2fs question_count=%d extract=%.2fs deepseek=%.2fs",
-                t_total, len(drafts), t_extract_elapsed, t_deepseek_elapsed)
-    return {
-        "success": True,
-        "paper_title": paper_title,
-        "original_file_name": original_filename,
-        "drafts": drafts,
-        "message": "".join(message_parts),
-        "extract_meta": extract_meta,
-        "warnings": warnings if warnings else None,
-    }
+                t_total, len(result.get("drafts") or []), t_extract_elapsed, t_deepseek_elapsed)
+    return result
 
 
 @app.post("/practice/import-paper/confirm")

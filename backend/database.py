@@ -608,6 +608,44 @@ def ensure_practice_papers_schema(conn):
     ensure_columns(conn, "practice_papers", PRACTICE_PAPERS_COLUMNS)
 
 
+PRACTICE_IMPORT_JOBS_COLUMNS = {
+    "username": "VARCHAR(50) NOT NULL",
+    "course_id": "VARCHAR(100) DEFAULT ''",
+    "module_id": "VARCHAR(100)",
+    "knowledge_point_id": "INTEGER",
+    "filename": "VARCHAR(255)",
+    "file_path": "VARCHAR(500)",
+    "file_size": "INTEGER DEFAULT 0",
+    "status": "VARCHAR(30) NOT NULL DEFAULT 'pending'",
+    "progress_message": "VARCHAR(500)",
+    "parse_method": "VARCHAR(50)",
+    "total_pages": "INTEGER DEFAULT 0",
+    "parsed_pages": "INTEGER DEFAULT 0",
+    "page_limit_hit": "BOOLEAN DEFAULT 0",
+    "text_length": "INTEGER DEFAULT 0",
+    "question_count": "INTEGER DEFAULT 0",
+    "result_json": "TEXT",
+    "error_message": "TEXT",
+    "updated_at": "DATETIME",
+    "started_at": "DATETIME",
+    "finished_at": "DATETIME",
+}
+
+
+def ensure_practice_import_jobs_schema(conn):
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS practice_import_jobs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+    )
+    ensure_columns(conn, "practice_import_jobs", PRACTICE_IMPORT_JOBS_COLUMNS)
+
+
 def ensure_question_attempts_schema(conn):
     conn.execute(
         text(
@@ -968,6 +1006,7 @@ def init_user_profile_schema():
         ensure_practice_papers_schema(conn)
         ensure_questions_schema(conn)
         ensure_question_attempts_schema(conn)
+        ensure_practice_import_jobs_schema(conn)
         ensure_knowledge_points_schema(conn)
         ensure_user_knowledge_progress_schema(conn)
         ensure_user_learning_paths_schema(conn)
