@@ -9038,6 +9038,8 @@ def serialize_question(q, knowledge_point_title=None):
     return {
         "id": q.id,
         "username": q.username,
+        "paper_id": getattr(q, "paper_id", None),
+        "question_order": getattr(q, "question_order", None),
         "course_id": q.course_id,
         "knowledge_point_id": q.knowledge_point_id,
         "knowledge_point_title": knowledge_point_title,
@@ -9052,6 +9054,7 @@ def serialize_question(q, knowledge_point_title=None):
         "source_style": getattr(q, "source_style", None),
         "imported_from": getattr(q, "imported_from", None),
         "original_file_name": getattr(q, "original_file_name", None),
+        "raw_text": getattr(q, "raw_text", None),
         "created_at": serialize_datetime(q.created_at) if q.created_at else None,
         "updated_at": serialize_datetime(q.updated_at) if q.updated_at else None,
     }
@@ -9061,6 +9064,8 @@ def serialize_question_list_item(q, knowledge_point_title=None):
     return {
         "id": q.id,
         "username": q.username,
+        "paper_id": getattr(q, "paper_id", None),
+        "question_order": getattr(q, "question_order", None),
         "course_id": q.course_id,
         "knowledge_point_id": q.knowledge_point_id,
         "knowledge_point_title": knowledge_point_title,
@@ -9072,8 +9077,24 @@ def serialize_question_list_item(q, knowledge_point_title=None):
         "source_style": getattr(q, "source_style", None),
         "imported_from": getattr(q, "imported_from", None),
         "original_file_name": getattr(q, "original_file_name", None),
+        "raw_text": getattr(q, "raw_text", None),
         "created_at": serialize_datetime(q.created_at) if q.created_at else None,
         "updated_at": serialize_datetime(q.updated_at) if q.updated_at else None,
+    }
+
+
+def serialize_practice_paper(paper):
+    return {
+        "id": paper.id,
+        "username": paper.username,
+        "course_id": paper.course_id,
+        "title": paper.title,
+        "source_file_name": paper.source_file_name,
+        "source_type": paper.source_type,
+        "status": paper.status,
+        "question_count": paper.question_count or 0,
+        "created_at": serialize_datetime(paper.created_at) if paper.created_at else None,
+        "updated_at": serialize_datetime(paper.updated_at) if paper.updated_at else None,
     }
 
 
@@ -9110,6 +9131,7 @@ def list_questions(
     qtype = (type or "").strip()
     if qtype and qtype in ("choice", "single_choice", "multiple_choice", "true_false", "fill_blank", "short_answer", "programming"):
         query = query.filter(models.Question.type == qtype)
+    query = query.filter(models.Question.paper_id.is_(None))
 
     questions = query.order_by(models.Question.updated_at.desc()).all()
 
@@ -9154,9 +9176,15 @@ def list_questions(
         reverse=True,
     )
 
+    paper_query = db.query(models.PracticePaper).filter(models.PracticePaper.username == user.username)
+    if normalized_course:
+        paper_query = paper_query.filter(models.PracticePaper.course_id == normalized_course)
+    papers = [] if qtype or knowledge_point_id is not None else paper_query.order_by(models.PracticePaper.updated_at.desc()).all()
+
     return {
         "success": True,
         "questions": merged_items,
+        "papers": [serialize_practice_paper(p) for p in papers],
     }
 
 
@@ -9175,6 +9203,8 @@ def create_question(req: schemas.QuestionCreate, db: Session = Depends(get_db)):
 
     question = models.Question(
         username=user.username,
+        paper_id=req.paper_id,
+        question_order=req.question_order,
         course_id=normalize_subject(req.course_id, default="") or None,
         knowledge_point_id=req.knowledge_point_id,
         type=qtype,
@@ -9188,6 +9218,7 @@ def create_question(req: schemas.QuestionCreate, db: Session = Depends(get_db)):
         source_style=(req.source_style or "").strip() or None,
         imported_from=(req.imported_from or "").strip() or None,
         original_file_name=(req.original_file_name or "").strip() or None,
+        raw_text=(req.raw_text or "").strip() or None,
     )
     db.add(question)
     db.commit()
@@ -9227,15 +9258,70 @@ def extract_practice_import_text(file_bytes: bytes, filename: str, content_type:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+def extract_json_object(text_value: str) -> dict:
+    text_value = (text_value or "").strip()
+    try:
+        parsed = json.loads(text_value)
+        if isinstance(parsed, dict):
+            return parsed
+    except Exception:
+        pass
+    match = re.search(r"\{[\s\S]*\}", text_value)
+    if not match:
+        return {}
+    try:
+        parsed = json.loads(match.group(0))
+        return parsed if isinstance(parsed, dict) else {}
+    except Exception:
+        return {}
+
+
+def format_question_options(raw_options) -> str | None:
+    if raw_options is None:
+        return None
+    if isinstance(raw_options, list):
+        lines = []
+        for idx, option in enumerate(raw_options):
+            fallback_label = chr(ord("A") + idx)
+            if isinstance(option, dict):
+                label = str(option.get("label") or fallback_label).strip().rstrip(".、)")
+                content = str(option.get("content") or option.get("text") or "").strip()
+            else:
+                text_option = str(option).strip()
+                matched = re.match(r"^([A-H])[\.\、\)]\s*(.+)$", text_option, re.I)
+                label = matched.group(1).upper() if matched else fallback_label
+                content = matched.group(2).strip() if matched else text_option
+            if content:
+                lines.append(f"{label.upper()}. {content}")
+        return "\n".join(lines) or None
+    options_text = str(raw_options).strip()
+    if not options_text:
+        return None
+    option_matches = list(re.finditer(r"(?m)([A-H])[\.\、\)]\s*", options_text))
+    if len(option_matches) >= 2:
+        lines = []
+        for idx, match in enumerate(option_matches):
+            start = match.end()
+            end = option_matches[idx + 1].start() if idx + 1 < len(option_matches) else len(options_text)
+            content = options_text[start:end].strip()
+            if content:
+                lines.append(f"{match.group(1).upper()}. {content}")
+        if lines:
+            return "\n".join(lines)
+    return options_text
+
+
 def normalize_paper_draft(item: dict, fallback_course_id: str, fallback_kp_id: int | None = None) -> dict:
     qtype = normalize_question_type(str(item.get("type") or item.get("question_type") or "short_answer"), "short_answer")
     content = str(item.get("question_text") or item.get("content") or "").strip()
+    raw_text = str(item.get("raw_text") or content).strip()
     title = str(item.get("title") or content[:32] or "识别题目").strip()
     return {
+        "question_order": item.get("question_order") or item.get("order"),
         "title": title[:255],
         "question_text": content,
         "type": qtype,
-        "options": str(item.get("options") or "").strip() or None,
+        "options": format_question_options(item.get("options")),
         "answer": str(item.get("answer") or "").strip() or None,
         "explanation": str(item.get("explanation") or "").strip() or None,
         "course_id": normalize_subject(str(item.get("course_id") or fallback_course_id), default=""),
@@ -9244,6 +9330,7 @@ def normalize_paper_draft(item: dict, fallback_course_id: str, fallback_kp_id: i
         "source": "paper_import",
         "confidence": item.get("confidence", None),
         "source_style": "exam",
+        "raw_text": raw_text,
     }
 
 
@@ -9277,6 +9364,41 @@ title, question_text, type(single_choice/multiple_choice/true_false/fill_blank/s
 文本：
 {extracted_text[:12000]}"""
 
+    prompt = f"""请从以下试卷文本中识别题目，并只输出严格 JSON 对象：
+{{
+  "paper_title": "试卷标题",
+  "course": "{course_norm or '未指定'}",
+  "questions": [
+    {{
+      "question_order": 1,
+      "type": "single_choice|multiple_choice|true_false|fill_blank|short_answer|programming|unknown",
+      "title": "简短标题",
+      "content": "题干，不要混入选项",
+      "options": [
+        {{"label": "A", "content": "选项内容"}},
+        {{"label": "B", "content": "选项内容"}},
+        {{"label": "C", "content": "选项内容"}},
+        {{"label": "D", "content": "选项内容"}}
+      ],
+      "answer": "",
+      "explanation": "",
+      "knowledge_point": "",
+      "difficulty": "easy|medium|hard",
+      "raw_text": "原始识别文本"
+    }}
+  ]
+}}
+
+识别规则：
+1. 检测到 A./B./C./D. 或 A、B、C、D 选项时，必须拆成 options 数组，不要混在 content。
+2. 没有识别到答案或解析时保持空字符串，不要编造。
+3. 每道题必须保留 raw_text 方便用户二次编辑。
+4. 不确定题型时 type 使用 unknown。
+
+试卷文件名：{original_filename}
+文本：
+{extracted_text[:12000]}"""
+    paper_title = Path(original_filename).stem or "导入试卷"
     check_usage_limit(user.username, "question_generate", db)
     try:
         raw = call_deepseek([
@@ -9284,7 +9406,9 @@ title, question_text, type(single_choice/multiple_choice/true_false/fill_blank/s
             {"role": "user", "content": prompt},
         ])
         record_ai_usage(user.username, "question_generate", db, estimated_tokens=estimate_tokens_from_text(raw), status="success")
-        parsed = extract_json_array(raw)
+        parsed_object = extract_json_object(raw)
+        paper_title = str(parsed_object.get("paper_title") or paper_title).strip()
+        parsed = parsed_object.get("questions") if isinstance(parsed_object.get("questions"), list) else extract_json_array(raw)
     except Exception as exc:
         record_ai_usage(user.username, "question_generate", db, status="failed", error_message=str(exc))
         raise HTTPException(status_code=500, detail=f"试卷题目识别失败：{str(exc)}") from exc
@@ -9295,6 +9419,7 @@ title, question_text, type(single_choice/multiple_choice/true_false/fill_blank/s
         raise HTTPException(status_code=500, detail="未识别到可导入的题目草稿")
     return {
         "success": True,
+        "paper_title": paper_title,
         "original_file_name": original_filename,
         "drafts": drafts,
         "message": f"已识别 {len(drafts)} 道题目草稿",
@@ -9306,12 +9431,26 @@ def confirm_practice_paper_import(req: schemas.PaperImportConfirmRequest, db: Se
     user = get_user_by_username(req.username, db)
     course_norm = normalize_subject(req.course_id, default="")
     created = []
-    for draft in req.questions[:50]:
+    selected_drafts = [draft for draft in req.questions[:50] if (draft.question_text or "").strip()]
+    if not selected_drafts:
+        raise HTTPException(status_code=400, detail="没有可导入的题目")
+    paper = models.PracticePaper(
+        username=user.username,
+        course_id=course_norm or normalize_subject(selected_drafts[0].course_id, default="") or None,
+        title=(req.paper_title or req.original_file_name or "导入试卷")[:255],
+        source_file_name=(req.original_file_name or "").strip() or None,
+        source_type="paper_upload",
+        status="imported",
+        question_count=len(selected_drafts),
+    )
+    db.add(paper)
+    db.flush()
+    for idx, draft in enumerate(selected_drafts, start=1):
         content = (draft.question_text or "").strip()
-        if not content:
-            continue
         question = models.Question(
             username=user.username,
+            paper_id=paper.id,
+            question_order=draft.question_order or idx,
             course_id=normalize_subject(draft.course_id or course_norm, default="") or None,
             knowledge_point_id=draft.knowledge_point_id,
             type=normalize_question_type(draft.type, "short_answer"),
@@ -9325,19 +9464,84 @@ def confirm_practice_paper_import(req: schemas.PaperImportConfirmRequest, db: Se
             source_style=draft.source_style or "exam",
             imported_from="paper_upload",
             original_file_name=(req.original_file_name or "").strip() or None,
+            raw_text=(draft.raw_text or content).strip() or None,
         )
         db.add(question)
         created.append(question)
     if not created:
         raise HTTPException(status_code=400, detail="没有可导入的题目")
     db.commit()
+    db.refresh(paper)
     for q in created:
         db.refresh(q)
     return {
         "success": True,
+        "paper": serialize_practice_paper(paper),
         "questions": [serialize_question(q) for q in created],
         "message": f"已导入 {len(created)} 道题目",
     }
+
+
+@app.get("/practice/papers")
+def list_practice_papers(
+    username: str,
+    course_id: str = "",
+    db: Session = Depends(get_db),
+):
+    user = get_user_by_username(username, db)
+    query = db.query(models.PracticePaper).filter(models.PracticePaper.username == user.username)
+    normalized_course = normalize_subject(course_id, default="")
+    if normalized_course:
+        query = query.filter(models.PracticePaper.course_id == normalized_course)
+    papers = query.order_by(models.PracticePaper.updated_at.desc()).all()
+    return {"success": True, "papers": [serialize_practice_paper(p) for p in papers]}
+
+
+@app.get("/practice/papers/{paper_id}")
+def get_practice_paper(paper_id: int, username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    paper = (
+        db.query(models.PracticePaper)
+        .filter(models.PracticePaper.id == paper_id, models.PracticePaper.username == user.username)
+        .first()
+    )
+    if not paper:
+        raise HTTPException(status_code=404, detail="试卷不存在")
+    questions = (
+        db.query(models.Question)
+        .filter(models.Question.paper_id == paper.id, models.Question.username == user.username)
+        .order_by(models.Question.question_order.asc(), models.Question.id.asc())
+        .all()
+    )
+    kp_ids = [q.knowledge_point_id for q in questions if q.knowledge_point_id]
+    kp_map: dict[int, str] = {}
+    if kp_ids:
+        for kp in db.query(models.KnowledgePoint).filter(models.KnowledgePoint.id.in_(kp_ids)).all():
+            kp_map[kp.id] = kp.title
+    return {
+        "success": True,
+        "paper": serialize_practice_paper(paper),
+        "questions": [serialize_question(q, knowledge_point_title=kp_map.get(q.knowledge_point_id)) for q in questions],
+    }
+
+
+@app.delete("/practice/papers/{paper_id}")
+def delete_practice_paper(paper_id: int, username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    paper = (
+        db.query(models.PracticePaper)
+        .filter(models.PracticePaper.id == paper_id, models.PracticePaper.username == user.username)
+        .first()
+    )
+    if not paper:
+        raise HTTPException(status_code=404, detail="试卷不存在")
+    questions = db.query(models.Question).filter(models.Question.paper_id == paper.id, models.Question.username == user.username).all()
+    for q in questions:
+        db.query(models.QuestionAttempt).filter(models.QuestionAttempt.question_id == q.id).delete()
+        db.delete(q)
+    db.delete(paper)
+    db.commit()
+    return {"success": True, "message": "试卷已删除"}
 
 
 @app.get("/practice/questions/{question_id}")
@@ -9373,7 +9577,7 @@ def update_question(question_id: int, req: schemas.QuestionUpdate, db: Session =
 
     if req.type is not None:
         new_type = (req.type or "").strip()
-        if new_type not in ("choice", "short_answer", "programming"):
+        if new_type not in ("choice", "single_choice", "multiple_choice", "true_false", "fill_blank", "short_answer", "programming", "unknown"):
             raise HTTPException(status_code=400, detail="无效的题型")
         question.type = new_type
     if req.title is not None:
@@ -9388,6 +9592,10 @@ def update_question(question_id: int, req: schemas.QuestionUpdate, db: Session =
         question.explanation = (req.explanation or "").strip() or None
     if req.difficulty is not None:
         question.difficulty = req.difficulty
+    if req.question_order is not None:
+        question.question_order = req.question_order
+    if req.raw_text is not None:
+        question.raw_text = (req.raw_text or "").strip() or None
     if req.course_id is not None:
         question.course_id = normalize_subject(req.course_id, default="") or None
     if req.knowledge_point_id is not None:
@@ -9397,6 +9605,79 @@ def update_question(question_id: int, req: schemas.QuestionUpdate, db: Session =
     db.commit()
     db.refresh(question)
     return {"success": True, "question": serialize_question(question)}
+
+
+@app.post("/practice/questions/{question_id}/ai-explain")
+def explain_practice_question(question_id: int, req: schemas.QuestionAiExplainRequest, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+    question = (
+        db.query(models.Question)
+        .filter(models.Question.id == question_id, models.Question.username == user.username)
+        .first()
+    )
+    if not question:
+        raise HTTPException(status_code=404, detail="题目不存在")
+
+    prompt = f"""请为下面这道练习题生成清晰解析。若题目没有标准答案，可以给出“参考解析”，不要编造唯一答案。
+请输出 JSON 对象：{{"explanation":"...", "answer":"可选，仅当能从题目推理出参考答案时填写"}}
+
+课程：{question.course_id or "未指定"}
+知识点 ID：{question.knowledge_point_id or "未指定"}
+题型：{question.type}
+题目：{question.title}
+题干：
+{question.content}
+选项：
+{question.options or "无"}
+已有答案：
+{question.answer or "无"}
+已有解析：
+{question.explanation or "无"}
+"""
+    prompt = f"""请为下面这道练习题生成清晰解析。若题目没有标准答案，可以给出“参考解析”，不要编造唯一答案。
+请输出 JSON 对象：{{"explanation":"...", "answer":"可选，仅当能从题目推理出参考答案时填写"}}
+
+课程：{question.course_id or "未指定"}
+知识点 ID：{question.knowledge_point_id or "未指定"}
+题型：{question.type}
+题目：{question.title}
+题干：
+{question.content}
+选项：
+{question.options or "无"}
+已有答案：
+{question.answer or "无"}
+已有解析：
+{question.explanation or "无"}
+"""
+    check_usage_limit(user.username, "question_feedback", db)
+    try:
+        raw = call_deepseek([
+            {"role": "system", "content": "你是练习题解析助手，输出严格 JSON 对象。"},
+            {"role": "user", "content": prompt},
+        ])
+        record_ai_usage(user.username, "question_feedback", db, estimated_tokens=estimate_tokens_from_text(raw), status="success")
+    except Exception as exc:
+        record_ai_usage(user.username, "question_feedback", db, status="failed", error_message=str(exc))
+        raise HTTPException(status_code=500, detail=f"AI 解析失败：{str(exc)}") from exc
+
+    parsed = extract_json_object(raw)
+    explanation = str(parsed.get("explanation") or raw).strip()
+    suggested_answer = str(parsed.get("answer") or "").strip()
+    if explanation:
+        question.explanation = explanation
+    if suggested_answer and not (question.answer or "").strip():
+        question.answer = suggested_answer
+    question.updated_at = utc_now()
+    db.commit()
+    db.refresh(question)
+    return {
+        "success": True,
+        "question_id": question.id,
+        "explanation": question.explanation,
+        "answer": question.answer,
+        "question": serialize_question(question),
+    }
 
 
 @app.delete("/practice/questions/{question_id}")

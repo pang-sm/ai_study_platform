@@ -192,6 +192,8 @@ KNOWLEDGE_POINTS_COLUMNS = {
 
 QUESTIONS_COLUMNS = {
     "username": "VARCHAR(50) NOT NULL",
+    "paper_id": "INTEGER",
+    "question_order": "INTEGER",
     "course_id": "VARCHAR(100)",
     "knowledge_point_id": "INTEGER",
     "type": "VARCHAR(30) NOT NULL",
@@ -205,6 +207,19 @@ QUESTIONS_COLUMNS = {
     "source_style": "VARCHAR(30)",
     "imported_from": "VARCHAR(50)",
     "original_file_name": "VARCHAR(255)",
+    "raw_text": "TEXT",
+    "created_at": "DATETIME NOT NULL",
+    "updated_at": "DATETIME NOT NULL",
+}
+
+PRACTICE_PAPERS_COLUMNS = {
+    "username": "VARCHAR(50) NOT NULL",
+    "course_id": "VARCHAR(100)",
+    "title": "VARCHAR(255) NOT NULL",
+    "source_file_name": "VARCHAR(255)",
+    "source_type": "VARCHAR(50)",
+    "status": "VARCHAR(30)",
+    "question_count": "INTEGER",
     "created_at": "DATETIME NOT NULL",
     "updated_at": "DATETIME NOT NULL",
 }
@@ -550,6 +565,8 @@ def ensure_questions_schema(conn):
             CREATE TABLE IF NOT EXISTS questions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username VARCHAR(50) NOT NULL,
+                paper_id INTEGER,
+                question_order INTEGER,
                 course_id VARCHAR(100),
                 knowledge_point_id INTEGER,
                 type VARCHAR(30) NOT NULL,
@@ -567,6 +584,28 @@ def ensure_questions_schema(conn):
         )
     )
     ensure_columns(conn, "questions", QUESTIONS_COLUMNS)
+
+
+def ensure_practice_papers_schema(conn):
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS practice_papers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username VARCHAR(50) NOT NULL,
+                course_id VARCHAR(100),
+                title VARCHAR(255) NOT NULL,
+                source_file_name VARCHAR(255),
+                source_type VARCHAR(50),
+                status VARCHAR(30),
+                question_count INTEGER,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+    )
+    ensure_columns(conn, "practice_papers", PRACTICE_PAPERS_COLUMNS)
 
 
 def ensure_question_attempts_schema(conn):
@@ -926,6 +965,7 @@ def init_user_profile_schema():
         ensure_code_challenges_schema(conn)
         ensure_code_challenge_attempts_schema(conn)
         ensure_learning_tasks_schema(conn)
+        ensure_practice_papers_schema(conn)
         ensure_questions_schema(conn)
         ensure_question_attempts_schema(conn)
         ensure_knowledge_points_schema(conn)

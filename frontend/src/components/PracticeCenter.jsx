@@ -80,6 +80,7 @@ export default function PracticeCenter({
   setPage = () => {},
 }) {
   const [questions, setQuestions] = useState([]);
+  const [papers, setPapers] = useState([]);
   const [knowledgePoints, setKnowledgePoints] = useState([]);
   const [loading, setLoading] = useState(false);
   const [courseFilter, setCourseFilter] = useState(subject || "");
@@ -94,6 +95,11 @@ export default function PracticeCenter({
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [detailActionLoading, setDetailActionLoading] = useState(false);
   const [showAnswer, setShowAnswer] = useState(false);
+  const [paperDetail, setPaperDetail] = useState(null);
+  const [paperQuestions, setPaperQuestions] = useState([]);
+  const [expandedPaperQuestions, setExpandedPaperQuestions] = useState({});
+  const [paperLoading, setPaperLoading] = useState(false);
+  const [aiExplainLoadingId, setAiExplainLoadingId] = useState(null);
 
   // Create modal
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -129,6 +135,7 @@ export default function PracticeCenter({
   const [importFile, setImportFile] = useState(null);
   const [importDrafts, setImportDrafts] = useState([]);
   const [importSelected, setImportSelected] = useState({});
+  const [importPaperTitle, setImportPaperTitle] = useState("");
   const [importOriginalFileName, setImportOriginalFileName] = useState("");
   const [importLoading, setImportLoading] = useState(false);
   const [importSaving, setImportSaving] = useState(false);
@@ -165,6 +172,7 @@ export default function PracticeCenter({
       const data = await res.json();
       if (res.ok) {
         setQuestions(data.questions || []);
+        setPapers(data.papers || []);
       }
     } catch (e) {
       console.error("Failed to load questions:", e);
@@ -406,6 +414,68 @@ export default function PracticeCenter({
     }
   };
 
+  const openPaperDetail = async (paper) => {
+    if (!paper?.id || !user?.username) return;
+    setPaperLoading(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/practice/papers/${paper.id}?username=${encodeURIComponent(user.username)}`
+      );
+      const data = await res.json();
+      if (res.ok) {
+        setPaperDetail(data.paper);
+        setPaperQuestions(data.questions || []);
+        setExpandedPaperQuestions({});
+      }
+    } catch (e) {
+      console.error("Failed to load paper detail:", e);
+    } finally {
+      setPaperLoading(false);
+    }
+  };
+
+  const deletePaper = async (paper) => {
+    if (!window.confirm(`确认删除试卷"${paper.title}"及其题目吗？`)) return;
+    try {
+      const res = await fetch(
+        `${API_BASE}/practice/papers/${paper.id}?username=${encodeURIComponent(user.username)}`,
+        { method: "DELETE" }
+      );
+      if (res.ok) {
+        if (paperDetail?.id === paper.id) setPaperDetail(null);
+        await loadQuestions();
+      }
+    } catch (e) {
+      console.error("Failed to delete paper:", e);
+    }
+  };
+
+  const requestQuestionAiExplain = async (question, fromPaper = false) => {
+    if (!question?.id || !user?.username) return;
+    setAiExplainLoadingId(question.id);
+    try {
+      const res = await fetch(`${API_BASE}/practice/questions/${question.id}/ai-explain`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: user.username }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "AI 解析失败");
+      const nextQuestion = data.question || { ...question, explanation: data.explanation, answer: data.answer };
+      if (fromPaper) {
+        setPaperQuestions((items) => items.map((item) => (item.id === question.id ? nextQuestion : item)));
+      }
+      if (detailQuestion?.id === question.id) {
+        setDetailQuestion(nextQuestion);
+        setShowAnswer(true);
+      }
+    } catch (e) {
+      alert(e.message || "AI 解析失败");
+    } finally {
+      setAiExplainLoadingId(null);
+    }
+  };
+
   const getTypeClass = (type) => {
     if (type === "choice" || type === "single_choice" || type === "multiple_choice" || type === "true_false") return "q-type-choice";
     if (type === "short_answer") return "q-type-short";
@@ -485,6 +555,7 @@ export default function PracticeCenter({
     setImportFile(null);
     setImportDrafts([]);
     setImportSelected({});
+    setImportPaperTitle("");
     setImportOriginalFileName("");
     setImportError("");
     setShowImportModal(true);
@@ -511,6 +582,7 @@ export default function PracticeCenter({
       if (!res.ok) throw new Error(data.detail || "识别失败");
       const drafts = data.drafts || [];
       setImportDrafts(drafts);
+      setImportPaperTitle(data.paper_title || data.original_file_name || importFile.name || "导入试卷");
       setImportOriginalFileName(data.original_file_name || importFile.name || "");
       setImportSelected(Object.fromEntries(drafts.map((_, idx) => [idx, true])));
     } catch (error) {
@@ -531,6 +603,7 @@ export default function PracticeCenter({
         body: JSON.stringify({
           username: user.username,
           course_id: normalizeSubject(importCourse, ""),
+          paper_title: importPaperTitle || importOriginalFileName || "导入试卷",
           original_file_name: importOriginalFileName,
           questions: selectedDrafts,
         }),
@@ -539,6 +612,7 @@ export default function PracticeCenter({
       if (!res.ok) throw new Error(data.detail || "导入失败");
       setShowImportModal(false);
       await loadQuestions();
+      if (data.paper) openPaperDetail(data.paper);
     } catch (error) {
       setImportError(error.message || "导入失败，请稍后重试");
     } finally {
@@ -674,9 +748,52 @@ export default function PracticeCenter({
               </div>
             </div>
 
+            {!loading && papers.length > 0 && (
+              <div className="question-section-card practice-paper-section">
+                <div className="question-section-head">
+                  <h3>试卷列表</h3>
+                  <span>共 {papers.length} 张</span>
+                </div>
+                <div className="practice-paper-list">
+                  {papers.map((paper) => (
+                    <div key={paper.id} className="practice-paper-card">
+                      <div className="practice-paper-icon" aria-hidden="true">卷</div>
+                      <div className="practice-paper-main">
+                        <h4>{paper.title}</h4>
+                        <div className="question-card-meta">
+                          {paper.course_id && (
+                            <span className="subject-pill small practice-course-pill">
+                              {getSubjectLabel(paper.course_id)}
+                            </span>
+                          )}
+                          <span className="subject-pill small practice-source-pill">试卷识别</span>
+                          <span className="subject-pill small practice-difficulty-pill">{paper.question_count || 0} 道题</span>
+                          <span className="history-meta">{formatDate(paper.updated_at || paper.created_at)}</span>
+                        </div>
+                      </div>
+                      <div className="question-card-actions">
+                        <button className="primary-button compact question-start-button" onClick={() => openPaperDetail(paper)}>
+                          查看试卷
+                        </button>
+                        <button className="tiny-button" onClick={() => openPaperDetail(paper)}>
+                          继续编辑
+                        </button>
+                        <button className="tiny-button" onClick={() => openPaperDetail(paper)}>
+                          AI 复习建议
+                        </button>
+                        <button className="tiny-button danger" onClick={() => deletePaper(paper)}>
+                          删除
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {loading ? (
               <div className="empty-state practice-loading">加载中...</div>
-            ) : questions.length === 0 ? (
+            ) : questions.length === 0 && papers.length === 0 ? (
               <div className="empty-inline practice-empty">
                 <div className="practice-empty-left">
                   <div className="practice-empty-icon" aria-hidden="true">📋</div>
@@ -865,10 +982,10 @@ export default function PracticeCenter({
         </div>
       </div>
 
-      {/* Detail Modal */}
+      {/* Detail Drawer */}
       {detailQuestion && (
-        <div className="modal-overlay" onClick={() => setDetailQuestion(null)}>
-          <div className="modal-card modal-card--wide" onClick={(e) => e.stopPropagation()}>
+        <div className="practice-drawer-overlay" onClick={() => setDetailQuestion(null)}>
+          <div className="practice-detail-drawer" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>{detailQuestion.title}</h3>
               <button className="modal-close" onClick={() => setDetailQuestion(null)}>
@@ -971,6 +1088,13 @@ export default function PracticeCenter({
                 >
                   {feedbackLoading ? "AI 分析中..." : "AI 反馈"}
                 </button>
+                <button
+                  className="ghost-button compact"
+                  disabled={aiExplainLoadingId === detailQuestion.id}
+                  onClick={() => requestQuestionAiExplain(detailQuestion)}
+                >
+                  {aiExplainLoadingId === detailQuestion.id ? "解析中..." : "AI 解析"}
+                </button>
               </div>
 
               {feedback && (
@@ -1015,6 +1139,100 @@ export default function PracticeCenter({
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Paper Detail Drawer */}
+      {paperDetail && (
+        <div className="practice-drawer-overlay" onClick={() => setPaperDetail(null)}>
+          <div className="practice-detail-drawer practice-paper-drawer" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div>
+                <h3>{paperDetail.title}</h3>
+                <div className="question-card-meta">
+                  {paperDetail.course_id && (
+                    <span className="subject-pill small practice-course-pill">{getSubjectLabel(paperDetail.course_id)}</span>
+                  )}
+                  <span className="subject-pill small practice-source-pill">试卷识别</span>
+                  <span className="subject-pill small practice-difficulty-pill">{paperQuestions.length} 道题</span>
+                  <span className="history-meta">{formatDate(paperDetail.updated_at || paperDetail.created_at)}</span>
+                </div>
+              </div>
+              <button className="modal-close" onClick={() => setPaperDetail(null)}>
+                &times;
+              </button>
+            </div>
+            <div className="practice-paper-toc">
+              {paperQuestions.map((q, idx) => (
+                <button
+                  key={q.id}
+                  type="button"
+                  onClick={() => setExpandedPaperQuestions((prev) => ({ ...prev, [q.id]: !prev[q.id] }))}
+                >
+                  {q.question_order || idx + 1}
+                </button>
+              ))}
+            </div>
+            <div className="practice-paper-question-list">
+              {paperLoading ? (
+                <div className="empty-state">加载试卷中...</div>
+              ) : paperQuestions.map((q, idx) => {
+                const expanded = Boolean(expandedPaperQuestions[q.id]);
+                return (
+                  <div key={q.id} className="practice-paper-question">
+                    <button
+                      type="button"
+                      className="practice-paper-question-head"
+                      onClick={() => setExpandedPaperQuestions((prev) => ({ ...prev, [q.id]: !expanded }))}
+                    >
+                      <span>第 {q.question_order || idx + 1} 题</span>
+                      <strong>{q.title}</strong>
+                      <em>{expanded ? "收起" : "展开"}</em>
+                    </button>
+                    {expanded && (
+                      <div className="practice-paper-question-body">
+                        <div className="question-detail-meta">
+                          <span className={`q-type-badge ${getTypeClass(q.type)}`}>{TYPE_LABELS[q.type] || q.type}</span>
+                          {q.difficulty && <span className="subject-pill small practice-difficulty-pill">{DIFFICULTY_LABELS[q.difficulty] || q.difficulty}</span>}
+                          {q.knowledge_point_title && <span className="subject-pill small practice-kp-pill">{q.knowledge_point_title}</span>}
+                        </div>
+                        <div className="question-content-text">{q.content}</div>
+                        {q.options && (
+                          <div className="question-options">
+                            {q.options.split("\n").filter(Boolean).map((opt, optIdx) => (
+                              <div key={optIdx} className="question-option-label">{opt.trim()}</div>
+                            ))}
+                          </div>
+                        )}
+                        {(q.answer || q.explanation) && (
+                          <div className="question-answer-section">
+                            {q.answer && <p><strong>答案：</strong>{q.answer}</p>}
+                            {q.explanation && <p><strong>解析：</strong>{q.explanation}</p>}
+                          </div>
+                        )}
+                        {q.raw_text && (
+                          <details className="practice-raw-text">
+                            <summary>查看原始识别文本</summary>
+                            <pre>{q.raw_text}</pre>
+                          </details>
+                        )}
+                        <div className="question-detail-actions">
+                          <button className="ghost-button compact" onClick={() => openDetail(q)}>编辑 / 练习</button>
+                          <button
+                            className="ghost-button compact"
+                            disabled={aiExplainLoadingId === q.id}
+                            onClick={() => requestQuestionAiExplain(q, true)}
+                          >
+                            {aiExplainLoadingId === q.id ? "解析中..." : "AI 解析"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -1459,6 +1677,13 @@ export default function PracticeCenter({
 
               {importDrafts.length > 0 && (
                 <div className="practice-draft-list">
+                  <label className="field-label">试卷名称</label>
+                  <input
+                    className="field"
+                    value={importPaperTitle}
+                    onChange={(e) => setImportPaperTitle(e.target.value)}
+                    placeholder="请输入试卷名称"
+                  />
                   <h4>识别结果草稿</h4>
                   {importDrafts.map((draft, idx) => (
                     <div key={idx} className="practice-draft-card">

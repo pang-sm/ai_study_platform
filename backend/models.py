@@ -269,6 +269,8 @@ class Question(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(50), index=True, nullable=False)
+    paper_id = Column(Integer, nullable=True, index=True)
+    question_order = Column(Integer, nullable=True)
     course_id = Column(String(100), index=True, nullable=True)
     knowledge_point_id = Column(Integer, nullable=True)
     type = Column(String(30), nullable=False)
@@ -282,6 +284,22 @@ class Question(Base):
     source_style = Column(String(30), nullable=True)
     imported_from = Column(String(50), nullable=True)
     original_file_name = Column(String(255), nullable=True)
+    raw_text = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+
+class PracticePaper(Base):
+    __tablename__ = "practice_papers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), index=True, nullable=False)
+    course_id = Column(String(100), index=True, nullable=True)
+    title = Column(String(255), nullable=False)
+    source_file_name = Column(String(255), nullable=True)
+    source_type = Column(String(50), nullable=True)
+    status = Column(String(30), nullable=True)
+    question_count = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 

@@ -326,6 +326,8 @@ class KnowledgeProgressOut(BaseModel):
 
 class QuestionCreate(BaseModel):
     username: str
+    paper_id: int | None = None
+    question_order: int | None = None
     course_id: str = ""
     knowledge_point_id: int | None = None
     type: str
@@ -339,6 +341,7 @@ class QuestionCreate(BaseModel):
     source_style: str | None = None
     imported_from: str | None = None
     original_file_name: str | None = None
+    raw_text: str | None = None
 
 
 class QuestionUpdate(BaseModel):
@@ -352,11 +355,15 @@ class QuestionUpdate(BaseModel):
     answer: str | None = None
     explanation: str | None = None
     difficulty: str | None = None
+    question_order: int | None = None
+    raw_text: str | None = None
 
 
 class QuestionOut(BaseModel):
     id: int
     username: str
+    paper_id: int | None = None
+    question_order: int | None = None
     course_id: str | None = None
     knowledge_point_id: int | None = None
     knowledge_point_title: str | None = None
@@ -371,6 +378,7 @@ class QuestionOut(BaseModel):
     source_style: str | None = None
     imported_from: str | None = None
     original_file_name: str | None = None
+    raw_text: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
 
@@ -413,6 +421,7 @@ class GenerateQuestionRequest(BaseModel):
 
 
 class PaperQuestionDraft(BaseModel):
+    question_order: int | None = None
     title: str = ""
     question_text: str = ""
     type: str = "short_answer"
@@ -425,13 +434,32 @@ class PaperQuestionDraft(BaseModel):
     source: str = "paper_import"
     confidence: float | None = None
     source_style: str | None = None
+    raw_text: str | None = None
 
 
 class PaperImportConfirmRequest(BaseModel):
     username: str
     course_id: str = ""
+    paper_title: str | None = None
     original_file_name: str | None = None
     questions: list[PaperQuestionDraft]
+
+
+class PracticePaperOut(BaseModel):
+    id: int
+    username: str
+    course_id: str | None = None
+    title: str
+    source_file_name: str | None = None
+    source_type: str | None = None
+    status: str | None = None
+    question_count: int | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+class QuestionAiExplainRequest(BaseModel):
+    username: str
 
 
 # ── AI Knowledge Point Generation ────────────────────────
