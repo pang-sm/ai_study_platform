@@ -44,9 +44,12 @@ class CodeAnalyzeRequest(BaseModel):
     username: str
     course_id: str = ""
     session_id: int | None = None
+    challenge_id: int | None = None
     language: str = ""
     code: str = ""
     question: str = ""
+    last_run_result: dict | None = None
+    last_test_results: dict | None = None
 
 
 class CodeAIMessageCreate(BaseModel):

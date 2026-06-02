@@ -5581,13 +5581,70 @@ def analyze_code(req: schemas.CodeAnalyzeRequest, db: Session = Depends(get_db))
             code_snapshot=code,
         ))
 
-    # Check if session is linked to a challenge
+    # Check if session is linked to a challenge (also check req.challenge_id)
     challenge = None
     challenge_id = getattr(session, "challenge_id", None) if session else None
+    if not challenge_id and req.challenge_id:
+        challenge_id = req.challenge_id
     if challenge_id:
         challenge = db.query(models.CodeChallenge).filter(
             models.CodeChallenge.id == challenge_id,
         ).first()
+
+    # Build run/test context
+    run_context = ""
+    last_run = req.last_run_result
+    if last_run and isinstance(last_run, dict):
+        run_context = "\n## 最近一次运行结果\n"
+        if last_run.get("stdout"):
+            run_context += f"stdout: {last_run['stdout'][:2000]}"
+        if last_run.get("stderr"):
+            run_context += f"\nstderr: {last_run['stderr'][:1000]}"
+        if last_run.get("compile_error"):
+            run_context += f"\n编译错误: {last_run['compile_error'][:1000]}"
+        if last_run.get("error_message"):
+            run_context += f"\n运行错误: {last_run['error_message'][:500]}"
+        run_context += f"\nexit_code: {last_run.get('exit_code', 'N/A')}"
+        if last_run.get("timed_out"):
+            run_context += "\n(执行超时)"
+
+    test_context = ""
+    last_tests = req.last_test_results
+    if last_tests and isinstance(last_tests, dict):
+        total = last_tests.get("total", 0)
+        passed = last_tests.get("passed", 0)
+        failed = total - passed
+        test_context = f"\n## 最近一次测试结果\n总计 {total} 个测试，通过 {passed} 个，未通过 {failed} 个。"
+        results = last_tests.get("results", [])
+        if isinstance(results, list) and len(results) > 0:
+            test_context += "\n"
+            for tc in results:
+                if not isinstance(tc, dict):
+                    continue
+                passed_mark = "✅" if tc.get("passed") else "❌"
+                test_context += f"\n{passed_mark} 用例 #{tc.get('index', '?')}: {tc.get('description', '')[:80]}"
+                if not tc.get("passed"):
+                    if tc.get("expected_output"):
+                        test_context += f"\n   期望输出: {str(tc['expected_output'])[:200]}"
+                    if tc.get("actual_output"):
+                        test_context += f"\n   实际输出: {str(tc['actual_output'])[:200]}"
+                    if tc.get("stderr"):
+                        test_context += f"\n   stderr: {str(tc['stderr'])[:200]}"
+                    if tc.get("compile_error"):
+                        test_context += f"\n   编译错误: {str(tc['compile_error'])[:200]}"
+                    if tc.get("diff_summary"):
+                        test_context += f"\n   差异: {str(tc['diff_summary'])[:200]}"
+
+    # System prompt additions for run/test context
+    context_guidance = ""
+    if run_context or test_context:
+        context_guidance = (
+            "\n\n用户提供了运行/测试结果。"
+            "如果用户问测试为什么没过，优先结合测试结果中的具体失败用例和差异来分析。"
+            "如果用户问运行错误，优先结合运行结果中的 stderr/stdout/编译错误来分析。"
+            "如果用户问代码问题，结合代码和运行/测试结果一起分析。"
+            "如果用户没有明确问运行/测试相关的问题，也要在分析时参考这些结果来发现代码问题。"
+        )
 
     if challenge:
         system_prompt = """你是编程学习出题助手。用户正在完成你出的编程题，请根据题目要求分析用户代码。
@@ -5609,7 +5666,7 @@ def analyze_code(req: schemas.CodeAnalyzeRequest, db: Session = Depends(get_db))
 列出题目涉及的核心知识点。
 
 ## 下一步练习建议
-给出 1-2 条具体的学习方向建议。"""
+给出 1-2 条具体的学习方向建议。""" + context_guidance
 
         challenge_context = ""
         if challenge.description:
@@ -5635,10 +5692,11 @@ def analyze_code(req: schemas.CodeAnalyzeRequest, db: Session = Depends(get_db))
 ```
 {truncated_code}
 ```
+{run_context}{test_context}
 
 用户问题：{question}"""
     else:
-        system_prompt = CODE_ANALYZE_SYSTEM_PROMPT
+        system_prompt = CODE_ANALYZE_SYSTEM_PROMPT + context_guidance
         user_message = f"""语言：{language}
 课程：{course_info or "未指定"}
 {code_note}
@@ -5647,6 +5705,7 @@ def analyze_code(req: schemas.CodeAnalyzeRequest, db: Session = Depends(get_db))
 ```
 {truncated_code}
 ```
+{run_context}{test_context}
 
 用户问题：{question}"""
 

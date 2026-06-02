@@ -563,7 +563,6 @@ export default function CodeStudio({
     setFeedbackContent("");
     setFeedbackStatus(null);
     setCodeTruncated(false);
-    setShowReference(false);
     setRunResult(null);
     setTestResults(null);
     setTestExplanations({});
@@ -637,7 +636,6 @@ export default function CodeStudio({
     setFeedbackContent("");
     setFeedbackStatus(null);
     setCodeTruncated(false);
-    setShowReference(false);
     setRunResult(null);
     setTestResults(null);
     setTestExplanations({});
@@ -666,7 +664,6 @@ export default function CodeStudio({
         setCurrentChallenge(data.challenge);
         // Update cache
         challengeCacheRef.current.set(challengeId, data.challenge);
-        setShowReference(false);
         setProblemTab("io");
       } else {
         const statusCode = res.status;
@@ -1236,9 +1233,12 @@ export default function CodeStudio({
           username: user.username,
           course_id: normalizeSubject(codeCourseId),
           session_id: selectedSession?.id || null,
+          challenge_id: currentChallenge?.id || selectedSession?.challenge_id || null,
           language,
           code,
           question,
+          last_run_result: runResult,
+          last_test_results: testResults,
         }),
       });
       const data = await safeJson(res);
@@ -1446,7 +1446,6 @@ export default function CodeStudio({
           setShowFeedbackPanel(false);
           setFeedbackContent("");
           setFeedbackStatus(null);
-          setShowReference(false);
           setRunResult(null);
           setTestResults(null);
           setTestExplanations({});
