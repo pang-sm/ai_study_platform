@@ -43,6 +43,57 @@ const TYPE_LABELS = {
 
 const isChoiceLikeType = (type) => ["choice", "single_choice", "multiple_choice", "true_false"].includes(type);
 
+const INTERNAL_REASONING_KEYWORDS = [
+  "我认为",
+  "我可能",
+  "我怀疑",
+  "让我重新",
+  "重新检查",
+  "重新计算",
+  "鉴于时间",
+  "为了配合选项",
+  "前面算错",
+  "我误解",
+  "我搞错",
+  "选项不匹配",
+  "无法匹配",
+  "有点乱",
+];
+
+const containsInternalReasoning = (text = "") => (
+  INTERNAL_REASONING_KEYWORDS.some((keyword) => String(text || "").includes(keyword))
+);
+
+function QuestionAnalysisBlock({ analysis, limit = 800 }) {
+  const [expanded, setExpanded] = useState(false);
+  const text = String(analysis || "").trim();
+  if (!text) return null;
+
+  const shouldCollapse = text.length > limit;
+  const displayText = shouldCollapse && !expanded ? `${text.slice(0, limit)}...` : text;
+  const hasInternalReasoning = containsInternalReasoning(text);
+
+  return (
+    <div className="practice-analysis-block">
+      {hasInternalReasoning && (
+        <div className="practice-analysis-warning">
+          该解析可能包含无效推理内容，建议重新生成解析。
+        </div>
+      )}
+      <p className="practice-analysis-text">{displayText}</p>
+      {shouldCollapse && (
+        <button
+          type="button"
+          className="practice-analysis-expand"
+          onClick={() => setExpanded((value) => !value)}
+        >
+          {expanded ? "收起解析" : "展开全部解析"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 // Strip common placeholder strings from parsed option content.
 const stripPlaceholderContent = (content) => {
   const trimmed = (content || "").trim();
@@ -288,6 +339,7 @@ export default function PracticeCenter({
   const [genRequireReasoning, setGenRequireReasoning] = useState(true);
   const [genAvoidTooSimple, setGenAvoidTooSimple] = useState(true);
   const [genLoading, setGenLoading] = useState(false);
+  const [genError, setGenError] = useState("");
   const [showImportModal, setShowImportModal] = useState(false);
   const [importCourse, setImportCourse] = useState(subject || "");
   const [importModuleId, setImportModuleId] = useState("");
@@ -612,6 +664,7 @@ export default function PracticeCenter({
       return;
     }
     setGenLoading(true);
+    setGenError("");
     try {
       const selectedKpId = genKpId || genModuleId;
       const selectedKp = selectedKpId
@@ -638,13 +691,15 @@ export default function PracticeCenter({
       const data = await res.json();
       if (res.ok) {
         setShowGenerateModal(false);
+        setGenError("");
         await loadQuestions();
-        alert(data.message || "生成成功");
       } else {
-        alert(data.detail || "生成失败");
+        // 后端返回错误时，优先展示 detail
+        setGenError(data.detail || "生成失败，请稍后重试");
       }
     } catch (e) {
       console.error("Failed to generate questions:", e);
+      setGenError("网络异常，未能连接到题目生成服务");
     } finally {
       setGenLoading(false);
     }
@@ -899,6 +954,7 @@ export default function PracticeCenter({
     setGenSourceStyle("mixed");
     setGenRequireReasoning(true);
     setGenAvoidTooSimple(true);
+    setGenError("");
     setShowGenerateModal(true);
   };
   const openCreateModal = () => {
@@ -1565,7 +1621,7 @@ export default function PracticeCenter({
                       {detailQuestion.explanation && (
                         <>
                           <strong>解析：</strong>
-                          <p>{detailQuestion.explanation}</p>
+                          <QuestionAnalysisBlock analysis={detailQuestion.explanation} />
                         </>
                       )}
                     </>
@@ -1715,7 +1771,7 @@ export default function PracticeCenter({
                           {q.explanation && (
                             <div className="exam-explanation">
                               <strong>解析：</strong>
-                              <span>{q.explanation}</span>
+                              <QuestionAnalysisBlock analysis={q.explanation} />
                             </div>
                           )}
                         </details>
@@ -2267,6 +2323,12 @@ export default function PracticeCenter({
                 />
                 <span>避免简单概念题</span>
               </label>
+
+              {genError && (
+                <div className="practice-import-error" style={{ marginTop: 12 }}>
+                  生成失败：{genError}
+                </div>
+              )}
             </div>
             <div className="task-form-actions">
               <button

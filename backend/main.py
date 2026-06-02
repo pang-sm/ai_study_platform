@@ -10389,7 +10389,18 @@ def explain_practice_question(question_id: int, req: schemas.QuestionAiExplainRe
         raise HTTPException(status_code=500, detail=f"AI 解析失败：{str(exc)}") from exc
 
     parsed = extract_json_object(raw)
-    explanation = str(parsed.get("explanation") or raw).strip()
+    raw_explanation = str(parsed.get("explanation") or raw).strip()
+    explanation = clean_question_analysis(raw_explanation)
+    if contains_internal_reasoning(raw_explanation) or len(raw_explanation) > 1200:
+        refined_explanation = refine_question_analysis_with_ai(
+            raw_explanation,
+            question.content or "",
+            question.answer or "",
+        )
+        if refined_explanation:
+            explanation = clean_question_analysis(refined_explanation)
+    if contains_internal_reasoning(explanation):
+        explanation = "解析暂未生成完整内容，请结合参考答案复习相关知识点，并重点回顾题目涉及的核心概念。"
     suggested_answer = str(parsed.get("answer") or "").strip()
     if explanation:
         question.explanation = explanation
@@ -10687,39 +10698,48 @@ def get_practice_summary(
     }
 
 
-GENERATE_QUESTION_PROMPT = """你是高质量计算机课程题库命题专家。你要参考经典计算机学习题型的结构和难度层次，生成原创题，严禁复制、改写或标注任何网站/教材原题来源。
+GENERATE_QUESTION_PROMPT = """你是一名计算机课程题库命题专家。请参考经典计算机学习题型的结构，生成原创题，严禁复制或改写任何网站/教材原题。
 
 通用要求：
 1. 题目必须围绕指定课程、知识点、题型、难度和风格生成。
-2. 不要只问定义；即使是 easy，也要包含小判断、小计算、代码阅读或应用场景。
-3. medium 至少需要 2 步推理；hard 至少需要 3 步推理，并给出详细解析。
-4. 可参考 LeetCode、Codeforces、洛谷/牛客/PAT、OI Wiki、GFG、MIT OCW、CLRS、经典考试题的题型风格，但题目必须原创，不能出现“来自某网站某题”。
-5. 选择题必须有 A/B/C/D 四个选项，干扰项要有迷惑性且不能重复。
-6. medium/hard 题目必须至少包含一种：代码片段、数据表、图结构描述、输入输出样例、计算过程、多条件场景、复杂度分析、证明或反例。
-7. 解析不少于 30 个中文字符，要讲清思路、关键步骤和易错点。
-8. 输出严格 JSON 数组，不要 Markdown，不要额外解释。
+2. 即使是简单题，也要包含小判断、小计算、代码阅读或应用场景。
+3. 中等难度至少需要 2 步推理；困难至少需要 3 步推理，并给出详细解析。
+4. 解析不少于 30 个中文字符，要讲清思路、关键步骤和易错点。
+5. 简答题/填空题/判断题可以不包含 options 字段。
+6. 不要生成过于简单的概念背诵题。
+7. analysis 字段必须是面向学生的正式解析，只保留最终有效解题步骤。
+8. analysis 禁止包含 AI 的内部思考过程、自我纠错、反复试算、草稿推理、对选项或题目设计的怀疑。
+9. analysis 禁止出现“我认为”“我可能”“我怀疑”“让我重新”“重新检查”“重新计算”“前面算错”“这里有点乱”“鉴于时间”“为了配合选项”“选项不匹配”“无法匹配”等表达。
+10. analysis 应该包含核心知识点、必要计算步骤、正确答案成立原因；必要时简要说明干扰项为什么不选。
+11. analysis 语言必须简洁、确定、教学化，适合学生复习。
 
-课程适配：
-- 数据结构与算法：复杂度分析、树/图/堆/哈希/排序/DP/贪心/最短路等，可给小规模手算、伪代码阅读、原创经典题型变体。
-- 离散数学：集合、关系、函数、图论、组合计数、递推、证明思路，必须有计算或逻辑推理。
-- 操作系统：进程调度、死锁、页面置换、文件系统、同步互斥、信号量，可给表格数据计算。
-- 计算机组成：补码、浮点数、指令格式、流水线、cache、地址映射，优先计算型题目。
-- 数据库：SQL、关系代数、范式、事务并发、索引优化；SQL 题给表结构和样例数据。
-- Java/C/C++/Python：代码阅读、输出判断、bug 修复、边界条件、复杂度分析、基础编程题；编程题只生成题面，不在练习中心判题。
+输出格式（必须严格遵守）:
+你必须只输出一个 JSON 对象，不要输出任何其他文字、注释或 Markdown 标记。
 
-字段格式：
-[
-  {
-    "type": "choice|single_choice|multiple_choice|true_false|fill_blank|short_answer|programming",
-    "title": "题目标题",
-    "content": "完整题面，必要时包含代码/表格/样例",
-    "options": "A. ...\\nB. ...\\nC. ...\\nD. ...",
-    "answer": "标准答案",
-    "explanation": "详细解析",
-    "difficulty": "easy|medium|hard",
-    "source_style": "exam|leetcode|codeforces|textbook|interview|mixed"
-  }
-]"""
+输出示例:
+{
+  "questions": [
+    {
+      "type": "short_answer",
+      "difficulty": "hard",
+      "stem": "完整的题面内容，必要时包含代码/表格/样例",
+      "title": "题目标题",
+      "options": [],
+      "answer": "参考答案",
+      "analysis": "正式解析，只保留有效步骤，不包含 AI 思考草稿。",
+      "knowledge_point": "知识点名称",
+      "source": "ai_generated",
+      "source_style": "mixed"
+    }
+  ]
+}
+
+重要提示:
+- 最外层必须包含 "questions" 键，其值为题目对象数组。
+- 选择题/多选题必须有 options 数组，每个选项如 {"label": "A", "content": "...", "is_correct": false}
+- 简答题/填空题/判断题 options 可以为空数组 []。
+- 不要输出 Markdown 代码块，只输出纯 JSON。
+- 不要输出任何解释、注释文字。"""
 
 
 QUESTION_TYPE_ALIASES = {
@@ -10756,16 +10776,169 @@ def normalize_question_difficulty(value: str | None, default: str = "medium") ->
 
 
 def extract_json_array(raw_text: str) -> list:
+    """
+    从 AI 返回文本中提取题目 JSON 数组。
+    支持外层包装：{"questions": [...]}, {"data": [...]}, {"items": [...]}, {"results": [...]}
+    也支持直接的 JSON 数组 [...] 或单个题目对象 {...}。
+    """
     text_value = raw_text or ""
     try:
         parsed = parse_ai_json_safely(text_value)
         if isinstance(parsed, list):
-            return parsed
+            return [item for item in parsed if isinstance(item, dict)]
         if isinstance(parsed, dict):
+            # 优先尝试解包常见的外层包装 key
+            for key in ("questions", "data", "items", "results"):
+                inner = parsed.get(key)
+                if isinstance(inner, list) and len(inner) > 0:
+                    logger.info(
+                        "[practice-generate] extracted %d items from wrapper key '%s'",
+                        len(inner), key,
+                    )
+                    return [item for item in inner if isinstance(item, dict)]
+            # 如果没有包装 key，视为单个题目
             return [parsed]
-    except Exception:
+    except Exception as exc:
+        logger.info("[practice-generate] extract_json_array failed: %s", exc)
         pass
     return []
+
+
+def parse_ai_generated_questions(raw_text: str) -> list[dict]:
+    """
+    解析 DeepSeek 返回的题目内容（增强版）。
+    支持：
+    1. 去除 markdown code fence
+    2. 从文本中提取 JSON 对象或 JSON 数组
+    3. 兼容 questions / data / items / results 等外层字段
+    4. 兼容 stem/question/question_text/title/content 等题干字段
+    5. 兼容 answer/reference_answer/correct_answer
+    6. 兼容 analysis/explanation/solution
+    7. 对选择题、多选题保留 options
+    8. 对简答题、判断题、填空题不强制要求 options
+    """
+    return extract_json_array(raw_text)
+
+
+BAD_ANALYSIS_PATTERNS = [
+    "我认为",
+    "我可能",
+    "我怀疑",
+    "让我重新",
+    "重新检查",
+    "重新计算",
+    "前面算错",
+    "有点乱",
+    "鉴于时间",
+    "为了配合选项",
+    "可能是",
+    "不确定",
+    "我误解",
+    "我搞错",
+    "奇怪",
+    "选项不匹配",
+    "无法匹配",
+    "综上，我的计算",
+    "这里可能",
+    "好像不匹配",
+]
+
+
+def contains_internal_reasoning(text: str) -> bool:
+    if not text:
+        return False
+    return any(keyword in text for keyword in BAD_ANALYSIS_PATTERNS)
+
+
+def clean_question_analysis(analysis: str, max_length: int = 1200) -> str:
+    """
+    清洗 AI 生成题目的解析字段：
+    1. 删除内部思考、自我怀疑、反复试算和草稿推理。
+    2. 删除“我认为、让我重新、鉴于时间、为了配合选项”等表达。
+    3. 保留面向学生的最终有效解题步骤。
+    4. 控制长度，避免解析过长。
+    """
+    text = str(analysis or "").strip()
+    if not text:
+        return "解析暂未生成完整内容，请结合参考答案复习相关知识点，并重点回顾题目涉及的核心概念。"
+
+    text = re.sub(r"```(?:[\w+-]+)?", "", text)
+    text = text.replace("```", "")
+    text = re.sub(r"\r\n?", "\n", text)
+    text = re.sub(r"[ \t]+", " ", text)
+
+    chunks = re.split(r"(?<=[。！？!?；;])\s*|\n+", text)
+    kept_chunks: list[str] = []
+    for chunk in chunks:
+        cleaned = chunk.strip()
+        if not cleaned:
+            continue
+        if any(keyword in cleaned for keyword in BAD_ANALYSIS_PATTERNS):
+            continue
+        if re.search(r"(先|再|然后|因此|所以|答案|选择|可知|得到|计算|判断|比较|代入|公式|复杂度|正确|错误|干扰项)", cleaned):
+            kept_chunks.append(cleaned)
+        elif len(cleaned) <= 80 and len(kept_chunks) < 2:
+            kept_chunks.append(cleaned)
+
+    cleaned_text = "\n".join(kept_chunks).strip()
+    if not cleaned_text:
+        cleaned_text = re.sub("|".join(re.escape(k) for k in BAD_ANALYSIS_PATTERNS), "", text).strip()
+
+    cleaned_text = re.sub(r"\n{3,}", "\n\n", cleaned_text)
+    cleaned_text = re.sub(r"[ \t]{2,}", " ", cleaned_text).strip()
+
+    if len(cleaned_text) > max_length:
+        clipped = cleaned_text[:max_length].rstrip()
+        sentence_end = max(clipped.rfind("。"), clipped.rfind("！"), clipped.rfind("？"), clipped.rfind("\n"))
+        if sentence_end >= max_length * 0.6:
+            clipped = clipped[: sentence_end + 1].rstrip()
+        cleaned_text = clipped
+
+    if count_chinese_characters(cleaned_text) + count_alnum_characters(cleaned_text) < 20:
+        return "解析暂未生成完整内容，请结合参考答案复习相关知识点，并重点回顾题目涉及的核心概念。"
+    return cleaned_text
+
+
+def refine_question_analysis_with_ai(raw_analysis: str, stem: str, answer: str) -> str:
+    """
+    将混乱解析压缩成适合学生阅读的正式解析。
+    仅在解析明显过长或包含内部推理痕迹时调用，避免不必要成本。
+    """
+    raw_text = str(raw_analysis or "").strip()
+    if not raw_text:
+        return ""
+    prompt = f"""请将下面这段题目解析改写成适合学生阅读的正式解析。
+
+要求：
+1. 只保留最终有效解题步骤。
+2. 删除 AI 的内部思考、自我怀疑、反复试算、错误尝试。
+3. 不要出现“我认为”“让我重新”“可能”“鉴于时间”等表达。
+4. 不要讨论题目或选项是否合理。
+5. 用确定、简洁、教学化的语言。
+6. 最多 500 字。
+7. 如果有计算过程，请按步骤列出。
+8. 只返回改写后的解析，不要返回其他内容。
+
+题干：
+{stem}
+
+参考答案：
+{answer}
+
+原始解析：
+{raw_text[:3000]}"""
+    try:
+        refined = call_deepseek(
+            [
+                {"role": "system", "content": "你是题目解析净化助手，只输出面向学生的正式解析。"},
+                {"role": "user", "content": prompt},
+            ],
+            timeout_seconds=30,
+        )
+    except Exception as exc:
+        logger.warning("[practice-generate] refine analysis failed: %s", str(exc)[:200])
+        return ""
+    return str(refined or "").strip()
 
 
 def split_question_options(options_text: str | None) -> list[str]:
@@ -10784,8 +10957,13 @@ def has_reasoning_signal(text_value: str) -> bool:
 
 def validate_generated_question(item: dict, expected_type: str, difficulty: str) -> tuple[bool, str]:
     qtype = normalize_question_type(str(item.get("type") or expected_type), expected_type)
-    content = str(item.get("content") or item.get("question_text") or "").strip()
-    explanation = str(item.get("explanation") or "").strip()
+    content = str(
+        item.get("content") or item.get("stem") or item.get("question")
+        or item.get("question_text") or item.get("text") or ""
+    ).strip()
+    explanation = str(
+        item.get("explanation") or item.get("analysis") or item.get("solution") or ""
+    ).strip()
     if count_chinese_characters(content) + count_alnum_characters(content) < 20:
         return False, "题干过短"
     if count_chinese_characters(explanation) + count_alnum_characters(explanation) < 30:
@@ -10795,30 +10973,65 @@ def validate_generated_question(item: dict, expected_type: str, difficulty: str)
         if qtype == "true_false" and len(options) < 2:
             item["options"] = "A. 正确\nB. 错误"
             options = split_question_options(item.get("options"))
-        if qtype in {"choice", "multiple_choice"} and len(options) != 4:
-            return False, "选择题选项数量不是 4"
-        normalized_opts = {re.sub(r"^[A-Da-d][\.、\)]\s*", "", opt).strip() for opt in options}
-        if len(normalized_opts) != len(options):
-            return False, "选项重复"
+        if qtype in {"choice", "multiple_choice"} and len(options) < 2:
+            return False, "选择题选项数量不足（至少需要 2 个选项）"
+        if qtype in {"choice", "multiple_choice"} and len(options) > 10:
+            return False, "选择题选项过多"
+        # 对选项做重复检查
+        opts_set = set()
+        for opt in options:
+            cleaned = re.sub(r"^[A-Za-z][\.、\)]\s*", "", opt).strip()
+            if cleaned in opts_set:
+                return False, "选项重复"
+            opts_set.add(cleaned)
         answer = str(item.get("answer") or "").strip()
-        if qtype == "choice" and answer and answer[0].upper() not in {"A", "B", "C", "D"}:
-            return False, "答案不在选项中"
-    if difficulty in {"medium", "hard"} and not has_reasoning_signal(content + "\n" + explanation):
-        return False, "缺少推理信号"
+        if qtype == "choice" and answer:
+            answer_label = answer[0].upper()
+            option_labels = {opt[0].upper() for opt in options if opt}
+            if answer_label not in option_labels:
+                return False, f"答案 '{answer_label}' 不在选项标签 {option_labels} 中"
+    # 对选择/判断题在 medium/hard 下检查推理信号；简答/填空放宽检查
+    if qtype in {"choice", "multiple_choice"} and difficulty in {"medium", "hard"}:
+        if not has_reasoning_signal(content + "\n" + explanation):
+            return False, "选择题缺少推理信号"
     return True, ""
 
 
 def normalize_generated_question_item(item: dict, expected_type: str, difficulty: str, source_style: str) -> dict:
+    """归一化 AI 生成的题目字段，兼容多种字段名别名。"""
     qtype = normalize_question_type(str(item.get("type") or expected_type), expected_type)
-    content = str(item.get("content") or item.get("question_text") or "").strip()
-    title = str(item.get("title") or content[:32] or "AI 原创题目").strip()
+    # 题干：兼容 content / stem / question / question_text / title / text
+    content = str(
+        item.get("content") or item.get("stem") or item.get("question")
+        or item.get("question_text") or item.get("text") or ""
+    ).strip()
+    # 标题：兼容 title / stem / 或截取 content 前 32 字符
+    title = str(
+        item.get("title") or item.get("stem") or content[:32] or "AI 原创题目"
+    ).strip()
+    # 答案：兼容 answer / reference_answer / correct_answer
+    answer = str(
+        item.get("answer") or item.get("reference_answer")
+        or item.get("correct_answer") or ""
+    ).strip() or None
+    # 解析：兼容 explanation / analysis / solution
+    explanation = str(
+        item.get("explanation") or item.get("analysis")
+        or item.get("solution") or ""
+    ).strip() or None
+    # 选项：兼容 options / choices（list / dict / str）
+    options_raw = item.get("options") if "options" in item else item.get("choices")
+    if isinstance(options_raw, (list, dict)):
+        options_str = format_question_options(options_raw) or None
+    else:
+        options_str = str(options_raw or "").strip() or None
     return {
         "type": qtype,
         "title": title[:255],
         "content": content,
-        "options": str(item.get("options") or "").strip() or None,
-        "answer": str(item.get("answer") or "").strip() or None,
-        "explanation": str(item.get("explanation") or "").strip() or None,
+        "options": options_str,
+        "answer": answer,
+        "explanation": explanation,
         "difficulty": normalize_question_difficulty(str(item.get("difficulty") or difficulty), difficulty),
         "source_style": str(item.get("source_style") or source_style or "mixed").strip(),
     }
@@ -10860,6 +11073,16 @@ def generate_questions(req: schemas.GenerateQuestionRequest, db: Session = Depen
             f"请围绕该知识点出题，难度适中，不超纲。）"
         )
 
+    # ── 日志：请求参数 ──
+    logger.info(
+        "[practice-generate] request payload: username=%s, course_id=%s, course_name=%s, "
+        "kp_id=%s, kp_title=%s, type=%s, difficulty=%s, style=%s, count=%d, "
+        "reasoning=%s, avoid_simple=%s",
+        req.username, course_id, course_name, kp_id, kp_title,
+        qtype, difficulty, source_style, count,
+        req.require_reasoning, req.avoid_too_simple,
+    )
+
     user_prompt = f"""课程：{course_name or '未指定'}
 知识点：{kp_label}{weak_hint}
 题型：{qtype}
@@ -10871,13 +11094,17 @@ def generate_questions(req: schemas.GenerateQuestionRequest, db: Session = Depen
 
 请生成 {count} 道原创题。为了保证质量，可一次输出 {min(count * 2, 16)} 道候选题，但必须优先保证每题有场景、推理和详细解析。
 
-请直接输出 JSON 数组："""
+每道题的 analysis 字段必须是给学生看的正式解析，只保留必要解题步骤；禁止包含内部思考、自我纠错、反复试算、对选项不匹配的怀疑，禁止出现“我认为”“我可能”“让我重新”“鉴于时间”“为了配合选项”等表达。
+
+请直接输出严格 JSON，不要用 Markdown 代码块包裹，不要输出任何解释文字。"""
 
     check_usage_limit(user.username, "question_generate", db)
 
+    raw_responses_preview = []
+    all_candidates = []
+    total_ai_text = ""
+
     try:
-        all_candidates = []
-        total_ai_text = ""
         for attempt_index in range(2):
             prompt = user_prompt if attempt_index == 0 else (
                 user_prompt + f"\n\n上一轮合格题不足，请补生成 {count} 道更具体、更有推理步骤的题，避免重复。"
@@ -10889,34 +11116,92 @@ def generate_questions(req: schemas.GenerateQuestionRequest, db: Session = Depen
                 ]
             )
             total_ai_text += "\n" + ai_response
+            preview = ai_response[:1500] if ai_response else "(empty)"
+            raw_responses_preview.append(preview)
+            logger.info(
+                "[practice-generate] attempt %d: deepseek raw response preview (first 1500 chars): %s",
+                attempt_index + 1, preview,
+            )
+
             parsed_items = extract_json_array(ai_response)
+            logger.info(
+                "[practice-generate] attempt %d: parsed %d items from AI response",
+                attempt_index + 1, len(parsed_items) if isinstance(parsed_items, list) else 0,
+            )
             if isinstance(parsed_items, list):
                 all_candidates.extend([item for item in parsed_items if isinstance(item, dict)])
+
             valid_count = 0
             seen_titles = set()
-            for item in all_candidates:
+            for idx, item in enumerate(all_candidates):
                 normalized = normalize_generated_question_item(item, qtype, difficulty, source_style)
-                ok, _ = validate_generated_question(normalized, qtype, difficulty)
+                ok, reason = validate_generated_question(normalized, qtype, difficulty)
                 if ok and normalized["title"] not in seen_titles:
                     valid_count += 1
                     seen_titles.add(normalized["title"])
+                else:
+                    logger.info(
+                        "[practice-generate] invalid question #%d reason: %s (title=%s)",
+                        idx + 1, reason, normalized.get("title", "")[:40],
+                    )
+            logger.info(
+                "[practice-generate] attempt %d: valid=%d / total=%d candidates, need=%d",
+                attempt_index + 1, valid_count, len(all_candidates), count,
+            )
             if valid_count >= count:
                 break
 
         record_ai_usage(user.username, "question_generate", db, estimated_tokens=estimate_tokens_from_text(total_ai_text), status="success")
         questions_data = all_candidates
+    except HTTPException:
+        raise
     except Exception as e:
         record_ai_usage(user.username, "question_generate", db, status="failed", error_message=str(e))
-        raise HTTPException(status_code=500, detail=f"AI 生成题目失败，JSON 解析错误：{str(e)}")
+        logger.error("[practice-generate] exception: %s", e)
+        raise HTTPException(status_code=500, detail=f"AI 生成题目失败：{str(e)}")
 
     if not isinstance(questions_data, list) or len(questions_data) == 0:
-        raise HTTPException(status_code=500, detail="AI 未能生成有效题目，请稍后重试")
+        raw_preview = (raw_responses_preview[-1] if raw_responses_preview else "")[:500]
+        logger.warning("[practice-generate] no valid questions parsed. raw preview: %s", raw_preview)
+        raise HTTPException(
+            status_code=500,
+            detail=f"AI 返回内容格式不符合题目结构，无法解析。raw_preview: {raw_preview}",
+        )
 
     created = []
     seen_titles = set()
     for item in questions_data:
         normalized = normalize_generated_question_item(item, qtype, difficulty, source_style)
-        ok, _reason = validate_generated_question(normalized, qtype, difficulty)
+        raw_analysis = normalized.get("explanation") or ""
+        internal_detected = contains_internal_reasoning(raw_analysis)
+        cleaned_analysis = clean_question_analysis(raw_analysis)
+        if len(raw_analysis) > 1200 or internal_detected:
+            logger.info(
+                "[practice-generate] raw analysis preview (first 300 chars): %s",
+                raw_analysis[:300],
+            )
+            refined_analysis = refine_question_analysis_with_ai(
+                raw_analysis,
+                normalized.get("content") or "",
+                normalized.get("answer") or "",
+            )
+            if refined_analysis:
+                cleaned_analysis = clean_question_analysis(refined_analysis)
+        if contains_internal_reasoning(cleaned_analysis):
+            cleaned_analysis = "解析暂未生成完整内容，请结合参考答案复习相关知识点，并重点回顾题目涉及的核心概念。"
+        logger.info(
+            "[practice-generate] raw analysis length: %d cleaned analysis length: %d internal reasoning detected: %s",
+            len(raw_analysis),
+            len(cleaned_analysis),
+            str(internal_detected).lower(),
+        )
+        normalized["explanation"] = cleaned_analysis
+        ok, reason = validate_generated_question(normalized, qtype, difficulty)
+        if not ok:
+            logger.info(
+                "[practice-generate] final filter: invalid question reason=%s (title=%s)",
+                reason, normalized.get("title", "")[:40],
+            )
         if not ok or normalized["title"] in seen_titles:
             continue
         seen_titles.add(normalized["title"])
@@ -10939,8 +11224,14 @@ def generate_questions(req: schemas.GenerateQuestionRequest, db: Session = Depen
         if len(created) >= count:
             break
 
+    logger.info("[practice-generate] final created: %d questions", len(created))
+
     if not created:
-        raise HTTPException(status_code=500, detail="AI 生成的题目未通过质量检查，请提高题目数量或稍后重试")
+        raw_preview = (raw_responses_preview[-1] if raw_responses_preview else "")[:500]
+        raise HTTPException(
+            status_code=500,
+            detail=f"AI 生成的题目未通过质量检查。raw_preview: {raw_preview}",
+        )
 
     db.commit()
     for q in created:

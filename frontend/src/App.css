@@ -7798,6 +7798,44 @@ select.field:focus {
   color: #065f46;
 }
 
+.practice-analysis-block {
+  margin-top: 6px;
+}
+
+.practice-analysis-text {
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.65;
+}
+
+.practice-analysis-warning {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border: 1px solid #fde68a;
+  border-radius: 6px;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.practice-analysis-expand {
+  margin-top: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #2563eb;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.practice-analysis-expand:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
 .practice-answer-toggle {
   display: inline-flex;
   align-items: center;
