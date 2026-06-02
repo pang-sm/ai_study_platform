@@ -5738,37 +5738,36 @@ def delete_code_session_messages(session_id: int, username: str, db: Session = D
     return {"success": True}
 
 
-CODE_CHALLENGE_GENERATE_PROMPT = """你是编程学习出题助手。根据用户的学习背景和编程进度，生成编程练习题。
+CODE_CHALLENGE_GENERATE_PROMPT = """你是编程学习出题助手。根据用户的学习背景和编程进度，生成完整的编程练习题。每道题必须包含详细题干、格式说明、样例和起始代码。
 
-要求：
-1. 题目难度适合用户当前水平
-2. 题目可以在单文件中完成，不依赖第三方库
-3. 不要求读取文件、网络请求或系统命令
-4. 题目描述要清晰，输入输出格式要明确
-5. starter_code 提供代码框架，让用户填写核心逻辑（不能为空）
-6. reference_solution 是完整参考解法，包含完整可运行代码（必须提供，不能为空）
-7. test_cases 必须提供 3-5 个测试用例，每个用例包含 input（stdin输入）、expected_output（期望输出）、description（用例描述）
+## 通用要求
+1. 题目难度适合用户当前水平，可在单文件中完成，不依赖第三方库
+2. 题目描述至少 80 个中文字符，要说清背景、任务目标和输入输出逻辑
+3. examples 必须包含至少 1 组完整的样例输入+输出，用文本描述清晰
+4. requirements 至少列出 3 条具体要求，用编号说明
+5. starter_code 提供代码框架，包含必要的 import 和函数签名（不能为空）
+6. reference_solution 是完整可运行代码（必填，不能只写思路），代码顶部用 /* 解题思路 */ 注释
+7. test_cases 提供 3-5 个测试用例，每个用例包含 input、expected_output、description
 8. 测试用例至少包含：基础样例、边界样例、常见错误样例
-9. reference_solution 代码顶部以注释形式写出解题思路（/* 解题思路：... */ 格式），帮助学习者理解
-10. 如果要求生成多道题，一次性输出所有题目
+9. 多道题时一次性输出所有题目
 
-请严格按以下 JSON 数组格式输出（不要输出其他内容）：
-
+## 输出格式（严格 JSON 数组，不要 Markdown，不要额外解释）
 [
   {
-    "title": "题目标题",
+    "title": "题目标题（简洁明确）",
     "difficulty": "基础|中等|提高",
     "knowledge_point": "涉及的核心知识点",
-    "description": "题目详细描述",
-    "requirements": "具体要求，编号列表",
-    "input_format": "输入格式说明",
-    "output_format": "输出格式说明",
-    "examples": "示例输入输出",
-    "starter_code": "用户可编辑的起始代码框架（必填）",
-    "reference_solution": "/* 解题思路：... */\\n完整参考解法代码（必填，顶部包含解题思路注释）",
+    "description": "详细题目描述，至少80字，包括背景、任务、输入输出说明",
+    "requirements": "1. 具体要求一\\n2. 具体要求二\\n3. 具体要求三",
+    "input_format": "输入格式详细说明",
+    "output_format": "输出格式详细说明",
+    "examples": "样例1：\\n输入：xxx\\n输出：xxx\\n解释：xxx",
+    "starter_code": "# 起始代码框架（必填，含函数签名）",
+    "reference_solution": "/* 解题思路：... */\\n# 完整参考代码（必填）",
     "test_cases": [
-      {"input": "stdin输入内容", "expected_output": "期望输出", "description": "基础样例"},
-      {"input": "边界输入", "expected_output": "边界期望输出", "description": "边界测试"}
+      {"input": "stdin输入", "expected_output": "期望输出", "description": "基础样例"},
+      {"input": "边界输入", "expected_output": "边界期望输出", "description": "边界测试"},
+      {"input": "错误输入", "expected_output": "正确输出", "description": "常见错误测试"}
     ]
   }
 ]"""

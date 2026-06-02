@@ -1879,9 +1879,22 @@ export default function CodeStudio({
                 return count > 0 ? <div className="code-challenge-card-test-count">{count} 组测试用例</div> : null;
               } catch { return null; }
             })()}
+
+            {/* Description — always visible above tabs */}
+            <div className="code-challenge-card-section">
+              <div className="code-challenge-card-label">题目描述</div>
+              <p>{currentChallenge.description || "暂无题目描述。如果这是旧题，可重新生成。"}</p>
+            </div>
+            {currentChallenge.requirements && (
+              <div className="code-challenge-card-section">
+                <div className="code-challenge-card-label">要求</div>
+                <p>{currentChallenge.requirements}</p>
+              </div>
+            )}
+
+            {/* Detail tabs: I/O format, examples, hints */}
             <div className="code-problem-tabs">
               {[
-                { value: "description", label: "题目描述" },
                 { value: "io", label: "输入输出格式" },
                 { value: "examples", label: "样例" },
                 { value: "hints", label: "提示" },
@@ -1897,20 +1910,6 @@ export default function CodeStudio({
             </div>
 
             <div className="code-problem-tab-panel">
-              {problemTab === "description" && (
-                <>
-                  <div className="code-challenge-card-section">
-                    <div className="code-challenge-card-label">题目描述</div>
-                    <p>{currentChallenge.description || "暂无题目描述"}</p>
-                  </div>
-                  {currentChallenge.requirements && (
-                    <div className="code-challenge-card-section">
-                      <div className="code-challenge-card-label">要求</div>
-                      <p>{currentChallenge.requirements}</p>
-                    </div>
-                  )}
-                </>
-              )}
               {problemTab === "io" && (
                 <>
                   <div className="code-challenge-card-section">
