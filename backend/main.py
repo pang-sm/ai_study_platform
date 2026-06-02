@@ -9189,6 +9189,16 @@ def serialize_attempt(a, question_title=None):
     }
 
 
+def is_ai_generated_question_source(source: str | None) -> bool:
+    return (source or "").strip() in {"ai", "ai_generated"}
+
+
+def normalize_practice_answer(value: str | None) -> str:
+    text = (value or "").strip().upper()
+    text = re.sub(r"^[（(]?\s*([A-Z])\s*[）).、]?.*$", r"\1", text)
+    return re.sub(r"[\s,，、;；]+", "", text)
+
+
 @app.get("/practice/questions")
 def list_questions(
     username: str,
@@ -10345,6 +10355,17 @@ def explain_practice_question(question_id: int, req: schemas.QuestionAiExplainRe
     if not question:
         raise HTTPException(status_code=404, detail="题目不存在")
 
+    if is_ai_generated_question_source(question.source):
+        return {
+            "success": True,
+            "question_id": question.id,
+            "answer": question.answer or "",
+            "analysis": question.explanation or "",
+            "explanation": question.explanation or "",
+            "source": "question_analysis",
+            "question": serialize_question(question),
+        }
+
     prompt = f"""请为下面这道练习题生成清晰解析。若题目没有标准答案，可以给出“参考解析”，不要编造唯一答案。
 请输出 JSON 对象：{{"explanation":"...", "answer":"可选，仅当能从题目推理出参考答案时填写"}}
 
@@ -10447,9 +10468,9 @@ def submit_attempt(question_id: int, req: schemas.QuestionAttemptCreate, db: Ses
         raise HTTPException(status_code=404, detail="题目不存在")
 
     self_result = "unknown"
-    if question.type == "choice" and question.answer:
-        ua = (req.user_answer or "").strip()
-        ca = (question.answer or "").strip()
+    if question.type in {"choice", "single_choice", "multiple_choice", "true_false"} and question.answer:
+        ua = normalize_practice_answer(req.user_answer)
+        ca = normalize_practice_answer(question.answer)
         if ua and ca and ua == ca:
             self_result = "correct"
         elif ua:
@@ -10558,6 +10579,12 @@ def request_feedback(question_id: int, req: schemas.QuestionFeedbackRequest, db:
     )
     if not question:
         raise HTTPException(status_code=404, detail="题目不存在")
+
+    if is_ai_generated_question_source(question.source):
+        raise HTTPException(
+            status_code=400,
+            detail="AI生成题目已包含参考答案和解析，无需再次生成AI反馈。",
+        )
 
     user_prompt = f"""题目：{question.title}
 
@@ -11173,6 +11200,12 @@ def generate_questions(req: schemas.GenerateQuestionRequest, db: Session = Depen
     for item in questions_data:
         normalized = normalize_generated_question_item(item, qtype, difficulty, source_style)
         raw_analysis = normalized.get("explanation") or ""
+        if not (normalized.get("answer") or "").strip() or not raw_analysis.strip():
+            logger.info(
+                "[practice-generate] final filter: missing answer or analysis (title=%s)",
+                normalized.get("title", "")[:40],
+            )
+            continue
         internal_detected = contains_internal_reasoning(raw_analysis)
         cleaned_analysis = clean_question_analysis(raw_analysis)
         if len(raw_analysis) > 1200 or internal_detected:
@@ -11216,7 +11249,7 @@ def generate_questions(req: schemas.GenerateQuestionRequest, db: Session = Depen
             answer=normalized["answer"],
             explanation=normalized["explanation"],
             difficulty=normalized["difficulty"],
-            source="ai",
+            source="ai_generated",
             source_style=normalized["source_style"],
         )
         db.add(question)

@@ -43,6 +43,18 @@ const TYPE_LABELS = {
 
 const isChoiceLikeType = (type) => ["choice", "single_choice", "multiple_choice", "true_false"].includes(type);
 
+const isAiGeneratedQuestion = (question) => {
+  const source = String(question?.source || question?.source_type || "").trim();
+  return source === "ai_generated" || source === "ai";
+};
+
+const normalizePracticeAnswer = (value = "") => (
+  String(value || "")
+    .trim()
+    .replace(/^[(（]?\s*([A-Za-z])\s*[)）.、]?.*$/, "$1")
+    .toUpperCase()
+);
+
 const INTERNAL_REASONING_KEYWORDS = [
   "我认为",
   "我可能",
@@ -89,6 +101,38 @@ function QuestionAnalysisBlock({ analysis, limit = 800 }) {
         >
           {expanded ? "收起解析" : "展开全部解析"}
         </button>
+      )}
+    </div>
+  );
+}
+
+function AiGeneratedAttemptSummary({ question, attempt }) {
+  if (!question || !attempt) return null;
+  const isObjective = isChoiceLikeType(question.type);
+  const localResult = normalizePracticeAnswer(attempt.user_answer) === normalizePracticeAnswer(question.answer)
+    ? "correct"
+    : "incorrect";
+  const result = isObjective && question.answer
+    ? (attempt.self_result && attempt.self_result !== "unknown" ? attempt.self_result : localResult)
+    : "unknown";
+
+  return (
+    <div className="practice-local-result">
+      {isObjective && result !== "unknown" && (
+        <div className={`practice-local-result-status practice-local-result-status--${result}`}>
+          {result === "correct" ? "正确" : "错误"}
+        </div>
+      )}
+      {!isObjective && (
+        <div className="practice-local-result-status practice-local-result-status--unknown">
+          已提交，简答题请对照参考答案自查。
+        </div>
+      )}
+      {attempt.user_answer && (
+        <div className="practice-local-result-row">
+          <span>你的答案：</span>
+          <strong>{attempt.user_answer}</strong>
+        </div>
       )}
     </div>
   );
@@ -262,6 +306,7 @@ const STYLE_LABELS = {
 const SOURCE_LABELS = {
   manual: "手动创建",
   ai: "AI 生成",
+  ai_generated: "AI 生成",
   imported: "导入",
   paper_upload: "试卷识别",
   code_studio: "编程助手",
@@ -296,6 +341,7 @@ export default function PracticeCenter({
   const [userAnswer, setUserAnswer] = useState("");
   const [attempts, setAttempts] = useState([]);
   const [feedback, setFeedback] = useState("");
+  const [submittedAttempt, setSubmittedAttempt] = useState(null);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [detailActionLoading, setDetailActionLoading] = useState(false);
   const [showAnswer, setShowAnswer] = useState(false);
@@ -520,6 +566,7 @@ export default function PracticeCenter({
         setDetailQuestion(data.question);
         setUserAnswer("");
         setFeedback("");
+        setSubmittedAttempt(null);
         setShowAnswer(false);
         await loadAttempts(q.id);
       }
@@ -565,6 +612,11 @@ export default function PracticeCenter({
       );
       const data = await res.json();
       if (res.ok) {
+        setSubmittedAttempt(data.attempt || null);
+        if (isAiGeneratedQuestion(detailQuestion)) {
+          setShowAnswer(true);
+          setFeedback("");
+        }
         await loadAttempts(detailQuestion.id);
       }
     } catch (e) {
@@ -576,6 +628,7 @@ export default function PracticeCenter({
 
   const requestFeedback = async () => {
     if (!userAnswer.trim()) return;
+    if (isAiGeneratedQuestion(detailQuestion)) return;
     setFeedbackLoading(true);
     setFeedback("");
     try {
@@ -759,6 +812,7 @@ export default function PracticeCenter({
 
   const requestQuestionAiExplain = async (question, fromPaper = false) => {
     if (!question?.id || !user?.username) return;
+    if (isAiGeneratedQuestion(question)) return;
     setAiExplainLoadingId(question.id);
     try {
       const res = await fetch(`${API_BASE}/practice/questions/${question.id}/ai-explain`, {
@@ -1429,7 +1483,7 @@ export default function PracticeCenter({
                           )}
                           {q.source && (
                             <span className="subject-pill small practice-source-pill">
-                              {q.source === "ai" ? "AI 原创生成" : (SOURCE_LABELS[q.source] || q.source)}
+                              {isAiGeneratedQuestion(q) ? "AI 原创生成" : (SOURCE_LABELS[q.source] || q.source)}
                             </span>
                           )}
                           <span className="history-meta">
@@ -1601,6 +1655,10 @@ export default function PracticeCenter({
                 )}
               </div>
 
+              {isAiGeneratedQuestion(detailQuestion) && (
+                <AiGeneratedAttemptSummary question={detailQuestion} attempt={submittedAttempt} />
+              )}
+
               {(detailQuestion.answer || detailQuestion.explanation) && (
                 <div className="question-answer-section">
                   <button
@@ -1637,20 +1695,24 @@ export default function PracticeCenter({
                 >
                   {detailActionLoading ? "提交中..." : "提交答案"}
                 </button>
-                <button
-                  className="ghost-button compact"
-                  disabled={feedbackLoading || !userAnswer.trim()}
-                  onClick={requestFeedback}
-                >
-                  {feedbackLoading ? "AI 分析中..." : "AI 反馈"}
-                </button>
-                <button
-                  className="ghost-button compact"
-                  disabled={aiExplainLoadingId === detailQuestion.id}
-                  onClick={() => requestQuestionAiExplain(detailQuestion)}
-                >
-                  {aiExplainLoadingId === detailQuestion.id ? "解析中..." : "AI 解析"}
-                </button>
+                {!isAiGeneratedQuestion(detailQuestion) && (
+                  <>
+                    <button
+                      className="ghost-button compact"
+                      disabled={feedbackLoading || !userAnswer.trim()}
+                      onClick={requestFeedback}
+                    >
+                      {feedbackLoading ? "AI 分析中..." : "AI 反馈"}
+                    </button>
+                    <button
+                      className="ghost-button compact"
+                      disabled={aiExplainLoadingId === detailQuestion.id}
+                      onClick={() => requestQuestionAiExplain(detailQuestion)}
+                    >
+                      {aiExplainLoadingId === detailQuestion.id ? "解析中..." : "AI 解析"}
+                    </button>
+                  </>
+                )}
               </div>
 
               {feedback && (
@@ -1789,13 +1851,15 @@ export default function PracticeCenter({
                       <div className="exam-question-actions">
                         <button className="ghost-button compact" onClick={() => openEditQuestion(q)}>编辑题目</button>
                         <button className="primary-button compact" onClick={() => startPracticeFromPaper(q)}>开始练习</button>
-                        <button
-                          className="ghost-button compact"
-                          disabled={aiExplainLoadingId === q.id}
-                          onClick={() => requestQuestionAiExplain(q, true)}
-                        >
-                          {aiExplainLoadingId === q.id ? "解析中..." : "AI 解析"}
-                        </button>
+                        {!isAiGeneratedQuestion(q) && (
+                          <button
+                            className="ghost-button compact"
+                            disabled={aiExplainLoadingId === q.id}
+                            onClick={() => requestQuestionAiExplain(q, true)}
+                          >
+                            {aiExplainLoadingId === q.id ? "解析中..." : "AI 解析"}
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
