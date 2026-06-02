@@ -2823,7 +2823,7 @@ export default function CodeStudio({
             <div className="modal-header">
               <div className="code-ref-modal-title-row">
                 <h3>参考解法</h3>
-                <span className="subject-pill small code-ref-lang-pill">
+                <span className="code-ref-lang-pill">
                   {language}
                 </span>
               </div>
@@ -2832,16 +2832,23 @@ export default function CodeStudio({
               </button>
             </div>
             <div className="code-reference-modal-body">
+              {/* File tab indicator */}
+              <div className="code-ref-file-tab">
+                <span className="code-ref-file-tab-label">
+                  {language === "C" ? "main.c" : "main.py"}
+                </span>
+              </div>
               <pre className="code-reference-modal-code">{currentChallenge.reference_solution}</pre>
             </div>
             <div className="modal-actions code-ref-modal-actions">
               <button
-                className={`ghost-button compact${copyRefFeedback ? " code-ref-copied-btn" : ""}`}
+                className={`code-ref-copy-btn${copyRefFeedback ? " code-ref-copy-btn--done" : ""}`}
                 onClick={() => copyToClipboard(currentChallenge.reference_solution)}
                 disabled={copyRefFeedback}
               >
                 {copyRefFeedback ? "✓ 已复制" : "复制代码"}
               </button>
+              <div className="code-ref-modal-spacer" />
               <button
                 className="ghost-button compact"
                 onClick={() => setIsReferenceModalOpen(false)}
@@ -2849,7 +2856,7 @@ export default function CodeStudio({
                 关闭
               </button>
               <button
-                className="primary-button compact"
+                className="code-ref-apply-btn"
                 onClick={() => {
                   const refSol = currentChallenge.reference_solution;
                   const trimmed = (code || "").trim();
@@ -2885,7 +2892,9 @@ export default function CodeStudio({
           >
             <div className="modal-header">
               <div className="code-starter-confirm-title-row">
-                <span className="code-starter-warn-icon" aria-hidden="true">&#9888;</span>
+                <span className="code-starter-warn-icon" aria-hidden="true">
+                  <span className="code-starter-warn-inner">!</span>
+                </span>
                 <h3>确认覆盖当前代码？</h3>
               </div>
               <button className="modal-close" onClick={() => setStarterConfirmOpen(false)}>
@@ -2897,12 +2906,12 @@ export default function CodeStudio({
                 当前编辑器中已有代码修改。继续应用后，<strong>当前代码将被覆盖且无法撤销</strong>。
               </p>
               <p className="code-starter-confirm-hint">
-                建议先将当前代码复制保存（Ctrl+C），再执行覆盖操作。
+                建议先复制当前代码（Ctrl+C）再执行覆盖
               </p>
             </div>
             <div className="modal-actions code-starter-confirm-actions">
               <button
-                className="ghost-button"
+                className="code-starter-cancel-btn"
                 onClick={() => setStarterConfirmOpen(false)}
               >
                 继续编辑
