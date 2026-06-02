@@ -1577,6 +1577,7 @@ export default function CodeStudio({
     setAiQuestion("");
 
     try {
+      const latestDiagnostics = await diagnoseCode(code, language, { force: true });
       const res = await fetch(`${API_BASE}/code/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1590,6 +1591,11 @@ export default function CodeStudio({
           question,
           last_run_result: runResult,
           last_test_results: testResults,
+          diagnostics: {
+            status: latestDiagnostics?.status || diagnosticStatus,
+            errors: latestDiagnostics?.errors || diagnostics.filter((item) => item.severity === "error"),
+            warnings: latestDiagnostics?.warnings || diagnostics.filter((item) => item.severity === "warning"),
+          },
         }),
       });
       const data = await safeJson(res);
@@ -2742,9 +2748,19 @@ export default function CodeStudio({
                         ⏹ 停止
                       </button>
                     ) : (
+                      <>
+                        <button
+                          className="code-action-btn code-action-btn--run compact"
+                          onClick={launchInteractiveTerminal}
+                          disabled={!code.trim()}
+                          title="Run again"
+                        >
+                          Rerun
+                        </button>
                       <button className="code-action-btn code-action-btn--clear compact" onClick={clearInteractiveTerminal} title="清空终端">
                         清空
                       </button>
+                      </>
                     )}
                     {terminalExitCode !== null && (
                       <span className="code-terminal-exit-code">exit_code: {terminalExitCode}</span>

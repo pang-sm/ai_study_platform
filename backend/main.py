@@ -5477,6 +5477,7 @@ def _fallback_c_diagnostics(code: str) -> list[dict]:
     """Small local fallback for common C syntax mistakes when gcc is unavailable."""
     items = []
     control_prefixes = ("if", "for", "while", "switch")
+    lines = code.splitlines()
     for idx, raw_line in enumerate(code.splitlines(), start=1):
         stripped = raw_line.strip()
         if not stripped or stripped.startswith("#") or stripped.startswith("//"):
@@ -5493,6 +5494,25 @@ def _fallback_c_diagnostics(code: str) -> list[dict]:
                 "column": len(raw_line.rstrip()) + 1,
                 "message": "expected ';' at end of statement (local fallback: gcc/docker unavailable)",
                 "severity": "error",
+                "source": "c-fallback",
+            })
+            break
+    if items:
+        return items
+
+    declaration_pattern = _diagnose_re.compile(r"^\s*int\s+([A-Za-z_]\w*)\s*;\s*$")
+    for idx, raw_line in enumerate(lines, start=1):
+        match = declaration_pattern.match(raw_line)
+        if not match:
+            continue
+        name = match.group(1)
+        rest = "\n".join(lines[idx:])
+        if not _diagnose_re.search(rf"\b{_diagnose_re.escape(name)}\b", rest):
+            items.append({
+                "line": idx,
+                "column": raw_line.find(name) + 1,
+                "message": f"unused variable '{name}' (local fallback: gcc/docker unavailable)",
+                "severity": "warning",
                 "source": "c-fallback",
             })
             break
@@ -5570,18 +5590,18 @@ def diagnose_code(req: schemas.CodeDiagnoseRequest):
             status = "error" if errors else ("warning" if warnings else "ok")
             return {"language": "c", "status": status, "errors": errors, "warnings": warnings, "raw_output": raw}
         except FileNotFoundError as e:
-            fallback_errors = _fallback_c_diagnostics(code)
-            if fallback_errors:
+            fallback_items = _fallback_c_diagnostics(code)
+            fallback_errors = [i for i in fallback_items if i["severity"] == "error"]
+            fallback_warnings = [i for i in fallback_items if i["severity"] == "warning"]
+            if fallback_items:
                 return {
                     "language": "c",
-                    "status": "error",
+                    "status": "error" if fallback_errors else "warning",
                     "errors": fallback_errors,
-                    "warnings": [],
+                    "warnings": fallback_warnings,
                     "raw_output": str(e),
                 }
-            return {"language": "c", "status": "error", "errors": [
-                {"line": 1, "column": 1, "message": "C diagnostic runtime unavailable: docker/gcc command not found", "severity": "error", "source": "system"}
-            ], "warnings": [], "raw_output": str(e)}
+            return {"language": "c", "status": "ok", "errors": [], "warnings": [], "raw_output": str(e)}
         except (_sp.TimeoutExpired, Exception) as e:
             return {"language": "c", "status": "error", "errors": [
                 {"line": 1, "column": 1, "message": f"诊断服务异常：{str(e)[:200]}", "severity": "error", "source": "system"}
@@ -5809,9 +5829,35 @@ def analyze_code(req: schemas.CodeAnalyzeRequest, db: Session = Depends(get_db))
                     if tc.get("diff_summary"):
                         test_context += f"\n   差异: {str(tc['diff_summary'])[:200]}"
 
+    diagnostics_context = ""
+    diagnostics_payload = req.diagnostics
+    if diagnostics_payload and isinstance(diagnostics_payload, dict):
+        errors = diagnostics_payload.get("errors") or []
+        warnings = diagnostics_payload.get("warnings") or []
+        diagnostics_context = "\n## Current editor diagnostics\n"
+        diagnostics_context += f"status: {diagnostics_payload.get('status', 'unknown')}\n"
+        if isinstance(errors, list) and errors:
+            diagnostics_context += "errors:\n"
+            for item in errors[:8]:
+                if isinstance(item, dict):
+                    diagnostics_context += (
+                        f"- line {item.get('line', '?')}, column {item.get('column', '?')}: "
+                        f"{str(item.get('message', ''))[:300]}\n"
+                    )
+        if isinstance(warnings, list) and warnings:
+            diagnostics_context += "warnings:\n"
+            for item in warnings[:8]:
+                if isinstance(item, dict):
+                    diagnostics_context += (
+                        f"- line {item.get('line', '?')}, column {item.get('column', '?')}: "
+                        f"{str(item.get('message', ''))[:300]}\n"
+                    )
+        if not (isinstance(errors, list) and errors) and not (isinstance(warnings, list) and warnings):
+            diagnostics_context += "no active diagnostics\n"
+
     # System prompt additions for run/test context
     context_guidance = ""
-    if run_context or test_context:
+    if run_context or test_context or diagnostics_context:
         context_guidance = (
             "\n\n用户提供了运行/测试结果。"
             "如果用户问测试为什么没过，优先结合测试结果中的具体失败用例和差异来分析。"
@@ -5866,7 +5912,7 @@ def analyze_code(req: schemas.CodeAnalyzeRequest, db: Session = Depends(get_db))
 ```
 {truncated_code}
 ```
-{run_context}{test_context}
+{run_context}{test_context}{diagnostics_context}
 
 用户问题：{question}"""
     else:
@@ -5879,7 +5925,7 @@ def analyze_code(req: schemas.CodeAnalyzeRequest, db: Session = Depends(get_db))
 ```
 {truncated_code}
 ```
-{run_context}{test_context}
+{run_context}{test_context}{diagnostics_context}
 
 用户问题：{question}"""
 
