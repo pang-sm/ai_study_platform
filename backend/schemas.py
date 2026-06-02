@@ -78,6 +78,11 @@ class CodeChallengeGenerateRequest(BaseModel):
     diagnosis_summary: str = ""
     source: str = ""
     target_weak_point: str = ""
+    count: int = 1
+    knowledge_point_ids: list[int] = []
+    knowledge_text: str = ""
+    material_ids: list[int] = []
+    extra_requirement: str = ""
 
 
 class CodeChallengeOut(BaseModel):

@@ -29,6 +29,19 @@ const STATUS_CLASSES = {
   unknown: "feedback-status--unknown",
 };
 
+/** Unified AI challenge detection — handles historical and current data formats */
+function isAIChallenge(session) {
+  if (!session) return false;
+  // Has associated challenge_id: was generated through AI 出题 or diagnosis
+  if (session.challenge_id) return true;
+  // Backend field: session_type explicitly set
+  if (session.session_type === "challenge") return true;
+  // Backend returns challenge_source per session
+  if (session.challenge_source && session.challenge_source !== "manual") return true;
+  // Challenge was loaded separately (currentChallenge state)
+  return false;
+}
+
 function safeJson(res) {
   return res.json().catch(() => ({}));
 }
@@ -288,6 +301,15 @@ export default function CodeStudio({
   const [challengeFocus, setChallengeFocus] = useState("");
   const [challengeGenerating, setChallengeGenerating] = useState(false);
   const [currentChallenge, setCurrentChallenge] = useState(null);
+
+  // AI 出题 enhanced fields
+  const [challengeCount, setChallengeCount] = useState(1);
+  const [challengeGenError, setChallengeGenError] = useState("");
+  const [challengeExtraReq, setChallengeExtraReq] = useState("");
+  const [genKnowledgePoints, setGenKnowledgePoints] = useState([]);
+  const [genMaterials, setGenMaterials] = useState([]);
+  const [selectedGenKpIds, setSelectedGenKpIds] = useState([]);
+  const [selectedGenMaterialIds, setSelectedGenMaterialIds] = useState([]);
 
   const [diagnosisLoading, setDiagnosisLoading] = useState(false);
   const [diagnosisReport, setDiagnosisReport] = useState(null);
@@ -572,9 +594,34 @@ export default function CodeStudio({
     }
   };
 
+  const openChallengeModal = async () => {
+    setChallengeDifficulty("基础");
+    setChallengeFocus("");
+    setChallengeCount(1);
+    setChallengeGenError("");
+    setChallengeExtraReq("");
+    setSelectedGenKpIds([]);
+    setSelectedGenMaterialIds([]);
+    setShowChallengeModal(true);
+    // Load knowledge points & materials for current course
+    const normalizedCourse = normalizeSubject(codeCourseId, "");
+    if (user?.username && normalizedCourse) {
+      try {
+        const [kpRes, matRes] = await Promise.all([
+          fetch(`${API_BASE}/knowledge-points?username=${encodeURIComponent(user.username)}&course_id=${encodeURIComponent(normalizedCourse)}`),
+          fetch(`${API_BASE}/materials?username=${encodeURIComponent(user.username)}&subject=${encodeURIComponent(normalizedCourse)}`),
+        ]);
+        const [kpData, matData] = await Promise.all([safeJson(kpRes), safeJson(matRes)]);
+        if (kpRes.ok) setGenKnowledgePoints(kpData.knowledge_points || []);
+        if (matRes.ok) setGenMaterials(matData.materials || []);
+      } catch { /* non-critical */ }
+    }
+  };
+
   const generateChallenge = async () => {
     if (!user?.username) return;
     setChallengeGenerating(true);
+    setChallengeGenError("");
     try {
       const res = await fetch(`${API_BASE}/code/challenges/generate`, {
         method: "POST",
@@ -585,28 +632,35 @@ export default function CodeStudio({
           language,
           difficulty: challengeDifficulty,
           focus: challengeFocus,
+          count: challengeCount,
+          knowledge_point_ids: selectedGenKpIds.length > 0 ? selectedGenKpIds : undefined,
+          knowledge_text: challengeFocus,
+          material_ids: selectedGenMaterialIds.length > 0 ? selectedGenMaterialIds : undefined,
+          extra_requirement: challengeExtraReq || undefined,
         }),
       });
       const data = await safeJson(res);
-      if (res.ok && data.session) {
+      if (res.ok && data.sessions && data.sessions.length > 0) {
         setShowChallengeModal(false);
         setChallengeFocus("");
+        setChallengeExtraReq("");
         await loadSessions();
-        selectSession(data.session);
-        if (data.challenge) {
-          setCurrentChallenge(data.challenge);
+        // Select first generated session
+        selectSession(data.sessions[0]);
+        if (data.challenges && data.challenges.length > 0) {
+          setCurrentChallenge(data.challenges[0]);
         }
-        setTip("AI 题目已生成");
-        setTimeout(() => setTip(""), 2000);
+        const generatedCount = data.sessions.length;
+        setTip(`AI 已生成 ${generatedCount} 道题目`);
+        setTimeout(() => setTip(""), 3000);
       } else if (res.status === 429) {
-        setTip("今日 AI 使用次数已达上限，请明天再试或升级套餐");
-        setTimeout(() => setTip(""), 4000);
+        setChallengeGenError("今日 AI 使用次数已达上限，请明天再试或升级套餐");
       } else {
-        setTip(data.detail || "AI 出题失败，请重试");
+        setChallengeGenError(data.detail || "AI 出题失败，请重试");
       }
     } catch (error) {
       console.error("Failed to generate challenge:", error);
-      setTip("AI 出题失败，请稍后重试");
+      setChallengeGenError("AI 出题失败，请检查网络连接后重试");
     } finally {
       setChallengeGenerating(false);
     }
@@ -1604,7 +1658,7 @@ export default function CodeStudio({
                 >
                   <div className="code-session-item-title">
                     {s.title}
-                    {s.session_type === "challenge" && (
+                    {isAIChallenge(s) && (
                       <span className={`code-session-type-badge ${s.challenge_source === "diagnosis" ? "code-session-type-badge--diagnosis" : ""}`}>
                         {s.challenge_source === "diagnosis" ? "诊断推荐" : "AI题"}
                       </span>
@@ -1735,11 +1789,7 @@ export default function CodeStudio({
                 </button>
                 <button
                   className="code-action-btn code-action-btn--challenge"
-                  onClick={() => {
-                    setChallengeDifficulty("基础");
-                    setChallengeFocus("");
-                    setShowChallengeModal(true);
-                  }}
+                  onClick={openChallengeModal}
                   title="AI 出题"
                 >
                   出题
@@ -2538,72 +2588,193 @@ export default function CodeStudio({
         </div>
       )}
 
-      {/* Challenge Generation Modal */}
+      {/* ── AI 出题 Modal ── */}
       {showChallengeModal && (
-        <div className="modal-overlay" onClick={() => setShowChallengeModal(false)}>
+        <div className="modal-overlay" onClick={() => { if (!challengeGenerating) setShowChallengeModal(false); }}>
           <div
             className="modal-card code-challenge-modal"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="modal-header">
-              <h3>AI 出题</h3>
-              <button className="modal-close" onClick={() => setShowChallengeModal(false)}>
+              <div>
+                <h3>AI 出题</h3>
+                <p className="code-challenge-modal-subtitle">
+                  根据当前课程、知识点和资料库生成编程练习
+                </p>
+              </div>
+              <button className="modal-close" onClick={() => setShowChallengeModal(false)} disabled={challengeGenerating}>
                 &times;
               </button>
             </div>
 
-            <label className="field-label">编程语言</label>
-            <div className="code-studio-lang-selector" style={{ marginBottom: 12 }}>
-              {LANGUAGES.map((lang) => (
-                <button
-                  key={lang}
-                  className={`ghost-button compact ${language === lang ? "code-lang-btn--active" : ""}`}
-                  onClick={() => setLanguage(lang)}
-                >
-                  {lang}
-                </button>
-              ))}
+            <div className="code-challenge-modal-body">
+              {/* ── Language ── */}
+              <label className="field-label">编程语言</label>
+              <div className="code-challenge-lang-row">
+                {LANGUAGES.map((lang) => (
+                  <button
+                    key={lang}
+                    className={`code-challenge-lang-btn ${language === lang ? "code-challenge-lang-btn--active" : ""}`}
+                    onClick={() => setLanguage(lang)}
+                  >
+                    {lang}
+                  </button>
+                ))}
+              </div>
+
+              <div className="code-challenge-grid">
+                {/* ── Difficulty ── */}
+                <div>
+                  <label className="field-label">难度</label>
+                  <div className="code-challenge-diff-row">
+                    {["基础", "中等", "提高"].map((d) => (
+                      <button
+                        key={d}
+                        className={`code-challenge-diff-btn ${challengeDifficulty === d ? "code-challenge-diff-btn--active" : ""}`}
+                        onClick={() => setChallengeDifficulty(d)}
+                      >
+                        {d}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* ── Count ── */}
+                <div>
+                  <label className="field-label">生成数量</label>
+                  <div className="code-challenge-count-row">
+                    <input
+                      className="field code-challenge-count-input"
+                      type="number"
+                      min={1}
+                      max={10}
+                      value={challengeCount}
+                      onChange={(e) => {
+                        const v = parseInt(e.target.value, 10);
+                        if (!isNaN(v)) setChallengeCount(Math.min(10, Math.max(1, v)));
+                      }}
+                    />
+                    <span className="code-challenge-count-hint">1 ~ 10 道</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Knowledge Points ── */}
+              <label className="field-label">绑定知识点</label>
+              {genKnowledgePoints.length > 0 ? (
+                <>
+                  <div className="code-challenge-kp-tags">
+                    {genKnowledgePoints.slice(0, 20).map((kp) => {
+                      const sel = selectedGenKpIds.includes(kp.id);
+                      return (
+                        <button
+                          key={kp.id}
+                          className={`code-challenge-kp-tag ${sel ? "code-challenge-kp-tag--active" : ""}`}
+                          onClick={() => {
+                            setSelectedGenKpIds((prev) =>
+                              sel ? prev.filter((id) => id !== kp.id) : [...prev, kp.id]
+                            );
+                          }}
+                          title={kp.title}
+                        >
+                          {sel && <span className="code-challenge-kp-check">&#10003;</span>}
+                          {kp.title}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {selectedGenKpIds.length > 0 && (
+                    <div className="code-challenge-kp-selected-count">
+                      已选择 {selectedGenKpIds.length} 个知识点
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p className="code-challenge-empty-hint">
+                  {codeCourseId
+                    ? "当前课程暂无知识点路线，可直接输入补充知识点"
+                    : "请先选择课程查看知识点"}
+                </p>
+              )}
+              <input
+                className="field"
+                placeholder="补充知识点，例如：循环队列、数组模拟、指针操作"
+                value={challengeFocus}
+                onChange={(e) => setChallengeFocus(e.target.value)}
+                style={{ marginTop: 8 }}
+              />
+
+              {/* ── Reference Materials ── */}
+              <label className="field-label">引用课程资料（可选）</label>
+              {genMaterials.length > 0 ? (
+                <div className="code-challenge-material-list">
+                  {genMaterials.slice(0, 15).map((m) => {
+                    const sel = selectedGenMaterialIds.includes(m.id);
+                    return (
+                      <label
+                        key={m.id}
+                        className={`code-challenge-material-item ${sel ? "code-challenge-material-item--active" : ""}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={sel}
+                          onChange={() => {
+                            setSelectedGenMaterialIds((prev) =>
+                              sel ? prev.filter((id) => id !== m.id) : [...prev, m.id]
+                            );
+                          }}
+                        />
+                        <span className="code-challenge-material-name" title={m.original_filename}>
+                          {m.original_filename}
+                        </span>
+                        <span className="code-challenge-material-type">{m.file_type}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="code-challenge-empty-hint">
+                  当前课程暂无资料，可先到资料库上传，也可以不引用资料直接生成
+                </p>
+              )}
+              {selectedGenMaterialIds.length > 0 && (
+                <div className="code-challenge-material-count">
+                  已选择 {selectedGenMaterialIds.length} 份资料
+                </div>
+              )}
+
+              {/* ── Extra Requirements ── */}
+              <label className="field-label">额外要求（可选）</label>
+              <textarea
+                className="field code-challenge-extra-req"
+                placeholder="例如：希望考查循环队列，不要用链表，给 3 组测试用例"
+                value={challengeExtraReq}
+                onChange={(e) => setChallengeExtraReq(e.target.value)}
+                rows={3}
+              />
+
+              {/* ── Error ── */}
+              {challengeGenError && (
+                <div className="practice-import-error" style={{ marginTop: 8 }}>
+                  {challengeGenError}
+                </div>
+              )}
             </div>
 
-            <label className="field-label">难度</label>
-            <select
-              className="field"
-              value={challengeDifficulty}
-              onChange={(e) => setChallengeDifficulty(e.target.value)}
-              style={{ marginBottom: 12 }}
-            >
-              <option value="基础">基础</option>
-              <option value="中等">中等</option>
-              <option value="提高">提高</option>
-            </select>
-
-            <label className="field-label">想练的知识点（可选）</label>
-            <input
-              className="field"
-              placeholder="例如：数组、循环、递归、排序、面向对象"
-              value={challengeFocus}
-              onChange={(e) => setChallengeFocus(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  generateChallenge();
-                }
-              }}
-            />
-
-            <div className="modal-actions" style={{ marginTop: 16 }}>
+            <div className="modal-actions">
               <button
                 className="ghost-button"
                 onClick={() => setShowChallengeModal(false)}
+                disabled={challengeGenerating}
               >
                 取消
               </button>
               <button
-                className="primary-button"
+                className="code-challenge-generate-btn"
                 onClick={generateChallenge}
                 disabled={challengeGenerating}
               >
-                {challengeGenerating ? "AI 正在生成题目..." : "生成题目"}
+                {challengeGenerating ? "⏳ 生成中..." : "生成题目"}
               </button>
             </div>
           </div>

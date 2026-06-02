@@ -4786,7 +4786,7 @@ def serialize_code_challenge(challenge):
         "examples": challenge.examples,
         "starter_code": challenge.starter_code,
         "reference_solution": challenge.reference_solution,
-        "source": getattr(challenge, "source", None) or "normal",
+        "source": getattr(challenge, "source", None) or "ai",
         "target_weak_point": getattr(challenge, "target_weak_point", None),
         "test_cases": getattr(challenge, "test_cases", None) or "[]",
         "created_at": challenge.created_at,
@@ -4886,8 +4886,12 @@ def get_code_sessions(username: str, course_id: str = "", db: Session = Depends(
             .all()
         )
         for ch in challenges:
+            src = getattr(ch, "source", None) or "ai"
+            # Backward compat: old AI challenges stored as "normal"
+            if src == "normal":
+                src = "ai"
             challenge_map[ch.id] = {
-                "source": getattr(ch, "source", None) or "normal",
+                "source": src,
                 "target_weak_point": getattr(ch, "target_weak_point", None),
             }
 
@@ -5734,57 +5738,47 @@ def delete_code_session_messages(session_id: int, username: str, db: Session = D
     return {"success": True}
 
 
-CODE_CHALLENGE_GENERATE_PROMPT = """你是编程学习出题助手。根据用户的学习背景和编程进度，生成一道合适的编程练习题。
+CODE_CHALLENGE_GENERATE_PROMPT = """你是编程学习出题助手。根据用户的学习背景和编程进度，生成编程练习题。
 
 要求：
 1. 题目难度适合用户当前水平
 2. 题目可以在单文件中完成，不依赖第三方库
 3. 不要求读取文件、网络请求或系统命令
 4. 题目描述要清晰，输入输出格式要明确
-5. starter_code 提供代码框架，让用户填写核心逻辑
-6. reference_solution 是完整参考解法
+5. starter_code 提供代码框架，让用户填写核心逻辑（不能为空）
+6. reference_solution 是完整参考解法，包含完整可运行代码（必须提供，不能为空）
 7. test_cases 必须提供 3-5 个测试用例，每个用例包含 input（stdin输入）、expected_output（期望输出）、description（用例描述）
-8. 测试用例必须与题目输入输出格式完全一致
-9. 测试用例至少包含：基础样例、边界样例、常见错误样例
-10. expected_output 必须是精确的输出字符串，包含必要的换行符
+8. 测试用例至少包含：基础样例、边界样例、常见错误样例
+9. reference_solution 代码顶部以注释形式写出解题思路（/* 解题思路：... */ 格式），帮助学习者理解
+10. 如果要求生成多道题，一次性输出所有题目
 
-请严格按照以下 JSON 格式输出（不要输出其他内容）：
+请严格按以下 JSON 数组格式输出（不要输出其他内容）：
 
-```json
-{
-  "title": "题目标题",
-  "difficulty": "基础|中等|提高",
-  "knowledge_point": "涉及的核心知识点",
-  "description": "题目详细描述",
-  "requirements": "具体要求，编号列表",
-  "input_format": "输入格式说明",
-  "output_format": "输出格式说明",
-  "examples": "示例输入输出",
-  "starter_code": "用户可编辑的起始代码框架",
-  "reference_solution": "完整参考解法",
-  "test_cases": [
-    {
-      "input": "stdin输入内容",
-      "expected_output": "期望输出",
-      "description": "基础样例"
-    },
-    {
-      "input": "边界输入",
-      "expected_output": "边界期望输出",
-      "description": "边界测试"
-    },
-    {
-      "input": "可能触发错误的输入",
-      "expected_output": "正确输出",
-      "description": "常见错误测试"
-    }
-  ]
-}
-```"""
+[
+  {
+    "title": "题目标题",
+    "difficulty": "基础|中等|提高",
+    "knowledge_point": "涉及的核心知识点",
+    "description": "题目详细描述",
+    "requirements": "具体要求，编号列表",
+    "input_format": "输入格式说明",
+    "output_format": "输出格式说明",
+    "examples": "示例输入输出",
+    "starter_code": "用户可编辑的起始代码框架（必填）",
+    "reference_solution": "/* 解题思路：... */\\n完整参考解法代码（必填，顶部包含解题思路注释）",
+    "test_cases": [
+      {"input": "stdin输入内容", "expected_output": "期望输出", "description": "基础样例"},
+      {"input": "边界输入", "expected_output": "边界期望输出", "description": "边界测试"}
+    ]
+  }
+]"""
 
 
 @app.post("/code/challenges/generate")
 def generate_code_challenge(req: schemas.CodeChallengeGenerateRequest, db: Session = Depends(get_db)):
+    import json as json_module
+    import re as re_module
+
     user = get_user_by_username(req.username, db)
     language = (req.language or "Python").strip()
     if language not in CODE_TEMPLATES:
@@ -5794,10 +5788,56 @@ def generate_code_challenge(req: schemas.CodeChallengeGenerateRequest, db: Sessi
         difficulty = "基础"
     course_id = normalize_subject(req.course_id, default="")
 
-    challenge_source = (req.source or "normal").strip()
-    if challenge_source not in ("normal", "diagnosis"):
-        challenge_source = "normal"
+    challenge_source = (req.source or "ai").strip()
+    if challenge_source not in ("ai", "ai_generated", "diagnosis", "manual"):
+        challenge_source = "ai"
     target_weak_point = (req.target_weak_point or req.focus or "").strip()
+
+    # Batch count: 1-10
+    count = min(max(int(req.count or 1), 1), 10)
+
+    # Knowledge points from selected IDs
+    kp_texts: list[str] = []
+    knowledge_point_ids = list(req.knowledge_point_ids or [])
+    if knowledge_point_ids and course_id:
+        kps = (
+            db.query(models.KnowledgePoint)
+            .filter(
+                models.KnowledgePoint.username == user.username,
+                models.KnowledgePoint.course_id == course_id,
+                models.KnowledgePoint.id.in_(knowledge_point_ids),
+            )
+            .all()
+        )
+        kp_texts = [kp.title for kp in kps if kp.title]
+    if req.knowledge_text and req.knowledge_text.strip():
+        kp_texts.append(req.knowledge_text.strip())
+
+    # Material context
+    material_context = ""
+    if req.material_ids and course_id:
+        materials = (
+            db.query(models.StudyMaterial)
+            .filter(
+                models.StudyMaterial.username == user.username,
+                models.StudyMaterial.subject == course_id,
+                models.StudyMaterial.id.in_(list(req.material_ids)),
+                models.StudyMaterial.is_deleted.is_(False),
+            )
+            .all()
+        )
+        if materials:
+            material_names = [m.original_filename for m in materials[:5]]
+            material_previews = []
+            for m in materials[:3]:
+                preview = (m.summary or m.extracted_text or "")[:300]
+                if preview:
+                    material_previews.append(f"[{m.original_filename}]: {preview}")
+            material_context = (
+                f"参考以下资料内容生成题目：\n"
+                f"资料列表：{', '.join(material_names)}\n"
+                + "\n".join(material_previews)
+            )
 
     recommended_focus = ""
     if not target_weak_point and course_id:
@@ -5838,6 +5878,7 @@ def generate_code_challenge(req: schemas.CodeChallengeGenerateRequest, db: Sessi
             recent_history_summary = "；".join(summaries)
 
     focus_text = f"用户想练习的知识点：{req.focus.strip()}" if req.focus.strip() else ""
+    kp_text = f"绑定知识点：{', '.join(kp_texts)}" if kp_texts else ""
     if target_weak_point:
         hint = "系统检测到用户当前薄弱知识点" if recommended_focus else "本题针对的薄弱点"
         weak_point_text = (
@@ -5846,6 +5887,10 @@ def generate_code_challenge(req: schemas.CodeChallengeGenerateRequest, db: Sessi
         )
     else:
         weak_point_text = ""
+
+    extra_req_text = ""
+    if req.extra_requirement and req.extra_requirement.strip():
+        extra_req_text = f"额外要求：{req.extra_requirement.strip()}\n请严格遵守这些额外要求。"
 
     is_diagnosis_driven = (req.source or "").strip() == "diagnosis"
     diagnosis_context = ""
@@ -5860,9 +5905,7 @@ def generate_code_challenge(req: schemas.CodeChallengeGenerateRequest, db: Sessi
 - 题目必须针对诊断报告中最突出的薄弱点
 - 题目应能训练一个核心知识点
 - 难度不要过高，从基础概念开始训练
-- 不要直接复述诊断报告原文
-- 不要生成过大题目
-- 不要生成需要复杂数学背景的题"""
+- 不要直接复述诊断报告原文"""
 
     progress_summary = f"""用户编程进度：
 - 当前课程：{course_id or "未指定"}
@@ -5872,13 +5915,16 @@ def generate_code_challenge(req: schemas.CodeChallengeGenerateRequest, db: Sessi
 - 最近练习：{recent_titles or "暂无"}
 - 最近 AI 分析摘要：{recent_history_summary or "暂无"}
 {focus_text}
+{kp_text}
 {weak_point_text}
-{diagnosis_context}"""
+{diagnosis_context}
+{material_context}
+{extra_req_text}"""
 
     if is_diagnosis_driven:
-        question_text = f"请根据诊断报告中的薄弱点，为上述用户生成一道 {difficulty} 难度的 {language} 针对性训练题。"
+        question_text = f"请根据诊断报告中的薄弱点，为上述用户生成 {count} 道 {difficulty} 难度的 {language} 针对性训练题。"
     else:
-        question_text = f"请为上述用户生成一道 {difficulty} 难度的 {language} 编程题。"
+        question_text = f"请为上述用户生成 {count} 道 {difficulty} 难度的 {language} 编程题。"
 
     user_prompt = f"""{progress_summary}
 
@@ -5895,80 +5941,111 @@ def generate_code_challenge(req: schemas.CodeChallengeGenerateRequest, db: Sessi
 
     record_ai_usage(user.username, "challenge_generate", db, estimated_tokens=estimate_tokens_from_text(ai_response), status="success")
 
-    # Parse JSON from AI response
-    import json as json_module
-    import re as re_module
+    # Parse JSON from AI response — support wrapped array and bare array
+    json_str = ai_response
+    # Try code-fence extraction
+    fence_match = re_module.search(r"```(?:json)?\s*([\s\S]*?)\s*```", ai_response)
+    if fence_match:
+        json_str = fence_match.group(1)
+    # Try to find JSON array
+    arr_match = re_module.search(r"\[[\s\S]*\]", json_str)
+    challenges_list: list[dict] = []
+    if arr_match:
+        try:
+            parsed = json_module.loads(arr_match.group(0))
+            if isinstance(parsed, list):
+                challenges_list = [item for item in parsed if isinstance(item, dict)]
+        except json_module.JSONDecodeError:
+            pass
+    # Try wrapped object with "questions" / "challenges" key
+    if not challenges_list:
+        try:
+            parsed = json_module.loads(json_str)
+            if isinstance(parsed, list):
+                challenges_list = [item for item in parsed if isinstance(item, dict)]
+            elif isinstance(parsed, dict):
+                for key in ("challenges", "questions", "data", "items"):
+                    inner = parsed.get(key)
+                    if isinstance(inner, list):
+                        challenges_list = [item for item in inner if isinstance(item, dict)]
+                        break
+                if not challenges_list and parsed.get("title"):
+                    challenges_list = [parsed]
+        except json_module.JSONDecodeError:
+            pass
 
-    json_match = re_module.search(r"```json\s*([\s\S]*?)\s*```", ai_response)
-    if json_match:
-        json_str = json_match.group(1)
-    else:
-        raise HTTPException(status_code=500, detail="AI 生成题目格式异常，请重试")
+    if not challenges_list:
+        raise HTTPException(status_code=500, detail="AI 返回内容格式不符合题目结构，无法解析，请重试")
 
-    try:
-        challenge_data = json_module.loads(json_str)
-    except json_module.JSONDecodeError:
-        raise HTTPException(status_code=500, detail="AI 生成题目解析失败，请重试")
+    created_challenges = []
+    created_sessions = []
 
-    required_fields = ["title", "difficulty", "description"]
-    for field in required_fields:
-        if not challenge_data.get(field):
-            raise HTTPException(status_code=500, detail=f"AI 生成题目缺少 {field}，请重试")
+    for item in challenges_list[:count]:
+        # Basic required fields
+        if not item.get("title") or not item.get("description"):
+            continue
 
-    # Parse and validate test_cases
-    test_cases_json = "[]"
-    raw_test_cases = challenge_data.get("test_cases")
-    if isinstance(raw_test_cases, list) and len(raw_test_cases) > 0:
-        valid_cases = []
-        for tc in raw_test_cases:
-            if isinstance(tc, dict) and tc.get("input") is not None and tc.get("expected_output") is not None:
-                valid_cases.append({
-                    "input": str(tc.get("input", "")),
-                    "expected_output": str(tc.get("expected_output", "")),
-                    "description": str(tc.get("description", ""))[:100],
-                })
-        if valid_cases:
-            test_cases_json = json_module.dumps(valid_cases, ensure_ascii=False)
+        # Parse test_cases
+        test_cases_json = "[]"
+        raw_test_cases = item.get("test_cases")
+        if isinstance(raw_test_cases, list) and len(raw_test_cases) > 0:
+            valid_cases = []
+            for tc in raw_test_cases:
+                if isinstance(tc, dict) and (tc.get("input") is not None or tc.get("expected_output") is not None):
+                    valid_cases.append({
+                        "input": str(tc.get("input", "")),
+                        "expected_output": str(tc.get("expected_output", "")),
+                        "description": str(tc.get("description", ""))[:100],
+                    })
+            if valid_cases:
+                test_cases_json = json_module.dumps(valid_cases, ensure_ascii=False)
 
-    challenge = models.CodeChallenge(
-        username=user.username,
-        course_id=course_id,
-        language=language,
-        title=str(challenge_data.get("title", ""))[:255],
-        difficulty=str(challenge_data.get("difficulty", difficulty))[:20],
-        knowledge_point=str(challenge_data.get("knowledge_point") or recommended_focus or "")[:255],
-        description=str(challenge_data.get("description", "")),
-        requirements=str(challenge_data.get("requirements", "")),
-        input_format=str(challenge_data.get("input_format", "")),
-        output_format=str(challenge_data.get("output_format", "")),
-        examples=str(challenge_data.get("examples", "")),
-        starter_code=str(challenge_data.get("starter_code", CODE_TEMPLATES.get(language, ""))),
-        reference_solution=str(challenge_data.get("reference_solution", "")),
-        test_cases=test_cases_json,
-        source=challenge_source,
-        target_weak_point=target_weak_point or None,
-    )
-    db.add(challenge)
-    db.flush()
+        # Build knowledge_point string
+        kp_from_ai = str(item.get("knowledge_point") or item.get("knowledge_points") or "")
 
-    session = models.CodeSession(
-        username=user.username,
-        course_id=course_id,
-        title=challenge.title,
-        language=language,
-        code=challenge.starter_code or CODE_TEMPLATES.get(language, ""),
-        challenge_id=challenge.id,
-        session_type="challenge",
-    )
-    db.add(session)
+        challenge = models.CodeChallenge(
+            username=user.username,
+            course_id=course_id,
+            language=language,
+            title=str(item.get("title", ""))[:255],
+            difficulty=str(item.get("difficulty", difficulty))[:20],
+            knowledge_point=kp_from_ai or ", ".join(kp_texts) or recommended_focus or "",
+            description=str(item.get("description", "")),
+            requirements=str(item.get("requirements", "")),
+            input_format=str(item.get("input_format", "")),
+            output_format=str(item.get("output_format", "")),
+            examples=str(item.get("examples", "")),
+            starter_code=str(item.get("starter_code", CODE_TEMPLATES.get(language, ""))),
+            reference_solution=str(item.get("reference_solution", "")),
+            test_cases=test_cases_json,
+            source=challenge_source,
+            target_weak_point=target_weak_point or None,
+        )
+        db.add(challenge)
+        db.flush()
+
+        session = models.CodeSession(
+            username=user.username,
+            course_id=course_id,
+            title=challenge.title,
+            language=language,
+            code=challenge.starter_code or CODE_TEMPLATES.get(language, ""),
+            challenge_id=challenge.id,
+            session_type="challenge",
+        )
+        db.add(session)
+        created_challenges.append(serialize_code_challenge(challenge))
+        created_sessions.append(serialize_code_session(session))
+
     db.commit()
-    db.refresh(challenge)
-    db.refresh(session)
+
+    if not created_sessions:
+        raise HTTPException(status_code=500, detail="AI 生成题目均未通过校验，请调整要求后重试")
 
     return {
         "success": True,
-        "challenge": serialize_code_challenge(challenge),
-        "session": serialize_code_session(session),
+        "challenges": created_challenges,
+        "sessions": created_sessions,
     }
 
 
