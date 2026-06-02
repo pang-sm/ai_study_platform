@@ -4566,6 +4566,19 @@ select.field:focus {
   font-weight: 600;
 }
 
+.code-focus-btn--warn {
+  color: #c2410c;
+  border-color: #fed7aa;
+  background: #fff7ed;
+  font-weight: 600;
+}
+
+.code-focus-btn--warn:hover {
+  background: #ffedd5;
+  border-color: #f59e0b;
+  color: #9a3412;
+}
+
 /* ── Code Studio: Problem Mini (collapsed — vertical strip with expand hint) ── */
 .code-problem-mini-v {
   display: flex;

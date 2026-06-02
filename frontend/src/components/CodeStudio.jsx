@@ -374,10 +374,20 @@ export default function CodeStudio({
   // ── Layout: resizable panes ──────────────────────────
   const LAYOUT_KEY = "codestudio.layout.v2";
   const LAYOUT_DEFAULTS = { leftWidth: 260, rightWidth: 320, problemWidth: 380, outputHeight: 220 };
+  const LAYOUT_MIN = { leftWidth: 56, rightWidth: 56, problemWidth: 280, outputHeight: 80 };
   const [layout, setLayout] = useState(() => {
     try {
       const raw = localStorage.getItem(LAYOUT_KEY);
-      if (raw) return { ...LAYOUT_DEFAULTS, ...JSON.parse(raw) };
+      if (raw) {
+        const loaded = { ...LAYOUT_DEFAULTS, ...JSON.parse(raw) };
+        // Enforce minimum widths — prevent 0-width from broken localStorage
+        for (const key of Object.keys(LAYOUT_MIN)) {
+          if (typeof loaded[key] === "number" && loaded[key] < LAYOUT_MIN[key]) {
+            loaded[key] = LAYOUT_MIN[key];
+          }
+        }
+        return loaded;
+      }
     } catch {}
     return LAYOUT_DEFAULTS;
   });
@@ -1730,6 +1740,13 @@ export default function CodeStudio({
               </span>
             ))}
             <button
+              className={`code-focus-btn ${problemCollapsed ? "code-focus-btn--warn" : ""}`}
+              onClick={() => setProblemCollapsed((v) => !v)}
+              title={problemCollapsed ? "展开题目面板" : "隐藏题目面板"}
+            >
+              {problemCollapsed ? "展开题目" : "隐藏题目"}
+            </button>
+            <button
               className={`code-focus-btn ${focusMode ? "code-focus-btn--active" : ""}`}
               onClick={focusMode ? exitFocus : enterFocus}
               title={focusMode ? "退出专注模式" : "专注模式：收起侧边栏和面板，专注编辑"}
@@ -1823,7 +1840,7 @@ export default function CodeStudio({
             <>
               <div
                 className={`code-challenge-card${problemCollapsed ? " code-challenge-card--collapsed" : ""}`}
-                style={{ width: problemCollapsed ? 48 : layout.problemWidth, minWidth: problemCollapsed ? 48 : 280, flexShrink: 0, overflow: "auto" }}
+                style={{ width: problemCollapsed ? 48 : Math.max(layout.problemWidth, 280), minWidth: problemCollapsed ? 48 : 280, flexShrink: 0, overflow: "auto" }}
               >
             {problemCollapsed ? (
               <div className="code-problem-mini-v" onClick={() => setProblemCollapsed(false)} title="点击展开题目面板">
