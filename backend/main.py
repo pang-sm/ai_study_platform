@@ -14516,9 +14516,11 @@ INTERACTIVE_MEMORY = "128m"
 INTERACTIVE_MEMORY_C = "256m"
 
 
+@app.websocket("/api/code/interactive-run")
 @app.websocket("/code/interactive-run")
 async def interactive_run(ws: WebSocket):
     await ws.accept()
+    print("[WS-TERMINAL] accepted interactive terminal websocket")
 
     try:
         raw = await ws.receive_text()
@@ -14531,6 +14533,7 @@ async def interactive_run(ws: WebSocket):
     language = (config.get("language", "") or "").strip().lower()
     code = (config.get("code", "") or "")
     username = config.get("username", "anonymous")
+    print(f"[WS-TERMINAL] start username={username} language={language} code_chars={len(code)}")
 
     if language not in ("python", "c"):
         await ws.send_text(json.dumps({"type": "error", "message": f"交互运行暂不支持 {language or '该语言'}"}))

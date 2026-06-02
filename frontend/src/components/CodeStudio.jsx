@@ -6,10 +6,17 @@ import { FitAddon } from "xterm-addon-fit";
 import "xterm/css/xterm.css";
 
 const API_BASE = "/api";
-const WS_BASE = (() => {
+
+function getWsBase() {
   const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${proto}//${window.location.host}/api`;
-})();
+  return `${proto}//${window.location.host}`;
+}
+
+function getTerminalWsUrl() {
+  const base = getWsBase();
+  // Try the direct path first (works with Nginx location block for /code/interactive-run)
+  return `${base}/code/interactive-run`;
+}
 
 const LANGUAGES = ["Python", "C"];
 
@@ -888,9 +895,66 @@ export default function CodeStudio({
   };
 
   // ── Interactive Terminal ──
+
+  // HTTP fallback when WebSocket is unavailable
+  const runTerminalHttpFallback = useCallback(async (term, reason) => {
+    term.writeln(`\x1b[33m交互终端不可用: ${reason}\x1b[0m`);
+    term.writeln("\x1b[33m已回退到普通运行模式（/code/execute）。\x1b[0m");
+    try {
+      const res = await fetch(`${API_BASE}/code/execute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: user?.username || "anonymous",
+          session_id: selectedSession?.id || 0,
+          language,
+          code,
+          stdin,
+        }),
+      });
+      const data = await safeJson(res);
+      const result = {
+        stdout: data.stdout || "",
+        stderr: data.stderr || "",
+        exit_code: res.ok ? data.exit_code : -1,
+        duration_ms: data.duration_ms || 0,
+        timed_out: data.timed_out || false,
+        error_message: res.ok ? data.error_message || null : data.detail || "运行请求失败",
+        compile_error: data.compile_error || null,
+        compiled: data.compiled,
+        stdout_truncated: data.stdout_truncated || false,
+        stderr_truncated: data.stderr_truncated || false,
+      };
+      setRunResult(result);
+      terminalOutputRef.current = {
+        stdout: result.stdout,
+        stderr: result.stderr,
+        compile_error: result.compile_error || "",
+        exit_code: result.exit_code,
+        timed_out: result.timed_out,
+      };
+      term.writeln(`\x1b[90m═══ 普通运行模式（非交互） ═══\x1b[0m`);
+      if (result.error_message) term.writeln(`\x1b[31m${result.error_message}\x1b[0m`);
+      if (result.compile_error) term.writeln(`\x1b[31m${result.compile_error}\x1b[0m`);
+      if (result.stdout) term.write(result.stdout);
+      if (result.stderr) term.write(`\x1b[31m${result.stderr}\x1b[0m`);
+      if (!result.stdout && !result.stderr && !result.compile_error && !result.error_message) {
+        term.writeln("(无输出)");
+      }
+      setTerminalExitCode(result.exit_code);
+      term.writeln(`\n\x1b[90m进程结束，exit_code: ${result.exit_code}${result.timed_out ? " (超时)" : ""}\x1b[0m`);
+    } catch (error) {
+      console.error("[Terminal] HTTP fallback failed:", error);
+      setTerminalExitCode(-1);
+      term.writeln("\x1b[31m运行失败：无法连接到后端 /code/execute。\x1b[0m");
+      term.writeln("\x1b[90m进程结束，exit_code: -1\x1b[0m");
+    } finally {
+      setTerminalRunning(false);
+    }
+  }, [code, language, selectedSession?.id, stdin, user?.username]);
+
   const launchInteractiveTerminal = useCallback(async () => {
     if (!code.trim() || terminalRunning) return;
-    await diagnoseCode(code, language, { force: true });
 
     // Dispose old terminal
     if (terminalRef.current) {
@@ -930,59 +994,84 @@ export default function CodeStudio({
 
       term.writeln(`\x1b[1;36m═══ 交互终端 ── ${language.toUpperCase()} ═══\x1b[0m`);
 
-      // Connect WebSocket
-      const wsUrl = `${WS_BASE}/code/interactive-run`;
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
+      // Connect WebSocket with fallback
+      const primaryWsUrl = getTerminalWsUrl();
+      const alternateWsUrl = `${getWsBase()}/api/code/interactive-run`;
+      let wsAttempt = 0;
+      let switchingWs = false;
 
-      ws.onopen = () => {
-        ws.send(JSON.stringify({ language, code, username: user?.username || "anonymous" }));
-      };
+      function connectWs(url, label) {
+        wsAttempt++;
+        if (wsAttempt === 1) {
+          console.info("[Terminal] Connecting WebSocket (primary):", url);
+        } else {
+          console.info("[Terminal] Connecting WebSocket (alternate):", url);
+          term.writeln(`\x1b[33m试用备用端点: ${url}\x1b[0m`);
+        }
+        const ws = new WebSocket(url);
+        wsRef.current = ws;
 
-      ws.onmessage = (evt) => {
-        try {
-          const msg = JSON.parse(evt.data);
-          if (msg.type === "stdout") {
-            term.write(msg.data);
-            terminalOutputRef.current.stdout += msg.data;
-          } else if (msg.type === "stderr") {
-            term.write(`\x1b[31m${msg.data}\x1b[0m`);
-            terminalOutputRef.current.stderr += msg.data;
-          } else if (msg.type === "compile_error") {
-            term.writeln(`\x1b[31m${msg.message}\x1b[0m`);
-            terminalOutputRef.current.compile_error = msg.message;
-          } else if (msg.type === "status") {
-            term.writeln(`\x1b[90m${msg.message}\x1b[0m`);
-          } else if (msg.type === "error") {
-            term.writeln(`\x1b[31m✗ ${msg.message}\x1b[0m`);
-          } else if (msg.type === "exit") {
-            terminalOutputRef.current.exit_code = msg.exit_code;
-            terminalOutputRef.current.timed_out = msg.timed_out || false;
-            if (msg.stdout) terminalOutputRef.current.stdout = msg.stdout;
-            if (msg.stderr) terminalOutputRef.current.stderr = msg.stderr;
-            setTerminalExitCode(msg.exit_code);
-            setTerminalRunning(false);
-            term.writeln(`\n\x1b[90m═══ 进程退出，exit_code: ${msg.exit_code}${msg.timed_out ? " (超时)" : ""} ═══\x1b[0m`);
+        ws.onopen = () => {
+          console.info("[Terminal] WebSocket connected:", url);
+          if (switchingWs) term.writeln("\x1b[90m已连接\x1b[0m");
+          ws.send(JSON.stringify({ language, code, username: user?.username || "anonymous", session_id: selectedSession?.id || null }));
+        };
+
+        ws.onmessage = (evt) => {
+          try {
+            const msg = JSON.parse(evt.data);
+            if (msg.type === "stdout") {
+              term.write(msg.data);
+              terminalOutputRef.current.stdout += msg.data;
+            } else if (msg.type === "stderr") {
+              term.write(`\x1b[31m${msg.data}\x1b[0m`);
+              terminalOutputRef.current.stderr += msg.data;
+            } else if (msg.type === "compile_error") {
+              term.writeln(`\x1b[31m${msg.message}\x1b[0m`);
+              terminalOutputRef.current.compile_error = msg.message;
+            } else if (msg.type === "status") {
+              term.writeln(`\x1b[90m${msg.message}\x1b[0m`);
+            } else if (msg.type === "error") {
+              term.writeln(`\x1b[31m✗ ${msg.message}\x1b[0m`);
+            } else if (msg.type === "exit") {
+              terminalOutputRef.current.exit_code = msg.exit_code;
+              terminalOutputRef.current.timed_out = msg.timed_out || false;
+              if (msg.stdout) terminalOutputRef.current.stdout = msg.stdout;
+              if (msg.stderr) terminalOutputRef.current.stderr = msg.stderr;
+              setTerminalExitCode(msg.exit_code);
+              setTerminalRunning(false);
+              term.writeln(`\n\x1b[90m═══ 进程退出，exit_code: ${msg.exit_code}${msg.timed_out ? " (超时)" : ""} ═══\x1b[0m`);
+            }
+          } catch {}
+        };
+
+        ws.onerror = (event) => {
+          console.error("[Terminal] WebSocket error:", url, event);
+          if (wsAttempt < 2) {
+            switchingWs = true;
+            connectWs(alternateWsUrl, "alternate");
+          } else {
+            term.writeln(`\x1b[31mWebSocket 连接失败：${url}\x1b[0m`);
+            term.writeln("\x1b[33m交互终端不可用，正在回退到普通运行模式...\x1b[0m");
+            runTerminalHttpFallback(term, "WebSocket 连接失败");
           }
-        } catch {}
-      };
+        };
 
-      ws.onerror = () => {
-        term.writeln(`\x1b[31m✗ WebSocket 连接失败\x1b[0m`);
-        setTerminalRunning(false);
-      };
+        ws.onclose = () => {
+          if (!switchingWs && wsAttempt < 2) setTerminalRunning(false);
+        };
+      }
 
-      ws.onclose = () => {
-        setTerminalRunning(false);
-      };
+      connectWs(primaryWsUrl, "primary");
 
       term.onData((data) => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(data);
+        const activeWs = wsRef.current;
+        if (activeWs && activeWs.readyState === WebSocket.OPEN) {
+          activeWs.send(data);
         }
       });
     }, 100);
-  }, [code, language, user?.username, terminalRunning, diagnoseCode]);
+  }, [code, language, user?.username, terminalRunning, diagnoseCode, selectedSession?.id]);
 
   const stopInteractiveTerminal = useCallback(() => {
     if (wsRef.current) {
