@@ -536,7 +536,7 @@ export default function CodeStudio({
     setCode(session.code);
     setAiMessages([]);
     setAiQuestion("");
-    setCurrentChallenge(null);
+    setCurrentChallenge(null);  // reset; will be loaded below
     setShowFeedbackPanel(false);
     setFeedbackContent("");
     setFeedbackStatus(null);
@@ -553,6 +553,10 @@ export default function CodeStudio({
       loadMessages(session.id);
       if (session.challenge_id) {
         loadChallenge(session.challenge_id);
+      } else {
+        // Try loading challenge from a separate challenge lookup if session has no challenge_id
+        // This handles edge cases where the session data is incomplete
+        console.debug("[selectSession] no challenge_id on session", session.id, session.title);
       }
     }
   };
@@ -596,9 +600,12 @@ export default function CodeStudio({
       );
       const data = await safeJson(res);
       if (res.ok && data.challenge) {
+        console.debug("[loadChallenge] loaded challenge", challengeId, data.challenge.title);
         setCurrentChallenge(data.challenge);
         setShowReference(false);
         setProblemTab("io");
+      } else {
+        console.warn("[loadChallenge] failed to load challenge", challengeId, res.status, data);
       }
     } catch (error) {
       console.error("Failed to load challenge:", error);
@@ -655,12 +662,20 @@ export default function CodeStudio({
         setShowChallengeModal(false);
         setChallengeFocus("");
         setChallengeExtraReq("");
-        await loadSessions();
-        // Select first generated session
-        selectSession(data.sessions[0]);
-        if (data.challenges && data.challenges.length > 0) {
-          setCurrentChallenge(data.challenges[0]);
+        // Set challenge and session BEFORE loadSessions to avoid flash of "自由练习"
+        const firstSession = data.sessions[0];
+        const firstChallenge = data.challenges?.[0];
+        if (firstChallenge) {
+          setCurrentChallenge(firstChallenge);
         }
+        setSelectedSession(firstSession);
+        setTitle(firstSession.title);
+        setLanguage(firstSession.language);
+        setCode(firstSession.code || "");
+        setProblemCollapsed(false);
+        setProblemTab("io");
+        // Refresh sidebar list
+        await loadSessions();
         const generatedCount = data.sessions.length;
         setTip(`AI 已生成 ${generatedCount} 道题目`);
         setTimeout(() => setTip(""), 3000);
@@ -2001,18 +2016,41 @@ export default function CodeStudio({
               style={{ width: Math.max(layout.problemWidth, 280), minWidth: 280, flexShrink: 0, overflow: "auto" }}
             >
               <div className="code-challenge-card-header">
-                <span className="subject-pill small">自由练习</span>
+                <span className="subject-pill small">
+                  {selectedSession.challenge_id ? "加载中" : "自由练习"}
+                </span>
               </div>
               <h4 className="code-challenge-card-title">{selectedSession.title}</h4>
               <div className="code-challenge-card-section" style={{ marginTop: 16 }}>
-                <div className="code-challenge-card-label">当前为自由练习模式</div>
-                <p>该练习没有关联编程题目。你可以自由编写代码，或点击顶部「出题」按钮让 AI 为你生成一道编程题。</p>
+                {selectedSession.challenge_id ? (
+                  <>
+                    <div className="code-challenge-card-label">题目数据加载中...</div>
+                    <p>正在从服务器获取题目内容，请稍候。如果持续无法加载，请刷新页面。</p>
+                  </>
+                ) : (
+                  <>
+                    <div className="code-challenge-card-label">当前为自由练习模式</div>
+                    <p>该练习没有关联编程题目。你可以自由编写代码，或点击下方按钮让 AI 为你生成一道编程题。</p>
+                  </>
+                )}
               </div>
-              <div className="code-challenge-card-actions" style={{ marginTop: 12 }}>
-                <button className="primary-button compact" onClick={openChallengeModal}>
-                  AI 出题
-                </button>
-              </div>
+              {!selectedSession.challenge_id && (
+                <div className="code-challenge-card-actions" style={{ marginTop: 12 }}>
+                  <button className="primary-button compact" onClick={openChallengeModal}>
+                    AI 出题
+                  </button>
+                </div>
+              )}
+              {selectedSession.challenge_id && (
+                <div className="code-challenge-card-actions" style={{ marginTop: 12 }}>
+                  <button
+                    className="ghost-button compact"
+                    onClick={() => loadChallenge(selectedSession.challenge_id)}
+                  >
+                    重新加载
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
