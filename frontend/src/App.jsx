@@ -2947,11 +2947,6 @@ function App() {
   if (page === "codeStudio") {
     return wrapPage(
       <div className="app-shell">
-        <header className="workspace-topbar">
-          <div className="workspace-topbar-left">
-            <span className="subject-pill panel-pill">编程学习助手</span>
-          </div>
-        </header>
         <Suspense fallback={<div className="empty-state">编程学习助手加载中...</div>}>
           <CodeStudio
             user={user}

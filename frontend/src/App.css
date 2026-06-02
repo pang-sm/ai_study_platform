@@ -3702,9 +3702,7 @@ select.field:focus {
 /* ── Code Studio ─────────────────────────────────────────────── */
 
 .code-studio-shell {
-  display: grid;
-  grid-template-columns: 260px 1fr 340px;
-  height: calc(100vh - 56px);
+  /* display & height are set via inline style (flex row, 100%) */
   overflow: hidden;
 }
 
@@ -3855,6 +3853,7 @@ select.field:focus {
 .code-studio-editor {
   display: flex;
   flex-direction: column;
+  min-height: 0;
   overflow: hidden;
   position: relative;
 }
@@ -4546,7 +4545,8 @@ select.field:focus {
 .app-shell {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100%;       /* fill al-main, not viewport */
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -5603,6 +5603,541 @@ select.field:focus {
   border: 1px solid #fecaca;
   border-radius: 4px;
   margin-bottom: 4px;
+}
+
+/* ── Code Studio Refresh: professional IDE layout ── */
+.code-studio-shell {
+  height: 100%;
+  min-height: 0;
+  background: #f4f7fb;
+  color: #0f172a;
+  overflow: hidden;
+}
+
+.code-studio-sidebar {
+  background: #f8fafc;
+  border-right: 1px solid #dbe4ee;
+  box-shadow: 10px 0 24px rgba(15, 23, 42, 0.035);
+}
+
+.code-studio-sidebar-header {
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid #e7edf4;
+  background: #ffffff;
+}
+
+.code-studio-sidebar-header h3,
+.code-studio-assistant-header h3 {
+  color: #0f172a;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.code-studio-course-picker .field {
+  height: 36px;
+  margin: 8px 0 0;
+  padding: 0 11px;
+  border-radius: 10px;
+  background: #f8fafc;
+  font-size: 12.5px;
+}
+
+.code-studio-sidebar-actions {
+  padding: 10px 14px;
+  gap: 8px;
+  background: #fff;
+  border-bottom: 1px solid #e7edf4;
+}
+
+.code-studio-sidebar-actions .primary-button,
+.code-studio-sidebar-actions .ghost-button {
+  min-height: 34px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  box-shadow: none;
+}
+
+.code-studio-sidebar-actions .primary-button {
+  background: #0f766e;
+  color: #fff;
+}
+
+.code-studio-sidebar-actions .ghost-button,
+.code-history-btn--active {
+  background: #eef6ff !important;
+  border-color: #bfdbfe !important;
+  color: #2563eb !important;
+}
+
+.code-studio-session-list,
+.code-attempt-list {
+  padding: 12px;
+}
+
+.code-session-item,
+.code-attempt-item {
+  padding: 12px 12px;
+  border: 1px solid #e3eaf3;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.035);
+}
+
+.code-session-item:hover,
+.code-attempt-item:hover {
+  border-color: #c6d6e8;
+  background: #fbfdff;
+}
+
+.code-session-item--active,
+.code-attempt-item--active {
+  border-color: #5eead4;
+  background: #ecfeff;
+  box-shadow: 0 10px 22px rgba(15, 118, 110, 0.08);
+}
+
+.code-session-item-title,
+.code-attempt-item-title {
+  color: #0f172a;
+  font-weight: 750;
+}
+
+.code-session-item-meta,
+.code-attempt-item-meta,
+.code-attempt-date {
+  color: #94a3b8;
+}
+
+.code-session-type-badge {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.code-session-type-badge--diagnosis {
+  background: #dcfce7;
+  color: #047857;
+}
+
+.code-session-item .subject-pill.small,
+.code-attempt-item .subject-pill.small {
+  background: #e6fffb;
+  color: #0f766e;
+}
+
+.code-studio-editor {
+  background: #f4f7fb;
+  min-height: 0;
+}
+
+.code-status-bar {
+  min-height: 50px;
+  padding: 10px 18px;
+  background: #fff;
+  border-bottom: 1px solid #dbe4ee;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.035);
+}
+
+.code-status-title {
+  max-width: 360px;
+  color: #0f172a;
+  font-size: 15px;
+  font-weight: 850;
+}
+
+.code-status-tag {
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+}
+
+.code-status-tag--lang {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.code-status-tag--challenge {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.code-status-tag--course,
+.code-status-tag--free {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.code-status-run-badge {
+  padding: 4px 8px;
+  border: 1px solid #dcfce7;
+  border-radius: 999px;
+  background: #f0fdf4;
+  color: #047857;
+  font-weight: 700;
+}
+
+.code-focus-btn {
+  min-height: 28px;
+  border-radius: 999px;
+}
+
+.code-studio-editor-header {
+  padding: 10px 18px;
+  background: #fbfdff;
+  border-bottom: 1px solid #e3eaf3;
+}
+
+.code-editor-toolbar-row {
+  gap: 12px;
+}
+
+.code-lang-btn {
+  min-width: 92px;
+  min-height: 42px;
+  padding: 7px 14px;
+  border-radius: 12px;
+  background: #fff;
+  border-color: #dbe4ee;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.035);
+}
+
+.code-lang-btn--active {
+  background: #eff6ff !important;
+  border-color: #93c5fd !important;
+  color: #2563eb !important;
+}
+
+.code-editor-actions {
+  gap: 8px;
+}
+
+.code-editor-btn-group {
+  gap: 8px;
+  border: none;
+  border-radius: 0;
+  overflow: visible;
+}
+
+.code-editor-btn-group .code-action-btn {
+  border-radius: 11px;
+  border: 1px solid transparent;
+}
+
+.code-action-btn {
+  min-height: 36px;
+  padding: 8px 14px;
+  border-radius: 11px;
+  font-size: 12.5px;
+  font-weight: 800;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+}
+
+.code-action-btn--run {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+.code-action-btn--run:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.code-action-btn--test {
+  background: #f3e8ff;
+  border-color: #ddd6fe;
+  color: #6d28d9;
+}
+
+.code-action-btn--submit {
+  background: #fff7ed;
+  border-color: #fed7aa;
+  color: #c2410c;
+}
+
+.code-action-btn--challenge {
+  background: #0f766e;
+  border-color: #0f766e;
+  color: #fff;
+}
+
+.code-action-btn--challenge:hover:not(:disabled) {
+  background: #0d9488;
+}
+
+.code-action-btn--save {
+  background: #fff;
+  border-color: #cbd5e1;
+  color: #334155;
+}
+
+.code-challenge-card {
+  margin: 14px 0 14px 14px;
+  padding: 14px;
+  border: 1px solid #e3eaf3;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+}
+
+.code-challenge-card-header {
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.code-challenge-card-title {
+  margin: 8px 0 10px;
+  font-size: 17px;
+  line-height: 1.35;
+  font-weight: 850;
+  color: #0f172a;
+}
+
+.code-problem-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 8px 0 14px;
+  border-bottom: 1px solid #e7edf4;
+}
+
+.code-problem-tab {
+  padding: 8px 9px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #64748b;
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.code-problem-tab:hover {
+  color: #2563eb;
+}
+
+.code-problem-tab--active {
+  color: #2563eb;
+  border-bottom-color: #2563eb;
+}
+
+.code-problem-tab-panel {
+  min-height: 160px;
+}
+
+.code-challenge-card-label {
+  color: #2563eb;
+  font-size: 12px;
+  letter-spacing: 0;
+}
+
+.code-challenge-card-section {
+  margin-bottom: 14px;
+}
+
+.code-challenge-card-section p {
+  color: #334155;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.code-challenge-card-examples {
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #1e293b;
+  line-height: 1.6;
+}
+
+.code-challenge-card-actions,
+.code-reference-solution {
+  border-top-color: #e7edf4;
+}
+
+.code-studio-monaco-wrapper {
+  margin: 14px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid #1e293b;
+  border-radius: 14px;
+  background: #0f172a;
+  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.16);
+}
+
+.code-editor-filebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 38px;
+  padding: 0 12px;
+  background: #111827;
+  border-bottom: 1px solid #243244;
+  color: #cbd5e1;
+}
+
+.code-editor-filetab {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 13px;
+  border-radius: 8px 8px 0 0;
+  background: #1e293b;
+  color: #e2e8f0;
+  font-size: 12.5px;
+  font-weight: 800;
+}
+
+.code-editor-diagnostics {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.code-editor-diagnostic--warning {
+  color: #facc15;
+}
+
+.code-editor-diagnostic--error {
+  color: #fb7185;
+}
+
+.code-editor-monaco-surface {
+  flex: 1;
+  min-height: 0;
+}
+
+.code-editor-statusbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 30px;
+  padding: 0 12px;
+  border-top: 1px solid #243244;
+  background: #0b1220;
+  color: #94a3b8;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow-x: auto;
+}
+
+.code-editor-status-run {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #86efac;
+  margin-left: auto;
+}
+
+.code-feedback-panel {
+  margin: 0 14px 14px;
+  border: 1px solid #e3eaf3;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+}
+
+.code-studio-assistant {
+  background: #f8fafc;
+  border-left: 1px solid #dbe4ee;
+  box-shadow: -10px 0 24px rgba(15, 23, 42, 0.035);
+}
+
+.code-studio-assistant-header {
+  padding: 14px 16px;
+  background: #fff;
+  border-bottom: 1px solid #e7edf4;
+}
+
+.code-diagnosis-btn {
+  margin-top: 10px;
+  width: 100%;
+  min-height: 34px;
+  border-radius: 10px;
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #2563eb;
+  font-weight: 800;
+}
+
+.code-progress-mini-card,
+.code-assistant-empty,
+.code-assistant-msg--assistant,
+.code-diagnosis-report .empty-inline {
+  border: 1px solid #e3eaf3;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
+}
+
+.code-progress-mini-card {
+  margin: 12px;
+}
+
+.code-progress-mini-title {
+  color: #2563eb;
+  font-weight: 850;
+}
+
+.code-progress-mini-num--warn {
+  color: #c2410c;
+}
+
+.code-progress-mini-weak-title,
+.code-progress-mini-weak-tag {
+  color: #92400e;
+}
+
+.code-studio-assistant-chat {
+  padding: 12px;
+}
+
+.code-assistant-empty {
+  padding: 16px;
+}
+
+.code-suggestion-chip {
+  border-radius: 10px;
+  background: #fff;
+}
+
+.code-suggestion-chip:hover {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #2563eb;
+}
+
+.code-studio-assistant-input {
+  padding: 12px;
+  background: #fff;
+  border-top: 1px solid #e7edf4;
+}
+
+.code-studio-assistant-input .field {
+  height: 38px;
+  margin: 0;
+  border-radius: 11px;
+  background: #f8fafc;
+}
+
+.code-studio-assistant-input .primary-button {
+  min-width: 44px;
+  height: 38px;
+  border-radius: 11px;
+  background: #2563eb;
+  color: transparent;
+  position: relative;
+}
+
+.code-studio-assistant-input .primary-button::after {
+  content: "➤";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 15px;
 }
 
 /* ── Task Center ── */

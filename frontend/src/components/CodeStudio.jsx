@@ -340,6 +340,8 @@ export default function CodeStudio({
   // Reference solution & starter code
   const [showReference, setShowReference] = useState(false);
   const [starterConfirmOpen, setStarterConfirmOpen] = useState(false);
+  const [problemTab, setProblemTab] = useState("description");
+  const [editorCursor, setEditorCursor] = useState({ line: 1, column: 1 });
 
   // Delete confirm
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -498,6 +500,7 @@ export default function CodeStudio({
     setExplainingTestCase({});
     setOutputPanelTab("feedback");
     setProblemCollapsed(false);
+    setProblemTab("description");
     if (session.id) {
       loadMessages(session.id);
       if (session.challenge_id) {
@@ -534,6 +537,7 @@ export default function CodeStudio({
     setExplainingTestCase({});
     setOutputPanelTab("feedback");
     setProblemCollapsed(false);
+    setProblemTab("description");
   };
 
   const loadChallenge = async (challengeId) => {
@@ -546,6 +550,7 @@ export default function CodeStudio({
       if (res.ok && data.challenge) {
         setCurrentChallenge(data.challenge);
         setShowReference(false);
+        setProblemTab("description");
       }
     } catch (error) {
       console.error("Failed to load challenge:", error);
@@ -1321,11 +1326,15 @@ export default function CodeStudio({
   };
 
   const canRun = true; // Only Python and C remain, both are runnable
+  const currentFileName = language === "C" ? "main.c" : "main.py";
+  const codeLineCount = Math.max(1, String(code || "").split("\n").length);
+  const warningCount = codeTruncated ? 1 : 0;
+  const errorCount = runResult?.compile_error || testResults?.error_message ? 1 : 0;
 
   return (
     <section
       className={`code-studio-shell${focusMode ? " code-studio-shell--focus" : ""}${resizing ? " code-studio-shell--resizing" : ""}`}
-      style={{ display: "flex", flexDirection: "row", height: "calc(100vh - 56px)", overflow: "hidden" }}
+      style={{ display: "flex", flexDirection: "row", height: "100%", overflow: "hidden" }}
     >
       {/* Left Panel — Session List */}
       {!focusMode && (
@@ -1761,36 +1770,71 @@ export default function CodeStudio({
                 return count > 0 ? <div className="code-challenge-card-test-count">{count} 组测试用例</div> : null;
               } catch { return null; }
             })()}
-            {currentChallenge.description && (
-              <div className="code-challenge-card-section">
-                <div className="code-challenge-card-label">题目描述</div>
-                <p>{currentChallenge.description}</p>
-              </div>
-            )}
-            {currentChallenge.requirements && (
-              <div className="code-challenge-card-section">
-                <div className="code-challenge-card-label">要求</div>
-                <p>{currentChallenge.requirements}</p>
-              </div>
-            )}
-            {currentChallenge.input_format && (
-              <div className="code-challenge-card-section">
-                <div className="code-challenge-card-label">输入格式</div>
-                <p>{currentChallenge.input_format}</p>
-              </div>
-            )}
-            {currentChallenge.output_format && (
-              <div className="code-challenge-card-section">
-                <div className="code-challenge-card-label">输出格式</div>
-                <p>{currentChallenge.output_format}</p>
-              </div>
-            )}
-            {currentChallenge.examples && (
-              <div className="code-challenge-card-section">
-                <div className="code-challenge-card-label">示例</div>
-                <pre className="code-challenge-card-examples">{currentChallenge.examples}</pre>
-              </div>
-            )}
+            <div className="code-problem-tabs">
+              {[
+                { value: "description", label: "题目描述" },
+                { value: "io", label: "输入输出格式" },
+                { value: "examples", label: "样例" },
+                { value: "hints", label: "提示" },
+              ].map((tab) => (
+                <button
+                  key={tab.value}
+                  className={`code-problem-tab ${problemTab === tab.value ? "code-problem-tab--active" : ""}`}
+                  onClick={() => setProblemTab(tab.value)}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="code-problem-tab-panel">
+              {problemTab === "description" && (
+                <>
+                  <div className="code-challenge-card-section">
+                    <div className="code-challenge-card-label">题目描述</div>
+                    <p>{currentChallenge.description || "暂无题目描述"}</p>
+                  </div>
+                  {currentChallenge.requirements && (
+                    <div className="code-challenge-card-section">
+                      <div className="code-challenge-card-label">要求</div>
+                      <p>{currentChallenge.requirements}</p>
+                    </div>
+                  )}
+                </>
+              )}
+              {problemTab === "io" && (
+                <>
+                  <div className="code-challenge-card-section">
+                    <div className="code-challenge-card-label">输入格式</div>
+                    <p>{currentChallenge.input_format || "暂无输入格式说明"}</p>
+                  </div>
+                  <div className="code-challenge-card-section">
+                    <div className="code-challenge-card-label">输出格式</div>
+                    <p>{currentChallenge.output_format || "暂无输出格式说明"}</p>
+                  </div>
+                </>
+              )}
+              {problemTab === "examples" && (
+                <div className="code-challenge-card-section">
+                  <div className="code-challenge-card-label">样例</div>
+                  <pre className="code-challenge-card-examples">{currentChallenge.examples || "暂无样例"}</pre>
+                </div>
+              )}
+              {problemTab === "hints" && (
+                <>
+                  {currentChallenge.target_weak_point && (
+                    <div className="code-challenge-card-section">
+                      <div className="code-challenge-card-label">薄弱点提示</div>
+                      <p>{currentChallenge.target_weak_point}</p>
+                    </div>
+                  )}
+                  <div className="code-challenge-card-section">
+                    <div className="code-challenge-card-label">练习建议</div>
+                    <p>先保证输入输出格式正确，再用样例验证边界情况；提交 AI 判定前建议运行测试用例。</p>
+                  </div>
+                </>
+              )}
+            </div>
 
             <div className="code-challenge-card-actions">
               {currentChallenge.starter_code && (
@@ -1855,13 +1899,30 @@ export default function CodeStudio({
           {/* ── Right: Editor + Output ── */}
           <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
             <div className="code-studio-monaco-wrapper" style={{ minHeight: focusMode ? 0 : 300 }}>
+              <div className="code-editor-filebar">
+                <div className="code-editor-filetab code-editor-filetab--active">
+                  {currentFileName}
+                </div>
+                <div className="code-editor-diagnostics">
+                  <span className="code-editor-diagnostic code-editor-diagnostic--warning">▲ {warningCount}</span>
+                  <span className="code-editor-diagnostic code-editor-diagnostic--error">● {errorCount}</span>
+                </div>
+              </div>
+              <div className="code-editor-monaco-surface">
               <Editor
                 language={getMonacoLanguage(language)}
                 value={code}
                 onChange={(value) => setCode(value || "")}
                 theme="vs-dark"
                 beforeMount={registerAutocomplete}
-                onMount={(editor) => { editorRef.current = editor; }}
+                onMount={(editor) => {
+                  editorRef.current = editor;
+                  const position = editor.getPosition();
+                  if (position) setEditorCursor({ line: position.lineNumber, column: position.column });
+                  editor.onDidChangeCursorPosition((event) => {
+                    setEditorCursor({ line: event.position.lineNumber, column: event.position.column });
+                  });
+                }}
                 options={{
                   fontSize: 14,
                   minimap: { enabled: false },
@@ -1882,6 +1943,19 @@ export default function CodeStudio({
                   </div>
                 }
               />
+              </div>
+              <div className="code-editor-statusbar">
+                <span>行 {editorCursor.line}，列 {editorCursor.column}</span>
+                <span>{codeLineCount} 行</span>
+                <span>空格: 4</span>
+                <span>UTF-8</span>
+                <span>LF</span>
+                <span>{language}</span>
+                <span className="code-editor-status-run">
+                  <span className="code-status-run-dot code-status-run-dot--ok" />
+                  可运行
+                </span>
+              </div>
             </div>
 
             {!selectedSession && (
