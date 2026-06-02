@@ -333,6 +333,8 @@ export default function CodeStudio({
   const [genMaterials, setGenMaterials] = useState([]);
   const [selectedGenKpIds, setSelectedGenKpIds] = useState([]);
   const [selectedGenMaterialIds, setSelectedGenMaterialIds] = useState([]);
+  const [genDataLoading, setGenDataLoading] = useState(false);
+  const [genDataError, setGenDataError] = useState("");
 
   const [diagnosisLoading, setDiagnosisLoading] = useState(false);
   const [diagnosisReport, setDiagnosisReport] = useState(null);
@@ -501,6 +503,15 @@ export default function CodeStudio({
   useEffect(() => {
     setCodeCourseId(normalizeSubject(subject));
   }, [subject, normalizeSubject]);
+
+  // Clear stale gen-modal data when course changes
+  useEffect(() => {
+    setGenKnowledgePoints([]);
+    setGenMaterials([]);
+    setSelectedGenKpIds([]);
+    setSelectedGenMaterialIds([]);
+    setGenDataError("");
+  }, [codeCourseId]);
 
   useEffect(() => {
     if (aiEndRef.current) {
@@ -694,19 +705,44 @@ export default function CodeStudio({
     setChallengeExtraReq("");
     setSelectedGenKpIds([]);
     setSelectedGenMaterialIds([]);
+    // Clear stale data before showing modal — prevents cross-course data leak
+    setGenKnowledgePoints([]);
+    setGenMaterials([]);
+    setGenDataError("");
     setShowChallengeModal(true);
+
     // Load knowledge points & materials for current course
     const normalizedCourse = normalizeSubject(codeCourseId, "");
-    if (user?.username && normalizedCourse) {
-      try {
-        const [kpRes, matRes] = await Promise.all([
-          fetch(`${API_BASE}/knowledge-points?username=${encodeURIComponent(user.username)}&course_id=${encodeURIComponent(normalizedCourse)}`),
-          fetch(`${API_BASE}/materials?username=${encodeURIComponent(user.username)}&subject=${encodeURIComponent(normalizedCourse)}`),
-        ]);
-        const [kpData, matData] = await Promise.all([safeJson(kpRes), safeJson(matRes)]);
-        if (kpRes.ok) setGenKnowledgePoints(kpData.knowledge_points || []);
-        if (matRes.ok) setGenMaterials(matData.materials || []);
-      } catch { /* non-critical */ }
+    if (!user?.username) {
+      setGenDataError("请先登录后再生成题目。");
+      return;
+    }
+    if (!normalizedCourse) {
+      setGenDataError("请先选择课程后再生成题目。");
+      return;
+    }
+    setGenDataLoading(true);
+    try {
+      const [kpRes, matRes] = await Promise.all([
+        fetch(`${API_BASE}/knowledge-points?username=${encodeURIComponent(user.username)}&course_id=${encodeURIComponent(normalizedCourse)}`),
+        fetch(`${API_BASE}/materials?username=${encodeURIComponent(user.username)}&subject=${encodeURIComponent(normalizedCourse)}`),
+      ]);
+      const [kpData, matData] = await Promise.all([safeJson(kpRes), safeJson(matRes)]);
+      if (kpRes.ok) {
+        setGenKnowledgePoints(kpData.knowledge_points || []);
+      } else {
+        setGenDataError(kpData.detail || "知识点数据加载失败，请稍后重试。");
+      }
+      if (matRes.ok) {
+        setGenMaterials(matData.materials || []);
+      } else {
+        if (!genDataError) setGenDataError(matData.detail || "课程资料加载失败，请稍后重试。");
+      }
+    } catch (err) {
+      console.error("Failed to load gen-modal data:", err);
+      setGenDataError("当前课程知识点或资料加载失败。请检查网络后重试。");
+    } finally {
+      setGenDataLoading(false);
     }
   };
 
@@ -2941,7 +2977,7 @@ export default function CodeStudio({
               <div>
                 <h3>AI 出题</h3>
                 <p className="code-challenge-modal-subtitle">
-                  根据当前课程、知识点和资料库生成编程练习
+                  当前课程：<strong>{getSubjectLabel(codeCourseId) || "未选择"}</strong>，编程语言：<strong>{language}</strong>
                 </p>
               </div>
               <button className="modal-close" onClick={() => setShowChallengeModal(false)} disabled={challengeGenerating}>
@@ -3003,7 +3039,11 @@ export default function CodeStudio({
 
               {/* ── Knowledge Points ── */}
               <label className="field-label">绑定知识点</label>
-              {genKnowledgePoints.length > 0 ? (
+              {genDataError ? (
+                <p className="code-challenge-empty-hint" style={{ color: "#dc2626" }}>{genDataError}</p>
+              ) : genDataLoading ? (
+                <p className="code-challenge-empty-hint">正在加载当前课程知识点...</p>
+              ) : genKnowledgePoints.length > 0 ? (
                 <>
                   <div className="code-challenge-kp-tags">
                     {genKnowledgePoints.slice(0, 20).map((kp) => {
@@ -3048,7 +3088,9 @@ export default function CodeStudio({
 
               {/* ── Reference Materials ── */}
               <label className="field-label">引用课程资料（可选）</label>
-              {genMaterials.length > 0 ? (
+              {genDataLoading ? (
+                <p className="code-challenge-empty-hint">正在加载当前课程资料...</p>
+              ) : genMaterials.length > 0 ? (
                 <div className="code-challenge-material-list">
                   {genMaterials.slice(0, 15).map((m) => {
                     const sel = selectedGenMaterialIds.includes(m.id);
@@ -3074,6 +3116,8 @@ export default function CodeStudio({
                     );
                   })}
                 </div>
+              ) : genDataError && genMaterials.length === 0 ? (
+                <p className="code-challenge-empty-hint" style={{ color: "#dc2626" }}>{genDataError}</p>
               ) : (
                 <p className="code-challenge-empty-hint">
                   当前课程暂无资料，可先到资料库上传，也可以不引用资料直接生成
