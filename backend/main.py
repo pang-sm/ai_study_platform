@@ -17,7 +17,7 @@ from urllib.parse import quote
 
 import fitz
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
+from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.exceptions import RequestValidationError
@@ -5448,6 +5448,122 @@ def _run_c_code_in_docker(code: str, stdin: str = "") -> dict:
             os.rmdir(tmp_dir)
         except OSError:
             pass
+
+
+# ── Code Diagnostics ──────────────────────────────────
+
+import re as _diagnose_re
+
+
+def _parse_gcc_diagnostics(output: str) -> list[dict]:
+    """Parse gcc/clang output into structured diagnostics."""
+    items = []
+    # Pattern: file:line:column: severity: message
+    # e.g. main.c:10:17: warning: format '%d' expects argument of type 'int *'...
+    # e.g. main.c:5:1: error: expected ';' before '}' token
+    pattern = r"^[^:]+:(\d+):(\d+):\s*(warning|error|fatal error|note):\s*(.+)$"
+    for match in _diagnose_re.finditer(pattern, output, _diagnose_re.MULTILINE):
+        line = int(match.group(1))
+        col = int(match.group(2))
+        sev_raw = match.group(3).lower()
+        msg = match.group(4).strip()
+        severity = "error" if sev_raw in ("error", "fatal error") else "warning"
+        items.append({"line": line, "column": col, "message": msg, "severity": severity, "source": "gcc"})
+    return items
+
+
+def _parse_python_diagnostics(output: str) -> list[dict]:
+    """Parse python -m py_compile stderr into structured diagnostics."""
+    items = []
+    # Pattern: File "path", line N  or  SyntaxError: ... at line N
+    # Also: IndentationError, TabError
+    pat = r'File\s+"[^"]+",\s+line\s+(\d+).*?\n(.+)'
+    for match in _diagnose_re.finditer(pat, output, _diagnose_re.MULTILINE | _diagnose_re.DOTALL):
+        line = int(match.group(1))
+        msg = match.group(2).strip()
+        sev = "warning" if "warning" in msg.lower() and "syntax" not in msg.lower() else "error"
+        items.append({"line": line, "column": 1, "message": msg[:300], "severity": sev, "source": "python"})
+
+    # Also catch plain "SyntaxError: ... (line N)" without file context
+    pat2 = r'(SyntaxError|IndentationError|TabError|NameError)[:\s]+(.+?)(?:\s*\(line\s+(\d+)\))?$'
+    for match in _diagnose_re.finditer(pat2, output, _diagnose_re.MULTILINE):
+        if not items:  # Only add if the file-based pattern didn't match
+            msg = f"{match.group(1)}: {match.group(2).strip()}"
+            line = int(match.group(3)) if match.group(3) else 1
+            items.append({"line": line, "column": 1, "message": msg[:300], "severity": "error", "source": "python"})
+    return items
+
+
+@app.post("/code/diagnose")
+def diagnose_code(req: schemas.CodeDiagnoseRequest):
+    """Perform syntax/compile diagnostics without executing code."""
+    language = (req.language or "").strip().lower()
+    code = (req.code or "")
+
+    if not code.strip():
+        return {"language": language, "status": "ok", "errors": [], "warnings": [], "raw_output": ""}
+
+    if language == "c":
+        import subprocess as _sp
+        tmp_dir = tempfile.mkdtemp(prefix="code_diag_")
+        c_path = os.path.join(tmp_dir, "main.c")
+        try:
+            with open(c_path, "w", encoding="utf-8") as f:
+                f.write(code)
+            proc = _sp.run(
+                ["docker", "run", "--rm", "--network", "none", "--memory", "128m",
+                 "-v", f"{tmp_dir}:/code:ro", "-w", "/code", DOCKER_IMAGE_C,
+                 "gcc", "-fsyntax-only", "-Wall", "-Wextra", "-o", "/dev/null", "main.c"],
+                capture_output=True, text=True, timeout=15, cwd=tmp_dir,
+            )
+            raw = (proc.stderr or "") or (proc.stdout or "")
+            if proc.returncode == 0:
+                return {"language": "c", "status": "ok", "errors": [], "warnings": [], "raw_output": raw}
+            items = _parse_gcc_diagnostics(raw)
+            errors = [i for i in items if i["severity"] == "error"]
+            warnings = [i for i in items if i["severity"] == "warning"]
+            status = "error" if errors else "warning"
+            return {"language": "c", "status": status, "errors": errors, "warnings": warnings, "raw_output": raw}
+        except (_sp.TimeoutExpired, Exception) as e:
+            return {"language": "c", "status": "error", "errors": [
+                {"line": 1, "column": 1, "message": f"诊断服务异常：{str(e)[:200]}", "severity": "error", "source": "system"}
+            ], "warnings": [], "raw_output": str(e)}
+        finally:
+            try: os.remove(c_path)
+            except OSError: pass
+            try: os.rmdir(tmp_dir)
+            except OSError: pass
+
+    elif language == "python":
+        tmp_dir = tempfile.mkdtemp(prefix="code_diag_")
+        py_path = os.path.join(tmp_dir, "main.py")
+        try:
+            with open(py_path, "w", encoding="utf-8") as f:
+                f.write(code)
+            proc = subprocess.run(
+                [sys.executable, "-m", "py_compile", py_path],
+                capture_output=True, text=True, timeout=10, cwd=tmp_dir,
+            )
+            raw = proc.stderr or ""
+            if proc.returncode == 0:
+                return {"language": "python", "status": "ok", "errors": [], "warnings": [], "raw_output": ""}
+            items = _parse_python_diagnostics(raw)
+            errors = [i for i in items if i["severity"] == "error"]
+            warnings = [i for i in items if i["severity"] == "warning"]
+            status = "error" if errors else "warning"
+            return {"language": "python", "status": status, "errors": errors, "warnings": warnings, "raw_output": raw}
+        except (subprocess.TimeoutExpired, Exception) as e:
+            return {"language": "python", "status": "error", "errors": [
+                {"line": 1, "column": 1, "message": f"诊断服务异常：{str(e)[:200]}", "severity": "error", "source": "system"}
+            ], "warnings": [], "raw_output": str(e)}
+        finally:
+            try: os.remove(py_path)
+            except OSError: pass
+            try: os.rmdir(tmp_dir)
+            except OSError: pass
+
+    else:
+        return {"language": language, "status": "unsupported", "errors": [], "warnings": [], "raw_output": "该语言暂不支持语法诊断"}
 
 
 @app.post("/code/execute")
@@ -14287,3 +14403,201 @@ def admin_report_shares(
         "page": page,
         "page_size": page_size,
     }
+
+
+# ── Interactive Terminal WebSocket ─────────────────────
+
+INTERACTIVE_TIMEOUT = 30  # seconds
+INTERACTIVE_MEMORY = "128m"
+INTERACTIVE_MEMORY_C = "256m"
+
+
+@app.websocket("/code/interactive-run")
+async def interactive_run(ws: WebSocket):
+    await ws.accept()
+
+    try:
+        raw = await ws.receive_text()
+        config = json.loads(raw)
+    except Exception:
+        await ws.send_text(json.dumps({"type": "error", "message": "连接参数无效"}))
+        await ws.close()
+        return
+
+    language = (config.get("language", "") or "").strip().lower()
+    code = (config.get("code", "") or "")
+    username = config.get("username", "anonymous")
+
+    if language not in ("python", "c"):
+        await ws.send_text(json.dumps({"type": "error", "message": f"交互运行暂不支持 {language or '该语言'}"}))
+        await ws.close()
+        return
+
+    if not code.strip():
+        await ws.send_text(json.dumps({"type": "error", "message": "代码为空，请先编写代码再运行。"}))
+        await ws.close()
+        return
+
+    if not _check_code_run_rate(username, CODE_RUN_RATE_EXECUTE):
+        await ws.send_text(json.dumps({"type": "error", "message": "运行过于频繁，每分钟最多 10 次，请稍后再试。"}))
+        await ws.close()
+        return
+
+    acquired = DOCKER_SEMAPHORE.acquire(timeout=DOCKER_SEMAPHORE_TIMEOUT)
+    if not acquired:
+        await ws.send_text(json.dumps({"type": "error", "message": "当前代码运行任务较多，请稍后重试。"}))
+        await ws.close()
+        return
+
+    tmp_dir = tempfile.mkdtemp(prefix="interactive_")
+    is_c = language == "c"
+    src_path = os.path.join(tmp_dir, "main.c" if is_c else "main.py")
+
+    await ws.send_text(json.dumps({"type": "status", "message": f"开始{'编译并运行' if is_c else '运行'} {language.upper()} 代码..."}))
+
+    try:
+        with open(src_path, "w", encoding="utf-8") as f:
+            f.write(code)
+
+        if is_c:
+            await ws.send_text(json.dumps({"type": "status", "message": "正在编译 C 代码..."}))
+            compile_proc = subprocess.run(
+                ["docker", "run", "--rm", "--network", "none", "--memory", INTERACTIVE_MEMORY_C,
+                 "-v", f"{tmp_dir}:/code:ro", "-w", "/code", DOCKER_IMAGE_C,
+                 "gcc", "-Wall", "-Wextra", "-o", "/tmp/prog", "main.c"],
+                capture_output=True, text=True, timeout=20, cwd=tmp_dir,
+            )
+            if compile_proc.returncode != 0:
+                compile_err = compile_proc.stderr or "编译失败"
+                await ws.send_text(json.dumps({"type": "compile_error", "message": compile_err[:3000]}))
+                await ws.send_text(json.dumps({"type": "exit", "exit_code": compile_proc.returncode}))
+                return
+
+            await ws.send_text(json.dumps({"type": "status", "message": "编译成功，正在运行..."}))
+            docker_cmd = [
+                "docker", "run", "--rm", "-i",
+                "--network", "none", "--memory", INTERACTIVE_MEMORY_C,
+                "--cpus", str(DOCKER_CPU_LIMIT), "--pids-limit", str(DOCKER_PIDS_LIMIT),
+                "--read-only", "--tmpfs", "/tmp:rw,exec,nosuid,size=128m",
+                "-v", f"{tmp_dir}:/code:ro", "-w", "/code",
+                DOCKER_IMAGE_C, "sh", "-c",
+                "cp /code/main.c /tmp/main.c && cd /tmp && gcc -Wall -Wextra -o prog main.c && ./prog",
+            ]
+        else:
+            await ws.send_text(json.dumps({"type": "status", "message": "正在运行 Python 代码..."}))
+            docker_cmd = [
+                "docker", "run", "--rm", "-i",
+                "--network", "none", "--memory", INTERACTIVE_MEMORY,
+                "--cpus", str(DOCKER_CPU_LIMIT), "--pids-limit", str(DOCKER_PIDS_LIMIT),
+                "--read-only", "--tmpfs", "/tmp:rw,exec,nosuid,size=128m",
+                "-v", f"{tmp_dir}:/code:ro", "-w", "/code",
+                DOCKER_IMAGE, "python", "-u", "main.py",
+            ]
+
+        proc = subprocess.Popen(
+            docker_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE, text=True, cwd=tmp_dir,
+        )
+
+        collected_stdout = []
+        collected_stderr = []
+
+        def reader(stream, collector, prefix, ws_socket, loop_ref):
+            try:
+                for line in iter(stream.readline, ""):
+                    if line:
+                        collector.append(line)
+                        try:
+                            fut = asyncio.run_coroutine_threadsafe(
+                                ws_socket.send_text(json.dumps({"type": prefix, "data": line})),
+                                loop_ref,
+                            )
+                        except Exception:
+                            break
+            except Exception:
+                pass
+
+        import threading
+        loop = asyncio.get_event_loop()
+        stdout_thread = threading.Thread(target=reader, args=(proc.stdout, collected_stdout, "stdout", ws, loop))
+        stderr_thread = threading.Thread(target=reader, args=(proc.stderr, collected_stderr, "stderr", ws, loop))
+        stdout_thread.daemon = True
+        stderr_thread.daemon = True
+        stdout_thread.start()
+        stderr_thread.start()
+
+        timed_out = False
+        start_time = time.time()
+
+        async def forward_stdin():
+            nonlocal timed_out
+            while True:
+                try:
+                    remaining = INTERACTIVE_TIMEOUT - (time.time() - start_time)
+                    if remaining <= 0:
+                        timed_out = True
+                        proc.kill()
+                        break
+                    data = await asyncio.wait_for(ws.receive_text(), timeout=min(1.0, remaining))
+                    if proc.poll() is not None:
+                        break
+                    try:
+                        proc.stdin.write(data)
+                        proc.stdin.flush()
+                    except (BrokenPipeError, OSError):
+                        break
+                except asyncio.TimeoutError:
+                    if proc.poll() is not None:
+                        break
+                    if time.time() - start_time > INTERACTIVE_TIMEOUT:
+                        timed_out = True
+                        proc.kill()
+                        break
+                except WebSocketDisconnect:
+                    proc.kill()
+                    break
+                except Exception:
+                    break
+
+        try:
+            await forward_stdin()
+        except Exception:
+            pass
+
+        proc.wait(timeout=3)
+        stdout_thread.join(timeout=2)
+        stderr_thread.join(timeout=2)
+
+        assembled = {
+            "type": "exit",
+            "exit_code": proc.returncode,
+            "timed_out": timed_out,
+            "stdout": "".join(collected_stdout)[:8000],
+            "stderr": "".join(collected_stderr)[:8000],
+        }
+        try:
+            await ws.send_text(json.dumps(assembled))
+        except Exception:
+            pass
+
+    except subprocess.TimeoutExpired:
+        await ws.send_text(json.dumps({"type": "error", "message": f"运行超时（超过 {INTERACTIVE_TIMEOUT} 秒）"}))
+    except FileNotFoundError:
+        await ws.send_text(json.dumps({"type": "error", "message": "服务器 Docker 环境未就绪"}))
+    except Exception as exc:
+        await ws.send_text(json.dumps({"type": "error", "message": f"运行异常：{str(exc)[:300]}"}))
+    finally:
+        DOCKER_SEMAPHORE.release()
+        try:
+            if proc and proc.poll() is None:
+                proc.kill()
+        except Exception:
+            pass
+        try: os.remove(src_path)
+        except OSError: pass
+        try: os.rmdir(tmp_dir)
+        except OSError: pass
+        try:
+            await ws.close()
+        except Exception:
+            pass

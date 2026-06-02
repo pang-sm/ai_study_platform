@@ -159,6 +159,29 @@ class CodeChallengeGenerateTestsRequest(BaseModel):
     language: str = ""
 
 
+# ── Code Diagnostics ──────────────────────────────────
+
+class CodeDiagnoseRequest(BaseModel):
+    language: str = ""
+    code: str = ""
+
+
+class CodeDiagnosticItem(BaseModel):
+    line: int
+    column: int
+    message: str
+    severity: str  # "error" | "warning"
+    source: str = ""
+
+
+class CodeDiagnoseResponse(BaseModel):
+    language: str
+    status: str  # "ok" | "warning" | "error" | "unsupported"
+    errors: list[dict] = []
+    warnings: list[dict] = []
+    raw_output: str = ""
+
+
 # ── AI Coach Saved Chats ──────────────────────────────
 
 class CodeAISavedChatCreate(BaseModel):

@@ -1,8 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Editor from "@monaco-editor/react";
 import MarkdownMessage from "./MarkdownMessage.jsx";
+import { Terminal } from "xterm";
+import { FitAddon } from "xterm-addon-fit";
+import "xterm/css/xterm.css";
 
 const API_BASE = "/api";
+const WS_BASE = (() => {
+  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${proto}//${window.location.host}/api`;
+})();
 
 const LANGUAGES = ["Python", "C"];
 
@@ -381,6 +388,23 @@ export default function CodeStudio({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [assistantCollapsed, setAssistantCollapsed] = useState(false);
 
+  // ── Code diagnostics ──
+  const [diagnosticStatus, setDiagnosticStatus] = useState("idle"); // idle | checking | ok | warning | error | unsupported
+  const [diagnosticErrors, setDiagnosticErrors] = useState(0);
+  const [diagnosticWarnings, setDiagnosticWarnings] = useState(0);
+  const diagnoseTimerRef = useRef(null);
+  const lastDiagnosedCodeRef = useRef("");
+  const editorMonacoRef = useRef(null); // raw monaco instance for markers
+
+  // ── Interactive terminal ──
+  const terminalRef = useRef(null);
+  const terminalContainerRef = useRef(null);
+  const fitAddonRef = useRef(null);
+  const wsRef = useRef(null);
+  const [terminalRunning, setTerminalRunning] = useState(false);
+  const [terminalExitCode, setTerminalExitCode] = useState(null);
+  const terminalOutputRef = useRef({ stdout: "", stderr: "", compile_error: "", exit_code: null, timed_out: false });
+
   // Generate test cases for old challenges
   const [generatingTests, setGeneratingTests] = useState(false);
 
@@ -512,6 +536,32 @@ export default function CodeStudio({
     setSelectedGenMaterialIds([]);
     setGenDataError("");
   }, [codeCourseId]);
+
+  // Debounced code diagnostics
+  useEffect(() => {
+    if (diagnoseTimerRef.current) clearTimeout(diagnoseTimerRef.current);
+    setDiagnosticStatus("checking");
+    diagnoseTimerRef.current = setTimeout(() => {
+      diagnoseCode(code, language);
+    }, 600);
+    return () => {
+      if (diagnoseTimerRef.current) clearTimeout(diagnoseTimerRef.current);
+    };
+  }, [code, language, diagnoseCode]);
+
+  // Clear diagnostics when switching languages
+  useEffect(() => {
+    lastDiagnosedCodeRef.current = "";
+    setDiagnosticStatus("idle");
+    setDiagnosticErrors(0);
+    setDiagnosticWarnings(0);
+    if (editorMonacoRef.current) {
+      try {
+        const model = editorMonacoRef.current.editor.getModels()[0];
+        if (model) editorMonacoRef.current.editor.setModelMarkers(model, "diagnostics", []);
+      } catch {}
+    }
+  }, [language]);
 
   useEffect(() => {
     if (aiEndRef.current) {
@@ -696,6 +746,191 @@ export default function CodeStudio({
       setProblemLoading(false);
     }
   };
+
+  // ── Code Diagnostics ──
+  const diagnoseCode = useCallback(async (currentCode, currentLanguage) => {
+    if (!currentCode || !currentCode.trim()) {
+      setDiagnosticStatus("idle");
+      setDiagnosticErrors(0);
+      setDiagnosticWarnings(0);
+      return;
+    }
+    if (currentCode === lastDiagnosedCodeRef.current) return;
+    lastDiagnosedCodeRef.current = currentCode;
+
+    setDiagnosticStatus("checking");
+    try {
+      const res = await fetch(`${API_BASE}/code/diagnose`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ language: currentLanguage, code: currentCode }),
+      });
+      const data = await safeJson(res);
+      if (data.status === "unsupported") {
+        setDiagnosticStatus("unsupported");
+        setDiagnosticErrors(0);
+        setDiagnosticWarnings(0);
+      } else {
+        const errCount = (data.errors || []).length;
+        const warnCount = (data.warnings || []).length;
+        setDiagnosticErrors(errCount);
+        setDiagnosticWarnings(warnCount);
+        if (errCount > 0) setDiagnosticStatus("error");
+        else if (warnCount > 0) setDiagnosticStatus("warning");
+        else setDiagnosticStatus("ok");
+
+        // Update Monaco markers
+        if (editorMonacoRef.current) {
+          const monaco = window.monaco || editorMonacoRef.current._monaco;
+          if (monaco) {
+            const model = editorMonacoRef.current.getModel();
+            if (model) {
+              const markers = [];
+              (data.errors || []).forEach((e) => {
+                markers.push({
+                  severity: monaco.MarkerSeverity.Error,
+                  message: e.message,
+                  startLineNumber: e.line,
+                  startColumn: e.column,
+                  endLineNumber: e.line,
+                  endColumn: e.column + 1,
+                });
+              });
+              (data.warnings || []).forEach((w) => {
+                markers.push({
+                  severity: monaco.MarkerSeverity.Warning,
+                  message: w.message,
+                  startLineNumber: w.line,
+                  startColumn: w.column,
+                  endLineNumber: w.line,
+                  endColumn: w.column + 1,
+                });
+              });
+              monaco.editor.setModelMarkers(model, "diagnostics", markers);
+            }
+          }
+        }
+      }
+    } catch {
+      setDiagnosticStatus("idle");
+    }
+  }, []);
+
+  // ── Interactive Terminal ──
+  const launchInteractiveTerminal = useCallback(() => {
+    if (!code.trim() || terminalRunning) return;
+
+    // Dispose old terminal
+    if (terminalRef.current) {
+      terminalRef.current.dispose();
+      terminalRef.current = null;
+    }
+    if (wsRef.current) {
+      try { wsRef.current.close(); } catch {}
+      wsRef.current = null;
+    }
+
+    terminalOutputRef.current = { stdout: "", stderr: "", compile_error: "", exit_code: null, timed_out: false };
+    setTerminalExitCode(null);
+    setTerminalRunning(true);
+    setShowFeedbackPanel(true);
+    setOutputPanelTab("terminal");
+
+    // Create terminal after DOM update
+    setTimeout(() => {
+      const container = terminalContainerRef.current;
+      if (!container) return;
+
+      const term = new Terminal({
+        fontSize: 13,
+        fontFamily: "'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
+        theme: { background: "#1e1e1e", foreground: "#d4d4d4", cursor: "#ffffff" },
+        cursorBlink: true,
+        cols: 80,
+        rows: 24,
+      });
+      const fitAddon = new FitAddon();
+      term.loadAddon(fitAddon);
+      term.open(container);
+      fitAddon.fit();
+      fitAddonRef.current = fitAddon;
+      terminalRef.current = term;
+
+      term.writeln(`\x1b[1;36m═══ 交互终端 ── ${language.toUpperCase()} ═══\x1b[0m`);
+
+      // Connect WebSocket
+      const wsUrl = `${WS_BASE}/code/interactive-run`;
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ language, code, username: user?.username || "anonymous" }));
+      };
+
+      ws.onmessage = (evt) => {
+        try {
+          const msg = JSON.parse(evt.data);
+          if (msg.type === "stdout") {
+            term.write(msg.data);
+            terminalOutputRef.current.stdout += msg.data;
+          } else if (msg.type === "stderr") {
+            term.write(`\x1b[31m${msg.data}\x1b[0m`);
+            terminalOutputRef.current.stderr += msg.data;
+          } else if (msg.type === "compile_error") {
+            term.writeln(`\x1b[31m${msg.message}\x1b[0m`);
+            terminalOutputRef.current.compile_error = msg.message;
+          } else if (msg.type === "status") {
+            term.writeln(`\x1b[90m${msg.message}\x1b[0m`);
+          } else if (msg.type === "error") {
+            term.writeln(`\x1b[31m✗ ${msg.message}\x1b[0m`);
+          } else if (msg.type === "exit") {
+            terminalOutputRef.current.exit_code = msg.exit_code;
+            terminalOutputRef.current.timed_out = msg.timed_out || false;
+            if (msg.stdout) terminalOutputRef.current.stdout = msg.stdout;
+            if (msg.stderr) terminalOutputRef.current.stderr = msg.stderr;
+            setTerminalExitCode(msg.exit_code);
+            setTerminalRunning(false);
+            term.writeln(`\n\x1b[90m═══ 进程退出，exit_code: ${msg.exit_code}${msg.timed_out ? " (超时)" : ""} ═══\x1b[0m`);
+          }
+        } catch {}
+      };
+
+      ws.onerror = () => {
+        term.writeln(`\x1b[31m✗ WebSocket 连接失败\x1b[0m`);
+        setTerminalRunning(false);
+      };
+
+      ws.onclose = () => {
+        setTerminalRunning(false);
+      };
+
+      term.onData((data) => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(data);
+        }
+      });
+    }, 100);
+  }, [code, language, user?.username, terminalRunning]);
+
+  const stopInteractiveTerminal = useCallback(() => {
+    if (wsRef.current) {
+      try { wsRef.current.close(); } catch {}
+      wsRef.current = null;
+    }
+    if (terminalRef.current) {
+      terminalRef.current.writeln(`\n\x1b[33m═══ 用户终止运行 ═══\x1b[0m`);
+      setTerminalRunning(false);
+      setTerminalExitCode(-1);
+    }
+  }, []);
+
+  const clearInteractiveTerminal = useCallback(() => {
+    if (terminalRef.current) {
+      terminalRef.current.clear();
+    }
+    terminalOutputRef.current = { stdout: "", stderr: "", compile_error: "", exit_code: null, timed_out: false };
+    setTerminalExitCode(null);
+  }, []);
 
   const openChallengeModal = async () => {
     setChallengeDifficulty("基础");
@@ -1997,12 +2232,12 @@ export default function CodeStudio({
               {/* Run group */}
               <div className="code-editor-btn-group">
                 <button
-                  className={`code-action-btn code-action-btn--run ${!canRun ? "code-action-btn--disabled" : ""}`}
-                  onClick={runCode}
-                  disabled={running || !canRun || !code.trim()}
-                  title="运行代码（Docker 沙箱）"
+                  className={`code-action-btn code-action-btn--run ${terminalRunning ? "code-action-btn--active" : ""}`}
+                  onClick={launchInteractiveTerminal}
+                  disabled={!code.trim()}
+                  title={diagnosticStatus === "error" ? "代码存在编译错误，建议先修复" : "交互式运行代码（支持 scanf/input）"}
                 >
-                  {running ? "⏳ 运行中..." : "▶ 运行"}
+                  {terminalRunning ? "⏳ 运行中..." : "▶ 运行"}
                 </button>
                 <button
                   className={`code-action-btn code-action-btn--test ${!canRun ? "code-action-btn--disabled" : ""}`}
@@ -2286,7 +2521,10 @@ export default function CodeStudio({
                 value={code}
                 onChange={(value) => setCode(value || "")}
                 theme="vs-dark"
-                beforeMount={registerAutocomplete}
+                beforeMount={(monaco) => {
+                  registerAutocomplete(monaco);
+                  editorMonacoRef.current = monaco;
+                }}
                 onMount={(editor) => {
                   editorRef.current = editor;
                   const position = editor.getPosition();
@@ -2324,9 +2562,22 @@ export default function CodeStudio({
                 <span>LF</span>
                 <span>{language}</span>
                 <span className="code-editor-status-run">
-                  <span className="code-status-run-dot code-status-run-dot--ok" />
-                  可运行
+                  <span className={`code-status-run-dot ${language === "Java" ? "code-status-run-dot--warn" : "code-status-run-dot--ok"}`} />
+                  环境：{language === "Java" ? "AI 分析" : `${language} 可运行`}
                 </span>
+                {diagnosticStatus !== "unsupported" && diagnosticStatus !== "idle" && (
+                  <span className="code-editor-status-diag">
+                    {diagnosticStatus === "checking" ? (
+                      <><span className="code-diag-dot code-diag-dot--checking" />代码：检查中</>
+                    ) : diagnosticStatus === "ok" ? (
+                      <><span className="code-diag-dot code-diag-dot--ok" />代码：编译通过</>
+                    ) : diagnosticStatus === "warning" ? (
+                      <><span className="code-diag-dot code-diag-dot--warn" />代码：{diagnosticWarnings} 个警告</>
+                    ) : diagnosticStatus === "error" ? (
+                      <><span className="code-diag-dot code-diag-dot--err" />代码：{diagnosticErrors} 个错误</>
+                    ) : null}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -2349,6 +2600,12 @@ export default function CodeStudio({
             <div className="code-feedback-panel-header">
               <div className="code-output-tabs">
                 <button
+                  className={`code-output-tab ${outputPanelTab === "terminal" ? "code-output-tab--active" : ""}`}
+                  onClick={() => setOutputPanelTab("terminal")}
+                >
+                  运行终端
+                </button>
+                <button
                   className={`code-output-tab ${outputPanelTab === "run" ? "code-output-tab--active" : ""}`}
                   onClick={() => setOutputPanelTab("run")}
                 >
@@ -2367,6 +2624,22 @@ export default function CodeStudio({
                     {STATUS_LABELS[feedbackStatus] || feedbackStatus}
                   </span>
                 )}
+                {outputPanelTab === "terminal" && (
+                  <>
+                    {terminalRunning ? (
+                      <button className="code-action-btn code-action-btn--stop compact" onClick={stopInteractiveTerminal} title="停止运行">
+                        ⏹ 停止
+                      </button>
+                    ) : (
+                      <button className="code-action-btn code-action-btn--clear compact" onClick={clearInteractiveTerminal} title="清空终端">
+                        清空
+                      </button>
+                    )}
+                    {terminalExitCode !== null && (
+                      <span className="code-terminal-exit-code">exit_code: {terminalExitCode}</span>
+                    )}
+                  </>
+                )}
                 <button className="code-collapse-btn code-collapse-btn--panel" onClick={() => setOutputCollapsed(!outputCollapsed)} title={outputCollapsed ? "展开面板" : "收起面板"}>
                   {outputCollapsed ? "▲" : "▼"}
                 </button>
@@ -2381,6 +2654,11 @@ export default function CodeStudio({
             {!outputCollapsed && (
             <>
             <div className="code-feedback-panel-body">
+              {/* Interactive Terminal Tab */}
+              {outputPanelTab === "terminal" && (
+                <div className="code-terminal-container" ref={terminalContainerRef} style={{ width: "100%", height: "100%", minHeight: 200 }} />
+              )}
+
               {/* Run Output Tab */}
               {outputPanelTab === "run" && (
                 <div className="code-run-output">
