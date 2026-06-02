@@ -47,6 +47,14 @@ function safeJson(res) {
   return res.json().catch(() => ({}));
 }
 
+function fetchWithTimeout(url, options = {}, timeout = 10000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+  return fetch(url, { ...options, signal: controller.signal }).finally(() =>
+    clearTimeout(timer)
+  );
+}
+
 // ── Autocompletion data ──────────────────────────────
 
 const PYTHON_KEYWORDS = [
@@ -570,15 +578,28 @@ export default function CodeStudio({
     if (session.id) {
       loadMessages(session.id);
       if (session.challenge_id) {
-        // stale-while-revalidate: show cached data first
+        // stale-while-revalidate: show cached or session-derived data first
         const cached = challengeCacheRef.current.get(session.challenge_id);
         if (cached) {
           setCurrentChallenge(cached);
-          setProblemLoading(true);
         } else {
-          setProblemLoading(true);
-          // Don't clear currentChallenge here — keep old until new loads
+          // Build fallback challenge from session data so the panel shows immediately
+          setCurrentChallenge({
+            id: session.challenge_id,
+            title: session.title || "未命名题目",
+            difficulty: "",
+            description: "",
+            requirements: "",
+            input_format: "",
+            output_format: "",
+            examples: "",
+            hints: "",
+            starter_code: "",
+            test_cases: "[]",
+            _fallback: true,
+          });
         }
+        setProblemLoading(true);
         loadChallenge(session.challenge_id);
         loadSavedChats(session.challenge_id);
       } else {
@@ -627,12 +648,17 @@ export default function CodeStudio({
   };
 
   const loadChallenge = async (challengeId) => {
-    if (!user?.username || !challengeId) return;
+    if (!user?.username || !challengeId) {
+      setProblemLoading(false);
+      return;
+    }
     // Keep existing challenge data visible while loading
     setProblemError("");
     try {
-      const res = await fetch(
-        `${API_BASE}/code/challenges/${challengeId}?username=${encodeURIComponent(user.username)}`
+      const res = await fetchWithTimeout(
+        `${API_BASE}/code/challenges/${challengeId}?username=${encodeURIComponent(user.username)}`,
+        {},
+        10000
       );
       const data = await safeJson(res);
       if (res.ok && data.challenge) {
@@ -643,16 +669,20 @@ export default function CodeStudio({
         setShowReference(false);
         setProblemTab("io");
       } else {
-        console.warn("[loadChallenge] failed to load challenge", challengeId, res.status, data);
-        // Keep existing content, show error
-        if (!challengeCacheRef.current.has(challengeId) && !currentChallenge) {
-          setProblemError("题目详情加载失败。你可以点击重新加载。");
+        const statusCode = res.status;
+        console.warn("[loadChallenge] failed to load challenge", challengeId, statusCode, data);
+        // Keep existing content, show error only if we have nothing to show
+        if (!challengeCacheRef.current.has(challengeId)) {
+          setProblemError(`题目详情加载失败 (${statusCode || "网络错误"})。已保留本地已有内容。请点击重新加载。`);
         }
       }
     } catch (error) {
-      console.error("Failed to load challenge:", error);
-      if (!challengeCacheRef.current.has(challengeId) && !currentChallenge) {
-        setProblemError("题目详情加载失败，请检查网络后重试。");
+      console.error("[loadChallenge] error loading challenge:", challengeId, error?.message || error);
+      if (!challengeCacheRef.current.has(challengeId)) {
+        const msg = error?.name === "AbortError"
+          ? "题目详情加载超时。已保留本地已有内容。请点击重新加载。"
+          : "题目详情加载失败，已保留本地已有内容。请点击重新加载。";
+        setProblemError(msg);
       }
     } finally {
       setProblemLoading(false);
@@ -2163,10 +2193,24 @@ export default function CodeStudio({
                       重新加载
                     </button>
                   </div>
-                ) : (
+                ) : problemLoading ? (
                   <div className="code-problem-loading">
                     <div className="code-problem-loading-spinner" />
                     <p>正在从服务器获取题目内容...</p>
+                  </div>
+                ) : (
+                  <div className="code-problem-error">
+                    <div className="code-problem-error-text">题目详情加载异常，请刷新重试。</div>
+                    <button
+                      className="code-problem-retry-btn"
+                      onClick={() => {
+                        setProblemError("");
+                        setProblemLoading(true);
+                        loadChallenge(selectedSession.challenge_id);
+                      }}
+                    >
+                      重新加载
+                    </button>
                   </div>
                 )
               ) : (
