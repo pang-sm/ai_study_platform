@@ -1851,22 +1851,14 @@ export default function CodeStudio({
         {/* ── Horizontal split: Problem Panel (left) | Editor + Output (right) ── */}
         <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "row" }}>
           {/* ── Problem Panel ── */}
-          {currentChallenge && (
+          {currentChallenge && !problemCollapsed && (
             <>
               <div
-                className={`code-challenge-card${problemCollapsed ? " code-challenge-card--collapsed" : ""}`}
-                style={{ width: problemCollapsed ? 48 : Math.max(layout.problemWidth, 280), minWidth: problemCollapsed ? 48 : 280, flexShrink: 0, overflow: "auto" }}
+                className="code-challenge-card"
+                style={{ width: Math.max(layout.problemWidth, 280), minWidth: 280, flexShrink: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}
               >
-            {problemCollapsed ? (
-              <div className="code-problem-mini-v" onClick={() => setProblemCollapsed(false)} title="点击展开题目面板">
-                <span className="code-problem-mini-v-label">题 目</span>
-                <button className="code-problem-expand-btn" onClick={() => setProblemCollapsed(false)} title="展开题目面板">
-                  ▸
-                </button>
-                <span className="code-problem-mini-v-hint">展开</span>
-              </div>
-            ) : (
-              <>
+            {/* Panel body — scrollable content */}
+            <div className="code-challenge-card-body">
             <div className="code-challenge-card-header">
               <span className="subject-pill small">{currentChallenge.difficulty || "基础"}</span>
               {currentChallenge.knowledge_point && (
@@ -1882,9 +1874,6 @@ export default function CodeStudio({
                   薄弱点：{currentChallenge.target_weak_point}
                 </span>
               )}
-              <button className="code-collapse-btn code-collapse-btn--card" onClick={() => setProblemCollapsed(true)} title="收起题目" style={{ marginLeft: "auto" }}>
-                &lang;
-              </button>
             </div>
             <h4 className="code-challenge-card-title">{currentChallenge.title}</h4>
             {(() => {
@@ -1959,21 +1948,6 @@ export default function CodeStudio({
               )}
             </div>
 
-            <div className="code-challenge-card-actions">
-              {currentChallenge.starter_code && (
-                <button className="ghost-button compact" onClick={useStarterCode}>
-                  使用起始代码
-                </button>
-              )}
-              <button
-                className="ghost-button compact"
-                onClick={() => setIsReferenceModalOpen(true)}
-                disabled={!currentChallenge?.reference_solution}
-              >
-                查看参考解法
-              </button>
-            </div>
-
             {/* No test cases notice */}
             {(() => {
               try {
@@ -1997,15 +1971,32 @@ export default function CodeStudio({
                 </button>
               </div>
             )}
-              </>
-            )}
-              </div>
-              {!problemCollapsed && (
-                <div
-                  className={`code-resize-handle code-resize-handle--h${resizing === "problem" ? " code-resize-handle--active" : ""}`}
-                  onMouseDown={(e) => startResize(e, "problem")}
-                />
+            </div>
+
+            {/* Fixed footer — buttons */}
+            <div className="code-challenge-card-footer">
+              {currentChallenge.starter_code && (
+                <button className="ghost-button compact" onClick={useStarterCode}>
+                  使用起始代码
+                </button>
               )}
+              <button
+                className="ghost-button compact"
+                onClick={() => {
+                  const prompt = `请根据当前题目（${currentChallenge.title}）给我讲解解题思路，不要直接给完整答案。可以给关键伪代码或步骤说明。`;
+                  setAiQuestion(prompt);
+                  // Expand assistant if collapsed
+                  if (assistantCollapsed) setAssistantCollapsed(false);
+                }}
+              >
+                问 AI 教练要思路
+              </button>
+            </div>
+              </div>
+              <div
+                className={`code-resize-handle code-resize-handle--h${resizing === "problem" ? " code-resize-handle--active" : ""}`}
+                onMouseDown={(e) => startResize(e, "problem")}
+              />
             </>
           )}
 
@@ -2608,7 +2599,8 @@ export default function CodeStudio({
                   "解释这个编译错误",
                   "为什么这个测试用例没过",
                   "帮我优化时间复杂度",
-                  "给我一道相似的练习题",
+                  "给我讲解这道题的思路",
+                  "给我一份参考答案代码",
                 ].map((s, i) => (
                   <button
                     key={i}
