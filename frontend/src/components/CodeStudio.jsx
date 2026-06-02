@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import Editor from "@monaco-editor/react";
+import MarkdownMessage from "./MarkdownMessage.jsx";
 
 const API_BASE = "/api";
 
@@ -294,6 +295,7 @@ export default function CodeStudio({
   const [aiMessages, setAiMessages] = useState([]);
   const [aiMessagesLoading, setAiMessagesLoading] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
+  const [savedMessageIds, setSavedMessageIds] = useState(new Set());
   const aiEndRef = useRef(null);
 
   const [showChallengeModal, setShowChallengeModal] = useState(false);
@@ -1748,12 +1750,6 @@ export default function CodeStudio({
             )}
           </div>
           <div className="code-status-bar-right">
-            {LANGUAGES.map((lang) => (
-              <span key={lang} className="code-status-run-badge" title={`${lang}：支持运行`}>
-                <span className="code-status-run-dot code-status-run-dot--ok" />
-                {lang} 可运行
-              </span>
-            ))}
             <button
               className={`code-focus-btn ${problemCollapsed ? "code-focus-btn--warn" : ""}`}
               onClick={() => setProblemCollapsed((v) => !v)}
@@ -1774,19 +1770,11 @@ export default function CodeStudio({
         {/* Editor Toolbar: Language + Actions */}
         <div className="code-studio-editor-header">
           <div className="code-editor-toolbar-row">
-            {/* Language selector */}
+            {/* Current language indicator */}
             <div className="code-editor-lang-group">
-              {LANGUAGES.map((lang) => (
-                <button
-                  key={lang}
-                  className={`code-lang-btn ${language === lang ? "code-lang-btn--active" : ""}`}
-                  onClick={() => handleLanguageChange(lang)}
-                  title={`${lang} — 支持真实运行`}
-                >
-                  {lang}
-                  <span className="code-lang-btn-sub">可运行</span>
-                </button>
-              ))}
+              <span className="code-lang-btn code-lang-btn--active" style={{ cursor: "default" }}>
+                {language}
+              </span>
             </div>
 
             {/* Action buttons */}
@@ -2477,13 +2465,6 @@ export default function CodeStudio({
               &rang;&rang;
             </button>
           </div>
-          <button
-            className="ghost-button compact code-diagnosis-btn"
-            onClick={fetchDiagnosis}
-            disabled={diagnosisLoading}
-          >
-            {diagnosisLoading ? "分析中..." : "学习诊断"}
-          </button>
         </div>
 
         {/* Code progress stats card */}
@@ -2581,19 +2562,10 @@ export default function CodeStudio({
             </div>
           ) : aiMessages.length === 0 ? (
             <div className="code-assistant-empty">
-              {selectedSession?.id ? (
-                <>
-                  <p className="code-assistant-empty-title">还没有 AI 分析记录</p>
-                  <p className="muted-text">可以让 AI 帮你检查代码。</p>
-                </>
-              ) : (
-                <>
-                  <p className="code-assistant-empty-title">保存练习后开始使用 AI 教练</p>
-                  <p className="muted-text">AI 可以帮你分析代码、解释错误、给出学习建议。</p>
-                </>
-              )}
+              <p className="code-assistant-empty-title">AI 教练</p>
+              <p className="muted-text">基于当前题目和代码回答你的问题</p>
               <div className="code-assistant-suggestions">
-                <p className="code-assistant-suggestions-title">你可以问 AI：</p>
+                <p className="code-assistant-suggestions-title">你可以问：</p>
                 {[
                   "帮我分析这段代码的问题",
                   "解释这个编译错误",
@@ -2616,9 +2588,28 @@ export default function CodeStudio({
             aiMessages.map((msg, i) => (
               <div key={i} className={`code-assistant-msg code-assistant-msg--${msg.role}`}>
                 <div className="code-assistant-msg-role">
-                  {msg.role === "user" ? "你" : "AI 助手"}
+                  {msg.role === "user" ? "你" : "AI 教练"}
                 </div>
-                <div className="code-assistant-msg-content">{msg.content}</div>
+                {msg.role === "assistant" ? (
+                  <MarkdownMessage content={msg.content} />
+                ) : (
+                  <div className="code-assistant-msg-content">{msg.content}</div>
+                )}
+                {msg.role === "assistant" && (
+                  <button
+                    className="code-msg-save-btn"
+                    onClick={() => {
+                      setSavedMessageIds((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(i)) next.delete(i); else next.add(i);
+                        return next;
+                      });
+                    }}
+                    title={savedMessageIds.has(i) ? "取消保存" : "保存此回答"}
+                  >
+                    {savedMessageIds.has(i) ? "已保存" : "保存"}
+                  </button>
+                )}
               </div>
             ))
           )}
