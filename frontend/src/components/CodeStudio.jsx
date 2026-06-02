@@ -1656,18 +1656,19 @@ export default function CodeStudio({
                   key={s.id}
                   className={`code-session-item ${selectedSession?.id === s.id ? "code-session-item--active" : ""}`}
                   onClick={() => selectSession(s)}
+                  title={s.title}
                 >
                   <div className="code-session-item-title">
                     {s.title}
+                  </div>
+                  <div className="code-session-item-meta">
+                    <span className="subject-pill small code-session-lang-pill">{s.language}</span>
                     {isAIChallenge(s) && (
                       <span className={`code-session-type-badge ${s.challenge_source === "diagnosis" ? "code-session-type-badge--diagnosis" : ""}`}>
                         {s.challenge_source === "diagnosis" ? "诊断推荐" : "AI题"}
                       </span>
                     )}
-                  </div>
-                  <div className="code-session-item-meta">
-                    <span className="subject-pill small">{s.language}</span>
-                    <span>{formatDate(s.updated_at)}</span>
+                    <span className="code-session-time">{formatDate(s.updated_at)}</span>
                   </div>
                   <button
                     className="code-session-delete-btn"
