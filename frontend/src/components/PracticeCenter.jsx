@@ -11,7 +11,6 @@ const TYPE_OPTIONS = [
   { value: "true_false", label: "判断题" },
   { value: "fill_blank", label: "填空题" },
   { value: "short_answer", label: "简答题" },
-  { value: "programming", label: "编程题" },
 ];
 
 const DIFFICULTY_OPTIONS = [
@@ -48,6 +47,20 @@ const isAiGeneratedQuestion = (question) => {
   return source === "ai_generated" || source === "ai";
 };
 
+const PROGRAMMING_QUESTION_TYPES = new Set([
+  "programming",
+  "code",
+  "coding",
+  "code_question",
+  "programming_question",
+]);
+
+const isProgrammingQuestion = (question) => {
+  const type = String(question?.type || question?.question_type || "").trim();
+  const source = String(question?.source || question?.source_type || "").trim();
+  return PROGRAMMING_QUESTION_TYPES.has(type) || source === "code_studio";
+};
+
 const normalizeGenerateCount = (value) => {
   const n = Number(value);
   if (Number.isNaN(n)) return 1;
@@ -65,6 +78,34 @@ const BATCH_OBJECTIVE_TYPES = new Set([
 ]);
 
 const isBatchObjectiveQuestion = (question) => BATCH_OBJECTIVE_TYPES.has(question?.type);
+
+const getQuestionOptionLabels = (question) => {
+  const lines = String(question?.options || "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return new Set(
+    lines
+      .map((line) => {
+        const matched = line.match(/^([A-Za-z])[\.\、\)]\s*/);
+        return matched ? matched[1].toUpperCase() : "";
+      })
+      .filter(Boolean)
+  );
+};
+
+const hasValidObjectiveAnswerStructure = (question) => {
+  if (!isBatchObjectiveQuestion(question)) return false;
+  if (question?.type === "fill_blank" || question?.type === "true_false" || question?.type === "judge") {
+    return Boolean(String(question?.answer || "").trim());
+  }
+  const labels = getQuestionOptionLabels(question);
+  if (!labels.size) return false;
+  const answers = question?.type === "multiple_choice" || question?.type === "select"
+    ? parseAnswerList(question?.answer)
+    : [normalizePracticeAnswer(question?.answer)];
+  return answers.length > 0 && answers.every((label) => labels.has(label));
+};
 
 const normalizePracticeAnswer = (value = "") => (
   String(value || "")
@@ -472,6 +513,7 @@ export default function PracticeCenter({
   const [genAvoidTooSimple, setGenAvoidTooSimple] = useState(true);
   const [genLoading, setGenLoading] = useState(false);
   const [genError, setGenError] = useState("");
+  const [genWarnings, setGenWarnings] = useState([]);
   const [showImportModal, setShowImportModal] = useState(false);
   const [importCourse, setImportCourse] = useState(subject || "");
   const [importModuleId, setImportModuleId] = useState("");
@@ -524,7 +566,7 @@ export default function PracticeCenter({
       const res = await fetch(`${API_BASE}/practice/questions?${query.toString()}`);
       const data = await res.json();
       if (res.ok) {
-        setQuestions(data.questions || []);
+        setQuestions((data.questions || []).filter((item) => !isProgrammingQuestion(item)));
         setPapers(data.papers || []);
       }
     } catch (e) {
@@ -685,6 +727,10 @@ export default function PracticeCenter({
       setBatchNotice("简答题暂不支持自动评分组合练习，请选择客观题。");
       return;
     }
+    if (!hasValidObjectiveAnswerStructure(question)) {
+      setBatchNotice("该题答案结构异常，暂不能加入组合练习。");
+      return;
+    }
     setBatchNotice("");
     setSelectedQuestionIds((prev) => {
       const next = new Set(prev);
@@ -700,13 +746,14 @@ export default function PracticeCenter({
   };
 
   const selectAllCurrentObjectiveQuestions = () => {
-    const objectiveIds = questions.filter(isBatchObjectiveQuestion).slice(0, 50).map((q) => q.id);
+    const objectiveQuestions = questions.filter((q) => isBatchObjectiveQuestion(q) && hasValidObjectiveAnswerStructure(q));
+    const objectiveIds = objectiveQuestions.slice(0, 50).map((q) => q.id);
     if (objectiveIds.length === 0) {
       setBatchNotice("当前筛选下没有可自动评分的客观题。");
       return;
     }
     setSelectedQuestionIds(new Set(objectiveIds));
-    setBatchNotice(objectiveIds.length < questions.filter(isBatchObjectiveQuestion).length
+    setBatchNotice(objectiveIds.length < objectiveQuestions.length
       ? "已选择前 50 道客观题。"
       : "");
   };
@@ -735,7 +782,7 @@ export default function PracticeCenter({
     try {
       const selectedIds = Array.from(selectedQuestionIds).slice(0, 50);
       const details = await Promise.all(selectedIds.map(fetchQuestionDetail));
-      const objectiveDetails = details.filter(isBatchObjectiveQuestion);
+      const objectiveDetails = details.filter((q) => isBatchObjectiveQuestion(q) && hasValidObjectiveAnswerStructure(q));
       if (objectiveDetails.length < 2) {
         setBatchNotice("请至少选择 2 道客观题进行组合练习。");
         return;
@@ -944,6 +991,7 @@ export default function PracticeCenter({
     }
     setGenLoading(true);
     setGenError("");
+    setGenWarnings([]);
     try {
       const normalizedCount = normalizeGenerateCount(genCount);
       setGenCount(normalizedCount);
@@ -971,6 +1019,7 @@ export default function PracticeCenter({
       });
       const data = await res.json();
       if (res.ok) {
+        setGenWarnings(Array.isArray(data.warnings) ? data.warnings : []);
         setShowGenerateModal(false);
         setGenError("");
         await loadQuestions();
@@ -1012,7 +1061,7 @@ export default function PracticeCenter({
       const data = await res.json();
       if (res.ok) {
         setPaperDetail(data.paper);
-        setPaperQuestions(data.questions || []);
+        setPaperQuestions((data.questions || []).filter((item) => !isProgrammingQuestion(item)));
         setExpandedPaperQuestions({});
       }
     } catch (e) {
@@ -1230,13 +1279,14 @@ export default function PracticeCenter({
     setGenCourseName("");
     setGenModuleId("");
     setGenKpId("");
-    setGenType(typeFilter || "choice");
+    setGenType(PROGRAMMING_QUESTION_TYPES.has(typeFilter) ? "choice" : (typeFilter || "choice"));
     setGenDifficulty("medium");
     setGenCount(3);
     setGenSourceStyle("mixed");
     setGenRequireReasoning(true);
     setGenAvoidTooSimple(true);
     setGenError("");
+    setGenWarnings([]);
     setShowGenerateModal(true);
   };
   const openCreateModal = () => {
@@ -1635,6 +1685,16 @@ export default function PracticeCenter({
           </div>
         </div>
 
+        {genWarnings.length > 0 && (
+          <div className="practice-generate-warning-panel">
+            {genWarnings.map((warning, index) => (
+              <div key={`${warning}-${index}`} className="practice-generate-warning-item">
+                {warning}
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="practice-overview-grid">
           <div className="practice-stat-card">
             <span className="practice-stat-icon practice-stat-icon--total" aria-hidden="true">▣</span>
@@ -1845,11 +1905,20 @@ export default function PracticeCenter({
                 <div className="question-list">
                   {questions.map((q) => (
                     <div key={q.id} className="question-card">
-                      <label className="batch-question-check" title={isBatchObjectiveQuestion(q) ? "加入组合练习" : "简答题暂不支持自动评分组合练习"}>
+                      <label
+                        className="batch-question-check"
+                        title={
+                          !isBatchObjectiveQuestion(q)
+                            ? "简答题暂不支持自动评分组合练习"
+                            : hasValidObjectiveAnswerStructure(q)
+                              ? "加入组合练习"
+                              : "该题答案结构异常，暂不能加入组合练习"
+                        }
+                      >
                         <input
                           type="checkbox"
                           checked={selectedQuestionIds.has(q.id)}
-                          disabled={!isBatchObjectiveQuestion(q)}
+                          disabled={!isBatchObjectiveQuestion(q) || !hasValidObjectiveAnswerStructure(q)}
                           onChange={() => toggleBatchQuestion(q)}
                         />
                       </label>
@@ -1888,7 +1957,7 @@ export default function PracticeCenter({
                         </div>
                       </div>
                       <div className="question-card-actions">
-                        {q.type === "programming" || q.source === "code_studio" ? (
+                        {isProgrammingQuestion(q) ? (
                           <button className="primary-button compact question-start-button" onClick={goCodeStudio}>
                             去编程助手练习
                           </button>
