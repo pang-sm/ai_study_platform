@@ -528,6 +528,74 @@ export default function CodeStudio({
     setCodeCourseId(normalizeSubject(subject));
   }, [subject, normalizeSubject]);
 
+  // ── Code Diagnostics ── (declared BEFORE useEffects that reference it)
+  const diagnoseCode = useCallback(async (currentCode, currentLanguage) => {
+    if (!currentCode || !currentCode.trim()) {
+      setDiagnosticStatus("idle");
+      setDiagnosticErrors(0);
+      setDiagnosticWarnings(0);
+      return;
+    }
+    if (currentCode === lastDiagnosedCodeRef.current) return;
+    lastDiagnosedCodeRef.current = currentCode;
+
+    setDiagnosticStatus("checking");
+    try {
+      const res = await fetch(`${API_BASE}/code/diagnose`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ language: currentLanguage, code: currentCode }),
+      });
+      const data = await safeJson(res);
+      if (data.status === "unsupported") {
+        setDiagnosticStatus("unsupported");
+        setDiagnosticErrors(0);
+        setDiagnosticWarnings(0);
+      } else {
+        const errCount = (data.errors || []).length;
+        const warnCount = (data.warnings || []).length;
+        setDiagnosticErrors(errCount);
+        setDiagnosticWarnings(warnCount);
+        if (errCount > 0) setDiagnosticStatus("error");
+        else if (warnCount > 0) setDiagnosticStatus("warning");
+        else setDiagnosticStatus("ok");
+
+        if (editorMonacoRef.current) {
+          const monaco = window.monaco || editorMonacoRef.current._monaco;
+          if (monaco) {
+            const model = editorMonacoRef.current.getModel();
+            if (model) {
+              const markers = [];
+              (data.errors || []).forEach((e) => {
+                markers.push({
+                  severity: monaco.MarkerSeverity.Error,
+                  message: e.message,
+                  startLineNumber: e.line,
+                  startColumn: e.column,
+                  endLineNumber: e.line,
+                  endColumn: e.column + 1,
+                });
+              });
+              (data.warnings || []).forEach((w) => {
+                markers.push({
+                  severity: monaco.MarkerSeverity.Warning,
+                  message: w.message,
+                  startLineNumber: w.line,
+                  startColumn: w.column,
+                  endLineNumber: w.line,
+                  endColumn: w.column + 1,
+                });
+              });
+              monaco.editor.setModelMarkers(model, "diagnostics", markers);
+            }
+          }
+        }
+      }
+    } catch {
+      setDiagnosticStatus("idle");
+    }
+  }, []);
+
   // Clear stale gen-modal data when course changes
   useEffect(() => {
     setGenKnowledgePoints([]);
@@ -746,75 +814,6 @@ export default function CodeStudio({
       setProblemLoading(false);
     }
   };
-
-  // ── Code Diagnostics ──
-  const diagnoseCode = useCallback(async (currentCode, currentLanguage) => {
-    if (!currentCode || !currentCode.trim()) {
-      setDiagnosticStatus("idle");
-      setDiagnosticErrors(0);
-      setDiagnosticWarnings(0);
-      return;
-    }
-    if (currentCode === lastDiagnosedCodeRef.current) return;
-    lastDiagnosedCodeRef.current = currentCode;
-
-    setDiagnosticStatus("checking");
-    try {
-      const res = await fetch(`${API_BASE}/code/diagnose`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ language: currentLanguage, code: currentCode }),
-      });
-      const data = await safeJson(res);
-      if (data.status === "unsupported") {
-        setDiagnosticStatus("unsupported");
-        setDiagnosticErrors(0);
-        setDiagnosticWarnings(0);
-      } else {
-        const errCount = (data.errors || []).length;
-        const warnCount = (data.warnings || []).length;
-        setDiagnosticErrors(errCount);
-        setDiagnosticWarnings(warnCount);
-        if (errCount > 0) setDiagnosticStatus("error");
-        else if (warnCount > 0) setDiagnosticStatus("warning");
-        else setDiagnosticStatus("ok");
-
-        // Update Monaco markers
-        if (editorMonacoRef.current) {
-          const monaco = window.monaco || editorMonacoRef.current._monaco;
-          if (monaco) {
-            const model = editorMonacoRef.current.getModel();
-            if (model) {
-              const markers = [];
-              (data.errors || []).forEach((e) => {
-                markers.push({
-                  severity: monaco.MarkerSeverity.Error,
-                  message: e.message,
-                  startLineNumber: e.line,
-                  startColumn: e.column,
-                  endLineNumber: e.line,
-                  endColumn: e.column + 1,
-                });
-              });
-              (data.warnings || []).forEach((w) => {
-                markers.push({
-                  severity: monaco.MarkerSeverity.Warning,
-                  message: w.message,
-                  startLineNumber: w.line,
-                  startColumn: w.column,
-                  endLineNumber: w.line,
-                  endColumn: w.column + 1,
-                });
-              });
-              monaco.editor.setModelMarkers(model, "diagnostics", markers);
-            }
-          }
-        }
-      }
-    } catch {
-      setDiagnosticStatus("idle");
-    }
-  }, []);
 
   // ── Interactive Terminal ──
   const launchInteractiveTerminal = useCallback(() => {
