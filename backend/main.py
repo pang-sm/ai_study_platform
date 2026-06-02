@@ -11132,10 +11132,19 @@ def generate_questions(req: schemas.GenerateQuestionRequest, db: Session = Depen
     total_ai_text = ""
 
     try:
-        for attempt_index in range(2):
-            prompt = user_prompt if attempt_index == 0 else (
-                user_prompt + f"\n\n上一轮合格题不足，请补生成 {count} 道更具体、更有推理步骤的题，避免重复。"
+        valid_count = 0
+        for attempt_index in range(3):
+            remaining = max(count - valid_count, 1)
+            candidate_count = min(10, max(remaining * 2, remaining))
+            prompt = (
+                user_prompt
+                + f"\n\n本轮必须生成 exactly {candidate_count} 道候选题。"
+                + f"\nquestions 数组长度必须等于 {candidate_count}。"
+                + "\n每道题必须包含 stem/content、type、difficulty、options、answer、analysis、knowledge_point、source=ai_generated。"
+                + "\n如果上一轮已经生成过题目，本轮必须避免重复题干和重复标题。"
             )
+            if attempt_index > 0:
+                prompt += f"\n\n上一轮合格题不足，还需要至少 {remaining} 道有效题，请补生成更具体、更有推理步骤的题。"
             ai_response = call_deepseek(
                 [
                     {"role": "system", "content": GENERATE_QUESTION_PROMPT},
@@ -11162,6 +11171,12 @@ def generate_questions(req: schemas.GenerateQuestionRequest, db: Session = Depen
             seen_titles = set()
             for idx, item in enumerate(all_candidates):
                 normalized = normalize_generated_question_item(item, qtype, difficulty, source_style)
+                if not (normalized.get("answer") or "").strip() or not (normalized.get("explanation") or "").strip():
+                    logger.info(
+                        "[practice-generate] invalid question #%d reason: missing answer or analysis (title=%s)",
+                        idx + 1, normalized.get("title", "")[:40],
+                    )
+                    continue
                 ok, reason = validate_generated_question(normalized, qtype, difficulty)
                 if ok and normalized["title"] not in seen_titles:
                     valid_count += 1
@@ -11270,8 +11285,19 @@ def generate_questions(req: schemas.GenerateQuestionRequest, db: Session = Depen
     for q in created:
         db.refresh(q)
 
+    filtered_count = max(len(questions_data) - len(created), 0)
+    warnings = []
+    if len(created) < count:
+        warnings.append(
+            f"本次请求生成 {count} 道题，实际通过质量校验 {len(created)} 道。其余候选题已过滤，可重新生成补充。"
+        )
+
     return {
         "success": True,
+        "requested_count": count,
+        "created_count": len(created),
+        "filtered_count": filtered_count,
+        "warnings": warnings,
         "questions": [serialize_question(q) for q in created],
         "message": f"已生成 {len(created)} 道题目",
     }

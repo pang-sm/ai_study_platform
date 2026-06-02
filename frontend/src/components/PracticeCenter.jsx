@@ -48,12 +48,90 @@ const isAiGeneratedQuestion = (question) => {
   return source === "ai_generated" || source === "ai";
 };
 
+const normalizeGenerateCount = (value) => {
+  const n = Number(value);
+  if (Number.isNaN(n)) return 1;
+  return Math.min(10, Math.max(1, Math.floor(n)));
+};
+
+const BATCH_OBJECTIVE_TYPES = new Set([
+  "choice",
+  "single_choice",
+  "multiple_choice",
+  "true_false",
+  "fill_blank",
+  "select",
+  "judge",
+]);
+
+const isBatchObjectiveQuestion = (question) => BATCH_OBJECTIVE_TYPES.has(question?.type);
+
 const normalizePracticeAnswer = (value = "") => (
   String(value || "")
     .trim()
     .replace(/^[(（]?\s*([A-Za-z])\s*[)）.、]?.*$/, "$1")
     .toUpperCase()
 );
+
+const parseAnswerList = (answer) => {
+  if (Array.isArray(answer)) return answer.map((item) => normalizePracticeAnswer(item)).filter(Boolean);
+  const text = String(answer || "").trim();
+  if (!text) return [];
+  try {
+    const parsed = JSON.parse(text);
+    if (Array.isArray(parsed)) return parsed.map((item) => normalizePracticeAnswer(item)).filter(Boolean);
+  } catch {
+    // Plain text answer, continue with delimiter parsing.
+  }
+  if (/^[A-Za-z]{2,}$/.test(text)) return text.toUpperCase().split("");
+  return text
+    .split(/[,，、;；\s]+/)
+    .map((item) => normalizePracticeAnswer(item))
+    .filter(Boolean);
+};
+
+const normalizeTextAnswer = (answer = "") => (
+  String(answer || "")
+    .trim()
+    .replace(/[，。；：！？]/g, (mark) => ({ "，": ",", "。": ".", "；": ";", "：": ":", "！": "!", "？": "?" }[mark] || mark))
+    .replace(/\s+/g, " ")
+    .toLowerCase()
+);
+
+const normalizeTrueFalseAnswer = (answer = "") => {
+  const value = normalizeTextAnswer(answer);
+  if (["true", "t", "1", "正确", "对", "是", "yes", "y", "a"].includes(value)) return "true";
+  if (["false", "f", "0", "错误", "错", "否", "no", "n", "b"].includes(value)) return "false";
+  return value;
+};
+
+const getQuestionAnalysis = (question) => question?.explanation || question?.analysis || "";
+
+const gradeObjectiveQuestion = (question, userAnswer) => {
+  if (!question || !isBatchObjectiveQuestion(question)) return false;
+  const type = question.type;
+  const correctAnswer = question.answer;
+  if (type === "multiple_choice" || type === "select") {
+    const expected = parseAnswerList(correctAnswer).sort().join("|");
+    const actual = parseAnswerList(userAnswer).sort().join("|");
+    return Boolean(expected) && actual === expected;
+  }
+  if (type === "true_false" || type === "judge") {
+    return normalizeTrueFalseAnswer(userAnswer) === normalizeTrueFalseAnswer(correctAnswer);
+  }
+  if (type === "fill_blank") {
+    const actual = normalizeTextAnswer(userAnswer);
+    if (!actual) return false;
+    try {
+      const parsed = JSON.parse(String(correctAnswer || ""));
+      if (Array.isArray(parsed)) return parsed.some((item) => normalizeTextAnswer(item) === actual);
+    } catch {
+      // Plain text answer, compare directly.
+    }
+    return normalizeTextAnswer(correctAnswer) === actual;
+  }
+  return normalizePracticeAnswer(userAnswer) === normalizePracticeAnswer(correctAnswer);
+};
 
 const INTERNAL_REASONING_KEYWORDS = [
   "我认为",
@@ -335,6 +413,14 @@ export default function PracticeCenter({
   const [courseFilter, setCourseFilter] = useState(subject || "");
   const [kpFilter, setKpFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
+  const [selectedQuestionIds, setSelectedQuestionIds] = useState(() => new Set());
+  const [batchPracticeMode, setBatchPracticeMode] = useState(false);
+  const [batchQuestions, setBatchQuestions] = useState([]);
+  const [batchCurrentIndex, setBatchCurrentIndex] = useState(0);
+  const [batchAnswers, setBatchAnswers] = useState({});
+  const [batchResult, setBatchResult] = useState(null);
+  const [batchNotice, setBatchNotice] = useState("");
+  const [batchLoading, setBatchLoading] = useState(false);
 
   // Detail modal
   const [detailQuestion, setDetailQuestion] = useState(null);
@@ -380,7 +466,7 @@ export default function PracticeCenter({
   const [genKpId, setGenKpId] = useState("");
   const [genType, setGenType] = useState("choice");
   const [genDifficulty, setGenDifficulty] = useState("medium");
-  const [genCount, setGenCount] = useState(5);
+  const [genCount, setGenCount] = useState(3);
   const [genSourceStyle, setGenSourceStyle] = useState("mixed");
   const [genRequireReasoning, setGenRequireReasoning] = useState(true);
   const [genAvoidTooSimple, setGenAvoidTooSimple] = useState(true);
@@ -594,6 +680,146 @@ export default function PracticeCenter({
     }
   };
 
+  const toggleBatchQuestion = (question) => {
+    if (!isBatchObjectiveQuestion(question)) {
+      setBatchNotice("简答题暂不支持自动评分组合练习，请选择客观题。");
+      return;
+    }
+    setBatchNotice("");
+    setSelectedQuestionIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(question.id)) {
+        next.delete(question.id);
+      } else if (next.size >= 50) {
+        setBatchNotice("V1 最多一次选择 50 道题进行组合练习。");
+      } else {
+        next.add(question.id);
+      }
+      return next;
+    });
+  };
+
+  const selectAllCurrentObjectiveQuestions = () => {
+    const objectiveIds = questions.filter(isBatchObjectiveQuestion).slice(0, 50).map((q) => q.id);
+    if (objectiveIds.length === 0) {
+      setBatchNotice("当前筛选下没有可自动评分的客观题。");
+      return;
+    }
+    setSelectedQuestionIds(new Set(objectiveIds));
+    setBatchNotice(objectiveIds.length < questions.filter(isBatchObjectiveQuestion).length
+      ? "已选择前 50 道客观题。"
+      : "");
+  };
+
+  const clearBatchSelection = () => {
+    setSelectedQuestionIds(new Set());
+    setBatchNotice("");
+  };
+
+  const fetchQuestionDetail = async (questionId) => {
+    const res = await fetch(
+      `${API_BASE}/practice/questions/${questionId}?username=${encodeURIComponent(user.username)}`
+    );
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "加载题目失败");
+    return data.question;
+  };
+
+  const startBatchPractice = async () => {
+    if (selectedQuestionIds.size < 2) {
+      setBatchNotice("请至少选择 2 道题进行组合练习。");
+      return;
+    }
+    setBatchLoading(true);
+    setBatchNotice("");
+    try {
+      const selectedIds = Array.from(selectedQuestionIds).slice(0, 50);
+      const details = await Promise.all(selectedIds.map(fetchQuestionDetail));
+      const objectiveDetails = details.filter(isBatchObjectiveQuestion);
+      if (objectiveDetails.length < 2) {
+        setBatchNotice("请至少选择 2 道客观题进行组合练习。");
+        return;
+      }
+      setBatchQuestions(objectiveDetails);
+      setBatchCurrentIndex(0);
+      setBatchAnswers({});
+      setBatchResult(null);
+      setBatchPracticeMode(true);
+    } catch (e) {
+      console.error("Failed to start batch practice:", e);
+      setBatchNotice(e.message || "组合练习启动失败，请稍后重试。");
+    } finally {
+      setBatchLoading(false);
+    }
+  };
+
+  const updateBatchAnswer = (questionId, value) => {
+    setBatchAnswers((prev) => ({ ...prev, [questionId]: value }));
+  };
+
+  const toggleBatchMultiAnswer = (questionId, label) => {
+    setBatchAnswers((prev) => {
+      const current = Array.isArray(prev[questionId]) ? prev[questionId] : parseAnswerList(prev[questionId]);
+      const next = current.includes(label)
+        ? current.filter((item) => item !== label)
+        : [...current, label];
+      return { ...prev, [questionId]: next };
+    });
+  };
+
+  const submitBatchPractice = async () => {
+    if (batchQuestions.length === 0) return;
+    const perQuestion = 100 / batchQuestions.length;
+    const details = batchQuestions.map((question) => {
+      const rawAnswer = batchAnswers[question.id] ?? "";
+      const userAnswerValue = Array.isArray(rawAnswer) ? rawAnswer.sort().join(",") : String(rawAnswer || "").trim();
+      const isCorrect = gradeObjectiveQuestion(question, userAnswerValue);
+      return {
+        question,
+        user_answer: userAnswerValue,
+        correct_answer: question.answer || "",
+        is_correct: isCorrect,
+        score: Number((isCorrect ? perQuestion : 0).toFixed(2)),
+      };
+    });
+    const correctCount = details.filter((item) => item.is_correct).length;
+    const score = Number(details.reduce((sum, item) => sum + item.score, 0).toFixed(2));
+    setBatchResult({
+      score,
+      correct_count: correctCount,
+      incorrect_count: details.length - correctCount,
+      accuracy: Number(((correctCount / details.length) * 100).toFixed(1)),
+      per_question_score: Number(perQuestion.toFixed(2)),
+      details,
+    });
+
+    try {
+      await Promise.all(details.map((item) => fetch(
+        `${API_BASE}/practice/questions/${item.question.id}/attempts`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: user.username,
+            question_id: item.question.id,
+            user_answer: item.user_answer,
+          }),
+        }
+      )));
+      await loadQuestions();
+    } catch (e) {
+      console.error("Failed to save batch attempts:", e);
+    }
+  };
+
+  const exitBatchPractice = () => {
+    setBatchPracticeMode(false);
+    setBatchQuestions([]);
+    setBatchCurrentIndex(0);
+    setBatchAnswers({});
+    setBatchResult(null);
+  };
+
   const submitAnswer = async () => {
     if (!userAnswer.trim()) return;
     setDetailActionLoading(true);
@@ -719,6 +945,8 @@ export default function PracticeCenter({
     setGenLoading(true);
     setGenError("");
     try {
+      const normalizedCount = normalizeGenerateCount(genCount);
+      setGenCount(normalizedCount);
       const selectedKpId = genKpId || genModuleId;
       const selectedKp = selectedKpId
         ? knowledgePoints.find((kp) => String(kp.id) === String(selectedKpId))
@@ -731,7 +959,7 @@ export default function PracticeCenter({
         knowledge_point_title: selectedKp?.title || "",
         type: genType,
         difficulty: genDifficulty,
-        count: genCount,
+        count: normalizedCount,
         source_style: genSourceStyle,
         require_reasoning: genRequireReasoning,
         avoid_too_simple: genAvoidTooSimple,
@@ -1004,7 +1232,7 @@ export default function PracticeCenter({
     setGenKpId("");
     setGenType(typeFilter || "choice");
     setGenDifficulty("medium");
-    setGenCount(5);
+    setGenCount(3);
     setGenSourceStyle("mixed");
     setGenRequireReasoning(true);
     setGenAvoidTooSimple(true);
@@ -1232,6 +1460,148 @@ export default function PracticeCenter({
 
   return (
     <section className="chat-panel chat-panel--wide practice-panel">
+      {batchPracticeMode && (
+        <div className="batch-practice-panel">
+          <div className="batch-practice-header">
+            <div>
+              <span className="subject-pill small practice-source-pill">组合练习</span>
+              <h3>客观题组合练习</h3>
+            </div>
+            <button className="ghost-button compact" type="button" onClick={exitBatchPractice}>
+              退出组合练习
+            </button>
+          </div>
+
+          {!batchResult && batchQuestions.length > 0 && (() => {
+            const currentQuestion = batchQuestions[batchCurrentIndex];
+            const currentOptions = parseOptionItems(currentQuestion.options || "");
+            const currentAnswer = batchAnswers[currentQuestion.id] ?? "";
+            const isMultiple = currentQuestion.type === "multiple_choice" || currentQuestion.type === "select";
+            const isTextInput = currentQuestion.type === "fill_blank";
+            const isTrueFalse = currentQuestion.type === "true_false" || currentQuestion.type === "judge";
+
+            return (
+              <>
+                <div className="batch-question-nav">
+                  {batchQuestions.map((question, index) => (
+                    <button
+                      key={question.id}
+                      type="button"
+                      className={`batch-question-nav-item${index === batchCurrentIndex ? " active" : ""}${batchAnswers[question.id] ? " answered" : ""}`}
+                      onClick={() => setBatchCurrentIndex(index)}
+                    >
+                      {index + 1}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="batch-question-card">
+                  <div className="batch-question-head">
+                    <span>第 {batchCurrentIndex + 1} / {batchQuestions.length} 题</span>
+                    <span className={`q-type-badge ${getTypeClass(currentQuestion.type)}`}>
+                      {TYPE_LABELS[currentQuestion.type] || currentQuestion.type}
+                    </span>
+                  </div>
+                  <h4>{currentQuestion.title}</h4>
+                  <div className="question-content-text">{currentQuestion.content}</div>
+
+                  {isTextInput ? (
+                    <input
+                      className="field batch-answer-input"
+                      value={String(currentAnswer || "")}
+                      onChange={(e) => updateBatchAnswer(currentQuestion.id, e.target.value)}
+                      placeholder="请输入答案"
+                    />
+                  ) : (
+                    <div className="question-options batch-options">
+                      {(isTrueFalse && currentOptions.length === 0
+                        ? [{ label: "A", content: "正确" }, { label: "B", content: "错误" }]
+                        : currentOptions
+                      ).map((option) => {
+                        const label = option.label;
+                        const checked = isMultiple
+                          ? parseAnswerList(currentAnswer).includes(label)
+                          : normalizePracticeAnswer(currentAnswer) === label;
+                        return (
+                          <label key={label} className="question-option-label">
+                            <input
+                              type={isMultiple ? "checkbox" : "radio"}
+                              name={`batch-answer-${currentQuestion.id}`}
+                              value={label}
+                              checked={checked}
+                              onChange={() => {
+                                if (isMultiple) {
+                                  toggleBatchMultiAnswer(currentQuestion.id, label);
+                                } else {
+                                  updateBatchAnswer(currentQuestion.id, label);
+                                }
+                              }}
+                            />
+                            <span>{label}. {option.content}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div className="batch-practice-actions">
+                  <button
+                    className="ghost-button compact"
+                    type="button"
+                    disabled={batchCurrentIndex === 0}
+                    onClick={() => setBatchCurrentIndex((index) => Math.max(index - 1, 0))}
+                  >
+                    上一题
+                  </button>
+                  {batchCurrentIndex < batchQuestions.length - 1 ? (
+                    <button
+                      className="primary-button compact"
+                      type="button"
+                      onClick={() => setBatchCurrentIndex((index) => Math.min(index + 1, batchQuestions.length - 1))}
+                    >
+                      下一题
+                    </button>
+                  ) : (
+                    <button className="primary-button compact" type="button" onClick={submitBatchPractice}>
+                      提交组合练习
+                    </button>
+                  )}
+                </div>
+              </>
+            );
+          })()}
+
+          {batchResult && (
+            <div className="batch-result">
+              <div className="batch-score-card">
+                <strong>{batchResult.score} / 100</strong>
+                <span>总分</span>
+                <span>正确 {batchResult.correct_count} 题，错误 {batchResult.incorrect_count} 题，正确率 {batchResult.accuracy}%</span>
+              </div>
+              <div className="batch-result-list">
+                {batchResult.details.map((item, index) => (
+                  <div key={item.question.id} className={`batch-result-item ${item.is_correct ? "correct" : "incorrect"}`}>
+                    <div className="batch-result-item-head">
+                      <strong>{index + 1}. {item.question.title}</strong>
+                      <span>{item.is_correct ? "正确" : "错误"} · {item.score} 分</span>
+                    </div>
+                    <div className="batch-result-row"><span>你的答案：</span><strong>{item.user_answer || "未作答"}</strong></div>
+                    <div className="batch-result-row"><span>参考答案：</span><strong>{item.correct_answer || "未提供"}</strong></div>
+                    {getQuestionAnalysis(item.question) && (
+                      <div className="batch-result-analysis">
+                        <strong>解析：</strong>
+                        <QuestionAnalysisBlock analysis={getQuestionAnalysis(item.question)} />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="practice-workbench">
         <div className="practice-hero">
           <div className="practice-hero-copy">
@@ -1454,9 +1824,35 @@ export default function PracticeCenter({
                   <h3>练习题列表</h3>
                   <span>共 {totalCount} 条</span>
                 </div>
+                <div className="batch-select-toolbar">
+                  <span className="batch-selected-count">已选 {selectedQuestionIds.size} 道客观题</span>
+                  <button type="button" className="ghost-button compact" onClick={selectAllCurrentObjectiveQuestions}>
+                    全选当前筛选
+                  </button>
+                  <button type="button" className="ghost-button compact" onClick={clearBatchSelection}>
+                    清空选择
+                  </button>
+                  <button
+                    type="button"
+                    className="primary-button compact"
+                    disabled={selectedQuestionIds.size < 2 || batchLoading}
+                    onClick={startBatchPractice}
+                  >
+                    {batchLoading ? "加载中..." : "开始组合练习"}
+                  </button>
+                  {batchNotice && <span className="batch-select-notice">{batchNotice}</span>}
+                </div>
                 <div className="question-list">
                   {questions.map((q) => (
                     <div key={q.id} className="question-card">
+                      <label className="batch-question-check" title={isBatchObjectiveQuestion(q) ? "加入组合练习" : "简答题暂不支持自动评分组合练习"}>
+                        <input
+                          type="checkbox"
+                          checked={selectedQuestionIds.has(q.id)}
+                          disabled={!isBatchObjectiveQuestion(q)}
+                          onChange={() => toggleBatchQuestion(q)}
+                        />
+                      </label>
                       <div className="question-card-main">
                         <h4 className="question-card-title">{q.title}</h4>
                         <div className="question-card-meta">
@@ -2356,15 +2752,16 @@ export default function PracticeCenter({
               </select>
 
               <label className="field-label">生成数量</label>
-              <select
+              <input
+                type="number"
                 className="field"
+                min="1"
+                max="10"
+                step="1"
                 value={genCount}
-                onChange={(e) => setGenCount(Number(e.target.value))}
-              >
-                <option value={3}>3 道</option>
-                <option value={5}>5 道</option>
-                <option value={10}>10 道</option>
-              </select>
+                onChange={(e) => setGenCount(normalizeGenerateCount(e.target.value))}
+                onBlur={(e) => setGenCount(normalizeGenerateCount(e.target.value))}
+              />
 
               <div className="practice-generate-note">
                 AI 会参考经典计算机学习题型风格生成原创题，不会直接复制网站原题。
