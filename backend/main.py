@@ -5473,6 +5473,32 @@ def _parse_gcc_diagnostics(output: str) -> list[dict]:
     return items
 
 
+def _fallback_c_diagnostics(code: str) -> list[dict]:
+    """Small local fallback for common C syntax mistakes when gcc is unavailable."""
+    items = []
+    control_prefixes = ("if", "for", "while", "switch")
+    for idx, raw_line in enumerate(code.splitlines(), start=1):
+        stripped = raw_line.strip()
+        if not stripped or stripped.startswith("#") or stripped.startswith("//"):
+            continue
+        if stripped.endswith((";", "{", "}", ":", ",")):
+            continue
+        if any(stripped.startswith(f"{prefix} ") or stripped.startswith(f"{prefix}(") for prefix in control_prefixes):
+            continue
+        if stripped.startswith(("else", "do")):
+            continue
+        if "(" in stripped and ")" in stripped:
+            items.append({
+                "line": idx,
+                "column": len(raw_line.rstrip()) + 1,
+                "message": "expected ';' at end of statement (local fallback: gcc/docker unavailable)",
+                "severity": "error",
+                "source": "c-fallback",
+            })
+            break
+    return items
+
+
 def _parse_python_diagnostics(output: str) -> list[dict]:
     """Parse python -m py_compile stderr into structured diagnostics."""
     items = []
@@ -5543,6 +5569,19 @@ def diagnose_code(req: schemas.CodeDiagnoseRequest):
                 }]
             status = "error" if errors else ("warning" if warnings else "ok")
             return {"language": "c", "status": status, "errors": errors, "warnings": warnings, "raw_output": raw}
+        except FileNotFoundError as e:
+            fallback_errors = _fallback_c_diagnostics(code)
+            if fallback_errors:
+                return {
+                    "language": "c",
+                    "status": "error",
+                    "errors": fallback_errors,
+                    "warnings": [],
+                    "raw_output": str(e),
+                }
+            return {"language": "c", "status": "error", "errors": [
+                {"line": 1, "column": 1, "message": "C diagnostic runtime unavailable: docker/gcc command not found", "severity": "error", "source": "system"}
+            ], "warnings": [], "raw_output": str(e)}
         except (_sp.TimeoutExpired, Exception) as e:
             return {"language": "c", "status": "error", "errors": [
                 {"line": 1, "column": 1, "message": f"诊断服务异常：{str(e)[:200]}", "severity": "error", "source": "system"}
