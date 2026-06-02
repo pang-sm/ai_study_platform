@@ -338,10 +338,12 @@ export default function CodeStudio({
   const [generatingTests, setGeneratingTests] = useState(false);
 
   // Reference solution & starter code
-  const [showReference, setShowReference] = useState(false);
+  const [isReferenceModalOpen, setIsReferenceModalOpen] = useState(false);
   const [starterConfirmOpen, setStarterConfirmOpen] = useState(false);
+  const [pendingApplyCode, setPendingApplyCode] = useState(null); // tracks which code to apply on confirm
   const [problemTab, setProblemTab] = useState("description");
   const [editorCursor, setEditorCursor] = useState({ line: 1, column: 1 });
+  const [copyRefFeedback, setCopyRefFeedback] = useState(false);
 
   // Delete confirm
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -371,6 +373,19 @@ export default function CodeStudio({
     }, 300);
     return () => clearTimeout(t);
   }, [layout]);
+
+  // ESC key to close modals
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.key === "Escape") {
+        if (isReferenceModalOpen) setIsReferenceModalOpen(false);
+      }
+    };
+    if (isReferenceModalOpen) {
+      window.addEventListener("keydown", handler);
+      return () => window.removeEventListener("keydown", handler);
+    }
+  }, [isReferenceModalOpen]);
 
   // drag-resize listeners
   useEffect(() => {
@@ -1194,31 +1209,55 @@ export default function CodeStudio({
     }
   };
 
+  const copyToClipboard = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyRefFeedback(true);
+      setTimeout(() => setCopyRefFeedback(false), 2000);
+    } catch {
+      // fallback for older browsers
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand("copy"); setCopyRefFeedback(true); setTimeout(() => setCopyRefFeedback(false), 2000); } catch {}
+      document.body.removeChild(ta);
+    }
+  };
+
   const useStarterCode = () => {
-    if (!currentChallenge?.starter_code) {
+    const targetCode = currentChallenge?.starter_code;
+    if (!targetCode) {
       setTip("该题目没有起始代码");
       setTimeout(() => setTip(""), 2000);
       return;
     }
+    // If editor is empty or contains only default templates, apply directly
+    const trimmed = (code || "").trim();
     const isDefault =
-      !code ||
-      Object.values(CODE_TEMPLATES).includes(code);
+      !trimmed ||
+      Object.values(CODE_TEMPLATES).map((t) => t.trim()).includes(trimmed) ||
+      trimmed === targetCode.trim();
     if (!isDefault) {
+      setPendingApplyCode(targetCode);
       setStarterConfirmOpen(true);
       return;
     }
-    setCode(currentChallenge.starter_code);
+    setCode(targetCode);
     setTip("已应用起始代码");
     setTimeout(() => setTip(""), 2000);
   };
 
   const confirmStarterCode = () => {
-    if (currentChallenge?.starter_code) {
-      setCode(currentChallenge.starter_code);
+    const targetCode = pendingApplyCode || currentChallenge?.starter_code;
+    if (targetCode) {
+      setCode(targetCode);
       setTip("已应用起始代码");
       setTimeout(() => setTip(""), 2000);
     }
     setStarterConfirmOpen(false);
+    setPendingApplyCode(null);
   };
 
   const fetchDiagnosis = async () => {
@@ -1844,22 +1883,12 @@ export default function CodeStudio({
               )}
               <button
                 className="ghost-button compact"
-                onClick={() => setShowReference(!showReference)}
+                onClick={() => setIsReferenceModalOpen(true)}
+                disabled={!currentChallenge?.reference_solution}
               >
-                {showReference ? "隐藏参考解法" : "查看参考解法"}
+                查看参考解法
               </button>
             </div>
-
-            {showReference && (
-              <div className="code-reference-solution">
-                <div className="code-reference-solution-label">参考解法</div>
-                {currentChallenge.reference_solution ? (
-                  <pre className="code-challenge-card-examples">{currentChallenge.reference_solution}</pre>
-                ) : (
-                  <p className="empty-inline" style={{ padding: "8px 0" }}>暂无参考解法</p>
-                )}
-              </div>
-            )}
 
             {/* No test cases notice */}
             {(() => {
@@ -2610,25 +2639,109 @@ export default function CodeStudio({
         </div>
       )}
 
-      {/* Starter Code Confirm Modal */}
-      {starterConfirmOpen && (
-        <div className="modal-overlay" onClick={() => setStarterConfirmOpen(false)}>
-          <div className="modal-card code-delete-modal" onClick={(e) => e.stopPropagation()}>
+      {/* ── Reference Solution Modal ── */}
+      {isReferenceModalOpen && currentChallenge?.reference_solution && (
+        <div
+          className="modal-overlay"
+          onClick={() => setIsReferenceModalOpen(false)}
+        >
+          <div
+            className="modal-card code-reference-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="modal-header">
-              <h3>应用起始代码</h3>
+              <div className="code-ref-modal-title-row">
+                <h3>参考解法</h3>
+                <span className="subject-pill small code-ref-lang-pill">
+                  {language}
+                </span>
+              </div>
+              <button className="modal-close" onClick={() => setIsReferenceModalOpen(false)}>
+                &times;
+              </button>
+            </div>
+            <div className="code-reference-modal-body">
+              <pre className="code-reference-modal-code">{currentChallenge.reference_solution}</pre>
+            </div>
+            <div className="modal-actions">
+              <button
+                className="ghost-button compact"
+                onClick={() => copyToClipboard(currentChallenge.reference_solution)}
+              >
+                {copyRefFeedback ? "已复制" : "复制代码"}
+              </button>
+              <button
+                className="ghost-button compact"
+                onClick={() => setIsReferenceModalOpen(false)}
+              >
+                关闭
+              </button>
+              {currentChallenge.starter_code && (
+                <button
+                  className="primary-button compact"
+                  onClick={() => {
+                    const refSol = currentChallenge.reference_solution;
+                    const trimmed = (code || "").trim();
+                    const isDefault =
+                      !trimmed ||
+                      Object.values(CODE_TEMPLATES).map((t) => t.trim()).includes(trimmed) ||
+                      trimmed === refSol.trim();
+                    if (!isDefault) {
+                      setPendingApplyCode(refSol);
+                      setIsReferenceModalOpen(false);
+                      setStarterConfirmOpen(true);
+                    } else {
+                      setCode(refSol);
+                      setTip("已应用参考解法");
+                      setTimeout(() => setTip(""), 2000);
+                      setIsReferenceModalOpen(false);
+                    }
+                  }}
+                >
+                  应用到编辑器
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Starter Code Confirm Modal ── */}
+      {starterConfirmOpen && (
+        <div className="modal-overlay" onClick={() => {}}>
+          <div
+            className="modal-card code-starter-confirm-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <div className="code-starter-confirm-title-row">
+                <span className="code-starter-warn-icon" aria-hidden="true">&#9888;</span>
+                <h3>确认覆盖当前代码？</h3>
+              </div>
               <button className="modal-close" onClick={() => setStarterConfirmOpen(false)}>
                 &times;
               </button>
             </div>
-            <p style={{ margin: "0 0 16px", color: "#334155", fontSize: "0.9rem" }}>
-              当前编辑器中有未保存的代码。应用起始代码将覆盖当前内容，是否继续？
-            </p>
-            <div className="modal-actions">
-              <button className="ghost-button" onClick={() => setStarterConfirmOpen(false)}>
-                取消
+            <div className="code-starter-confirm-body">
+              <p>
+                当前编辑器中已有代码修改。继续应用起始代码后，<strong>当前代码将被覆盖且无法撤销</strong>。
+              </p>
+              <p className="code-starter-confirm-hint">
+                建议先将当前代码复制保存，再执行覆盖操作。
+              </p>
+            </div>
+            <div className="modal-actions code-starter-confirm-actions">
+              <button
+                className="ghost-button"
+                onClick={() => setStarterConfirmOpen(false)}
+              >
+                继续编辑
               </button>
-              <button className="primary-button" onClick={confirmStarterCode}>
-                确认覆盖
+              <button
+                className="code-starter-confirm-btn"
+                onClick={confirmStarterCode}
+              >
+                确认覆盖并应用
               </button>
             </div>
           </div>
