@@ -4547,23 +4547,63 @@ select.field:focus {
   font-weight: 600;
 }
 
-/* ── Code Studio: Problem Mini (collapsed — vertical strip) ── */
+/* ── Code Studio: Problem Mini (collapsed — vertical strip with expand hint) ── */
 .code-problem-mini-v {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  gap: 10px;
-  padding-top: 12px;
+  gap: 8px;
+  padding-top: 14px;
   height: 100%;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  border-radius: 8px;
 }
+
+.code-problem-mini-v:hover {
+  background: #eff6ff;
+}
+
 .code-problem-mini-v-label {
   writing-mode: vertical-rl;
   text-orientation: mixed;
   font-size: 0.85rem;
-  font-weight: 600;
+  font-weight: 700;
   color: #0f766e;
-  letter-spacing: 0.3em;
+  letter-spacing: 0.4em;
+  user-select: none;
+}
+
+.code-problem-expand-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1.5px solid #0f766e;
+  border-radius: 6px;
+  background: #fff;
+  color: #0f766e;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.code-problem-expand-btn:hover {
+  background: #0f766e;
+  color: #fff;
+}
+
+.code-problem-mini-v-hint {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-size: 0.65rem;
+  font-weight: 500;
+  color: #94a3b8;
+  letter-spacing: 0.2em;
+  user-select: none;
 }
 
 /* ── Code Studio: Test Count in Problem Panel ── */
@@ -4857,12 +4897,21 @@ select.field:focus {
   .code-problem-mini-v {
     flex-direction: row;
     padding-top: 0;
+    padding-left: 12px;
     gap: 8px;
     width: 100%;
+    border-radius: 0;
   }
   .code-problem-mini-v-label {
     writing-mode: horizontal-tb;
     letter-spacing: 0;
+  }
+  .code-problem-mini-v-hint {
+    writing-mode: horizontal-tb;
+    letter-spacing: 0;
+  }
+  .code-problem-expand-btn {
+    transform: rotate(90deg);
   }
 
   .code-resize-handle--h {

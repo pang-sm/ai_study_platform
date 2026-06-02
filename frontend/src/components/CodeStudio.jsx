@@ -448,9 +448,10 @@ export default function CodeStudio({
   // focus mode
   const [focusMode, setFocusMode] = useState(false);
   const preFocusLayout = useRef(null);
-  const enterFocus = () => { preFocusLayout.current = { ...layoutRef.current }; setFocusMode(true); };
+  const enterFocus = () => { preFocusLayout.current = { ...layoutRef.current }; setProblemCollapsed(true); setFocusMode(true); };
   const exitFocus = () => {
     if (preFocusLayout.current) setLayout(preFocusLayout.current);
+    setProblemCollapsed(false);
     setFocusMode(false);
   };
 
@@ -1817,18 +1818,19 @@ export default function CodeStudio({
         {/* ── Horizontal split: Problem Panel (left) | Editor + Output (right) ── */}
         <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "row" }}>
           {/* ── Problem Panel ── */}
-          {currentChallenge && !focusMode && (
+          {currentChallenge && (
             <>
               <div
                 className={`code-challenge-card${problemCollapsed ? " code-challenge-card--collapsed" : ""}`}
                 style={{ width: problemCollapsed ? 48 : layout.problemWidth, minWidth: problemCollapsed ? 48 : 280, flexShrink: 0, overflow: "auto" }}
               >
             {problemCollapsed ? (
-              <div className="code-problem-mini-v">
+              <div className="code-problem-mini-v" onClick={() => setProblemCollapsed(false)} title="点击展开题目面板">
                 <span className="code-problem-mini-v-label">题 目</span>
-                <button className="code-collapse-btn" onClick={() => setProblemCollapsed(false)} title="展开题目">
-                  &rang;
+                <button className="code-problem-expand-btn" onClick={() => setProblemCollapsed(false)} title="展开题目面板">
+                  ▸
                 </button>
+                <span className="code-problem-mini-v-hint">展开</span>
               </div>
             ) : (
               <>
