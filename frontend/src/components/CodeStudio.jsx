@@ -963,18 +963,22 @@ export default function CodeStudio({
         fetch(`${API_BASE}/materials?username=${encodeURIComponent(user.username)}&subject=${encodeURIComponent(normalizedCourse)}`),
       ]);
       const [kpData, matData] = await Promise.all([safeJson(kpRes), safeJson(matRes)]);
+      const loadErrors = [];
       if (kpRes.ok) {
         setGenKnowledgePoints(kpData.knowledge_points || []);
       } else {
-        setGenDataError(kpData.detail || "知识点数据加载失败，请稍后重试。");
+        loadErrors.push(kpData.detail || "知识点数据加载失败，请稍后重试。");
       }
       if (matRes.ok) {
         setGenMaterials(matData.materials || []);
       } else {
-        if (!genDataError) setGenDataError(matData.detail || "课程资料加载失败，请稍后重试。");
+        loadErrors.push(matData.detail || "课程资料加载失败，请稍后重试。");
       }
-    } catch (err) {
-      console.error("Failed to load gen-modal data:", err);
+      if (loadErrors.length > 0) {
+        setGenDataError(loadErrors.join("；"));
+      }
+    } catch (error) {
+      console.error("Failed to load gen-modal data:", error);
       setGenDataError("当前课程知识点或资料加载失败。请检查网络后重试。");
     } finally {
       setGenDataLoading(false);
