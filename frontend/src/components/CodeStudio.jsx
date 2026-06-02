@@ -2663,12 +2663,13 @@ export default function CodeStudio({
             <div className="code-reference-modal-body">
               <pre className="code-reference-modal-code">{currentChallenge.reference_solution}</pre>
             </div>
-            <div className="modal-actions">
+            <div className="modal-actions code-ref-modal-actions">
               <button
-                className="ghost-button compact"
+                className={`ghost-button compact${copyRefFeedback ? " code-ref-copied-btn" : ""}`}
                 onClick={() => copyToClipboard(currentChallenge.reference_solution)}
+                disabled={copyRefFeedback}
               >
-                {copyRefFeedback ? "已复制" : "复制代码"}
+                {copyRefFeedback ? "✓ 已复制" : "复制代码"}
               </button>
               <button
                 className="ghost-button compact"
@@ -2676,31 +2677,29 @@ export default function CodeStudio({
               >
                 关闭
               </button>
-              {currentChallenge.starter_code && (
-                <button
-                  className="primary-button compact"
-                  onClick={() => {
-                    const refSol = currentChallenge.reference_solution;
-                    const trimmed = (code || "").trim();
-                    const isDefault =
-                      !trimmed ||
-                      Object.values(CODE_TEMPLATES).map((t) => t.trim()).includes(trimmed) ||
-                      trimmed === refSol.trim();
-                    if (!isDefault) {
-                      setPendingApplyCode(refSol);
-                      setIsReferenceModalOpen(false);
-                      setStarterConfirmOpen(true);
-                    } else {
-                      setCode(refSol);
-                      setTip("已应用参考解法");
-                      setTimeout(() => setTip(""), 2000);
-                      setIsReferenceModalOpen(false);
-                    }
-                  }}
-                >
-                  应用到编辑器
-                </button>
-              )}
+              <button
+                className="primary-button compact"
+                onClick={() => {
+                  const refSol = currentChallenge.reference_solution;
+                  const trimmed = (code || "").trim();
+                  const isDefault =
+                    !trimmed ||
+                    Object.values(CODE_TEMPLATES).map((t) => t.trim()).includes(trimmed) ||
+                    trimmed === refSol.trim();
+                  if (!isDefault) {
+                    setPendingApplyCode(refSol);
+                    setIsReferenceModalOpen(false);
+                    setStarterConfirmOpen(true);
+                  } else {
+                    setCode(refSol);
+                    setTip("已应用参考解法");
+                    setTimeout(() => setTip(""), 2000);
+                    setIsReferenceModalOpen(false);
+                  }
+                }}
+              >
+                应用到编辑器
+              </button>
             </div>
           </div>
         </div>
@@ -2724,10 +2723,10 @@ export default function CodeStudio({
             </div>
             <div className="code-starter-confirm-body">
               <p>
-                当前编辑器中已有代码修改。继续应用起始代码后，<strong>当前代码将被覆盖且无法撤销</strong>。
+                当前编辑器中已有代码修改。继续应用后，<strong>当前代码将被覆盖且无法撤销</strong>。
               </p>
               <p className="code-starter-confirm-hint">
-                建议先将当前代码复制保存，再执行覆盖操作。
+                建议先将当前代码复制保存（Ctrl+C），再执行覆盖操作。
               </p>
             </div>
             <div className="modal-actions code-starter-confirm-actions">

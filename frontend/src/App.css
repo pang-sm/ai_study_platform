@@ -5178,6 +5178,16 @@ select.field:focus {
   tab-size: 4;
 }
 
+.code-ref-modal-actions {
+  justify-content: flex-start;
+}
+
+.code-ref-copied-btn {
+  color: #059669 !important;
+  border-color: #d1fae5 !important;
+  background: #ecfdf5 !important;
+}
+
 /* ── Code Studio: Starter Code Confirm Modal ── */
 .code-starter-confirm-modal {
   width: 500px;
