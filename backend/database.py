@@ -282,6 +282,17 @@ LEARNING_REPORT_SHARES_COLUMNS = {
     "last_viewed_at": "DATETIME",
 }
 
+CODE_AI_SAVED_CHATS_COLUMNS = {
+    "username": "VARCHAR(50) NOT NULL",
+    "challenge_id": "INTEGER NOT NULL",
+    "session_id": "INTEGER",
+    "language": "VARCHAR(20)",
+    "user_message": "TEXT NOT NULL",
+    "assistant_message": "TEXT NOT NULL",
+    "code_snapshot": "TEXT",
+    "created_at": "DATETIME NOT NULL",
+}
+
 CODE_CHALLENGE_ATTEMPTS_COLUMNS = {
     "username": "VARCHAR(50) NOT NULL",
     "session_id": "INTEGER NOT NULL",
@@ -507,6 +518,27 @@ def ensure_code_challenges_schema(conn):
         )
     )
     ensure_columns(conn, "code_challenges", CODE_CHALLENGES_COLUMNS)
+
+
+def ensure_code_ai_saved_chats_schema(conn):
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS code_ai_saved_chats (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username VARCHAR(50) NOT NULL,
+                challenge_id INTEGER NOT NULL,
+                session_id INTEGER,
+                language VARCHAR(20),
+                user_message TEXT NOT NULL,
+                assistant_message TEXT NOT NULL,
+                code_snapshot TEXT,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+    )
+    ensure_columns(conn, "code_ai_saved_chats", CODE_AI_SAVED_CHATS_COLUMNS)
 
 
 def ensure_code_challenge_attempts_schema(conn):
@@ -1004,6 +1036,7 @@ def init_user_profile_schema():
         ensure_code_ai_messages_schema(conn)
         ensure_code_challenges_schema(conn)
         ensure_code_challenge_attempts_schema(conn)
+        ensure_code_ai_saved_chats_schema(conn)
         ensure_learning_tasks_schema(conn)
         ensure_practice_papers_schema(conn)
         ensure_questions_schema(conn)

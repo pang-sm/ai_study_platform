@@ -304,6 +304,19 @@ export default function CodeStudio({
   const [challengeGenerating, setChallengeGenerating] = useState(false);
   const [currentChallenge, setCurrentChallenge] = useState(null);
 
+  // ── Problem loading stability ──
+  const [problemLoading, setProblemLoading] = useState(false);
+  const [problemError, setProblemError] = useState("");
+  const challengeCacheRef = useRef(new Map()); // challenge_id -> challenge data
+
+  // ── AI Coach saved chats ──
+  const [savedChats, setSavedChats] = useState([]);
+  const [savedChatsLoading, setSavedChatsLoading] = useState(false);
+  const [savedChatsCollapsed, setSavedChatsCollapsed] = useState(false);
+  const [savingMsgIndex, setSavingMsgIndex] = useState(null);  // message index being saved
+  const [savedMsgIds, setSavedMsgIds] = useState(new Set());   // backend ids of saved records
+  const [deletingSavedId, setDeletingSavedId] = useState(null);
+
   // AI 出题 enhanced fields
   const [challengeCount, setChallengeCount] = useState(1);
   const [challengeGenError, setChallengeGenError] = useState("");
@@ -375,8 +388,8 @@ export default function CodeStudio({
 
   // ── Layout: resizable panes ──────────────────────────
   const LAYOUT_KEY = "codestudio.layout.v2";
-  const LAYOUT_DEFAULTS = { leftWidth: 260, rightWidth: 320, problemWidth: 380, outputHeight: 220 };
-  const LAYOUT_MIN = { leftWidth: 56, rightWidth: 56, problemWidth: 280, outputHeight: 80 };
+  const LAYOUT_DEFAULTS = { leftWidth: 260, rightWidth: 320, problemWidth: 420, outputHeight: 220 };
+  const LAYOUT_MIN = { leftWidth: 56, rightWidth: 56, problemWidth: 340, outputHeight: 80 };
   const [layout, setLayout] = useState(() => {
     try {
       const raw = localStorage.getItem(LAYOUT_KEY);
@@ -430,7 +443,7 @@ export default function CodeStudio({
         const next = { ...prev };
         if (type === "left") next.leftWidth = Math.min(360, Math.max(56, startLayout.leftWidth + (e.clientX - startX)));
         if (type === "right") next.rightWidth = Math.min(420, Math.max(56, startLayout.rightWidth - (e.clientX - startX)));
-        if (type === "problem") next.problemWidth = Math.min(520, Math.max(48, startLayout.problemWidth + (e.clientX - startX)));
+        if (type === "problem") next.problemWidth = Math.min(560, Math.max(340, startLayout.problemWidth + (e.clientX - startX)));
         if (type === "output") next.outputHeight = Math.min(window.innerHeight * 0.45, Math.max(48, startLayout.outputHeight - (e.clientY - startY)));
         return next;
       });
@@ -460,7 +473,7 @@ export default function CodeStudio({
   // focus mode
   const [focusMode, setFocusMode] = useState(false);
   const preFocusLayout = useRef(null);
-  const enterFocus = () => { preFocusLayout.current = { ...layoutRef.current }; setProblemCollapsed(true); setFocusMode(true); };
+  const enterFocus = () => { preFocusLayout.current = { ...layoutRef.current }; setProblemCollapsed(true); setFocusMode(true); setProblemError(""); };
   const exitFocus = () => {
     if (preFocusLayout.current) setLayout(preFocusLayout.current);
     setProblemCollapsed(false);
@@ -538,7 +551,6 @@ export default function CodeStudio({
     setCode(session.code);
     setAiMessages([]);
     setAiQuestion("");
-    setCurrentChallenge(null);  // reset; will be loaded below
     setShowFeedbackPanel(false);
     setFeedbackContent("");
     setFeedbackStatus(null);
@@ -551,14 +563,30 @@ export default function CodeStudio({
     setOutputPanelTab("feedback");
     setProblemCollapsed(false);
     setProblemTab("io");
+    setProblemError("");
+    setSavedChats([]);
+    setSavedMsgIds(new Set());
+
     if (session.id) {
       loadMessages(session.id);
       if (session.challenge_id) {
+        // stale-while-revalidate: show cached data first
+        const cached = challengeCacheRef.current.get(session.challenge_id);
+        if (cached) {
+          setCurrentChallenge(cached);
+          setProblemLoading(true);
+        } else {
+          setProblemLoading(true);
+          // Don't clear currentChallenge here — keep old until new loads
+        }
         loadChallenge(session.challenge_id);
+        loadSavedChats(session.challenge_id);
       } else {
-        // Try loading challenge from a separate challenge lookup if session has no challenge_id
-        // This handles edge cases where the session data is incomplete
-        console.debug("[selectSession] no challenge_id on session", session.id, session.title);
+        // Clear challenge when switching to a non-challenge session
+        setCurrentChallenge(null);
+        setProblemLoading(false);
+        setSavedChats([]);
+        setSavedMsgIds(new Set());
       }
     }
   };
@@ -580,6 +608,10 @@ export default function CodeStudio({
     setAiMessages([]);
     setAiQuestion("");
     setCurrentChallenge(null);
+    setProblemLoading(false);
+    setProblemError("");
+    setSavedChats([]);
+    setSavedMsgIds(new Set());
     setShowFeedbackPanel(false);
     setFeedbackContent("");
     setFeedbackStatus(null);
@@ -596,6 +628,8 @@ export default function CodeStudio({
 
   const loadChallenge = async (challengeId) => {
     if (!user?.username || !challengeId) return;
+    // Keep existing challenge data visible while loading
+    setProblemError("");
     try {
       const res = await fetch(
         `${API_BASE}/code/challenges/${challengeId}?username=${encodeURIComponent(user.username)}`
@@ -604,13 +638,24 @@ export default function CodeStudio({
       if (res.ok && data.challenge) {
         console.debug("[loadChallenge] loaded challenge", challengeId, data.challenge.title);
         setCurrentChallenge(data.challenge);
+        // Update cache
+        challengeCacheRef.current.set(challengeId, data.challenge);
         setShowReference(false);
         setProblemTab("io");
       } else {
         console.warn("[loadChallenge] failed to load challenge", challengeId, res.status, data);
+        // Keep existing content, show error
+        if (!challengeCacheRef.current.has(challengeId) && !currentChallenge) {
+          setProblemError("题目详情加载失败。你可以点击重新加载。");
+        }
       }
     } catch (error) {
       console.error("Failed to load challenge:", error);
+      if (!challengeCacheRef.current.has(challengeId) && !currentChallenge) {
+        setProblemError("题目详情加载失败，请检查网络后重试。");
+      }
+    } finally {
+      setProblemLoading(false);
     }
   };
 
@@ -669,6 +714,8 @@ export default function CodeStudio({
         const firstChallenge = data.challenges?.[0];
         if (firstChallenge) {
           setCurrentChallenge(firstChallenge);
+          challengeCacheRef.current.set(firstChallenge.id, firstChallenge);
+          loadSavedChats(firstChallenge.id);
         }
         setSelectedSession(firstSession);
         setTitle(firstSession.title);
@@ -676,6 +723,8 @@ export default function CodeStudio({
         setCode(firstSession.code || "");
         setProblemCollapsed(false);
         setProblemTab("io");
+        setProblemLoading(false);
+        setProblemError("");
         // Refresh sidebar list
         await loadSessions();
         const generatedCount = data.sessions.length;
@@ -1021,10 +1070,7 @@ export default function CodeStudio({
         setExplainingTestCase({});
         setOutputPanelTab("feedback");
         await loadSessions();
-        selectSession(data.session);
-        if (data.session.challenge_id) {
-          loadChallenge(data.session.challenge_id);
-        }
+        selectSession(data.session);  // selectSession handles loadChallenge + loadSavedChats
         setTip("已创建复做练习");
         setTimeout(() => setTip(""), 2000);
       } else {
@@ -1250,6 +1296,102 @@ export default function CodeStudio({
     }
   };
 
+  // ── AI Coach saved chats ──
+  const loadSavedChats = async (challengeId) => {
+    if (!user?.username || !challengeId) return;
+    setSavedChatsLoading(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/code/ai-coach/saved-chats?username=${encodeURIComponent(user.username)}&challenge_id=${challengeId}`
+      );
+      const data = await safeJson(res);
+      if (res.ok && data.items) {
+        setSavedChats(data.items);
+        setSavedMsgIds(new Set(data.items.map((item) => item.id)));
+      }
+    } catch (error) {
+      console.error("Failed to load saved chats:", error);
+    } finally {
+      setSavedChatsLoading(false);
+    }
+  };
+
+  const saveChat = async (msgIndex) => {
+    const msg = aiMessages[msgIndex];
+    if (!msg || msg.role !== "assistant" || !user?.username) return;
+    if (!currentChallenge?.id) {
+      setTip("当前题目未加载完成，暂不能保存记录");
+      setTimeout(() => setTip(""), 3000);
+      return;
+    }
+    setSavingMsgIndex(msgIndex);
+    try {
+      // Find the preceding user message
+      const userMsg = msgIndex > 0 && aiMessages[msgIndex - 1]?.role === "user"
+        ? aiMessages[msgIndex - 1].content : "";
+      const res = await fetch(`${API_BASE}/code/ai-coach/saved-chats`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: user.username,
+          challenge_id: currentChallenge.id,
+          session_id: selectedSession?.id || null,
+          language,
+          user_message: userMsg,
+          assistant_message: msg.content,
+          code_snapshot: code,
+        }),
+      });
+      const data = await safeJson(res);
+      if (res.ok && data.saved_chat) {
+        setSavedChats((prev) => [...prev, data.saved_chat]);
+        setSavedMsgIds((prev) => new Set([...prev, data.saved_chat.id]));
+        setTip("已保存");
+        setTimeout(() => setTip(""), 1500);
+      } else {
+        setTip(data.detail || "保存失败");
+        setTimeout(() => setTip(""), 3000);
+      }
+    } catch (error) {
+      console.error("Failed to save chat:", error);
+      setTip("保存失败，请稍后重试");
+      setTimeout(() => setTip(""), 3000);
+    } finally {
+      setSavingMsgIndex(null);
+    }
+  };
+
+  const deleteSavedChat = async (savedId) => {
+    if (!user?.username || !savedId) return;
+    setDeletingSavedId(savedId);
+    try {
+      const res = await fetch(
+        `${API_BASE}/code/ai-coach/saved-chats/${savedId}?username=${encodeURIComponent(user.username)}`,
+        { method: "DELETE" }
+      );
+      const data = await safeJson(res);
+      if (res.ok) {
+        setSavedChats((prev) => prev.filter((sc) => sc.id !== savedId));
+        setSavedMsgIds((prev) => {
+          const next = new Set(prev);
+          next.delete(savedId);
+          return next;
+        });
+        setTip("已取消保存");
+        setTimeout(() => setTip(""), 1500);
+      } else {
+        setTip(data.detail || "删除失败");
+        setTimeout(() => setTip(""), 3000);
+      }
+    } catch (error) {
+      console.error("Failed to delete saved chat:", error);
+      setTip("删除失败，请稍后重试");
+      setTimeout(() => setTip(""), 3000);
+    } finally {
+      setDeletingSavedId(null);
+    }
+  };
+
   const deleteSession = async (sessionId) => {
     if (!user?.username || !sessionId) return;
     setDeleting(true);
@@ -1267,6 +1409,10 @@ export default function CodeStudio({
           setCode(CODE_TEMPLATES["Python"]);
           setAiMessages([]);
           setCurrentChallenge(null);
+          setProblemLoading(false);
+          setProblemError("");
+          setSavedChats([]);
+          setSavedMsgIds(new Set());
           setShowFeedbackPanel(false);
           setFeedbackContent("");
           setFeedbackStatus(null);
@@ -1395,10 +1541,14 @@ export default function CodeStudio({
       if (res.ok && data.session) {
         setDiagnosisReport(null);
         await loadSessions();
-        selectSession(data.session);
         if (data.challenge) {
           setCurrentChallenge(data.challenge);
+          challengeCacheRef.current.set(data.challenge.id, data.challenge);
+          loadSavedChats(data.challenge.id);
+          setProblemLoading(false);
+          setProblemError("");
         }
+        selectSession(data.session);
         setTip("已生成针对性练习");
         setTimeout(() => setTip(""), 2000);
       } else if (res.status === 429) {
@@ -1753,9 +1903,9 @@ export default function CodeStudio({
             <button
               className={`code-focus-btn ${problemCollapsed ? "code-focus-btn--warn" : ""}`}
               onClick={() => setProblemCollapsed((v) => !v)}
-              title={problemCollapsed ? "展开题目面板" : "隐藏题目面板"}
+              title={problemCollapsed ? "查看题目" : "隐藏题目"}
             >
-              {problemCollapsed ? "展开题目" : "隐藏题目"}
+              {problemCollapsed ? "查看题目" : "隐藏题目"}
             </button>
             <button
               className={`code-focus-btn ${focusMode ? "code-focus-btn--active" : ""}`}
@@ -1839,7 +1989,7 @@ export default function CodeStudio({
         {/* ── Horizontal split: Problem Panel (left) | Editor + Output (right) ── */}
         <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "row" }}>
           {/* ── Problem Panel ── */}
-          {currentChallenge && !problemCollapsed && (
+          {!problemCollapsed && currentChallenge && (
             <>
               <div
                 className="code-challenge-card"
@@ -1864,6 +2014,11 @@ export default function CodeStudio({
               )}
             </div>
             <h4 className="code-challenge-card-title">{currentChallenge.title}</h4>
+            {problemLoading && (
+              <div style={{ fontSize: "0.72rem", color: "#94a3b8", marginBottom: 4 }}>
+                (后台同步最新题目数据...)
+              </div>
+            )}
             {(() => {
               try {
                 const tc = JSON.parse(typeof currentChallenge.test_cases === "string" ? currentChallenge.test_cases : JSON.stringify(currentChallenge.test_cases || "[]"));
@@ -1973,7 +2128,6 @@ export default function CodeStudio({
                 onClick={() => {
                   const prompt = `请根据当前题目（${currentChallenge.title}）给我讲解解题思路，不要直接给完整答案。可以给关键伪代码或步骤说明。`;
                   setAiQuestion(prompt);
-                  // Expand assistant if collapsed
                   if (assistantCollapsed) setAssistantCollapsed(false);
                 }}
               >
@@ -1988,47 +2142,49 @@ export default function CodeStudio({
             </>
           )}
 
-          {/* ── Fallback panel when no challenge is associated with this session ── */}
-          {!currentChallenge && selectedSession && (
+          {/* ── Problem loading/fallback (only when not collapsed) ── */}
+          {!problemCollapsed && !currentChallenge && selectedSession && (
             <div
               className="code-challenge-card"
               style={{ width: Math.max(layout.problemWidth, 280), minWidth: 280, flexShrink: 0, overflow: "auto" }}
             >
-              <div className="code-challenge-card-header">
-                <span className="subject-pill small">
-                  {selectedSession.challenge_id ? "加载中" : "自由练习"}
-                </span>
-              </div>
-              <h4 className="code-challenge-card-title">{selectedSession.title}</h4>
-              <div className="code-challenge-card-section" style={{ marginTop: 16 }}>
-                {selectedSession.challenge_id ? (
-                  <>
-                    <div className="code-challenge-card-label">题目数据加载中...</div>
-                    <p>正在从服务器获取题目内容，请稍候。如果持续无法加载，请刷新页面。</p>
-                  </>
+              {selectedSession.challenge_id ? (
+                problemError ? (
+                  <div className="code-problem-error">
+                    <div className="code-problem-error-text">{problemError}</div>
+                    <button
+                      className="code-problem-retry-btn"
+                      onClick={() => {
+                        setProblemError("");
+                        setProblemLoading(true);
+                        loadChallenge(selectedSession.challenge_id);
+                      }}
+                    >
+                      重新加载
+                    </button>
+                  </div>
                 ) : (
-                  <>
+                  <div className="code-problem-loading">
+                    <div className="code-problem-loading-spinner" />
+                    <p>正在从服务器获取题目内容...</p>
+                  </div>
+                )
+              ) : (
+                <>
+                  <div className="code-challenge-card-header">
+                    <span className="subject-pill small">自由练习</span>
+                  </div>
+                  <h4 className="code-challenge-card-title">{selectedSession.title}</h4>
+                  <div className="code-challenge-card-section" style={{ marginTop: 16 }}>
                     <div className="code-challenge-card-label">当前为自由练习模式</div>
                     <p>该练习没有关联编程题目。你可以自由编写代码，或点击下方按钮让 AI 为你生成一道编程题。</p>
-                  </>
-                )}
-              </div>
-              {!selectedSession.challenge_id && (
-                <div className="code-challenge-card-actions" style={{ marginTop: 12 }}>
-                  <button className="primary-button compact" onClick={openChallengeModal}>
-                    AI 出题
-                  </button>
-                </div>
-              )}
-              {selectedSession.challenge_id && (
-                <div className="code-challenge-card-actions" style={{ marginTop: 12 }}>
-                  <button
-                    className="ghost-button compact"
-                    onClick={() => loadChallenge(selectedSession.challenge_id)}
-                  >
-                    重新加载
-                  </button>
-                </div>
+                  </div>
+                  <div className="code-challenge-card-actions" style={{ marginTop: 12 }}>
+                    <button className="primary-button compact" onClick={openChallengeModal}>
+                      AI 出题
+                    </button>
+                  </div>
+                </>
               )}
             </div>
           )}
@@ -2556,11 +2712,59 @@ export default function CodeStudio({
             <div className="empty-inline" style={{ padding: "24px 16px" }}>
               AI 正在分析你的编程学习情况...
             </div>
-          ) : aiMessagesLoading ? (
-            <div className="empty-inline" style={{ padding: "24px 16px" }}>
-              加载历史记录中...
-            </div>
-          ) : aiMessages.length === 0 ? (
+          ) : (
+            <>
+              {/* Saved Chats Section */}
+              {currentChallenge?.id && (
+                <div className="code-saved-chats-section">
+                  <div className="code-saved-chats-header">
+                    <span className="code-saved-chats-title">
+                      已保存的 AI 记录 ({savedChats.length})
+                    </span>
+                    {savedChats.length > 0 && (
+                      <button
+                        className="code-saved-chats-toggle"
+                        onClick={() => setSavedChatsCollapsed(!savedChatsCollapsed)}
+                      >
+                        {savedChatsCollapsed ? "展开" : "折叠"}
+                      </button>
+                    )}
+                  </div>
+                  {savedChatsLoading ? (
+                    <div style={{ fontSize: "0.72rem", color: "#94a3b8", padding: "4px 0" }}>加载中...</div>
+                  ) : !savedChatsCollapsed && savedChats.length > 0 ? (
+                    savedChats.map((sc) => (
+                      <div key={sc.id} className="code-saved-chat-item">
+                        <div className="code-saved-chat-item-q">Q: {sc.user_message || "(无问题文本)"}</div>
+                        <div className="code-saved-chat-item-a">
+                          <MarkdownMessage content={sc.assistant_message} />
+                        </div>
+                        <div className="code-saved-chat-item-time">
+                          {sc.created_at ? new Date(sc.created_at).toLocaleString("zh-CN") : ""}
+                        </div>
+                        <button
+                          className="code-saved-chat-item-delete"
+                          onClick={() => deleteSavedChat(sc.id)}
+                          disabled={deletingSavedId === sc.id}
+                        >
+                          {deletingSavedId === sc.id ? "删除中..." : "取消保存"}
+                        </button>
+                      </div>
+                    ))
+                  ) : !savedChatsCollapsed && savedChats.length === 0 && currentChallenge?.id ? (
+                    <div style={{ fontSize: "0.7rem", color: "#cbd5e1", padding: "4px 0" }}>
+                      暂无已保存记录，点击 AI 回复下方的「保存」按钮即可保存
+                    </div>
+                  ) : null}
+                </div>
+              )}
+
+              {/* Chat Messages */}
+              {aiMessagesLoading ? (
+                <div className="empty-inline" style={{ padding: "24px 16px" }}>
+                  加载历史记录中...
+                </div>
+              ) : aiMessages.length === 0 ? (
             <div className="code-assistant-empty">
               <p className="code-assistant-empty-title">AI 教练</p>
               <p className="muted-text">基于当前题目和代码回答你的问题</p>
@@ -2591,36 +2795,66 @@ export default function CodeStudio({
                   {msg.role === "user" ? "你" : "AI 教练"}
                 </div>
                 {msg.role === "assistant" ? (
-                  <MarkdownMessage content={msg.content} />
+                  <div className="code-assistant-msg-bubble-ai">
+                    <MarkdownMessage content={msg.content} />
+                  </div>
                 ) : (
-                  <div className="code-assistant-msg-content">{msg.content}</div>
+                  <div className="code-assistant-msg-bubble-user">{msg.content}</div>
                 )}
                 {msg.role === "assistant" && (
-                  <button
-                    className="code-msg-save-btn"
-                    onClick={() => {
-                      setSavedMessageIds((prev) => {
-                        const next = new Set(prev);
-                        if (next.has(i)) next.delete(i); else next.add(i);
-                        return next;
-                      });
-                    }}
-                    title={savedMessageIds.has(i) ? "取消保存" : "保存此回答"}
-                  >
-                    {savedMessageIds.has(i) ? "已保存" : "保存"}
-                  </button>
+                  <div className="code-assistant-msg-actions">
+                    <button
+                      className="code-msg-action-btn"
+                      onClick={() => {
+                        navigator.clipboard?.writeText(msg.content).catch(() => {});
+                      }}
+                    >
+                      复制
+                    </button>
+                    {msg._savedId && savedMsgIds.has(msg._savedId) ? (
+                      <button
+                        className="code-msg-action-btn code-msg-action-btn--saved"
+                        onClick={() => {
+                          if (msg._savedId) deleteSavedChat(msg._savedId);
+                        }}
+                        disabled={deletingSavedId === msg._savedId}
+                      >
+                        已保存
+                      </button>
+                    ) : savingMsgIndex === i ? (
+                      <button className="code-msg-action-btn" disabled>保存中...</button>
+                    ) : (
+                      <button
+                        className="code-msg-action-btn"
+                        onClick={() => saveChat(i)}
+                        disabled={!currentChallenge?.id}
+                        title={currentChallenge?.id ? "保存此回答" : "题目未加载完成"}
+                      >
+                        保存
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             ))
           )}
-          {aiLoading && <div className="empty-inline">AI 分析中...</div>}
+          {aiLoading && (
+            <div className="code-assistant-loading">
+              <span>AI 正在结合题目和代码分析</span>
+              <div className="code-assistant-loading-dots">
+                <span /><span /><span />
+              </div>
+            </div>
+          )}
           <div ref={aiEndRef} />
+          </>
+        )}
         </div>
 
         <div className="code-studio-assistant-input">
-          <input
+          <textarea
             className="field"
-            placeholder="例如：帮我检查代码问题"
+            placeholder="例如：帮我检查代码问题（Enter 发送，Shift+Enter 换行）"
             value={aiQuestion}
             onChange={(e) => setAiQuestion(e.target.value)}
             onKeyDown={(e) => {
@@ -2629,11 +2863,14 @@ export default function CodeStudio({
                 analyzeCode();
               }
             }}
+            rows={2}
+            style={{ resize: "none" }}
           />
           <button
             className="primary-button compact"
             onClick={analyzeCode}
             disabled={aiLoading || !aiQuestion.trim()}
+            style={{ alignSelf: "flex-end" }}
           >
             {aiLoading ? "分析中..." : "发送"}
           </button>

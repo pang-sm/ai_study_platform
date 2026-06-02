@@ -5738,6 +5738,84 @@ def delete_code_session_messages(session_id: int, username: str, db: Session = D
     return {"success": True}
 
 
+# ── AI Coach Saved Chats ──────────────────────────────
+
+def serialize_saved_chat(sc):
+    return {
+        "id": sc.id,
+        "username": sc.username,
+        "challenge_id": sc.challenge_id,
+        "session_id": sc.session_id,
+        "language": sc.language,
+        "user_message": sc.user_message,
+        "assistant_message": sc.assistant_message,
+        "code_snapshot": sc.code_snapshot,
+        "created_at": sc.created_at,
+    }
+
+
+@app.post("/code/ai-coach/saved-chats")
+def save_ai_coach_chat(req: schemas.CodeAISavedChatCreate, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+    if not req.challenge_id:
+        raise HTTPException(status_code=400, detail="当前题目未加载完成，暂不能保存记录")
+
+    saved = models.CodeAISavedChat(
+        username=user.username,
+        challenge_id=req.challenge_id,
+        session_id=req.session_id,
+        language=req.language,
+        user_message=req.user_message,
+        assistant_message=req.assistant_message,
+        code_snapshot=req.code_snapshot,
+    )
+    db.add(saved)
+    db.commit()
+    db.refresh(saved)
+    return {"success": True, "saved_chat": serialize_saved_chat(saved)}
+
+
+@app.get("/code/ai-coach/saved-chats")
+def get_saved_ai_coach_chats(
+    username: str,
+    challenge_id: int,
+    db: Session = Depends(get_db),
+):
+    user = get_user_by_username(username, db)
+    items = (
+        db.query(models.CodeAISavedChat)
+        .filter(
+            models.CodeAISavedChat.username == user.username,
+            models.CodeAISavedChat.challenge_id == challenge_id,
+        )
+        .order_by(models.CodeAISavedChat.created_at.asc())
+        .all()
+    )
+    return {"items": [serialize_saved_chat(item) for item in items]}
+
+
+@app.delete("/code/ai-coach/saved-chats/{saved_id}")
+def delete_saved_ai_coach_chat(
+    saved_id: int,
+    username: str,
+    db: Session = Depends(get_db),
+):
+    user = get_user_by_username(username, db)
+    saved = (
+        db.query(models.CodeAISavedChat)
+        .filter(
+            models.CodeAISavedChat.id == saved_id,
+            models.CodeAISavedChat.username == user.username,
+        )
+        .first()
+    )
+    if not saved:
+        raise HTTPException(status_code=404, detail="保存记录不存在")
+    db.delete(saved)
+    db.commit()
+    return {"success": True}
+
+
 CODE_CHALLENGE_GENERATE_PROMPT = """你是编程学习出题助手。根据用户的学习背景和编程进度，生成完整的编程练习题。你只负责生成题目数据，不生成参考答案代码。
 
 ## 通用要求

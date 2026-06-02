@@ -156,6 +156,30 @@ class CodeChallengeGenerateTestsRequest(BaseModel):
     language: str = ""
 
 
+# ── AI Coach Saved Chats ──────────────────────────────
+
+class CodeAISavedChatCreate(BaseModel):
+    username: str
+    challenge_id: int
+    session_id: int | None = None
+    language: str | None = None
+    user_message: str
+    assistant_message: str
+    code_snapshot: str | None = None
+
+
+class CodeAISavedChatOut(BaseModel):
+    id: int
+    username: str
+    challenge_id: int
+    session_id: int | None = None
+    language: str | None = None
+    user_message: str
+    assistant_message: str
+    code_snapshot: str | None = None
+    created_at: str | None = None
+
+
 # ── Code Attempt History ──────────────────────────────
 
 
