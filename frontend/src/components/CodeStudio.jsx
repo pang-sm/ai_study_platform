@@ -390,11 +390,16 @@ export default function CodeStudio({
 
   // ── Code diagnostics ──
   const [diagnosticStatus, setDiagnosticStatus] = useState("idle"); // idle | checking | ok | warning | error | unsupported
+  const [diagnostics, setDiagnostics] = useState([]);
+  const [diagnosticsLoading, setDiagnosticsLoading] = useState(false);
+  const [diagnosticSummary, setDiagnosticSummary] = useState({ errors: 0, warnings: 0 });
   const [diagnosticErrors, setDiagnosticErrors] = useState(0);
   const [diagnosticWarnings, setDiagnosticWarnings] = useState(0);
   const diagnoseTimerRef = useRef(null);
   const lastDiagnosedCodeRef = useRef("");
-  const editorMonacoRef = useRef(null); // raw monaco instance for markers
+  const lastDiagnosedLanguageRef = useRef("");
+  const monacoRef = useRef(null);
+  const diagnosticDecorationsRef = useRef([]);
 
   // ── Interactive terminal ──
   const terminalRef = useRef(null);
@@ -529,17 +534,101 @@ export default function CodeStudio({
   }, [subject, normalizeSubject]);
 
   // ── Code Diagnostics ── (declared BEFORE useEffects that reference it)
-  const diagnoseCode = useCallback(async (currentCode, currentLanguage) => {
+  const clearDiagnostics = useCallback(() => {
+    setDiagnostics([]);
+    setDiagnosticSummary({ errors: 0, warnings: 0 });
+    setDiagnosticErrors(0);
+    setDiagnosticWarnings(0);
+    const monaco = monacoRef.current;
+    const editor = editorRef.current;
+    const model = editor?.getModel?.();
+    if (monaco && model) {
+      monaco.editor.setModelMarkers(model, "codestudio", []);
+      diagnosticDecorationsRef.current = editor.deltaDecorations(
+        diagnosticDecorationsRef.current,
+        []
+      );
+    }
+  }, []);
+
+  const applyDiagnosticsToEditor = useCallback((items) => {
+    const monaco = monacoRef.current;
+    const editor = editorRef.current;
+    const model = editor?.getModel?.();
+    if (!monaco || !editor || !model) return;
+
+    const markers = items.map((item) => {
+      const severity = item.severity === "warning"
+        ? monaco.MarkerSeverity.Warning
+        : monaco.MarkerSeverity.Error;
+      return {
+        severity,
+        message: item.message || "Diagnostic issue",
+        source: item.source || "diagnostics",
+        startLineNumber: Math.max(1, item.line || 1),
+        startColumn: Math.max(1, item.column || 1),
+        endLineNumber: Math.max(1, item.endLine || item.line || 1),
+        endColumn: Math.max(2, item.endColumn || (item.column || 1) + 1),
+      };
+    });
+
+    const decorations = items.map((item) => ({
+      range: new monaco.Range(
+        Math.max(1, item.line || 1),
+        1,
+        Math.max(1, item.line || 1),
+        1
+      ),
+      options: {
+        isWholeLine: true,
+        glyphMarginClassName:
+          item.severity === "warning"
+            ? "code-diagnostic-glyph code-diagnostic-glyph--warning"
+            : "code-diagnostic-glyph code-diagnostic-glyph--error",
+        overviewRuler: {
+          color: item.severity === "warning" ? "#facc15" : "#ef4444",
+          position: monaco.editor.OverviewRulerLane.Right,
+        },
+        minimap: {
+          color: item.severity === "warning" ? "#facc15" : "#ef4444",
+          position: monaco.editor.MinimapPosition.Inline,
+        },
+      },
+    }));
+
+    monaco.editor.setModelMarkers(model, "codestudio", markers);
+    diagnosticDecorationsRef.current = editor.deltaDecorations(
+      diagnosticDecorationsRef.current,
+      decorations
+    );
+  }, []);
+
+  const diagnoseCode = useCallback(async (currentCode, currentLanguage, options = {}) => {
     if (!currentCode || !currentCode.trim()) {
       setDiagnosticStatus("idle");
-      setDiagnosticErrors(0);
-      setDiagnosticWarnings(0);
-      return;
+      setDiagnosticsLoading(false);
+      clearDiagnostics();
+      lastDiagnosedCodeRef.current = "";
+      lastDiagnosedLanguageRef.current = "";
+      return { status: "idle", errors: [], warnings: [] };
     }
-    if (currentCode === lastDiagnosedCodeRef.current) return;
+    if (
+      !options.force &&
+      currentCode === lastDiagnosedCodeRef.current &&
+      currentLanguage === lastDiagnosedLanguageRef.current
+    ) {
+      setDiagnosticsLoading(false);
+      return {
+        status: diagnosticStatus,
+        errors: diagnostics.filter((item) => item.severity === "error"),
+        warnings: diagnostics.filter((item) => item.severity === "warning"),
+      };
+    }
     lastDiagnosedCodeRef.current = currentCode;
+    lastDiagnosedLanguageRef.current = currentLanguage;
 
     setDiagnosticStatus("checking");
+    setDiagnosticsLoading(true);
     try {
       const res = await fetch(`${API_BASE}/code/diagnose`, {
         method: "POST",
@@ -549,52 +638,37 @@ export default function CodeStudio({
       const data = await safeJson(res);
       if (data.status === "unsupported") {
         setDiagnosticStatus("unsupported");
-        setDiagnosticErrors(0);
-        setDiagnosticWarnings(0);
+        clearDiagnostics();
       } else {
-        const errCount = (data.errors || []).length;
-        const warnCount = (data.warnings || []).length;
+        const errorItems = (data.errors || []).map((item) => ({ ...item, severity: "error" }));
+        const warningItems = (data.warnings || []).map((item) => ({ ...item, severity: "warning" }));
+        const nextDiagnostics = [...errorItems, ...warningItems].sort((a, b) => {
+          if ((a.line || 1) !== (b.line || 1)) return (a.line || 1) - (b.line || 1);
+          return (a.column || 1) - (b.column || 1);
+        });
+        const errCount = errorItems.length;
+        const warnCount = warningItems.length;
+        setDiagnostics(nextDiagnostics);
+        setDiagnosticSummary({ errors: errCount, warnings: warnCount });
         setDiagnosticErrors(errCount);
         setDiagnosticWarnings(warnCount);
         if (errCount > 0) setDiagnosticStatus("error");
         else if (warnCount > 0) setDiagnosticStatus("warning");
         else setDiagnosticStatus("ok");
-
-        if (editorMonacoRef.current) {
-          const monaco = window.monaco || editorMonacoRef.current._monaco;
-          if (monaco) {
-            const model = editorMonacoRef.current.getModel();
-            if (model) {
-              const markers = [];
-              (data.errors || []).forEach((e) => {
-                markers.push({
-                  severity: monaco.MarkerSeverity.Error,
-                  message: e.message,
-                  startLineNumber: e.line,
-                  startColumn: e.column,
-                  endLineNumber: e.line,
-                  endColumn: e.column + 1,
-                });
-              });
-              (data.warnings || []).forEach((w) => {
-                markers.push({
-                  severity: monaco.MarkerSeverity.Warning,
-                  message: w.message,
-                  startLineNumber: w.line,
-                  startColumn: w.column,
-                  endLineNumber: w.line,
-                  endColumn: w.column + 1,
-                });
-              });
-              monaco.editor.setModelMarkers(model, "diagnostics", markers);
-            }
-          }
+        applyDiagnosticsToEditor(nextDiagnostics);
+        if (nextDiagnostics.length > 0 && !focusMode) {
+          setShowFeedbackPanel(true);
+          setOutputPanelTab("problems");
         }
       }
+      return data;
     } catch {
       setDiagnosticStatus("idle");
+      return { status: "idle", errors: [], warnings: [] };
+    } finally {
+      setDiagnosticsLoading(false);
     }
-  }, []);
+  }, [applyDiagnosticsToEditor, clearDiagnostics, diagnosticStatus, diagnostics, focusMode]);
 
   // Clear stale gen-modal data when course changes
   useEffect(() => {
@@ -608,28 +682,26 @@ export default function CodeStudio({
   // Debounced code diagnostics
   useEffect(() => {
     if (diagnoseTimerRef.current) clearTimeout(diagnoseTimerRef.current);
-    setDiagnosticStatus("checking");
+    if (!code || !code.trim()) {
+      setDiagnosticStatus("idle");
+      clearDiagnostics();
+      return undefined;
+    }
     diagnoseTimerRef.current = setTimeout(() => {
       diagnoseCode(code, language);
-    }, 600);
+    }, 800);
     return () => {
       if (diagnoseTimerRef.current) clearTimeout(diagnoseTimerRef.current);
     };
-  }, [code, language, diagnoseCode]);
+  }, [code, language, diagnoseCode, clearDiagnostics]);
 
   // Clear diagnostics when switching languages
   useEffect(() => {
     lastDiagnosedCodeRef.current = "";
+    lastDiagnosedLanguageRef.current = "";
     setDiagnosticStatus("idle");
-    setDiagnosticErrors(0);
-    setDiagnosticWarnings(0);
-    if (editorMonacoRef.current) {
-      try {
-        const model = editorMonacoRef.current.editor.getModels()[0];
-        if (model) editorMonacoRef.current.editor.setModelMarkers(model, "diagnostics", []);
-      } catch {}
-    }
-  }, [language]);
+    clearDiagnostics();
+  }, [language, clearDiagnostics]);
 
   useEffect(() => {
     if (aiEndRef.current) {
@@ -816,8 +888,9 @@ export default function CodeStudio({
   };
 
   // ── Interactive Terminal ──
-  const launchInteractiveTerminal = useCallback(() => {
+  const launchInteractiveTerminal = useCallback(async () => {
     if (!code.trim() || terminalRunning) return;
+    await diagnoseCode(code, language, { force: true });
 
     // Dispose old terminal
     if (terminalRef.current) {
@@ -909,7 +982,7 @@ export default function CodeStudio({
         }
       });
     }, 100);
-  }, [code, language, user?.username, terminalRunning]);
+  }, [code, language, user?.username, terminalRunning, diagnoseCode]);
 
   const stopInteractiveTerminal = useCallback(() => {
     if (wsRef.current) {
@@ -1101,6 +1174,7 @@ export default function CodeStudio({
       setTip("请先输入代码再运行。");
       return;
     }
+    await diagnoseCode(code, language, { force: true });
     setRunning(true);
     setRunResult(null);
     setShowFeedbackPanel(true);
@@ -1127,6 +1201,8 @@ export default function CodeStudio({
           duration_ms: data.duration_ms || 0,
           timed_out: data.timed_out || false,
           error_message: data.error_message || null,
+          compile_error: data.compile_error || null,
+          compiled: data.compiled,
           stdout_truncated: data.stdout_truncated || false,
           stderr_truncated: data.stderr_truncated || false,
         });
@@ -1183,6 +1259,7 @@ export default function CodeStudio({
       setTip("当前测试运行暂支持 Python 和 C");
       return;
     }
+    await diagnoseCode(code, language, { force: true });
     setTesting(true);
     setTestResults(null);
     setTestExplanations({});
@@ -1902,8 +1979,23 @@ export default function CodeStudio({
   const canRun = true; // Only Python and C remain, both are runnable
   const currentFileName = language === "C" ? "main.c" : "main.py";
   const codeLineCount = Math.max(1, String(code || "").split("\n").length);
-  const warningCount = codeTruncated ? 1 : 0;
-  const errorCount = runResult?.compile_error || testResults?.error_message ? 1 : 0;
+  const warningCount = diagnosticSummary.warnings;
+  const errorCount = diagnosticSummary.errors;
+
+  const openProblemsPanel = () => {
+    setShowFeedbackPanel(true);
+    setOutputPanelTab("problems");
+  };
+
+  const jumpToDiagnostic = (item) => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const lineNumber = Math.max(1, item.line || 1);
+    const column = Math.max(1, item.column || 1);
+    editor.revealPositionInCenter({ lineNumber, column });
+    editor.setPosition({ lineNumber, column });
+    editor.focus();
+  };
 
   return (
     <section
@@ -2513,10 +2605,15 @@ export default function CodeStudio({
                 <div className="code-editor-filetab code-editor-filetab--active">
                   {currentFileName}
                 </div>
-                <div className="code-editor-diagnostics">
-                  <span className="code-editor-diagnostic code-editor-diagnostic--warning">▲ {warningCount}</span>
+                <button
+                  type="button"
+                  className="code-editor-diagnostics"
+                  onClick={openProblemsPanel}
+                  title="Open Problems"
+                >
                   <span className="code-editor-diagnostic code-editor-diagnostic--error">● {errorCount}</span>
-                </div>
+                  <span className="code-editor-diagnostic code-editor-diagnostic--warning">▲ {warningCount}</span>
+                </button>
               </div>
               <div className="code-editor-monaco-surface">
               <Editor
@@ -2526,7 +2623,7 @@ export default function CodeStudio({
                 theme="vs-dark"
                 beforeMount={(monaco) => {
                   registerAutocomplete(monaco);
-                  editorMonacoRef.current = monaco;
+                  monacoRef.current = monaco;
                 }}
                 onMount={(editor) => {
                   editorRef.current = editor;
@@ -2535,10 +2632,12 @@ export default function CodeStudio({
                   editor.onDidChangeCursorPosition((event) => {
                     setEditorCursor({ line: event.position.lineNumber, column: event.position.column });
                   });
+                  applyDiagnosticsToEditor(diagnostics);
                 }}
                 options={{
                   fontSize: 14,
                   minimap: { enabled: false },
+                  glyphMargin: true,
                   automaticLayout: true,
                   scrollBeyondLastLine: false,
                   wordWrap: "on",
@@ -2615,6 +2714,15 @@ export default function CodeStudio({
                   运行输出
                 </button>
                 <button
+                  className={`code-output-tab ${outputPanelTab === "problems" ? "code-output-tab--active" : ""}`}
+                  onClick={() => setOutputPanelTab("problems")}
+                >
+                  Problems
+                  {(errorCount + warningCount) > 0 && (
+                    <span className="code-output-tab-badge">{errorCount + warningCount}</span>
+                  )}
+                </button>
+                <button
                   className={`code-output-tab ${outputPanelTab === "feedback" ? "code-output-tab--active" : ""}`}
                   onClick={() => setOutputPanelTab("feedback")}
                 >
@@ -2660,6 +2768,52 @@ export default function CodeStudio({
               {/* Interactive Terminal Tab */}
               {outputPanelTab === "terminal" && (
                 <div className="code-terminal-container" ref={terminalContainerRef} style={{ width: "100%", height: "100%", minHeight: 200 }} />
+              )}
+
+              {/* Problems Tab */}
+              {outputPanelTab === "problems" && (
+                <div className="code-problems-panel">
+                  <div className="code-problems-toolbar">
+                    <div className="code-problems-summary">
+                      <span className="code-problems-summary-item code-problems-summary-item--error">● {errorCount} Errors</span>
+                      <span className="code-problems-summary-item code-problems-summary-item--warning">▲ {warningCount} Warnings</span>
+                      {diagnosticsLoading && <span className="code-problems-checking">Checking...</span>}
+                    </div>
+                    <button
+                      type="button"
+                      className="code-action-btn code-action-btn--clear compact"
+                      onClick={() => diagnoseCode(code, language, { force: true })}
+                      disabled={!code.trim() || diagnosticsLoading}
+                    >
+                      Refresh
+                    </button>
+                  </div>
+                  {diagnostics.length > 0 ? (
+                    <div className="code-problems-list">
+                      {diagnostics.map((item, index) => (
+                        <button
+                          type="button"
+                          key={`${item.severity}-${item.line}-${item.column}-${index}`}
+                          className={`code-problem-row code-problem-row--${item.severity}`}
+                          onClick={() => jumpToDiagnostic(item)}
+                        >
+                          <span className="code-problem-row-icon">
+                            {item.severity === "warning" ? "▲" : "●"}
+                          </span>
+                          <span className="code-problem-row-message">{item.message}</span>
+                          <span className="code-problem-row-meta">
+                            {currentFileName}:{item.line || 1}:{item.column || 1}
+                            {item.source ? ` · ${item.source}` : ""}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="code-problems-empty">
+                      {diagnosticsLoading ? "Checking diagnostics..." : "No problems found"}
+                    </div>
+                  )}
+                </div>
               )}
 
               {/* Run Output Tab */}

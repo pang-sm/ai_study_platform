@@ -4,6 +4,7 @@ import os
 import re
 import secrets
 import subprocess
+import sys
 import tempfile
 import hashlib
 import threading
@@ -5475,22 +5476,32 @@ def _parse_gcc_diagnostics(output: str) -> list[dict]:
 def _parse_python_diagnostics(output: str) -> list[dict]:
     """Parse python -m py_compile stderr into structured diagnostics."""
     items = []
-    # Pattern: File "path", line N  or  SyntaxError: ... at line N
-    # Also: IndentationError, TabError
-    pat = r'File\s+"[^"]+",\s+line\s+(\d+).*?\n(.+)'
-    for match in _diagnose_re.finditer(pat, output, _diagnose_re.MULTILINE | _diagnose_re.DOTALL):
-        line = int(match.group(1))
-        msg = match.group(2).strip()
-        sev = "warning" if "warning" in msg.lower() and "syntax" not in msg.lower() else "error"
-        items.append({"line": line, "column": 1, "message": msg[:300], "severity": sev, "source": "python"})
+    line_number = 1
+    for line in output.splitlines():
+        match = _diagnose_re.search(r'File\s+"[^"]+",\s+line\s+(\d+)', line)
+        if match:
+            line_number = int(match.group(1))
 
-    # Also catch plain "SyntaxError: ... (line N)" without file context
-    pat2 = r'(SyntaxError|IndentationError|TabError|NameError)[:\s]+(.+?)(?:\s*\(line\s+(\d+)\))?$'
-    for match in _diagnose_re.finditer(pat2, output, _diagnose_re.MULTILINE):
-        if not items:  # Only add if the file-based pattern didn't match
-            msg = f"{match.group(1)}: {match.group(2).strip()}"
-            line = int(match.group(3)) if match.group(3) else 1
-            items.append({"line": line, "column": 1, "message": msg[:300], "severity": "error", "source": "python"})
+    for line in reversed(output.splitlines()):
+        stripped = line.strip()
+        if _diagnose_re.match(r"^(SyntaxError|IndentationError|TabError):", stripped):
+            items.append({
+                "line": line_number,
+                "column": 1,
+                "message": stripped[:300],
+                "severity": "error",
+                "source": "python",
+            })
+            break
+
+    if not items and output.strip():
+        items.append({
+            "line": line_number,
+            "column": 1,
+            "message": output.strip().splitlines()[-1][:300],
+            "severity": "error",
+            "source": "python",
+        })
     return items
 
 
@@ -5517,12 +5528,20 @@ def diagnose_code(req: schemas.CodeDiagnoseRequest):
                 capture_output=True, text=True, timeout=15, cwd=tmp_dir,
             )
             raw = (proc.stderr or "") or (proc.stdout or "")
-            if proc.returncode == 0:
-                return {"language": "c", "status": "ok", "errors": [], "warnings": [], "raw_output": raw}
             items = _parse_gcc_diagnostics(raw)
             errors = [i for i in items if i["severity"] == "error"]
             warnings = [i for i in items if i["severity"] == "warning"]
-            status = "error" if errors else "warning"
+            if proc.returncode == 0 and not warnings:
+                return {"language": "c", "status": "ok", "errors": [], "warnings": [], "raw_output": raw}
+            if proc.returncode != 0 and not errors and not warnings:
+                errors = [{
+                    "line": 1,
+                    "column": 1,
+                    "message": (raw.strip() or "C syntax check failed")[:300],
+                    "severity": "error",
+                    "source": "gcc",
+                }]
+            status = "error" if errors else ("warning" if warnings else "ok")
             return {"language": "c", "status": status, "errors": errors, "warnings": warnings, "raw_output": raw}
         except (_sp.TimeoutExpired, Exception) as e:
             return {"language": "c", "status": "error", "errors": [

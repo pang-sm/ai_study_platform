@@ -6840,8 +6840,18 @@ select.field:focus {
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
   font-size: 12px;
   font-weight: 800;
+  cursor: pointer;
+}
+
+.code-editor-diagnostics:hover {
+  border-color: #334155;
+  background: #0f172a;
 }
 
 .code-editor-diagnostic--warning {
@@ -6898,6 +6908,23 @@ select.field:focus {
 .code-diag-dot--err { background: #ef4444; }
 .code-diag-dot--checking { background: #3b82f6; animation: code-diag-pulse 1.2s ease-in-out infinite; }
 
+.code-diagnostic-glyph {
+  width: 11px !important;
+  height: 11px !important;
+  margin-left: 4px;
+  border-radius: 999px;
+}
+
+.code-diagnostic-glyph--error {
+  background: #ef4444;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.22);
+}
+
+.code-diagnostic-glyph--warning {
+  background: #facc15;
+  box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.2);
+}
+
 @keyframes code-diag-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.3; }
@@ -6905,13 +6932,14 @@ select.field:focus {
 
 /* Interactive Terminal */
 .code-terminal-container {
-  background: #1e1e1e;
+  background: #111827;
   border-radius: 0;
   overflow: hidden;
+  border-top: 1px solid #1f2937;
 }
 
 .code-terminal-container .xterm {
-  padding: 4px;
+  padding: 8px;
   height: 100%;
 }
 
@@ -6924,6 +6952,126 @@ select.field:focus {
   font-size: 11px;
   color: #94a3b8;
   font-family: monospace;
+}
+
+.code-output-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.code-output-tab-badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+}
+
+.code-problems-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #0f172a;
+  color: #cbd5e1;
+  font-size: 12px;
+}
+
+.code-problems-toolbar {
+  min-height: 34px;
+  padding: 6px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #1f2937;
+  background: #111827;
+}
+
+.code-problems-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.code-problems-summary-item {
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.code-problems-summary-item--error {
+  color: #fb7185;
+}
+
+.code-problems-summary-item--warning {
+  color: #facc15;
+}
+
+.code-problems-checking {
+  color: #93c5fd;
+}
+
+.code-problems-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.code-problem-row {
+  width: 100%;
+  min-height: 34px;
+  padding: 7px 10px;
+  border: 0;
+  border-bottom: 1px solid #1f2937;
+  background: transparent;
+  color: #dbeafe;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  text-align: left;
+  cursor: pointer;
+}
+
+.code-problem-row:hover {
+  background: #1e293b;
+}
+
+.code-problem-row-icon {
+  font-size: 11px;
+  line-height: 1;
+}
+
+.code-problem-row--error .code-problem-row-icon {
+  color: #fb7185;
+}
+
+.code-problem-row--warning .code-problem-row-icon {
+  color: #facc15;
+}
+
+.code-problem-row-message {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-problem-row-meta {
+  color: #94a3b8;
+  font-family: "Cascadia Code", "Fira Code", "JetBrains Mono", "Consolas", monospace;
+  white-space: nowrap;
+}
+
+.code-problems-empty {
+  padding: 24px;
+  color: #94a3b8;
+  text-align: center;
 }
 
 .code-action-btn--stop {
