@@ -363,7 +363,7 @@ export default function CodeStudio({
   const [isReferenceModalOpen, setIsReferenceModalOpen] = useState(false);
   const [starterConfirmOpen, setStarterConfirmOpen] = useState(false);
   const [pendingApplyCode, setPendingApplyCode] = useState(null); // tracks which code to apply on confirm
-  const [problemTab, setProblemTab] = useState("description");
+  const [problemTab, setProblemTab] = useState("io");
   const [editorCursor, setEditorCursor] = useState({ line: 1, column: 1 });
   const [copyRefFeedback, setCopyRefFeedback] = useState(false);
 
@@ -548,7 +548,7 @@ export default function CodeStudio({
     setExplainingTestCase({});
     setOutputPanelTab("feedback");
     setProblemCollapsed(false);
-    setProblemTab("description");
+    setProblemTab("io");
     if (session.id) {
       loadMessages(session.id);
       if (session.challenge_id) {
@@ -585,7 +585,7 @@ export default function CodeStudio({
     setExplainingTestCase({});
     setOutputPanelTab("feedback");
     setProblemCollapsed(false);
-    setProblemTab("description");
+    setProblemTab("io");
   };
 
   const loadChallenge = async (challengeId) => {
@@ -598,7 +598,7 @@ export default function CodeStudio({
       if (res.ok && data.challenge) {
         setCurrentChallenge(data.challenge);
         setShowReference(false);
-        setProblemTab("description");
+        setProblemTab("io");
       }
     } catch (error) {
       console.error("Failed to load challenge:", error);
@@ -1992,6 +1992,28 @@ export default function CodeStudio({
                 />
               )}
             </>
+          )}
+
+          {/* ── Fallback panel when no challenge is associated with this session ── */}
+          {!currentChallenge && selectedSession && (
+            <div
+              className="code-challenge-card"
+              style={{ width: Math.max(layout.problemWidth, 280), minWidth: 280, flexShrink: 0, overflow: "auto" }}
+            >
+              <div className="code-challenge-card-header">
+                <span className="subject-pill small">自由练习</span>
+              </div>
+              <h4 className="code-challenge-card-title">{selectedSession.title}</h4>
+              <div className="code-challenge-card-section" style={{ marginTop: 16 }}>
+                <div className="code-challenge-card-label">当前为自由练习模式</div>
+                <p>该练习没有关联编程题目。你可以自由编写代码，或点击顶部「出题」按钮让 AI 为你生成一道编程题。</p>
+              </div>
+              <div className="code-challenge-card-actions" style={{ marginTop: 12 }}>
+                <button className="primary-button compact" onClick={openChallengeModal}>
+                  AI 出题
+                </button>
+              </div>
+            </div>
           )}
 
           {/* ── Right: Editor + Output ── */}
