@@ -63,15 +63,41 @@ jobs:
         run: npm run build
 
       - name: Prepare SSH
+        shell: bash
+        env:
+          TENCENT_HOST: ${{ secrets.TENCENT_HOST }}
+          TENCENT_SSH_KEY: ${{ secrets.TENCENT_SSH_KEY }}
+          SSH_PORT: ${{ secrets.TENCENT_PORT }}
         run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.TENCENT_SSH_KEY }}" > ~/.ssh/tencent_key
-          chmod 600 ~/.ssh/tencent_key
-          ssh-keyscan -p "${{ secrets.TENCENT_PORT }}" "${{ secrets.TENCENT_HOST }}" >> ~/.ssh/known_hosts
+          set -euo pipefail
+
+          : "${TENCENT_HOST:?TENCENT_HOST secret is required}"
+          : "${TENCENT_SSH_KEY:?TENCENT_SSH_KEY secret is required}"
+          SSH_PORT="${SSH_PORT:-22}"
+
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+
+          printf '%s\n' "$TENCENT_SSH_KEY" > "$HOME/.ssh/tencent_deploy_key"
+          chmod 600 "$HOME/.ssh/tencent_deploy_key"
+
+          ssh-keyscan -p "$SSH_PORT" "$TENCENT_HOST" >> "$HOME/.ssh/known_hosts"
+          chmod 644 "$HOME/.ssh/known_hosts"
 
       - name: Deploy to Tencent Cloud
+        shell: bash
+        env:
+          TENCENT_HOST: ${{ secrets.TENCENT_HOST }}
+          TENCENT_USER: ${{ secrets.TENCENT_USER }}
+          SSH_PORT: ${{ secrets.TENCENT_PORT }}
         run: |
-          ssh -i ~/.ssh/tencent_key -p "${{ secrets.TENCENT_PORT }}" "${{ secrets.TENCENT_USER }}@${{ secrets.TENCENT_HOST }}" 'bash -se' <<'EOF'
+          set -euo pipefail
+
+          : "${TENCENT_HOST:?TENCENT_HOST secret is required}"
+          : "${TENCENT_USER:?TENCENT_USER secret is required}"
+          SSH_PORT="${SSH_PORT:-22}"
+
+          ssh -i "$HOME/.ssh/tencent_deploy_key" -p "$SSH_PORT" "$TENCENT_USER@$TENCENT_HOST" 'bash -se' <<'EOF'
           set -euo pipefail
 
           cd ~/ai_study_platform
