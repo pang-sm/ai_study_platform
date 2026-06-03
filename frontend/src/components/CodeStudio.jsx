@@ -532,17 +532,19 @@ export default function CodeStudio({
     document.body.style.userSelect = "none";
   };
 
-  // focus mode — temporarily hides both side panels without changing their individual states
+  // focus mode — temporarily hides all side panels without changing their individual states
   const [focusMode, setFocusMode] = useState(false);
+  const preFocusPractice = useRef(false);
   const preFocusProblem = useRef(false);
   const preFocusCoach = useRef(false);
   const enterFocus = () => {
+    preFocusPractice.current = sidebarCollapsed;
     preFocusProblem.current = problemCollapsed;
     preFocusCoach.current = assistantCollapsed;
     setFocusMode(true);
   };
   const exitFocus = () => {
-    // Restore individual panel states as they were before entering focus
+    setSidebarCollapsed(preFocusPractice.current);
     setProblemCollapsed(preFocusProblem.current);
     setAssistantCollapsed(preFocusCoach.current);
     setFocusMode(false);
@@ -2126,35 +2128,16 @@ export default function CodeStudio({
       className={`code-studio-shell${focusMode ? " code-studio-shell--focus" : ""}${resizing ? " code-studio-shell--resizing" : ""}`}
       style={{ display: "flex", flexDirection: "row", height: "100%", overflow: "hidden" }}
     >
-      {/* Left Panel — Session List */}
-      {!focusMode && (
+      {/* Left Panel — Session List: completely hidden when collapsed or in focus mode */}
+      {!focusMode && !sidebarCollapsed && (
         <>
           <aside
-            className={`code-studio-sidebar ${sidebarCollapsed ? "code-studio-sidebar--collapsed" : ""}`}
-            style={{ width: sidebarCollapsed ? 44 : layout.leftWidth, minWidth: sidebarCollapsed ? 44 : 56, flexShrink: 0 }}
+            className="code-studio-sidebar"
+            style={{ width: layout.leftWidth, minWidth: 260, flexShrink: 0 }}
           >
-        {sidebarCollapsed ? (
-          <div className="code-sidebar-collapsed-bar">
-            <button
-              className="code-sidebar-toggle-btn"
-              onClick={() => setSidebarCollapsed(false)}
-              title="展开侧边栏"
-            >
-              &rang;&rang;
-            </button>
-          </div>
-        ) : (
-          <>
         <div className="code-studio-sidebar-header">
           <div className="code-sidebar-header-row">
             <h3>代码练习</h3>
-            <button
-              className="code-sidebar-toggle-btn"
-              onClick={() => setSidebarCollapsed(true)}
-              title="折叠侧边栏"
-            >
-              &lang;&lang;
-            </button>
           </div>
           <div className="code-studio-course-picker">
             <select
@@ -2381,15 +2364,11 @@ export default function CodeStudio({
             )}
           </div>
         )}
-          </>
-        )}
       </aside>
-          {!sidebarCollapsed && (
-            <div
-              className={`code-resize-handle code-resize-handle--h${resizing === "left" ? " code-resize-handle--active" : ""}`}
-              onMouseDown={(e) => startResize(e, "left")}
-            />
-          )}
+          <div
+            className={`code-resize-handle code-resize-handle--h${resizing === "left" ? " code-resize-handle--active" : ""}`}
+            onMouseDown={(e) => startResize(e, "left")}
+          />
         </>
       )}
 
@@ -2421,6 +2400,14 @@ export default function CodeStudio({
           <div className="code-status-bar-right">
             <div className="code-layout-controls">
               <button
+                className={`code-layout-btn ${!sidebarCollapsed && !focusMode ? "code-layout-btn--active" : ""}`}
+                onClick={() => { if (focusMode) exitFocus(); else setSidebarCollapsed((v) => !v); }}
+                title={sidebarCollapsed || focusMode ? "显示练习列表" : "隐藏练习列表"}
+                disabled={focusMode}
+              >
+                {sidebarCollapsed || focusMode ? "练习列表" : "隐藏练习"}
+              </button>
+              <button
                 className={`code-layout-btn ${!problemCollapsed && !focusMode ? "code-layout-btn--active" : ""}`}
                 onClick={() => { if (focusMode) exitFocus(); else setProblemCollapsed((v) => !v); }}
                 title={problemCollapsed || focusMode ? "显示题目总览" : "隐藏题目面板"}
@@ -2439,7 +2426,7 @@ export default function CodeStudio({
               <button
                 className={`code-layout-btn ${focusMode ? "code-layout-btn--active" : ""}`}
                 onClick={focusMode ? exitFocus : enterFocus}
-                title={focusMode ? "退出专注模式，恢复侧边面板" : "专注模式：隐藏题目和 AI 教练，专注编码"}
+                title={focusMode ? "退出专注模式，恢复全部侧边面板" : "专注模式：隐藏练习列表、题目和 AI 教练，专注编码"}
               >
                 {focusMode ? "退出专注" : "专注模式"}
               </button>
