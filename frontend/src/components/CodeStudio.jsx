@@ -391,9 +391,24 @@ export default function CodeStudio({
   // Collapse passed test cases
   const [collapsePassed, setCollapsePassed] = useState(true);
 
-  // Sidebar collapse
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [assistantCollapsed, setAssistantCollapsed] = useState(false);
+  // Sidebar collapse — persisted to localStorage
+  const LAYOUT_STATE_KEY = "codestudio.layout-state";
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(LAYOUT_STATE_KEY) || "{}").sidebarCollapsed || false; } catch { return false; }
+  });
+  const [assistantCollapsed, setAssistantCollapsed] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(LAYOUT_STATE_KEY) || "{}").assistantCollapsed || false; } catch { return false; }
+  });
+
+  // persist collapse states
+  useEffect(() => {
+    try {
+      localStorage.setItem(LAYOUT_STATE_KEY, JSON.stringify({
+        sidebarCollapsed,
+        assistantCollapsed,
+      }));
+    } catch {}
+  }, [sidebarCollapsed, assistantCollapsed]);
 
   // ── Code diagnostics ──
   const [diagnosticStatus, setDiagnosticStatus] = useState("idle"); // idle | checking | ok | warning | error | unsupported
@@ -516,13 +531,19 @@ export default function CodeStudio({
     document.body.style.userSelect = "none";
   };
 
-  // focus mode
+  // focus mode — temporarily hides both side panels without changing their individual states
   const [focusMode, setFocusMode] = useState(false);
-  const preFocusLayout = useRef(null);
-  const enterFocus = () => { preFocusLayout.current = { ...layoutRef.current }; setProblemCollapsed(true); setFocusMode(true); setProblemError(""); };
+  const preFocusProblem = useRef(false);
+  const preFocusCoach = useRef(false);
+  const enterFocus = () => {
+    preFocusProblem.current = problemCollapsed;
+    preFocusCoach.current = assistantCollapsed;
+    setFocusMode(true);
+  };
   const exitFocus = () => {
-    if (preFocusLayout.current) setLayout(preFocusLayout.current);
-    setProblemCollapsed(false);
+    // Restore individual panel states as they were before entering focus
+    setProblemCollapsed(preFocusProblem.current);
+    setAssistantCollapsed(preFocusCoach.current);
     setFocusMode(false);
   };
 
@@ -2398,20 +2419,31 @@ export default function CodeStudio({
             )}
           </div>
           <div className="code-status-bar-right">
-            <button
-              className={`code-focus-btn ${problemCollapsed ? "code-focus-btn--warn" : ""}`}
-              onClick={() => setProblemCollapsed((v) => !v)}
-              title={problemCollapsed ? "查看题目" : "隐藏题目"}
-            >
-              {problemCollapsed ? "查看题目" : "隐藏题目"}
-            </button>
-            <button
-              className={`code-focus-btn ${focusMode ? "code-focus-btn--active" : ""}`}
-              onClick={focusMode ? exitFocus : enterFocus}
-              title={focusMode ? "退出专注模式" : "专注模式：收起侧边栏和面板，专注编辑"}
-            >
-              {focusMode ? "退出专注" : "专注模式"}
-            </button>
+            <div className="code-layout-controls">
+              <button
+                className={`code-layout-btn ${!problemCollapsed && !focusMode ? "code-layout-btn--active" : ""}`}
+                onClick={() => { if (focusMode) exitFocus(); else setProblemCollapsed((v) => !v); }}
+                title={problemCollapsed || focusMode ? "显示题目总览" : "隐藏题目面板"}
+                disabled={focusMode}
+              >
+                {problemCollapsed || focusMode ? "题目总览" : "隐藏题目"}
+              </button>
+              <button
+                className={`code-layout-btn ${!assistantCollapsed && !focusMode ? "code-layout-btn--active" : ""}`}
+                onClick={() => { if (focusMode) exitFocus(); else setAssistantCollapsed((v) => !v); }}
+                title={assistantCollapsed || focusMode ? "显示 AI 教练" : "隐藏 AI 教练"}
+                disabled={focusMode}
+              >
+                {assistantCollapsed || focusMode ? "AI 教练" : "隐藏教练"}
+              </button>
+              <button
+                className={`code-layout-btn ${focusMode ? "code-layout-btn--active" : ""}`}
+                onClick={focusMode ? exitFocus : enterFocus}
+                title={focusMode ? "退出专注模式，恢复侧边面板" : "专注模式：隐藏题目和 AI 教练，专注编码"}
+              >
+                {focusMode ? "退出专注" : "专注模式"}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -2487,7 +2519,7 @@ export default function CodeStudio({
         {/* ── Horizontal split: Problem Panel (left) | Editor + Output (right) ── */}
         <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "row" }}>
           {/* ── Problem Panel ── */}
-          {!problemCollapsed && currentChallenge && (
+          {!focusMode && !problemCollapsed && currentChallenge && (
             <>
               <div
                 className="code-challenge-card"
@@ -2641,7 +2673,7 @@ export default function CodeStudio({
           )}
 
           {/* ── Problem loading/fallback (only when not collapsed) ── */}
-          {!problemCollapsed && !currentChallenge && selectedSession && (
+          {!focusMode && !problemCollapsed && !currentChallenge && selectedSession && (
             <div
               className="code-challenge-card"
               style={{ width: Math.max(layout.problemWidth, 280), minWidth: 280, flexShrink: 0, overflow: "auto" }}
@@ -3204,7 +3236,7 @@ export default function CodeStudio({
               )}
             </div>
             </>
-            )}
+          )}
           </div>
           </>
         )}
@@ -3212,41 +3244,20 @@ export default function CodeStudio({
         </div>{/* end horizontal split */}
       </main>
 
-      {/* Right Panel — AI Coach */}
-      {!focusMode && (
+      {/* Right Panel — AI Coach: completely hidden when collapsed or in focus mode */}
+      {!focusMode && !assistantCollapsed && (
         <>
-          {!assistantCollapsed && (
-            <div
-              className={`code-resize-handle code-resize-handle--h${resizing === "right" ? " code-resize-handle--active" : ""}`}
-              onMouseDown={(e) => startResize(e, "right")}
-            />
-          )}
+          <div
+            className={`code-resize-handle code-resize-handle--h${resizing === "right" ? " code-resize-handle--active" : ""}`}
+            onMouseDown={(e) => startResize(e, "right")}
+          />
       <aside
-        className={`code-studio-assistant ${assistantCollapsed ? "code-studio-assistant--collapsed" : ""}`}
-        style={{ width: assistantCollapsed ? 44 : layout.rightWidth, minWidth: assistantCollapsed ? 44 : 56, flexShrink: 0 }}
+        className="code-studio-assistant"
+        style={{ width: layout.rightWidth, minWidth: 280, flexShrink: 0 }}
       >
-        {assistantCollapsed ? (
-          <div className="code-assistant-collapsed-bar">
-            <button
-              className="code-sidebar-toggle-btn"
-              onClick={() => setAssistantCollapsed(false)}
-              title="展开 AI 教练"
-            >
-              &lang;&lang;
-            </button>
-          </div>
-        ) : (
-          <>
         <div className="code-studio-assistant-header">
           <div className="code-sidebar-header-row">
             <h3>AI 教练</h3>
-            <button
-              className="code-sidebar-toggle-btn"
-              onClick={() => setAssistantCollapsed(true)}
-              title="折叠 AI 教练"
-            >
-              &rang;&rang;
-            </button>
           </div>
         </div>
 
@@ -3502,8 +3513,6 @@ export default function CodeStudio({
             {aiLoading ? "分析中..." : "发送"}
           </button>
         </div>
-          </>
-        )}
       </aside>
         </>
       )}
