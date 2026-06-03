@@ -1067,7 +1067,15 @@ export default function CodeStudio({
       term.onData((data) => {
         const activeWs = wsRef.current;
         if (activeWs && activeWs.readyState === WebSocket.OPEN) {
-          activeWs.send(data);
+          const stdinData = data.replace(/\r/g, "\n");
+          activeWs.send(JSON.stringify({ type: "stdin", data: stdinData }));
+          if (data === "\r") {
+            term.write("\r\n");
+          } else if (data === "\u007f") {
+            term.write("\b \b");
+          } else {
+            term.write(data);
+          }
         }
       });
     }, 100);

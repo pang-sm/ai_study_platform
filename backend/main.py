@@ -14612,16 +14612,18 @@ async def interactive_run(ws: WebSocket):
 
         def reader(stream, collector, prefix, ws_socket, loop_ref):
             try:
-                for line in iter(stream.readline, ""):
-                    if line:
-                        collector.append(line)
-                        try:
-                            fut = asyncio.run_coroutine_threadsafe(
-                                ws_socket.send_text(json.dumps({"type": prefix, "data": line})),
-                                loop_ref,
-                            )
-                        except Exception:
-                            break
+                while True:
+                    chunk = stream.read(1)
+                    if not chunk:
+                        break
+                    collector.append(chunk)
+                    try:
+                        asyncio.run_coroutine_threadsafe(
+                            ws_socket.send_text(json.dumps({"type": prefix, "data": chunk})),
+                            loop_ref,
+                        )
+                    except Exception:
+                        break
             except Exception:
                 pass
 
@@ -14646,12 +14648,25 @@ async def interactive_run(ws: WebSocket):
                         timed_out = True
                         proc.kill()
                         break
-                    data = await asyncio.wait_for(ws.receive_text(), timeout=min(1.0, remaining))
+                    raw_stdin = await asyncio.wait_for(ws.receive_text(), timeout=min(1.0, remaining))
                     if proc.poll() is not None:
                         break
+                    data = raw_stdin
                     try:
-                        proc.stdin.write(data)
-                        proc.stdin.flush()
+                        stdin_msg = json.loads(raw_stdin)
+                        if isinstance(stdin_msg, dict):
+                            if stdin_msg.get("type") == "stdin":
+                                data = str(stdin_msg.get("data", ""))
+                            elif stdin_msg.get("type") == "stop":
+                                proc.kill()
+                                break
+                    except json.JSONDecodeError:
+                        pass
+                    data = data.replace("\r\n", "\n").replace("\r", "\n")
+                    try:
+                        if data:
+                            proc.stdin.write(data)
+                            proc.stdin.flush()
                     except (BrokenPipeError, OSError):
                         break
                 except asyncio.TimeoutError:
