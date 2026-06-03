@@ -20,6 +20,48 @@ function getTerminalWsUrl() {
 
 const LANGUAGES = ["Python", "C"];
 
+function normalizeCodeLanguage(language) {
+  const normalized = String(language || "").trim().toLowerCase();
+  if (normalized === "c" || normalized.includes("c语言") || normalized.includes("c language") || normalized.includes("c programming") || normalized.includes("c璇")) {
+    return "C";
+  }
+  if (normalized === "python" || normalized === "py" || normalized.includes("python")) {
+    return "Python";
+  }
+  return LANGUAGES.includes(language) ? language : "Python";
+}
+
+function getAllowedLanguagesByCourse(courseIdOrName) {
+  const normalized = String(courseIdOrName || "").trim().toLowerCase();
+
+  const isCpp =
+    normalized.includes("c++") ||
+    normalized.includes("cpp") ||
+    normalized.includes("c锛") ||
+    normalized.includes("c＋＋");
+
+  if (!isCpp && (
+    normalized === "c" ||
+    normalized === "c语言" ||
+    normalized.includes("c语言") ||
+    normalized.includes("c language") ||
+    normalized.includes("c programming") ||
+    normalized.includes("c璇")
+  )) {
+    return ["C"];
+  }
+
+  if (
+    normalized === "python" ||
+    normalized === "py" ||
+    normalized.includes("python")
+  ) {
+    return ["Python"];
+  }
+
+  return ["C", "Python"];
+}
+
 function getMonacoLanguage(language) {
   const map = { Python: "python", C: "c", "C++": "cpp" };
   return map[language] || "plaintext";
@@ -307,9 +349,10 @@ export default function CodeStudio({
   const [selectedSession, setSelectedSession] = useState(null);
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [codeCourseId, setCodeCourseId] = useState(() => normalizeSubject(subject));
+  const initialLanguage = getAllowedLanguagesByCourse(`${subject || ""} ${normalizeSubject(subject, "")}`)[0] || "Python";
   const [title, setTitle] = useState("未命名练习");
-  const [language, setLanguage] = useState("Python");
-  const [code, setCode] = useState(CODE_TEMPLATES["Python"]);
+  const [language, setLanguage] = useState(initialLanguage);
+  const [code, setCode] = useState(CODE_TEMPLATES[initialLanguage] || CODE_TEMPLATES["Python"]);
   const [saving, setSaving] = useState(false);
   const [tip, setTip] = useState("");
 
@@ -432,6 +475,10 @@ export default function CodeStudio({
   const [terminalRunning, setTerminalRunning] = useState(false);
   const [terminalExitCode, setTerminalExitCode] = useState(null);
   const terminalOutputRef = useRef({ stdout: "", stderr: "", compile_error: "", exit_code: null, timed_out: false });
+  const courseLanguageKey = `${subject || ""} ${codeCourseId || ""} ${getSubjectLabel(codeCourseId) || ""}`;
+  const allowedLanguages = getAllowedLanguagesByCourse(courseLanguageKey);
+  const defaultCourseLanguage = allowedLanguages[0] || "Python";
+  const activeLanguage = allowedLanguages.includes(language) ? language : defaultCourseLanguage;
 
   // Generate test cases for old challenges
   const [generatingTests, setGeneratingTests] = useState(false);
@@ -562,6 +609,18 @@ export default function CodeStudio({
   useEffect(() => {
     setCodeCourseId(normalizeSubject(subject));
   }, [subject, normalizeSubject]);
+
+  useEffect(() => {
+    if (allowedLanguages.includes(language)) return;
+    const nextLanguage = defaultCourseLanguage;
+    const isDefaultTemplate =
+      !String(code || "").trim() ||
+      Object.values(CODE_TEMPLATES).some((template) => template.trim() === String(code || "").trim());
+    setLanguage(nextLanguage);
+    if (isDefaultTemplate) {
+      setCode(CODE_TEMPLATES[nextLanguage] || "");
+    }
+  }, [code, courseLanguageKey, defaultCourseLanguage, language]);
 
   // ── Code Diagnostics ── (declared BEFORE useEffects that reference it)
   const clearDiagnostics = useCallback(() => {
@@ -718,12 +777,12 @@ export default function CodeStudio({
       return undefined;
     }
     diagnoseTimerRef.current = setTimeout(() => {
-      diagnoseCode(code, language);
+      diagnoseCode(code, activeLanguage);
     }, 800);
     return () => {
       if (diagnoseTimerRef.current) clearTimeout(diagnoseTimerRef.current);
     };
-  }, [code, language, diagnoseCode, clearDiagnostics]);
+  }, [activeLanguage, code, diagnoseCode, clearDiagnostics]);
 
   // Clear diagnostics when switching languages
   useEffect(() => {
@@ -731,7 +790,7 @@ export default function CodeStudio({
     lastDiagnosedLanguageRef.current = "";
     setDiagnosticStatus("idle");
     clearDiagnostics();
-  }, [language, clearDiagnostics]);
+  }, [activeLanguage, clearDiagnostics]);
 
   useEffect(() => {
     if (aiEndRef.current) {
@@ -784,9 +843,11 @@ export default function CodeStudio({
   };
 
   const selectSession = (session) => {
+    const sessionLanguage = normalizeCodeLanguage(session.language);
+    const nextLanguage = allowedLanguages.includes(sessionLanguage) ? sessionLanguage : defaultCourseLanguage;
     setSelectedSession(session);
     setTitle(session.title);
-    setLanguage(session.language);
+    setLanguage(nextLanguage);
     setCode(session.code);
     setAiMessages([]);
     setAiQuestion("");
@@ -843,11 +904,12 @@ export default function CodeStudio({
   };
 
   const newSession = () => {
+    const newLanguage = defaultCourseLanguage;
     const newS = {
       id: null,
       title: "未命名练习",
-      language: "Python",
-      code: CODE_TEMPLATES["Python"],
+      language: newLanguage,
+      code: CODE_TEMPLATES[newLanguage] || CODE_TEMPLATES["Python"],
       course_id: normalizeSubject(codeCourseId),
       username: user?.username || "",
       session_type: "normal",
@@ -930,7 +992,7 @@ export default function CodeStudio({
         body: JSON.stringify({
           username: user?.username || "anonymous",
           session_id: selectedSession?.id || 0,
-          language,
+          language: activeLanguage,
           code,
           stdin,
         }),
@@ -974,7 +1036,7 @@ export default function CodeStudio({
     } finally {
       setTerminalRunning(false);
     }
-  }, [code, language, selectedSession?.id, stdin, user?.username]);
+  }, [activeLanguage, code, selectedSession?.id, stdin, user?.username]);
 
   const launchInteractiveTerminal = useCallback(async () => {
     if (!code.trim() || terminalRunning) return;
@@ -1015,7 +1077,7 @@ export default function CodeStudio({
       fitAddonRef.current = fitAddon;
       terminalRef.current = term;
 
-      term.writeln(`\x1b[1;36m═══ 交互终端 ── ${language.toUpperCase()} ═══\x1b[0m`);
+      term.writeln(`\x1b[1;36m═══ 交互终端 ── ${activeLanguage.toUpperCase()} ═══\x1b[0m`);
 
       // Connect WebSocket with fallback
       const primaryWsUrl = getTerminalWsUrl();
@@ -1037,7 +1099,7 @@ export default function CodeStudio({
         ws.onopen = () => {
           console.info("[Terminal] WebSocket connected:", url);
           if (switchingWs) term.writeln("\x1b[90m已连接\x1b[0m");
-          ws.send(JSON.stringify({ language, code, username: user?.username || "anonymous", session_id: selectedSession?.id || null }));
+          ws.send(JSON.stringify({ language: activeLanguage, code, username: user?.username || "anonymous", session_id: selectedSession?.id || null }));
         };
 
         ws.onmessage = (evt) => {
@@ -1102,7 +1164,7 @@ export default function CodeStudio({
         }
       });
     }, 100);
-  }, [code, language, user?.username, terminalRunning, runTerminalHttpFallback, selectedSession?.id]);
+  }, [activeLanguage, code, user?.username, terminalRunning, runTerminalHttpFallback, selectedSession?.id]);
 
   const stopInteractiveTerminal = useCallback(() => {
     if (wsRef.current) {
@@ -1188,7 +1250,7 @@ export default function CodeStudio({
         body: JSON.stringify({
           username: user.username,
           course_id: normalizeSubject(codeCourseId),
-          language,
+          language: activeLanguage,
           difficulty: challengeDifficulty,
           focus: challengeFocus,
           count: challengeCount,
@@ -1213,7 +1275,7 @@ export default function CodeStudio({
         }
         setSelectedSession(firstSession);
         setTitle(firstSession.title);
-        setLanguage(firstSession.language);
+        setLanguage(allowedLanguages.includes(normalizeCodeLanguage(firstSession.language)) ? normalizeCodeLanguage(firstSession.language) : defaultCourseLanguage);
         setCode(firstSession.code || "");
         setProblemCollapsed(false);
         setProblemTab("io");
@@ -1245,7 +1307,7 @@ export default function CodeStudio({
         username: user.username,
         course_id: normalizeSubject(codeCourseId),
         title,
-        language,
+        language: activeLanguage,
         code,
       };
       let res;
@@ -1266,7 +1328,7 @@ export default function CodeStudio({
       if (res.ok && data.session) {
         setSelectedSession(data.session);
         setTitle(data.session.title);
-        setLanguage(data.session.language);
+        setLanguage(allowedLanguages.includes(normalizeCodeLanguage(data.session.language)) ? normalizeCodeLanguage(data.session.language) : defaultCourseLanguage);
         setCode(data.session.code);
         setTip("保存成功");
         setTimeout(() => setTip(""), 2000);
@@ -1283,9 +1345,11 @@ export default function CodeStudio({
   };
 
   const handleLanguageChange = (newLang) => {
-    setLanguage(newLang);
+    const nextLanguage = normalizeCodeLanguage(newLang);
+    if (!allowedLanguages.includes(nextLanguage)) return;
+    setLanguage(nextLanguage);
     if (!selectedSession?.id && (!code || code === CODE_TEMPLATES[language])) {
-      setCode(CODE_TEMPLATES[newLang]);
+      setCode(CODE_TEMPLATES[nextLanguage]);
     }
   };
 
@@ -1294,7 +1358,7 @@ export default function CodeStudio({
       setTip("请先输入代码再运行。");
       return;
     }
-    await diagnoseCode(code, language, { force: true });
+    await diagnoseCode(code, activeLanguage, { force: true });
     setRunning(true);
     setRunResult(null);
     setShowFeedbackPanel(true);
@@ -1307,7 +1371,7 @@ export default function CodeStudio({
         body: JSON.stringify({
           username: user.username,
           session_id: selectedSession?.id || 0,
-          language,
+          language: activeLanguage,
           code,
           stdin,
         }),
@@ -1375,11 +1439,11 @@ export default function CodeStudio({
       setTip("请先编写代码再运行测试。");
       return;
     }
-    if (language !== "Python" && language !== "C") {
+    if (activeLanguage !== "Python" && activeLanguage !== "C") {
       setTip("当前测试运行暂支持 Python 和 C");
       return;
     }
-    await diagnoseCode(code, language, { force: true });
+    await diagnoseCode(code, activeLanguage, { force: true });
     setTesting(true);
     setTestResults(null);
     setTestExplanations({});
@@ -1396,7 +1460,7 @@ export default function CodeStudio({
           body: JSON.stringify({
             username: user.username,
             session_id: selectedSession.id,
-            language,
+            language: activeLanguage,
             code,
           }),
         }
@@ -1456,7 +1520,7 @@ export default function CodeStudio({
           body: JSON.stringify({
             username: user.username,
             session_id: selectedSession.id,
-            language,
+            language: activeLanguage,
             code,
             test_case: {
               input: tc.input || "",
@@ -1498,7 +1562,7 @@ export default function CodeStudio({
 
   const generateTests = async () => {
     if (!user?.username || !selectedSession?.challenge_id) return;
-    if (language !== "Python" && language !== "C") {
+    if (activeLanguage !== "Python" && activeLanguage !== "C") {
       setTip("当前测试用例生成暂支持 Python 和 C");
       return;
     }
@@ -1511,7 +1575,7 @@ export default function CodeStudio({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             username: user.username,
-            language,
+            language: activeLanguage,
           }),
         }
       );
@@ -1547,8 +1611,8 @@ export default function CodeStudio({
         username: user.username,
         course_id: normalizeSubject(codeCourseId),
         title: `复做：${selectedAttempt.challenge_title || "未命名题目"}`,
-        language: selectedAttempt.language || "Python",
-        code: selectedAttempt.code || CODE_TEMPLATES[selectedAttempt.language || "Python"],
+        language: allowedLanguages.includes(normalizeCodeLanguage(selectedAttempt.language)) ? normalizeCodeLanguage(selectedAttempt.language) : defaultCourseLanguage,
+        code: selectedAttempt.code || CODE_TEMPLATES[allowedLanguages.includes(normalizeCodeLanguage(selectedAttempt.language)) ? normalizeCodeLanguage(selectedAttempt.language) : defaultCourseLanguage],
         challenge_id: selectedAttempt.challenge_id,
       };
       const res = await fetch(`${API_BASE}/code/sessions`, {
@@ -1697,7 +1761,7 @@ export default function CodeStudio({
     setAiQuestion("");
 
     try {
-      const latestDiagnostics = await diagnoseCode(code, language, { force: true });
+      const latestDiagnostics = await diagnoseCode(code, activeLanguage, { force: true });
       const res = await fetch(`${API_BASE}/code/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1706,7 +1770,7 @@ export default function CodeStudio({
           course_id: normalizeSubject(codeCourseId),
           session_id: selectedSession?.id || null,
           challenge_id: currentChallenge?.id || selectedSession?.challenge_id || null,
-          language,
+          language: activeLanguage,
           code,
           question,
           last_run_result: runResult,
@@ -1771,7 +1835,7 @@ export default function CodeStudio({
             username: user.username,
             session_id: selectedSession.id,
             code,
-            language,
+            language: activeLanguage,
           }),
         }
       );
@@ -1843,7 +1907,7 @@ export default function CodeStudio({
           username: user.username,
           challenge_id: currentChallenge.id,
           session_id: selectedSession?.id || null,
-          language,
+          language: activeLanguage,
           user_message: userMsg,
           assistant_message: msg.content,
           code_snapshot: code,
@@ -1912,8 +1976,8 @@ export default function CodeStudio({
         if (selectedSession?.id === sessionId) {
           setSelectedSession(null);
           setTitle("未命名练习");
-          setLanguage("Python");
-          setCode(CODE_TEMPLATES["Python"]);
+          setLanguage(defaultCourseLanguage);
+          setCode(CODE_TEMPLATES[defaultCourseLanguage] || CODE_TEMPLATES["Python"]);
           setAiMessages([]);
           setCurrentChallenge(null);
           setProblemLoading(false);
@@ -2036,7 +2100,7 @@ export default function CodeStudio({
         body: JSON.stringify({
           username: user.username,
           course_id: normalizeSubject(codeCourseId),
-          language,
+          language: activeLanguage,
           difficulty: "基础",
           focus: "",
           diagnosis_summary: diagnosisText,
@@ -2084,7 +2148,7 @@ export default function CodeStudio({
           course_id: normalizeSubject(codeCourseId),
           course_name: getSubjectLabel(codeCourseId) || codeCourseId,
           diagnosis_summary: diagnosisText,
-          language,
+          language: activeLanguage,
         }),
       });
       const data = await safeJson(res);
@@ -2103,7 +2167,7 @@ export default function CodeStudio({
   };
 
   const canRun = true; // Only Python and C remain, both are runnable
-  const currentFileName = language === "C" ? "main.c" : "main.py";
+  const currentFileName = activeLanguage === "C" ? "main.c" : "main.py";
   const codeLineCount = Math.max(1, String(code || "").split("\n").length);
   const warningCount = diagnosticSummary.warnings;
   const errorCount = diagnosticSummary.errors;
@@ -2381,7 +2445,7 @@ export default function CodeStudio({
               {title}
             </span>
             <span className="code-status-tag code-status-tag--lang">
-              {language}
+              {activeLanguage}
             </span>
             {selectedSession?.challenge_id ? (
               <span className={`code-status-tag ${selectedSession?.challenge_source === "diagnosis" ? "code-status-tag--diagnosis" : "code-status-tag--challenge"}`}>
@@ -2439,9 +2503,17 @@ export default function CodeStudio({
           <div className="code-editor-toolbar-row">
             {/* Current language indicator */}
             <div className="code-editor-lang-group">
-              <span className="code-lang-btn code-lang-btn--active" style={{ cursor: "default" }}>
-                {language}
-              </span>
+              {allowedLanguages.map((lang) => (
+                <button
+                  key={lang}
+                  type="button"
+                  className={`code-lang-btn ${activeLanguage === lang ? "code-lang-btn--active" : ""}`}
+                  onClick={() => handleLanguageChange(lang)}
+                  title={allowedLanguages.length === 1 ? "当前课程固定使用该语言" : `切换到 ${lang}`}
+                >
+                  {lang}
+                </button>
+              ))}
             </div>
 
             {/* Action buttons */}
@@ -2624,8 +2696,8 @@ export default function CodeStudio({
                 <button
                   className="ghost-button compact code-test-gen-btn"
                   onClick={generateTests}
-                  disabled={generatingTests || (language !== "Python" && language !== "C")}
-                  title={(language !== "Python" && language !== "C") ? "当前仅支持 Python 和 C 题目" : "AI 为本题补全测试用例"}
+                  disabled={generatingTests || (activeLanguage !== "Python" && activeLanguage !== "C")}
+                  title={(activeLanguage !== "Python" && activeLanguage !== "C") ? "当前仅支持 Python 和 C 题目" : "AI 为本题补全测试用例"}
                 >
                   {generatingTests ? "AI 生成中..." : "AI 补全测试用例"}
                 </button>
@@ -2739,7 +2811,7 @@ export default function CodeStudio({
               </div>
               <div className="code-editor-monaco-surface">
               <Editor
-                language={getMonacoLanguage(language)}
+                language={getMonacoLanguage(activeLanguage)}
                 value={code}
                 onChange={(value) => setCode(value || "")}
                 theme="vs-dark"
@@ -2784,10 +2856,10 @@ export default function CodeStudio({
                 <span>空格: 4</span>
                 <span>UTF-8</span>
                 <span>LF</span>
-                <span>{language}</span>
+                <span>{activeLanguage}</span>
                 <span className="code-editor-status-run">
-                  <span className={`code-status-run-dot ${language === "Java" ? "code-status-run-dot--warn" : "code-status-run-dot--ok"}`} />
-                  环境：{language === "Java" ? "AI 分析" : `${language} 可运行`}
+                  <span className={`code-status-run-dot ${activeLanguage === "Java" ? "code-status-run-dot--warn" : "code-status-run-dot--ok"}`} />
+                  环境：{activeLanguage === "Java" ? "AI 分析" : `${activeLanguage} 可运行`}
                 </span>
                 {diagnosticStatus !== "unsupported" && diagnosticStatus !== "idle" && (
                   <span className="code-editor-status-diag">
@@ -2914,7 +2986,7 @@ export default function CodeStudio({
                     <button
                       type="button"
                       className="code-action-btn code-action-btn--clear compact"
-                      onClick={() => diagnoseCode(code, language, { force: true })}
+                      onClick={() => diagnoseCode(code, activeLanguage, { force: true })}
                       disabled={!code.trim() || diagnosticsLoading}
                     >
                       Refresh
@@ -3121,7 +3193,7 @@ export default function CodeStudio({
                           <button
                             className="ghost-button compact code-test-gen-btn"
                             onClick={generateTests}
-                            disabled={generatingTests || (language !== "Python" && language !== "C")}
+                            disabled={generatingTests || (activeLanguage !== "Python" && activeLanguage !== "C")}
                           >
                             {generatingTests ? "AI 生成中..." : "AI 补全测试用例"}
                           </button>
@@ -3521,7 +3593,7 @@ export default function CodeStudio({
               <div>
                 <h3>AI 出题</h3>
                 <p className="code-challenge-modal-subtitle">
-                  当前课程：<strong>{getSubjectLabel(codeCourseId) || "未选择"}</strong>，编程语言：<strong>{language}</strong>
+                  当前课程：<strong>{getSubjectLabel(codeCourseId) || "未选择"}</strong>，编程语言：<strong>{activeLanguage}</strong>
                 </p>
               </div>
               <button className="modal-close" onClick={() => setShowChallengeModal(false)} disabled={challengeGenerating}>
@@ -3533,11 +3605,11 @@ export default function CodeStudio({
               {/* ── Language ── */}
               <label className="field-label">编程语言</label>
               <div className="code-challenge-lang-row">
-                {LANGUAGES.map((lang) => (
+                {allowedLanguages.map((lang) => (
                   <button
                     key={lang}
-                    className={`code-challenge-lang-btn ${language === lang ? "code-challenge-lang-btn--active" : ""}`}
-                    onClick={() => setLanguage(lang)}
+                    className={`code-challenge-lang-btn ${activeLanguage === lang ? "code-challenge-lang-btn--active" : ""}`}
+                    onClick={() => handleLanguageChange(lang)}
                   >
                     {lang}
                   </button>
@@ -3754,7 +3826,7 @@ export default function CodeStudio({
               <div className="code-ref-modal-title-row">
                 <h3>参考解法</h3>
                 <span className="code-ref-lang-pill">
-                  {language}
+                  {activeLanguage}
                 </span>
               </div>
               <button className="modal-close" onClick={() => setIsReferenceModalOpen(false)}>
@@ -3765,7 +3837,7 @@ export default function CodeStudio({
               {/* File tab indicator */}
               <div className="code-ref-file-tab">
                 <span className="code-ref-file-tab-label">
-                  {language === "C" ? "main.c" : "main.py"}
+                  {activeLanguage === "C" ? "main.c" : "main.py"}
                 </span>
               </div>
               <pre className="code-reference-modal-code">{currentChallenge.reference_solution}</pre>
