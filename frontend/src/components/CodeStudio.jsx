@@ -393,22 +393,23 @@ export default function CodeStudio({
 
   // Sidebar collapse — persisted to localStorage
   const LAYOUT_STATE_KEY = "codestudio.layout-state";
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(LAYOUT_STATE_KEY) || "{}").sidebarCollapsed || false; } catch { return false; }
-  });
-  const [assistantCollapsed, setAssistantCollapsed] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(LAYOUT_STATE_KEY) || "{}").assistantCollapsed || false; } catch { return false; }
-  });
+  const loadLayoutState = () => {
+    try { return JSON.parse(localStorage.getItem(LAYOUT_STATE_KEY) || "{}"); } catch { return {}; }
+  };
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => loadLayoutState().sidebarCollapsed || false);
+  const [assistantCollapsed, setAssistantCollapsed] = useState(() => loadLayoutState().assistantCollapsed || false);
+  const [problemCollapsed, setProblemCollapsed] = useState(() => loadLayoutState().problemCollapsed || false);
 
   // persist collapse states
   useEffect(() => {
     try {
       localStorage.setItem(LAYOUT_STATE_KEY, JSON.stringify({
+        problemCollapsed,
         sidebarCollapsed,
         assistantCollapsed,
       }));
     } catch {}
-  }, [sidebarCollapsed, assistantCollapsed]);
+  }, [problemCollapsed, sidebarCollapsed, assistantCollapsed]);
 
   // ── Code diagnostics ──
   const [diagnosticStatus, setDiagnosticStatus] = useState("idle"); // idle | checking | ok | warning | error | unsupported
@@ -547,8 +548,7 @@ export default function CodeStudio({
     setFocusMode(false);
   };
 
-  // problem-card & output-panel collapse
-  const [problemCollapsed, setProblemCollapsed] = useState(false);
+  // output-panel collapse
   const [outputCollapsed, setOutputCollapsed] = useState(false);
 
   const hasUnsaved =
