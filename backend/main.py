@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import hashlib
+import asyncio
 import threading
 import time
 from collections import defaultdict
