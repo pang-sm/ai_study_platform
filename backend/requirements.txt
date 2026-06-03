@@ -33,3 +33,4 @@ tqdm==4.67.3
 typing-inspection==0.4.2
 typing_extensions==4.15.0
 uvicorn==0.47.0
+websockets==15.0.1

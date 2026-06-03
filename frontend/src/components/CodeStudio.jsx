@@ -1071,7 +1071,7 @@ export default function CodeStudio({
         }
       });
     }, 100);
-  }, [code, language, user?.username, terminalRunning, diagnoseCode, selectedSession?.id]);
+  }, [code, language, user?.username, terminalRunning, runTerminalHttpFallback, selectedSession?.id]);
 
   const stopInteractiveTerminal = useCallback(() => {
     if (wsRef.current) {
