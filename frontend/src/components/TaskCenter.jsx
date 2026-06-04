@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 const API_BASE = "/api";
 
@@ -16,12 +16,6 @@ const STATUS_OPTIONS = [
   { value: "todo", label: "未开始" },
   { value: "doing", label: "进行中" },
   { value: "done", label: "已完成" },
-];
-
-const PRIORITY_OPTIONS = [
-  { value: "low", label: "低" },
-  { value: "medium", label: "中" },
-  { value: "high", label: "高" },
 ];
 
 const SOURCE_LABELS = {
@@ -46,12 +40,6 @@ const STATUS_LABELS = {
   done: "已完成",
 };
 
-const PRIORITY_LABELS = {
-  low: "低",
-  medium: "中",
-  high: "高",
-};
-
 export default function TaskCenter({
   user,
   subject,
@@ -66,25 +54,42 @@ export default function TaskCenter({
   const [statusFilter, setStatusFilter] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [reordering, setReordering] = useState(false);
   const [actionTaskId, setActionTaskId] = useState(null);
 
-  // Knowledge points for binding
+  // Knowledge points tree
   const [knowledgePoints, setKnowledgePoints] = useState([]);
+  const [kpLoading, setKpLoading] = useState(false);
+  const [expandedKpIds, setExpandedKpIds] = useState(new Set());
+  const [customKpInput, setCustomKpInput] = useState("");
 
   // Create form state
   const [createTitle, setCreateTitle] = useState("");
   const [createDescription, setCreateDescription] = useState("");
   const [createCourse, setCreateCourse] = useState(subject || "");
   const [createType, setCreateType] = useState("custom");
-  const [createPriority, setCreatePriority] = useState("medium");
   const [createDueDate, setCreateDueDate] = useState("");
-  const [createKnowledgePointId, setCreateKnowledgePointId] = useState("");
+  const [selectedKpIds, setSelectedKpIds] = useState([]);
+
+  // Build knowledge tree from flat list
+  const kpTree = useMemo(() => {
+    const roots = knowledgePoints.filter((kp) => !kp.parent_id);
+    const children = knowledgePoints.filter((kp) => kp.parent_id);
+    const grouped = {};
+    children.forEach((c) => {
+      const pid = c.parent_id;
+      if (!grouped[pid]) grouped[pid] = [];
+      grouped[pid].push(c);
+    });
+    return roots.map((r) => ({ ...r, children: grouped[r.id] || [] }));
+  }, [knowledgePoints]);
 
   const loadKnowledgePoints = async (courseId) => {
     if (!user?.username || !courseId) {
       setKnowledgePoints([]);
       return;
     }
+    setKpLoading(true);
     try {
       const res = await fetch(
         `${API_BASE}/knowledge-points?username=${encodeURIComponent(user.username)}&course_id=${encodeURIComponent(courseId)}`
@@ -95,6 +100,8 @@ export default function TaskCenter({
       }
     } catch (e) {
       console.error("Failed to load knowledge points:", e);
+    } finally {
+      setKpLoading(false);
     }
   };
 
@@ -124,6 +131,28 @@ export default function TaskCenter({
     loadTasks();
   }, [user?.username, courseFilter, statusFilter]);
 
+  const moveTask = async (index, direction) => {
+    const newTasks = [...tasks];
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= newTasks.length) return;
+    [newTasks[index], newTasks[targetIndex]] = [newTasks[targetIndex], newTasks[index]];
+    const reordered = newTasks.map((t, i) => ({ id: t.id, order_index: i }));
+    setTasks(newTasks);
+    setReordering(true);
+    try {
+      await fetch(`${API_BASE}/learning/tasks/reorder`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: user.username, items: reordered }),
+      });
+    } catch (e) {
+      console.error("Failed to reorder tasks:", e);
+      loadTasks();
+    } finally {
+      setReordering(false);
+    }
+  };
+
   const createTask = async () => {
     if (!createTitle.trim()) return;
     setSaving(true);
@@ -136,10 +165,13 @@ export default function TaskCenter({
         task_type: createType,
         status: "todo",
         source: "manual",
-        priority: createPriority,
+        priority: "medium",
       };
       if (createDueDate) body.due_date = createDueDate;
-      if (createKnowledgePointId) body.knowledge_point_id = parseInt(createKnowledgePointId);
+      if (selectedKpIds.length > 0) body.knowledge_point_id = selectedKpIds[0];
+      if (customKpInput.trim()) {
+        body.description = (createDescription.trim() ? createDescription.trim() + "\n" : "") + "自定义知识点: " + customKpInput.trim();
+      }
       const res = await fetch(`${API_BASE}/learning/tasks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -165,9 +197,34 @@ export default function TaskCenter({
     setCreateDescription("");
     setCreateCourse(subject || "");
     setCreateType("custom");
-    setCreatePriority("medium");
     setCreateDueDate("");
-    setCreateKnowledgePointId("");
+    setSelectedKpIds([]);
+    setCustomKpInput("");
+    setExpandedKpIds(new Set());
+  };
+
+  const toggleKpExpand = (kpId) => {
+    setExpandedKpIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(kpId)) next.delete(kpId); else next.add(kpId);
+      return next;
+    });
+  };
+
+  const toggleKpSelect = (kpId) => {
+    setSelectedKpIds((prev) =>
+      prev.includes(kpId) ? prev.filter((id) => id !== kpId) : [...prev, kpId]
+    );
+  };
+
+  const selectKpBranch = (root) => {
+    const allIds = [root.id, ...(root.children || []).map((c) => c.id)];
+    setSelectedKpIds((prev) => {
+      const existing = new Set(prev);
+      const allSelected = allIds.every((id) => existing.has(id));
+      if (allSelected) return prev.filter((id) => !allIds.includes(id));
+      return [...new Set([...prev, ...allIds])];
+    });
   };
 
   const updateTaskStatus = async (task, newStatus) => {
@@ -176,17 +233,10 @@ export default function TaskCenter({
       const res = await fetch(`${API_BASE}/learning/tasks/${task.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: user.username,
-          status: newStatus,
-        }),
+        body: JSON.stringify({ username: user.username, status: newStatus }),
       });
       const data = await res.json();
-      if (res.ok) {
-        setTasks((prev) =>
-          prev.map((t) => (t.id === task.id ? data.task : t))
-        );
-      }
+      if (res.ok) setTasks((prev) => prev.map((t) => (t.id === task.id ? data.task : t)));
     } catch (e) {
       console.error("Failed to update task:", e);
     } finally {
@@ -198,24 +248,13 @@ export default function TaskCenter({
     if (!window.confirm(`确认删除任务"${task.title}"吗？`)) return;
     setActionTaskId(task.id);
     try {
-      const res = await fetch(
-        `${API_BASE}/learning/tasks/${task.id}?username=${encodeURIComponent(user.username)}`,
-        { method: "DELETE" }
-      );
-      if (res.ok) {
-        setTasks((prev) => prev.filter((t) => t.id !== task.id));
-      }
+      await fetch(`${API_BASE}/learning/tasks/${task.id}?username=${encodeURIComponent(user.username)}`, { method: "DELETE" });
+      setTasks((prev) => prev.filter((t) => t.id !== task.id));
     } catch (e) {
       console.error("Failed to delete task:", e);
     } finally {
       setActionTaskId(null);
     }
-  };
-
-  const getTaskPriorityClass = (priority) => {
-    if (priority === "high") return "task-priority-high";
-    if (priority === "low") return "task-priority-low";
-    return "task-priority-medium";
   };
 
   const getTaskStatusClass = (status) => {
@@ -306,8 +345,22 @@ export default function TaskCenter({
         </div>
       ) : (
         <div className="task-list">
-          {tasks.map((task) => (
+          {tasks.map((task, index) => (
             <div key={task.id} className={`task-card ${task.status === "done" ? "task-card--done" : ""}`}>
+              <div className="task-card-sort">
+                <button
+                  className="task-move-btn"
+                  disabled={reordering || index === 0}
+                  onClick={() => moveTask(index, -1)}
+                  title="上移"
+                >▲</button>
+                <button
+                  className="task-move-btn"
+                  disabled={reordering || index === tasks.length - 1}
+                  onClick={() => moveTask(index, 1)}
+                  title="下移"
+                >▼</button>
+              </div>
               <div className="task-card-main">
                 <div className="task-card-header">
                   <h4 className="task-card-title">{task.title}</h4>
@@ -315,85 +368,34 @@ export default function TaskCenter({
                     <span className={`task-status-badge ${getTaskStatusClass(task.status)}`}>
                       {STATUS_LABELS[task.status] || task.status}
                     </span>
-                    <span className={`task-priority-badge ${getTaskPriorityClass(task.priority)}`}>
-                      {PRIORITY_LABELS[task.priority] || task.priority}
-                    </span>
                   </div>
                 </div>
-                {task.description && (
-                  <p className="task-card-desc">{task.description}</p>
-                )}
+                {task.description && <p className="task-card-desc">{task.description}</p>}
                 <div className="task-card-meta">
-                  {task.course_id && (
-                    <span className="subject-pill small">
-                      {getSubjectLabel(task.course_id)}
-                    </span>
-                  )}
-                  <span className="subject-pill small">
-                    {TASK_TYPE_LABELS[task.task_type] || task.task_type}
-                  </span>
+                  {task.course_id && <span className="subject-pill small">{getSubjectLabel(task.course_id)}</span>}
+                  <span className="subject-pill small">{TASK_TYPE_LABELS[task.task_type] || task.task_type}</span>
                   {task.knowledge_point_title && (
-                    <span className="subject-pill small" style={{ background: "#fef3c7", color: "#92400e" }}>
-                      {task.knowledge_point_title}
-                    </span>
+                    <span className="subject-pill small" style={{ background: "#fef3c7", color: "#92400e" }}>{task.knowledge_point_title}</span>
                   )}
                   {task.source && task.source !== "manual" && (
-                    <span className="subject-pill small" style={{ background: "#ecfdf5", color: "#065f46" }}>
-                      {SOURCE_LABELS[task.source] || task.source}
-                    </span>
+                    <span className="subject-pill small" style={{ background: "#ecfdf5", color: "#065f46" }}>{SOURCE_LABELS[task.source] || task.source}</span>
                   )}
-                  {task.due_date && (
-                    <span className="history-meta">
-                      截止：{formatDate(task.due_date)}
-                    </span>
-                  )}
-                  <span className="history-meta">
-                    创建：{formatDate(task.created_at)}
-                  </span>
-                  {task.completed_at && (
-                    <span className="history-meta" style={{ color: "#059669" }}>
-                      完成：{formatDate(task.completed_at)}
-                    </span>
-                  )}
+                  {task.due_date && <span className="history-meta">截止：{formatDate(task.due_date)}</span>}
+                  <span className="history-meta">创建：{formatDate(task.created_at)}</span>
+                  {task.completed_at && <span className="history-meta" style={{ color: "#059669" }}>完成：{formatDate(task.completed_at)}</span>}
                 </div>
               </div>
               <div className="task-card-actions">
                 {task.status !== "doing" && task.status !== "done" && (
-                  <button
-                    className="tiny-button"
-                    disabled={actionTaskId === task.id}
-                    onClick={() => updateTaskStatus(task, "doing")}
-                  >
-                    标记进行中
-                  </button>
+                  <button className="tiny-button" disabled={actionTaskId === task.id} onClick={() => updateTaskStatus(task, "doing")}>标记进行中</button>
                 )}
                 {task.status !== "done" && (
-                  <button
-                    className="tiny-button"
-                    disabled={actionTaskId === task.id}
-                    onClick={() => updateTaskStatus(task, "done")}
-                    style={{ color: "#059669" }}
-                  >
-                    标记完成
-                  </button>
+                  <button className="tiny-button" disabled={actionTaskId === task.id} onClick={() => updateTaskStatus(task, "done")} style={{ color: "#059669" }}>标记完成</button>
                 )}
                 {task.status === "done" && (
-                  <button
-                    className="tiny-button"
-                    disabled={actionTaskId === task.id}
-                    onClick={() => updateTaskStatus(task, "todo")}
-                  >
-                    改回未完成
-                  </button>
+                  <button className="tiny-button" disabled={actionTaskId === task.id} onClick={() => updateTaskStatus(task, "todo")}>改回未完成</button>
                 )}
-                <button
-                  className="tiny-button"
-                  disabled={actionTaskId === task.id}
-                  onClick={() => deleteTask(task)}
-                  style={{ color: "#dc2626" }}
-                >
-                  删除
-                </button>
+                <button className="tiny-button" disabled={actionTaskId === task.id} onClick={() => deleteTask(task)} style={{ color: "#dc2626" }}>删除</button>
               </div>
             </div>
           ))}
@@ -402,104 +404,87 @@ export default function TaskCenter({
 
       {showCreateModal && (
         <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-card task-create-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>新建学习任务</h3>
-              <button
-                className="modal-close"
-                onClick={() => setShowCreateModal(false)}
-              >
-                &times;
-              </button>
+              <button className="modal-close" onClick={() => setShowCreateModal(false)}>&times;</button>
             </div>
 
             <div className="task-modal-body">
               <label className="field-label">任务标题 *</label>
-              <input
-                className="field"
-                placeholder="例如：复习数据结构第三章"
-                value={createTitle}
-                onChange={(e) => setCreateTitle(e.target.value)}
-              />
+              <input className="field" placeholder="请输入任务标题" value={createTitle} onChange={(e) => setCreateTitle(e.target.value)} />
+
               <label className="field-label">任务描述</label>
-              <textarea
-                className="field"
-                rows={3}
-                placeholder="详细说明任务内容..."
-                value={createDescription}
-                onChange={(e) => setCreateDescription(e.target.value)}
-              />
-              <label className="field-label">所属课程</label>
-              <select
-                className="field"
-                value={createCourse}
-                onChange={(e) => setCreateCourse(e.target.value)}
-              >
-                <option value="">不绑定课程</option>
-                {courseOptions.map((item) => (
-                  <option key={item} value={item}>
-                    {getSubjectLabel(item)}
-                  </option>
-                ))}
-              </select>
-              <label className="field-label">任务类型</label>
-              <select
-                className="field"
-                value={createType}
-                onChange={(e) => setCreateType(e.target.value)}
-              >
-                {TASK_TYPE_OPTIONS.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-              <label className="field-label">优先级</label>
-              <select
-                className="field"
-                value={createPriority}
-                onChange={(e) => setCreatePriority(e.target.value)}
-              >
-                {PRIORITY_OPTIONS.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-              <label className="field-label">绑定知识点（可选）</label>
-              <select
-                className="field"
-                value={createKnowledgePointId}
-                onChange={(e) => setCreateKnowledgePointId(e.target.value)}
-              >
-                <option value="">不绑定知识点</option>
-                {knowledgePoints.map((kp) => (
-                  <option key={kp.id} value={kp.id}>
-                    {kp.title}
-                  </option>
-                ))}
-              </select>
+              <textarea className="field" rows={2} placeholder="详细说明任务内容（可选）" value={createDescription} onChange={(e) => setCreateDescription(e.target.value)} />
+
+              <div className="task-modal-row">
+                <div className="task-modal-col">
+                  <label className="field-label">所属课程</label>
+                  <select className="field" value={createCourse} onChange={(e) => setCreateCourse(e.target.value)}>
+                    <option value="">不绑定课程</option>
+                    {courseOptions.map((item) => (<option key={item} value={item}>{getSubjectLabel(item)}</option>))}
+                  </select>
+                </div>
+                <div className="task-modal-col">
+                  <label className="field-label">任务类型</label>
+                  <select className="field" value={createType} onChange={(e) => setCreateType(e.target.value)}>
+                    {TASK_TYPE_OPTIONS.map((item) => (<option key={item.value} value={item.value}>{item.label}</option>))}
+                  </select>
+                </div>
+              </div>
+
               <label className="field-label">截止日期（可选）</label>
-              <input
-                className="field"
-                type="date"
-                value={createDueDate}
-                onChange={(e) => setCreateDueDate(e.target.value)}
-              />
+              <input className="field" type="date" value={createDueDate} onChange={(e) => setCreateDueDate(e.target.value)} />
+
+              {/* Knowledge Point Binding — tree from materials/knowledge base */}
+              <div className="task-modal-section">
+                <label className="field-label">绑定知识点（可选）</label>
+                {!createCourse ? (
+                  <p className="task-modal-hint">请先选择所属课程以加载该课程的知识点。</p>
+                ) : kpLoading ? (
+                  <p className="task-modal-hint">正在加载课程知识点...</p>
+                ) : kpTree.length === 0 ? (
+                  <p className="task-modal-hint">当前课程暂无知识点。你可以先到知识库上传资料并提取知识点，或下方手动输入。</p>
+                ) : (
+                  <div className="task-kp-tree">
+                    {kpTree.map((root) => {
+                      const isExpanded = expandedKpIds.has(root.id);
+                      return (
+                        <div key={root.id} className="task-kp-node">
+                          <div className="task-kp-node-header">
+                            <button type="button" className="task-kp-expand-btn" onClick={() => toggleKpExpand(root.id)}>
+                              {isExpanded ? "▼" : "▶"}
+                            </button>
+                            <label className="task-kp-check-label">
+                              <input type="checkbox" checked={selectedKpIds.includes(root.id)} onChange={() => selectKpBranch(root)} />
+                              <span className="task-kp-name">{root.title}</span>
+                            </label>
+                          </div>
+                          {isExpanded && root.children.length > 0 && (
+                            <div className="task-kp-children">
+                              {root.children.map((child) => (
+                                <label key={child.id} className="task-kp-child-label">
+                                  <input type="checkbox" checked={selectedKpIds.includes(child.id)} onChange={() => toggleKpSelect(child.id)} />
+                                  <span className="task-kp-child-name">{child.title}</span>
+                                </label>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Manual knowledge point input */}
+              <label className="field-label">手动输入知识点</label>
+              <input className="field" placeholder="输入自定义知识点名称，例如：动态规划、指针操作" value={customKpInput} onChange={(e) => setCustomKpInput(e.target.value)} />
             </div>
 
             <div className="task-form-actions">
-              <button
-                className="ghost-button compact"
-                onClick={() => setShowCreateModal(false)}
-              >
-                取消
-              </button>
-              <button
-                className="primary-button compact"
-                disabled={saving || !createTitle.trim()}
-                onClick={createTask}
-              >
+              <button className="ghost-button compact" onClick={() => setShowCreateModal(false)}>取消</button>
+              <button className="task-btn-primary" disabled={saving || !createTitle.trim()} onClick={createTask}>
                 {saving ? "创建中..." : "创建任务"}
               </button>
             </div>

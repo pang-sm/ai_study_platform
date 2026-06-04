@@ -28,7 +28,7 @@ from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel
 from pypdf import PdfReader
 import pytesseract
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from course_workbench import (
@@ -4805,7 +4805,8 @@ def serialize_learning_task(task, knowledge_point_title=None):
         "task_type": task.task_type,
         "status": task.status,
         "source": task.source,
-        "priority": task.priority,
+        "priority": getattr(task, "priority", None),
+        "order_index": getattr(task, "order_index", 0),
         "due_date": serialize_datetime(task.due_date) if task.due_date else None,
         "related_session_id": task.related_session_id,
         "related_challenge_id": task.related_challenge_id,
@@ -7885,7 +7886,8 @@ def get_learning_tasks(username: str, course_id: str = "", status: str = "", db:
         query = query.filter(models.LearningTask.status == status_filter)
     tasks = query.order_by(
         models.LearningTask.status.asc(),
-        models.LearningTask.updated_at.desc(),
+        models.LearningTask.order_index.asc(),
+        models.LearningTask.created_at.asc(),
     ).all()
     # Bulk-fetch knowledge point titles
     kp_ids = [getattr(t, "knowledge_point_id", None) for t in tasks if getattr(t, "knowledge_point_id", None)]
@@ -7916,6 +7918,9 @@ def create_learning_task(req: schemas.LearningTaskCreate, db: Session = Depends(
     if not title:
         raise HTTPException(status_code=400, detail="任务标题不能为空")
     now = utc_now()
+    max_order = db.query(func.coalesce(func.max(models.LearningTask.order_index), -1)).filter(
+        models.LearningTask.username == user.username,
+    ).scalar() or -1
     task = models.LearningTask(
         username=user.username,
         course_id=normalize_subject(req.course_id, default="") or None,
@@ -7925,6 +7930,7 @@ def create_learning_task(req: schemas.LearningTaskCreate, db: Session = Depends(
         status=status,
         source=source,
         priority=priority,
+        order_index=max_order + 1,
         due_date=req.due_date,
         related_session_id=req.related_session_id,
         related_challenge_id=req.related_challenge_id,
@@ -8029,6 +8035,38 @@ def update_learning_task(task_id: int, req: schemas.LearningTaskUpdate, db: Sess
         db.commit()
 
     return {"task": serialize_learning_task(task)}
+
+
+@app.post("/learning/tasks/reorder")
+def reorder_learning_tasks(req: dict, db: Session = Depends(get_db)):
+    """Reorder tasks by updating order_index for each task."""
+    username = str(req.get("username", "")).strip()
+    items = req.get("items", [])
+    if not username or not isinstance(items, list) or len(items) == 0:
+        raise HTTPException(status_code=400, detail="请求参数无效")
+    user = get_user_by_username(username, db)
+    task_ids = [int(item.get("id", 0)) for item in items if isinstance(item, dict) and item.get("id")]
+    if not task_ids:
+        raise HTTPException(status_code=400, detail="未提供有效的任务ID")
+    existing = (
+        db.query(models.LearningTask)
+        .filter(
+            models.LearningTask.id.in_(task_ids),
+            models.LearningTask.username == user.username,
+        )
+        .all()
+    )
+    existing_ids = {t.id for t in existing}
+    for item in items:
+        tid = int(item.get("id", 0))
+        if tid not in existing_ids:
+            continue
+        order = int(item.get("order_index", 0))
+        db.query(models.LearningTask).filter(models.LearningTask.id == tid).update(
+            {"order_index": order, "updated_at": utc_now()}, synchronize_session=False
+        )
+    db.commit()
+    return {"success": True}
 
 
 @app.delete("/learning/tasks/{task_id}")

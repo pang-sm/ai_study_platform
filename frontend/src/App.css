@@ -7703,6 +7703,140 @@ select.field:focus {
   margin-top: 8px;
 }
 
+/* ── Task card sort buttons ── */
+.task-card-sort {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.task-move-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 20px;
+  padding: 0;
+  font-size: 9px;
+  color: #94a3b8;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.task-move-btn:hover:not(:disabled) {
+  color: #475569;
+  background: #eef6ff;
+  border-color: #bfdbfe;
+}
+
+.task-move-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* ── Task modal enhancements ── */
+.task-create-modal {
+  width: 600px;
+  max-width: 95vw;
+  max-height: 88vh;
+}
+
+.task-modal-row {
+  display: flex;
+  gap: 12px;
+}
+
+.task-modal-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.task-modal-section {
+  margin-top: 4px;
+}
+
+.task-modal-hint {
+  font-size: 0.78rem;
+  color: #94a3b8;
+  margin: 4px 0;
+  line-height: 1.4;
+}
+
+/* ── Knowledge point tree ── */
+.task-kp-tree {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px;
+  background: #fafbfc;
+}
+
+.task-kp-node {
+  margin-bottom: 2px;
+}
+
+.task-kp-node-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.task-kp-expand-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  font-size: 9px;
+  color: #64748b;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.task-kp-check-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: #334155;
+}
+
+.task-kp-name {
+  font-weight: 600;
+}
+
+.task-kp-children {
+  margin-left: 24px;
+  margin-top: 3px;
+  margin-bottom: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.task-kp-child-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: #475569;
+  padding: 2px 0;
+}
+
+.task-kp-child-name {
+  color: #475569;
+}
+
 /* ── Dashboard task card ── */
 
 .dashboard-task-card {
