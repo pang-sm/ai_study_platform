@@ -5160,9 +5160,9 @@ select.field:focus {
 .app-shell {
   display: flex;
   flex-direction: column;
-  height: 100%;       /* fill al-main, not viewport */
-  min-height: 0;
-  overflow: hidden;
+  min-height: 100%;
+  height: auto;
+  overflow: visible;
 }
 
 .workspace-topbar-left {
