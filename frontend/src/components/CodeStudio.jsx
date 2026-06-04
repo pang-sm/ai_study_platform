@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Editor from "@monaco-editor/react";
 import MarkdownMessage from "./MarkdownMessage.jsx";
-import { ProblemsPanel, CodeStudioStatusBar } from "./codeStudio/index.js";
+import { ProblemsPanel, CodeStudioStatusBar, EditorDisplayControls } from "./codeStudio/index.js";
 import { Terminal } from "xterm";
 import { FitAddon } from "xterm-addon-fit";
 import "xterm/css/xterm.css";
@@ -2491,6 +2491,13 @@ export default function CodeStudio({
             )}
           </div>
           <div className="code-status-bar-right">
+            <EditorDisplayControls
+              editorFontSize={editorFontSize}
+              onDecreaseFontSize={() => setEditorFontSize((s) => Math.max(12, s - 1))}
+              onIncreaseFontSize={() => setEditorFontSize((s) => Math.min(24, s + 1))}
+              editorTheme={editorTheme}
+              onChangeTheme={setEditorTheme}
+            />
             <div className="code-layout-controls">
               <button
                 className={`code-layout-btn ${!sidebarCollapsed && !focusMode ? "code-layout-btn--active" : ""}`}
@@ -2887,11 +2894,6 @@ export default function CodeStudio({
                 diagnosticStatus={diagnosticStatus}
                 diagnosticErrors={diagnosticErrors}
                 diagnosticWarnings={diagnosticWarnings}
-                editorFontSize={editorFontSize}
-                editorTheme={editorTheme}
-                onDecreaseFontSize={() => setEditorFontSize((s) => Math.max(12, s - 1))}
-                onIncreaseFontSize={() => setEditorFontSize((s) => Math.min(24, s + 1))}
-                onChangeTheme={setEditorTheme}
               />
             </div>
 
