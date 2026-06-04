@@ -166,6 +166,7 @@ LEARNING_TASKS_COLUMNS = {
     "status": "VARCHAR(30) NOT NULL",
     "source": "VARCHAR(50)",
     "priority": "VARCHAR(20)",
+    "order_index": "INTEGER DEFAULT 0",
     "due_date": "DATETIME",
     "related_session_id": "INTEGER",
     "related_challenge_id": "INTEGER",

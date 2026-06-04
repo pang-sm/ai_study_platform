@@ -2964,11 +2964,6 @@ function App() {
   if (page === "taskCenter") {
     return wrapPage(
       <div className="app-shell">
-        <header className="workspace-topbar">
-          <div className="workspace-topbar-left">
-            <span className="subject-pill panel-pill">学习任务中心</span>
-          </div>
-        </header>
         <Suspense fallback={<div className="empty-state">学习任务中心加载中...</div>}>
           <TaskCenter
             user={user}
