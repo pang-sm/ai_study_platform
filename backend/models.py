@@ -232,6 +232,7 @@ class LearningTask(Base):
     status = Column(String(30), nullable=False)
     source = Column(String(50), nullable=True)
     priority = Column(String(20), nullable=True)
+    order_index = Column(Integer, nullable=True)
     due_date = Column(DateTime, nullable=True)
     related_session_id = Column(Integer, nullable=True)
     related_challenge_id = Column(Integer, nullable=True)

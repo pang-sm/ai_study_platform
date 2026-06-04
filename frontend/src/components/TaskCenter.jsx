@@ -9,6 +9,7 @@ const TASK_TYPE_OPTIONS = [
   { value: "challenge", label: "AI 出题练习" },
   { value: "review", label: "复习巩固" },
   { value: "custom", label: "自定义任务" },
+  { value: "__other__", label: "其他 / 自定义输入..." },
 ];
 
 const STATUS_OPTIONS = [
@@ -68,6 +69,7 @@ export default function TaskCenter({
   const [createDescription, setCreateDescription] = useState("");
   const [createCourse, setCreateCourse] = useState(subject || "");
   const [createType, setCreateType] = useState("custom");
+  const [customTypeInput, setCustomTypeInput] = useState("");
   const [createDueDate, setCreateDueDate] = useState("");
   const [selectedKpIds, setSelectedKpIds] = useState([]);
 
@@ -157,12 +159,15 @@ export default function TaskCenter({
     if (!createTitle.trim()) return;
     setSaving(true);
     try {
+      const effectiveType = createType === "__other__" && customTypeInput.trim()
+        ? customTypeInput.trim()
+        : createType === "__other__" ? "custom" : createType;
       const body = {
         username: user.username,
         course_id: normalizeSubject(createCourse, "") || "",
         title: createTitle.trim(),
         description: createDescription.trim(),
-        task_type: createType,
+        task_type: effectiveType,
         status: "todo",
         source: "manual",
         priority: "medium",
@@ -197,6 +202,7 @@ export default function TaskCenter({
     setCreateDescription("");
     setCreateCourse(subject || "");
     setCreateType("custom");
+    setCustomTypeInput("");
     setCreateDueDate("");
     setSelectedKpIds([]);
     setCustomKpInput("");
@@ -427,9 +433,18 @@ export default function TaskCenter({
                 </div>
                 <div className="task-modal-col">
                   <label className="field-label">任务类型</label>
-                  <select className="field" value={createType} onChange={(e) => setCreateType(e.target.value)}>
+                  <select className="field" value={createType} onChange={(e) => { setCreateType(e.target.value); if (e.target.value !== "__other__") setCustomTypeInput(""); }}>
                     {TASK_TYPE_OPTIONS.map((item) => (<option key={item.value} value={item.value}>{item.label}</option>))}
                   </select>
+                  {createType === "__other__" && (
+                    <input
+                      className="field"
+                      style={{ marginTop: 8 }}
+                      placeholder="请输入自定义任务类型"
+                      value={customTypeInput}
+                      onChange={(e) => setCustomTypeInput(e.target.value)}
+                    />
+                  )}
                 </div>
               </div>
 
