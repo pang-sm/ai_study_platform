@@ -24,6 +24,211 @@ const REPORT_TYPE_DESCS = {
 
 const TYPE_LABELS = Object.fromEntries(REPORT_TYPES.map((t) => [t.value, t.label]));
 
+const REPORT_SECTION_ICONS = {
+  "学习情况": "📘", "已完成内容": "✅", "基础统计分析": "📊",
+  "主要薄弱点": "⚠️", "资料使用": "📚", "AI 使用": "🤖",
+  "下一步建议": "🚀", "重点知识点": "🎯", "总结": "📝",
+  "学习概览": "📋", "薄弱点分析": "🔍",
+};
+
+/** Parse report markdown content into structured sections */
+function parseReportMarkdown(content) {
+  if (!content) return { title: "", sections: [] };
+  const lines = content.replace(/\r\n/g, "\n").split("\n");
+  const sections = [];
+  let title = "";
+  let summary = "";
+  let currentSection = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.startsWith("# ") && !title) {
+      title = line.slice(2).trim();
+      continue;
+    }
+    if (line.startsWith("> ") && !summary) {
+      summary = line.slice(2).trim();
+      continue;
+    }
+    if (line.startsWith("## ")) {
+      if (currentSection && currentSection.body.trim()) {
+        sections.push(currentSection);
+      }
+      currentSection = { title: line.slice(3).trim(), body: "" };
+      continue;
+    }
+    if (currentSection) {
+      currentSection.body += line + "\n";
+    }
+  }
+  if (currentSection && currentSection.body.trim()) {
+    sections.push(currentSection);
+  }
+  return { title, summary, sections };
+}
+
+/** Render a section body (bullet/ordered lists + paragraphs) */
+function renderSectionBody(body) {
+  const lines = body.trim().split("\n");
+  const elements = [];
+  let bulletGroup = [];
+  let orderedGroup = [];
+  let paraGroup = [];
+  let inCode = false;
+  let codeLines = [];
+
+  const flush = (group, type) => {
+    if (group.length === 0) return;
+    const text = group.join("\n").trim();
+    if (!text) return;
+    if (type === "bullet") {
+      const items = text.split(/\n(?=[*-]\s)/).filter(Boolean).map((item) =>
+        item.replace(/^[*-]\s*/, "").trim()
+      );
+      elements.push(
+        <ul key={elements.length} className="report-section-list">
+          {items.map((item, i) => (
+            <li key={i}>{item}</li>
+          ))}
+        </ul>
+      );
+    } else if (type === "ordered") {
+      const items = text.split(/\n(?=\d+\.\s)/).filter(Boolean).map((item) => {
+        const m = item.match(/^\d+\.\s\*\*(.+?)\*\*[：:]?\s*(.*)/);
+        if (m) return { title: m[1], desc: m[2] };
+        return { title: item.replace(/^\d+\.\s*/, "").trim(), desc: "" };
+      });
+      elements.push(
+        <ol key={elements.length} className="report-action-list-v2">
+          {items.map((item, i) => (
+            <li key={i} className="report-action-item-v2">
+              <span className="report-action-num">{i + 1}</span>
+              <div className="report-action-body">
+                <strong>{item.title}</strong>
+                {item.desc && <p>{item.desc}</p>}
+              </div>
+            </li>
+          ))}
+        </ol>
+      );
+    } else {
+      elements.push(
+        <p key={elements.length} className="report-section-para">
+          {text}
+        </p>
+      );
+    }
+  };
+
+  for (const line of lines) {
+    if (line.startsWith("```")) {
+      if (inCode) { flush(codeLines, "para"); codeLines = []; }
+      inCode = !inCode;
+      continue;
+    }
+    if (inCode) { codeLines.push(line); continue; }
+    const trimmed = line.trim();
+    if (!trimmed) {
+      flush(bulletGroup, "bullet");
+      flush(orderedGroup, "ordered");
+      flush(paraGroup, "para");
+      bulletGroup = [];
+      orderedGroup = [];
+      paraGroup = [];
+      continue;
+    }
+    if (/^[*-]\s/.test(trimmed)) {
+      flush(orderedGroup, "ordered");
+      flush(paraGroup, "para");
+      orderedGroup = [];
+      paraGroup = [];
+      bulletGroup.push(trimmed);
+    } else if (/^\d+\.\s/.test(trimmed)) {
+      flush(bulletGroup, "bullet");
+      flush(paraGroup, "para");
+      bulletGroup = [];
+      paraGroup = [];
+      orderedGroup.push(trimmed);
+    } else {
+      flush(bulletGroup, "bullet");
+      flush(orderedGroup, "ordered");
+      bulletGroup = [];
+      orderedGroup = [];
+      paraGroup.push(trimmed);
+    }
+  }
+  flush(bulletGroup, "bullet");
+  flush(orderedGroup, "ordered");
+  flush(paraGroup, "para");
+  return elements;
+}
+
+function ReportPreview({ report, onSave, onRetry, onClear, saving, saveMsg, showActions }) {
+  const parsed = parseReportMarkdown(report.content);
+  const metrics = report.metrics || {};
+  const metricEntries = [
+    { key: "task_completed_count", label: "完成任务" },
+    { key: "question_attempt_count", label: "作答次数" },
+    { key: "correct_rate", label: "正确率", fmt: (v) => `${Math.round((v ?? 0) * 100)}%` },
+    { key: "knowledge_point_count", label: "知识点" },
+    { key: "mastered_point_count", label: "已掌握" },
+    { key: "weak_point_count", label: "薄弱点" },
+    { key: "ai_chat_count", label: "AI 调用" },
+    { key: "material_count", label: "资料数" },
+  ].filter((e) => metrics[e.key] !== undefined);
+
+  return (
+    <div className="report-preview-card-v2">
+      <div className="report-preview-header-v2">
+        <h3>报告预览</h3>
+      </div>
+      {parsed.title && <h2 className="report-preview-title-v2">{parsed.title}</h2>}
+      {parsed.summary && <p className="report-preview-summary-v2">{parsed.summary}</p>}
+      {metricEntries.length > 0 && (
+        <div className="report-preview-metrics-v2">
+          {metricEntries.map((e) => (
+            <div key={e.key} className="report-preview-metric-v2">
+              <strong>{e.fmt ? e.fmt(metrics[e.key]) : metrics[e.key]}</strong>
+              <span>{e.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {parsed.sections.length > 0 && (
+        <div className="report-body-v2">
+          {parsed.sections.map((sec, i) => (
+            <div key={i} className="report-section-v2">
+              <div className="report-section-title-v2">
+                <span className="report-section-icon">
+                  {REPORT_SECTION_ICONS[sec.title] || "📝"}
+                </span>
+                {sec.title}
+              </div>
+              <div className="report-section-content-v2">
+                {renderSectionBody(sec.body)}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {showActions && (
+        <div className="report-preview-actions" style={{ marginTop: 20 }}>
+          <button className="report-btn-generate" onClick={onSave} disabled={saving}>
+            {saving ? "保存中..." : "保存报告"}
+          </button>
+          <button className="ghost-button" onClick={onRetry}>重新生成</button>
+          <button className="ghost-button" onClick={onClear}>清空</button>
+        </div>
+      )}
+      {saveMsg && (
+        <p style={{ color: saveMsg.includes("失败") ? "#ef4444" : "#059669", marginTop: 12, fontSize: "0.85rem" }}>
+          {saveMsg}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function LearningReportCenter({ user }) {
   // Generation settings
   const [reportType, setReportType] = useState("weekly");
@@ -431,33 +636,15 @@ export default function LearningReportCenter({ user }) {
 
       {/* ── Preview ── */}
       {preview && (
-        <div className="report-card report-preview-card">
-          <div className="report-card-header">
-            <h3>报告预览</h3>
-          </div>
-          <h2 className="report-preview-title">{preview.title}</h2>
-          {preview.summary && <p className="report-preview-summary">{preview.summary}</p>}
-          {preview.metrics && (
-            <div className="report-metrics-cards">
-              {preview.metrics.task_completed_count !== undefined && (<div className="report-metric-card"><div className="report-metric-value">{preview.metrics.task_completed_count}</div><div className="report-metric-label">完成任务</div></div>)}
-              {preview.metrics.question_attempt_count !== undefined && (<div className="report-metric-card"><div className="report-metric-value">{preview.metrics.question_attempt_count}</div><div className="report-metric-label">作答次数</div></div>)}
-              {preview.metrics.correct_rate !== undefined && (<div className="report-metric-card"><div className="report-metric-value">{Math.round(preview.metrics.correct_rate * 100)}%</div><div className="report-metric-label">正确率</div></div>)}
-              {preview.metrics.knowledge_point_count !== undefined && (<div className="report-metric-card"><div className="report-metric-value">{preview.metrics.knowledge_point_count}</div><div className="report-metric-label">知识点</div></div>)}
-              {preview.metrics.mastered_point_count !== undefined && (<div className="report-metric-card"><div className="report-metric-value">{preview.metrics.mastered_point_count}</div><div className="report-metric-label">已掌握</div></div>)}
-              {preview.metrics.weak_point_count !== undefined && (<div className="report-metric-card"><div className="report-metric-value">{preview.metrics.weak_point_count}</div><div className="report-metric-label">薄弱点</div></div>)}
-              {preview.metrics.ai_chat_count !== undefined && (<div className="report-metric-card"><div className="report-metric-value">{preview.metrics.ai_chat_count}</div><div className="report-metric-label">AI 调用</div></div>)}
-              {preview.metrics.material_count !== undefined && (<div className="report-metric-card"><div className="report-metric-value">{preview.metrics.material_count}</div><div className="report-metric-label">资料数</div></div>)}
-            </div>
-          )}
-          <div className="report-content-box"><div className="report-content-text">{preview.content}</div></div>
-          {(preview.suggestions || []).length > 0 && (<div className="report-suggestions"><h4>建议</h4><ul>{preview.suggestions.map((s, i) => (<li key={i}>{s}</li>))}</ul></div>)}
-          <div className="report-preview-actions">
-            <button className="report-btn-generate" onClick={handleSave} disabled={saving}>{saving ? "保存中..." : "保存报告"}</button>
-            <button className="ghost-button" onClick={handleGenerate} disabled={generating}>重新生成</button>
-            <button className="ghost-button" onClick={() => { setPreview(null); setSaveMsg(""); setGenError(""); }}>清空</button>
-          </div>
-          {saveMsg && <p style={{ color: saveMsg.includes("失败") ? "#ef4444" : "#059669", marginTop: 12, fontSize: "0.85rem" }}>{saveMsg}</p>}
-        </div>
+        <ReportPreview
+          report={preview}
+          onSave={handleSave}
+          onRetry={handleGenerate}
+          onClear={() => { setPreview(null); setSaveMsg(""); setGenError(""); }}
+          saving={saving}
+          saveMsg={saveMsg}
+          showActions={true}
+        />
       )}
 
       {/* ── History ── */}
@@ -530,38 +717,7 @@ export default function LearningReportCenter({ user }) {
           <div className="report-modal-overlay" onClick={() => { setDetail(null); setShareInfo(null); setShareMsg(""); }}>
             <div className="report-modal" onClick={(e) => e.stopPropagation()}>
               <h2 className="report-modal-title">{detail.title}</h2>
-              <div className="report-modal-meta">
-                <span className={`report-type-tag report-type-${detail.report_type}`}>
-                  {TYPE_LABELS[detail.report_type] || detail.report_type}
-                </span>
-                <span>{detail.course_name || getSubjectLabel(detail.course_id) || detail.course_id || "全部课程"}</span>
-                {detail.start_date && (
-                  <span>{new Date(detail.start_date).toLocaleDateString("zh-CN")} ~ {detail.end_date ? new Date(detail.end_date).toLocaleDateString("zh-CN") : ""}</span>
-                )}
-              </div>
-              {detail.metrics && (
-                <div className="report-metrics-cards" style={{ marginTop: 12 }}>
-                  {Object.entries(detail.metrics).map(([k, v]) => (
-                    <div key={k} className="report-metric-card small">
-                      <div className="report-metric-value">{typeof v === "number" && v < 1 ? `${Math.round(v * 100)}%` : v}</div>
-                      <div className="report-metric-label">{k}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div className="report-content-box" style={{ marginTop: 16 }}>
-                <div className="report-content-text">{detail.content}</div>
-              </div>
-              {(detail.suggestions || []).length > 0 && (
-                <div className="report-suggestions">
-                  <h4>建议</h4>
-                  <ul>
-                    {detail.suggestions.map((s, i) => (
-                      <li key={i}>{s}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+              <ReportPreview report={detail} showActions={false} />
 
               {/* ── Share Info ── */}
               {shareInfo && shareInfo.is_shared && (
