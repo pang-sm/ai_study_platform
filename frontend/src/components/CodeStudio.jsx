@@ -429,6 +429,28 @@ export default function CodeStudio({
   const [attemptDetailLoading, setAttemptDetailLoading] = useState(false);
   const [togglingMastered, setTogglingMastered] = useState({});
 
+  // ── Editor display settings ──
+  const [editorFontSize, setEditorFontSize] = useState(() => {
+    try {
+      const saved = Number(localStorage.getItem("codestudio.editor.fontSize"));
+      return Number.isFinite(saved) && saved >= 12 && saved <= 24 ? saved : 14;
+    } catch { return 14; }
+  });
+  const [editorTheme, setEditorTheme] = useState(() => {
+    try {
+      const saved = localStorage.getItem("codestudio.editor.theme");
+      return saved === "light" ? "light" : "vs-dark";
+    } catch { return "vs-dark"; }
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem("codestudio.editor.fontSize", String(editorFontSize)); } catch {}
+  }, [editorFontSize]);
+
+  useEffect(() => {
+    try { localStorage.setItem("codestudio.editor.theme", editorTheme); } catch {}
+  }, [editorTheme]);
+
   // Code progress stats
   const [codeProgress, setCodeProgress] = useState(null);
 
@@ -1064,9 +1086,11 @@ export default function CodeStudio({
       if (!container) return;
 
       const term = new Terminal({
-        fontSize: 13,
+        fontSize: editorFontSize,
         fontFamily: "'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
-        theme: { background: "#1e1e1e", foreground: "#d4d4d4", cursor: "#ffffff" },
+        theme: editorTheme === "light"
+          ? { background: "#ffffff", foreground: "#111827", cursor: "#2563eb" }
+          : { background: "#1e1e1e", foreground: "#d4d4d4", cursor: "#ffffff" },
         cursorBlink: true,
         cols: 80,
         rows: 24,
@@ -2819,7 +2843,7 @@ export default function CodeStudio({
                 language={getMonacoLanguage(activeLanguage)}
                 value={code}
                 onChange={(value) => setCode(value || "")}
-                theme="vs-dark"
+                theme={editorTheme}
                 beforeMount={(monaco) => {
                   registerAutocomplete(monaco);
                   monacoRef.current = monaco;
@@ -2834,7 +2858,8 @@ export default function CodeStudio({
                   applyDiagnosticsToEditor(diagnostics);
                 }}
                 options={{
-                  fontSize: 14,
+                  fontSize: editorFontSize,
+                  lineHeight: Math.round(editorFontSize * 1.6),
                   minimap: { enabled: false },
                   glyphMargin: true,
                   automaticLayout: true,
@@ -2862,6 +2887,11 @@ export default function CodeStudio({
                 diagnosticStatus={diagnosticStatus}
                 diagnosticErrors={diagnosticErrors}
                 diagnosticWarnings={diagnosticWarnings}
+                editorFontSize={editorFontSize}
+                editorTheme={editorTheme}
+                onDecreaseFontSize={() => setEditorFontSize((s) => Math.max(12, s - 1))}
+                onIncreaseFontSize={() => setEditorFontSize((s) => Math.min(24, s + 1))}
+                onChangeTheme={setEditorTheme}
               />
             </div>
 
