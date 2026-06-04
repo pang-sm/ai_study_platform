@@ -13,6 +13,15 @@ const REPORT_TYPES = [
   { value: "growth", label: "成长档案", icon: "🌱" },
 ];
 
+const REPORT_TYPE_DESCS = {
+  today: "总结今天的学习内容和待复习点",
+  weekly: "分析本周学习投入和薄弱模块",
+  monthly: "查看阶段性成长趋势",
+  course: "聚焦单门课程的学习情况",
+  exam: "整理重点、错题和冲刺建议",
+  growth: "长期记录能力变化和学习成果",
+};
+
 const TYPE_LABELS = Object.fromEntries(REPORT_TYPES.map((t) => [t.value, t.label]));
 
 export default function LearningReportCenter({ user }) {
@@ -319,208 +328,151 @@ export default function LearningReportCenter({ user }) {
     []
   );
 
-  return (
-    <div className="report-center">
-      {/* ── Settings ── */}
-      <section className="report-section">
-        <h3>报告生成设置</h3>
+  const statCards = useMemo(() => {
+    const totalReports = histTotal;
+    const today = new Date();
+    const weekAgo = new Date(today.getTime() - 7 * 86400000);
+    const weekReports = history.filter((r) => r.created_at && new Date(r.created_at) >= weekAgo).length;
+    const lastReport = history.length > 0 ? history[0] : null;
+    return [
+      { icon: "📋", label: "已生成报告", value: String(totalReports) },
+      { icon: "📆", label: "本周生成", value: String(weekReports) },
+      { icon: "⏱️", label: "累计学习记录", value: totalReports > 0 ? "可用" : "暂无" },
+      { icon: "🕐", label: "最近生成", value: lastReport?.created_at ? new Date(lastReport.created_at).toLocaleDateString("zh-CN") : "暂无" },
+    ];
+  }, [histTotal, history]);
 
-        <div className="report-type-cards">
+  return (
+    <div className="report-center-v2">
+      {/* ── Hero Header ── */}
+      <div className="report-hero">
+        <div className="report-hero-text">
+          <h1 className="report-hero-title">学习报告</h1>
+          <p className="report-hero-subtitle">AI 自动整理你的学习记录，生成阶段总结、薄弱点分析和成长档案。</p>
+        </div>
+      </div>
+
+      {/* ── Stat Cards ── */}
+      <div className="report-stat-cards">
+        {statCards.map((sc) => (
+          <div key={sc.label} className="report-stat-card">
+            <div className="report-stat-icon">{sc.icon}</div>
+            <div className="report-stat-body">
+              <div className="report-stat-value">{sc.value}</div>
+              <div className="report-stat-label">{sc.label}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Generate Card ── */}
+      <div className="report-card report-generate-card">
+        <div className="report-card-header">
+          <h3>生成新报告</h3>
+          <p>选择报告类型、课程和时间范围，AI 会自动整理你的学习表现。</p>
+        </div>
+
+        <div className="report-type-grid">
           {REPORT_TYPES.map((t) => (
             <button
               key={t.value}
-              className={`report-type-card ${reportType === t.value ? "active" : ""}`}
+              className={`report-type-card-v2 ${reportType === t.value ? "active" : ""}`}
               onClick={() => setReportType(t.value)}
             >
-              <span className="report-type-icon">{t.icon}</span>
-              <span className="report-type-label">{t.label}</span>
+              <span className="report-type-card-icon">{t.icon}</span>
+              <div className="report-type-card-body">
+                <span className="report-type-card-title">{t.label}</span>
+                <span className="report-type-card-desc">{REPORT_TYPE_DESCS[t.value]}</span>
+              </div>
+              {reportType === t.value && <span className="report-type-card-check">✓</span>}
             </button>
           ))}
         </div>
 
-        <div className="report-settings-row">
-          <div className="report-setting">
+        <div className="report-form-grid">
+          <div className="report-form-col report-form-col--full">
             <label className="field-label">课程范围</label>
-            <select
-              className="field"
-              value={courseScope}
-              onChange={(e) => setCourseScope(e.target.value)}
-            >
+            <select className="field" value={courseScope} onChange={(e) => setCourseScope(e.target.value)}>
               <option value="all">全部课程</option>
               <option value="specific">指定课程</option>
             </select>
           </div>
           {courseScope === "specific" && (
-            <div className="report-setting">
+            <div className="report-form-col">
               <label className="field-label">选择课程</label>
-              <select
-                className="field"
-                value={selectedCourse}
-                onChange={(e) => setSelectedCourse(e.target.value)}
-              >
-                {courseOptions.map((c) => (
-                  <option key={c.value} value={c.value}>
-                    {c.label}
-                  </option>
-                ))}
+              <select className="field" value={selectedCourse} onChange={(e) => setSelectedCourse(e.target.value)}>
+                {courseOptions.map((c) => (<option key={c.value} value={c.value}>{c.label}</option>))}
               </select>
             </div>
           )}
-        </div>
-
-        <div className="report-settings-row">
-          <div className="report-setting">
+          <div className="report-form-col">
             <label className="field-label">开始日期（可选）</label>
-            <input
-              type="datetime-local"
-              className="field"
-              value={customStart}
-              onChange={(e) => setCustomStart(e.target.value)}
-            />
+            <input type="datetime-local" className="field" value={customStart} onChange={(e) => setCustomStart(e.target.value)} />
           </div>
-          <div className="report-setting">
+          <div className="report-form-col">
             <label className="field-label">结束日期（可选）</label>
-            <input
-              type="datetime-local"
-              className="field"
-              value={customEnd}
-              onChange={(e) => setCustomEnd(e.target.value)}
-            />
+            <input type="datetime-local" className="field" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} />
+          </div>
+          <div className="report-form-col report-form-col--full">
+            <label className="field-label">学习目标（可选）</label>
+            <input className="field" placeholder="可填写本次报告关注的问题，例如：期末复习、数据库薄弱点、算法错题整理" value={goal} onChange={(e) => setGoal(e.target.value)} />
           </div>
         </div>
 
-        <div className="report-setting" style={{ marginBottom: 16 }}>
-          <label className="field-label">学习目标（可选）</label>
-          <input
-            className="field"
-            placeholder="例如：准备期末考试、复盘数据结构薄弱点"
-            value={goal}
-            onChange={(e) => setGoal(e.target.value)}
-          />
+        <div className="report-generate-footer">
+          <span className="report-generate-hint">AI 将根据学习记录、练习情况和资料库生成报告</span>
+          <button className="report-btn-generate" onClick={handleGenerate} disabled={generating}>
+            {generating ? "⏳ AI 正在生成..." : "✨ 生成报告预览"}
+          </button>
         </div>
-
-        <button
-          className="primary-button"
-          onClick={handleGenerate}
-          disabled={generating}
-        >
-          {generating ? "AI 正在生成学习报告..." : "生成报告预览"}
-        </button>
 
         {genError && <div className="report-error">{genError}</div>}
-      </section>
+      </div>
 
       {/* ── Preview ── */}
       {preview && (
-        <section className="report-section report-preview">
-          <h3>报告预览</h3>
-
+        <div className="report-card report-preview-card">
+          <div className="report-card-header">
+            <h3>报告预览</h3>
+          </div>
           <h2 className="report-preview-title">{preview.title}</h2>
-          {preview.summary && (
-            <p className="report-preview-summary">{preview.summary}</p>
-          )}
-
+          {preview.summary && <p className="report-preview-summary">{preview.summary}</p>}
           {preview.metrics && (
             <div className="report-metrics-cards">
-              {preview.metrics.task_completed_count !== undefined && (
-                <div className="report-metric-card">
-                  <div className="report-metric-value">{preview.metrics.task_completed_count}</div>
-                  <div className="report-metric-label">完成任务</div>
-                </div>
-              )}
-              {preview.metrics.question_attempt_count !== undefined && (
-                <div className="report-metric-card">
-                  <div className="report-metric-value">{preview.metrics.question_attempt_count}</div>
-                  <div className="report-metric-label">作答次数</div>
-                </div>
-              )}
-              {preview.metrics.correct_rate !== undefined && (
-                <div className="report-metric-card">
-                  <div className="report-metric-value">{Math.round(preview.metrics.correct_rate * 100)}%</div>
-                  <div className="report-metric-label">正确率</div>
-                </div>
-              )}
-              {preview.metrics.knowledge_point_count !== undefined && (
-                <div className="report-metric-card">
-                  <div className="report-metric-value">{preview.metrics.knowledge_point_count}</div>
-                  <div className="report-metric-label">知识点</div>
-                </div>
-              )}
-              {preview.metrics.mastered_point_count !== undefined && (
-                <div className="report-metric-card">
-                  <div className="report-metric-value">{preview.metrics.mastered_point_count}</div>
-                  <div className="report-metric-label">已掌握</div>
-                </div>
-              )}
-              {preview.metrics.weak_point_count !== undefined && (
-                <div className="report-metric-card">
-                  <div className="report-metric-value">{preview.metrics.weak_point_count}</div>
-                  <div className="report-metric-label">薄弱点</div>
-                </div>
-              )}
-              {preview.metrics.ai_chat_count !== undefined && (
-                <div className="report-metric-card">
-                  <div className="report-metric-value">{preview.metrics.ai_chat_count}</div>
-                  <div className="report-metric-label">AI 调用</div>
-                </div>
-              )}
-              {preview.metrics.material_count !== undefined && (
-                <div className="report-metric-card">
-                  <div className="report-metric-value">{preview.metrics.material_count}</div>
-                  <div className="report-metric-label">资料数</div>
-                </div>
-              )}
+              {preview.metrics.task_completed_count !== undefined && (<div className="report-metric-card"><div className="report-metric-value">{preview.metrics.task_completed_count}</div><div className="report-metric-label">完成任务</div></div>)}
+              {preview.metrics.question_attempt_count !== undefined && (<div className="report-metric-card"><div className="report-metric-value">{preview.metrics.question_attempt_count}</div><div className="report-metric-label">作答次数</div></div>)}
+              {preview.metrics.correct_rate !== undefined && (<div className="report-metric-card"><div className="report-metric-value">{Math.round(preview.metrics.correct_rate * 100)}%</div><div className="report-metric-label">正确率</div></div>)}
+              {preview.metrics.knowledge_point_count !== undefined && (<div className="report-metric-card"><div className="report-metric-value">{preview.metrics.knowledge_point_count}</div><div className="report-metric-label">知识点</div></div>)}
+              {preview.metrics.mastered_point_count !== undefined && (<div className="report-metric-card"><div className="report-metric-value">{preview.metrics.mastered_point_count}</div><div className="report-metric-label">已掌握</div></div>)}
+              {preview.metrics.weak_point_count !== undefined && (<div className="report-metric-card"><div className="report-metric-value">{preview.metrics.weak_point_count}</div><div className="report-metric-label">薄弱点</div></div>)}
+              {preview.metrics.ai_chat_count !== undefined && (<div className="report-metric-card"><div className="report-metric-value">{preview.metrics.ai_chat_count}</div><div className="report-metric-label">AI 调用</div></div>)}
+              {preview.metrics.material_count !== undefined && (<div className="report-metric-card"><div className="report-metric-value">{preview.metrics.material_count}</div><div className="report-metric-label">资料数</div></div>)}
             </div>
           )}
-
-          <div className="report-content-box">
-            <div className="report-content-text">{preview.content}</div>
-          </div>
-
-          {(preview.suggestions || []).length > 0 && (
-            <div className="report-suggestions">
-              <h4>建议</h4>
-              <ul>
-                {preview.suggestions.map((s, i) => (
-                  <li key={i}>{s}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
+          <div className="report-content-box"><div className="report-content-text">{preview.content}</div></div>
+          {(preview.suggestions || []).length > 0 && (<div className="report-suggestions"><h4>建议</h4><ul>{preview.suggestions.map((s, i) => (<li key={i}>{s}</li>))}</ul></div>)}
           <div className="report-preview-actions">
-            <button className="primary-button" onClick={handleSave} disabled={saving}>
-              {saving ? "保存中..." : "保存报告"}
-            </button>
-            <button className="ghost-button" onClick={handleGenerate} disabled={generating}>
-              重新生成
-            </button>
-            <button className="ghost-button" onClick={() => { setPreview(null); setSaveMsg(""); setGenError(""); }}>
-              清空
-            </button>
+            <button className="report-btn-generate" onClick={handleSave} disabled={saving}>{saving ? "保存中..." : "保存报告"}</button>
+            <button className="ghost-button" onClick={handleGenerate} disabled={generating}>重新生成</button>
+            <button className="ghost-button" onClick={() => { setPreview(null); setSaveMsg(""); setGenError(""); }}>清空</button>
           </div>
-          {saveMsg && <p className="report-save-msg" style={{ color: saveMsg.includes("失败") ? "#ef4444" : "#059669" }}>{saveMsg}</p>}
-        </section>
+          {saveMsg && <p style={{ color: saveMsg.includes("失败") ? "#ef4444" : "#059669", marginTop: 12, fontSize: "0.85rem" }}>{saveMsg}</p>}
+        </div>
       )}
 
       {/* ── History ── */}
-      <section className="report-section">
+      <div className="report-card report-history-card">
         <div className="report-history-header">
-          <h3>历史报告</h3>
+          <div>
+            <h3>历史报告</h3>
+            <p className="report-card-subtitle">查看已经生成过的学习报告</p>
+          </div>
           <div className="report-history-controls">
-            <select
-              className="field compact"
-              value={histTypeFilter}
-              onChange={(e) => setHistTypeFilter(e.target.value)}
-            >
+            <select className="field compact" value={histTypeFilter} onChange={(e) => setHistTypeFilter(e.target.value)}>
               <option value="">全部类型</option>
-              {REPORT_TYPES.map((t) => (
-                <option key={t.value} value={t.value}>{t.label}</option>
-              ))}
+              {REPORT_TYPES.map((t) => (<option key={t.value} value={t.value}>{t.label}</option>))}
             </select>
-            <button className="ghost-button compact" onClick={() => fetchHistory(1)}>
-              刷新
-            </button>
+            <button className="report-btn-refresh" onClick={() => fetchHistory(1)}>↻ 刷新</button>
           </div>
         </div>
 
@@ -531,44 +483,28 @@ export default function LearningReportCenter({ user }) {
         ) : (
           <>
             <div className="report-table-wrap">
-              <table className="report-table">
-                <thead>
-                  <tr>
-                    <th>标题</th>
-                    <th>类型</th>
-                    <th>课程</th>
-                    <th>时间范围</th>
-                    <th>创建时间</th>
-                    <th>操作</th>
-                  </tr>
-                </thead>
+              <table className="report-table-v2">
+                <thead><tr><th>标题</th><th>类型</th><th>课程</th><th>时间范围</th><th>创建时间</th><th>操作</th></tr></thead>
                 <tbody>
                   {history.map((r) => (
                     <tr key={r.id}>
-                      <td title={r.title}>{r.title.length > 30 ? r.title.slice(0, 30) + "..." : r.title}</td>
+                      <td>
+                        <div className="report-table-title">{r.title.length > 30 ? r.title.slice(0, 30) + "..." : r.title}</div>
+                        <div className="report-table-subtitle">包含学习概览、薄弱点分析、复习建议</div>
+                      </td>
                       <td><span className={`report-type-tag report-type-${r.report_type}`}>{TYPE_LABELS[r.report_type] || r.report_type}</span></td>
                       <td>{r.course_name || getSubjectLabel(r.course_id) || r.course_id || "全部课程"}</td>
-                      <td style={{ fontSize: 12 }}>
-                        {r.start_date ? new Date(r.start_date).toLocaleDateString("zh-CN") : "-"} ~{" "}
-                        {r.end_date ? new Date(r.end_date).toLocaleDateString("zh-CN") : "-"}
-                      </td>
-                      <td style={{ fontSize: 12 }}>
-                        {r.created_at ? new Date(r.created_at).toLocaleString("zh-CN") : "-"}
-                      </td>
+                      <td style={{ fontSize: 12 }}>{r.start_date ? new Date(r.start_date).toLocaleDateString("zh-CN") : "-"} ~ {r.end_date ? new Date(r.end_date).toLocaleDateString("zh-CN") : "-"}</td>
+                      <td style={{ fontSize: 12 }}>{r.created_at ? new Date(r.created_at).toLocaleString("zh-CN") : "-"}</td>
                       <td style={{ whiteSpace: "nowrap" }}>
-                        <button className="ghost-button compact" onClick={() => handleViewDetail(r.id)}>
-                          查看
-                        </button>
-                        <button className="ghost-button compact" style={{ color: "#ef4444" }} onClick={() => handleDelete(r.id)}>
-                          删除
-                        </button>
+                        <button className="report-btn-view" onClick={() => handleViewDetail(r.id)}>查看</button>
+                        <button className="report-btn-delete" onClick={() => handleDelete(r.id)}>删除</button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-
             {totalPages > 1 && (
               <div className="report-pagination">
                 <button disabled={histPage <= 1} onClick={() => fetchHistory(histPage - 1)}>上一页</button>
@@ -578,7 +514,7 @@ export default function LearningReportCenter({ user }) {
             )}
           </>
         )}
-      </section>
+      </div>
 
       {/* ── Detail Modal (Portal) ── */}
       {detailLoading && (
