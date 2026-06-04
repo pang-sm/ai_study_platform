@@ -226,22 +226,27 @@ export default function TaskCenter({
 
   return (
     <section className="chat-panel chat-panel--wide task-center-panel">
-      <div className="panel-header panel-header--chat task-center-header">
-        <div>
-          <div className="subject-pill panel-pill">学习任务中心</div>
-          <h2>学习任务中心</h2>
+      {/* ── Hero Header Card ── */}
+      <div className="task-center-hero">
+        <div className="task-hero-left">
+          <div className="task-hero-icon">📋</div>
+          <div className="task-hero-text">
+            <h2 className="task-hero-title">学习任务中心</h2>
+            <p className="task-hero-subtitle">管理你的学习任务，规划学习进度，高效达成目标</p>
+          </div>
         </div>
         <button
-          className="primary-button compact"
+          className="task-btn-primary"
           onClick={() => {
             resetCreateForm();
             setShowCreateModal(true);
           }}
         >
-          新建任务
+          + 新建任务
         </button>
       </div>
 
+      {/* ── Filters Card ── */}
       <div className="task-center-filters">
         <div className="task-filter-item">
           <label className="field-label">课程筛选</label>
@@ -272,24 +277,31 @@ export default function TaskCenter({
             ))}
           </select>
         </div>
-        <button className="ghost-button compact" onClick={loadTasks}>
-          刷新
+        <div className="task-filter-spacer" />
+        <button className="task-btn-refresh" onClick={loadTasks}>
+          ↻ 刷新
         </button>
       </div>
 
+      {/* ── Content Area ── */}
       {loading ? (
-        <div className="empty-state">加载中...</div>
+        <div className="task-center-empty-state">
+          <div className="task-empty-icon">⏳</div>
+          <p className="task-empty-text">正在加载任务...</p>
+        </div>
       ) : tasks.length === 0 ? (
-        <div className="empty-inline task-center-empty">
-          <p>当前筛选条件下没有学习任务。</p>
+        <div className="task-center-empty-state">
+          <div className="task-empty-icon">📝</div>
+          <h3 className="task-empty-title">当前筛选条件下没有学习任务</h3>
+          <p className="task-empty-desc">创建一个新的学习任务，开启你的学习计划吧！</p>
           <button
-            className="primary-button compact"
+            className="task-btn-primary"
             onClick={() => {
               resetCreateForm();
               setShowCreateModal(true);
             }}
           >
-            创建第一个任务
+            + 创建第一个任务
           </button>
         </div>
       ) : (
