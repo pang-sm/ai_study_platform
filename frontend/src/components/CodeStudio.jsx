@@ -1168,6 +1168,10 @@ export default function CodeStudio({
 
   const stopInteractiveTerminal = useCallback(() => {
     if (wsRef.current) {
+      try {
+        // Send explicit stop message so backend can kill process cleanly
+        wsRef.current.send(JSON.stringify({ type: "stop" }));
+      } catch {}
       try { wsRef.current.close(); } catch {}
       wsRef.current = null;
     }
