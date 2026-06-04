@@ -3086,11 +3086,6 @@ function App() {
   if (page === "learningReportCenter") {
     return wrapPage(
       <div className="app-shell">
-        <header className="workspace-topbar">
-          <div className="workspace-topbar-left">
-            <span className="subject-pill panel-pill">学习报告</span>
-          </div>
-        </header>
         <Suspense fallback={<div className="empty-state">学习报告加载中...</div>}>
           <LearningReportCenter user={user} />
         </Suspense>
