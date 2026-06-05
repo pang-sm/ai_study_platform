@@ -11615,3 +11615,38 @@ select.field:focus {
   color: #166534;
   font-size: 13px;
 }
+
+.model-config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.model-config-panel {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.model-config-panel h3 {
+  margin: 0 0 12px;
+  font-size: 15px;
+  color: #0f172a;
+}
+
+.model-config-panel .field {
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.model-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0;
+  color: #334155;
+  font-size: 13px;
+}

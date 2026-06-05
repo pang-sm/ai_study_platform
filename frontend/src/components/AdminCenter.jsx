@@ -15,6 +15,7 @@ const TABS = [
   { key: "systemHealth", label: "系统监控", permission: "system_monitor.view" },
   { key: "platformConfig", label: "平台配置", permission: "settings.view" },
   { key: "backups", label: "数据备份", permission: "backups.view" },
+  { key: "modelConfig", label: "模型配置", permission: "model_config.view" },
 ];
 
 const FEATURE_LABELS = {
@@ -128,6 +129,13 @@ export default function AdminCenter({ user }) {
   const [backupActionMsg, setBackupActionMsg] = useState("");
   const [backupCreating, setBackupCreating] = useState(false);
   const [backupBusyFile, setBackupBusyFile] = useState("");
+
+  // Model config
+  const [modelConfig, setModelConfig] = useState(null);
+  const [modelConfigForm, setModelConfigForm] = useState({});
+  const [modelConfigLoading, setModelConfigLoading] = useState(false);
+  const [modelConfigSaving, setModelConfigSaving] = useState(false);
+  const [modelConfigMsg, setModelConfigMsg] = useState("");
 
   const isAdmin = user?.is_admin;
   const username = user?.username || "";
@@ -751,6 +759,49 @@ export default function AdminCenter({ user }) {
     }
   };
 
+  const fetchModelConfig = async () => {
+    if (!hasPermission("model_config.view")) return;
+    setModelConfigLoading(true);
+    setModelConfigMsg("");
+    setError("");
+    try {
+      const data = await getJson(`${API_BASE}/admin/model-config?${adminParam}`);
+      setModelConfig(data);
+      setModelConfigForm(data.config || {});
+    } catch (e) {
+      setError(e.message || "获取模型配置失败");
+    } finally {
+      setModelConfigLoading(false);
+    }
+  };
+
+  const updateModelConfigForm = (key, value) => {
+    setModelConfigForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const saveModelConfig = async () => {
+    if (!hasPermission("model_config.manage")) return;
+    setModelConfigSaving(true);
+    setModelConfigMsg("");
+    setError("");
+    try {
+      const res = await fetch(`${API_BASE}/admin/model-config`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ admin_username: user.username, ...modelConfigForm }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "保存模型配置失败");
+      setModelConfig(data);
+      setModelConfigForm(data.config || {});
+      setModelConfigMsg("模型配置已保存");
+    } catch (e) {
+      setError(e.message || "保存模型配置失败");
+    } finally {
+      setModelConfigSaving(false);
+    }
+  };
+
   // ── activate tab ──
 
   const activateTab = (key) => {
@@ -764,6 +815,7 @@ export default function AdminCenter({ user }) {
     if (key === "auditLogs") fetchAuditLogs(1);
     if (key === "reportShares") fetchReportShares(1);
     if (key === "backups") fetchBackups();
+    if (key === "modelConfig") fetchModelConfig();
   };
 
   // ── pagination helper ──
@@ -1615,6 +1667,84 @@ export default function AdminCenter({ user }) {
                 </tbody>
               </table>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Model Config ── */}
+      {tab === "modelConfig" && (
+        <div className="admin-tab-content">
+          {modelConfigLoading ? <div className="empty-state">加载中...</div> : (
+            <>
+              <div className="backup-info-card">
+                <h3>模型配置</h3>
+                <p>API Key 仍由服务器环境变量管理，当前页面不会展示或保存密钥。</p>
+              </div>
+              <div className="admin-stat-grid">
+                <div className="admin-stat-card">
+                  <span>DeepSeek</span>
+                  <strong>{modelConfig?.status?.deepseek?.configured ? "已配置" : "未配置"}</strong>
+                </div>
+                <div className="admin-stat-card">
+                  <span>Qwen</span>
+                  <strong>{modelConfig?.status?.qwen?.configured ? "已配置" : "未配置"}</strong>
+                </div>
+              </div>
+              <div className="model-config-grid">
+                <section className="model-config-panel">
+                  <h3>文本模型</h3>
+                  <label className="field-label">模型提供商</label>
+                  <select className="field" value={modelConfigForm.ai_text_model_provider || "deepseek"} onChange={(e) => updateModelConfigForm("ai_text_model_provider", e.target.value)}>
+                    <option value="deepseek">deepseek</option>
+                  </select>
+                  <label className="field-label">模型名称</label>
+                  <input className="field" value={modelConfigForm.ai_text_model_name || ""} onChange={(e) => updateModelConfigForm("ai_text_model_name", e.target.value)} placeholder="deepseek-chat" />
+                  <label className="field-label">temperature（0 - 1.5）</label>
+                  <input className="field" type="number" min="0" max="1.5" step="0.1" value={modelConfigForm.ai_text_temperature || "0.3"} onChange={(e) => updateModelConfigForm("ai_text_temperature", e.target.value)} />
+                  <label className="field-label">max_tokens（256 - 8000）</label>
+                  <input className="field" type="number" min="256" max="8000" step="1" value={modelConfigForm.ai_text_max_tokens || "2000"} onChange={(e) => updateModelConfigForm("ai_text_max_tokens", e.target.value)} />
+                </section>
+                <section className="model-config-panel">
+                  <h3>视觉解析</h3>
+                  <label className="field-label">视觉提供商</label>
+                  <select className="field" value={modelConfigForm.ai_vision_model_provider || "qwen"} onChange={(e) => updateModelConfigForm("ai_vision_model_provider", e.target.value)}>
+                    <option value="qwen">qwen</option>
+                  </select>
+                  <label className="model-toggle-row">
+                    <input type="checkbox" checked={(modelConfigForm.ai_vision_enabled || "true") === "true"} onChange={(e) => updateModelConfigForm("ai_vision_enabled", e.target.checked ? "true" : "false")} />
+                    <span>启用 Qwen 视觉解析</span>
+                  </label>
+                  <label className="model-toggle-row">
+                    <input type="checkbox" checked={(modelConfigForm.ai_pdf_scan_parse_enabled || "true") === "true"} onChange={(e) => updateModelConfigForm("ai_pdf_scan_parse_enabled", e.target.checked ? "true" : "false")} />
+                    <span>启用扫描 PDF 视觉解析</span>
+                  </label>
+                  <label className="field-label">扫描 PDF 最大页数（1 - 20）</label>
+                  <input className="field" type="number" min="1" max="20" step="1" value={modelConfigForm.ai_pdf_scan_max_pages || "10"} onChange={(e) => updateModelConfigForm("ai_pdf_scan_max_pages", e.target.value)} />
+                </section>
+              </div>
+              <div className="model-config-panel">
+                <h3>功能策略</h3>
+                <label className="model-toggle-row">
+                  <input type="checkbox" checked={(modelConfigForm.ai_chat_enabled_model_config || "true") === "true"} onChange={(e) => updateModelConfigForm("ai_chat_enabled_model_config", e.target.checked ? "true" : "false")} />
+                  <span>AI 问答使用模型配置</span>
+                </label>
+                <label className="model-toggle-row">
+                  <input type="checkbox" checked={(modelConfigForm.ai_report_enabled_model_config || "true") === "true"} onChange={(e) => updateModelConfigForm("ai_report_enabled_model_config", e.target.checked ? "true" : "false")} />
+                  <span>学习报告使用模型配置</span>
+                </label>
+                <label className="model-toggle-row">
+                  <input type="checkbox" checked={(modelConfigForm.ai_question_generation_enabled_model_config || "true") === "true"} onChange={(e) => updateModelConfigForm("ai_question_generation_enabled_model_config", e.target.checked ? "true" : "false")} />
+                  <span>题目生成使用模型配置</span>
+                </label>
+              </div>
+              <div className="admin-filters">
+                {hasPermission("model_config.manage") && (
+                  <button className="primary-button" onClick={saveModelConfig} disabled={modelConfigSaving}>{modelConfigSaving ? "保存中..." : "保存配置"}</button>
+                )}
+                <button className="ghost-button" onClick={fetchModelConfig}>刷新</button>
+                {modelConfigMsg && <span className="backup-action-msg">{modelConfigMsg}</span>}
+              </div>
+            </>
           )}
         </div>
       )}

@@ -128,7 +128,7 @@ async def global_exception_json_handler(request: Request, exc: Exception):
 
 client = OpenAI(
     api_key=os.getenv("DEEPSEEK_API_KEY"),
-    base_url="https://api.deepseek.com",
+    base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
 )
 
 logger = logging.getLogger("uvicorn.error")
@@ -662,8 +662,9 @@ def parse_scanned_pdf_with_qwen(
     file_bytes: bytes,
     progress_callback=None,
     page_timeout_seconds: int | float = PRACTICE_IMPORT_QWEN_PAGE_TIMEOUT_SECONDS,
+    max_pages_override: int | None = None,
 ) -> dict:
-    max_pages = get_qwen_parse_max_pages()
+    max_pages = max_pages_override or get_qwen_parse_max_pages()
     image_paths = render_pdf_pages_to_images(file_bytes, max_pages)
     page_texts: list[str] = []
     errors: list[str] = []
@@ -844,11 +845,131 @@ def get_material_preview_metadata(material: models.StudyMaterial):
     }
 
 
-def call_deepseek(messages: list[dict], timeout_seconds: int | float | None = None):
+MODEL_CONFIG_DEFAULTS = {
+    "ai_text_model_provider": "deepseek",
+    "ai_text_model_name": "deepseek-chat",
+    "ai_text_temperature": "0.3",
+    "ai_text_max_tokens": "2000",
+    "ai_vision_model_provider": "qwen",
+    "ai_vision_enabled": "true",
+    "ai_pdf_scan_parse_enabled": "true",
+    "ai_pdf_scan_max_pages": "10",
+    "ai_chat_enabled_model_config": "true",
+    "ai_report_enabled_model_config": "true",
+    "ai_question_generation_enabled_model_config": "true",
+}
+
+MODEL_CONFIG_DESCRIPTIONS = {
+    "ai_text_model_provider": "文本模型提供商",
+    "ai_text_model_name": "文本模型名称",
+    "ai_text_temperature": "文本模型 temperature",
+    "ai_text_max_tokens": "文本模型 max_tokens",
+    "ai_vision_model_provider": "视觉模型提供商",
+    "ai_vision_enabled": "是否启用 Qwen 视觉解析",
+    "ai_pdf_scan_parse_enabled": "是否启用扫描 PDF 视觉解析",
+    "ai_pdf_scan_max_pages": "扫描 PDF 最大视觉解析页数",
+    "ai_chat_enabled_model_config": "AI 问答使用模型配置",
+    "ai_report_enabled_model_config": "学习报告使用模型配置",
+    "ai_question_generation_enabled_model_config": "题目生成使用模型配置",
+}
+
+ALLOWED_MODEL_CONFIG_KEYS = set(MODEL_CONFIG_DEFAULTS.keys())
+SENSITIVE_MODEL_CONFIG_KEY_PARTS = ("api_key", "apikey", "secret", "token", "password")
+
+
+def _open_temp_db_if_needed(db: Session | None):
+    if db is not None:
+        return db, False
+    return SessionLocal(), True
+
+
+def get_system_setting(db: Session | None, key: str, default=None):
+    local_db, should_close = _open_temp_db_if_needed(db)
+    try:
+        setting = local_db.query(models.SystemSetting).filter(models.SystemSetting.key == key).first()
+        if setting and setting.value is not None and str(setting.value).strip() != "":
+            return setting.value
+        return default
+    except Exception:
+        return default
+    finally:
+        if should_close:
+            local_db.close()
+
+
+def get_float_setting(db: Session | None, key: str, default: float, min_value=None, max_value=None) -> float:
+    raw_value = get_system_setting(db, key, str(default))
+    try:
+        value = float(raw_value)
+    except (TypeError, ValueError):
+        return default
+    if min_value is not None and value < min_value:
+        return default
+    if max_value is not None and value > max_value:
+        return default
+    return value
+
+
+def get_int_setting(db: Session | None, key: str, default: int, min_value=None, max_value=None) -> int:
+    raw_value = get_system_setting(db, key, str(default))
+    try:
+        value = int(raw_value)
+    except (TypeError, ValueError):
+        return default
+    if min_value is not None and value < min_value:
+        return default
+    if max_value is not None and value > max_value:
+        return default
+    return value
+
+
+def get_bool_setting(db: Session | None, key: str, default: bool) -> bool:
+    raw_value = str(get_system_setting(db, key, "true" if default else "false")).strip().lower()
+    if raw_value in ("true", "1", "yes", "on"):
+        return True
+    if raw_value in ("false", "0", "no", "off"):
+        return False
+    return default
+
+
+def get_model_runtime_config(db: Session | None = None) -> dict:
+    provider = str(get_system_setting(db, "ai_text_model_provider", MODEL_CONFIG_DEFAULTS["ai_text_model_provider"])).strip().lower()
+    if provider != "deepseek":
+        provider = "deepseek"
+    model = str(get_system_setting(db, "ai_text_model_name", MODEL_CONFIG_DEFAULTS["ai_text_model_name"])).strip() or MODEL_CONFIG_DEFAULTS["ai_text_model_name"]
+    return {
+        "provider": provider,
+        "model": model,
+        "temperature": get_float_setting(db, "ai_text_temperature", 0.3, 0, 1.5),
+        "max_tokens": get_int_setting(db, "ai_text_max_tokens", 2000, 256, 8000),
+    }
+
+
+def get_vision_runtime_config(db: Session | None = None) -> dict:
+    provider = str(get_system_setting(db, "ai_vision_model_provider", MODEL_CONFIG_DEFAULTS["ai_vision_model_provider"])).strip().lower()
+    if provider != "qwen":
+        provider = "qwen"
+    return {
+        "provider": provider,
+        "vision_enabled": get_bool_setting(db, "ai_vision_enabled", True),
+        "pdf_scan_parse_enabled": get_bool_setting(db, "ai_pdf_scan_parse_enabled", True),
+        "pdf_scan_max_pages": get_int_setting(db, "ai_pdf_scan_max_pages", get_qwen_parse_max_pages(), 1, 20),
+    }
+
+
+def call_deepseek(messages: list[dict], timeout_seconds: int | float | None = None,
+                  model: str | None = None, temperature: float | None = None,
+                  max_tokens: int | None = None):
+    runtime_config = get_model_runtime_config(None)
+    final_model = (model or runtime_config["model"] or "deepseek-chat").strip()
+    final_temperature = runtime_config["temperature"] if temperature is None else temperature
+    final_max_tokens = runtime_config["max_tokens"] if max_tokens is None else max_tokens
     try:
         response = client.chat.completions.create(
-            model="deepseek-chat",
+            model=final_model,
             messages=messages,
+            temperature=final_temperature,
+            max_tokens=final_max_tokens,
             timeout=timeout_seconds,
         )
         return (response.choices[0].message.content or "").strip()
@@ -1000,10 +1121,11 @@ def record_ai_usage(username: str, feature: str, db: Session, model: str = None,
                     estimated_tokens: int = 0, status: str = "success",
                     error_message: str = None):
     try:
+        runtime_model = model or get_model_runtime_config(db).get("model") or "deepseek-chat"
         log = models.AiUsageLog(
             username=username,
             feature=feature,
-            model=model or "deepseek-chat",
+            model=runtime_model,
             estimated_tokens=estimated_tokens,
             estimated_cost=round(estimated_tokens * 0.000001, 6),
             status=status,
@@ -2165,10 +2287,11 @@ def parse_scanned_pdf_in_background(
     page_texts: dict[int, str] = {}
     failed_pages: list[int] = []
     errors: list[str] = []
-    max_pages = get_pdf_ocr_max_pages()
+    vision_config = get_vision_runtime_config(db)
+    max_pages = vision_config["pdf_scan_max_pages"]
 
     # Fail fast if Qwen OCR is not available — save the local text if any exists
-    if not is_qwen_enabled():
+    if not vision_config["vision_enabled"] or not vision_config["pdf_scan_parse_enabled"] or not is_qwen_enabled():
         local_text = (local_pdf_text or "").strip()
         if local_text:
             update_material_parse_state(
@@ -2696,7 +2819,8 @@ async def handle_material_upload(
         extracted_text = local_ocr_text
         stored_file_path = save_uploaded_file(user.username, original_filename, file_bytes)
 
-        if should_use_qwen_for_image(local_ocr_text):
+        vision_config = get_vision_runtime_config(db)
+        if vision_config["vision_enabled"] and should_use_qwen_for_image(local_ocr_text):
             logger.info(
                 "[QWEN] image fallback triggered, local_text_len=%s",
                 len(local_ocr_text or ""),
@@ -2733,8 +2857,9 @@ async def handle_material_upload(
             len(extracted_text or ""),
             should_fallback,
         )
-        if should_fallback:
-            pdf_qwen_result = parse_scanned_pdf_with_qwen(file_bytes)
+        vision_config = get_vision_runtime_config(db)
+        if should_fallback and vision_config["vision_enabled"] and vision_config["pdf_scan_parse_enabled"]:
+            pdf_qwen_result = parse_scanned_pdf_with_qwen(file_bytes, max_pages_override=vision_config["pdf_scan_max_pages"])
             qwen_pdf_text = (pdf_qwen_result.get("text") or "").strip()
             success_pages = int(pdf_qwen_result.get("success_pages") or 0)
             failed_pages = int(pdf_qwen_result.get("failed_pages") or 0)
@@ -4136,7 +4261,11 @@ def reparse_single_material(material_id: int, username: str, db: Session = Depen
                 # Image: try Qwen OCR
                 update_material_parse_state(db, material_id, parse_status="parsing", parse_progress=10)
                 material = get_material_for_parsing(db, material_id)
-                qwen_result = parse_image_with_qwen(str(file_path), prompt=SCANNED_PDF_PAGE_PROMPT)
+                vision_config = get_vision_runtime_config(db)
+                qwen_result = (
+                    parse_image_with_qwen(str(file_path), prompt=SCANNED_PDF_PAGE_PROMPT)
+                    if vision_config["vision_enabled"] else {"success": False, "error": "Qwen 视觉解析已在模型配置中停用"}
+                )
                 qwen_text = (qwen_result.get("extracted_text") or "").strip()
                 if qwen_result.get("success") and qwen_text:
                     update_material_parse_state(
@@ -10142,12 +10271,14 @@ def extract_practice_import_text(
         extracted_text = extracted_text[:PRACTICE_PAPER_MAX_CHARS]
 
         # 优先走本地文本提取；只有文本严重不足时才对扫描页走 Qwen。
+        vision_config = get_vision_runtime_config(None)
         if should_use_qwen_for_practice_pdf(extracted_text, meta["total_pages"]):
-            if is_qwen_enabled():
+            if vision_config["vision_enabled"] and vision_config["pdf_scan_parse_enabled"] and is_qwen_enabled():
                 pdf_qwen_result = parse_scanned_pdf_with_qwen(
                     file_bytes,
                     progress_callback=progress_callback,
                     page_timeout_seconds=PRACTICE_IMPORT_QWEN_PAGE_TIMEOUT_SECONDS,
+                    max_pages_override=vision_config["pdf_scan_max_pages"],
                 )
                 qwen_text = (pdf_qwen_result.get("text") or "").strip()
                 qwen_rendered = pdf_qwen_result.get("rendered_pages", 0)
@@ -10183,7 +10314,8 @@ def extract_practice_import_text(
             local_text = ""
         meta["extract_method"] = "local" if local_text.strip() else "failed"
 
-        if should_use_qwen_for_image(local_text) and is_qwen_enabled():
+        vision_config = get_vision_runtime_config(None)
+        if vision_config["vision_enabled"] and should_use_qwen_for_image(local_text) and is_qwen_enabled():
             temp = tempfile.NamedTemporaryFile(suffix=suffix or ".png", delete=False)
             temp_path = temp.name
             try:
@@ -13434,6 +13566,8 @@ PERMISSIONS = {
     "backups.create",
     "backups.download",
     "backups.delete",
+    "model_config.view",
+    "model_config.manage",
 }
 
 ROLE_PERMISSIONS = {
@@ -13574,6 +13708,7 @@ def _audit_action_label(action: str) -> str:
         "backup_create": "创建数据备份",
         "backup_download": "下载数据备份",
         "backup_delete": "删除数据备份",
+        "model_config_update": "修改模型配置",
     }
     return labels.get(action or "", action or "-")
 
@@ -13728,6 +13863,95 @@ def create_sqlite_backup(source_path: Path, backup_path: Path) -> None:
     finally:
         dest_conn.close()
         source_conn.close()
+
+
+def get_model_config_payload(db: Session) -> dict:
+    config = {key: str(get_system_setting(db, key, default)) for key, default in MODEL_CONFIG_DEFAULTS.items()}
+    deepseek_key_configured = bool((os.getenv("DEEPSEEK_API_KEY") or "").strip())
+    deepseek_base_url = (os.getenv("DEEPSEEK_BASE_URL") or "https://api.deepseek.com").strip()
+    qwen_key_configured = bool((os.getenv("DASHSCOPE_API_KEY") or os.getenv("QWEN_API_KEY") or "").strip())
+    return {
+        "status": {
+            "deepseek": {
+                "configured": deepseek_key_configured,
+                "base_url_configured": bool(deepseek_base_url),
+                "api_key_configured": deepseek_key_configured,
+                "note": "已配置" if deepseek_key_configured else "未配置",
+            },
+            "qwen": {
+                "configured": bool(is_qwen_enabled()),
+                "api_key_configured": qwen_key_configured,
+                "note": "已配置" if is_qwen_enabled() else "未启用或未配置",
+            },
+        },
+        "config": config,
+        "allowed": {
+            "text_providers": ["deepseek"],
+            "vision_providers": ["qwen"],
+            "text_models": ["deepseek-chat", "deepseek-reasoner"],
+        },
+    }
+
+
+def validate_model_config_updates(req: dict) -> dict:
+    updates = {}
+    for key, value in req.items():
+        if key == "admin_username":
+            continue
+        lowered = key.lower()
+        if any(part in lowered for part in SENSITIVE_MODEL_CONFIG_KEY_PARTS):
+            raise HTTPException(status_code=400, detail="模型配置不允许提交 API Key、secret、token 或 password 字段")
+        if key not in ALLOWED_MODEL_CONFIG_KEYS:
+            raise HTTPException(status_code=400, detail=f"不支持的模型配置项: {key}")
+        updates[key] = value
+    if not updates:
+        raise HTTPException(status_code=400, detail="请提供要保存的模型配置")
+
+    if "ai_text_model_provider" in updates and str(updates["ai_text_model_provider"]).strip().lower() != "deepseek":
+        raise HTTPException(status_code=400, detail="文本模型提供商当前仅支持 deepseek")
+    if "ai_vision_model_provider" in updates and str(updates["ai_vision_model_provider"]).strip().lower() != "qwen":
+        raise HTTPException(status_code=400, detail="视觉模型提供商当前仅支持 qwen")
+    if "ai_text_model_name" in updates and not str(updates["ai_text_model_name"]).strip():
+        raise HTTPException(status_code=400, detail="文本模型名称不能为空")
+    if "ai_text_temperature" in updates:
+        try:
+            value = float(updates["ai_text_temperature"])
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="temperature 必须是数字")
+        if value < 0 or value > 1.5:
+            raise HTTPException(status_code=400, detail="temperature 范围必须在 0 - 1.5")
+        updates["ai_text_temperature"] = str(value)
+    if "ai_text_max_tokens" in updates:
+        try:
+            value = int(updates["ai_text_max_tokens"])
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="max_tokens 必须是整数")
+        if value < 256 or value > 8000:
+            raise HTTPException(status_code=400, detail="max_tokens 范围必须在 256 - 8000")
+        updates["ai_text_max_tokens"] = str(value)
+    if "ai_pdf_scan_max_pages" in updates:
+        try:
+            value = int(updates["ai_pdf_scan_max_pages"])
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="扫描 PDF 最大页数必须是整数")
+        if value < 1 or value > 20:
+            raise HTTPException(status_code=400, detail="扫描 PDF 最大页数范围必须在 1 - 20")
+        updates["ai_pdf_scan_max_pages"] = str(value)
+
+    bool_keys = {
+        "ai_vision_enabled",
+        "ai_pdf_scan_parse_enabled",
+        "ai_chat_enabled_model_config",
+        "ai_report_enabled_model_config",
+        "ai_question_generation_enabled_model_config",
+    }
+    for key in bool_keys & updates.keys():
+        raw_value = str(updates[key]).strip().lower()
+        if raw_value not in ("true", "false", "1", "0", "yes", "no", "on", "off"):
+            raise HTTPException(status_code=400, detail=f"{key} 必须是布尔值")
+        updates[key] = "true" if raw_value in ("true", "1", "yes", "on") else "false"
+
+    return {key: str(value).strip() for key, value in updates.items()}
 
 
 @app.get("/admin/me/permissions")
@@ -14634,6 +14858,43 @@ def admin_backups_delete(filename: str, admin_username: str, db: Session = Depen
         details={"filename": filename, "size_bytes": size_bytes},
     )
     return {"success": True, "filename": filename}
+
+
+@app.get("/admin/model-config")
+def admin_model_config(admin_username: str, db: Session = Depends(get_db)):
+    require_admin_permission(db, admin_username, "model_config.view")
+    return get_model_config_payload(db)
+
+
+@app.put("/admin/model-config")
+def admin_model_config_update(req: dict, db: Session = Depends(get_db)):
+    admin_username = str(req.get("admin_username", "")).strip()
+    require_admin_permission(db, admin_username, "model_config.manage")
+    updates = validate_model_config_updates(req)
+    old_values = {key: str(get_system_setting(db, key, MODEL_CONFIG_DEFAULTS[key])) for key in updates.keys()}
+    for key, value in updates.items():
+        setting = db.query(models.SystemSetting).filter(models.SystemSetting.key == key).first()
+        if not setting:
+            setting = models.SystemSetting(key=key, description=MODEL_CONFIG_DESCRIPTIONS.get(key, "模型配置"))
+        setting.value = value
+        setting.description = setting.description or MODEL_CONFIG_DESCRIPTIONS.get(key, "模型配置")
+        setting.updated_by = admin_username
+        setting.updated_at = utc_now()
+        db.add(setting)
+    db.commit()
+    _write_audit_log(
+        admin_username,
+        "model_config_update",
+        db,
+        target_type="model_config",
+        detail=str(list(updates.keys())),
+        details={
+            "changed_keys": list(updates.keys()),
+            "old_values": old_values,
+            "new_values": updates,
+        },
+    )
+    return {"success": True, **get_model_config_payload(db)}
 
 
 # ── Learning Reports ──────────────────────────────────────
