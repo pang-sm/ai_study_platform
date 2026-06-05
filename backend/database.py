@@ -36,6 +36,7 @@ PROFILE_COLUMNS = {
     "plan_source": "VARCHAR(30) DEFAULT ''",
     "plan_expire_at": "DATETIME",
     "is_admin": "INTEGER DEFAULT 0",
+    "is_active": "INTEGER DEFAULT 1",
 }
 
 CHAT_SESSION_COLUMNS = {

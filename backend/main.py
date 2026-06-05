@@ -14842,6 +14842,161 @@ def admin_report_shares(
     }
 
 
+# ── Helper: chunk text for reindex ─────────────────────
+
+def _chunk_text_for_material(text: str, filename: str, material_id: int, username: str, subject: str) -> list[dict]:
+    """Split text into chunks by paragraphs with overlap. Returns list of dicts for MaterialChunk."""
+    chunks = []
+    paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+    chunk_size = 5  # paragraphs per chunk
+    for i in range(0, len(paragraphs), max(1, chunk_size - 1)):
+        chunk_text = "\n\n".join(paragraphs[i:i + chunk_size])
+        if not chunk_text.strip():
+            continue
+        chunks.append({
+            "material_id": material_id,
+            "username": username,
+            "subject": subject,
+            "chunk_index": len(chunks),
+            "chunk_text": chunk_text[:8000],
+            "chunk_summary": chunk_text[:200],
+            "keywords": "",
+            "source_filename": filename or "",
+            "is_deleted": False,
+        })
+    return chunks
+
+
+# ── Admin: User Status (disable/enable) ─────────────────
+
+@app.put("/admin/users/{target_username}/status")
+def admin_user_status(target_username: str, req: dict, db: Session = Depends(get_db)):
+    """Disable or enable a user account."""
+    admin_name = str(req.get("admin_username", "")).strip()
+    if not admin_name:
+        raise HTTPException(status_code=400, detail="缺少 admin_username")
+    require_admin(admin_name, db)
+    is_active = req.get("is_active", True)
+    if not isinstance(is_active, bool) and not isinstance(is_active, int):
+        raise HTTPException(status_code=400, detail="is_active 必须为布尔值")
+    user = db.query(models.User).filter(models.User.username == target_username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    if user.username == admin_name:
+        raise HTTPException(status_code=400, detail="不能禁用当前管理员自己的账号")
+    # Prevent disabling the last admin
+    if not is_active and user.is_admin:
+        admin_count = db.query(models.User).filter(models.User.is_admin == 1, models.User.is_active != 0).count()
+        if admin_count <= 1:
+            raise HTTPException(status_code=400, detail="不能禁用最后一个管理员账号")
+    user.is_active = 1 if is_active else 0
+    db.commit()
+    _write_audit_log(
+        admin_name,
+        f"{'启用' if is_active else '禁用'}用户 {target_username}",
+        db,
+        target_type="user",
+        target_username=target_username,
+        detail=f"is_active={'1' if is_active else '0'}",
+    )
+    return {"success": True, "username": target_username, "is_active": bool(is_active)}
+
+
+# ── Admin: Material Delete ──────────────────────────────
+
+@app.delete("/admin/materials/{material_id}")
+def admin_delete_material(material_id: int, admin_username: str, db: Session = Depends(get_db)):
+    """Soft-delete a material and its chunks."""
+    require_admin(admin_username, db)
+    material = db.query(models.StudyMaterial).filter(models.StudyMaterial.id == material_id).first()
+    if not material:
+        raise HTTPException(status_code=404, detail="资料不存在")
+    filename = material.original_filename or str(material_id)
+    username = material.username or ""
+    # Soft-delete material
+    material.is_deleted = True
+    material.deleted_at = utc_now()
+    # Soft-delete associated chunks
+    db.query(models.MaterialChunk).filter(models.MaterialChunk.material_id == material_id).update(
+        {"is_deleted": True}, synchronize_session=False
+    )
+    db.commit()
+    _write_audit_log(
+        admin_username,
+        f"删除资料 {filename}",
+        db,
+        target_type="material",
+        target_username=username,
+        detail=f"material_id={material_id}, filename={filename}",
+    )
+    return {"success": True, "message": f"资料 {filename} 已删除（软删除）", "material_id": material_id}
+
+
+# ── Admin: Material Reindex ─────────────────────────────
+
+@app.post("/admin/materials/{material_id}/reindex")
+def admin_reindex_material(material_id: int, admin_username: str, db: Session = Depends(get_db)):
+    """Rebuild material chunks from existing extracted text."""
+    require_admin(admin_username, db)
+    material = db.query(models.StudyMaterial).filter(
+        models.StudyMaterial.id == material_id,
+        models.StudyMaterial.is_deleted.is_(False),
+    ).first()
+    if not material:
+        raise HTTPException(status_code=404, detail="资料不存在")
+    source_text = material.extracted_text or ""
+    if not source_text.strip():
+        raise HTTPException(status_code=400, detail="该资料没有可用解析文本，无法重新索引")
+    # Soft-delete old chunks
+    db.query(models.MaterialChunk).filter(models.MaterialChunk.material_id == material_id).update(
+        {"is_deleted": True}, synchronize_session=False
+    )
+    # Re-chunk
+    new_chunks = _chunk_text_for_material(source_text, material.original_filename or "doc", material_id, material.username or "", material.subject or "")
+    for ch in new_chunks:
+        db.add(models.MaterialChunk(**ch))
+    db.commit()
+    _write_audit_log(
+        admin_username,
+        f"重新索引资料 {material.original_filename or str(material_id)}",
+        db,
+        target_type="material",
+        target_username=material.username or "",
+        detail=f"material_id={material_id}, chunk_count={len(new_chunks)}",
+    )
+    return {"success": True, "message": f"重新索引完成", "chunk_count": len(new_chunks)}
+
+
+# ── Admin: Report Share Status ──────────────────────────
+
+@app.put("/admin/report-shares/{share_id}/status")
+def admin_report_share_status(share_id: int, req: dict, db: Session = Depends(get_db)):
+    """Approve, revoke, or restore a report share."""
+    admin_name = str(req.get("admin_username", "")).strip()
+    if not admin_name:
+        raise HTTPException(status_code=400, detail="缺少 admin_username")
+    require_admin(admin_name, db)
+    new_status = str(req.get("status", "")).strip().lower()
+    if new_status not in ("approved", "revoked", "pending"):
+        raise HTTPException(status_code=400, detail="无效的状态，支持: approved, revoked, pending")
+    share = db.query(models.LearningReportShare).filter(models.LearningReportShare.id == share_id).first()
+    if not share:
+        raise HTTPException(status_code=404, detail="分享记录不存在")
+    old_active = bool(share.is_active)
+    share.is_active = 0 if new_status == "revoked" else 1
+    share.revoked_at = utc_now() if new_status == "revoked" else (None if new_status == "approved" else share.revoked_at)
+    db.commit()
+    _write_audit_log(
+        admin_name,
+        f"修改报告分享状态 share_id={share_id} {new_status}",
+        db,
+        target_type="report_share",
+        target_username=share.username or "",
+        detail=f"share_id={share_id}, old_is_active={old_active}, new_status={new_status}",
+    )
+    return {"success": True, "share_id": share_id, "status": new_status}
+
+
 # ── Interactive Terminal WebSocket ─────────────────────
 
 INTERACTIVE_TIMEOUT = 30  # seconds

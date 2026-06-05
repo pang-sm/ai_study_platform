@@ -133,6 +133,70 @@ export default function AdminCenter({ user }) {
     } catch (e) { setPlanMsg(e.message || "修改失败"); } finally { setPlanSaving(false); }
   };
 
+  // ── User status toggle ──
+  const handleUserStatus = async (targetUser, currentActive) => {
+    const newActive = currentActive ? false : true;
+    const action = newActive ? "启用" : "禁用";
+    if (!window.confirm(`确认${action}用户 ${targetUser} 吗？${newActive ? "" : "禁用后该用户将无法登录或使用平台。"}`)) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/users/${encodeURIComponent(targetUser)}/status`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ admin_username: user.username, is_active: newActive }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || `${action}失败`);
+      fetchUsers(users.page);
+      fetchDashboard();
+      setPlanMsg(`已${action}用户 ${targetUser}`);
+      setTimeout(() => setPlanMsg(""), 2000);
+    } catch (e) { setError(e.message); }
+  };
+
+  // ── Material delete ──
+  const handleMaterialDelete = async (mat) => {
+    if (!window.confirm(`确认删除资料「${mat.original_filename || mat.id}」吗？该操作会删除资料库记录和索引分块。`)) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/materials/${mat.id}?admin_username=${encodeURIComponent(user.username)}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "删除失败");
+      fetchMaterials(materials.page);
+      fetchDashboard();
+      setPlanMsg(data.message || "资料已删除");
+      setTimeout(() => setPlanMsg(""), 2000);
+    } catch (e) { setError(e.message); }
+  };
+
+  // ── Material reindex ──
+  const [reindexingId, setReindexingId] = useState(null);
+  const handleMaterialReindex = async (mat) => {
+    setReindexingId(mat.id);
+    try {
+      const res = await fetch(`${API_BASE}/admin/materials/${mat.id}/reindex?admin_username=${encodeURIComponent(user.username)}`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "重新索引失败");
+      fetchMaterials(materials.page);
+      setPlanMsg(`${data.message}，生成 ${data.chunk_count} 个分块`);
+      setTimeout(() => setPlanMsg(""), 2000);
+    } catch (e) { setError(e.message); } finally { setReindexingId(null); }
+  };
+
+  // ── Report share status ──
+  const handleShareStatus = async (share, newStatus) => {
+    const labels = { approved: "通过", revoked: "撤销", pending: "恢复" };
+    if (!window.confirm(`确认${labels[newStatus] || newStatus}该报告分享吗？`)) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/report-shares/${share.id}/status`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ admin_username: user.username, status: newStatus }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "操作失败");
+      fetchReportShares(reportShares.page);
+      setPlanMsg(`报告分享已${labels[newStatus] || newStatus}`);
+      setTimeout(() => setPlanMsg(""), 2000);
+    } catch (e) { setError(e.message); }
+  };
+
   // ── AI log detail ──
   const fetchAiLogDetail = (log) => { setAiLogDetail(log); };
 
@@ -568,6 +632,7 @@ export default function AdminCenter({ user }) {
                       <th>资料</th>
                       <th>知识点</th>
                       <th>任务</th>
+                      <th>状态</th>
                       <th>操作</th>
                     </tr>
                   </thead>
@@ -583,10 +648,15 @@ export default function AdminCenter({ user }) {
                         <td>{u.material_count}</td>
                         <td>{u.knowledge_point_count}</td>
                         <td>{u.task_count}</td>
-                        <td>
-                          <button className="ghost-button compact" onClick={() => fetchUserDetail(u.username)}>
-                            详情
-                          </button>
+                        <td><span className={`status-pill ${u.is_active !== 0 ? "status-pill--ok" : "status-pill--fail"}`}>{u.is_active !== 0 ? "正常" : "已禁用"}</span></td>
+                        <td style={{ whiteSpace: "nowrap" }}>
+                          <button className="ghost-button compact" onClick={() => fetchUserDetail(u.username)}>详情</button>
+                          {u.username !== user.username && (
+                            <button className="ghost-button compact" style={{ color: u.is_active !== 0 ? "#ef4444" : "#059669", marginLeft: 4 }}
+                              onClick={() => handleUserStatus(u.username, u.is_active !== 0)}>
+                              {u.is_active !== 0 ? "禁用" : "启用"}
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -713,6 +783,7 @@ export default function AdminCenter({ user }) {
                       <th>绑定知识点</th>
                       <th>解析状态</th>
                       <th>上传时间</th>
+                      <th>操作</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -726,10 +797,16 @@ export default function AdminCenter({ user }) {
                         <td>{m.knowledge_link_count}</td>
                         <td>{m.parse_status === "success" ? "成功" : m.parse_status || "-"}</td>
                         <td>{m.created_at ? new Date(m.created_at).toLocaleString("zh-CN") : "-"}</td>
+                        <td style={{ whiteSpace: "nowrap" }}>
+                          <button className="ghost-button compact" disabled={reindexingId === m.material_id} onClick={() => handleMaterialReindex(m)}>
+                            {reindexingId === m.material_id ? "索引中..." : "重索引"}
+                          </button>
+                          <button className="ghost-button compact" style={{ color: "#ef4444", marginLeft: 4 }} onClick={() => handleMaterialDelete(m)}>删除</button>
+                        </td>
                       </tr>
                     ))}
                     {materials.items.length === 0 && (
-                      <tr><td colSpan={8} style={{ textAlign: "center", color: "#6b7280" }}>暂无资料</td></tr>
+                      <tr><td colSpan={9} style={{ textAlign: "center", color: "#6b7280" }}>暂无资料</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -892,6 +969,7 @@ export default function AdminCenter({ user }) {
                       <th>创建时间</th>
                       <th>撤销时间</th>
                       <th>最近查看</th>
+                      <th>操作</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -899,15 +977,22 @@ export default function AdminCenter({ user }) {
                       <tr key={s.id}>
                         <td title={s.title}>{s.title && s.title.length > 30 ? s.title.slice(0, 30) + "..." : (s.title || "-")}</td>
                         <td>{s.username}</td>
-                        <td><span className={`status-tag ${s.is_active ? "status-success" : "status-failed"}`}>{s.is_active ? "活跃" : "已撤销"}</span></td>
+                        <td><span className={`status-pill ${s.is_active ? "status-pill--ok" : "status-pill--fail"}`}>{s.is_active ? "已通过" : "已撤销"}</span></td>
                         <td>{s.view_count || 0}</td>
                         <td>{s.created_at ? new Date(s.created_at).toLocaleString("zh-CN") : "-"}</td>
                         <td>{s.revoked_at ? new Date(s.revoked_at).toLocaleString("zh-CN") : "-"}</td>
                         <td>{s.last_viewed_at ? new Date(s.last_viewed_at).toLocaleString("zh-CN") : "-"}</td>
+                        <td style={{ whiteSpace: "nowrap" }}>
+                          {s.is_active ? (
+                            <button className="ghost-button compact" style={{ color: "#ef4444" }} onClick={() => handleShareStatus(s, "revoked")}>撤销</button>
+                          ) : (
+                            <button className="ghost-button compact" style={{ color: "#059669" }} onClick={() => handleShareStatus(s, "approved")}>恢复</button>
+                          )}
+                        </td>
                       </tr>
                     ))}
                     {reportShares.items.length === 0 && (
-                      <tr><td colSpan={7} style={{ textAlign: "center", color: "#6b7280" }}>暂无分享记录</td></tr>
+                      <tr><td colSpan={8} style={{ textAlign: "center", color: "#6b7280" }}>暂无分享记录</td></tr>
                     )}
                   </tbody>
                 </table>
