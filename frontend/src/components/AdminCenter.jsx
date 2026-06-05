@@ -306,55 +306,63 @@ export default function AdminCenter({ user }) {
   const featureItems = dashboard?.today_usage_by_feature || [];
   const featureTotal = featureItems.reduce((s, i) => s + (i.count || 0), 0);
 
-  // Build 7-day trend bars from recent logs
+  // Trend range selector
+  const TREND_RANGES = [
+    { value: 7, label: "近 7 天" },
+    { value: 30, label: "近 30 天" },
+    { value: 90, label: "近 90 天" },
+  ];
+  const [trendDays, setTrendDays] = useState(7);
+
+  // Build trend bars from recent logs based on selected range
   const trendBars = useMemo(() => {
-    const dates = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      dates.push(d.toISOString().slice(0, 10));
+    const days = trendDays;
+    // Build date keys based on range granularity
+    let dateKeys = [];
+    if (days <= 7) {
+      for (let i = days - 1; i >= 0; i--) {
+        const d = new Date(); d.setDate(d.getDate() - i);
+        dateKeys.push({ key: d.toISOString().slice(0, 10), label: d.toISOString().slice(5) });
+      }
+    } else {
+      // Weekly aggregation for 30/90 days
+      const weeks = Math.ceil(days / 7);
+      for (let i = weeks - 1; i >= 0; i--) {
+        const end = new Date(); end.setDate(end.getDate() - i * 7);
+        const start = new Date(end); start.setDate(start.getDate() - 6);
+        dateKeys.push({
+          key: `${start.toISOString().slice(0, 10)}~${end.toISOString().slice(0, 10)}`,
+          label: start.toISOString().slice(5).replace("-", "/"),
+        });
+      }
     }
     const logs = dashboard?.recent_ai_logs || [];
-    const byDate = {};
+    const byKey = {};
+    dateKeys.forEach((dk) => { byKey[dk.key] = 0; });
     logs.forEach((l) => {
       if (l.created_at) {
-        const d = l.created_at.slice(0, 10);
-        byDate[d] = (byDate[d] || 0) + 1;
+        const ld = l.created_at.slice(0, 10);
+        for (const dk of dateKeys) {
+          if (dk.key.includes("~")) {
+            const [s, e] = dk.key.split("~");
+            if (ld >= s && ld <= e) { byKey[dk.key] = (byKey[dk.key] || 0) + 1; break; }
+          } else if (ld === dk.key) {
+            byKey[dk.key] = (byKey[dk.key] || 0) + 1; break;
+          }
+        }
       }
     });
-    const maxVal = Math.max(1, ...dates.map((d) => byDate[d] || 0));
-    return dates.map((d) => ({
-      date: d.slice(5),
-      count: byDate[d] || 0,
-      pct: Math.round(((byDate[d] || 0) / maxVal) * 100),
+    const maxVal = Math.max(1, ...Object.values(byKey));
+    return dateKeys.map((dk) => ({
+      label: dk.label,
+      count: byKey[dk.key] || 0,
+      pct: Math.round(((byKey[dk.key] || 0) / maxVal) * 100),
     }));
-  }, [dashboard]);
+  }, [dashboard, trendDays]);
 
   // ── render ──
-  const close = () => { setDetail(null); setShareInfo(null); setShareMsg(""); };
-
   return (
     <div className="admin-center-v2">
-      {/* ── Header ── */}
-      <div className="admin-dash-header">
-        <h1 className="admin-dash-title">管理后台</h1>
-        <div className="admin-dash-header-right">
-          <div className="admin-search-box">
-            <span className="admin-search-icon">🔍</span>
-            <input className="admin-search-input" placeholder="搜索功能、用户或内容..." />
-          </div>
-          <div className="admin-notify-btn" title="通知">
-            🔔<span className="admin-notify-badge">3</span>
-          </div>
-          <div className="admin-avatar-area">
-            <span className="admin-avatar-icon">👤</span>
-            <div className="admin-avatar-text">
-              <span className="admin-avatar-name">admin</span>
-              <span className="admin-avatar-role">管理员 ▾</span>
-            </div>
-          </div>
-        </div>
-      </div>
 
       {/* ── Tabs ── */}
       <div className="admin-dash-tabs">
@@ -452,8 +460,10 @@ export default function AdminCenter({ user }) {
                 {/* Trend bar chart */}
                 <section className="admin-chart-card">
                   <div className="admin-chart-header">
-                    <h4>调用趋势（近 7 天）</h4>
-                    <span className="admin-chart-period">近 7 天 ▾</span>
+                    <h4>调用趋势</h4>
+                    <select className="admin-trend-select" value={trendDays} onChange={(e) => setTrendDays(Number(e.target.value))}>
+                      {TREND_RANGES.map((r) => (<option key={r.value} value={r.value}>{r.label}</option>))}
+                    </select>
                   </div>
                   <div className="admin-trend-chart">
                     {trendBars.map((b) => (

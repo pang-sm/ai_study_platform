@@ -3096,11 +3096,6 @@ function App() {
   if (page === "adminUsageCenter") {
     return wrapPage(
       <div className="app-shell">
-        <header className="workspace-topbar">
-          <div className="workspace-topbar-left">
-            <span className="subject-pill panel-pill">管理后台</span>
-          </div>
-        </header>
         <Suspense fallback={<div className="empty-state">管理后台加载中...</div>}>
           <AdminUsageCenter user={user} />
         </Suspense>
@@ -3111,11 +3106,6 @@ function App() {
   if (page === "adminCenter") {
     return wrapPage(
       <div className="app-shell">
-        <header className="workspace-topbar">
-          <div className="workspace-topbar-left">
-            <span className="subject-pill panel-pill">管理后台</span>
-          </div>
-        </header>
         <Suspense fallback={<div className="empty-state">管理后台加载中...</div>}>
           <AdminCenter user={user} />
         </Suspense>
