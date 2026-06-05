@@ -1,4 +1,5 @@
 import json
+import csv
 import logging
 import os
 import re
@@ -13,7 +14,7 @@ import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError, as_completed
 from datetime import date, datetime, timedelta, timezone
-from io import BytesIO
+from io import BytesIO, StringIO
 from pathlib import Path
 from urllib.parse import quote
 
@@ -21,7 +22,7 @@ import fitz
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.exceptions import RequestValidationError
 from openai import OpenAI
 from PIL import Image, UnidentifiedImageError
@@ -13410,6 +13411,7 @@ PERMISSIONS = {
     "materials.view",
     "courses.view",
     "audit_logs.view",
+    "audit_logs.export",
     "report_shares.view",
     "system_monitor.view",
     "settings.view",
@@ -13517,21 +13519,126 @@ def count_active_super_admins(db: Session) -> int:
     )
 
 
+def _audit_details_to_text(details):
+    if details is None:
+        return ""
+    if isinstance(details, str):
+        return details
+    try:
+        return json.dumps(details, ensure_ascii=False, default=str)
+    except Exception:
+        return str(details)
+
+
+def _parse_audit_details(value):
+    if not value:
+        return None
+    try:
+        return json.loads(value)
+    except Exception:
+        return value
+
+
 def _write_audit_log(admin_username: str, action: str, db: Session,
                      target_type: str = None, target_username: str = None,
-                     detail: str = None):
+                     detail: str = None, target_id: str = None,
+                     result: str = "success", details=None, ip: str = None):
     try:
         log = models.AdminAuditLog(
             admin_username=admin_username,
             action=action,
             target_type=target_type or "",
+            target_id=str(target_id or ""),
             target_username=target_username or "",
+            result=result or "success",
             detail=detail or "",
+            details=_audit_details_to_text(details),
+            ip=ip or "",
         )
         db.add(log)
         db.commit()
     except Exception:
         logger.warning(f"Failed to write audit log for {admin_username}/{action}")
+
+
+def _audit_action_label(action: str) -> str:
+    labels = {
+        "update_admin_role": "修改管理员角色",
+        "update_plan": "修改用户套餐",
+        "audit_logs_export": "导出审计日志",
+    }
+    return labels.get(action or "", action or "-")
+
+
+def _parse_audit_datetime(value: str, end_of_day: bool = False):
+    value = (value or "").strip()
+    if not value:
+        return None
+    try:
+        if len(value) == 10:
+            parsed = datetime.fromisoformat(value)
+            return parsed + timedelta(days=1) if end_of_day else parsed
+        return datetime.fromisoformat(value)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid audit log date filter")
+
+
+def _build_admin_audit_query(
+    db: Session,
+    actor: str = "",
+    action: str = "",
+    target_type: str = "",
+    keyword: str = "",
+    start_date: str = "",
+    end_date: str = "",
+):
+    query = db.query(models.AdminAuditLog)
+    if actor_filter := (actor or "").strip():
+        query = query.filter(models.AdminAuditLog.admin_username.contains(actor_filter))
+    if action_filter := (action or "").strip():
+        query = query.filter(models.AdminAuditLog.action.contains(action_filter))
+    if target_type_filter := (target_type or "").strip():
+        query = query.filter(models.AdminAuditLog.target_type == target_type_filter)
+    if keyword_filter := (keyword or "").strip():
+        like_filters = [
+            models.AdminAuditLog.action.contains(keyword_filter),
+            models.AdminAuditLog.target_type.contains(keyword_filter),
+            models.AdminAuditLog.target_username.contains(keyword_filter),
+            models.AdminAuditLog.detail.contains(keyword_filter),
+        ]
+        if hasattr(models.AdminAuditLog, "target_id"):
+            like_filters.append(models.AdminAuditLog.target_id.contains(keyword_filter))
+        if hasattr(models.AdminAuditLog, "details"):
+            like_filters.append(models.AdminAuditLog.details.contains(keyword_filter))
+        query = query.filter(or_(*like_filters))
+    start_dt = _parse_audit_datetime(start_date)
+    if start_dt:
+        query = query.filter(models.AdminAuditLog.created_at >= start_dt)
+    end_dt = _parse_audit_datetime(end_date, end_of_day=True)
+    if end_dt:
+        query = query.filter(models.AdminAuditLog.created_at < end_dt)
+    return query
+
+
+def _serialize_audit_log(log):
+    details_value = _parse_audit_details(getattr(log, "details", None))
+    detail_text = log.detail or ""
+    if not detail_text and isinstance(details_value, dict):
+        detail_text = ", ".join(f"{k}={v}" for k, v in details_value.items())
+    return {
+        "id": log.id,
+        "admin_username": log.admin_username,
+        "action": log.action,
+        "action_label": _audit_action_label(log.action),
+        "target_type": log.target_type,
+        "target_id": getattr(log, "target_id", "") or "",
+        "target_username": log.target_username,
+        "result": getattr(log, "result", None) or "success",
+        "detail": detail_text,
+        "details": details_value,
+        "ip": getattr(log, "ip", "") or "",
+        "created_at": serialize_datetime(log.created_at),
+    }
 
 
 @app.get("/admin/me/permissions")
@@ -13870,6 +13977,7 @@ def admin_update_user_admin_role(
         target_type="user",
         target_username=target_user.username,
         detail=f"admin_role {old_role} -> {new_role}",
+        details={"old_role": old_role, "new_role": new_role, "is_admin": bool(target_user.is_admin)},
     )
 
     return {
@@ -13962,8 +14070,21 @@ def admin_ai_logs_export(
             log.estimated_tokens or 0, log.error_message or "",
             serialize_datetime(log.created_at) or "",
         ])
-    _write_audit_log(admin_username, f"导出AI使用日志 ({len(logs)}条)", db, target_type="ai_logs", detail=f"feature={feature} status={status}")
-    from fastapi.responses import Response
+    _write_audit_log(
+        admin_username,
+        f"导出AI使用日志 ({len(logs)}条)",
+        db,
+        target_type="ai_logs",
+        detail=f"feature={feature} status={status}",
+        details={
+            "feature": feature,
+            "target_username": target_username,
+            "status": status,
+            "start_date": start_date,
+            "end_date": end_date,
+            "count": len(logs),
+        },
+    )
     filename = f"ai_usage_logs_{utc_now().strftime('%Y%m%d_%H%M')}.csv"
     return Response(content=output.getvalue(), media_type="text/csv; charset=utf-8-sig",
                     headers={"Content-Disposition": f'attachment; filename="{filename}"'})
@@ -14115,6 +14236,7 @@ def admin_update_user_plan(
         target_type="user",
         target_username=target_user.username,
         detail=f"套餐 {old_plan} → {plan}",
+        details={"old_plan": old_plan, "new_plan": plan, "plan_expires_at": serialize_datetime(target_user.plan_expire_at)},
     )
 
     return {
@@ -14231,6 +14353,12 @@ def admin_usage_summary(admin_username: str, db: Session = Depends(get_db)):
 @app.get("/admin/audit-logs")
 def admin_audit_logs(
     admin_username: str,
+    actor: str = "",
+    action: str = "",
+    target_type: str = "",
+    keyword: str = "",
+    start_date: str = "",
+    end_date: str = "",
     page: int = 1,
     page_size: int = 30,
     db: Session = Depends(get_db),
@@ -14240,31 +14368,106 @@ def admin_audit_logs(
     page = max(1, page)
     page_size = min(100, max(1, page_size))
 
-    total = db.query(models.AdminAuditLog).count()
+    query = _build_admin_audit_query(db, actor, action, target_type, keyword, start_date, end_date)
+    total = query.count()
     logs = (
-        db.query(models.AdminAuditLog)
+        query
         .order_by(models.AdminAuditLog.created_at.desc())
         .offset((page - 1) * page_size)
         .limit(page_size)
         .all()
     )
+    success_count = query.filter(models.AdminAuditLog.result == "success").count()
+    failed_count = query.filter(models.AdminAuditLog.result != "success").count()
+    today_start = utc_now().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_query = query.filter(models.AdminAuditLog.created_at >= today_start)
+    high_risk_filter = or_(
+        models.AdminAuditLog.action.in_(["update_admin_role", "update_plan", "audit_logs_export"]),
+        models.AdminAuditLog.target_type.in_(["material", "report_share", "settings", "announcement", "ai_logs"]),
+    )
+    action_rows = (
+        query.with_entities(models.AdminAuditLog.action, func.count(models.AdminAuditLog.id))
+        .group_by(models.AdminAuditLog.action)
+        .order_by(func.count(models.AdminAuditLog.id).desc())
+        .limit(5)
+        .all()
+    )
 
     return {
-        "items": [
-            {
-                "admin_username": log.admin_username,
-                "action": log.action,
-                "target_type": log.target_type,
-                "target_username": log.target_username,
-                "detail": log.detail,
-                "created_at": serialize_datetime(log.created_at),
-            }
-            for log in logs
-        ],
+        "items": [_serialize_audit_log(log) for log in logs],
         "total": total,
         "page": page,
         "page_size": page_size,
+        "summary": {
+            "total": total,
+            "success": success_count,
+            "failed": failed_count,
+            "today_total": today_query.count(),
+            "today_high_risk": today_query.filter(high_risk_filter).count(),
+            "admin_role_changes": query.filter(models.AdminAuditLog.action == "update_admin_role").count(),
+            "user_status_changes": query.filter(models.AdminAuditLog.target_type == "user", models.AdminAuditLog.action != "update_plan", models.AdminAuditLog.action != "update_admin_role").count(),
+            "settings_changes": query.filter(models.AdminAuditLog.target_type == "settings").count(),
+            "top_actions": [{"action": row[0], "label": _audit_action_label(row[0]), "count": row[1]} for row in action_rows],
+        },
     }
+
+
+@app.get("/admin/audit-logs/export")
+def admin_audit_logs_export(
+    admin_username: str,
+    actor: str = "",
+    action: str = "",
+    target_type: str = "",
+    keyword: str = "",
+    start_date: str = "",
+    end_date: str = "",
+    db: Session = Depends(get_db),
+):
+    require_admin_permission(db, admin_username, "audit_logs.export")
+    query = _build_admin_audit_query(db, actor, action, target_type, keyword, start_date, end_date)
+    logs = query.order_by(models.AdminAuditLog.created_at.desc()).limit(5000).all()
+    output = StringIO()
+    output.write("\ufeff")
+    writer = csv.writer(output)
+    writer.writerow(["时间", "操作人", "操作类型", "目标类型", "目标ID", "目标用户", "结果", "IP", "详情"])
+    for log in logs:
+        item = _serialize_audit_log(log)
+        writer.writerow([
+            item["created_at"] or "",
+            item["admin_username"] or "",
+            item["action_label"] or item["action"] or "",
+            item["target_type"] or "",
+            item["target_id"] or "",
+            item["target_username"] or "",
+            item["result"] or "",
+            item["ip"] or "",
+            item["detail"] or _audit_details_to_text(item["details"]),
+        ])
+    _write_audit_log(
+        admin_username,
+        "audit_logs_export",
+        db,
+        target_type="audit_logs",
+        result="success",
+        detail=f"count={len(logs)}",
+        details={
+            "filters": {
+                "actor": actor,
+                "action": action,
+                "target_type": target_type,
+                "keyword": keyword,
+                "start_date": start_date,
+                "end_date": end_date,
+            },
+            "count": len(logs),
+        },
+    )
+    filename = f"admin_audit_logs_{utc_now().strftime('%Y%m%d_%H%M')}.csv"
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv; charset=utf-8-sig",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 # ── Learning Reports ──────────────────────────────────────
@@ -15156,6 +15359,7 @@ def admin_user_status(target_username: str, req: dict, db: Session = Depends(get
             raise HTTPException(status_code=400, detail="不能禁用最后一个超级管理员")
         if admin_count <= 1:
             raise HTTPException(status_code=400, detail="不能禁用最后一个管理员账号")
+    old_active = bool(user.is_active)
     user.is_active = 1 if is_active else 0
     db.commit()
     _write_audit_log(
@@ -15165,6 +15369,7 @@ def admin_user_status(target_username: str, req: dict, db: Session = Depends(get
         target_type="user",
         target_username=target_username,
         detail=f"is_active={'1' if is_active else '0'}",
+        details={"old_is_active": old_active, "new_is_active": bool(is_active)},
     )
     return {"success": True, "username": target_username, "is_active": bool(is_active)}
 
@@ -15193,8 +15398,10 @@ def admin_delete_material(material_id: int, admin_username: str, db: Session = D
         f"删除资料 {filename}",
         db,
         target_type="material",
+        target_id=str(material_id),
         target_username=username,
         detail=f"material_id={material_id}, filename={filename}",
+        details={"material_id": material_id, "filename": filename, "username": username, "subject": material.subject or ""},
     )
     return {"success": True, "message": f"资料 {filename} 已删除（软删除）", "material_id": material_id}
 
@@ -15228,8 +15435,10 @@ def admin_reindex_material(material_id: int, admin_username: str, db: Session = 
         f"重新索引资料 {material.original_filename or str(material_id)}",
         db,
         target_type="material",
+        target_id=str(material_id),
         target_username=material.username or "",
         detail=f"material_id={material_id}, chunk_count={len(new_chunks)}",
+        details={"material_id": material_id, "filename": material.original_filename or "", "chunk_count": len(new_chunks)},
     )
     return {"success": True, "message": f"重新索引完成", "chunk_count": len(new_chunks)}
 
@@ -15258,8 +15467,10 @@ def admin_report_share_status(share_id: int, req: dict, db: Session = Depends(ge
         f"修改报告分享状态 share_id={share_id} {new_status}",
         db,
         target_type="report_share",
+        target_id=str(share_id),
         target_username=share.username or "",
         detail=f"share_id={share_id}, old_is_active={old_active}, new_status={new_status}",
+        details={"share_id": share_id, "old_is_active": old_active, "new_is_active": bool(share.is_active), "new_status": new_status},
     )
     return {"success": True, "share_id": share_id, "status": new_status}
 
@@ -15375,7 +15586,15 @@ def admin_announcements_create(req: dict, db: Session = Depends(get_db)):
         created_by=admin_name,
     )
     db.add(a); db.commit(); db.refresh(a)
-    _write_audit_log(admin_name, f"创建公告 {a.title}", db, target_type="announcement", detail=f"id={a.id}")
+    _write_audit_log(
+        admin_name,
+        f"创建公告 {a.title}",
+        db,
+        target_type="announcement",
+        target_id=str(a.id),
+        detail=f"id={a.id}",
+        details={"id": a.id, "title": a.title, "type": a.type, "target": a.target, "is_active": bool(a.is_active)},
+    )
     return {"success": True, "announcement": {"id": a.id, "title": a.title, "content": a.content, "type": a.type, "is_active": bool(a.is_active), "target": a.target}}
 
 
@@ -15385,6 +15604,7 @@ def admin_announcements_update(a_id: int, req: dict, db: Session = Depends(get_d
     require_admin_permission(db, admin_name, "announcements.manage")
     a = db.query(models.SystemAnnouncement).filter(models.SystemAnnouncement.id == a_id).first()
     if not a: raise HTTPException(status_code=404, detail="公告不存在")
+    old_values = {"title": a.title, "content": a.content, "type": a.type, "target": a.target, "is_active": bool(a.is_active)}
     if "title" in req: a.title = str(req["title"]).strip()[:500]
     if "content" in req: a.content = str(req["content"]).strip()[:5000]
     if "type" in req: a.type = str(req["type"]).strip() or "info"
@@ -15392,7 +15612,15 @@ def admin_announcements_update(a_id: int, req: dict, db: Session = Depends(get_d
     if "is_active" in req: a.is_active = int(req["is_active"])
     a.updated_at = utc_now()
     db.commit()
-    _write_audit_log(admin_name, f"修改公告 {a.title}", db, target_type="announcement", detail=f"id={a.id}")
+    _write_audit_log(
+        admin_name,
+        f"修改公告 {a.title}",
+        db,
+        target_type="announcement",
+        target_id=str(a.id),
+        detail=f"id={a.id}",
+        details={"id": a.id, "old_values": old_values, "new_values": {"title": a.title, "content": a.content, "type": a.type, "target": a.target, "is_active": bool(a.is_active)}},
+    )
     return {"success": True}
 
 
@@ -15402,10 +15630,19 @@ def admin_announcements_toggle(a_id: int, req: dict, db: Session = Depends(get_d
     require_admin_permission(db, admin_name, "announcements.manage")
     a = db.query(models.SystemAnnouncement).filter(models.SystemAnnouncement.id == a_id).first()
     if not a: raise HTTPException(status_code=404, detail="公告不存在")
+    old_active = bool(a.is_active)
     a.is_active = int(req.get("is_active", 0))
     a.updated_at = utc_now()
     db.commit()
-    _write_audit_log(admin_name, f"{'启用' if a.is_active else '停用'}公告 {a.title}", db, target_type="announcement", detail=f"id={a.id}")
+    _write_audit_log(
+        admin_name,
+        f"{'启用' if a.is_active else '停用'}公告 {a.title}",
+        db,
+        target_type="announcement",
+        target_id=str(a.id),
+        detail=f"id={a.id}",
+        details={"id": a.id, "old_is_active": old_active, "new_is_active": bool(a.is_active), "title": a.title},
+    )
     return {"success": True, "is_active": bool(a.is_active)}
 
 
@@ -15414,8 +15651,9 @@ def admin_announcements_delete(a_id: int, admin_username: str, db: Session = Dep
     require_admin_permission(db, admin_username, "announcements.manage")
     a = db.query(models.SystemAnnouncement).filter(models.SystemAnnouncement.id == a_id).first()
     if not a: raise HTTPException(status_code=404, detail="公告不存在")
+    deleted_info = {"id": a.id, "title": a.title, "type": a.type, "target": a.target, "is_active": bool(a.is_active)}
     db.delete(a); db.commit()
-    _write_audit_log(admin_username, f"删除公告 {a.title}", db, target_type="announcement", detail=f"id={a_id}")
+    _write_audit_log(admin_username, f"删除公告 {deleted_info['title']}", db, target_type="announcement", target_id=str(a_id), detail=f"id={a_id}", details=deleted_info)
     return {"success": True}
 
 
@@ -15433,6 +15671,13 @@ def _get_setting(db, key, default=""):
     s = db.query(models.SystemSetting).filter(models.SystemSetting.key == key).first()
     return s.value if s else default
 
+
+def _safe_setting_audit_value(key: str, value):
+    lowered = (key or "").lower()
+    if any(word in lowered for word in ("api", "key", "secret", "password", "token")):
+        return "***"
+    return str(value)
+
 @app.get("/admin/settings")
 def admin_settings(admin_username: str, db: Session = Depends(get_db)):
     require_admin_permission(db, admin_username, "settings.view")
@@ -15447,13 +15692,26 @@ def admin_settings_update(req: dict, db: Session = Depends(get_db)):
     updates = req.get("updates", {})
     if not isinstance(updates, dict) or not updates:
         raise HTTPException(status_code=400, detail="请提供要更新的配置项")
+    old_values = {}
     for k, v in updates.items():
         s = db.query(models.SystemSetting).filter(models.SystemSetting.key == k).first()
         if not s: s = models.SystemSetting(key=k)
+        old_values[k] = _safe_setting_audit_value(k, s.value if s else "")
         s.value = str(v); s.updated_by = admin_name; s.updated_at = utc_now()
         db.add(s)
     db.commit()
-    _write_audit_log(admin_name, f"更新平台配置 ({len(updates)}项)", db, target_type="settings", detail=str(list(updates.keys())))
+    _write_audit_log(
+        admin_name,
+        f"更新平台配置 ({len(updates)}项)",
+        db,
+        target_type="settings",
+        detail=str(list(updates.keys())),
+        details={
+            "changed_keys": list(updates.keys()),
+            "old_values": old_values,
+            "new_values": {k: _safe_setting_audit_value(k, v) for k, v in updates.items()},
+        },
+    )
     return {"success": True}
 
 

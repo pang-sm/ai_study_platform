@@ -399,8 +399,12 @@ class AdminAuditLog(Base):
     admin_username = Column(String(50), index=True, nullable=False)
     action = Column(String(100), nullable=False)
     target_type = Column(String(50), nullable=True)
+    target_id = Column(String(100), nullable=True)
     target_username = Column(String(50), nullable=True)
+    result = Column(String(20), nullable=True, default="success")
     detail = Column(Text, nullable=True)
+    details = Column(Text, nullable=True)
+    ip = Column(String(100), nullable=True)
     created_at = Column(DateTime, default=utc_now)
 
 

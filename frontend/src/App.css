@@ -11574,3 +11574,18 @@ select.field:focus {
   flex-shrink: 0; opacity: 0.6; transition: opacity 0.15s;
 }
 .announce-banner-close:hover { opacity: 1; }
+
+.audit-detail-json {
+  margin: 0;
+  padding: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  color: #334155;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 320px;
+  overflow: auto;
+}

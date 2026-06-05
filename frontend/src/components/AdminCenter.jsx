@@ -36,6 +36,23 @@ const ADMIN_ROLE_LABELS = {
   none: "非管理员",
 };
 
+const AUDIT_TARGET_TYPES = ["user", "material", "report_share", "announcement", "settings", "ai_logs", "audit_logs"];
+
+function formatAuditDetails(details) {
+  if (!details) return "";
+  if (typeof details === "string") return details;
+  try {
+    return JSON.stringify(details, null, 2);
+  } catch {
+    return String(details);
+  }
+}
+
+function formatAuditTarget(log) {
+  const parts = [log.target_type, log.target_id, log.target_username].filter(Boolean);
+  return parts.length ? parts.join(" / ") : "-";
+}
+
 function formatSize(bytes) {
   if (!bytes || bytes <= 0) return "未知";
   if (bytes < 1024) return `${bytes} B`;
@@ -90,6 +107,16 @@ export default function AdminCenter({ user }) {
 
   // Audit logs
   const [auditLogs, setAuditLogs] = useState({ items: [], total: 0, page: 1 });
+  const [auditFilters, setAuditFilters] = useState({
+    actor: "",
+    action: "",
+    target_type: "",
+    keyword: "",
+    start_date: "",
+    end_date: "",
+  });
+  const [auditDetail, setAuditDetail] = useState(null);
+  const [auditExporting, setAuditExporting] = useState(false);
 
   // Report shares
   const [reportShares, setReportShares] = useState({ items: [], total: 0, page: 1 });
@@ -574,12 +601,46 @@ export default function AdminCenter({ user }) {
     setError("");
     try {
       const params = new URLSearchParams({ admin_username: user.username, page: String(page), page_size: "30" });
+      Object.entries(auditFilters).forEach(([key, value]) => {
+        if (value) params.set(key, value);
+      });
       const data = await getJson(`${API_BASE}/admin/audit-logs?${params}`);
       setAuditLogs(data);
     } catch (e) {
       setError(e.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAuditExport = async () => {
+    if (!hasPermission("audit_logs.export")) return;
+    setAuditExporting(true);
+    setError("");
+    try {
+      const params = new URLSearchParams({ admin_username: user.username });
+      Object.entries(auditFilters).forEach(([key, value]) => {
+        if (value) params.set(key, value);
+      });
+      const res = await fetch(`${API_BASE}/admin/audit-logs/export?${params}`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || "导出失败");
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `admin_audit_logs_${Date.now()}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      fetchAuditLogs(1);
+    } catch (e) {
+      setError(e.message || "导出失败");
+    } finally {
+      setAuditExporting(false);
     }
   };
 
@@ -1288,31 +1349,56 @@ export default function AdminCenter({ user }) {
         <div className="admin-tab-content">
           {loading ? <div className="empty-state">加载中...</div> : (
             <>
+              <div className="admin-stat-grid">
+                <div className="admin-stat-card"><span>今日操作</span><strong>{auditLogs.summary?.today_total ?? 0}</strong></div>
+                <div className="admin-stat-card"><span>今日高风险</span><strong>{auditLogs.summary?.today_high_risk ?? 0}</strong></div>
+                <div className="admin-stat-card"><span>角色变更</span><strong>{auditLogs.summary?.admin_role_changes ?? 0}</strong></div>
+                <div className="admin-stat-card"><span>配置变更</span><strong>{auditLogs.summary?.settings_changes ?? 0}</strong></div>
+                <div className="admin-stat-card"><span>失败操作</span><strong>{auditLogs.summary?.failed ?? 0}</strong></div>
+              </div>
+              <div className="admin-filters">
+                <input className="field" placeholder="操作人" value={auditFilters.actor} onChange={(e) => setAuditFilters((prev) => ({ ...prev, actor: e.target.value }))} />
+                <input className="field" placeholder="操作类型" value={auditFilters.action} onChange={(e) => setAuditFilters((prev) => ({ ...prev, action: e.target.value }))} />
+                <select className="field" value={auditFilters.target_type} onChange={(e) => setAuditFilters((prev) => ({ ...prev, target_type: e.target.value }))}>
+                  <option value="">全部目标</option>
+                  {AUDIT_TARGET_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+                </select>
+                <input className="field" placeholder="关键词" value={auditFilters.keyword} onChange={(e) => setAuditFilters((prev) => ({ ...prev, keyword: e.target.value }))} />
+                <input className="field" type="date" value={auditFilters.start_date} onChange={(e) => setAuditFilters((prev) => ({ ...prev, start_date: e.target.value }))} />
+                <input className="field" type="date" value={auditFilters.end_date} onChange={(e) => setAuditFilters((prev) => ({ ...prev, end_date: e.target.value }))} />
+                <button className="primary-button" onClick={() => fetchAuditLogs(1)}>查询</button>
+                <button className="ghost-button" onClick={() => { setAuditFilters({ actor: "", action: "", target_type: "", keyword: "", start_date: "", end_date: "" }); setTimeout(() => fetchAuditLogs(1), 0); }}>重置</button>
+                {hasPermission("audit_logs.export") && (
+                  <button className="primary-button" onClick={handleAuditExport} disabled={auditExporting}>{auditExporting ? "导出中..." : "导出 CSV"}</button>
+                )}
+              </div>
               <div className="admin-table-wrap">
                 <table className="admin-table">
                   <thead>
                     <tr>
-                      <th>管理员</th>
-                      <th>操作</th>
-                      <th>目标类型</th>
-                      <th>目标用户</th>
-                      <th>详情</th>
                       <th>时间</th>
+                      <th>操作人</th>
+                      <th>操作类型</th>
+                      <th>目标对象</th>
+                      <th>结果</th>
+                      <th>IP</th>
+                      <th>详情</th>
                     </tr>
                   </thead>
                   <tbody>
                     {auditLogs.items.map((log, i) => (
-                      <tr key={i}>
-                        <td>{log.admin_username}</td>
-                        <td>{log.action}</td>
-                        <td>{log.target_type || "-"}</td>
-                        <td>{log.target_username || "-"}</td>
-                        <td>{log.detail || "-"}</td>
+                      <tr key={log.id || i}>
                         <td>{log.created_at ? new Date(log.created_at).toLocaleString("zh-CN") : "-"}</td>
+                        <td>{log.admin_username}</td>
+                        <td>{log.action_label || log.action}</td>
+                        <td>{formatAuditTarget(log)}</td>
+                        <td><span className={`status-pill ${log.result === "success" ? "status-pill--ok" : "status-pill--fail"}`}>{log.result || "success"}</span></td>
+                        <td>{log.ip || "-"}</td>
+                        <td><button className="ghost-button compact" onClick={() => setAuditDetail(log)}>查看</button></td>
                       </tr>
                     ))}
                     {auditLogs.items.length === 0 && (
-                      <tr><td colSpan={6} style={{ textAlign: "center", color: "#6b7280" }}>暂无操作记录</td></tr>
+                      <tr><td colSpan={7} style={{ textAlign: "center", color: "#6b7280" }}>暂无操作记录</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -1459,6 +1545,33 @@ export default function AdminCenter({ user }) {
           ) : (
             <div className="empty-state">加载系统健康数据...</div>
           )}
+        </div>
+      )}
+
+      {/* ── Audit Log Detail Modal ── */}
+      {auditDetail && (
+        <div className="admin-modal-overlay" onClick={() => setAuditDetail(null)}>
+          <div className="admin-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 640 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h3>审计详情</h3>
+              <button className="modal-close" onClick={() => setAuditDetail(null)}>&times;</button>
+            </div>
+            <div className="admin-detail-grid">
+              <div><span>时间：</span>{auditDetail.created_at ? new Date(auditDetail.created_at).toLocaleString("zh-CN") : "-"}</div>
+              <div><span>操作人：</span>{auditDetail.admin_username || "-"}</div>
+              <div><span>操作：</span>{auditDetail.action_label || auditDetail.action || "-"}</div>
+              <div><span>目标：</span>{formatAuditTarget(auditDetail)}</div>
+              <div><span>结果：</span><span className={`status-pill ${auditDetail.result === "success" ? "status-pill--ok" : "status-pill--fail"}`}>{auditDetail.result || "success"}</span></div>
+              <div><span>IP：</span>{auditDetail.ip || "-"}</div>
+            </div>
+            <div className="admin-detail-section">
+              <h4>详情</h4>
+              <pre className="audit-detail-json">{formatAuditDetails(auditDetail.details) || auditDetail.detail || "-"}</pre>
+            </div>
+            <div style={{ textAlign: "right", marginTop: 16 }}>
+              <button className="ghost-button" onClick={() => setAuditDetail(null)}>关闭</button>
+            </div>
+          </div>
         </div>
       )}
 

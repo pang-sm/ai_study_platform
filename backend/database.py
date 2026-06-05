@@ -253,8 +253,12 @@ ADMIN_AUDIT_LOGS_COLUMNS = {
     "admin_username": "VARCHAR(50) NOT NULL",
     "action": "VARCHAR(100) NOT NULL",
     "target_type": "VARCHAR(50)",
+    "target_id": "VARCHAR(100)",
     "target_username": "VARCHAR(50)",
+    "result": "VARCHAR(20) DEFAULT 'success'",
     "detail": "TEXT",
+    "details": "TEXT",
+    "ip": "VARCHAR(100)",
     "created_at": "DATETIME NOT NULL",
 }
 
