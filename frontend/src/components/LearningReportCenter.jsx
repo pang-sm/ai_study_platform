@@ -180,7 +180,7 @@ function ReportPreview({ report, onSave, onRetry, onClear, saving, saveMsg, show
   return (
     <div className="report-preview-card-v2">
       <div className="report-preview-header-v2">
-        <h3>报告预览</h3>
+        <span className="report-preview-label-v2">报告预览</span>
       </div>
       {parsed.title && <h2 className="report-preview-title-v2">{parsed.title}</h2>}
       {parsed.summary && <p className="report-preview-summary-v2">{parsed.summary}</p>}
