@@ -711,8 +711,8 @@ export default function LearningReportCenter({ user }) {
       )}
       {detail && !detailLoading && (
         createPortal(
-          <div className="report-modal-overlay" onClick={() => { setDetail(null); setShareInfo(null); setShareMsg(""); }}>
-            <div className="report-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="report-modal-overlay-v2">
+            <div className="report-modal-shell-v2">
               <button
                 type="button"
                 className="report-modal-close-v2"
@@ -721,63 +721,48 @@ export default function LearningReportCenter({ user }) {
               >
                 ×
               </button>
-              <h2 className="report-modal-title">{detail.title}</h2>
-              <ReportPreview report={detail} showActions={false} />
+              <div className="report-modal-scroll-v2">
+                <h2 className="report-modal-title">{detail.title}</h2>
+                <ReportPreview report={detail} showActions={false} />
 
-              {/* ── Share Info ── */}
-              {shareInfo && shareInfo.is_shared && (
-                <div className="report-share-info">
-                  <div className="report-share-info-title">分享链接（已激活）</div>
-                  <div className="report-share-url-row">
-                    <input
-                      className="field"
-                      readOnly
-                      value={`${window.location.origin}/shared/reports/${shareInfo.share_token}`}
-                      onClick={(e) => e.target.select()}
-                    />
-                    <button className="ghost-button compact" onClick={() => copyShareUrl(shareInfo.share_token)}>复制</button>
+                {/* ── Share Info ── */}
+                {shareInfo && shareInfo.is_shared && (
+                  <div className="report-share-info">
+                    <div className="report-share-info-title">分享链接（已激活）</div>
+                    <div className="report-share-url-row">
+                      <input className="field" readOnly value={`${window.location.origin}/shared/reports/${shareInfo.share_token}`} onClick={(e) => e.target.select()} />
+                      <button className="ghost-button compact" onClick={() => copyShareUrl(shareInfo.share_token)}>复制</button>
+                    </div>
+                    <div className="report-share-meta">
+                      <span>浏览量：{shareInfo.view_count || 0}</span>
+                      {shareInfo.created_at && <span>创建于：{new Date(shareInfo.created_at).toLocaleString("zh-CN")}</span>}
+                    </div>
                   </div>
-                  <div className="report-share-meta">
-                    <span>浏览量：{shareInfo.view_count || 0}</span>
-                    {shareInfo.created_at && <span>创建于：{new Date(shareInfo.created_at).toLocaleString("zh-CN")}</span>}
-                  </div>
-                </div>
-              )}
-              {shareMsg && (
-                <p className="report-save-msg" style={{ color: shareMsg.includes("失败") ? "#ef4444" : "#059669", marginTop: 8 }}>{shareMsg}</p>
-              )}
-
-              {/* ── Actions ── */}
-              <div className="report-detail-actions">
-                <button className="ghost-button compact" onClick={handleCopyReport}>
-                  复制报告
-                </button>
-                <button
-                  className="ghost-button compact"
-                  onClick={() => handleExport("markdown")}
-                  disabled={exportLoading === "markdown"}
-                >
-                  {exportLoading === "markdown" ? "导出中..." : "导出 Markdown"}
-                </button>
-                <button
-                  className="ghost-button compact"
-                  onClick={() => handleExport("text")}
-                  disabled={exportLoading === "text"}
-                >
-                  {exportLoading === "text" ? "导出中..." : "导出 TXT"}
-                </button>
-                <button className="ghost-button compact" onClick={handlePrint}>
-                  打印 / 保存 PDF
-                </button>
-                {shareInfo && shareInfo.is_shared ? (
-                  <button className="ghost-button compact" style={{ color: "#ef4444" }} onClick={handleRevokeShare} disabled={shareLoading}>
-                    {shareLoading ? "撤销中..." : "撤销分享"}
-                  </button>
-                ) : (
-                  <button className="ghost-button compact" onClick={handleCreateShare} disabled={shareLoading}>
-                    {shareLoading ? "创建中..." : "创建分享链接"}
-                  </button>
                 )}
+                {shareMsg && (
+                  <p className="report-save-msg" style={{ color: shareMsg.includes("失败") ? "#ef4444" : "#059669", marginTop: 8 }}>{shareMsg}</p>
+                )}
+
+                {/* ── Actions ── */}
+                <div className="report-detail-actions">
+                  <button className="ghost-button compact" onClick={handleCopyReport}>复制报告</button>
+                  <button className="ghost-button compact" onClick={() => handleExport("markdown")} disabled={exportLoading === "markdown"}>
+                    {exportLoading === "markdown" ? "导出中..." : "导出 Markdown"}
+                  </button>
+                  <button className="ghost-button compact" onClick={() => handleExport("text")} disabled={exportLoading === "text"}>
+                    {exportLoading === "text" ? "导出中..." : "导出 TXT"}
+                  </button>
+                  <button className="ghost-button compact" onClick={handlePrint}>打印 / 保存 PDF</button>
+                  {shareInfo && shareInfo.is_shared ? (
+                    <button className="ghost-button compact" style={{ color: "#ef4444" }} onClick={handleRevokeShare} disabled={shareLoading}>
+                      {shareLoading ? "撤销中..." : "撤销分享"}
+                    </button>
+                  ) : (
+                    <button className="ghost-button compact" onClick={handleCreateShare} disabled={shareLoading}>
+                      {shareLoading ? "创建中..." : "创建分享链接"}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </div>,
