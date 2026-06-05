@@ -12,6 +12,7 @@ const TABS = [
   { key: "plans", label: "套餐管理" },
   { key: "auditLogs", label: "操作记录" },
   { key: "reportShares", label: "报告分享" },
+  { key: "systemHealth", label: "系统监控" },
 ];
 
 const FEATURE_LABELS = {
@@ -91,6 +92,7 @@ export default function AdminCenter({ user }) {
     if (tab === "overview") { fetchDashboard(); fetchTrendData(trendDays); fetchUsageSummary(); }
     if (tab === "courses") fetchCourses();
     if (tab === "plans") fetchPlanUsers(1);
+    if (tab === "systemHealth") { fetchSystemHealth(); fetchMaterialIssues(1); }
   }, [tab, isAdmin]);
 
   // ── helpers ──
@@ -288,6 +290,20 @@ export default function AdminCenter({ user }) {
       const a = document.createElement("a"); a.href = url; a.download = `ai_usage_logs_${new Date().toISOString().slice(0, 10)}.csv`;
       document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
     } catch (e) { setError(e.message); } finally { setExporting(false); }
+  };
+
+  // ── System Health ──
+  const [systemHealth, setSystemHealth] = useState(null);
+  const [materialIssues, setMaterialIssues] = useState({ items: [], total: 0, page: 1 });
+  const [materialIssueType, setMaterialIssueType] = useState("all");
+  const fetchSystemHealth = async () => {
+    try { setSystemHealth(await getJson(`${API_BASE}/admin/system-health?${adminParam}`)); } catch { setSystemHealth(null); }
+  };
+  const fetchMaterialIssues = async (page = 1) => {
+    try {
+      const params = new URLSearchParams({ admin_username: user.username, issue_type: materialIssueType, page: String(page), page_size: "20" });
+      setMaterialIssues(await getJson(`${API_BASE}/admin/material-issues?${params}`));
+    } catch { setMaterialIssues({ items: [], total: 0, page: 1 }); }
   };
 
   // ── AI log detail ──
@@ -1173,6 +1189,78 @@ export default function AdminCenter({ user }) {
               </div>
               {renderPagination(reportShares, fetchReportShares)}
             </>
+          )}
+        </div>
+      )}
+
+      {/* ── System Health ── */}
+      {tab === "systemHealth" && (
+        <div className="admin-tab-content">
+          {systemHealth ? (
+            <>
+              {/* Health cards */}
+              <div className="admin-stat-row" style={{ marginBottom: 16 }}>
+                {[
+                  { label: "系统状态", value: systemHealth.status === "ok" ? "正常" : "异常", icon: systemHealth.status === "ok" ? "✅" : "⚠️", bg: systemHealth.status === "ok" ? "#f0fdf4" : "#fef3c7" },
+                  { label: "数据库", value: "正常", icon: "🗄️", bg: "#eff6ff", sub: `${systemHealth.database?.users_count || 0} 用户 / ${systemHealth.database?.materials_count || 0} 资料 / ${systemHealth.database?.chunks_count || 0} chunks` },
+                  { label: "上传目录", value: systemHealth.storage?.upload_dir_exists ? "可用" : "不可用", icon: systemHealth.storage?.upload_dir_exists ? "✅" : "❌", bg: systemHealth.storage?.upload_dir_exists ? "#f0fdf4" : "#fef2f2" },
+                  { label: "DeepSeek", value: systemHealth.ai_services?.deepseek?.configured ? "已配置" : "未配置", icon: systemHealth.ai_services?.deepseek?.configured ? "✅" : "⚠️", bg: systemHealth.ai_services?.deepseek?.configured ? "#f0fdf4" : "#fef3c7", sub: systemHealth.ai_services?.deepseek?.recent_failed > 0 ? `${systemHealth.ai_services.deepseek.recent_failed} 失败` : "" },
+                  { label: "Qwen 图片解析", value: systemHealth.ai_services?.qwen?.configured ? "已配置" : "未配置", icon: systemHealth.ai_services?.qwen?.configured ? "✅" : "⚠️", bg: systemHealth.ai_services?.qwen?.configured ? "#f0fdf4" : "#fef3c7" },
+                ].map(({ label, value, icon, bg, sub }) => (
+                  <div key={label} className="admin-stat-card-v2">
+                    <div className="admin-stat-top"><span className="admin-stat-label">{label}</span><span className="admin-stat-icon-v2" style={{ background: bg }}>{icon}</span></div>
+                    <div className="admin-stat-value-v2" style={{ fontSize: "1.1rem" }}>{value}</div>
+                    {sub && <div className="admin-stat-sub">{sub}</div>}
+                  </div>
+                ))}
+              </div>
+
+              {/* Alerts */}
+              {(systemHealth.alerts || []).length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  {systemHealth.alerts.map((a, i) => (
+                    <div key={i} style={{ padding: "8px 14px", marginBottom: 6, borderRadius: 10, background: a.level === "warning" ? "#fef3c7" : "#eff6ff", border: "1px solid " + (a.level === "warning" ? "#fde68a" : "#bfdbfe"), fontSize: "0.8rem", color: a.level === "warning" ? "#92400e" : "#1e40af" }}>
+                      <strong>{a.title}</strong> — {a.message}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {(!systemHealth.alerts || systemHealth.alerts.length === 0) && (
+                <div style={{ padding: "10px 14px", marginBottom: 16, borderRadius: 10, background: "#f0fdf4", border: "1px solid #bbf7d0", fontSize: "0.8rem", color: "#166534" }}>✅ 系统运行正常，未发现明显异常</div>
+              )}
+
+              {/* Material issues */}
+              <div className="admin-card">
+                <div className="admin-chart-header">
+                  <h4>资料解析异常</h4>
+                  <select className="field compact" value={materialIssueType} onChange={(e) => { setMaterialIssueType(e.target.value); fetchMaterialIssues(1); }}>
+                    <option value="all">全部</option><option value="empty_text">解析文本为空</option><option value="no_chunks">未建立索引</option>
+                  </select>
+                </div>
+                <div className="admin-table-wrap">
+                  <table className="admin-table-v2">
+                    <thead><tr><th>文件名</th><th>用户</th><th>课程</th><th>问题类型</th><th>文本长度</th><th>Chunks</th><th>操作</th></tr></thead>
+                    <tbody>
+                      {materialIssues.items.map((m) => (
+                        <tr key={m.id}>
+                          <td title={m.filename}>{m.filename && m.filename.length > 30 ? m.filename.slice(0, 30) + "..." : m.filename}</td>
+                          <td>{m.username}</td><td>{m.course_name || "-"}</td>
+                          <td><span className={`status-pill ${m.issue_type === "empty_text" ? "status-pill--fail" : "status-pill--ok"}`}>{m.issue_label}</span></td>
+                          <td>{m.extracted_text_length}</td><td>{m.chunk_count}</td>
+                          <td style={{ whiteSpace: "nowrap" }}>
+                            <button className="ghost-button compact" disabled={reindexingId === m.id} onClick={() => handleMaterialReindex(m)}>{reindexingId === m.id ? "索引中..." : "重索引"}</button>
+                            <button className="ghost-button compact" style={{ color: "#ef4444", marginLeft: 4 }} onClick={() => handleMaterialDelete(m)}>删除</button>
+                          </td>
+                        </tr>
+                      ))}
+                      {materialIssues.items.length === 0 && <tr><td colSpan={7} style={{ textAlign: "center", color: "#6b7280" }}>暂无资料异常</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="empty-state">加载系统健康数据...</div>
           )}
         </div>
       )}

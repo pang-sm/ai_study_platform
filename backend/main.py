@@ -15058,6 +15058,92 @@ def admin_report_share_status(share_id: int, req: dict, db: Session = Depends(ge
     return {"success": True, "share_id": share_id, "status": new_status}
 
 
+# ── Admin: System Health ─────────────────────────────
+
+@app.get("/admin/system-health")
+def admin_system_health(admin_username: str, db: Session = Depends(get_db)):
+    require_admin(admin_username, db)
+    import os as _os, sys as _sys
+
+    # Server
+    server_status = {"status": "ok", "time": serialize_datetime(utc_now()), "uptime_note": "后端服务可响应"}
+
+    # Database
+    try:
+        users_count = db.query(models.User).count()
+        materials_count = db.query(models.StudyMaterial).filter(models.StudyMaterial.is_deleted.is_(False)).count()
+        chunks_count = db.query(models.MaterialChunk).filter(models.MaterialChunk.is_deleted.is_(False)).count()
+        ai_logs_count = db.query(models.AiUsageLog).count()
+        db_status = {"status": "ok", "users_count": users_count, "materials_count": materials_count, "chunks_count": chunks_count, "ai_logs_count": ai_logs_count}
+    except Exception as e:
+        db_status = {"status": "danger", "note": str(e)[:200], "users_count": 0, "materials_count": 0, "chunks_count": 0, "ai_logs_count": 0}
+
+    # Storage — check upload dir
+    upload_dir = _os.environ.get("UPLOAD_DIR", "uploads")
+    storage_status = {"status": "ok", "upload_dir_exists": _os.path.exists(upload_dir), "upload_dir": upload_dir, "note": "上传目录" + ("可用" if _os.path.exists(upload_dir) else "不存在")}
+    if not _os.path.exists(upload_dir): storage_status["status"] = "warning"
+
+    # AI services
+    deepseek_key = _os.environ.get("DEEPSEEK_API_KEY", "")
+    qwen_key = _os.environ.get("QWEN_API_KEY", "")
+    today_start = utc_now().replace(hour=0, minute=0, second=0, microsecond=0)
+    ds_failed = db.query(models.AiUsageLog).filter(models.AiUsageLog.status != "success", models.AiUsageLog.feature.in_(ALL_FEATURES), models.AiUsageLog.created_at >= today_start).count()
+    ai_services = {
+        "deepseek": {"configured": bool(deepseek_key), "status": "configured" if deepseek_key else "not_configured", "note": "已配置 API Key" if deepseek_key else "未配置 DeepSeek API Key", "recent_failed": ds_failed},
+        "qwen": {"configured": bool(qwen_key), "status": "configured" if qwen_key else "not_configured", "note": "已配置图片解析能力" if qwen_key else "未配置 Qwen API Key", "recent_failed": 0},
+    }
+
+    # Recent AI errors
+    recent_errors_q = db.query(models.AiUsageLog).filter(models.AiUsageLog.status != "success").order_by(models.AiUsageLog.created_at.desc()).limit(5).all()
+    recent_errors = [{"type": "ai_call_failed", "message": (r.error_message or "未知错误")[:200], "feature": r.feature, "username": r.username, "time": serialize_datetime(r.created_at)} for r in recent_errors_q]
+
+    # Material issues summary
+    empty_text = db.query(models.StudyMaterial).filter(models.StudyMaterial.is_deleted.is_(False), models.StudyMaterial.extracted_text.is_(None) | (models.StudyMaterial.extracted_text == "")).count()
+    no_chunks = db.query(models.StudyMaterial).filter(models.StudyMaterial.is_deleted.is_(False), models.StudyMaterial.extracted_text.isnot(None), models.StudyMaterial.extracted_text != "").count()
+    # Count materials with text but no chunks
+    mats_with_text = db.query(models.StudyMaterial).filter(models.StudyMaterial.is_deleted.is_(False), models.StudyMaterial.extracted_text.isnot(None), models.StudyMaterial.extracted_text != "").all()
+    nc_count = 0
+    for m in mats_with_text:
+        cc = db.query(models.MaterialChunk).filter(models.MaterialChunk.material_id == m.id, models.MaterialChunk.is_deleted.is_(False)).count()
+        if cc == 0: nc_count += 1
+
+    alerts = []
+    overall = "ok"
+    if ds_failed > 0: alerts.append({"level": "warning", "title": "有 AI 调用失败", "message": f"最近 24 小时 {ds_failed} 条失败记录", "value": ds_failed})
+    if empty_text > 0: alerts.append({"level": "warning", "title": "存在资料解析文本为空", "message": f"有 {empty_text} 个资料没有提取到文本", "value": empty_text})
+    if nc_count > 0: alerts.append({"level": "warning", "title": "存在资料未建立索引", "message": f"有 {nc_count} 个资料没有 chunks", "value": nc_count})
+    if not deepseek_key: alerts.append({"level": "warning", "title": "DeepSeek 配置缺失", "message": "未配置 DEEPSEEK_API_KEY", "value": 0}); overall = "warning"
+    if not _os.path.exists(upload_dir): overall = "warning"
+    if recent_errors_q: overall = "warning"
+
+    return {"status": overall, "server": server_status, "database": db_status, "storage": storage_status, "ai_services": ai_services, "recent_errors": recent_errors, "alerts": alerts, "material_issues_summary": {"empty_text": empty_text, "no_index": nc_count}}
+
+
+# ── Admin: Material Issues ───────────────────────────
+
+@app.get("/admin/material-issues")
+def admin_material_issues(admin_username: str, issue_type: str = "all", page: int = 1, page_size: int = 20, db: Session = Depends(get_db)):
+    require_admin(admin_username, db)
+    page = max(1, page); page_size = min(100, max(1, page_size))
+    query = db.query(models.StudyMaterial).filter(models.StudyMaterial.is_deleted.is_(False))
+    it = issue_type.strip()
+    if it == "empty_text": query = query.filter(models.StudyMaterial.extracted_text.is_(None) | (models.StudyMaterial.extracted_text == ""))
+    elif it == "no_chunks":
+        query = query.filter(models.StudyMaterial.extracted_text.isnot(None), models.StudyMaterial.extracted_text != "")
+    total = query.count()
+    mats = query.order_by(models.StudyMaterial.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    items = []
+    for m in mats:
+        cc = db.query(models.MaterialChunk).filter(models.MaterialChunk.material_id == m.id, models.MaterialChunk.is_deleted.is_(False)).count()
+        et_len = len(m.extracted_text) if m.extracted_text else 0
+        issue = "ok"
+        if et_len == 0: issue = "empty_text"
+        elif cc == 0: issue = "no_chunks"
+        if it != "all" and it != issue: continue
+        items.append({"id": m.id, "filename": m.original_filename or str(m.id), "username": m.username or "", "course_name": m.subject or "", "file_type": m.file_type or "", "file_size": m.file_size or 0, "created_at": serialize_datetime(m.created_at), "extracted_text_length": et_len, "chunk_count": cc, "issue_type": issue, "issue_label": "解析文本为空" if issue == "empty_text" else ("未建立索引" if issue == "no_chunks" else "正常")})
+    return {"items": items, "total": total, "page": page, "page_size": page_size}
+
+
 # ── Interactive Terminal WebSocket ─────────────────────
 
 INTERACTIVE_TIMEOUT = 30  # seconds
