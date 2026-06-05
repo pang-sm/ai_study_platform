@@ -459,27 +459,6 @@ export default function AdminCenter({ user }) {
     } catch { /* use fallback */ }
   };
 
-  if (!isAdmin) {
-    return (
-      <div className="empty-state" style={{ padding: 48 }}>
-        <h2>无权限访问管理中心</h2>
-        <p>仅管理员可访问此页面。</p>
-      </div>
-    );
-  }
-
-  if (permissionsError) {
-    return (
-      <div className="empty-state" style={{ padding: 48 }}>
-        <h2>无法获取管理员权限，请重新登录</h2>
-      </div>
-    );
-  }
-
-  if (permissionsLoading || !permissionsLoaded) {
-    return <div className="empty-state" style={{ padding: 48 }}>正在加载管理员权限...</div>;
-  }
-
   // ── Overview ──
 
   const fetchDashboard = async () => {
@@ -659,6 +638,7 @@ export default function AdminCenter({ user }) {
 
   // Build trend bars from recent logs based on selected range
   const trendBars = useMemo(() => {
+    if (!permissionsLoaded || !adminPermissionSet.has("dashboard.view")) return [];
     const days = trendDays;
     let dateKeys = [];
     if (days <= 7) {
@@ -703,7 +683,28 @@ export default function AdminCenter({ user }) {
     }
     const maxVal = Math.max(1, ...Object.values(byKey));
     return dateKeys.map((dk) => ({ label: dk.label, count: byKey[dk.key] || 0, pct: Math.round(((byKey[dk.key] || 0) / maxVal) * 100) }));
-  }, [dashboard, trendDays, trendData]);
+  }, [adminPermissionSet, dashboard, permissionsLoaded, trendDays, trendData]);
+
+  if (!isAdmin) {
+    return (
+      <div className="empty-state" style={{ padding: 48 }}>
+        <h2>无权限访问管理中心</h2>
+        <p>仅管理员可访问此页面。</p>
+      </div>
+    );
+  }
+
+  if (permissionsError) {
+    return (
+      <div className="empty-state" style={{ padding: 48 }}>
+        <h2>无法获取管理员权限，请重新登录</h2>
+      </div>
+    );
+  }
+
+  if (permissionsLoading || !permissionsLoaded) {
+    return <div className="empty-state" style={{ padding: 48 }}>正在加载管理员权限...</div>;
+  }
 
   // ── render ──
   return (
