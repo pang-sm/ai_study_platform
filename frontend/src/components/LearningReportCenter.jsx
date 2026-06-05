@@ -713,6 +713,14 @@ export default function LearningReportCenter({ user }) {
         createPortal(
           <div className="report-modal-overlay" onClick={() => { setDetail(null); setShareInfo(null); setShareMsg(""); }}>
             <div className="report-modal" onClick={(e) => e.stopPropagation()}>
+              <button
+                type="button"
+                className="report-modal-close-v2"
+                onClick={() => { setDetail(null); setShareInfo(null); setShareMsg(""); }}
+                aria-label="关闭报告预览"
+              >
+                ×
+              </button>
               <h2 className="report-modal-title">{detail.title}</h2>
               <ReportPreview report={detail} showActions={false} />
 
@@ -770,9 +778,6 @@ export default function LearningReportCenter({ user }) {
                     {shareLoading ? "创建中..." : "创建分享链接"}
                   </button>
                 )}
-                <button className="ghost-button" onClick={() => { setDetail(null); setShareInfo(null); setShareMsg(""); }}>
-                  关闭
-                </button>
               </div>
             </div>
           </div>,
