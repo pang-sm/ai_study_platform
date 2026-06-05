@@ -498,3 +498,25 @@ class PracticeImportJob(Base):
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
     started_at = Column(DateTime, nullable=True)
     finished_at = Column(DateTime, nullable=True)
+
+
+class SystemAnnouncement(Base):
+    __tablename__ = "system_announcements"
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(Text, nullable=False)
+    content = Column(Text, nullable=False)
+    type = Column(String(20), nullable=True, default="info")
+    is_active = Column(Integer, nullable=True, default=1)
+    target = Column(String(20), nullable=True, default="all")
+    created_by = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+
+class SystemSetting(Base):
+    __tablename__ = "system_settings"
+    key = Column(String(100), primary_key=True)
+    value = Column(Text, nullable=True)
+    description = Column(Text, nullable=True)
+    updated_by = Column(String(50), nullable=True)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)

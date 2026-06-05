@@ -564,6 +564,59 @@ def ensure_code_challenge_attempts_schema(conn):
     ensure_columns(conn, "code_challenge_attempts", CODE_CHALLENGE_ATTEMPTS_COLUMNS)
 
 
+SYSTEM_ANNOUNCEMENTS_COLUMNS = {
+    "title": "TEXT NOT NULL",
+    "content": "TEXT NOT NULL",
+    "type": "VARCHAR(20) DEFAULT 'info'",
+    "is_active": "INTEGER DEFAULT 1",
+    "target": "VARCHAR(20) DEFAULT 'all'",
+    "created_by": "VARCHAR(50)",
+    "created_at": "DATETIME",
+    "updated_at": "DATETIME",
+}
+
+SYSTEM_SETTINGS_COLUMNS = {
+    "value": "TEXT",
+    "description": "TEXT",
+    "updated_by": "VARCHAR(50)",
+    "updated_at": "DATETIME",
+}
+
+
+def ensure_system_announcements_schema(conn):
+    conn.execute(text("""CREATE TABLE IF NOT EXISTS system_announcements (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL, content TEXT NOT NULL,
+        type VARCHAR(20) DEFAULT 'info', is_active INTEGER DEFAULT 1,
+        target VARCHAR(20) DEFAULT 'all', created_by VARCHAR(50),
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)"""))
+    ensure_columns(conn, "system_announcements", SYSTEM_ANNOUNCEMENTS_COLUMNS)
+
+
+def ensure_system_settings_schema(conn):
+    conn.execute(text("""CREATE TABLE IF NOT EXISTS system_settings (
+        key VARCHAR(100) PRIMARY KEY, value TEXT,
+        description TEXT, updated_by VARCHAR(50),
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)"""))
+    ensure_columns(conn, "system_settings", SYSTEM_SETTINGS_COLUMNS)
+    # Initialize default settings if not present
+    defaults = {
+        "feature_ai_chat_enabled": ("true", "AI 问答是否启用"),
+        "feature_material_upload_enabled": ("true", "资料上传是否启用"),
+        "feature_code_studio_enabled": ("true", "编程助手是否启用"),
+        "feature_practice_center_enabled": ("true", "练习中心是否启用"),
+        "feature_report_share_enabled": ("true", "报告分享是否启用"),
+        "limit_free_daily_ai_calls": ("5", "免费版每日AI调用次数"),
+        "limit_pro_daily_ai_calls": ("30", "专业版每日AI调用次数"),
+        "limit_admin_daily_ai_calls": ("-1", "管理员每日AI调用次数(-1无限制)"),
+    }
+    for k, (v, desc) in defaults.items():
+        existing = conn.execute(text("SELECT 1 FROM system_settings WHERE key=:k"), {"k": k}).fetchone()
+        if not existing:
+            conn.execute(text("INSERT INTO system_settings(key,value,description) VALUES(:k,:v,:d)"), {"k": k, "v": v, "d": desc})
+
+
 def ensure_learning_tasks_schema(conn):
     conn.execute(
         text(
@@ -1053,6 +1106,8 @@ def init_user_profile_schema():
         ensure_admin_audit_logs_schema(conn)
         ensure_learning_reports_schema(conn)
         ensure_learning_report_shares_schema(conn)
+        ensure_system_announcements_schema(conn)
+        ensure_system_settings_schema(conn)
         ensure_material_chunks_fts(conn)
         normalize_existing_subjects(conn)
 

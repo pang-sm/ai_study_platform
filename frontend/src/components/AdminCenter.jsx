@@ -13,6 +13,7 @@ const TABS = [
   { key: "auditLogs", label: "操作记录" },
   { key: "reportShares", label: "报告分享" },
   { key: "systemHealth", label: "系统监控" },
+  { key: "platformConfig", label: "平台配置" },
 ];
 
 const FEATURE_LABELS = {
@@ -93,6 +94,7 @@ export default function AdminCenter({ user }) {
     if (tab === "courses") fetchCourses();
     if (tab === "plans") fetchPlanUsers(1);
     if (tab === "systemHealth") { fetchSystemHealth(); fetchMaterialIssues(1); }
+    if (tab === "platformConfig") fetchPlatformConfig();
   }, [tab, isAdmin]);
 
   // ── helpers ──
@@ -304,6 +306,62 @@ export default function AdminCenter({ user }) {
       const params = new URLSearchParams({ admin_username: user.username, issue_type: materialIssueType, page: String(page), page_size: "20" });
       setMaterialIssues(await getJson(`${API_BASE}/admin/material-issues?${params}`));
     } catch { setMaterialIssues({ items: [], total: 0, page: 1 }); }
+  };
+
+  // ── Platform Config ──
+  const [announcements, setAnnouncements] = useState([]);
+  const [settings, setSettings] = useState({});
+  const [showAnnounceForm, setShowAnnounceForm] = useState(false);
+  const [announceForm, setAnnounceForm] = useState({ title: "", content: "", type: "info", target: "all", is_active: 1 });
+  const [editingAnnounceId, setEditingAnnounceId] = useState(null);
+  const [configSaving, setConfigSaving] = useState(false);
+
+  const fetchPlatformConfig = async () => {
+    try {
+      const [aRes, sRes] = await Promise.all([
+        fetch(`${API_BASE}/admin/announcements?${adminParam}`),
+        fetch(`${API_BASE}/admin/settings?${adminParam}`),
+      ]);
+      setAnnouncements((await aRes.json()).items || []);
+      const sData = await sRes.json();
+      const sMap = {};
+      (sData.items || []).forEach((s) => { sMap[s.key] = s.value; });
+      setSettings(sMap);
+    } catch {}
+  };
+
+  const saveAnnouncement = async () => {
+    if (!announceForm.title.trim() || !announceForm.content.trim()) { setError("标题和内容不能为空"); return; }
+    try {
+      const method = editingAnnounceId ? "PUT" : "POST";
+      const url = editingAnnounceId ? `${API_BASE}/admin/announcements/${editingAnnounceId}` : `${API_BASE}/admin/announcements`;
+      const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...announceForm, admin_username: user.username }) });
+      if (!res.ok) throw new Error((await res.json()).detail || "保存失败");
+      setShowAnnounceForm(false); setEditingAnnounceId(null); fetchPlatformConfig();
+    } catch (e) { setError(e.message); }
+  };
+
+  const toggleAnnounceStatus = async (a) => {
+    const newActive = a.is_active ? 0 : 1;
+    await fetch(`${API_BASE}/admin/announcements/${a.id}/status`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ admin_username: user.username, is_active: newActive }) });
+    fetchPlatformConfig();
+  };
+
+  const deleteAnnouncement = async (a) => {
+    if (!window.confirm("确认删除该公告？")) return;
+    await fetch(`${API_BASE}/admin/announcements/${a.id}?admin_username=${encodeURIComponent(user.username)}`, { method: "DELETE" });
+    fetchPlatformConfig();
+  };
+
+  const saveSettings = async () => {
+    setConfigSaving(true);
+    try {
+      const updates = {};
+      document.querySelectorAll(".config-input").forEach((el) => { if (el.name) updates[el.name] = el.type === "checkbox" ? (el.checked ? "true" : "false") : el.value; });
+      const res = await fetch(`${API_BASE}/admin/settings`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ admin_username: user.username, updates }) });
+      if (!res.ok) throw new Error("保存失败");
+      fetchPlatformConfig();
+    } catch (e) { setError(e.message); } finally { setConfigSaving(false); }
   };
 
   // ── AI log detail ──
@@ -1292,6 +1350,96 @@ export default function AdminCenter({ user }) {
             <div style={{ textAlign: "right", marginTop: 16 }}>
               <button className="ghost-button" onClick={() => setAiLogDetail(null)}>关闭</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Platform Config ── */}
+      {tab === "platformConfig" && (
+        <div className="admin-tab-content">
+          {/* Announcements */}
+          <div className="admin-card">
+            <div className="admin-chart-header">
+              <h4>公告管理</h4>
+              <button className="primary-button compact" onClick={() => { setEditingAnnounceId(null); setAnnounceForm({ title: "", content: "", type: "info", target: "all", is_active: 1 }); setShowAnnounceForm(true); }}>+ 新建公告</button>
+            </div>
+            {showAnnounceForm && (
+              <div style={{ marginBottom: 16, padding: 16, background: "#f8fafc", borderRadius: 10, border: "1px solid #e2e8f0" }}>
+                <input className="field" placeholder="公告标题" value={announceForm.title} onChange={(e) => setAnnounceForm((f) => ({ ...f, title: e.target.value }))} style={{ marginBottom: 8 }} />
+                <textarea className="field" rows={3} placeholder="公告内容" value={announceForm.content} onChange={(e) => setAnnounceForm((f) => ({ ...f, content: e.target.value }))} style={{ marginBottom: 8 }} />
+                <div style={{ display: "flex", gap: 10, marginBottom: 8 }}>
+                  <select className="field compact" value={announceForm.type} onChange={(e) => setAnnounceForm((f) => ({ ...f, type: e.target.value }))}>
+                    <option value="info">普通通知</option><option value="warning">重要提醒</option><option value="success">成功提示</option><option value="danger">风险警告</option>
+                  </select>
+                  <select className="field compact" value={announceForm.target} onChange={(e) => setAnnounceForm((f) => ({ ...f, target: e.target.value }))}>
+                    <option value="all">全部用户</option><option value="free">免费用户</option><option value="pro">专业版用户</option><option value="admin">管理员</option>
+                  </select>
+                </div>
+                <button className="primary-button compact" onClick={saveAnnouncement}>{editingAnnounceId ? "保存修改" : "创建公告"}</button>
+                <button className="ghost-button compact" style={{ marginLeft: 8 }} onClick={() => setShowAnnounceForm(false)}>取消</button>
+              </div>
+            )}
+            <div className="admin-table-wrap">
+              <table className="admin-table-v2">
+                <thead><tr><th>标题</th><th>类型</th><th>目标</th><th>状态</th><th>创建时间</th><th>操作</th></tr></thead>
+                <tbody>
+                  {announcements.map((a) => (
+                    <tr key={a.id}>
+                      <td>{a.title.length > 30 ? a.title.slice(0, 30) + "..." : a.title}</td>
+                      <td><span className={`status-pill ${a.type === "danger" ? "status-pill--fail" : a.type === "warning" ? "status-pill--ok" : a.type === "success" ? "status-pill--ok" : "status-pill--ok"}`}>{a.type}</span></td>
+                      <td>{a.target}</td>
+                      <td><span className={`status-pill ${a.is_active ? "status-pill--ok" : "status-pill--fail"}`}>{a.is_active ? "启用" : "停用"}</span></td>
+                      <td>{a.created_at ? new Date(a.created_at).toLocaleString("zh-CN") : "-"}</td>
+                      <td style={{ whiteSpace: "nowrap" }}>
+                        <button className="ghost-button compact" onClick={() => { setEditingAnnounceId(a.id); setAnnounceForm({ title: a.title, content: a.content, type: a.type, target: a.target, is_active: a.is_active }); setShowAnnounceForm(true); }}>编辑</button>
+                        <button className="ghost-button compact" onClick={() => toggleAnnounceStatus(a)}>{a.is_active ? "停用" : "启用"}</button>
+                        <button className="ghost-button compact" style={{ color: "#ef4444" }} onClick={() => deleteAnnouncement(a)}>删除</button>
+                      </td>
+                    </tr>
+                  ))}
+                  {announcements.length === 0 && <tr><td colSpan={6} style={{ textAlign: "center", color: "#6b7280" }}>暂无公告</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Feature Toggles */}
+          <div className="admin-card">
+            <div className="admin-chart-header"><h4>功能开关</h4></div>
+            {[
+              { key: "feature_ai_chat_enabled", label: "AI 问答", desc: "控制AI问答功能是否可用" },
+              { key: "feature_material_upload_enabled", label: "资料上传", desc: "控制资料上传功能是否可用" },
+              { key: "feature_code_studio_enabled", label: "编程助手", desc: "控制编程助手功能是否可用" },
+              { key: "feature_practice_center_enabled", label: "练习中心", desc: "控制练习中心功能是否可用" },
+              { key: "feature_report_share_enabled", label: "报告分享", desc: "控制报告分享功能是否可用" },
+            ].map(({ key, label, desc }) => (
+              <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid #f1f5f9" }}>
+                <div><div style={{ fontWeight: 600, fontSize: "0.9rem", color: "#1e293b" }}>{label}</div><div style={{ fontSize: "0.78rem", color: "#94a3b8" }}>{desc}</div></div>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                  <span style={{ fontSize: "0.8rem", color: settings[key] === "true" ? "#16a34a" : "#94a3b8" }}>{settings[key] === "true" ? "已开启" : "已关闭"}</span>
+                  <input type="checkbox" className="config-input" name={key} defaultChecked={settings[key] === "true"} style={{ width: 40, height: 22 }} />
+                </label>
+              </div>
+            ))}
+          </div>
+
+          {/* AI Quota */}
+          <div className="admin-card">
+            <div className="admin-chart-header"><h4>AI 额度配置</h4></div>
+            {[
+              { key: "limit_free_daily_ai_calls", label: "免费版每日 AI 调用", desc: "免费用户每天可使用的AI调用总数" },
+              { key: "limit_pro_daily_ai_calls", label: "专业版每日 AI 调用", desc: "专业版用户每天可使用的AI调用总数" },
+              { key: "limit_admin_daily_ai_calls", label: "管理员每日 AI 调用", desc: "管理员每天可使用的AI调用总数（-1 无限制）" },
+            ].map(({ key, label, desc }) => (
+              <div key={key} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid #f1f5f9" }}>
+                <div style={{ flex: 1 }}><div style={{ fontWeight: 600, fontSize: "0.9rem", color: "#1e293b" }}>{label}</div><div style={{ fontSize: "0.78rem", color: "#94a3b8" }}>{desc}</div></div>
+                <input type="number" className="field config-input" name={key} defaultValue={settings[key] || "5"} style={{ width: 100, textAlign: "center" }} />
+              </div>
+            ))}
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
+            <button className="primary-button" onClick={saveSettings} disabled={configSaving}>{configSaving ? "保存中..." : "保存所有配置"}</button>
           </div>
         </div>
       )}

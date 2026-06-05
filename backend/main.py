@@ -934,8 +934,28 @@ def get_user_plan(username: str, db: Session):
     }
 
 
-def get_plan_limits(plan: str):
-    return PLAN_LIMITS.get(plan, PLAN_LIMITS["free"])
+def get_plan_limits(plan: str, db: Session = None):
+    """Get plan limits, prioritizing DB system_settings over hardcoded PLAN_LIMITS."""
+    base = PLAN_LIMITS.get(plan, PLAN_LIMITS["free"]).copy()
+    if db:
+        try:
+            total_limit_key = f"limit_{plan}_daily_ai_calls"
+            val = db.query(models.SystemSetting).filter(models.SystemSetting.key == total_limit_key).first()
+            if val and val.value:
+                v = int(val.value)
+                if v == -1:  # unlimited
+                    for k in base:
+                        base[k] = 999999
+                elif v > 0:
+                    # Distribute total daily limit proportionally across features
+                    feature_count = len([k for k in base if k not in ("material_upload_count", "single_file_size_mb")])
+                    per_feature = max(1, v // max(1, feature_count))
+                    for k in base:
+                        if k not in ("material_upload_count", "single_file_size_mb"):
+                            base[k] = per_feature
+        except Exception:
+            pass
+    return base
 
 
 def get_today_usage(username: str, feature: str, db: Session):
@@ -956,7 +976,7 @@ def get_today_usage(username: str, feature: str, db: Session):
 def check_usage_limit(username: str, feature: str, db: Session):
     plan_info = get_user_plan(username, db)
     plan = plan_info["plan"]
-    limits = get_plan_limits(plan)
+    limits = get_plan_limits(plan, db)
     limit = limits.get(feature, 999999)
     used = get_today_usage(username, feature, db)
     remaining = max(0, limit - used)
@@ -15142,6 +15162,124 @@ def admin_material_issues(admin_username: str, issue_type: str = "all", page: in
         if it != "all" and it != issue: continue
         items.append({"id": m.id, "filename": m.original_filename or str(m.id), "username": m.username or "", "course_name": m.subject or "", "file_type": m.file_type or "", "file_size": m.file_size or 0, "created_at": serialize_datetime(m.created_at), "extracted_text_length": et_len, "chunk_count": cc, "issue_type": issue, "issue_label": "解析文本为空" if issue == "empty_text" else ("未建立索引" if issue == "no_chunks" else "正常")})
     return {"items": items, "total": total, "page": page, "page_size": page_size}
+
+
+# ── Admin: Announcements ──────────────────────────────
+
+@app.get("/admin/announcements")
+def admin_announcements_list(admin_username: str, db: Session = Depends(get_db)):
+    require_admin(admin_username, db)
+    items = db.query(models.SystemAnnouncement).order_by(models.SystemAnnouncement.created_at.desc()).all()
+    return {"items": [{"id": a.id, "title": a.title, "content": a.content, "type": a.type, "is_active": bool(a.is_active), "target": a.target, "created_by": a.created_by, "created_at": serialize_datetime(a.created_at), "updated_at": serialize_datetime(a.updated_at)} for a in items]}
+
+
+@app.post("/admin/announcements")
+def admin_announcements_create(req: dict, db: Session = Depends(get_db)):
+    admin_name = str(req.get("admin_username", "")).strip()
+    require_admin(admin_name, db)
+    title = str(req.get("title", "")).strip()
+    content = str(req.get("content", "")).strip()
+    if not title or not content:
+        raise HTTPException(status_code=400, detail="标题和内容不能为空")
+    a = models.SystemAnnouncement(
+        title=title[:500], content=content[:5000],
+        type=str(req.get("type", "info")).strip() or "info",
+        target=str(req.get("target", "all")).strip() or "all",
+        is_active=int(req.get("is_active", 1)),
+        created_by=admin_name,
+    )
+    db.add(a); db.commit(); db.refresh(a)
+    _write_audit_log(admin_name, f"创建公告 {a.title}", db, target_type="announcement", detail=f"id={a.id}")
+    return {"success": True, "announcement": {"id": a.id, "title": a.title, "content": a.content, "type": a.type, "is_active": bool(a.is_active), "target": a.target}}
+
+
+@app.put("/admin/announcements/{a_id}")
+def admin_announcements_update(a_id: int, req: dict, db: Session = Depends(get_db)):
+    admin_name = str(req.get("admin_username", "")).strip()
+    require_admin(admin_name, db)
+    a = db.query(models.SystemAnnouncement).filter(models.SystemAnnouncement.id == a_id).first()
+    if not a: raise HTTPException(status_code=404, detail="公告不存在")
+    if "title" in req: a.title = str(req["title"]).strip()[:500]
+    if "content" in req: a.content = str(req["content"]).strip()[:5000]
+    if "type" in req: a.type = str(req["type"]).strip() or "info"
+    if "target" in req: a.target = str(req["target"]).strip() or "all"
+    if "is_active" in req: a.is_active = int(req["is_active"])
+    a.updated_at = utc_now()
+    db.commit()
+    _write_audit_log(admin_name, f"修改公告 {a.title}", db, target_type="announcement", detail=f"id={a.id}")
+    return {"success": True}
+
+
+@app.put("/admin/announcements/{a_id}/status")
+def admin_announcements_toggle(a_id: int, req: dict, db: Session = Depends(get_db)):
+    admin_name = str(req.get("admin_username", "")).strip()
+    require_admin(admin_name, db)
+    a = db.query(models.SystemAnnouncement).filter(models.SystemAnnouncement.id == a_id).first()
+    if not a: raise HTTPException(status_code=404, detail="公告不存在")
+    a.is_active = int(req.get("is_active", 0))
+    a.updated_at = utc_now()
+    db.commit()
+    _write_audit_log(admin_name, f"{'启用' if a.is_active else '停用'}公告 {a.title}", db, target_type="announcement", detail=f"id={a.id}")
+    return {"success": True, "is_active": bool(a.is_active)}
+
+
+@app.delete("/admin/announcements/{a_id}")
+def admin_announcements_delete(a_id: int, admin_username: str, db: Session = Depends(get_db)):
+    require_admin(admin_username, db)
+    a = db.query(models.SystemAnnouncement).filter(models.SystemAnnouncement.id == a_id).first()
+    if not a: raise HTTPException(status_code=404, detail="公告不存在")
+    db.delete(a); db.commit()
+    _write_audit_log(admin_username, f"删除公告 {a.title}", db, target_type="announcement", detail=f"id={a_id}")
+    return {"success": True}
+
+
+# ── Public: Active Announcements ──────────────────────
+
+@app.get("/announcements/active")
+def public_announcements(db: Session = Depends(get_db)):
+    items = db.query(models.SystemAnnouncement).filter(models.SystemAnnouncement.is_active == 1).order_by(models.SystemAnnouncement.created_at.desc()).limit(5).all()
+    return {"items": [{"id": a.id, "title": a.title, "content": a.content, "type": a.type, "target": a.target} for a in items]}
+
+
+# ── Admin: Settings ───────────────────────────────────
+
+def _get_setting(db, key, default=""):
+    s = db.query(models.SystemSetting).filter(models.SystemSetting.key == key).first()
+    return s.value if s else default
+
+@app.get("/admin/settings")
+def admin_settings(admin_username: str, db: Session = Depends(get_db)):
+    require_admin(admin_username, db)
+    items = db.query(models.SystemSetting).all()
+    return {"items": [{"key": s.key, "value": s.value, "description": s.description, "updated_by": s.updated_by, "updated_at": serialize_datetime(s.updated_at)} for s in items]}
+
+
+@app.put("/admin/settings")
+def admin_settings_update(req: dict, db: Session = Depends(get_db)):
+    admin_name = str(req.get("admin_username", "")).strip()
+    require_admin(admin_name, db)
+    updates = req.get("updates", {})
+    if not isinstance(updates, dict) or not updates:
+        raise HTTPException(status_code=400, detail="请提供要更新的配置项")
+    for k, v in updates.items():
+        s = db.query(models.SystemSetting).filter(models.SystemSetting.key == k).first()
+        if not s: s = models.SystemSetting(key=k)
+        s.value = str(v); s.updated_by = admin_name; s.updated_at = utc_now()
+        db.add(s)
+    db.commit()
+    _write_audit_log(admin_name, f"更新平台配置 ({len(updates)}项)", db, target_type="settings", detail=str(list(updates.keys())))
+    return {"success": True}
+
+
+@app.get("/settings/public")
+def public_settings(db: Session = Depends(get_db)):
+    """Return only feature toggle settings — safe for unauthenticated access."""
+    feature_keys = ["feature_ai_chat_enabled", "feature_material_upload_enabled", "feature_code_studio_enabled", "feature_practice_center_enabled", "feature_report_share_enabled"]
+    result = {}
+    for k in feature_keys:
+        s = db.query(models.SystemSetting).filter(models.SystemSetting.key == k).first()
+        result[k] = (s.value if s else "true") == "true"
+    return result
 
 
 # ── Interactive Terminal WebSocket ─────────────────────
