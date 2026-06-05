@@ -13882,6 +13882,32 @@ def admin_update_user_plan(
     }
 
 
+@app.get("/admin/usage-trend")
+def admin_usage_trend(admin_username: str, days: int = 7, db: Session = Depends(get_db)):
+    """Return per-day AI call counts for trend chart (7/30/90 days)."""
+    require_admin(admin_username, db)
+    days = max(1, min(365, days))
+    items = []
+    now = utc_now()
+    for i in range(days - 1, -1, -1):
+        day_start = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=i)
+        day_end = day_start + timedelta(days=1)
+        count = (
+            db.query(models.AiUsageLog)
+            .filter(
+                models.AiUsageLog.status == "success",
+                models.AiUsageLog.created_at >= day_start,
+                models.AiUsageLog.created_at < day_end,
+            )
+            .count()
+        )
+        items.append({
+            "date": day_start.strftime("%Y-%m-%d"),
+            "count": count,
+        })
+    return {"days": days, "items": items}
+
+
 @app.get("/admin/usage-summary")
 def admin_usage_summary(admin_username: str, db: Session = Depends(get_db)):
     require_admin(admin_username, db)

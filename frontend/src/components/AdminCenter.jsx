@@ -64,9 +64,19 @@ export default function AdminCenter({ user }) {
   // Courses
   const [courses, setCourses] = useState([]);
 
-  // Plan form
-  const [planForm, setPlanForm] = useState({ username: "", plan: "free", expire: "" });
+  // Plan tab
+  const [planUsers, setPlanUsers] = useState({ items: [], total: 0, page: 1 });
+  const [planLoading, setPlanLoading] = useState(false);
+  const [planEditForm, setPlanEditForm] = useState({ username: "", plan: "free", expire: "" });
   const [planMsg, setPlanMsg] = useState("");
+  const [planSaving, setPlanSaving] = useState(false);
+  const [planCounts, setPlanCounts] = useState({ free: 0, pro: 0, admin: 0 });
+
+  // AI log detail
+  const [aiLogDetail, setAiLogDetail] = useState(null);
+
+  // Trend data
+  const [trendData, setTrendData] = useState(null);
 
   // Audit logs
   const [auditLogs, setAuditLogs] = useState({ items: [], total: 0, page: 1 });
@@ -78,9 +88,61 @@ export default function AdminCenter({ user }) {
 
   useEffect(() => {
     if (!isAdmin) return;
-    if (tab === "overview") fetchDashboard();
+    if (tab === "overview") { fetchDashboard(); fetchTrendData(trendDays); }
     if (tab === "courses") fetchCourses();
+    if (tab === "plans") fetchPlanUsers(1);
   }, [tab, isAdmin]);
+
+  // ── helpers ──
+  const adminParam = `admin_username=${encodeURIComponent(user.username)}`;
+  const getJson = async (url) => {
+    const res = await fetch(url);
+    if (!res.ok) { const body = await res.json().catch(()=>({})); throw new Error(body.detail || `请求失败 (${res.status})`); }
+    return res.json();
+  };
+
+  // ── Plan tab ──
+  const fetchPlanUsers = async (page = 1) => {
+    setPlanLoading(true); setPlanMsg("");
+    try {
+      const params = new URLSearchParams({ admin_username: user.username, page: String(page), page_size: "20" });
+      const data = await getJson(`${API_BASE}/admin/users?${params}`);
+      setPlanUsers(data);
+      // also get plan counts from dashboard
+      const dash = await getJson(`${API_BASE}/admin/dashboard?${adminParam}`);
+      setPlanCounts({ free: dash.overview?.free_users || 0, pro: dash.overview?.pro_users || 0, admin: dash.overview?.admin_users || 0 });
+    } catch (e) { setPlanMsg(e.message); } finally { setPlanLoading(false); }
+  };
+
+  const handlePlanUpdate = async () => {
+    const target = planEditForm.username.trim();
+    if (!target) { setPlanMsg("请输入目标用户名"); return; }
+    if (target === user.username && planEditForm.plan !== "admin") { setPlanMsg("不能修改自己的管理员权限"); return; }
+    if (!window.confirm(`确认将 ${target} 的套餐修改为 ${PLAN_NAMES[planEditForm.plan] || planEditForm.plan}？`)) return;
+    setPlanSaving(true); setPlanMsg("");
+    try {
+      const res = await fetch(`${API_BASE}/admin/users/${encodeURIComponent(target)}/plan`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ admin_username: user.username, plan: planEditForm.plan, plan_expires_at: planEditForm.expire || null }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "修改失败");
+      setPlanMsg(`已为 ${data.username} 设置套餐：${PLAN_NAMES[data.plan] || data.plan}`);
+      fetchPlanUsers(planUsers?.page || 1);
+      fetchAuditLogs(1);
+    } catch (e) { setPlanMsg(e.message || "修改失败"); } finally { setPlanSaving(false); }
+  };
+
+  // ── AI log detail ──
+  const fetchAiLogDetail = (log) => { setAiLogDetail(log); };
+
+  // ── Trend data ──
+  const fetchTrendData = async (days) => {
+    try {
+      const data = await getJson(`${API_BASE}/admin/usage-trend?${adminParam}&days=${days}`);
+      setTrendData(data);
+    } catch { /* use fallback */ }
+  };
 
   if (!isAdmin) {
     return (
@@ -90,19 +152,6 @@ export default function AdminCenter({ user }) {
       </div>
     );
   }
-
-  const adminParam = `admin_username=${encodeURIComponent(user.username)}`;
-
-  // ── helpers ──
-
-  const getJson = async (url) => {
-    const res = await fetch(url);
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(body.detail || `请求失败 (${res.status})`);
-    }
-    return res.json();
-  };
 
   // ── Overview ──
 
@@ -204,38 +253,6 @@ export default function AdminCenter({ user }) {
     }
   };
 
-  // ── Plan ──
-
-  const handlePlanUpdate = async () => {
-    setPlanMsg("");
-    const target = planForm.username.trim();
-    if (!target) {
-      setPlanMsg("请输入目标用户名");
-      return;
-    }
-    try {
-      const res = await fetch(
-        `${API_BASE}/admin/users/${encodeURIComponent(target)}/plan`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            admin_username: user.username,
-            plan: planForm.plan,
-            plan_expires_at: planForm.expire || null,
-          }),
-        }
-      );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "修改失败");
-      setPlanMsg(`已为 ${data.username} 设置套餐：${PLAN_NAMES[data.plan] || data.plan}`);
-      fetchDashboard();
-      fetchAuditLogs(1);
-    } catch (e) {
-      setPlanMsg(e.message || "修改失败");
-    }
-  };
-
   // ── Audit Logs ──
 
   const fetchAuditLogs = async (page = 1) => {
@@ -317,7 +334,6 @@ export default function AdminCenter({ user }) {
   // Build trend bars from recent logs based on selected range
   const trendBars = useMemo(() => {
     const days = trendDays;
-    // Build date keys based on range granularity
     let dateKeys = [];
     if (days <= 7) {
       for (let i = days - 1; i >= 0; i--) {
@@ -325,40 +341,43 @@ export default function AdminCenter({ user }) {
         dateKeys.push({ key: d.toISOString().slice(0, 10), label: d.toISOString().slice(5) });
       }
     } else {
-      // Weekly aggregation for 30/90 days
       const weeks = Math.ceil(days / 7);
       for (let i = weeks - 1; i >= 0; i--) {
         const end = new Date(); end.setDate(end.getDate() - i * 7);
         const start = new Date(end); start.setDate(start.getDate() - 6);
-        dateKeys.push({
-          key: `${start.toISOString().slice(0, 10)}~${end.toISOString().slice(0, 10)}`,
-          label: start.toISOString().slice(5).replace("-", "/"),
-        });
+        dateKeys.push({ key: `${start.toISOString().slice(0, 10)}~${end.toISOString().slice(0, 10)}`, label: start.toISOString().slice(5).replace("-", "/") });
       }
     }
-    const logs = dashboard?.recent_ai_logs || [];
+    // Use API trend data if available, otherwise fallback to dashboard logs
+    const apiItems = trendData?.items || [];
     const byKey = {};
     dateKeys.forEach((dk) => { byKey[dk.key] = 0; });
-    logs.forEach((l) => {
-      if (l.created_at) {
-        const ld = l.created_at.slice(0, 10);
+    if (apiItems.length > 0) {
+      apiItems.forEach((item) => {
+        const d = item.date;
         for (const dk of dateKeys) {
+          if (dk.key === d) { byKey[dk.key] = item.count || 0; break; }
           if (dk.key.includes("~")) {
             const [s, e] = dk.key.split("~");
-            if (ld >= s && ld <= e) { byKey[dk.key] = (byKey[dk.key] || 0) + 1; break; }
-          } else if (ld === dk.key) {
-            byKey[dk.key] = (byKey[dk.key] || 0) + 1; break;
+            if (d >= s && d <= e) { byKey[dk.key] += (item.count || 0); break; }
           }
         }
-      }
-    });
+      });
+    } else {
+      const logs = dashboard?.recent_ai_logs || [];
+      logs.forEach((l) => {
+        if (l.created_at) {
+          const ld = l.created_at.slice(0, 10);
+          for (const dk of dateKeys) {
+            if (dk.key.includes("~")) { const [s, e] = dk.key.split("~"); if (ld >= s && ld <= e) { byKey[dk.key] = (byKey[dk.key] || 0) + 1; break; } }
+            else if (ld === dk.key) { byKey[dk.key] = (byKey[dk.key] || 0) + 1; break; }
+          }
+        }
+      });
+    }
     const maxVal = Math.max(1, ...Object.values(byKey));
-    return dateKeys.map((dk) => ({
-      label: dk.label,
-      count: byKey[dk.key] || 0,
-      pct: Math.round(((byKey[dk.key] || 0) / maxVal) * 100),
-    }));
-  }, [dashboard, trendDays]);
+    return dateKeys.map((dk) => ({ label: dk.label, count: byKey[dk.key] || 0, pct: Math.round(((byKey[dk.key] || 0) / maxVal) * 100) }));
+  }, [dashboard, trendDays, trendData]);
 
   // ── render ──
   return (
@@ -461,7 +480,7 @@ export default function AdminCenter({ user }) {
                 <section className="admin-chart-card">
                   <div className="admin-chart-header">
                     <h4>调用趋势</h4>
-                    <select className="admin-trend-select" value={trendDays} onChange={(e) => setTrendDays(Number(e.target.value))}>
+                    <select className="admin-trend-select" value={trendDays} onChange={(e) => { const d = Number(e.target.value); setTrendDays(d); fetchTrendData(d); }}>
                       {TREND_RANGES.map((r) => (<option key={r.value} value={r.value}>{r.label}</option>))}
                     </select>
                   </div>
@@ -495,12 +514,13 @@ export default function AdminCenter({ user }) {
                       </thead>
                       <tbody>
                         {dashboard.recent_ai_logs.map((log, i) => (
-                          <tr key={i}>
+                          <tr key={i} style={{ cursor: "pointer" }} onClick={() => fetchAiLogDetail(log)}>
                             <td><span className="admin-user-avatar">👤</span> {log.username}</td>
                             <td>{FEATURE_LABELS[log.feature] || log.feature}</td>
                             <td><span className={`status-pill ${log.status === "success" ? "status-pill--ok" : "status-pill--fail"}`}>{log.status === "success" ? "成功" : "失败"}</span></td>
                             <td className="admin-num">{log.estimated_tokens || 0}</td>
                             <td className="admin-time">{log.created_at ? new Date(log.created_at).toLocaleString("zh-CN") : "-"}</td>
+                            <td style={{ color: "#94a3b8", fontSize: 12 }}>详情 →</td>
                           </tr>
                         ))}
                       </tbody>
@@ -648,13 +668,14 @@ export default function AdminCenter({ user }) {
                   </thead>
                   <tbody>
                     {aiLogs.items.map((log, i) => (
-                      <tr key={i}>
+                      <tr key={i} style={{ cursor: "pointer" }} onClick={() => fetchAiLogDetail(log)}>
                         <td>{log.username}</td>
                         <td>{FEATURE_LABELS[log.feature] || log.feature}</td>
                         <td>{log.model || "-"}</td>
                         <td>{log.estimated_tokens || 0}</td>
                         <td><span className={`status-tag ${log.status === "success" ? "status-success" : "status-failed"}`}>{log.status}</span></td>
                         <td>{log.created_at ? new Date(log.created_at).toLocaleString("zh-CN") : "-"}</td>
+                        <td style={{ color: "#94a3b8", fontSize: 12 }}>详情 →</td>
                       </tr>
                     ))}
                     {aiLogs.items.length === 0 && (
@@ -761,35 +782,57 @@ export default function AdminCenter({ user }) {
       {/* ── Plans ── */}
       {tab === "plans" && (
         <div className="admin-tab-content">
-          <p style={{ color: "#6b7280", marginBottom: 16 }}>
-            修改用户套餐后，用户刷新页面或重新登录即可生效，无需重新登录。
-          </p>
-          <div className="admin-plan-form">
-            <input
-              className="field"
-              placeholder="目标用户名"
-              value={planForm.username}
-              onChange={(e) => setPlanForm((p) => ({ ...p, username: e.target.value }))}
-            />
-            <select
-              className="field"
-              value={planForm.plan}
-              onChange={(e) => setPlanForm((p) => ({ ...p, plan: e.target.value }))}
-            >
-              <option value="free">免费版</option>
-              <option value="pro">专业版</option>
-              <option value="admin">管理员</option>
-            </select>
-            <input
-              className="field"
-              type="datetime-local"
-              placeholder="到期时间（可选）"
-              value={planForm.expire}
-              onChange={(e) => setPlanForm((p) => ({ ...p, expire: e.target.value }))}
-            />
-            <button className="primary-button" onClick={handlePlanUpdate}>确认修改</button>
+          {/* Stat cards */}
+          <div className="admin-stat-row">
+            {[
+              { label: "免费用户", value: planCounts.free, icon: "🆓", bg: "#f0fdf4" },
+              { label: "专业版用户", value: planCounts.pro, icon: "💎", bg: "#fef3c7" },
+              { label: "管理员", value: planCounts.admin, icon: "🛡️", bg: "#faf5ff" },
+            ].map(({ label, value, icon, bg }) => (
+              <div key={label} className="admin-stat-card-v2">
+                <div className="admin-stat-top"><span className="admin-stat-label">{label}</span><span className="admin-stat-icon-v2" style={{ background: bg }}>{icon}</span></div>
+                <div className="admin-stat-value-v2">{value ?? 0}</div>
+              </div>
+            ))}
           </div>
-          {planMsg && <p className="admin-plan-msg" style={{ marginTop: 12, color: planMsg.includes("失败") ? "#ef4444" : "#059669" }}>{planMsg}</p>}
+          {/* Edit form */}
+          <div className="admin-card" style={{ marginBottom: 18 }}>
+            <h4 style={{ margin: "0 0 12px", fontSize: "0.95rem", fontWeight: 700 }}>修改用户套餐</h4>
+            <div className="admin-plan-form">
+              <input className="field" placeholder="目标用户名" value={planEditForm.username} onChange={(e) => setPlanEditForm((p) => ({ ...p, username: e.target.value }))} />
+              <select className="field" value={planEditForm.plan} onChange={(e) => setPlanEditForm((p) => ({ ...p, plan: e.target.value }))}>
+                <option value="free">免费版</option><option value="pro">专业版</option><option value="admin">管理员</option>
+              </select>
+              <input className="field" type="datetime-local" placeholder="到期时间（可选）" value={planEditForm.expire} onChange={(e) => setPlanEditForm((p) => ({ ...p, expire: e.target.value }))} />
+              <button className="primary-button" onClick={handlePlanUpdate} disabled={planSaving}>{planSaving ? "修改中..." : "确认修改"}</button>
+            </div>
+            {planMsg && <p style={{ marginTop: 12, color: planMsg.includes("失败") ? "#ef4444" : "#059669", fontSize: 13 }}>{planMsg}</p>}
+          </div>
+          {/* User list */}
+          {planLoading ? <div className="empty-state">加载中...</div> : (
+            <div className="admin-table-wrap">
+              <table className="admin-table">
+                <thead><tr><th>用户名</th><th>当前套餐</th><th>到期时间</th><th>创建时间</th><th>操作</th></tr></thead>
+                <tbody>
+                  {planUsers.items.map((u) => (
+                    <tr key={u.username}>
+                      <td>{u.username}</td>
+                      <td><span className={`plan-tag plan-${u.plan}`}>{PLAN_NAMES[u.plan] || u.plan}</span></td>
+                      <td>{u.plan_expires_at ? new Date(u.plan_expires_at).toLocaleDateString("zh-CN") : "永久"}</td>
+                      <td>{u.created_at ? new Date(u.created_at).toLocaleDateString("zh-CN") : "-"}</td>
+                      <td><button className="ghost-button compact" onClick={() => setPlanEditForm({ username: u.username, plan: u.plan || "free", expire: u.plan_expires_at || "" })}>修改套餐</button></td>
+                    </tr>
+                  ))}
+                  {planUsers.items.length === 0 && <tr><td colSpan={5} style={{ textAlign: "center", color: "#6b7280" }}>暂无用户</td></tr>}
+                </tbody>
+              </table>
+              <div className="admin-pagination" style={{ marginTop: 12 }}>
+                <button disabled={planUsers.page <= 1} onClick={() => fetchPlanUsers(planUsers.page - 1)}>上一页</button>
+                <span className="admin-page-info">{planUsers.page} / {Math.max(1, Math.ceil(planUsers.total / 20))}</span>
+                <button disabled={planUsers.page >= Math.ceil(planUsers.total / 20)} onClick={() => fetchPlanUsers(planUsers.page + 1)}>下一页</button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -872,6 +915,37 @@ export default function AdminCenter({ user }) {
               {renderPagination(reportShares, fetchReportShares)}
             </>
           )}
+        </div>
+      )}
+
+      {/* ── AI Log Detail Modal ── */}
+      {aiLogDetail && (
+        <div className="admin-modal-overlay" onClick={() => setAiLogDetail(null)}>
+          <div className="admin-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 560 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h3>AI 调用详情</h3>
+              <button className="modal-close" onClick={() => setAiLogDetail(null)}>&times;</button>
+            </div>
+            <div className="admin-detail-grid">
+              <div><span>用户：</span>{aiLogDetail.username}</div>
+              <div><span>功能：</span>{FEATURE_LABELS[aiLogDetail.feature] || aiLogDetail.feature}</div>
+              <div><span>状态：</span><span className={`status-pill ${aiLogDetail.status === "success" ? "status-pill--ok" : "status-pill--fail"}`}>{aiLogDetail.status === "success" ? "成功" : "失败"}</span></div>
+              <div><span>模型：</span>{aiLogDetail.model || "未知"}</div>
+              <div><span>Tokens：</span>{aiLogDetail.estimated_tokens || 0}</div>
+              <div><span>时间：</span>{aiLogDetail.created_at ? new Date(aiLogDetail.created_at).toLocaleString("zh-CN") : "-"}</div>
+              {aiLogDetail.status !== "success" && (
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <span>错误信息：</span>
+                  <pre style={{ margin: "4px 0 0", padding: 10, background: "#fef2f2", borderRadius: 8, fontSize: 12, color: "#991b1b", whiteSpace: "pre-wrap", maxHeight: 200, overflow: "auto" }}>
+                    {aiLogDetail.error_message || "暂无错误详情"}
+                  </pre>
+                </div>
+              )}
+            </div>
+            <div style={{ textAlign: "right", marginTop: 16 }}>
+              <button className="ghost-button" onClick={() => setAiLogDetail(null)}>关闭</button>
+            </div>
+          </div>
         </div>
       )}
     </div>
