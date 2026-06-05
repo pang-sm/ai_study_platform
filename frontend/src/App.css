@@ -11589,3 +11589,29 @@ select.field:focus {
   max-height: 320px;
   overflow: auto;
 }
+
+.backup-info-card {
+  margin-bottom: 16px;
+  padding: 16px 18px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.backup-info-card h3 {
+  margin: 0 0 6px;
+  font-size: 16px;
+  color: #0f172a;
+}
+
+.backup-info-card p {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.backup-action-msg {
+  color: #166534;
+  font-size: 13px;
+}

@@ -14,6 +14,7 @@ const TABS = [
   { key: "reportShares", label: "报告分享", permission: "report_shares.view" },
   { key: "systemHealth", label: "系统监控", permission: "system_monitor.view" },
   { key: "platformConfig", label: "平台配置", permission: "settings.view" },
+  { key: "backups", label: "数据备份", permission: "backups.view" },
 ];
 
 const FEATURE_LABELS = {
@@ -120,6 +121,13 @@ export default function AdminCenter({ user }) {
 
   // Report shares
   const [reportShares, setReportShares] = useState({ items: [], total: 0, page: 1 });
+
+  // Backups
+  const [backups, setBackups] = useState({ items: [], total: 0 });
+  const [backupLoading, setBackupLoading] = useState(false);
+  const [backupActionMsg, setBackupActionMsg] = useState("");
+  const [backupCreating, setBackupCreating] = useState(false);
+  const [backupBusyFile, setBackupBusyFile] = useState("");
 
   const isAdmin = user?.is_admin;
   const username = user?.username || "";
@@ -660,6 +668,89 @@ export default function AdminCenter({ user }) {
     }
   };
 
+  const fetchBackups = async () => {
+    if (!hasPermission("backups.view")) return;
+    setBackupLoading(true);
+    setBackupActionMsg("");
+    setError("");
+    try {
+      const data = await getJson(`${API_BASE}/admin/backups?${adminParam}`);
+      setBackups(data);
+    } catch (e) {
+      setError(e.message || "获取备份列表失败");
+    } finally {
+      setBackupLoading(false);
+    }
+  };
+
+  const createBackup = async () => {
+    if (!hasPermission("backups.create")) return;
+    setBackupCreating(true);
+    setBackupActionMsg("");
+    setError("");
+    try {
+      const res = await fetch(`${API_BASE}/admin/backups`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ admin_username: user.username }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "创建备份失败");
+      setBackupActionMsg(`备份已创建：${data.backup?.filename || ""}`);
+      fetchBackups();
+    } catch (e) {
+      setError(e.message || "创建备份失败");
+    } finally {
+      setBackupCreating(false);
+    }
+  };
+
+  const downloadBackup = async (backup) => {
+    if (!hasPermission("backups.download") || !backup?.filename) return;
+    setBackupBusyFile(backup.filename);
+    setError("");
+    try {
+      const params = new URLSearchParams({ admin_username: user.username });
+      const res = await fetch(`${API_BASE}/admin/backups/${encodeURIComponent(backup.filename)}/download?${params}`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || "下载备份失败");
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = backup.filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e.message || "下载备份失败");
+    } finally {
+      setBackupBusyFile("");
+    }
+  };
+
+  const deleteBackup = async (backup) => {
+    if (!hasPermission("backups.delete") || !backup?.filename) return;
+    if (!window.confirm("确认删除该备份文件？此操作不可恢复。")) return;
+    setBackupBusyFile(backup.filename);
+    setError("");
+    try {
+      const params = new URLSearchParams({ admin_username: user.username });
+      const res = await fetch(`${API_BASE}/admin/backups/${encodeURIComponent(backup.filename)}?${params}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "删除备份失败");
+      setBackupActionMsg(`备份已删除：${backup.filename}`);
+      fetchBackups();
+    } catch (e) {
+      setError(e.message || "删除备份失败");
+    } finally {
+      setBackupBusyFile("");
+    }
+  };
+
   // ── activate tab ──
 
   const activateTab = (key) => {
@@ -672,6 +763,7 @@ export default function AdminCenter({ user }) {
     if (key === "materials") fetchMaterials(1);
     if (key === "auditLogs") fetchAuditLogs(1);
     if (key === "reportShares") fetchReportShares(1);
+    if (key === "backups") fetchBackups();
   };
 
   // ── pagination helper ──
@@ -1468,6 +1560,61 @@ export default function AdminCenter({ user }) {
               </div>
               {renderPagination(reportShares, fetchReportShares)}
             </>
+          )}
+        </div>
+      )}
+
+      {/* ── Backups ── */}
+      {tab === "backups" && (
+        <div className="admin-tab-content">
+          <div className="backup-info-card">
+            <h3>数据备份</h3>
+            <p>仅超级管理员可创建、下载和删除数据库备份。备份文件可能包含用户数据、AI 日志和资料文本，请妥善保管。</p>
+          </div>
+          <div className="admin-filters">
+            {hasPermission("backups.create") && (
+              <button className="primary-button" onClick={createBackup} disabled={backupCreating}>
+                {backupCreating ? "创建中..." : "创建备份"}
+              </button>
+            )}
+            <button className="ghost-button" onClick={fetchBackups} disabled={backupLoading}>
+              {backupLoading ? "刷新中..." : "刷新列表"}
+            </button>
+            {backupActionMsg && <span className="backup-action-msg">{backupActionMsg}</span>}
+          </div>
+          {backupLoading ? <div className="empty-state">加载中...</div> : (
+            <div className="admin-table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>文件名</th>
+                    <th>大小</th>
+                    <th>创建时间</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {backups.items.map((backup) => (
+                    <tr key={backup.filename}>
+                      <td>{backup.filename}</td>
+                      <td>{backup.size_label || formatSize(backup.size_bytes)}</td>
+                      <td>{backup.created_at ? new Date(backup.created_at).toLocaleString("zh-CN") : "-"}</td>
+                      <td>
+                        {hasPermission("backups.download") && (
+                          <button className="ghost-button compact" disabled={backupBusyFile === backup.filename} onClick={() => downloadBackup(backup)}>下载</button>
+                        )}
+                        {hasPermission("backups.delete") && (
+                          <button className="ghost-button compact" style={{ color: "#ef4444", marginLeft: 4 }} disabled={backupBusyFile === backup.filename} onClick={() => deleteBackup(backup)}>删除</button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {backups.items.length === 0 && (
+                    <tr><td colSpan={4} style={{ textAlign: "center", color: "#6b7280" }}>暂无备份文件</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       )}

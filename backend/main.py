@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import secrets
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -13429,6 +13430,10 @@ PERMISSIONS = {
     "batch.users",
     "batch.materials",
     "batch.reports",
+    "backups.view",
+    "backups.create",
+    "backups.download",
+    "backups.delete",
 }
 
 ROLE_PERMISSIONS = {
@@ -13566,6 +13571,9 @@ def _audit_action_label(action: str) -> str:
         "update_admin_role": "修改管理员角色",
         "update_plan": "修改用户套餐",
         "audit_logs_export": "导出审计日志",
+        "backup_create": "创建数据备份",
+        "backup_download": "下载数据备份",
+        "backup_delete": "删除数据备份",
     }
     return labels.get(action or "", action or "-")
 
@@ -13639,6 +13647,87 @@ def _serialize_audit_log(log):
         "ip": getattr(log, "ip", "") or "",
         "created_at": serialize_datetime(log.created_at),
     }
+
+
+BACKUP_FILENAME_RE = re.compile(r"^ai_study_backup_\d{8}_\d{6}\.(sqlite3|db)$")
+BACKUP_DIR = Path(__file__).resolve().parent / "backups"
+
+
+def _format_backup_size(size_bytes: int) -> str:
+    if size_bytes < 1024:
+        return f"{size_bytes} B"
+    if size_bytes < 1024 * 1024:
+        return f"{size_bytes / 1024:.1f} KB"
+    if size_bytes < 1024 * 1024 * 1024:
+        return f"{size_bytes / 1024 / 1024:.1f} MB"
+    return f"{size_bytes / 1024 / 1024 / 1024:.1f} GB"
+
+
+def get_sqlite_db_path() -> Path:
+    if engine.url.get_backend_name() != "sqlite":
+        raise HTTPException(status_code=400, detail="当前仅支持 SQLite 数据库备份")
+    db_value = engine.url.database
+    if not db_value or db_value == ":memory:":
+        raise HTTPException(status_code=400, detail="当前 SQLite 数据库路径无效，无法备份")
+    db_path = Path(db_value)
+    if not db_path.is_absolute():
+        db_path = (Path.cwd() / db_path).resolve()
+        if not db_path.exists():
+            backend_candidate = (Path(__file__).resolve().parent / db_value).resolve()
+            if backend_candidate.exists():
+                db_path = backend_candidate
+    if not db_path.exists():
+        raise HTTPException(status_code=404, detail="数据库文件不存在，无法备份")
+    return db_path
+
+
+def get_backup_dir() -> Path:
+    BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+    return BACKUP_DIR
+
+
+def validate_backup_filename(filename: str) -> str:
+    filename = (filename or "").strip()
+    if ".." in filename or "/" in filename or "\\" in filename:
+        raise HTTPException(status_code=400, detail="无效的备份文件名")
+    if not BACKUP_FILENAME_RE.match(filename):
+        raise HTTPException(status_code=400, detail="无效的备份文件名")
+    return filename
+
+
+def get_backup_file_path(filename: str) -> Path:
+    safe_filename = validate_backup_filename(filename)
+    backup_dir = get_backup_dir().resolve()
+    file_path = (backup_dir / safe_filename).resolve()
+    if file_path.parent != backup_dir:
+        raise HTTPException(status_code=400, detail="无效的备份文件路径")
+    return file_path
+
+
+def serialize_backup_file(file_path: Path) -> dict:
+    stat = file_path.stat()
+    return {
+        "filename": file_path.name,
+        "size_bytes": stat.st_size,
+        "size_label": _format_backup_size(stat.st_size),
+        "created_at": serialize_datetime(datetime.fromtimestamp(stat.st_mtime)),
+    }
+
+
+def list_backup_files() -> list[Path]:
+    backup_dir = get_backup_dir()
+    files = [p for p in backup_dir.iterdir() if p.is_file() and BACKUP_FILENAME_RE.match(p.name)]
+    return sorted(files, key=lambda p: p.stat().st_mtime, reverse=True)
+
+
+def create_sqlite_backup(source_path: Path, backup_path: Path) -> None:
+    source_conn = sqlite3.connect(str(source_path))
+    dest_conn = sqlite3.connect(str(backup_path))
+    try:
+        source_conn.backup(dest_conn)
+    finally:
+        dest_conn.close()
+        source_conn.close()
 
 
 @app.get("/admin/me/permissions")
@@ -14468,6 +14557,83 @@ def admin_audit_logs_export(
         media_type="text/csv; charset=utf-8-sig",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@app.get("/admin/backups")
+def admin_backups_list(admin_username: str, db: Session = Depends(get_db)):
+    require_admin_permission(db, admin_username, "backups.view")
+    files = list_backup_files()
+    return {"items": [serialize_backup_file(path) for path in files], "total": len(files)}
+
+
+@app.post("/admin/backups")
+def admin_backups_create(req: dict, db: Session = Depends(get_db)):
+    admin_username = str(req.get("admin_username", "")).strip()
+    require_admin_permission(db, admin_username, "backups.create")
+    source_path = get_sqlite_db_path()
+    get_backup_dir()
+    filename = f"ai_study_backup_{utc_now().strftime('%Y%m%d_%H%M%S')}.sqlite3"
+    backup_path = get_backup_file_path(filename)
+    try:
+        create_sqlite_backup(source_path, backup_path)
+    except Exception as exc:
+        if backup_path.exists():
+            backup_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=500, detail=f"创建备份失败: {str(exc)[:120]}")
+    item = serialize_backup_file(backup_path)
+    _write_audit_log(
+        admin_username,
+        "backup_create",
+        db,
+        target_type="backup",
+        target_id=filename,
+        detail=f"filename={filename}, size_bytes={item['size_bytes']}",
+        details={"filename": filename, "size_bytes": item["size_bytes"]},
+    )
+    return {"success": True, "backup": item}
+
+
+@app.get("/admin/backups/{filename}/download")
+def admin_backups_download(filename: str, admin_username: str, db: Session = Depends(get_db)):
+    require_admin_permission(db, admin_username, "backups.download")
+    file_path = get_backup_file_path(filename)
+    if not file_path.exists() or not file_path.is_file():
+        raise HTTPException(status_code=404, detail="备份文件不存在")
+    size_bytes = file_path.stat().st_size
+    _write_audit_log(
+        admin_username,
+        "backup_download",
+        db,
+        target_type="backup",
+        target_id=filename,
+        detail=f"filename={filename}",
+        details={"filename": filename, "size_bytes": size_bytes},
+    )
+    return FileResponse(
+        path=str(file_path),
+        filename=filename,
+        media_type="application/octet-stream",
+    )
+
+
+@app.delete("/admin/backups/{filename}")
+def admin_backups_delete(filename: str, admin_username: str, db: Session = Depends(get_db)):
+    require_admin_permission(db, admin_username, "backups.delete")
+    file_path = get_backup_file_path(filename)
+    if not file_path.exists() or not file_path.is_file():
+        raise HTTPException(status_code=404, detail="备份文件不存在")
+    size_bytes = file_path.stat().st_size
+    file_path.unlink()
+    _write_audit_log(
+        admin_username,
+        "backup_delete",
+        db,
+        target_type="backup",
+        target_id=filename,
+        detail=f"filename={filename}, size_bytes={size_bytes}",
+        details={"filename": filename, "size_bytes": size_bytes},
+    )
+    return {"success": True, "filename": filename}
 
 
 # ── Learning Reports ──────────────────────────────────────
