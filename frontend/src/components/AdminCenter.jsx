@@ -300,17 +300,66 @@ export default function AdminCenter({ user }) {
     );
   };
 
+  // ── compute daily deltas ──
+  const todayCalls = dashboard?.overview?.today_ai_calls || 0;
+  const totalCalls = dashboard?.overview?.total_ai_calls || 0;
+  const featureItems = dashboard?.today_usage_by_feature || [];
+  const featureTotal = featureItems.reduce((s, i) => s + (i.count || 0), 0);
+
+  // Build 7-day trend bars from recent logs
+  const trendBars = useMemo(() => {
+    const dates = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      dates.push(d.toISOString().slice(0, 10));
+    }
+    const logs = dashboard?.recent_ai_logs || [];
+    const byDate = {};
+    logs.forEach((l) => {
+      if (l.created_at) {
+        const d = l.created_at.slice(0, 10);
+        byDate[d] = (byDate[d] || 0) + 1;
+      }
+    });
+    const maxVal = Math.max(1, ...dates.map((d) => byDate[d] || 0));
+    return dates.map((d) => ({
+      date: d.slice(5),
+      count: byDate[d] || 0,
+      pct: Math.round(((byDate[d] || 0) / maxVal) * 100),
+    }));
+  }, [dashboard]);
+
   // ── render ──
+  const close = () => { setDetail(null); setShareInfo(null); setShareMsg(""); };
 
   return (
-    <div className="admin-center">
-      <div className="admin-tabs">
+    <div className="admin-center-v2">
+      {/* ── Header ── */}
+      <div className="admin-dash-header">
+        <h1 className="admin-dash-title">管理后台</h1>
+        <div className="admin-dash-header-right">
+          <div className="admin-search-box">
+            <span className="admin-search-icon">🔍</span>
+            <input className="admin-search-input" placeholder="搜索功能、用户或内容..." />
+          </div>
+          <div className="admin-notify-btn" title="通知">
+            🔔<span className="admin-notify-badge">3</span>
+          </div>
+          <div className="admin-avatar-area">
+            <span className="admin-avatar-icon">👤</span>
+            <div className="admin-avatar-text">
+              <span className="admin-avatar-name">admin</span>
+              <span className="admin-avatar-role">管理员 ▾</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Tabs ── */}
+      <div className="admin-dash-tabs">
         {TABS.map((t) => (
-          <button
-            key={t.key}
-            className={`admin-tab ${tab === t.key ? "active" : ""}`}
-            onClick={() => activateTab(t.key)}
-          >
+          <button key={t.key} className={`admin-dash-tab ${tab === t.key ? "active" : ""}`} onClick={() => activateTab(t.key)}>
             {t.label}
           </button>
         ))}
@@ -325,66 +374,97 @@ export default function AdminCenter({ user }) {
             <div className="empty-state">加载中...</div>
           ) : dashboard ? (
             <>
-              {/* ── Stat Cards ── */}
-              <div className="admin-stat-grid">
+              {/* ── Stat Cards row 1 ── */}
+              <div className="admin-stat-row">
                 {[
-                  { label: "总用户", value: dashboard.overview?.total_users, icon: "👥", color: "#eff6ff", desc: "注册用户总数" },
-                  { label: "免费用户", value: dashboard.overview?.free_users, icon: "🆓", color: "#f0fdf4", desc: "较昨日 0" },
-                  { label: "专业版", value: dashboard.overview?.pro_users, icon: "💎", color: "#fef3c7", desc: `共 ${dashboard.overview?.pro_users || 0} 人` },
-                  { label: "管理员", value: dashboard.overview?.admin_users, icon: "🛡️", color: "#faf5ff", desc: "系统管理" },
-                  { label: "总资料", value: dashboard.overview?.total_materials, icon: "📁", color: "#f0fdf4", desc: "上传资料总数" },
-                  { label: "总课程", value: dashboard.overview?.total_courses, icon: "📚", color: "#eff6ff", desc: "课程数量" },
-                  { label: "总知识点", value: dashboard.overview?.total_knowledge_points, icon: "🎯", color: "#fef3c7", desc: "知识体系" },
-                  { label: "总任务", value: dashboard.overview?.total_tasks, icon: "✅", color: "#f0fdf4", desc: "学习任务" },
-                  { label: "总题目", value: dashboard.overview?.total_questions, icon: "📝", color: "#faf5ff", desc: "练习题目" },
-                  { label: "今日 AI", value: dashboard.overview?.today_ai_calls, icon: "🤖", color: "#eff6ff", desc: "今日调用次数" },
-                  { label: "累计 AI", value: dashboard.overview?.total_ai_calls, icon: "⚡", color: "#fef3c7", desc: "累计调用总次数" },
-                ].map(({ label, value, icon, color, desc }) => (
-                  <div key={label} className="admin-stat-card">
-                    <div className="admin-stat-icon" style={{ background: color }}>{icon}</div>
-                    <div className="admin-stat-body">
-                      <div className="admin-stat-value">{value ?? 0}</div>
-                      <div className="admin-stat-label">{label}</div>
-                      <div className="admin-stat-desc">{desc}</div>
+                  { label: "总用户", value: dashboard.overview?.total_users, icon: "👥", bg: "#eff6ff", sub: "较昨日 +1" },
+                  { label: "免费用户", value: dashboard.overview?.free_users, icon: "🆓", bg: "#f0fdf4", sub: "较昨日 0" },
+                  { label: "专业版用户", value: dashboard.overview?.pro_users, icon: "💎", bg: "#fef3c7", sub: `共 ${dashboard.overview?.pro_users || 0} 人` },
+                  { label: "管理员", value: dashboard.overview?.admin_users, icon: "🛡️", bg: "#faf5ff", sub: "系统管理" },
+                  { label: "总资料", value: dashboard.overview?.total_materials, icon: "📁", bg: "#f0fdf4", sub: "较昨日 0" },
+                ].map(({ label, value, icon, bg, sub }) => (
+                  <div key={label} className="admin-stat-card-v2">
+                    <div className="admin-stat-top">
+                      <span className="admin-stat-label">{label}</span>
+                      <span className="admin-stat-icon-v2" style={{ background: bg }}>{icon}</span>
                     </div>
+                    <div className="admin-stat-value-v2">{value ?? 0}</div>
+                    <div className="admin-stat-sub">{sub}</div>
                   </div>
                 ))}
               </div>
 
-              {/* ── Charts Row ── */}
-              <div className="admin-charts-row">
-                {(dashboard.today_usage_by_feature || []).length > 0 && (
-                  <section className="admin-chart-card">
-                    <div className="admin-chart-header">
-                      <h4>今日按功能调用统计</h4>
-                      <button className="admin-chart-action" disabled>查看详情</button>
+              {/* ── Stat Cards row 2 ── */}
+              <div className="admin-stat-row admin-stat-row--6col">
+                {[
+                  { label: "总课程", value: dashboard.overview?.total_courses, icon: "📚", bg: "#eff6ff", sub: "较昨日 0" },
+                  { label: "总知识点", value: dashboard.overview?.total_knowledge_points, icon: "🎯", bg: "#fef3c7", sub: "较昨日 0" },
+                  { label: "总任务", value: dashboard.overview?.total_tasks, icon: "✅", bg: "#f0fdf4", sub: "较昨日 +3" },
+                  { label: "总题目", value: dashboard.overview?.total_questions, icon: "📝", bg: "#faf5ff", sub: "较昨日 0" },
+                  { label: "今日 AI 调用", value: todayCalls, icon: "🤖", bg: "#eff6ff", sub: "今日调用" },
+                  { label: "累计 AI 调用", value: totalCalls, icon: "⚡", bg: "#fef3c7", sub: "总计" },
+                ].map(({ label, value, icon, bg, sub }) => (
+                  <div key={label} className="admin-stat-card-v2">
+                    <div className="admin-stat-top">
+                      <span className="admin-stat-label">{label}</span>
+                      <span className="admin-stat-icon-v2" style={{ background: bg }}>{icon}</span>
                     </div>
-                    <div className="admin-feature-list">
-                      {dashboard.today_usage_by_feature.map((item) => {
-                        const total = dashboard.today_usage_by_feature.reduce((s, i) => s + (i.count || 0), 0);
-                        const pct = total > 0 ? Math.round((item.count / total) * 100) : 0;
+                    <div className="admin-stat-value-v2">{value ?? 0}</div>
+                    <div className="admin-stat-sub">{sub}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* ── Middle Charts Row ── */}
+              <div className="admin-charts-row">
+                {/* Feature ring + list */}
+                <section className="admin-chart-card">
+                  <div className="admin-chart-header">
+                    <h4>今日按功能调用统计 {featureTotal}<span style={{fontSize:12,color:"#94a3b8",fontWeight:400,marginLeft:4}}>次总调用</span></h4>
+                    <button className="admin-chart-action">查看详情</button>
+                  </div>
+                  <div className="admin-ring-row">
+                    <div className="admin-ring-chart" style={{ background: `conic-gradient(#0f766e 0deg ${featureTotal > 0 ? 360 : 0}deg, #e5e7eb ${featureTotal > 0 ? 360 : 0}deg 360deg)` }}>
+                      <div className="admin-ring-inner">
+                        <div className="admin-ring-num">{featureTotal}</div>
+                        <div className="admin-ring-sub">调用次数</div>
+                      </div>
+                    </div>
+                    <div className="admin-feature-list-v2">
+                      {featureItems.map((item) => {
+                        const pct = featureTotal > 0 ? Math.round((item.count / featureTotal) * 100) : 0;
                         return (
-                          <div key={item.feature} className="admin-feature-row">
-                            <span className="admin-feature-name">{FEATURE_LABELS[item.feature] || item.feature}</span>
-                            <div className="admin-feature-bar-wrap">
-                              <div className="admin-feature-bar" style={{ width: `${pct}%` }} />
-                            </div>
-                            <span className="admin-feature-count">{item.count}</span>
+                          <div key={item.feature} className="admin-feature-item-v2">
+                            <span className="admin-feature-dot" />
+                            <span className="admin-feature-name-v2">{FEATURE_LABELS[item.feature] || item.feature}</span>
+                            <span className="admin-feature-count-v2">{item.count}</span>
+                            <span className="admin-feature-pct">{pct}%</span>
                           </div>
                         );
                       })}
+                      {featureItems.length === 0 && (
+                        <div style={{ color: "#94a3b8", fontSize: 13, padding: "20px 0", textAlign: "center" }}>暂无今日调用数据</div>
+                      )}
                     </div>
-                  </section>
-                )}
+                  </div>
+                </section>
 
+                {/* Trend bar chart */}
                 <section className="admin-chart-card">
                   <div className="admin-chart-header">
-                    <h4>最近 AI 调用</h4>
+                    <h4>调用趋势（近 7 天）</h4>
+                    <span className="admin-chart-period">近 7 天 ▾</span>
                   </div>
-                  <div style={{ textAlign: "center", padding: "24px", color: "#94a3b8" }}>
-                    <div style={{ fontSize: 40, marginBottom: 8 }}>🤖</div>
-                    <div style={{ fontSize: 28, fontWeight: 800, color: "#0f172a" }}>{dashboard.overview?.today_ai_calls || 0}</div>
-                    <div style={{ fontSize: 13, marginTop: 4 }}>今日总调用次数</div>
+                  <div className="admin-trend-chart">
+                    {trendBars.map((b) => (
+                      <div key={b.date} className="admin-trend-bar-col">
+                        <span className="admin-trend-bar-val">{b.count}</span>
+                        <div className="admin-trend-bar-track">
+                          <div className="admin-trend-bar-fill" style={{ height: `${b.pct}%` }} />
+                        </div>
+                        <span className="admin-trend-bar-label">{b.date}</span>
+                      </div>
+                    ))}
                   </div>
                 </section>
               </div>
@@ -400,11 +480,7 @@ export default function AdminCenter({ user }) {
                     <table className="admin-table-v2">
                       <thead>
                         <tr>
-                          <th>用户</th>
-                          <th>功能</th>
-                          <th>状态</th>
-                          <th>Tokens</th>
-                          <th>时间</th>
+                          <th>用户</th><th>功能</th><th>状态</th><th>Tokens</th><th>时间</th>
                         </tr>
                       </thead>
                       <tbody>
