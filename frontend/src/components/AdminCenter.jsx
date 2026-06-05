@@ -325,45 +325,79 @@ export default function AdminCenter({ user }) {
             <div className="empty-state">加载中...</div>
           ) : dashboard ? (
             <>
-              <div className="admin-overview-cards">
+              {/* ── Stat Cards ── */}
+              <div className="admin-stat-grid">
                 {[
-                  ["总用户", dashboard.overview?.total_users],
-                  ["免费用户", dashboard.overview?.free_users],
-                  ["专业版用户", dashboard.overview?.pro_users],
-                  ["管理员", dashboard.overview?.admin_users],
-                  ["总资料", dashboard.overview?.total_materials],
-                  ["总课程", dashboard.overview?.total_courses],
-                  ["总知识点", dashboard.overview?.total_knowledge_points],
-                  ["总任务", dashboard.overview?.total_tasks],
-                  ["总题目", dashboard.overview?.total_questions],
-                  ["今日 AI 调用", dashboard.overview?.today_ai_calls],
-                  ["累计 AI 调用", dashboard.overview?.total_ai_calls],
-                ].map(([label, value]) => (
-                  <div key={label} className="admin-overview-card">
-                    <div className="admin-overview-value">{value ?? 0}</div>
-                    <div className="admin-overview-label">{label}</div>
+                  { label: "总用户", value: dashboard.overview?.total_users, icon: "👥", color: "#eff6ff", desc: "注册用户总数" },
+                  { label: "免费用户", value: dashboard.overview?.free_users, icon: "🆓", color: "#f0fdf4", desc: "较昨日 0" },
+                  { label: "专业版", value: dashboard.overview?.pro_users, icon: "💎", color: "#fef3c7", desc: `共 ${dashboard.overview?.pro_users || 0} 人` },
+                  { label: "管理员", value: dashboard.overview?.admin_users, icon: "🛡️", color: "#faf5ff", desc: "系统管理" },
+                  { label: "总资料", value: dashboard.overview?.total_materials, icon: "📁", color: "#f0fdf4", desc: "上传资料总数" },
+                  { label: "总课程", value: dashboard.overview?.total_courses, icon: "📚", color: "#eff6ff", desc: "课程数量" },
+                  { label: "总知识点", value: dashboard.overview?.total_knowledge_points, icon: "🎯", color: "#fef3c7", desc: "知识体系" },
+                  { label: "总任务", value: dashboard.overview?.total_tasks, icon: "✅", color: "#f0fdf4", desc: "学习任务" },
+                  { label: "总题目", value: dashboard.overview?.total_questions, icon: "📝", color: "#faf5ff", desc: "练习题目" },
+                  { label: "今日 AI", value: dashboard.overview?.today_ai_calls, icon: "🤖", color: "#eff6ff", desc: "今日调用次数" },
+                  { label: "累计 AI", value: dashboard.overview?.total_ai_calls, icon: "⚡", color: "#fef3c7", desc: "累计调用总次数" },
+                ].map(({ label, value, icon, color, desc }) => (
+                  <div key={label} className="admin-stat-card">
+                    <div className="admin-stat-icon" style={{ background: color }}>{icon}</div>
+                    <div className="admin-stat-body">
+                      <div className="admin-stat-value">{value ?? 0}</div>
+                      <div className="admin-stat-label">{label}</div>
+                      <div className="admin-stat-desc">{desc}</div>
+                    </div>
                   </div>
                 ))}
               </div>
 
-              {(dashboard.today_usage_by_feature || []).length > 0 && (
-                <section className="admin-section">
-                  <h4>今日按功能调用统计</h4>
-                  <div className="admin-feature-stats">
-                    {dashboard.today_usage_by_feature.map((item) => (
-                      <span key={item.feature} className="admin-feature-tag">
-                        {FEATURE_LABELS[item.feature] || item.feature}：{item.count}
-                      </span>
-                    ))}
+              {/* ── Charts Row ── */}
+              <div className="admin-charts-row">
+                {(dashboard.today_usage_by_feature || []).length > 0 && (
+                  <section className="admin-chart-card">
+                    <div className="admin-chart-header">
+                      <h4>今日按功能调用统计</h4>
+                      <button className="admin-chart-action" disabled>查看详情</button>
+                    </div>
+                    <div className="admin-feature-list">
+                      {dashboard.today_usage_by_feature.map((item) => {
+                        const total = dashboard.today_usage_by_feature.reduce((s, i) => s + (i.count || 0), 0);
+                        const pct = total > 0 ? Math.round((item.count / total) * 100) : 0;
+                        return (
+                          <div key={item.feature} className="admin-feature-row">
+                            <span className="admin-feature-name">{FEATURE_LABELS[item.feature] || item.feature}</span>
+                            <div className="admin-feature-bar-wrap">
+                              <div className="admin-feature-bar" style={{ width: `${pct}%` }} />
+                            </div>
+                            <span className="admin-feature-count">{item.count}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </section>
+                )}
+
+                <section className="admin-chart-card">
+                  <div className="admin-chart-header">
+                    <h4>最近 AI 调用</h4>
+                  </div>
+                  <div style={{ textAlign: "center", padding: "24px", color: "#94a3b8" }}>
+                    <div style={{ fontSize: 40, marginBottom: 8 }}>🤖</div>
+                    <div style={{ fontSize: 28, fontWeight: 800, color: "#0f172a" }}>{dashboard.overview?.today_ai_calls || 0}</div>
+                    <div style={{ fontSize: 13, marginTop: 4 }}>今日总调用次数</div>
                   </div>
                 </section>
-              )}
+              </div>
 
+              {/* ── Recent AI Logs Table ── */}
               {(dashboard.recent_ai_logs || []).length > 0 && (
-                <section className="admin-section">
-                  <h4>最近 AI 使用记录</h4>
+                <section className="admin-card">
+                  <div className="admin-chart-header">
+                    <h4>最近 AI 使用记录</h4>
+                    <button className="admin-chart-action" onClick={() => activateTab("aiLogs")}>查看全部 →</button>
+                  </div>
                   <div className="admin-table-wrap">
-                    <table className="admin-table">
+                    <table className="admin-table-v2">
                       <thead>
                         <tr>
                           <th>用户</th>
@@ -376,27 +410,16 @@ export default function AdminCenter({ user }) {
                       <tbody>
                         {dashboard.recent_ai_logs.map((log, i) => (
                           <tr key={i}>
-                            <td>{log.username}</td>
+                            <td><span className="admin-user-avatar">👤</span> {log.username}</td>
                             <td>{FEATURE_LABELS[log.feature] || log.feature}</td>
-                            <td><span className={`status-tag ${log.status === "success" ? "status-success" : "status-failed"}`}>{log.status}</span></td>
-                            <td>{log.estimated_tokens || 0}</td>
-                            <td>{log.created_at ? new Date(log.created_at).toLocaleString("zh-CN") : "-"}</td>
+                            <td><span className={`status-pill ${log.status === "success" ? "status-pill--ok" : "status-pill--fail"}`}>{log.status === "success" ? "成功" : "失败"}</span></td>
+                            <td className="admin-num">{log.estimated_tokens || 0}</td>
+                            <td className="admin-time">{log.created_at ? new Date(log.created_at).toLocaleString("zh-CN") : "-"}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-                </section>
-              )}
-
-              {(dashboard.system_notes || []).length > 0 && (
-                <section className="admin-section">
-                  <h4>系统提示</h4>
-                  <ul className="admin-notes">
-                    {dashboard.system_notes.map((note, i) => (
-                      <li key={i}>{note}</li>
-                    ))}
-                  </ul>
                 </section>
               )}
             </>
