@@ -16,6 +16,7 @@ const TaskCenter = lazy(() => import("./components/TaskCenter.jsx"));
 const PracticeCenter = lazy(() => import("./components/PracticeCenter.jsx"));
 const LearningDataCenter = lazy(() => import("./components/LearningDataCenter.jsx"));
 const ReviewCenter = lazy(() => import("./components/ReviewCenter.jsx"));
+import FeatureUnavailable from "./components/FeatureUnavailable.jsx";
 const LearningPlanCenter = lazy(() => import("./components/LearningPlanCenter.jsx"));
 const KnowledgeBaseCenter = lazy(() => import("./components/KnowledgeBaseCenter.jsx"));
 const QuotaCenter = lazy(() => import("./components/QuotaCenter.jsx"));
@@ -439,6 +440,21 @@ function App() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [user, setUser] = useState(getSavedUser);
+  const [publicFeatures, setPublicFeatures] = useState(null); // { feature_key: bool }
+  const [userAnnouncements, setUserAnnouncements] = useState([]);
+  const [dismissedAnnounceIds, setDismissedAnnounceIds] = useState(() => {
+    try { return JSON.parse(sessionStorage.getItem("dismissed_announcements") || "[]"); } catch { return []; }
+  });
+  const dismissAnnounce = (id) => {
+    const next = [...dismissedAnnounceIds, id];
+    setDismissedAnnounceIds(next);
+    try { sessionStorage.setItem("dismissed_announcements", JSON.stringify(next)); } catch {}
+  };
+  const isFeatureEnabled = (key) => publicFeatures === null ? true : !!publicFeatures[key];
+  useEffect(() => {
+    fetch(`${API_BASE}/settings/public`).then((r) => r.json()).then((d) => setPublicFeatures(d)).catch(() => setPublicFeatures({}));
+    fetch(`${API_BASE}/announcements/active`).then((r) => r.json()).then((d) => setUserAnnouncements(d.items || [])).catch(() => setUserAnnouncements([]));
+  }, [user?.username]);
   const [profileForm, setProfileForm] = useState({
     nickname: "",
     grade: "",
@@ -2871,16 +2887,37 @@ function App() {
     );
   }
 
-  const wrapPage = (children) => (
+  const wrapPage = (children) => {
+    const visibleAnnouncements = userAnnouncements.filter((a) => !dismissedAnnounceIds.includes(a.id));
+    return (
     <AppLayout
       activePage={page}
       onNavigate={setPage}
       isAdmin={!!user?.is_admin}
       showMembershipAd={shouldShowMembershipAd(user)}
     >
+      {visibleAnnouncements.length > 0 && (
+        <div className="announce-banner-area">
+          {visibleAnnouncements.map((a) => {
+            const bg = a.type === "danger" ? "#fef2f2" : a.type === "warning" ? "#fffbeb" : a.type === "success" ? "#f0fdf4" : "#eff6ff";
+            const border = a.type === "danger" ? "#fecaca" : a.type === "warning" ? "#fde68a" : a.type === "success" ? "#bbf7d0" : "#bfdbfe";
+            const color = a.type === "danger" ? "#991b1b" : a.type === "warning" ? "#92400e" : a.type === "success" ? "#166534" : "#1e40af";
+            return (
+              <div key={a.id} className="announce-banner" style={{ background: bg, border: `1px solid ${border}`, color }}>
+                <div className="announce-banner-body">
+                  <strong className="announce-banner-title">{a.title}</strong>
+                  <span className="announce-banner-content">{a.content}</span>
+                </div>
+                <button className="announce-banner-close" onClick={() => dismissAnnounce(a.id)} title="关闭">×</button>
+              </div>
+            );
+          })}
+        </div>
+      )}
       {children}
     </AppLayout>
-  );
+    );
+  };
 
   if (page === "home") {
     const avatarObj = AVATARS.find((a) => a.id === (user?.avatar || "")) || AVATARS[0];
@@ -2945,6 +2982,9 @@ function App() {
   }
 
   if (page === "codeStudio") {
+    if (!isFeatureEnabled("feature_code_studio_enabled")) {
+      return wrapPage(<FeatureUnavailable featureName="编程助手" onGoHome={() => setPage("home")} />);
+    }
     return wrapPage(
       <div className="app-shell">
         <Suspense fallback={<div className="empty-state">编程学习助手加载中...</div>}>
@@ -2979,6 +3019,9 @@ function App() {
   }
 
   if (page === "practiceCenter") {
+    if (!isFeatureEnabled("feature_practice_center_enabled")) {
+      return wrapPage(<FeatureUnavailable featureName="练习中心" onGoHome={() => setPage("home")} />);
+    }
     return wrapPage(
       <div className="app-shell">
         <Suspense fallback={<div className="empty-state">练习中心加载中...</div>}>

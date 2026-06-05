@@ -11534,3 +11534,19 @@ select.field:focus {
 .admin-batch-bar .primary-button.compact { font-size: 0.75rem; padding: 5px 12px; }
 .admin-batch-bar .ghost-button.compact { font-size: 0.75rem; }
 
+
+.announce-banner-area { padding: 0 20px; }
+.announce-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 16px; border-radius: 10px; margin-bottom: 4px; font-size: 0.85rem;
+}
+.announce-banner-body { min-width: 0; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.announce-banner-title { font-size: 0.85rem; white-space: nowrap; }
+.announce-banner-content { opacity: 0.85; }
+.announce-banner-close {
+  width: 24px; height: 24px; border-radius: 50%; border: none; background: rgba(0,0,0,0.08);
+  color: inherit; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; opacity: 0.6; transition: opacity 0.15s;
+}
+.announce-banner-close:hover { opacity: 1; }
+
