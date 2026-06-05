@@ -213,17 +213,12 @@ function ReportPreview({ report, onSave, onRetry, onClear, saving, saveMsg, show
       )}
       {showActions && (
         <div className="report-preview-actions" style={{ marginTop: 20 }}>
-          <button className="report-btn-generate" onClick={onSave} disabled={saving}>
-            {saving ? "保存中..." : "保存报告"}
-          </button>
+          <p style={{ color: "#059669", fontSize: "0.82rem", margin: 0, display: "flex", alignItems: "center", gap: 6 }}>
+            ✓ 报告已自动保存到历史记录
+          </p>
           <button className="ghost-button" onClick={onRetry}>重新生成</button>
           <button className="ghost-button" onClick={onClear}>清空</button>
         </div>
-      )}
-      {saveMsg && (
-        <p style={{ color: saveMsg.includes("失败") ? "#ef4444" : "#059669", marginTop: 12, fontSize: "0.85rem" }}>
-          {saveMsg}
-        </p>
       )}
     </div>
   );
@@ -328,6 +323,8 @@ export default function LearningReportCenter({ user }) {
         throw new Error(data.detail || "学习报告生成失败，请稍后重试。");
       }
       setPreview(data);
+      // Report is now auto-saved by backend — refresh history immediately
+      await fetchHistory(1);
     } catch (e) {
       setGenError(e.message || "学习报告生成失败，请稍后重试。");
     } finally {

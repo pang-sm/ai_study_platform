@@ -14298,7 +14298,26 @@ def generate_report_preview(req: schemas.LearningReportGenerateRequest, db: Sess
         "ai_chat_count": report_data["ai_usage"]["total_calls"],
     }
 
+    report = models.LearningReport(
+        username=user.username,
+        course_id=course_id or None,
+        course_name=course_id or None,
+        report_type=report_type,
+        title=title,
+        summary=summary,
+        content=content,
+        metrics_json=json.dumps(metrics, ensure_ascii=False),
+        suggestions_json=json.dumps([str(s)[:500] for s in suggestions], ensure_ascii=False),
+        start_date=start,
+        end_date=end,
+        created_at=utc_now(),
+    )
+    db.add(report)
+    db.commit()
+    db.refresh(report)
+
     return {
+        "id": report.id,
         "title": title,
         "summary": summary,
         "content": content,
@@ -14306,6 +14325,10 @@ def generate_report_preview(req: schemas.LearningReportGenerateRequest, db: Sess
         "suggestions": suggestions,
         "start_date": serialize_datetime(start),
         "end_date": serialize_datetime(end),
+        "report_type": report_type,
+        "course_id": course_id or "",
+        "course_name": course_id or "",
+        "created_at": serialize_datetime(report.created_at),
     }
 
 
