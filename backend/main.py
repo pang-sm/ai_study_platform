@@ -13590,6 +13590,7 @@ def admin_users_list(
             "material_count": material_count,
             "ai_call_count": ai_call_count,
             "today_ai_call_count": today_ai_call_count,
+            "is_active": getattr(u, "is_active", 1),
             "knowledge_point_count": kp_count,
             "task_count": task_count,
             "created_at": serialize_datetime(u.created_at),
