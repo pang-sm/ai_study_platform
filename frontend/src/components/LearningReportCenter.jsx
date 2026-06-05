@@ -525,7 +525,7 @@ export default function LearningReportCenter({ user }) {
   const courseOptions = useMemo(
     () => [
       { value: "", label: "选择课程..." },
-      ...COURSE_OPTIONS.map((c) => ({ value: c.value, label: c.label })),
+      ...COURSE_OPTIONS.map((c) => ({ value: c, label: c })),
     ],
     []
   );
