@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { COURSE_OPTIONS, getSubjectLabel, normalizeSubject } from "../courseOptions.js";
+import { guardFeature } from "../featureFlags.js";
 
 const API_BASE = "/api";
 
@@ -453,6 +454,7 @@ export default function LearningReportCenter({ user }) {
 
   const handleCreateShare = async () => {
     if (!detail || !detail.id) return;
+    if (!guardFeature("feature_report_share_enabled", "报告分享功能暂时关闭")) return;
     setShareLoading(true);
     setShareMsg("");
     try {

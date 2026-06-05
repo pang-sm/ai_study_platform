@@ -2140,6 +2140,7 @@ function App() {
   };
 
   const uploadSelectedFile = async (file, localId, fileSubject) => {
+    if (!guardFeature("feature_material_upload_enabled", "资料上传功能暂时维护中，请稍后再试")) return;
     const formData = new FormData();
     formData.append("file", file);
     formData.append("username", user.username);
@@ -2351,6 +2352,9 @@ function App() {
   }
 
   const sendTextMessage = async (overrideText) => {
+    // Feature gate: AI chat
+    if (!guardFeature("feature_ai_chat_enabled", "AI 问答功能暂时维护中，请稍后再试")) return;
+
     const currentMessage = (overrideText?.trim() ?? trimmedMessage) || overrideText || "";
 
     // Build hidden learning instruction from pendingAIContext (not saved to history)
