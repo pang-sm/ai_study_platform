@@ -10624,6 +10624,31 @@ select.field:focus {
   display: flex; gap: 2px; flex-wrap: wrap; margin-bottom: 22px;
   border-bottom: 1px solid #e2e8f0; padding-bottom: 0;
 }
+.admin-role-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 0.82rem;
+  color: #475569;
+}
+.admin-role-pill {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+.admin-role-super_admin { color: #7e22ce; background: #faf5ff; border-color: #e9d5ff; }
+.admin-role-operator { color: #1d4ed8; background: #eff6ff; border-color: #bfdbfe; }
+.admin-role-auditor { color: #475569; background: #f8fafc; border-color: #e2e8f0; }
+.admin-role-none { color: #64748b; background: #f1f5f9; border-color: #e2e8f0; }
+.admin-role-note { color: #94a3b8; font-size: 0.75rem; }
+.admin-role-cell { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.admin-role-select { min-width: 120px; }
 .admin-dash-tab {
   padding: 9px 20px; border: none; background: none;
   font-size: 0.85rem; font-weight: 600; color: #64748b; cursor: pointer;
@@ -11549,4 +11574,3 @@ select.field:focus {
   flex-shrink: 0; opacity: 0.6; transition: opacity 0.15s;
 }
 .announce-banner-close:hover { opacity: 1; }
-

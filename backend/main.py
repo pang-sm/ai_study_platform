@@ -13396,12 +13396,125 @@ def redeem_membership_code(req: RedeemRequest, username: str, db: Session = Depe
 
 # ── Admin / Usage ──────────────────────────────────────────
 
+ADMIN_ROLE_LABELS = {
+    "super_admin": "超级管理员",
+    "operator": "运营管理员",
+    "auditor": "只读审计员",
+    "none": "非管理员",
+}
+
+PERMISSIONS = {
+    "dashboard.view",
+    "users.view",
+    "ai_logs.view",
+    "materials.view",
+    "courses.view",
+    "audit_logs.view",
+    "report_shares.view",
+    "system_monitor.view",
+    "settings.view",
+    "users.manage_status",
+    "users.manage_plan",
+    "users.manage_role",
+    "materials.delete",
+    "materials.reindex",
+    "report_shares.moderate",
+    "ai_logs.export",
+    "settings.manage",
+    "announcements.manage",
+    "feature_flags.manage",
+    "limits.manage",
+    "batch.users",
+    "batch.materials",
+    "batch.reports",
+}
+
+ROLE_PERMISSIONS = {
+    "super_admin": PERMISSIONS,
+    "operator": {
+        "dashboard.view",
+        "users.view",
+        "users.manage_status",
+        "users.manage_plan",
+        "ai_logs.view",
+        "materials.view",
+        "materials.delete",
+        "materials.reindex",
+        "courses.view",
+        "report_shares.view",
+        "report_shares.moderate",
+        "system_monitor.view",
+        "audit_logs.view",
+        "batch.users",
+        "batch.materials",
+        "batch.reports",
+    },
+    "auditor": {
+        "dashboard.view",
+        "users.view",
+        "ai_logs.view",
+        "materials.view",
+        "courses.view",
+        "audit_logs.view",
+        "report_shares.view",
+        "system_monitor.view",
+        "settings.view",
+    },
+    "none": set(),
+}
+
+VALID_ADMIN_ROLES = set(ROLE_PERMISSIONS.keys())
+
+
+def get_admin_role_label(admin_role: str) -> str:
+    return ADMIN_ROLE_LABELS.get(admin_role or "none", ADMIN_ROLE_LABELS["none"])
+
+
+def normalize_admin_role(user) -> str:
+    role = (getattr(user, "admin_role", None) or "none").strip()
+    return role if role in VALID_ADMIN_ROLES else "none"
+
+
+def get_admin_permissions(user) -> list[str]:
+    role = normalize_admin_role(user)
+    return sorted(ROLE_PERMISSIONS.get(role, set()))
+
 
 def require_admin(username: str, db: Session):
     admin = get_user_by_username(username, db)
-    if not admin.is_admin:
+    if getattr(admin, "is_active", 1) == 0:
+        raise HTTPException(status_code=403, detail="管理员账号已被禁用")
+    if not bool(getattr(admin, "is_admin", 0)):
         raise HTTPException(status_code=403, detail="仅管理员可访问")
+    if normalize_admin_role(admin) not in ("super_admin", "operator", "auditor"):
+        raise HTTPException(status_code=403, detail="管理员角色无效")
     return admin
+
+
+def require_admin_permission(db: Session, admin_username: str, permission: str):
+    admin = require_admin(admin_username, db)
+    if permission not in get_admin_permissions(admin):
+        raise HTTPException(status_code=403, detail="当前管理员没有权限执行该操作")
+    return admin
+
+
+def require_super_admin(db: Session, admin_username: str):
+    admin = require_admin(admin_username, db)
+    if normalize_admin_role(admin) != "super_admin":
+        raise HTTPException(status_code=403, detail="仅超级管理员可执行该操作")
+    return admin
+
+
+def count_active_super_admins(db: Session) -> int:
+    return (
+        db.query(models.User)
+        .filter(
+            models.User.is_admin == 1,
+            models.User.is_active != 0,
+            models.User.admin_role == "super_admin",
+        )
+        .count()
+    )
 
 
 def _write_audit_log(admin_username: str, action: str, db: Session,
@@ -13421,9 +13534,22 @@ def _write_audit_log(admin_username: str, action: str, db: Session,
         logger.warning(f"Failed to write audit log for {admin_username}/{action}")
 
 
+@app.get("/admin/me/permissions")
+def admin_me_permissions(admin_username: str, db: Session = Depends(get_db)):
+    admin = require_admin(admin_username, db)
+    role = normalize_admin_role(admin)
+    return {
+        "username": admin.username,
+        "admin_role": role,
+        "role_label": get_admin_role_label(role),
+        "permissions": get_admin_permissions(admin),
+        "is_super_admin": role == "super_admin",
+    }
+
+
 @app.get("/admin/dashboard")
 def admin_dashboard(admin_username: str, db: Session = Depends(get_db)):
-    require_admin(admin_username, db)
+    require_admin_permission(db, admin_username, "dashboard.view")
 
     today_start = utc_now().replace(hour=0, minute=0, second=0, microsecond=0)
 
@@ -13535,6 +13661,8 @@ def admin_dashboard(admin_username: str, db: Session = Depends(get_db)):
                 "username": u.username,
                 "plan": u.plan or "free",
                 "is_admin": bool(u.is_admin),
+                "admin_role": normalize_admin_role(u),
+                "admin_role_label": get_admin_role_label(normalize_admin_role(u)),
                 "created_at": serialize_datetime(u.created_at),
             }
             for u in recent_users
@@ -13562,7 +13690,7 @@ def admin_users_list(
     page_size: int = 20,
     db: Session = Depends(get_db),
 ):
-    require_admin(admin_username, db)
+    require_admin_permission(db, admin_username, "users.view")
 
     page = max(1, page)
     page_size = min(100, max(1, page_size))
@@ -13610,6 +13738,8 @@ def admin_users_list(
             "nickname": u.nickname or "",
             "plan": u.plan or "free",
             "is_admin": bool(u.is_admin),
+            "admin_role": normalize_admin_role(u),
+            "admin_role_label": get_admin_role_label(normalize_admin_role(u)),
             "plan_expires_at": serialize_datetime(u.plan_expire_at),
             "material_count": material_count,
             "ai_call_count": ai_call_count,
@@ -13625,7 +13755,7 @@ def admin_users_list(
 
 @app.get("/admin/users/{target_username}/detail")
 def admin_user_detail(target_username: str, admin_username: str, db: Session = Depends(get_db)):
-    require_admin(admin_username, db)
+    require_admin_permission(db, admin_username, "users.view")
     u = get_user_by_username(target_username, db)
 
     material_count = (
@@ -13684,6 +13814,8 @@ def admin_user_detail(target_username: str, admin_username: str, db: Session = D
         "nickname": u.nickname or "",
         "plan": u.plan or "free",
         "is_admin": bool(u.is_admin),
+        "admin_role": normalize_admin_role(u),
+        "admin_role_label": get_admin_role_label(normalize_admin_role(u)),
         "plan_expires_at": serialize_datetime(u.plan_expire_at),
         "material_count": material_count,
         "course_count": len(course_set),
@@ -13708,6 +13840,47 @@ def admin_user_detail(target_username: str, admin_username: str, db: Session = D
     }
 
 
+@app.put("/admin/users/{target_username}/admin-role")
+def admin_update_user_admin_role(
+    target_username: str,
+    req: schemas.AdminUpdateRoleRequest,
+    db: Session = Depends(get_db),
+):
+    admin = require_super_admin(db, req.admin_username)
+    target_user = get_user_by_username(target_username, db)
+    new_role = (req.admin_role or "none").strip()
+    if new_role not in VALID_ADMIN_ROLES:
+        raise HTTPException(status_code=400, detail="无效的管理员角色")
+    if new_role != "none" and not bool(target_user.is_admin):
+        raise HTTPException(status_code=400, detail="目标用户不是管理员，不能设置后台角色")
+
+    old_role = normalize_admin_role(target_user)
+    if old_role == "super_admin" and new_role != "super_admin":
+        if count_active_super_admins(db) <= 1:
+            raise HTTPException(status_code=400, detail="不能降级最后一个超级管理员")
+
+    target_user.admin_role = new_role
+    db.commit()
+    db.refresh(target_user)
+
+    _write_audit_log(
+        admin_username=admin.username,
+        action="update_admin_role",
+        db=db,
+        target_type="user",
+        target_username=target_user.username,
+        detail=f"admin_role {old_role} -> {new_role}",
+    )
+
+    return {
+        "success": True,
+        "username": target_user.username,
+        "is_admin": bool(target_user.is_admin),
+        "admin_role": normalize_admin_role(target_user),
+        "admin_role_label": get_admin_role_label(normalize_admin_role(target_user)),
+    }
+
+
 @app.get("/admin/ai-logs")
 def admin_ai_logs(
     admin_username: str,
@@ -13718,7 +13891,7 @@ def admin_ai_logs(
     page_size: int = 30,
     db: Session = Depends(get_db),
 ):
-    require_admin(admin_username, db)
+    require_admin_permission(db, admin_username, "ai_logs.view")
 
     page = max(1, page)
     page_size = min(100, max(1, page_size))
@@ -13763,7 +13936,7 @@ def admin_ai_logs_export(
     end_date: str = "",
     db: Session = Depends(get_db),
 ):
-    require_admin(admin_username, db)
+    require_admin_permission(db, admin_username, "ai_logs.export")
     import csv, io as _io
     query = db.query(models.AiUsageLog)
     if f := feature.strip(): query = query.filter(models.AiUsageLog.feature == f)
@@ -13805,7 +13978,7 @@ def admin_materials(
     page_size: int = 20,
     db: Session = Depends(get_db),
 ):
-    require_admin(admin_username, db)
+    require_admin_permission(db, admin_username, "materials.view")
 
     page = max(1, page)
     page_size = min(100, max(1, page_size))
@@ -13856,7 +14029,7 @@ def admin_materials(
 
 @app.get("/admin/courses-summary")
 def admin_courses_summary(admin_username: str, db: Session = Depends(get_db)):
-    require_admin(admin_username, db)
+    require_admin_permission(db, admin_username, "courses.view")
 
     # Collect unique course_id values
     course_ids = set()
@@ -13919,7 +14092,7 @@ def admin_update_user_plan(
     req: schemas.AdminUpdatePlanRequest,
     db: Session = Depends(get_db),
 ):
-    admin = require_admin(req.admin_username, db)
+    admin = require_admin_permission(db, req.admin_username, "users.manage_plan")
 
     target_user = get_user_by_username(target_username, db)
     old_plan = target_user.plan or "free"
@@ -13953,7 +14126,7 @@ def admin_update_user_plan(
 @app.get("/admin/usage-trend")
 def admin_usage_trend(admin_username: str, days: int = 7, db: Session = Depends(get_db)):
     """Return per-day AI call counts for trend chart (7/30/90 days)."""
-    require_admin(admin_username, db)
+    require_admin_permission(db, admin_username, "dashboard.view")
     days = max(1, min(365, days))
     items = []
     now = utc_now()
@@ -13978,7 +14151,7 @@ def admin_usage_trend(admin_username: str, days: int = 7, db: Session = Depends(
 
 @app.get("/admin/usage-summary")
 def admin_usage_summary(admin_username: str, db: Session = Depends(get_db)):
-    require_admin(admin_username, db)
+    require_admin_permission(db, admin_username, "dashboard.view")
     from sqlalchemy import func as sqlfunc
 
     today_start = utc_now().replace(hour=0, minute=0, second=0, microsecond=0)
@@ -14060,7 +14233,7 @@ def admin_audit_logs(
     page_size: int = 30,
     db: Session = Depends(get_db),
 ):
-    require_admin(admin_username, db)
+    require_admin_permission(db, admin_username, "audit_logs.view")
 
     page = max(1, page)
     page_size = min(100, max(1, page_size))
@@ -14894,7 +15067,7 @@ def admin_report_shares(
     page_size: int = 30,
     db: Session = Depends(get_db),
 ):
-    require_admin(admin_username, db)
+    require_admin_permission(db, admin_username, "report_shares.view")
 
     page = max(1, page)
     page_size = min(100, max(1, page_size))
@@ -14962,7 +15135,7 @@ def admin_user_status(target_username: str, req: dict, db: Session = Depends(get
     admin_name = str(req.get("admin_username", "")).strip()
     if not admin_name:
         raise HTTPException(status_code=400, detail="缺少 admin_username")
-    require_admin(admin_name, db)
+    require_admin_permission(db, admin_name, "users.manage_status")
     is_active = req.get("is_active", True)
     if not isinstance(is_active, bool) and not isinstance(is_active, int):
         raise HTTPException(status_code=400, detail="is_active 必须为布尔值")
@@ -14974,6 +15147,8 @@ def admin_user_status(target_username: str, req: dict, db: Session = Depends(get
     # Prevent disabling the last admin
     if not is_active and user.is_admin:
         admin_count = db.query(models.User).filter(models.User.is_admin == 1, models.User.is_active != 0).count()
+        if normalize_admin_role(user) == "super_admin" and count_active_super_admins(db) <= 1:
+            raise HTTPException(status_code=400, detail="不能禁用最后一个超级管理员")
         if admin_count <= 1:
             raise HTTPException(status_code=400, detail="不能禁用最后一个管理员账号")
     user.is_active = 1 if is_active else 0
@@ -14994,7 +15169,7 @@ def admin_user_status(target_username: str, req: dict, db: Session = Depends(get
 @app.delete("/admin/materials/{material_id}")
 def admin_delete_material(material_id: int, admin_username: str, db: Session = Depends(get_db)):
     """Soft-delete a material and its chunks."""
-    require_admin(admin_username, db)
+    require_admin_permission(db, admin_username, "materials.delete")
     material = db.query(models.StudyMaterial).filter(models.StudyMaterial.id == material_id).first()
     if not material:
         raise HTTPException(status_code=404, detail="资料不存在")
@@ -15024,7 +15199,7 @@ def admin_delete_material(material_id: int, admin_username: str, db: Session = D
 @app.post("/admin/materials/{material_id}/reindex")
 def admin_reindex_material(material_id: int, admin_username: str, db: Session = Depends(get_db)):
     """Rebuild material chunks from existing extracted text."""
-    require_admin(admin_username, db)
+    require_admin_permission(db, admin_username, "materials.reindex")
     material = db.query(models.StudyMaterial).filter(
         models.StudyMaterial.id == material_id,
         models.StudyMaterial.is_deleted.is_(False),
@@ -15062,7 +15237,7 @@ def admin_report_share_status(share_id: int, req: dict, db: Session = Depends(ge
     admin_name = str(req.get("admin_username", "")).strip()
     if not admin_name:
         raise HTTPException(status_code=400, detail="缺少 admin_username")
-    require_admin(admin_name, db)
+    require_admin_permission(db, admin_name, "report_shares.moderate")
     new_status = str(req.get("status", "")).strip().lower()
     if new_status not in ("approved", "revoked", "pending"):
         raise HTTPException(status_code=400, detail="无效的状态，支持: approved, revoked, pending")
@@ -15088,7 +15263,7 @@ def admin_report_share_status(share_id: int, req: dict, db: Session = Depends(ge
 
 @app.get("/admin/system-health")
 def admin_system_health(admin_username: str, db: Session = Depends(get_db)):
-    require_admin(admin_username, db)
+    require_admin_permission(db, admin_username, "system_monitor.view")
     import os as _os, sys as _sys
 
     # Server
@@ -15149,7 +15324,7 @@ def admin_system_health(admin_username: str, db: Session = Depends(get_db)):
 
 @app.get("/admin/material-issues")
 def admin_material_issues(admin_username: str, issue_type: str = "all", page: int = 1, page_size: int = 20, db: Session = Depends(get_db)):
-    require_admin(admin_username, db)
+    require_admin_permission(db, admin_username, "system_monitor.view")
     page = max(1, page); page_size = min(100, max(1, page_size))
     query = db.query(models.StudyMaterial).filter(models.StudyMaterial.is_deleted.is_(False))
     it = issue_type.strip()
@@ -15174,7 +15349,7 @@ def admin_material_issues(admin_username: str, issue_type: str = "all", page: in
 
 @app.get("/admin/announcements")
 def admin_announcements_list(admin_username: str, db: Session = Depends(get_db)):
-    require_admin(admin_username, db)
+    require_admin_permission(db, admin_username, "settings.view")
     items = db.query(models.SystemAnnouncement).order_by(models.SystemAnnouncement.created_at.desc()).all()
     return {"items": [{"id": a.id, "title": a.title, "content": a.content, "type": a.type, "is_active": bool(a.is_active), "target": a.target, "created_by": a.created_by, "created_at": serialize_datetime(a.created_at), "updated_at": serialize_datetime(a.updated_at)} for a in items]}
 
@@ -15182,7 +15357,7 @@ def admin_announcements_list(admin_username: str, db: Session = Depends(get_db))
 @app.post("/admin/announcements")
 def admin_announcements_create(req: dict, db: Session = Depends(get_db)):
     admin_name = str(req.get("admin_username", "")).strip()
-    require_admin(admin_name, db)
+    require_admin_permission(db, admin_name, "announcements.manage")
     title = str(req.get("title", "")).strip()
     content = str(req.get("content", "")).strip()
     if not title or not content:
@@ -15202,7 +15377,7 @@ def admin_announcements_create(req: dict, db: Session = Depends(get_db)):
 @app.put("/admin/announcements/{a_id}")
 def admin_announcements_update(a_id: int, req: dict, db: Session = Depends(get_db)):
     admin_name = str(req.get("admin_username", "")).strip()
-    require_admin(admin_name, db)
+    require_admin_permission(db, admin_name, "announcements.manage")
     a = db.query(models.SystemAnnouncement).filter(models.SystemAnnouncement.id == a_id).first()
     if not a: raise HTTPException(status_code=404, detail="公告不存在")
     if "title" in req: a.title = str(req["title"]).strip()[:500]
@@ -15219,7 +15394,7 @@ def admin_announcements_update(a_id: int, req: dict, db: Session = Depends(get_d
 @app.put("/admin/announcements/{a_id}/status")
 def admin_announcements_toggle(a_id: int, req: dict, db: Session = Depends(get_db)):
     admin_name = str(req.get("admin_username", "")).strip()
-    require_admin(admin_name, db)
+    require_admin_permission(db, admin_name, "announcements.manage")
     a = db.query(models.SystemAnnouncement).filter(models.SystemAnnouncement.id == a_id).first()
     if not a: raise HTTPException(status_code=404, detail="公告不存在")
     a.is_active = int(req.get("is_active", 0))
@@ -15231,7 +15406,7 @@ def admin_announcements_toggle(a_id: int, req: dict, db: Session = Depends(get_d
 
 @app.delete("/admin/announcements/{a_id}")
 def admin_announcements_delete(a_id: int, admin_username: str, db: Session = Depends(get_db)):
-    require_admin(admin_username, db)
+    require_admin_permission(db, admin_username, "announcements.manage")
     a = db.query(models.SystemAnnouncement).filter(models.SystemAnnouncement.id == a_id).first()
     if not a: raise HTTPException(status_code=404, detail="公告不存在")
     db.delete(a); db.commit()
@@ -15255,7 +15430,7 @@ def _get_setting(db, key, default=""):
 
 @app.get("/admin/settings")
 def admin_settings(admin_username: str, db: Session = Depends(get_db)):
-    require_admin(admin_username, db)
+    require_admin_permission(db, admin_username, "settings.view")
     items = db.query(models.SystemSetting).all()
     return {"items": [{"key": s.key, "value": s.value, "description": s.description, "updated_by": s.updated_by, "updated_at": serialize_datetime(s.updated_at)} for s in items]}
 
@@ -15263,7 +15438,7 @@ def admin_settings(admin_username: str, db: Session = Depends(get_db)):
 @app.put("/admin/settings")
 def admin_settings_update(req: dict, db: Session = Depends(get_db)):
     admin_name = str(req.get("admin_username", "")).strip()
-    require_admin(admin_name, db)
+    require_admin_permission(db, admin_name, "settings.manage")
     updates = req.get("updates", {})
     if not isinstance(updates, dict) or not updates:
         raise HTTPException(status_code=400, detail="请提供要更新的配置项")

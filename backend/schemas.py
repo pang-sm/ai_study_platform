@@ -594,6 +594,11 @@ class AdminUpdatePlanRequest(BaseModel):
     plan_expires_at: str | None = None
 
 
+class AdminUpdateRoleRequest(BaseModel):
+    admin_username: str
+    admin_role: str = "none"
+
+
 # ── Learning Reports ──────────────────────────────────────
 
 

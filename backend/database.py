@@ -36,6 +36,7 @@ PROFILE_COLUMNS = {
     "plan_source": "VARCHAR(30) DEFAULT ''",
     "plan_expire_at": "DATETIME",
     "is_admin": "INTEGER DEFAULT 0",
+    "admin_role": "VARCHAR(30) DEFAULT 'none'",
     "is_active": "INTEGER DEFAULT 1",
 }
 
@@ -379,6 +380,63 @@ def ensure_columns(conn, table_name: str, columns: dict[str, str]):
             conn.execute(
                 text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}")
             )
+
+
+def ensure_admin_roles_schema(conn):
+    ensure_columns(conn, "users", {"admin_role": "VARCHAR(30) DEFAULT 'none'"})
+    conn.execute(
+        text(
+            """
+            UPDATE users
+            SET admin_role = 'none'
+            WHERE COALESCE(is_admin, 0) = 0
+              AND (admin_role IS NULL OR admin_role = '')
+            """
+        )
+    )
+    admin_users = conn.execute(
+        text(
+            """
+            SELECT id, username, COALESCE(admin_role, '') AS admin_role
+            FROM users
+            WHERE COALESCE(is_admin, 0) = 1
+            ORDER BY CASE WHEN username = 'admin' THEN 0 ELSE 1 END, id ASC
+            """
+        )
+    ).fetchall()
+    if not admin_users:
+        return
+
+    super_admin_count = conn.execute(
+        text(
+            """
+            SELECT COUNT(*)
+            FROM users
+            WHERE COALESCE(is_admin, 0) = 1 AND admin_role = 'super_admin'
+            """
+        )
+    ).scalar() or 0
+    if super_admin_count <= 0:
+        first_admin_id = admin_users[0][0]
+        conn.execute(
+            text("UPDATE users SET admin_role = 'super_admin' WHERE id = :user_id"),
+            {"user_id": first_admin_id},
+        )
+
+    conn.execute(
+        text(
+            """
+            UPDATE users
+            SET admin_role = 'operator'
+            WHERE COALESCE(is_admin, 0) = 1
+              AND (admin_role IS NULL OR admin_role = '' OR admin_role = 'none')
+              AND id NOT IN (
+                  SELECT id FROM users
+                  WHERE COALESCE(is_admin, 0) = 1 AND admin_role = 'super_admin'
+              )
+            """
+        )
+    )
 
 
 def ensure_study_material_schema(conn):
@@ -1081,6 +1139,7 @@ def normalize_existing_subjects(conn):
 def init_user_profile_schema():
     with engine.begin() as conn:
         ensure_columns(conn, "users", PROFILE_COLUMNS)
+        ensure_admin_roles_schema(conn)
         ensure_columns(conn, "chat_sessions", CHAT_SESSION_COLUMNS)
         ensure_columns(conn, "chat_messages", CHAT_MESSAGE_COLUMNS)
         ensure_study_material_schema(conn)

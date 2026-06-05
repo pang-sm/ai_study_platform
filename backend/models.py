@@ -25,6 +25,7 @@ class User(Base):
     plan_source = Column(String(30), nullable=True, default="")
     plan_expire_at = Column(DateTime, nullable=True)
     is_admin = Column(Integer, nullable=True, default=0)
+    admin_role = Column(String(30), nullable=True, default="none")
     is_active = Column(Integer, nullable=True, default=1)
     created_at = Column(DateTime, default=utc_now)
 

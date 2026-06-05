@@ -4,16 +4,16 @@ import { getSubjectLabel } from "../courseOptions.js";
 const API_BASE = "/api";
 
 const TABS = [
-  { key: "overview", label: "总览" },
-  { key: "users", label: "用户管理" },
-  { key: "aiLogs", label: "AI 使用日志" },
-  { key: "materials", label: "资料管理" },
-  { key: "courses", label: "课程统计" },
-  { key: "plans", label: "套餐管理" },
-  { key: "auditLogs", label: "操作记录" },
-  { key: "reportShares", label: "报告分享" },
-  { key: "systemHealth", label: "系统监控" },
-  { key: "platformConfig", label: "平台配置" },
+  { key: "overview", label: "总览", permission: "dashboard.view" },
+  { key: "users", label: "用户管理", permission: "users.view" },
+  { key: "aiLogs", label: "AI 使用日志", permission: "ai_logs.view" },
+  { key: "materials", label: "资料管理", permission: "materials.view" },
+  { key: "courses", label: "课程统计", permission: "courses.view" },
+  { key: "plans", label: "套餐管理", permission: "users.manage_plan" },
+  { key: "auditLogs", label: "操作记录", permission: "audit_logs.view" },
+  { key: "reportShares", label: "报告分享", permission: "report_shares.view" },
+  { key: "systemHealth", label: "系统监控", permission: "system_monitor.view" },
+  { key: "platformConfig", label: "平台配置", permission: "settings.view" },
 ];
 
 const FEATURE_LABELS = {
@@ -29,6 +29,12 @@ const FEATURE_LABELS = {
 };
 
 const PLAN_NAMES = { free: "免费版", pro: "专业版", admin: "管理员" };
+const ADMIN_ROLE_LABELS = {
+  super_admin: "超级管理员",
+  operator: "运营管理员",
+  auditor: "只读审计员",
+  none: "非管理员",
+};
 
 function formatSize(bytes) {
   if (!bytes || bytes <= 0) return "未知";
@@ -79,6 +85,8 @@ export default function AdminCenter({ user }) {
 
   // Trend data
   const [trendData, setTrendData] = useState(null);
+  const [trendDays, setTrendDays] = useState(7);
+  const [usageSummary, setUsageSummary] = useState(null);
 
   // Audit logs
   const [auditLogs, setAuditLogs] = useState({ items: [], total: 0, page: 1 });
@@ -87,23 +95,69 @@ export default function AdminCenter({ user }) {
   const [reportShares, setReportShares] = useState({ items: [], total: 0, page: 1 });
 
   const isAdmin = user?.is_admin;
+  const username = user?.username || "";
+  const [adminRole, setAdminRole] = useState("none");
+  const [adminPermissions, setAdminPermissions] = useState([]);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [permissionsLoading, setPermissionsLoading] = useState(false);
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+  const [permissionsError, setPermissionsError] = useState("");
+  const [roleSavingUser, setRoleSavingUser] = useState("");
+  const adminPermissionSet = useMemo(() => new Set(adminPermissions), [adminPermissions]);
+  const hasPermission = (permission) => adminPermissionSet.has(permission);
+  const visibleTabs = useMemo(
+    () => TABS.filter((t) => !t.permission || adminPermissionSet.has(t.permission)),
+    [adminPermissionSet]
+  );
 
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!isAdmin || !permissionsLoaded || permissionsError) return;
+    if (!visibleTabs.some((t) => t.key === tab)) return;
     if (tab === "overview") { fetchDashboard(); fetchTrendData(trendDays); fetchUsageSummary(); }
     if (tab === "courses") fetchCourses();
     if (tab === "plans") fetchPlanUsers(1);
     if (tab === "systemHealth") { fetchSystemHealth(); fetchMaterialIssues(1); }
     if (tab === "platformConfig") fetchPlatformConfig();
-  }, [tab, isAdmin]);
+  }, [tab, isAdmin, permissionsLoaded, permissionsError, visibleTabs]);
 
   // ── helpers ──
-  const adminParam = `admin_username=${encodeURIComponent(user.username)}`;
+  const adminParam = `admin_username=${encodeURIComponent(username)}`;
   const getJson = async (url) => {
     const res = await fetch(url);
     if (!res.ok) { const body = await res.json().catch(()=>({})); throw new Error(body.detail || `请求失败 (${res.status})`); }
     return res.json();
   };
+
+  useEffect(() => {
+    if (!isAdmin || !username) return;
+    const fetchAdminPermissions = async () => {
+      setPermissionsLoading(true);
+      setPermissionsError("");
+      setPermissionsLoaded(false);
+      try {
+        const data = await getJson(`${API_BASE}/admin/me/permissions?admin_username=${encodeURIComponent(username)}`);
+        setAdminRole(data.admin_role || "none");
+        setAdminPermissions(Array.isArray(data.permissions) ? data.permissions : []);
+        setIsSuperAdmin(!!data.is_super_admin);
+        setPermissionsLoaded(true);
+      } catch {
+        setAdminRole("none");
+        setAdminPermissions([]);
+        setIsSuperAdmin(false);
+        setPermissionsError("无法获取管理员权限，请重新登录");
+      } finally {
+        setPermissionsLoading(false);
+      }
+    };
+    fetchAdminPermissions();
+  }, [isAdmin, username]);
+
+  useEffect(() => {
+    if (!permissionsLoaded || visibleTabs.length === 0) return;
+    if (!visibleTabs.some((t) => t.key === tab)) {
+      setTab(visibleTabs[0].key);
+    }
+  }, [permissionsLoaded, visibleTabs, tab]);
 
   // ── Plan tab ──
   const fetchPlanUsers = async (page = 1) => {
@@ -137,6 +191,34 @@ export default function AdminCenter({ user }) {
     } catch (e) { setPlanMsg(e.message || "修改失败"); } finally { setPlanSaving(false); }
   };
 
+  const handleAdminRoleUpdate = async (targetUser, nextRole) => {
+    if (!targetUser || !nextRole) return;
+    if (!window.confirm(`确认将 ${targetUser} 的管理员角色修改为 ${ADMIN_ROLE_LABELS[nextRole] || nextRole}？`)) return;
+    setRoleSavingUser(targetUser);
+    try {
+      const res = await fetch(`${API_BASE}/admin/users/${encodeURIComponent(targetUser)}/admin-role`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ admin_username: username, admin_role: nextRole }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "修改管理员角色失败");
+      setUsers((prev) => ({
+        ...prev,
+        items: prev.items.map((u) => u.username === targetUser ? { ...u, admin_role: data.admin_role, admin_role_label: data.admin_role_label } : u),
+      }));
+      setPlanUsers((prev) => ({
+        ...prev,
+        items: prev.items.map((u) => u.username === targetUser ? { ...u, admin_role: data.admin_role, admin_role_label: data.admin_role_label } : u),
+      }));
+      fetchAuditLogs(1);
+    } catch (e) {
+      setError(e.message || "修改管理员角色失败");
+    } finally {
+      setRoleSavingUser("");
+    }
+  };
+
   // ── User status toggle ──
   const handleUserStatus = async (targetUser, currentActive) => {
     const newActive = currentActive ? false : true;
@@ -158,9 +240,10 @@ export default function AdminCenter({ user }) {
 
   // ── Material delete ──
   const handleMaterialDelete = async (mat) => {
+    const materialId = mat.id ?? mat.material_id;
     if (!window.confirm(`确认删除资料「${mat.original_filename || mat.id}」吗？该操作会删除资料库记录和索引分块。`)) return;
     try {
-      const res = await fetch(`${API_BASE}/admin/materials/${mat.id}?admin_username=${encodeURIComponent(user.username)}`, { method: "DELETE" });
+      const res = await fetch(`${API_BASE}/admin/materials/${materialId}?admin_username=${encodeURIComponent(user.username)}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "删除失败");
       fetchMaterials(materials.page);
@@ -173,9 +256,10 @@ export default function AdminCenter({ user }) {
   // ── Material reindex ──
   const [reindexingId, setReindexingId] = useState(null);
   const handleMaterialReindex = async (mat) => {
-    setReindexingId(mat.id);
+    const materialId = mat.id ?? mat.material_id;
+    setReindexingId(materialId);
     try {
-      const res = await fetch(`${API_BASE}/admin/materials/${mat.id}/reindex?admin_username=${encodeURIComponent(user.username)}`, { method: "POST" });
+      const res = await fetch(`${API_BASE}/admin/materials/${materialId}/reindex?admin_username=${encodeURIComponent(user.username)}`, { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "重新索引失败");
       fetchMaterials(materials.page);
@@ -384,8 +468,17 @@ export default function AdminCenter({ user }) {
     );
   }
 
-  // ── AI Usage Summary ──
-  const [usageSummary, setUsageSummary] = useState(null);
+  if (permissionsError) {
+    return (
+      <div className="empty-state" style={{ padding: 48 }}>
+        <h2>无法获取管理员权限，请重新登录</h2>
+      </div>
+    );
+  }
+
+  if (permissionsLoading || !permissionsLoaded) {
+    return <div className="empty-state" style={{ padding: 48 }}>正在加载管理员权限...</div>;
+  }
 
   // ── Overview ──
 
@@ -522,6 +615,7 @@ export default function AdminCenter({ user }) {
   // ── activate tab ──
 
   const activateTab = (key) => {
+    if (!visibleTabs.some((t) => t.key === key)) return;
     setTab(key);
     setError("");
     setUserDetail(null);
@@ -557,13 +651,11 @@ export default function AdminCenter({ user }) {
   const featureItems = dashboard?.today_usage_by_feature || [];
   const featureTotal = featureItems.reduce((s, i) => s + (i.count || 0), 0);
 
-  // Trend range selector
   const TREND_RANGES = [
     { value: 7, label: "近 7 天" },
     { value: 30, label: "近 30 天" },
     { value: 90, label: "近 90 天" },
   ];
-  const [trendDays, setTrendDays] = useState(7);
 
   // Build trend bars from recent logs based on selected range
   const trendBars = useMemo(() => {
@@ -616,10 +708,15 @@ export default function AdminCenter({ user }) {
   // ── render ──
   return (
     <div className="admin-center-v2">
+      <div className="admin-role-strip">
+        <span>当前角色：</span>
+        <span className={`admin-role-pill admin-role-${adminRole}`}>{ADMIN_ROLE_LABELS[adminRole] || adminRole}</span>
+        {isSuperAdmin && <span className="admin-role-note">拥有全部后台权限</span>}
+      </div>
 
       {/* ── Tabs ── */}
       <div className="admin-dash-tabs">
-        {TABS.map((t) => (
+        {visibleTabs.map((t) => (
           <button key={t.key} className={`admin-dash-tab ${tab === t.key ? "active" : ""}`} onClick={() => activateTab(t.key)}>
             {t.label}
           </button>
@@ -823,7 +920,7 @@ export default function AdminCenter({ user }) {
           </div>
 
           {/* Batch bar */}
-          {selectedUsers.size > 0 && (
+          {hasPermission("batch.users") && selectedUsers.size > 0 && (
             <div className="admin-batch-bar">
               <span>已选择 {selectedUsers.size} 项</span>
               <button className="primary-button compact" onClick={() => batchUserDisable(false)}>批量禁用</button>
@@ -838,10 +935,11 @@ export default function AdminCenter({ user }) {
                 <table className="admin-table">
                   <thead>
                     <tr>
-                      <th><input type="checkbox" onChange={(e) => e.target.checked ? selectAll(setSelectedUsers, users.items.map((u) => u.username)) : clearSelection(setSelectedUsers)} /></th>
+                      {hasPermission("batch.users") && <th><input type="checkbox" onChange={(e) => e.target.checked ? selectAll(setSelectedUsers, users.items.map((u) => u.username)) : clearSelection(setSelectedUsers)} /></th>}
                       <th>用户名</th>
                       <th>昵称</th>
                       <th>套餐</th>
+                      <th>管理员角色</th>
                       <th>到期</th>
                       <th>今日 AI</th>
                       <th>累计 AI</th>
@@ -855,10 +953,30 @@ export default function AdminCenter({ user }) {
                   <tbody>
                     {users.items.map((u) => (
                       <tr key={u.username}>
-                        <td><input type="checkbox" checked={selectedUsers.has(u.username)} onChange={() => toggleSelect(setSelectedUsers, u.username)} /></td>
+                        {hasPermission("batch.users") && <td><input type="checkbox" checked={selectedUsers.has(u.username)} onChange={() => toggleSelect(setSelectedUsers, u.username)} /></td>}
                         <td>{u.username}</td>
                         <td>{u.nickname || "-"}</td>
                         <td><span className={`plan-tag plan-${u.plan}`}>{PLAN_NAMES[u.plan] || u.plan}</span></td>
+                        <td>
+                          {u.is_admin ? (
+                            <div className="admin-role-cell">
+                              <span className={`admin-role-pill admin-role-${u.admin_role || "none"}`}>{u.admin_role_label || ADMIN_ROLE_LABELS[u.admin_role] || "未设置"}</span>
+                              {hasPermission("users.manage_role") && (
+                                <select
+                                  className="field compact admin-role-select"
+                                  value={u.admin_role || "none"}
+                                  disabled={roleSavingUser === u.username}
+                                  onChange={(e) => handleAdminRoleUpdate(u.username, e.target.value)}
+                                >
+                                  <option value="super_admin">超级管理员</option>
+                                  <option value="operator">运营管理员</option>
+                                  <option value="auditor">只读审计员</option>
+                                  <option value="none">非管理员</option>
+                                </select>
+                              )}
+                            </div>
+                          ) : "-"}
+                        </td>
                         <td>{u.plan_expires_at ? new Date(u.plan_expires_at).toLocaleDateString("zh-CN") : "-"}</td>
                         <td>{u.today_ai_call_count}</td>
                         <td>{u.ai_call_count}</td>
@@ -868,7 +986,7 @@ export default function AdminCenter({ user }) {
                         <td><span className={`status-pill ${u.is_active !== 0 ? "status-pill--ok" : "status-pill--fail"}`}>{u.is_active !== 0 ? "正常" : "已禁用"}</span></td>
                         <td style={{ whiteSpace: "nowrap" }}>
                           <button className="ghost-button compact" onClick={() => fetchUserDetail(u.username)}>详情</button>
-                          {u.username !== user.username && (
+                          {hasPermission("users.manage_status") && u.username !== user.username && (
                             <button className="ghost-button compact" style={{ color: u.is_active !== 0 ? "#ef4444" : "#059669", marginLeft: 4 }}
                               onClick={() => handleUserStatus(u.username, u.is_active !== 0)}>
                               {u.is_active !== 0 ? "禁用" : "启用"}
@@ -937,7 +1055,9 @@ export default function AdminCenter({ user }) {
               <option value="failed">失败</option>
             </select>
             <button className="primary-button" onClick={() => fetchAiLogs(1)}>查询</button>
-            <button className="primary-button" onClick={handleExport} disabled={exporting} style={{ marginLeft: 8 }}>{exporting ? "导出中..." : "导出 CSV"}</button>
+            {hasPermission("ai_logs.export") && (
+              <button className="primary-button" onClick={handleExport} disabled={exporting} style={{ marginLeft: 8 }}>{exporting ? "导出中..." : "导出 CSV"}</button>
+            )}
           </div>
 
           {loading ? <div className="empty-state">加载中...</div> : (
@@ -987,7 +1107,7 @@ export default function AdminCenter({ user }) {
             <button className="primary-button" onClick={() => fetchMaterials(1)}>查询</button>
           </div>
 
-          {selectedMaterials.size > 0 && (
+          {hasPermission("batch.materials") && selectedMaterials.size > 0 && (
             <div className="admin-batch-bar">
               <span>已选择 {selectedMaterials.size} 项</span>
               <button className="primary-button compact" style={{ background: "#ef4444" }} onClick={batchMaterialDelete}>批量删除</button>
@@ -1001,7 +1121,7 @@ export default function AdminCenter({ user }) {
                 <table className="admin-table">
                   <thead>
                     <tr>
-                      <th><input type="checkbox" onChange={(e) => e.target.checked ? selectAll(setSelectedMaterials, materials.items.map((m) => m.material_id)) : clearSelection(setSelectedMaterials)} /></th>
+                      {hasPermission("batch.materials") && <th><input type="checkbox" onChange={(e) => e.target.checked ? selectAll(setSelectedMaterials, materials.items.map((m) => m.material_id)) : clearSelection(setSelectedMaterials)} /></th>}
                       <th>文件名</th>
                       <th>用户</th>
                       <th>课程</th>
@@ -1016,7 +1136,7 @@ export default function AdminCenter({ user }) {
                   <tbody>
                     {materials.items.map((m) => (
                       <tr key={m.material_id}>
-                        <td><input type="checkbox" checked={selectedMaterials.has(m.material_id)} onChange={() => toggleSelect(setSelectedMaterials, m.material_id)} /></td>
+                        {hasPermission("batch.materials") && <td><input type="checkbox" checked={selectedMaterials.has(m.material_id)} onChange={() => toggleSelect(setSelectedMaterials, m.material_id)} /></td>}
                         <td title={m.original_filename}>{m.original_filename.length > 30 ? m.original_filename.slice(0, 30) + "..." : m.original_filename}</td>
                         <td>{m.username}</td>
                         <td>{getSubjectLabel(m.subject) || m.subject || "-"}</td>
@@ -1026,10 +1146,14 @@ export default function AdminCenter({ user }) {
                         <td>{m.parse_status === "success" ? "成功" : m.parse_status || "-"}</td>
                         <td>{m.created_at ? new Date(m.created_at).toLocaleString("zh-CN") : "-"}</td>
                         <td style={{ whiteSpace: "nowrap" }}>
-                          <button className="ghost-button compact" disabled={reindexingId === m.material_id} onClick={() => handleMaterialReindex(m)}>
-                            {reindexingId === m.material_id ? "索引中..." : "重索引"}
-                          </button>
-                          <button className="ghost-button compact" style={{ color: "#ef4444", marginLeft: 4 }} onClick={() => handleMaterialDelete(m)}>删除</button>
+                          {hasPermission("materials.reindex") && (
+                            <button className="ghost-button compact" disabled={reindexingId === m.material_id} onClick={() => handleMaterialReindex(m)}>
+                              {reindexingId === m.material_id ? "索引中..." : "重索引"}
+                            </button>
+                          )}
+                          {hasPermission("materials.delete") && (
+                            <button className="ghost-button compact" style={{ color: "#ef4444", marginLeft: 4 }} onClick={() => handleMaterialDelete(m)}>删除</button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -1193,7 +1317,7 @@ export default function AdminCenter({ user }) {
       {/* ── Report Shares ── */}
       {tab === "reportShares" && (
         <div className="admin-tab-content">
-          {selectedShares.size > 0 && (
+          {hasPermission("batch.reports") && selectedShares.size > 0 && (
             <div className="admin-batch-bar">
               <span>已选择 {selectedShares.size} 项</span>
               <button className="primary-button compact" style={{ color: "#059669" }} onClick={() => batchShareStatus("approved")}>批量通过</button>
@@ -1208,7 +1332,7 @@ export default function AdminCenter({ user }) {
                 <table className="admin-table">
                   <thead>
                     <tr>
-                      <th><input type="checkbox" onChange={(e) => e.target.checked ? selectAll(setSelectedShares, reportShares.items.map((s) => s.id)) : clearSelection(setSelectedShares)} /></th>
+                      {hasPermission("batch.reports") && <th><input type="checkbox" onChange={(e) => e.target.checked ? selectAll(setSelectedShares, reportShares.items.map((s) => s.id)) : clearSelection(setSelectedShares)} /></th>}
                       <th>报告标题</th>
                       <th>用户</th>
                       <th>状态</th>
@@ -1222,7 +1346,7 @@ export default function AdminCenter({ user }) {
                   <tbody>
                     {reportShares.items.map((s) => (
                       <tr key={s.id}>
-                        <td><input type="checkbox" checked={selectedShares.has(s.id)} onChange={() => toggleSelect(setSelectedShares, s.id)} /></td>
+                        {hasPermission("batch.reports") && <td><input type="checkbox" checked={selectedShares.has(s.id)} onChange={() => toggleSelect(setSelectedShares, s.id)} /></td>}
                         <td title={s.title}>{s.title && s.title.length > 30 ? s.title.slice(0, 30) + "..." : (s.title || "-")}</td>
                         <td>{s.username}</td>
                         <td><span className={`status-pill ${s.is_active ? "status-pill--ok" : "status-pill--fail"}`}>{s.is_active ? "已通过" : "已撤销"}</span></td>
@@ -1231,10 +1355,12 @@ export default function AdminCenter({ user }) {
                         <td>{s.revoked_at ? new Date(s.revoked_at).toLocaleString("zh-CN") : "-"}</td>
                         <td>{s.last_viewed_at ? new Date(s.last_viewed_at).toLocaleString("zh-CN") : "-"}</td>
                         <td style={{ whiteSpace: "nowrap" }}>
-                          {s.is_active ? (
-                            <button className="ghost-button compact" style={{ color: "#ef4444" }} onClick={() => handleShareStatus(s, "revoked")}>撤销</button>
-                          ) : (
-                            <button className="ghost-button compact" style={{ color: "#059669" }} onClick={() => handleShareStatus(s, "approved")}>恢复</button>
+                          {hasPermission("report_shares.moderate") && (
+                            s.is_active ? (
+                              <button className="ghost-button compact" style={{ color: "#ef4444" }} onClick={() => handleShareStatus(s, "revoked")}>撤销</button>
+                            ) : (
+                              <button className="ghost-button compact" style={{ color: "#059669" }} onClick={() => handleShareStatus(s, "approved")}>恢复</button>
+                            )
                           )}
                         </td>
                       </tr>
@@ -1306,8 +1432,12 @@ export default function AdminCenter({ user }) {
                           <td><span className={`status-pill ${m.issue_type === "empty_text" ? "status-pill--fail" : "status-pill--ok"}`}>{m.issue_label}</span></td>
                           <td>{m.extracted_text_length}</td><td>{m.chunk_count}</td>
                           <td style={{ whiteSpace: "nowrap" }}>
-                            <button className="ghost-button compact" disabled={reindexingId === m.id} onClick={() => handleMaterialReindex(m)}>{reindexingId === m.id ? "索引中..." : "重索引"}</button>
-                            <button className="ghost-button compact" style={{ color: "#ef4444", marginLeft: 4 }} onClick={() => handleMaterialDelete(m)}>删除</button>
+                            {hasPermission("materials.reindex") && (
+                              <button className="ghost-button compact" disabled={reindexingId === m.id} onClick={() => handleMaterialReindex(m)}>{reindexingId === m.id ? "索引中..." : "重索引"}</button>
+                            )}
+                            {hasPermission("materials.delete") && (
+                              <button className="ghost-button compact" style={{ color: "#ef4444", marginLeft: 4 }} onClick={() => handleMaterialDelete(m)}>删除</button>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -1361,9 +1491,11 @@ export default function AdminCenter({ user }) {
           <div className="admin-card">
             <div className="admin-chart-header">
               <h4>公告管理</h4>
-              <button className="primary-button compact" onClick={() => { setEditingAnnounceId(null); setAnnounceForm({ title: "", content: "", type: "info", target: "all", is_active: 1 }); setShowAnnounceForm(true); }}>+ 新建公告</button>
+              {hasPermission("announcements.manage") && (
+                <button className="primary-button compact" onClick={() => { setEditingAnnounceId(null); setAnnounceForm({ title: "", content: "", type: "info", target: "all", is_active: 1 }); setShowAnnounceForm(true); }}>+ 新建公告</button>
+              )}
             </div>
-            {showAnnounceForm && (
+            {hasPermission("announcements.manage") && showAnnounceForm && (
               <div style={{ marginBottom: 16, padding: 16, background: "#f8fafc", borderRadius: 10, border: "1px solid #e2e8f0" }}>
                 <input className="field" placeholder="公告标题" value={announceForm.title} onChange={(e) => setAnnounceForm((f) => ({ ...f, title: e.target.value }))} style={{ marginBottom: 8 }} />
                 <textarea className="field" rows={3} placeholder="公告内容" value={announceForm.content} onChange={(e) => setAnnounceForm((f) => ({ ...f, content: e.target.value }))} style={{ marginBottom: 8 }} />
@@ -1391,9 +1523,13 @@ export default function AdminCenter({ user }) {
                       <td><span className={`status-pill ${a.is_active ? "status-pill--ok" : "status-pill--fail"}`}>{a.is_active ? "启用" : "停用"}</span></td>
                       <td>{a.created_at ? new Date(a.created_at).toLocaleString("zh-CN") : "-"}</td>
                       <td style={{ whiteSpace: "nowrap" }}>
-                        <button className="ghost-button compact" onClick={() => { setEditingAnnounceId(a.id); setAnnounceForm({ title: a.title, content: a.content, type: a.type, target: a.target, is_active: a.is_active }); setShowAnnounceForm(true); }}>编辑</button>
-                        <button className="ghost-button compact" onClick={() => toggleAnnounceStatus(a)}>{a.is_active ? "停用" : "启用"}</button>
-                        <button className="ghost-button compact" style={{ color: "#ef4444" }} onClick={() => deleteAnnouncement(a)}>删除</button>
+                        {hasPermission("announcements.manage") && (
+                          <>
+                            <button className="ghost-button compact" onClick={() => { setEditingAnnounceId(a.id); setAnnounceForm({ title: a.title, content: a.content, type: a.type, target: a.target, is_active: a.is_active }); setShowAnnounceForm(true); }}>编辑</button>
+                            <button className="ghost-button compact" onClick={() => toggleAnnounceStatus(a)}>{a.is_active ? "停用" : "启用"}</button>
+                            <button className="ghost-button compact" style={{ color: "#ef4444" }} onClick={() => deleteAnnouncement(a)}>删除</button>
+                          </>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -1417,7 +1553,7 @@ export default function AdminCenter({ user }) {
                 <div><div style={{ fontWeight: 600, fontSize: "0.9rem", color: "#1e293b" }}>{label}</div><div style={{ fontSize: "0.78rem", color: "#94a3b8" }}>{desc}</div></div>
                 <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
                   <span style={{ fontSize: "0.8rem", color: settings[key] === "true" ? "#16a34a" : "#94a3b8" }}>{settings[key] === "true" ? "已开启" : "已关闭"}</span>
-                  <input type="checkbox" className="config-input" name={key} defaultChecked={settings[key] === "true"} style={{ width: 40, height: 22 }} />
+                  <input type="checkbox" className="config-input" name={key} defaultChecked={settings[key] === "true"} disabled={!hasPermission("settings.manage")} style={{ width: 40, height: 22 }} />
                 </label>
               </div>
             ))}
@@ -1433,13 +1569,15 @@ export default function AdminCenter({ user }) {
             ].map(({ key, label, desc }) => (
               <div key={key} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid #f1f5f9" }}>
                 <div style={{ flex: 1 }}><div style={{ fontWeight: 600, fontSize: "0.9rem", color: "#1e293b" }}>{label}</div><div style={{ fontSize: "0.78rem", color: "#94a3b8" }}>{desc}</div></div>
-                <input type="number" className="field config-input" name={key} defaultValue={settings[key] || "5"} style={{ width: 100, textAlign: "center" }} />
+                <input type="number" className="field config-input" name={key} defaultValue={settings[key] || "5"} disabled={!hasPermission("settings.manage")} style={{ width: 100, textAlign: "center" }} />
               </div>
             ))}
           </div>
 
           <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
-            <button className="primary-button" onClick={saveSettings} disabled={configSaving}>{configSaving ? "保存中..." : "保存所有配置"}</button>
+            {hasPermission("settings.manage") && (
+              <button className="primary-button" onClick={saveSettings} disabled={configSaving}>{configSaving ? "保存中..." : "保存所有配置"}</button>
+            )}
           </div>
         </div>
       )}
