@@ -14095,6 +14095,8 @@ def admin_update_user_plan(
     admin = require_admin_permission(db, req.admin_username, "users.manage_plan")
 
     target_user = get_user_by_username(target_username, db)
+    if bool(target_user.is_admin) and normalize_admin_role(admin) != "super_admin":
+        raise HTTPException(status_code=403, detail="当前管理员没有权限修改管理员账号套餐")
     old_plan = target_user.plan or "free"
     plan = (req.plan or "free").strip().lower()
     if plan not in ("free", "pro", "admin"):
@@ -15142,6 +15144,9 @@ def admin_user_status(target_username: str, req: dict, db: Session = Depends(get
     user = db.query(models.User).filter(models.User.username == target_username).first()
     if not user:
         raise HTTPException(status_code=404, detail="用户不存在")
+    admin = get_user_by_username(admin_name, db)
+    if bool(user.is_admin) and normalize_admin_role(admin) != "super_admin":
+        raise HTTPException(status_code=403, detail="当前管理员没有权限修改管理员账号状态")
     if user.username == admin_name:
         raise HTTPException(status_code=400, detail="不能禁用当前管理员自己的账号")
     # Prevent disabling the last admin

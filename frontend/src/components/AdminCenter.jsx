@@ -105,6 +105,8 @@ export default function AdminCenter({ user }) {
   const [roleSavingUser, setRoleSavingUser] = useState("");
   const adminPermissionSet = useMemo(() => new Set(adminPermissions), [adminPermissions]);
   const hasPermission = (permission) => adminPermissionSet.has(permission);
+  const canManageUserStatus = (targetUser) => hasPermission("users.manage_status") && (isSuperAdmin || !targetUser?.is_admin);
+  const canManageUserPlan = (targetUser) => hasPermission("users.manage_plan") && (isSuperAdmin || !targetUser?.is_admin);
   const visibleTabs = useMemo(
     () => TABS.filter((t) => !t.permission || adminPermissionSet.has(t.permission)),
     [adminPermissionSet]
@@ -176,6 +178,8 @@ export default function AdminCenter({ user }) {
     const target = planEditForm.username.trim();
     if (!target) { setPlanMsg("请输入目标用户名"); return; }
     if (target === user.username && planEditForm.plan !== "admin") { setPlanMsg("不能修改自己的管理员权限"); return; }
+    const knownTarget = [...users.items, ...planUsers.items].find((u) => u.username === target);
+    if (knownTarget?.is_admin && !isSuperAdmin) { setPlanMsg("当前管理员没有权限修改管理员账号套餐"); return; }
     if (!window.confirm(`确认将 ${target} 的套餐修改为 ${PLAN_NAMES[planEditForm.plan] || planEditForm.plan}？`)) return;
     setPlanSaving(true); setPlanMsg("");
     try {
@@ -221,6 +225,8 @@ export default function AdminCenter({ user }) {
 
   // ── User status toggle ──
   const handleUserStatus = async (targetUser, currentActive) => {
+    const knownTarget = users.items.find((u) => u.username === targetUser);
+    if (knownTarget?.is_admin && !isSuperAdmin) { setError("当前管理员没有权限修改管理员账号状态"); return; }
     const newActive = currentActive ? false : true;
     const action = newActive ? "启用" : "禁用";
     if (!window.confirm(`确认${action}用户 ${targetUser} 吗？${newActive ? "" : "禁用后该用户将无法登录或使用平台。"}`)) return;
@@ -304,10 +310,12 @@ export default function AdminCenter({ user }) {
   };
 
   const batchUserDisable = (active) => {
-    const items = [...selectedUsers].map((u) => () => fetch(`${API_BASE}/admin/users/${encodeURIComponent(u)}/status`, {
+    const manageableUsers = [...selectedUsers].filter((u) => canManageUserStatus(users.items.find((item) => item.username === u)));
+    const items = manageableUsers.map((u) => () => fetch(`${API_BASE}/admin/users/${encodeURIComponent(u)}/status`, {
       method: "PUT", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ admin_username: user.username, is_active: active }),
     }).then((r) => { if (!r.ok) throw new Error(r.status); }));
+    if (items.length === 0) { setPlanMsg("没有可操作的用户"); return; }
     const action = active ? "启用" : "禁用";
     if (!window.confirm(`确认批量${action} ${items.length} 个用户？`)) return;
     runBatch(items, (fn) => fn(), `批量${action}`, setSelectedUsers, () => { fetchUsers(users.page); fetchDashboard(); });
@@ -936,7 +944,7 @@ export default function AdminCenter({ user }) {
                 <table className="admin-table">
                   <thead>
                     <tr>
-                      {hasPermission("batch.users") && <th><input type="checkbox" onChange={(e) => e.target.checked ? selectAll(setSelectedUsers, users.items.map((u) => u.username)) : clearSelection(setSelectedUsers)} /></th>}
+                      {hasPermission("batch.users") && <th><input type="checkbox" onChange={(e) => e.target.checked ? selectAll(setSelectedUsers, users.items.filter((u) => canManageUserStatus(u)).map((u) => u.username)) : clearSelection(setSelectedUsers)} /></th>}
                       <th>用户名</th>
                       <th>昵称</th>
                       <th>套餐</th>
@@ -954,7 +962,7 @@ export default function AdminCenter({ user }) {
                   <tbody>
                     {users.items.map((u) => (
                       <tr key={u.username}>
-                        {hasPermission("batch.users") && <td><input type="checkbox" checked={selectedUsers.has(u.username)} onChange={() => toggleSelect(setSelectedUsers, u.username)} /></td>}
+                        {hasPermission("batch.users") && <td>{canManageUserStatus(u) ? <input type="checkbox" checked={selectedUsers.has(u.username)} onChange={() => toggleSelect(setSelectedUsers, u.username)} /> : null}</td>}
                         <td>{u.username}</td>
                         <td>{u.nickname || "-"}</td>
                         <td><span className={`plan-tag plan-${u.plan}`}>{PLAN_NAMES[u.plan] || u.plan}</span></td>
@@ -987,7 +995,7 @@ export default function AdminCenter({ user }) {
                         <td><span className={`status-pill ${u.is_active !== 0 ? "status-pill--ok" : "status-pill--fail"}`}>{u.is_active !== 0 ? "正常" : "已禁用"}</span></td>
                         <td style={{ whiteSpace: "nowrap" }}>
                           <button className="ghost-button compact" onClick={() => fetchUserDetail(u.username)}>详情</button>
-                          {hasPermission("users.manage_status") && u.username !== user.username && (
+                          {canManageUserStatus(u) && u.username !== user.username && (
                             <button className="ghost-button compact" style={{ color: u.is_active !== 0 ? "#ef4444" : "#059669", marginLeft: 4 }}
                               onClick={() => handleUserStatus(u.username, u.is_active !== 0)}>
                               {u.is_active !== 0 ? "禁用" : "启用"}
@@ -1259,7 +1267,7 @@ export default function AdminCenter({ user }) {
                       <td><span className={`plan-tag plan-${u.plan}`}>{PLAN_NAMES[u.plan] || u.plan}</span></td>
                       <td>{u.plan_expires_at ? new Date(u.plan_expires_at).toLocaleDateString("zh-CN") : "永久"}</td>
                       <td>{u.created_at ? new Date(u.created_at).toLocaleDateString("zh-CN") : "-"}</td>
-                      <td><button className="ghost-button compact" onClick={() => setPlanEditForm({ username: u.username, plan: u.plan || "free", expire: u.plan_expires_at || "" })}>修改套餐</button></td>
+                      <td>{canManageUserPlan(u) && <button className="ghost-button compact" onClick={() => setPlanEditForm({ username: u.username, plan: u.plan || "free", expire: u.plan_expires_at || "" })}>修改套餐</button>}</td>
                     </tr>
                   ))}
                   {planUsers.items.length === 0 && <tr><td colSpan={5} style={{ textAlign: "center", color: "#6b7280" }}>暂无用户</td></tr>}
