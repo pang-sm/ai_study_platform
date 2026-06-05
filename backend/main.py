@@ -3546,6 +3546,8 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
     if not req.username:
         raise HTTPException(status_code=401, detail="请先登录后再使用 AI 聊天")
 
+    ensure_feature_enabled(db, "feature_ai_chat_enabled", "AI 问答功能暂时维护中，请稍后再试")
+
     user = get_user_by_username(req.username, db)
     subject = normalize_subject(req.subject, req.course)
     material_ids = sorted({int(item) for item in (req.material_ids or []) if int(item) > 0})
@@ -3756,6 +3758,8 @@ async def upload_material(
     upload_username = get_username_from_upload(username, authorization)
     if not upload_username:
         raise HTTPException(status_code=401, detail="请先登录后再上传文件")
+
+    ensure_feature_enabled(db, "feature_material_upload_enabled", "资料上传功能暂时维护中，请稍后再试")
 
     user = get_user_by_username(upload_username, db)
 
@@ -14738,6 +14742,8 @@ def create_report_share(report_id: int, req: schemas.LearningReportShareCreateRe
     if not report:
         raise HTTPException(status_code=404, detail="报告不存在")
 
+    ensure_feature_enabled(db, "feature_report_share_enabled", "报告分享功能暂时关闭")
+
     try:
         existing = (
             db.query(models.LearningReportShare)
@@ -15280,6 +15286,42 @@ def public_settings(db: Session = Depends(get_db)):
         s = db.query(models.SystemSetting).filter(models.SystemSetting.key == k).first()
         result[k] = (s.value if s else "true") == "true"
     return result
+
+
+# ── Feature Gate Helpers ──────────────────────────────
+
+def normalize_setting_bool(value, default=True):
+    """Normalize a setting value to boolean. Returns default on error/missing."""
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        return value != 0
+    if isinstance(value, str):
+        v = value.strip().lower()
+        if v in ("true", "1", "yes", "on"):
+            return True
+        if v in ("false", "0", "no", "off"):
+            return False
+    return default
+
+
+def is_feature_enabled_db(db, key, default=True):
+    """Check if a feature is enabled in system_settings. Default: enabled."""
+    try:
+        s = db.query(models.SystemSetting).filter(models.SystemSetting.key == key).first()
+        if not s:
+            return default
+        return normalize_setting_bool(s.value, default)
+    except Exception:
+        return default
+
+
+def ensure_feature_enabled(db, key, message):
+    """Raise 403 if feature is disabled."""
+    if not is_feature_enabled_db(db, key, default=True):
+        raise HTTPException(status_code=403, detail=message)
 
 
 # ── Interactive Terminal WebSocket ─────────────────────
