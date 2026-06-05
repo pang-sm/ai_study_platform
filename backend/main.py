@@ -13955,60 +13955,77 @@ def admin_usage_trend(admin_username: str, days: int = 7, db: Session = Depends(
 @app.get("/admin/usage-summary")
 def admin_usage_summary(admin_username: str, db: Session = Depends(get_db)):
     require_admin(admin_username, db)
+    from sqlalchemy import func as sqlfunc
 
     today_start = utc_now().replace(hour=0, minute=0, second=0, microsecond=0)
+    week_ago = today_start - timedelta(days=7)
 
+    # Total stats
+    total_calls_all = db.query(models.AiUsageLog).count()
+    total_success = db.query(models.AiUsageLog).filter(models.AiUsageLog.status == "success").count()
+    total_failed = db.query(models.AiUsageLog).filter(models.AiUsageLog.status != "success").count()
+    total_tokens_all = db.query(sqlfunc.coalesce(sqlfunc.sum(models.AiUsageLog.estimated_tokens), 0)).scalar() or 0
+    today_tokens = db.query(sqlfunc.coalesce(sqlfunc.sum(models.AiUsageLog.estimated_tokens), 0)).filter(models.AiUsageLog.created_at >= today_start).scalar() or 0
+    today_calls = db.query(models.AiUsageLog).filter(models.AiUsageLog.created_at >= today_start).count()
+    today_failed = db.query(models.AiUsageLog).filter(models.AiUsageLog.created_at >= today_start, models.AiUsageLog.status != "success").count()
+    week_avg = db.query(models.AiUsageLog).filter(models.AiUsageLog.created_at >= week_ago, models.AiUsageLog.status == "success").count() / 7.0
+
+    # Feature stats today
     feature_stats = {}
     for feature in ALL_FEATURES:
-        count = (
-            db.query(models.AiUsageLog)
-            .filter(
-                models.AiUsageLog.feature == feature,
-                models.AiUsageLog.status == "success",
-                models.AiUsageLog.created_at >= today_start,
-            )
-            .count()
-        )
-        feature_stats[feature] = count
+        feature_stats[feature] = db.query(models.AiUsageLog).filter(
+            models.AiUsageLog.feature == feature, models.AiUsageLog.status == "success", models.AiUsageLog.created_at >= today_start).count()
 
-    total_usage = (
-        db.query(models.AiUsageLog)
-        .filter(
-            models.AiUsageLog.status == "success",
-            models.AiUsageLog.created_at >= today_start,
-        )
-        .count()
-    )
+    # Feature failed today
+    feature_failed = {}
+    for feature in ALL_FEATURES:
+        c = db.query(models.AiUsageLog).filter(
+            models.AiUsageLog.feature == feature, models.AiUsageLog.status != "success", models.AiUsageLog.created_at >= today_start).count()
+        if c > 0: feature_failed[feature] = c
 
-    plan_counts = {}
-    for plan_name in ["free", "pro", "admin"]:
-        plan_counts[plan_name] = (
-            db.query(models.User).filter(models.User.plan == plan_name).count()
-        )
+    # Per-user today
+    user_usage_rows = db.query(models.AiUsageLog.username, sqlfunc.count(models.AiUsageLog.id), sqlfunc.sum(models.AiUsageLog.estimated_tokens)).filter(
+        models.AiUsageLog.created_at >= today_start).group_by(models.AiUsageLog.username).order_by(sqlfunc.count(models.AiUsageLog.id).desc()).limit(10).all()
+    user_usage = [{"username": r[0], "count": r[1], "tokens": r[2] or 0} for r in user_usage_rows]
 
-    recent_logs = (
-        db.query(models.AiUsageLog)
-        .order_by(models.AiUsageLog.created_at.desc())
-        .limit(100)
-        .all()
-    )
+    # Per-model tokens
+    model_rows = db.query(models.AiUsageLog.model, sqlfunc.sum(models.AiUsageLog.estimated_tokens)).filter(
+        models.AiUsageLog.model.isnot(None), models.AiUsageLog.model != "").group_by(models.AiUsageLog.model).all()
+    model_usage = [{"model": r[0] or "unknown", "tokens": r[1] or 0} for r in model_rows]
+
+    # Cost estimation
+    PRICING = {"deepseek": 0.002, "deepseek-chat": 0.002, "qwen": 0.004, "unknown": 0.003}
+    def est_cost(tokens, model="unknown"):
+        rate = PRICING.get(model, PRICING.get((model or "").split("-")[0], 0.003)) / 1000.0
+        return round(tokens * rate, 4)
+    total_cost = round(sum(est_cost(m["tokens"], m["model"]) for m in model_usage), 4)
+    model_cost = [{"model": m["model"], "tokens": m["tokens"], "estimated_cost_cny": est_cost(m["tokens"], m["model"])} for m in model_usage]
+
+    # Alerts
+    alerts = []
+    if today_calls > 0:
+        fail_rate = round(today_failed / today_calls * 100, 1)
+        if fail_rate > 20: alerts.append({"level": "warning", "type": "high_failure_rate", "title": "AI 调用失败率偏高", "message": f"最近 24 小时失败率为 {fail_rate}%", "value": fail_rate})
+    for u in user_usage:
+        if u["count"] > 50: alerts.append({"level": "warning", "type": "user_high_usage", "title": f"用户 {u['username']} 今日调用较高", "message": f"今日调用 {u['count']} 次", "value": u["count"]})
+        if (u["tokens"] or 0) > 100000: alerts.append({"level": "warning", "type": "user_high_tokens", "title": f"用户 {u['username']} 今日 Token 消耗较高", "message": f"今日 Token {u['tokens']}", "value": u["tokens"]})
+    for f, c in feature_failed.items():
+        if c >= 3: alerts.append({"level": "info", "type": "feature_failed", "title": f"功能 {f} 今日失败较多", "message": f"今日 {c} 次失败", "value": c})
+    if today_calls > week_avg * 2 and week_avg > 0: alerts.append({"level": "info", "type": "spike", "title": "今日调用量明显高于平均水平", "message": f"今日 {today_calls} vs 近7天均值 {round(week_avg)}", "value": today_calls})
+
+    recent_logs = db.query(models.AiUsageLog).order_by(models.AiUsageLog.created_at.desc()).limit(100).all()
 
     return {
-        "today_total": total_usage,
-        "feature_stats": feature_stats,
-        "plan_counts": plan_counts,
-        "recent_logs": [
-            {
-                "username": log.username,
-                "feature": log.feature,
-                "model": log.model,
-                "estimated_tokens": log.estimated_tokens,
-                "status": log.status,
-                "error_message": log.error_message,
-                "created_at": serialize_datetime(log.created_at),
-            }
-            for log in recent_logs
-        ],
+        "total_calls_all": total_calls_all, "total_success": total_success, "total_failed": total_failed,
+        "total_tokens_all": total_tokens_all, "today_tokens": today_tokens,
+        "today_total": today_calls, "today_failed": today_failed,
+        "feature_stats": feature_stats, "feature_failed": feature_failed,
+        "user_usage": user_usage, "model_usage": model_usage,
+        "cost_estimate": {"total_tokens": total_tokens_all, "today_tokens": today_tokens,
+                          "estimated_cost_cny": total_cost, "pricing_note": "按估算单价计算，仅供参考", "by_model": model_cost},
+        "alerts": alerts,
+        "plan_counts": {p: db.query(models.User).filter(models.User.plan == p).count() for p in ["free", "pro", "admin"]},
+        "recent_logs": [{"username": log.username, "feature": log.feature, "model": log.model, "estimated_tokens": log.estimated_tokens, "status": log.status, "error_message": log.error_message, "created_at": serialize_datetime(log.created_at)} for log in recent_logs],
     }
 
 

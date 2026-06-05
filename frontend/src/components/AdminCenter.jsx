@@ -88,7 +88,7 @@ export default function AdminCenter({ user }) {
 
   useEffect(() => {
     if (!isAdmin) return;
-    if (tab === "overview") { fetchDashboard(); fetchTrendData(trendDays); }
+    if (tab === "overview") { fetchDashboard(); fetchTrendData(trendDays); fetchUsageSummary(); }
     if (tab === "courses") fetchCourses();
     if (tab === "plans") fetchPlanUsers(1);
   }, [tab, isAdmin]);
@@ -264,6 +264,14 @@ export default function AdminCenter({ user }) {
   const handleSort = (key) => setCourseSort((prev) => ({ key, dir: prev.key === key && prev.dir === "asc" ? "desc" : "asc" }));
   const sortArrow = (key) => courseSort.key === key ? (courseSort.dir === "desc" ? " ▼" : " ▲") : "";
 
+  // ── Usage Summary ──
+  const fetchUsageSummary = async () => {
+    try {
+      const data = await getJson(`${API_BASE}/admin/usage-summary?${adminParam}`);
+      setUsageSummary(data);
+    } catch { setUsageSummary(null); }
+  };
+
   // ── Export AI logs ──
   const [exporting, setExporting] = useState(false);
   const handleExport = async () => {
@@ -301,6 +309,9 @@ export default function AdminCenter({ user }) {
       </div>
     );
   }
+
+  // ── AI Usage Summary ──
+  const [usageSummary, setUsageSummary] = useState(null);
 
   // ── Overview ──
 
@@ -646,6 +657,41 @@ export default function AdminCenter({ user }) {
                   </div>
                 </section>
               </div>
+
+              {/* ── AI Usage Summary + Alerts ── */}
+              {usageSummary && (
+                <>
+                  <div className="admin-stat-row" style={{ marginTop: 6 }}>
+                    {[
+                      { label: "总调用", value: totalCalls, sub: `${usageSummary.total_success || 0} 成功 / ${usageSummary.total_failed || 0} 失败` },
+                      { label: "成功率", value: totalCalls > 0 ? `${Math.round((usageSummary.total_success || 0) / totalCalls * 100)}%` : "N/A", sub: "" },
+                      { label: "总 Tokens", value: (usageSummary.total_tokens_all || 0).toLocaleString(), sub: "累计消耗" },
+                      { label: "今日调用", value: usageSummary.today_total || 0, sub: `今日 Token ${(usageSummary.today_tokens || 0).toLocaleString()}` },
+                      { label: "估算成本", value: `¥${(usageSummary.cost_estimate?.estimated_cost_cny || 0).toFixed(2)}`, sub: usageSummary.cost_estimate?.pricing_note || "" },
+                    ].map(({ label, value, sub }) => (
+                      <div key={label} className="admin-stat-card-v2">
+                        <div className="admin-stat-top"><span className="admin-stat-label">{label}</span></div>
+                        <div className="admin-stat-value-v2">{value}</div>
+                        <div className="admin-stat-sub">{sub}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {(usageSummary.alerts || []).length > 0 && (
+                    <div style={{ marginBottom: 14 }}>
+                      {usageSummary.alerts.map((a, i) => (
+                        <div key={i} style={{ padding: "8px 14px", marginBottom: 6, borderRadius: 10, background: a.level === "warning" ? "#fef3c7" : "#eff6ff", border: "1px solid " + (a.level === "warning" ? "#fde68a" : "#bfdbfe"), fontSize: "0.8rem", color: a.level === "warning" ? "#92400e" : "#1e40af" }}>
+                          <strong>{a.title}</strong> — {a.message} {a.value !== undefined && <span style={{ fontWeight: 700 }}>({a.value})</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {(!usageSummary.alerts || usageSummary.alerts.length === 0) && (
+                    <div style={{ padding: "10px 14px", marginBottom: 14, borderRadius: 10, background: "#f0fdf4", border: "1px solid #bbf7d0", fontSize: "0.8rem", color: "#166534" }}>
+                      ✅ 当前 AI 调用状态正常
+                    </div>
+                  )}
+                </>
+              )}
 
               {/* ── Recent AI Logs Table ── */}
               {(dashboard.recent_ai_logs || []).length > 0 && (
