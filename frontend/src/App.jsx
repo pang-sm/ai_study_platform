@@ -434,13 +434,23 @@ function App() {
   const [authMode, setAuthMode] = useState("login");
 
   const setPage = (nextPage) => {
+    // Feature gating: intercept navigation to disabled features
+    const PAGE_FEATURE_MAP = {
+      codeStudio: "feature_code_studio_enabled",
+      practiceCenter: "feature_practice_center_enabled",
+    };
+    const gateKey = PAGE_FEATURE_MAP[nextPage];
+    if (gateKey && !isFeatureEnabled(gateKey)) {
+      alert("该功能暂时维护中，请稍后再试");
+      return;
+    }
     saveCurrentPage(nextPage);
     setPageRaw(nextPage);
   };
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [user, setUser] = useState(getSavedUser);
-  const [publicFeatures, setPublicFeatures] = useState(null); // { feature_key: bool }
+  const [publicFeatures, setPublicFeatures] = useState(null);
   const [userAnnouncements, setUserAnnouncements] = useState([]);
   const [dismissedAnnounceIds, setDismissedAnnounceIds] = useState(() => {
     try { return JSON.parse(sessionStorage.getItem("dismissed_announcements") || "[]"); } catch { return []; }
@@ -450,11 +460,57 @@ function App() {
     setDismissedAnnounceIds(next);
     try { sessionStorage.setItem("dismissed_announcements", JSON.stringify(next)); } catch {}
   };
-  const isFeatureEnabled = (key) => publicFeatures === null ? true : !!publicFeatures[key];
+
+  /** Normalize feature value: missing/error → true (default open), "false"/0 → false, "true"/1 → true */
+  function normalizeFeatureValue(value) {
+    if (value === undefined || value === null) return true;
+    if (value === true || value === 1 || value === "1") return true;
+    if (value === false || value === 0 || value === "0") return false;
+    if (typeof value === "string") {
+      const n = value.trim().toLowerCase();
+      if (n === "true") return true;
+      if (n === "false") return false;
+    }
+    return true; // unknown → default open
+  }
+
+  function isFeatureEnabled(key) {
+    if (!publicFeatures) return true;           // not loaded yet → default open
+    return normalizeFeatureValue(publicFeatures[key]);
+  }
+
+  /** Guard: if feature disabled, alert and return false. Usage: if (!guardFeature("key", "msg")) return; */
+  function guardFeature(key, message) {
+    if (!isFeatureEnabled(key)) {
+      alert(message || "该功能暂时维护中，请稍后再试");
+      return false;
+    }
+    return true;
+  }
+
   useEffect(() => {
-    fetch(`${API_BASE}/settings/public`).then((r) => r.json()).then((d) => setPublicFeatures(d)).catch(() => setPublicFeatures({}));
+    fetch(`${API_BASE}/settings/public`)
+      .then((r) => r.json())
+      .then((d) => {
+        // Accept both object {key:val} and array [{key,value}]
+        if (Array.isArray(d.items)) {
+          const m = {};
+          d.items.forEach((s) => { m[s.key] = s.value; });
+          setPublicFeatures(m);
+        } else if (d && typeof d === "object") {
+          setPublicFeatures(d);
+        } else {
+          setPublicFeatures(null);
+        }
+      })
+      .catch(() => setPublicFeatures(null));
     fetch(`${API_BASE}/announcements/active`).then((r) => r.json()).then((d) => setUserAnnouncements(d.items || [])).catch(() => setUserAnnouncements([]));
   }, [user?.username]);
+
+  // Sync to window so other components can read without prop-drilling
+  useEffect(() => {
+    window.__publicFeatures = publicFeatures;
+  }, [publicFeatures]);
   const [profileForm, setProfileForm] = useState({
     nickname: "",
     grade: "",
