@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getSubjectLabel } from "../courseOptions.js";
 
 const API_BASE = "/api";
