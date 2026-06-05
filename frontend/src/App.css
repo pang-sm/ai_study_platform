@@ -11523,3 +11523,14 @@ select.field:focus {
     border: 1px solid #ddd !important;
   }
 }
+
+
+.admin-batch-bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 14px; margin-bottom: 10px;
+  background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px;
+  font-size: 0.82rem; color: #1e40af; flex-wrap: wrap;
+}
+.admin-batch-bar .primary-button.compact { font-size: 0.75rem; padding: 5px 12px; }
+.admin-batch-bar .ghost-button.compact { font-size: 0.75rem; }
+

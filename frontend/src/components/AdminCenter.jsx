@@ -197,6 +197,91 @@ export default function AdminCenter({ user }) {
     } catch (e) { setError(e.message); }
   };
 
+  // ── Batch selections ──
+  const [selectedUsers, setSelectedUsers] = useState(new Set());
+  const [selectedMaterials, setSelectedMaterials] = useState(new Set());
+  const [selectedShares, setSelectedShares] = useState(new Set());
+  const toggleSelect = (setter, id) => setter((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
+  const selectAll = (setter, ids) => setter(new Set(ids));
+  const clearSelection = (setter) => setter(new Set());
+
+  const runBatch = async (items, actionFn, successMsg, setter, refreshFn) => {
+    const results = await Promise.allSettled(items.map(actionFn));
+    let ok = 0, fail = 0;
+    results.forEach((r) => { if (r.status === "fulfilled") ok++; else fail++; });
+    setPlanMsg(`${successMsg}：成功 ${ok} 项${fail > 0 ? `，失败 ${fail} 项` : ""}`);
+    setTimeout(() => setPlanMsg(""), 3000);
+    clearSelection(setter);
+    refreshFn();
+  };
+
+  const batchUserDisable = (active) => {
+    const items = [...selectedUsers].map((u) => () => fetch(`${API_BASE}/admin/users/${encodeURIComponent(u)}/status`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ admin_username: user.username, is_active: active }),
+    }).then((r) => { if (!r.ok) throw new Error(r.status); }));
+    const action = active ? "启用" : "禁用";
+    if (!window.confirm(`确认批量${action} ${items.length} 个用户？`)) return;
+    runBatch(items, (fn) => fn(), `批量${action}`, setSelectedUsers, () => { fetchUsers(users.page); fetchDashboard(); });
+  };
+
+  const batchMaterialDelete = () => {
+    const items = [...selectedMaterials].map((id) => () => fetch(`${API_BASE}/admin/materials/${id}?admin_username=${encodeURIComponent(user.username)}`, { method: "DELETE" }).then((r) => { if (!r.ok) throw new Error(r.status); }));
+    if (!window.confirm(`确认批量删除 ${items.length} 个资料？该操作会删除资料库记录和索引分块。`)) return;
+    runBatch(items, (fn) => fn(), "批量删除", setSelectedMaterials, () => { fetchMaterials(materials.page); fetchDashboard(); });
+  };
+
+  const batchShareStatus = (newStatus) => {
+    const items = [...selectedShares].map((id) => () => fetch(`${API_BASE}/admin/report-shares/${id}/status`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ admin_username: user.username, status: newStatus }),
+    }).then((r) => { if (!r.ok) throw new Error(r.status); }));
+    const labels = { approved: "通过", revoked: "撤销", pending: "恢复" };
+    if (!window.confirm(`确认批量${labels[newStatus] || newStatus} ${items.length} 个报告分享？`)) return;
+    runBatch(items, (fn) => fn(), `批量${labels[newStatus] || newStatus}`, setSelectedShares, () => fetchReportShares(reportShares.page));
+  };
+
+  // ── Course sort / filter ──
+  const [courseSort, setCourseSort] = useState({ key: "ai_call_count", dir: "desc" });
+  const [courseSearch, setCourseSearch] = useState("");
+  const [courseFilterHasMat, setCourseFilterHasMat] = useState("");
+  const [courseFilterHasAI, setCourseFilterHasAI] = useState("");
+
+  const sortedCourses = useMemo(() => {
+    let list = courses || [];
+    if (courseSearch) list = list.filter((c) => (c.course || "").includes(courseSearch));
+    if (courseFilterHasMat === "yes") list = list.filter((c) => (c.material_count || 0) > 0);
+    if (courseFilterHasMat === "no") list = list.filter((c) => (c.material_count || 0) === 0);
+    if (courseFilterHasAI === "yes") list = list.filter((c) => (c.ai_call_count || 0) > 0);
+    if (courseFilterHasAI === "no") list = list.filter((c) => (c.ai_call_count || 0) === 0);
+    list = [...list].sort((a, b) => {
+      const va = a[courseSort.key] || 0, vb = b[courseSort.key] || 0;
+      return courseSort.dir === "desc" ? vb - va : va - vb;
+    });
+    return list;
+  }, [courses, courseSort, courseSearch, courseFilterHasMat, courseFilterHasAI]);
+
+  const handleSort = (key) => setCourseSort((prev) => ({ key, dir: prev.key === key && prev.dir === "asc" ? "desc" : "asc" }));
+  const sortArrow = (key) => courseSort.key === key ? (courseSort.dir === "desc" ? " ▼" : " ▲") : "";
+
+  // ── Export AI logs ──
+  const [exporting, setExporting] = useState(false);
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const params = new URLSearchParams({ admin_username: user.username });
+      if (aiLogFeature) params.set("feature", aiLogFeature);
+      if (aiLogUsername.trim()) params.set("target_username", aiLogUsername.trim());
+      if (aiLogStatus) params.set("status", aiLogStatus);
+      const res = await fetch(`${API_BASE}/admin/ai-logs/export?${params}`);
+      if (!res.ok) throw new Error("导出失败");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url; a.download = `ai_usage_logs_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    } catch (e) { setError(e.message); } finally { setExporting(false); }
+  };
+
   // ── AI log detail ──
   const fetchAiLogDetail = (log) => { setAiLogDetail(log); };
 
@@ -617,12 +702,23 @@ export default function AdminCenter({ user }) {
             <button className="primary-button" onClick={() => fetchUsers(1)}>搜索</button>
           </div>
 
+          {/* Batch bar */}
+          {selectedUsers.size > 0 && (
+            <div className="admin-batch-bar">
+              <span>已选择 {selectedUsers.size} 项</span>
+              <button className="primary-button compact" onClick={() => batchUserDisable(false)}>批量禁用</button>
+              <button className="ghost-button compact" style={{ color: "#059669" }} onClick={() => batchUserDisable(true)}>批量启用</button>
+              <button className="ghost-button compact" onClick={() => clearSelection(setSelectedUsers)}>清空选择</button>
+            </div>
+          )}
+
           {loading ? <div className="empty-state">加载中...</div> : (
             <>
               <div className="admin-table-wrap">
                 <table className="admin-table">
                   <thead>
                     <tr>
+                      <th><input type="checkbox" onChange={(e) => e.target.checked ? selectAll(setSelectedUsers, users.items.map((u) => u.username)) : clearSelection(setSelectedUsers)} /></th>
                       <th>用户名</th>
                       <th>昵称</th>
                       <th>套餐</th>
@@ -639,6 +735,7 @@ export default function AdminCenter({ user }) {
                   <tbody>
                     {users.items.map((u) => (
                       <tr key={u.username}>
+                        <td><input type="checkbox" checked={selectedUsers.has(u.username)} onChange={() => toggleSelect(setSelectedUsers, u.username)} /></td>
                         <td>{u.username}</td>
                         <td>{u.nickname || "-"}</td>
                         <td><span className={`plan-tag plan-${u.plan}`}>{PLAN_NAMES[u.plan] || u.plan}</span></td>
@@ -720,6 +817,7 @@ export default function AdminCenter({ user }) {
               <option value="failed">失败</option>
             </select>
             <button className="primary-button" onClick={() => fetchAiLogs(1)}>查询</button>
+            <button className="primary-button" onClick={handleExport} disabled={exporting} style={{ marginLeft: 8 }}>{exporting ? "导出中..." : "导出 CSV"}</button>
           </div>
 
           {loading ? <div className="empty-state">加载中...</div> : (
@@ -769,12 +867,21 @@ export default function AdminCenter({ user }) {
             <button className="primary-button" onClick={() => fetchMaterials(1)}>查询</button>
           </div>
 
+          {selectedMaterials.size > 0 && (
+            <div className="admin-batch-bar">
+              <span>已选择 {selectedMaterials.size} 项</span>
+              <button className="primary-button compact" style={{ background: "#ef4444" }} onClick={batchMaterialDelete}>批量删除</button>
+              <button className="ghost-button compact" onClick={() => clearSelection(setSelectedMaterials)}>清空选择</button>
+            </div>
+          )}
+
           {loading ? <div className="empty-state">加载中...</div> : (
             <>
               <div className="admin-table-wrap">
                 <table className="admin-table">
                   <thead>
                     <tr>
+                      <th><input type="checkbox" onChange={(e) => e.target.checked ? selectAll(setSelectedMaterials, materials.items.map((m) => m.material_id)) : clearSelection(setSelectedMaterials)} /></th>
                       <th>文件名</th>
                       <th>用户</th>
                       <th>课程</th>
@@ -789,6 +896,7 @@ export default function AdminCenter({ user }) {
                   <tbody>
                     {materials.items.map((m) => (
                       <tr key={m.material_id}>
+                        <td><input type="checkbox" checked={selectedMaterials.has(m.material_id)} onChange={() => toggleSelect(setSelectedMaterials, m.material_id)} /></td>
                         <td title={m.original_filename}>{m.original_filename.length > 30 ? m.original_filename.slice(0, 30) + "..." : m.original_filename}</td>
                         <td>{m.username}</td>
                         <td>{getSubjectLabel(m.subject) || m.subject || "-"}</td>
@@ -820,22 +928,31 @@ export default function AdminCenter({ user }) {
       {/* ── Courses ── */}
       {tab === "courses" && (
         <div className="admin-tab-content">
+          <div className="admin-filters">
+            <input className="field" placeholder="搜索课程..." value={courseSearch} onChange={(e) => setCourseSearch(e.target.value)} />
+            <select className="field" value={courseFilterHasMat} onChange={(e) => setCourseFilterHasMat(e.target.value)}>
+              <option value="">全部资料</option><option value="yes">有资料</option><option value="no">无资料</option>
+            </select>
+            <select className="field" value={courseFilterHasAI} onChange={(e) => setCourseFilterHasAI(e.target.value)}>
+              <option value="">全部AI调用</option><option value="yes">有AI调用</option><option value="no">无AI调用</option>
+            </select>
+          </div>
           {loading ? <div className="empty-state">加载中...</div> : (
             <div className="admin-table-wrap">
               <table className="admin-table">
                 <thead>
                   <tr>
                     <th>课程</th>
-                    <th>用户数</th>
-                    <th>资料数</th>
-                    <th>知识点数</th>
-                    <th>任务数</th>
-                    <th>题目数</th>
-                    <th>平均掌握度</th>
+                    <th style={{ cursor: "pointer" }} onClick={() => handleSort("user_count")}>用户数{sortArrow("user_count")}</th>
+                    <th style={{ cursor: "pointer" }} onClick={() => handleSort("material_count")}>资料数{sortArrow("material_count")}</th>
+                    <th style={{ cursor: "pointer" }} onClick={() => handleSort("knowledge_point_count")}>知识点数{sortArrow("knowledge_point_count")}</th>
+                    <th style={{ cursor: "pointer" }} onClick={() => handleSort("task_count")}>任务数{sortArrow("task_count")}</th>
+                    <th style={{ cursor: "pointer" }} onClick={() => handleSort("question_count")}>题目数{sortArrow("question_count")}</th>
+                    <th style={{ cursor: "pointer" }} onClick={() => handleSort("ai_call_count")}>AI调用数{sortArrow("ai_call_count")}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {courses.map((c) => (
+                  {sortedCourses.map((c) => (
                     <tr key={c.course_id}>
                       <td>{getSubjectLabel(c.course_id) || c.course_id}</td>
                       <td>{c.user_count}</td>
@@ -956,12 +1073,22 @@ export default function AdminCenter({ user }) {
       {/* ── Report Shares ── */}
       {tab === "reportShares" && (
         <div className="admin-tab-content">
+          {selectedShares.size > 0 && (
+            <div className="admin-batch-bar">
+              <span>已选择 {selectedShares.size} 项</span>
+              <button className="primary-button compact" style={{ color: "#059669" }} onClick={() => batchShareStatus("approved")}>批量通过</button>
+              <button className="ghost-button compact" style={{ color: "#ef4444" }} onClick={() => batchShareStatus("revoked")}>批量撤销</button>
+              <button className="ghost-button compact" onClick={() => batchShareStatus("pending")}>批量恢复</button>
+              <button className="ghost-button compact" onClick={() => clearSelection(setSelectedShares)}>清空选择</button>
+            </div>
+          )}
           {loading ? <div className="empty-state">加载中...</div> : (
             <>
               <div className="admin-table-wrap">
                 <table className="admin-table">
                   <thead>
                     <tr>
+                      <th><input type="checkbox" onChange={(e) => e.target.checked ? selectAll(setSelectedShares, reportShares.items.map((s) => s.id)) : clearSelection(setSelectedShares)} /></th>
                       <th>报告标题</th>
                       <th>用户</th>
                       <th>状态</th>
@@ -975,6 +1102,7 @@ export default function AdminCenter({ user }) {
                   <tbody>
                     {reportShares.items.map((s) => (
                       <tr key={s.id}>
+                        <td><input type="checkbox" checked={selectedShares.has(s.id)} onChange={() => toggleSelect(setSelectedShares, s.id)} /></td>
                         <td title={s.title}>{s.title && s.title.length > 30 ? s.title.slice(0, 30) + "..." : (s.title || "-")}</td>
                         <td>{s.username}</td>
                         <td><span className={`status-pill ${s.is_active ? "status-pill--ok" : "status-pill--fail"}`}>{s.is_active ? "已通过" : "已撤销"}</span></td>

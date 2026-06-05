@@ -13729,6 +13729,49 @@ def admin_ai_logs(
     }
 
 
+@app.get("/admin/ai-logs/export")
+def admin_ai_logs_export(
+    admin_username: str,
+    feature: str = "",
+    target_username: str = "",
+    status: str = "",
+    start_date: str = "",
+    end_date: str = "",
+    db: Session = Depends(get_db),
+):
+    require_admin(admin_username, db)
+    import csv, io as _io
+    query = db.query(models.AiUsageLog)
+    if f := feature.strip(): query = query.filter(models.AiUsageLog.feature == f)
+    if u := target_username.strip(): query = query.filter(models.AiUsageLog.username.contains(u))
+    if s := status.strip(): query = query.filter(models.AiUsageLog.status == s)
+    if sd := start_date.strip():
+        try:
+            start_dt = datetime.fromisoformat(sd)
+            query = query.filter(models.AiUsageLog.created_at >= start_dt)
+        except ValueError: pass
+    if ed := end_date.strip():
+        try:
+            end_dt = datetime.fromisoformat(ed)
+            query = query.filter(models.AiUsageLog.created_at <= end_dt)
+        except ValueError: pass
+    logs = query.order_by(models.AiUsageLog.created_at.desc()).limit(5000).all()
+    output = _io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["用户", "功能", "状态", "模型", "Tokens", "错误信息", "时间"])
+    for log in logs:
+        writer.writerow([
+            log.username, log.feature, log.status, log.model or "",
+            log.estimated_tokens or 0, log.error_message or "",
+            serialize_datetime(log.created_at) or "",
+        ])
+    _write_audit_log(admin_username, f"导出AI使用日志 ({len(logs)}条)", db, target_type="ai_logs", detail=f"feature={feature} status={status}")
+    from fastapi.responses import Response
+    filename = f"ai_usage_logs_{utc_now().strftime('%Y%m%d_%H%M')}.csv"
+    return Response(content=output.getvalue(), media_type="text/csv; charset=utf-8-sig",
+                    headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
 @app.get("/admin/materials")
 def admin_materials(
     admin_username: str,
