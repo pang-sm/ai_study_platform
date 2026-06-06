@@ -657,7 +657,15 @@ export default function PracticeCenter({
       if (!res.ok) {
         throw new Error(data.detail || "保存失败，请稍后重试");
       }
-      setAiSaveResult(data);
+      // Refresh question list so saved questions appear immediately
+      let refreshSuccess = false;
+      try {
+        await loadQuestions();
+        refreshSuccess = true;
+      } catch {
+        // refresh failed, but questions are saved — show partial success
+      }
+      setAiSaveResult({ ...data, refreshSuccess, currentTotal: refreshSuccess ? null : "unknown" });
     } catch (e) {
       setAiSaveError(e.message || "保存到题库失败，请稍后重试。");
     } finally {
@@ -4031,7 +4039,9 @@ export default function PracticeCenter({
               {aiSaveResult && (
                 <div style={{ padding: 24, textAlign: "center" }}>
                   <div style={{ fontSize: 40, marginBottom: 8 }}>✅</div>
-                  <h3 style={{ color: "#059669", margin: "0 0 12px" }}>保存成功</h3>
+                  <h3 style={{ color: "#059669", margin: "0 0 12px" }}>
+                    已保存到题库，当前知识点已有 {totalCount} 道题，可开始正式练习。
+                  </h3>
                   <div style={{ display: "flex", justifyContent: "center", gap: 16, marginBottom: 12 }}>
                     <div style={{ background: "#f0fdf4", borderRadius: 10, padding: "10px 18px", border: "1px solid #bbf7d0" }}>
                       <span style={{ fontSize: 22, fontWeight: 800, color: "#059669" }}>{aiSaveResult.created_count}</span>
@@ -4041,11 +4051,32 @@ export default function PracticeCenter({
                       <span style={{ fontSize: 22, fontWeight: 800, color: "#64748b" }}>{aiSaveResult.skipped_count}</span>
                       <span style={{ fontSize: 12, color: "#64748b", display: "block" }}>跳过重复</span>
                     </div>
+                    <div style={{ background: "#eff6ff", borderRadius: 10, padding: "10px 18px", border: "1px solid #bfdbfe" }}>
+                      <span style={{ fontSize: 22, fontWeight: 800, color: "#2563eb" }}>{totalCount}</span>
+                      <span style={{ fontSize: 12, color: "#64748b", display: "block" }}>当前题库</span>
+                    </div>
                   </div>
-                  <p style={{ color: "#475569", fontSize: 13, margin: "0 0 16px" }}>
-                    已保存 {aiSaveResult.created_count} 道题到题库，可在练习中心继续使用。
-                  </p>
-                  <button className="cmp-btn cmp-btn--primary" type="button" onClick={closeAiSaveModal}>关闭</button>
+                  {aiSaveResult.refreshSuccess === false && (
+                    <p style={{ color: "#b45309", fontSize: 13, margin: "0 0 16px" }}>
+                      题目已保存，但当前列表刷新失败，请手动刷新页面。
+                    </p>
+                  )}
+                  <div style={{ display: "flex", justifyContent: "center", gap: 8 }}>
+                    <button
+                      className="cmp-btn cmp-btn--primary"
+                      type="button"
+                      onClick={() => {
+                        closeAiSaveModal();
+                        // Collapse AI preview and let user see the question list
+                        setTaskGenQuestions([]);
+                        setTaskGenError("");
+                        // Scroll to question list
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                      }}
+                    >
+                      关闭并查看题库
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
