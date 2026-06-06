@@ -14061,43 +14061,125 @@ def admin_dashboard(admin_username: str, db: Session = Depends(get_db)):
     else:
         system_notes.append("今日暂无 AI 调用异常")
 
+@app.get("/admin/operations-dashboard")
+def admin_operations_dashboard(admin_username: str, db: Session = Depends(get_db)):
+    require_admin_permission(db, admin_username, "dashboard.view")
+    from sqlalchemy import func as sqlfunc
+    today = utc_now().replace(hour=0, minute=0, second=0, microsecond=0)
+    week_ago = today - timedelta(days=7)
+
+    # Overview
+    total_users = db.query(models.User).count()
+    active_users = db.query(models.User).filter(models.User.is_active != 0).count()
+    today_new = db.query(models.User).filter(models.User.created_at >= today).count()
+    total_materials = db.query(models.StudyMaterial).filter(models.StudyMaterial.is_deleted.is_(False)).count()
+    total_ai = db.query(models.AiUsageLog).filter(models.AiUsageLog.status == "success").count()
+    today_ai = db.query(models.AiUsageLog).filter(models.AiUsageLog.status == "success", models.AiUsageLog.created_at >= today).count()
+    today_failed = db.query(models.AiUsageLog).filter(models.AiUsageLog.status != "success", models.AiUsageLog.created_at >= today).count()
+    total_tokens = db.query(sqlfunc.coalesce(sqlfunc.sum(models.AiUsageLog.estimated_tokens), 0)).scalar() or 0
+
+    # Growth trends (7 days)
+    def _daily_count(model, date_field, since, filter_extra=None):
+        results = []
+        for i in range(6, -1, -1):
+            d = today - timedelta(days=i)
+            nd = d + timedelta(days=1)
+            q = db.query(sqlfunc.count(model.id)).filter(date_field >= d, date_field < nd)
+            if filter_extra is not None: q = q.filter(filter_extra)
+            results.append({"date": d.strftime("%m-%d"), "count": q.scalar() or 0})
+        return results
+
+    users_7d = _daily_count(models.User, models.User.created_at, today)
+    materials_7d = _daily_count(models.StudyMaterial, models.StudyMaterial.created_at, today, models.StudyMaterial.is_deleted.is_(False))
+    ai_7d_data = []
+    for i in range(6, -1, -1):
+        d = today - timedelta(days=i); nd = d + timedelta(days=1)
+        ai_7d_data.append({"date": d.strftime("%m-%d"), "count": db.query(sqlfunc.count(models.AiUsageLog.id)).filter(models.AiUsageLog.status == "success", models.AiUsageLog.created_at >= d, models.AiUsageLog.created_at < nd).scalar() or 0,
+                           "tokens": db.query(sqlfunc.coalesce(sqlfunc.sum(models.AiUsageLog.estimated_tokens), 0)).filter(models.AiUsageLog.created_at >= d, models.AiUsageLog.created_at < nd).scalar() or 0})
+
+    # Rankings (Top 5)
+    top_courses_ai = db.query(models.AiUsageLog.course_id, sqlfunc.count(models.AiUsageLog.id)).filter(models.AiUsageLog.status == "success", models.AiUsageLog.course_id.isnot(None), models.AiUsageLog.course_id != "").group_by(models.AiUsageLog.course_id).order_by(sqlfunc.count(models.AiUsageLog.id).desc()).limit(5).all()
+    top_users_ai = db.query(models.AiUsageLog.username, sqlfunc.count(models.AiUsageLog.id)).filter(models.AiUsageLog.status == "success").group_by(models.AiUsageLog.username).order_by(sqlfunc.count(models.AiUsageLog.id).desc()).limit(5).all()
+    top_courses_mat = db.query(models.StudyMaterial.subject, sqlfunc.count(models.StudyMaterial.id)).filter(models.StudyMaterial.is_deleted.is_(False), models.StudyMaterial.subject.isnot(None), models.StudyMaterial.subject != "").group_by(models.StudyMaterial.subject).order_by(sqlfunc.count(models.StudyMaterial.id).desc()).limit(5).all()
+
+    # Risks
+    mat_issues = db.query(models.StudyMaterial).filter(models.StudyMaterial.is_deleted.is_(False), models.StudyMaterial.extracted_text.is_(None) | (models.StudyMaterial.extracted_text == "")).count()
+    high_risk_audits = db.query(models.AdminAuditLog).filter(models.AdminAuditLog.created_at >= week_ago, models.AdminAuditLog.action.in_(["delete_material", "disable_user", "revoke_share"])).count()
+
+    # Alerts
+    alerts = []
+    if today_failed > 0: alerts.append({"level": "warning", "title": "今日 AI 调用失败", "message": f"今日有 {today_failed} 次 AI 调用失败", "count": today_failed})
+    if mat_issues > 0: alerts.append({"level": "warning" if mat_issues > 3 else "info", "title": "资料解析异常", "message": f"有 {mat_issues} 个资料需要处理", "count": mat_issues})
+    # Backup last
+    from sqlalchemy import desc
+    last_backup = db.query(models.AdminAuditLog).filter(models.AdminAuditLog.action == "create_backup").order_by(desc(models.AdminAuditLog.created_at)).first()
+    backup_days_ago = (today - last_backup.created_at.replace(tzinfo=None)).days if last_backup else 999
+    if backup_days_ago >= 7: alerts.append({"level": "danger", "title": "长期未备份", "message": f"距上次备份已 {backup_days_ago} 天" if last_backup else "尚未创建过数据备份", "count": backup_days_ago})
+
+    # Todos
+    todos = []
+    if mat_issues > 0: todos.append({"type": "material_issue", "level": "warning", "title": "处理资料解析异常", "message": f"有 {mat_issues} 个资料需要重新解析或删除", "tab": "systemHealth"})
+    if today_failed > 3: todos.append({"type": "ai_failed", "level": "warning", "title": "查看 AI 失败日志", "message": f"今日 {today_failed} 次 AI 调用失败", "tab": "aiLogs"})
+    if backup_days_ago >= 7: todos.append({"type": "backup", "level": "danger", "title": "创建数据备份", "message": "建议立即创建数据备份", "tab": "backups"})
+
+    return {
+        "overview": {"total_users": total_users, "active_users": active_users, "today_new_users": today_new,
+                     "total_materials": total_materials, "total_ai_calls": total_ai, "today_ai_calls": today_ai,
+                     "today_failed_ai": today_failed, "total_tokens": total_tokens,
+                     "estimated_cost_cny": round(total_tokens * 0.002 / 1000, 4)},
+        "growth": {"users_7d": users_7d, "materials_7d": materials_7d, "ai_calls_7d": ai_7d_data},
+        "rankings": {"top_courses_by_ai": [{"course": r[0] or "未知", "count": r[1]} for r in top_courses_ai],
+                     "top_users_by_ai": [{"username": r[0], "count": r[1]} for r in top_users_ai],
+                     "top_courses_by_materials": [{"course": r[0] or "未知", "count": r[1]} for r in top_courses_mat]},
+        "risks": {"pending_material_issues": mat_issues, "today_failed_ai_calls": today_failed, "high_risk_audits_7d": high_risk_audits, "alerts": alerts},
+        "todos": todos,
+    }
+
+
+
+@app.get("/admin/dashboard-v1")
+def admin_dashboard_v1(db: Session = Depends(get_db)):
+    """Legacy v1 dashboard preserved for compatibility."""
+    from datetime import datetime as _dt
+    today_start = _dt.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    _total_users = db.query(models.User).count()
+    _plan_counts = {}
+    for _p in ("free", "pro", "admin"):
+        _plan_counts[_p] = db.query(models.User).filter(models.User.plan == _p).count()
+    _recent = db.query(models.AiUsageLog).order_by(models.AiUsageLog.created_at.desc()).limit(20).all()
+    _ai_calls_today = db.query(models.AiUsageLog).filter(models.AiUsageLog.status == "success", models.AiUsageLog.created_at >= today_start).count()
+    _ai_calls_total = db.query(models.AiUsageLog).filter(models.AiUsageLog.status == "success").count()
+    _mats = db.query(models.StudyMaterial).filter(models.StudyMaterial.is_deleted.is_(False)).count()
+    _kps = db.query(models.KnowledgePoint).count()
+    _tasks = db.query(models.LearningTask).count()
+    _questions = db.query(models.Question).count()
+    _courses_set = set()
+    for r in db.query(models.StudyMaterial.subject).filter(models.StudyMaterial.is_deleted.is_(False), models.StudyMaterial.subject != "").distinct().all():
+        if r[0]: _courses_set.add(r[0])
+    for r in db.query(models.KnowledgePoint.course_id).filter(models.KnowledgePoint.course_id != "").distinct().all():
+        if r[0]: _courses_set.add(r[0])
+    _notes = ["AI 使用记录正常"]
+    _errs = db.query(models.AiUsageLog).filter(models.AiUsageLog.status != "success", models.AiUsageLog.created_at >= today_start).count()
+    if _errs > 0: _notes.append(f"今日有 {_errs} 条 AI 调用失败记录")
+
     return {
         "overview": {
-            "total_users": total_users,
-            "free_users": plan_counts.get("free", 0),
-            "pro_users": plan_counts.get("pro", 0),
-            "admin_users": plan_counts.get("admin", 0),
-            "total_materials": total_materials,
-            "total_courses": total_courses,
-            "total_knowledge_points": total_knowledge_points,
-            "total_tasks": total_tasks,
-            "total_questions": total_questions,
-            "today_ai_calls": today_ai_calls,
-            "total_ai_calls": total_ai_calls,
+            "total_users": _total_users,
+            "free_users": _plan_counts.get("free", 0),
+            "pro_users": _plan_counts.get("pro", 0),
+            "admin_users": _plan_counts.get("admin", 0),
+            "total_materials": _mats,
+            "total_courses": len(_courses_set),
+            "total_knowledge_points": _kps,
+            "total_tasks": _tasks,
+            "total_questions": _questions,
+            "today_ai_calls": _ai_calls_today,
+            "total_ai_calls": _ai_calls_total,
         },
-        "today_usage_by_feature": today_usage_by_feature,
-        "recent_users": [
-            {
-                "username": u.username,
-                "plan": u.plan or "free",
-                "is_admin": bool(u.is_admin),
-                "admin_role": normalize_admin_role(u),
-                "admin_role_label": get_admin_role_label(normalize_admin_role(u)),
-                "created_at": serialize_datetime(u.created_at),
-            }
-            for u in recent_users
-        ],
-        "recent_ai_logs": [
-            {
-                "username": log.username,
-                "feature": log.feature,
-                "status": log.status,
-                "estimated_tokens": log.estimated_tokens,
-                "created_at": serialize_datetime(log.created_at),
-            }
-            for log in recent_ai_logs
-        ],
-        "system_notes": system_notes,
+        "today_usage_by_feature": [],
+        "recent_users": [],
+        "recent_ai_logs": [{"username": l.username, "feature": l.feature, "status": l.status, "estimated_tokens": l.estimated_tokens, "created_at": serialize_datetime(l.created_at)} for l in _recent],
+        "system_notes": _notes,
     }
 
 

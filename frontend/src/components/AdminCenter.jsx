@@ -158,7 +158,7 @@ export default function AdminCenter({ user }) {
   useEffect(() => {
     if (!isAdmin || !permissionsLoaded || permissionsError) return;
     if (!visibleTabs.some((t) => t.key === tab)) return;
-    if (tab === "overview") { fetchDashboard(); fetchTrendData(trendDays); fetchUsageSummary(); }
+    if (tab === "overview") { fetchDashboard(); fetchTrendData(trendDays); fetchUsageSummary(); fetchOpsDashboard(); }
     if (tab === "courses") fetchCourses();
     if (tab === "plans") fetchPlanUsers(1);
     if (tab === "systemHealth") { fetchSystemHealth(); fetchMaterialIssues(1); }
@@ -513,16 +513,14 @@ export default function AdminCenter({ user }) {
   // ── Overview ──
 
   const fetchDashboard = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const data = await getJson(`${API_BASE}/admin/dashboard?${adminParam}`);
-      setDashboard(data);
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
+    setLoading(true); setError("");
+    try { setDashboard(await getJson(`${API_BASE}/admin/dashboard?${adminParam}`)); } catch (e) { setError(e.message); } finally { setLoading(false); }
+  };
+
+  // ── Ops Dashboard ──
+  const [opsDashboard, setOpsDashboard] = useState(null);
+  const fetchOpsDashboard = async () => {
+    try { setOpsDashboard(await getJson(`${API_BASE}/admin/operations-dashboard?${adminParam}`)); } catch { setOpsDashboard(null); }
   };
 
   // ── Users ──
