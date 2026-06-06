@@ -3152,17 +3152,30 @@ def global_search(
     total = 0
 
     # ── 1. Courses ──
-    course_rows = (
-        db.query(models.KnowledgePoint.course_id)
-        .filter(models.KnowledgePoint.username == user.username)
-        .distinct()
-        .all()
-    )
-    user_courses = sorted(set(normalize_subject(r.course_id) for r in course_rows if r.course_id))
-    # Also search by course name pattern
+    # Aggregate unique course names from knowledge_points AND study_materials
+    kp_courses = set()
+    for r in db.query(models.KnowledgePoint.course_id).filter(
+        models.KnowledgePoint.username == user.username
+    ).distinct().all():
+        if r.course_id:
+            kp_courses.add(normalize_subject(r.course_id))
+
+    mat_courses = set()
+    for r in db.query(models.StudyMaterial.subject).filter(
+        models.StudyMaterial.username == user.username,
+        models.StudyMaterial.is_deleted.is_(False),
+    ).distinct().all():
+        if r.subject:
+            mat_courses.add(normalize_subject(r.subject))
+
+    all_user_courses = sorted(kp_courses | mat_courses)
     course_items = []
-    for cid in user_courses:
+    seen_courses = set()
+    for cid in all_user_courses:
+        if not cid or cid in seen_courses:
+            continue
         if keyword.lower() in cid.lower():
+            seen_courses.add(cid)
             course_items.append({
                 "type": "course",
                 "id": cid,
