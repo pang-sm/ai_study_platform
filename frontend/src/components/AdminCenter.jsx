@@ -1168,6 +1168,59 @@ export default function AdminCenter({ user }) {
                 </>
               )}
 
+              {/* ── Risk Alerts ── */}
+              {opsDashboard?.risks && (
+                <div className="admin-card admin-ops-section" style={{ marginBottom: 16, padding: "16px 22px" }}>
+                  <h4 style={{ margin: "0 0 12px", fontWeight: 700, fontSize: "0.9rem" }}>风险提醒</h4>
+                  {(!opsDashboard.risks.pending_material_issues && !opsDashboard.risks.today_failed_ai_calls && !opsDashboard.risks.high_risk_audits_7d) ? (
+                    <div style={{ fontSize: "0.82rem", color: "#94a3b8" }}>✅ 暂无明显风险</div>
+                  ) : (
+                    <div className="admin-risk-grid">
+                      {opsDashboard.risks.pending_material_issues > 0 && (
+                        <div className="admin-risk-card" style={{ borderLeft: "3px solid #f59e0b", padding: "10px 14px", borderRadius: 8, background: "#fffbeb", marginBottom: 8 }}>
+                          <strong style={{ color: "#92400e" }}>资料解析异常</strong>
+                          <span style={{ marginLeft: 8, color: "#64748b" }}>有 {opsDashboard.risks.pending_material_issues} 个资料需要处理</span>
+                        </div>
+                      )}
+                      {opsDashboard.risks.today_failed_ai_calls > 0 && (
+                        <div className="admin-risk-card" style={{ borderLeft: "3px solid #ef4444", padding: "10px 14px", borderRadius: 8, background: "#fef2f2", marginBottom: 8 }}>
+                          <strong style={{ color: "#991b1b" }}>AI 调用失败</strong>
+                          <span style={{ marginLeft: 8, color: "#64748b" }}>今日 {opsDashboard.risks.today_failed_ai_calls} 次失败</span>
+                        </div>
+                      )}
+                      {opsDashboard.risks.high_risk_audits_7d > 0 && (
+                        <div className="admin-risk-card" style={{ borderLeft: "3px solid #3b82f6", padding: "10px 14px", borderRadius: 8, background: "#eff6ff", marginBottom: 8 }}>
+                          <strong style={{ color: "#1e40af" }}>高风险审计操作</strong>
+                          <span style={{ marginLeft: 8, color: "#64748b" }}>近 7 天 {opsDashboard.risks.high_risk_audits_7d} 次</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── Quick Actions ── */}
+              <div className="admin-card admin-ops-section" style={{ marginBottom: 16, padding: "16px 22px" }}>
+                <h4 style={{ margin: "0 0 12px", fontWeight: 700, fontSize: "0.9rem" }}>快捷入口</h4>
+                <div className="admin-quick-actions">
+                  {[
+                    { label: "AI 使用日志", tabKey: "aiLogs" },
+                    { label: "系统监控", tabKey: "systemHealth" },
+                    { label: "资料管理", tabKey: "materials" },
+                    { label: "操作记录", tabKey: "auditLogs" },
+                    { label: "模型配置", tabKey: "platformConfig" },
+                  ].map(({ label, tabKey }) => {
+                    const exists = visibleTabs.some((t) => t.key === tabKey);
+                    if (!exists) return null;
+                    return (
+                      <button key={tabKey} className="admin-quick-action" onClick={() => activateTab(tabKey)}>
+                        {label} →
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* ── Recent AI Logs Table ── */}
               {(dashboard.recent_ai_logs || []).length > 0 && (
                 <section className="admin-card">

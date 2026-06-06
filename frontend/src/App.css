@@ -11650,3 +11650,16 @@ select.field:focus {
   color: #334155;
   font-size: 13px;
 }
+
+.admin-ops-section { box-sizing: border-box; }
+.admin-risk-grid { display: flex; flex-direction: column; }
+.admin-quick-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.admin-quick-action {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 8px 16px; border: 1px solid #e2e8f0; border-radius: 10px;
+  background: #fff; color: #334155; font-size: 0.82rem; font-weight: 500;
+  cursor: pointer; transition: all 0.12s ease;
+}
+.admin-quick-action:hover { background: #eff6ff; border-color: #bfdbfe; color: #2563eb; }
+@media (max-width: 600px) { .admin-quick-actions { flex-direction: column; } }
+
