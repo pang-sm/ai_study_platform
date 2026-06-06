@@ -8332,12 +8332,12 @@ select.field:focus {
   gap: 16px;
   background: #fff;
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
-  transition:
-    transform 0.16s ease,
-    box-shadow 0.16s ease,
-    border-color 0.16s ease;
 }
-
+.question-card.question-card-highlight {
+  animation: qcard-highlight-pulse 0.5s ease-in-out 2;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.2);
+}
 .question-card:hover {
   border-color: rgba(15, 118, 110, 0.24);
   box-shadow: 0 16px 34px rgba(15, 23, 42, 0.08);
@@ -12458,6 +12458,12 @@ select.field:focus {
 
 .task-card-v2.is-done {
   background: #f8fafc;
+}
+.task-card-v2.task-row-highlight {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.2);
+  background: #eff6ff;
+  transition: border-color 0.3s, box-shadow 0.3s, background 0.3s;
 }
 
 .task-card-order {

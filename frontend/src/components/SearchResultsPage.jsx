@@ -30,7 +30,7 @@ const TYPE_COLORS = {
   chat: { bg: "#f1f5f9", text: "#475569" },
 };
 
-export default function SearchResultsPage({ user, setPage, searchContext, onClearSearchContext }) {
+export default function SearchResultsPage({ user, setPage, searchContext, onClearSearchContext, setSearchNavigate }) {
   const initialQuery = searchContext?.q || (typeof window !== "undefined" && window.__searchQuery) || "";
   const [query, setQuery] = useState(initialQuery);
   const [inputValue, setInputValue] = useState(initialQuery);
@@ -57,7 +57,7 @@ export default function SearchResultsPage({ user, setPage, searchContext, onClea
       const params = new URLSearchParams({
         q: kw,
         username: user.username,
-        limit: "6",
+        limit: "20",
         include_chunks: "true",
       });
       const res = await fetch(`${API_BASE}/search/global?${params}`);
@@ -89,25 +89,19 @@ export default function SearchResultsPage({ user, setPage, searchContext, onClea
     const t = item.target || {};
     if (!t.page) return;
 
-    // Store search context for the target page
-    if (t.page === "dashboard" || t.page === "workspaceMaterials" || t.page === "knowledgeLearning") {
-      // Course workspace pages — rely on setPage + subject
-      if (t.courseId) {
-        // Pass via existing subject state mechanism
-        window.__searchNavigate = { courseId: t.courseId, tab: t.tab, materialId: t.materialId, knowledgePointId: t.knowledgePointId };
-      }
-    }
-    if (t.page === "taskCenter" && t.taskId) {
-      window.__searchNavigate = { taskId: t.taskId, highlight: true };
-    }
-    if (t.page === "practiceCenter" && t.questionId) {
-      window.__searchNavigate = { questionId: t.questionId, courseId: t.courseId, knowledgePointId: t.knowledgePointId, fromSearch: true };
-    }
-    if (t.page === "codeStudio") {
-      window.__searchNavigate = { fromSearch: true };
-    }
-    if (t.page === "chat" && t.conversationId) {
-      window.__searchNavigate = { conversationId: t.conversationId, courseId: t.courseId, fromSearch: true };
+    // Store navigation context for the target page
+    if (setSearchNavigate) {
+      setSearchNavigate({
+        fromSearch: true,
+        page: t.page,
+        courseId: t.courseId || "",
+        materialId: t.materialId,
+        knowledgePointId: t.knowledgePointId,
+        taskId: t.taskId,
+        questionId: t.questionId,
+        conversationId: t.conversationId,
+        tab: t.tab,
+      });
     }
 
     onClearSearchContext();

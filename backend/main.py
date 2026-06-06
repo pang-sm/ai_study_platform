@@ -3123,7 +3123,7 @@ def get_home_summary(username: str, db: Session = Depends(get_db)):
 
 # ── Global Search ────────────────────────────────────────
 
-SEARCH_MAX_RESULTS = 6
+SEARCH_MAX_RESULTS = 50
 
 
 def _safe_like_pattern(keyword: str) -> str:

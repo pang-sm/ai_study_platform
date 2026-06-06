@@ -27,20 +27,36 @@ function TopBar({ user, avatarObj, hasCustomAvatar, apiBase, onProfileClick, onS
   const [showDropdown, setShowDropdown] = useState(false);
   const searchRef = useRef(null);
   const debounceRef = useRef(null);
+  const abortRef = useRef(null);
   const inputRef = useRef(null);
+  const requestIdRef = useRef(0);
 
   const doSearch = useCallback(async (q) => {
     const kw = (q || "").trim();
     if (!kw || !user?.username) { setSearchResults(null); setShowDropdown(false); return; }
+    // Cancel previous in-flight request
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const reqId = ++requestIdRef.current;
+
     setSearchLoading(true);
     try {
-      const params = new URLSearchParams({ q: kw, username: user.username, limit: "4", include_chunks: "true" });
-      const res = await fetch(`${API_BASE}/search/global?${params}`);
+      const params = new URLSearchParams({ q: kw, username: user.username, limit: "5", include_chunks: "true" });
+      const res = await fetch(`${API_BASE}/search/global?${params}`, { signal: controller.signal });
       const data = await res.json();
+      // Only apply if this is still the latest request
+      if (reqId !== requestIdRef.current) return;
       if (res.ok) setSearchResults(data);
       else setSearchResults(null);
       setShowDropdown(true);
-    } catch { setSearchResults(null); } finally { setSearchLoading(false); }
+    } catch (err) {
+      if (err.name === "AbortError") return;
+      if (reqId !== requestIdRef.current) return;
+      setSearchResults(null);
+    } finally {
+      if (reqId === requestIdRef.current) setSearchLoading(false);
+    }
   }, [user?.username]);
 
   useEffect(() => {
@@ -568,6 +584,7 @@ export default function HomePage({
   isAdmin,
   onBeforeProfileEdit,
   setSearchContext,
+  setSearchNavigate,
 }) {
   const [stats, setStats] = useState({
     average_mastery: null,
@@ -662,12 +679,26 @@ export default function HomePage({
 
   const handleSearch = (query, resultItem) => {
     if (resultItem) {
-      // Clicked a specific search result
+      // Clicked a specific search result → navigate with context
       const t = resultItem.target || {};
       if (!t.page) return;
       // Set course context if needed
-      if (t.courseId) {
-        if (typeof setSubject === "function") setSubject(t.courseId);
+      if (t.courseId && typeof setSubject === "function") {
+        setSubject(t.courseId);
+      }
+      // Store navigation context for the target page
+      if (setSearchNavigate) {
+        setSearchNavigate({
+          fromSearch: true,
+          page: t.page,
+          courseId: t.courseId || "",
+          materialId: t.materialId,
+          knowledgePointId: t.knowledgePointId,
+          taskId: t.taskId,
+          questionId: t.questionId,
+          conversationId: t.conversationId,
+          tab: t.tab,
+        });
       }
       setPage(t.page);
     } else if (query) {

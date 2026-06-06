@@ -434,6 +434,7 @@ function App() {
   const [page, setPageRaw] = useState(getInitialPage);
   const [practiceContext, setPracticeContext] = useState(null);
   const [searchContext, setSearchContext] = useState(null);
+  const [searchNavigate, setSearchNavigate] = useState(null);
   const [authMode, setAuthMode] = useState("login");
 
   const setPage = (nextPage) => {
@@ -3010,6 +3011,7 @@ function App() {
         onLogout={logout}
         isAdmin={!!user?.is_admin}
         setSearchContext={setSearchContext}
+        setSearchNavigate={setSearchNavigate}
         onBeforeProfileEdit={() => {
           setLearningGoals(Array.isArray(user?.learning_goals) ? [...user.learning_goals] : []);
         }}
@@ -3088,6 +3090,8 @@ function App() {
             normalizeSubject={normalizeSubject}
             formatDate={formatDate}
             onStartPractice={openPracticeFromTask}
+            searchNavigate={searchNavigate}
+            onClearSearchNavigate={() => setSearchNavigate(null)}
           />
         </Suspense>
       </div>
@@ -3111,6 +3115,8 @@ function App() {
             setPage={setPage}
             practiceContext={practiceContext}
             onClearPracticeContext={() => setPracticeContext(null)}
+            searchNavigate={searchNavigate}
+            onClearSearchNavigate={() => setSearchNavigate(null)}
           />
         </Suspense>
       </div>
@@ -3223,6 +3229,7 @@ function App() {
             setPage={setPage}
             searchContext={searchContext}
             onClearSearchContext={() => setSearchContext(null)}
+            setSearchNavigate={setSearchNavigate}
           />
         </Suspense>
       </div>

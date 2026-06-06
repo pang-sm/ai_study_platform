@@ -60,11 +60,14 @@ export default function TaskCenter({
   normalizeSubject,
   formatDate,
   onStartPractice = () => {},
+  searchNavigate,
+  onClearSearchNavigate = () => {},
 }) {
   const [tasks, setTasks] = useState([]);
   const [materials, setMaterials] = useState([]);
   const [knowledgePoints, setKnowledgePoints] = useState([]);
   const [courseFilter, setCourseFilter] = useState(subject || "");
+  const [highlightTaskId, setHighlightTaskId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [reordering, setReordering] = useState(false);
@@ -115,6 +118,24 @@ export default function TaskCenter({
   useEffect(() => {
     setCourseFilter(subject || "");
   }, [subject]);
+
+  // Handle search navigation — highlight a specific task
+  useEffect(() => {
+    if (!searchNavigate || searchNavigate.page !== "taskCenter" || !searchNavigate.taskId) return;
+    setHighlightTaskId(searchNavigate.taskId);
+    // Auto-scroll to the task after tasks load
+    const timer = setTimeout(() => {
+      const el = document.getElementById(`task-row-${searchNavigate.taskId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.classList.add("task-row-highlight");
+        setTimeout(() => el.classList.remove("task-row-highlight"), 2500);
+      }
+      onClearSearchNavigate();
+      setHighlightTaskId(null);
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [searchNavigate, onClearSearchNavigate]);
 
   useEffect(() => {
     if (!modalOpen) return undefined;
@@ -478,7 +499,7 @@ export default function TaskCenter({
     const materialLabel = task.related_material_title || task.material_filename || task.material_title || "";
     const isDone = task.status === "done";
     return (
-      <article className={`task-card-v2 ${isDone ? "is-done" : ""}`} key={task.id}>
+      <article id={`task-row-${task.id}`} className={`task-card-v2 ${isDone ? "is-done" : ""} ${highlightTaskId === task.id ? "task-row-highlight" : ""}`} key={task.id}>
         <div className="task-card-order">
           <button
             type="button"

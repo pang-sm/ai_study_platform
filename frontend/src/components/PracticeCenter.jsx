@@ -448,12 +448,15 @@ export default function PracticeCenter({
   setPage = () => {},
   practiceContext = null,
   onClearPracticeContext = () => {},
+  searchNavigate,
+  onClearSearchNavigate = () => {},
 }) {
   const [questions, setQuestions] = useState([]);
   const [papers, setPapers] = useState([]);
   const [knowledgePoints, setKnowledgePoints] = useState([]);
   const [loading, setLoading] = useState(false);
   const [courseFilter, setCourseFilter] = useState(subject || "");
+  const [highlightQuestionId, setHighlightQuestionId] = useState(null);
   const [kpFilter, setKpFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [selectedQuestionIds, setSelectedQuestionIds] = useState(() => new Set());
@@ -820,7 +823,27 @@ export default function PracticeCenter({
     setMixedSupplementQuestions([]);
   }, [practiceContext?.taskId]);
 
-  // ── AI Temp Practice ──
+  // Handle search navigation — set filters and highlight question
+  useEffect(() => {
+    if (!searchNavigate || searchNavigate.page !== "practiceCenter") return;
+    if (searchNavigate.courseId) setCourseFilter(searchNavigate.courseId);
+    if (searchNavigate.knowledgePointId) setKpFilter(String(searchNavigate.knowledgePointId));
+    if (searchNavigate.questionId) {
+      setHighlightQuestionId(searchNavigate.questionId);
+      const timer = setTimeout(() => {
+        const el = document.getElementById(`question-card-${searchNavigate.questionId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          el.classList.add("question-card-highlight");
+          setTimeout(() => el.classList.remove("question-card-highlight"), 2500);
+        }
+        setHighlightQuestionId(null);
+      }, 800);
+      onClearSearchNavigate();
+      return () => clearTimeout(timer);
+    }
+    onClearSearchNavigate();
+  }, [searchNavigate, onClearSearchNavigate]);
 
   const startAiTempPractice = () => {
     if (taskGenQuestions.length === 0) return;
@@ -3266,7 +3289,7 @@ export default function PracticeCenter({
                 </div>
                 <div className="question-list">
                   {questions.map((q) => (
-                    <div key={q.id} className="question-card">
+                    <div key={q.id} id={`question-card-${q.id}`} className={`question-card ${highlightQuestionId === q.id ? "question-card-highlight" : ""}`}>
                       <label
                         className="batch-question-check"
                         title={
