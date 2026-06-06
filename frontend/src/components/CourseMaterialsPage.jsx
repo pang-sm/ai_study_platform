@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import "./CourseMaterialsPage.css";
 
@@ -324,9 +324,12 @@ export default function CourseMaterialsPage({
   deleteMaterial,
   reparseMaterial,
   setPage,
+  searchNavigate,
+  onClearSearchNavigate = () => {},
 }) {
   const [filterType, setFilterType] = useState("all");
   const [filterIndex, setFilterIndex] = useState("all");
+  const [highlightMaterialId, setHighlightMaterialId] = useState(null);
   const [searchInput, setSearchInput] = useState("");
 
   // Knowledge analysis modal
@@ -336,6 +339,24 @@ export default function CourseMaterialsPage({
   const [analyzeError, setAnalyzeError] = useState("");
   const [analyzeResult, setAnalyzeResult] = useState(null);
   const [expandedModules, setExpandedModules] = useState(new Set());
+
+  // Handle search navigation — highlight a specific material
+  useEffect(() => {
+    if (!searchNavigate || (searchNavigate.page !== "workspaceMaterials" && searchNavigate.page !== "materials")) return;
+    if (!searchNavigate.materialId) return;
+    setHighlightMaterialId(searchNavigate.materialId);
+    const tid = setTimeout(() => {
+      const el = document.getElementById(`material-card-${searchNavigate.materialId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.classList.add("material-card-highlight");
+        setTimeout(() => el.classList.remove("material-card-highlight"), 2500);
+      }
+      onClearSearchNavigate();
+      setHighlightMaterialId(null);
+    }, 500);
+    return () => clearTimeout(tid);
+  }, [searchNavigate, onClearSearchNavigate]);
 
   // Confirm write state
   const [confirmLoading, setConfirmLoading] = useState(false);
@@ -812,8 +833,12 @@ export default function CourseMaterialsPage({
             /* ── Material List ── */
             <div className="cmp-list">
               {paginatedDisplayItems.map((material) => (
-                <MaterialCard
+                <div
                   key={material.id}
+                  id={`material-card-${material.id}`}
+                  className={highlightMaterialId === material.id ? "material-card-highlight" : ""}
+                >
+                <MaterialCard
                   material={material}
                   getSubjectLabel={getSubjectLabel}
                   onPreview={previewMaterial}
@@ -822,6 +847,7 @@ export default function CourseMaterialsPage({
                   onDelete={deleteMaterial}
                   onReparse={reparseMaterial}
                 />
+                </div>
               ))}
               {displayTotalPages > 1 && (
                 <Pagination

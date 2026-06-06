@@ -1058,3 +1058,12 @@
   .kam-material-list { max-height: 240px; }
   .kam-tree { max-height: 300px; }
 }
+
+/* ── Search Result Highlight ── */
+.material-card-highlight {
+  border-radius: 14px;
+  border: 2px solid #2563eb !important;
+  box-shadow: 0 0 0 4px rgba(37,99,235,0.15);
+  background: #eff6ff;
+  transition: border-color 0.3s, box-shadow 0.3s, background 0.3s;
+}

@@ -4215,6 +4215,8 @@ function App() {
             deleteMaterial={deleteMaterial}
             reparseMaterial={reparseMaterial}
             setPage={setPage}
+            searchNavigate={searchNavigate}
+            onClearSearchNavigate={() => setSearchNavigate(null)}
           />
         ) : (
           <div className="ai-qa-layout">

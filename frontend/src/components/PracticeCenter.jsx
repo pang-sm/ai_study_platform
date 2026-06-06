@@ -823,27 +823,39 @@ export default function PracticeCenter({
     setMixedSupplementQuestions([]);
   }, [practiceContext?.taskId]);
 
-  // Handle search navigation — set filters and highlight question
+  const [pendingSearchQId, setPendingSearchQId] = useState(null);
+  const qIdAttemptRef = useRef(0);
+
+  // Handle search navigation — first set filters, then wait for data to load
   useEffect(() => {
     if (!searchNavigate || searchNavigate.page !== "practiceCenter") return;
     if (searchNavigate.courseId) setCourseFilter(searchNavigate.courseId);
     if (searchNavigate.knowledgePointId) setKpFilter(String(searchNavigate.knowledgePointId));
     if (searchNavigate.questionId) {
-      setHighlightQuestionId(searchNavigate.questionId);
-      const timer = setTimeout(() => {
-        const el = document.getElementById(`question-card-${searchNavigate.questionId}`);
-        if (el) {
-          el.scrollIntoView({ behavior: "smooth", block: "center" });
-          el.classList.add("question-card-highlight");
-          setTimeout(() => el.classList.remove("question-card-highlight"), 2500);
-        }
-        setHighlightQuestionId(null);
-      }, 800);
-      onClearSearchNavigate();
-      return () => clearTimeout(timer);
+      setPendingSearchQId(searchNavigate.questionId);
     }
     onClearSearchNavigate();
   }, [searchNavigate, onClearSearchNavigate]);
+
+  // After questions load, scroll to and highlight the pending search question
+  useEffect(() => {
+    if (!pendingSearchQId || loading) return;
+    setHighlightQuestionId(pendingSearchQId);
+    qIdAttemptRef.current += 1;
+    const attemptId = qIdAttemptRef.current;
+    const tid = setTimeout(() => {
+      if (attemptId !== qIdAttemptRef.current) return;
+      const el = document.getElementById(`question-card-${pendingSearchQId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.classList.add("question-card-highlight");
+        setTimeout(() => { if (el) el.classList.remove("question-card-highlight"); }, 2500);
+      }
+      setHighlightQuestionId(null);
+      setPendingSearchQId(null);
+    }, 150);
+    return () => clearTimeout(tid);
+  }, [questions, pendingSearchQId, loading]);
 
   const startAiTempPractice = () => {
     if (taskGenQuestions.length === 0) return;

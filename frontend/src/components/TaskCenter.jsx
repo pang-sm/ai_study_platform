@@ -119,23 +119,33 @@ export default function TaskCenter({
     setCourseFilter(subject || "");
   }, [subject]);
 
-  // Handle search navigation — highlight a specific task
+  const [pendingSearchTaskId, setPendingSearchTaskId] = useState(null);
+
+  // Handle search navigation — mark task for highlight after data loads
   useEffect(() => {
     if (!searchNavigate || searchNavigate.page !== "taskCenter" || !searchNavigate.taskId) return;
-    setHighlightTaskId(searchNavigate.taskId);
-    // Auto-scroll to the task after tasks load
-    const timer = setTimeout(() => {
-      const el = document.getElementById(`task-row-${searchNavigate.taskId}`);
+    setPendingSearchTaskId(searchNavigate.taskId);
+    // Clear any course filter to ensure the task is visible
+    if (searchNavigate.courseId) setCourseFilter(searchNavigate.courseId);
+    onClearSearchNavigate();
+  }, [searchNavigate, onClearSearchNavigate]);
+
+  // After tasks load, scroll to and highlight the pending task
+  useEffect(() => {
+    if (!pendingSearchTaskId || loading) return;
+    setHighlightTaskId(pendingSearchTaskId);
+    const tid = setTimeout(() => {
+      const el = document.getElementById(`task-row-${pendingSearchTaskId}`);
       if (el) {
         el.scrollIntoView({ behavior: "smooth", block: "center" });
         el.classList.add("task-row-highlight");
-        setTimeout(() => el.classList.remove("task-row-highlight"), 2500);
+        setTimeout(() => { if (el) el.classList.remove("task-row-highlight"); }, 2500);
       }
-      onClearSearchNavigate();
       setHighlightTaskId(null);
-    }, 600);
-    return () => clearTimeout(timer);
-  }, [searchNavigate, onClearSearchNavigate]);
+      setPendingSearchTaskId(null);
+    }, 200);
+    return () => clearTimeout(tid);
+  }, [tasks, pendingSearchTaskId, loading]);
 
   useEffect(() => {
     if (!modalOpen) return undefined;
