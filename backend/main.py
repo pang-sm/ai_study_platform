@@ -14098,7 +14098,8 @@ def admin_operations_dashboard(admin_username: str, db: Session = Depends(get_db
                            "tokens": db.query(sqlfunc.coalesce(sqlfunc.sum(models.AiUsageLog.estimated_tokens), 0)).filter(models.AiUsageLog.created_at >= d, models.AiUsageLog.created_at < nd).scalar() or 0})
 
     # Rankings (Top 5)
-    top_courses_ai = db.query(models.AiUsageLog.course_id, sqlfunc.count(models.AiUsageLog.id)).filter(models.AiUsageLog.status == "success", models.AiUsageLog.course_id.isnot(None), models.AiUsageLog.course_id != "").group_by(models.AiUsageLog.course_id).order_by(sqlfunc.count(models.AiUsageLog.id).desc()).limit(5).all()
+    # AiUsageLog has no course_id field; course-level AI ranking not available
+    top_courses_ai = []
     top_users_ai = db.query(models.AiUsageLog.username, sqlfunc.count(models.AiUsageLog.id)).filter(models.AiUsageLog.status == "success").group_by(models.AiUsageLog.username).order_by(sqlfunc.count(models.AiUsageLog.id).desc()).limit(5).all()
     top_courses_mat = db.query(models.StudyMaterial.subject, sqlfunc.count(models.StudyMaterial.id)).filter(models.StudyMaterial.is_deleted.is_(False), models.StudyMaterial.subject.isnot(None), models.StudyMaterial.subject != "").group_by(models.StudyMaterial.subject).order_by(sqlfunc.count(models.StudyMaterial.id).desc()).limit(5).all()
 
