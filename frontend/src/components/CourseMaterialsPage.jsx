@@ -354,34 +354,6 @@ export default function CourseMaterialsPage({
     if (onClearSearchNavigate) onClearSearchNavigate();
   }, [searchNavigate, onClearSearchNavigate]);
 
-  // Phase 2: After materials list renders, find and highlight the pending material
-  useEffect(() => {
-    if (!pendingSearchMaterialId) return;
-    const matId = String(pendingSearchMaterialId);
-    // Check if target material is in the displayed list
-    const found = displayedItems.some((m) => String(m.id) === matId);
-    if (!found) {
-      // Not yet loaded or filtered out — keep waiting
-      return;
-    }
-    // Use rAF to ensure DOM is rendered
-    const raf = requestAnimationFrame(() => {
-      const el = document.getElementById(`material-card-${matId}`);
-      if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
-        setHighlightMaterialId(matId);
-        // Remove highlight + pending after 2.5s
-        setTimeout(() => {
-          setHighlightMaterialId(null);
-          setPendingSearchMaterialId(null);
-        }, 2500);
-      } else {
-        // DOM not ready yet despite data being present — retry next frame
-        setPendingSearchMaterialId(null);
-      }
-    });
-    return () => cancelAnimationFrame(raf);
-  }, [pendingSearchMaterialId, displayedItems]);
 
   // Confirm write state
   const [confirmLoading, setConfirmLoading] = useState(false);
@@ -440,6 +412,35 @@ export default function CourseMaterialsPage({
     (displayCurrentPage - 1) * PAGE_SIZE,
     displayCurrentPage * PAGE_SIZE
   );
+
+  // Phase 2: After materials list renders, find and highlight the pending material
+  useEffect(() => {
+    if (!pendingSearchMaterialId) return;
+    const matId = String(pendingSearchMaterialId);
+    // Check if target material is in the displayed list
+    const found = displayedItems.some((m) => String(m.id) === matId);
+    if (!found) {
+      // Not yet loaded or filtered out — keep waiting
+      return;
+    }
+    // Use rAF to ensure DOM is rendered
+    const raf = requestAnimationFrame(() => {
+      const el = document.getElementById(`material-card-${matId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        setHighlightMaterialId(matId);
+        // Remove highlight + pending after 2.5s
+        setTimeout(() => {
+          setHighlightMaterialId(null);
+          setPendingSearchMaterialId(null);
+        }, 2500);
+      } else {
+        // DOM not ready yet despite data being present — retry next frame
+        setPendingSearchMaterialId(null);
+      }
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [pendingSearchMaterialId, displayedItems]);
 
   const handleSearch = () => {
     const q = searchInput.trim();
