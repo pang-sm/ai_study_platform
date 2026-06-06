@@ -3152,14 +3152,14 @@ def global_search(
     total = 0
 
     # ── 1. Courses ──
-    # Aggregate unique course names from knowledge_points AND study_materials
+    # Aggregate unique course names from all available sources.
+    # knowledge_points course_id: course names are shared, not user-private
     kp_courses = set()
-    for r in db.query(models.KnowledgePoint.course_id).filter(
-        models.KnowledgePoint.username == user.username
-    ).distinct().all():
+    for r in db.query(models.KnowledgePoint.course_id).distinct().all():
         if r.course_id:
             kp_courses.add(normalize_subject(r.course_id))
 
+    # study_materials.subject: user-visible courses from uploaded materials
     mat_courses = set()
     for r in db.query(models.StudyMaterial.subject).filter(
         models.StudyMaterial.username == user.username,
@@ -3168,7 +3168,15 @@ def global_search(
         if r.subject:
             mat_courses.add(normalize_subject(r.subject))
 
-    all_user_courses = sorted(kp_courses | mat_courses)
+    # learning_tasks.course_id
+    task_courses = set()
+    for r in db.query(models.LearningTask.course_id).filter(
+        models.LearningTask.username == user.username
+    ).distinct().all():
+        if r.course_id:
+            task_courses.add(normalize_subject(r.course_id))
+
+    all_user_courses = sorted(kp_courses | mat_courses | task_courses)
     course_items = []
     seen_courses = set()
     for cid in all_user_courses:
