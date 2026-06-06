@@ -3072,6 +3072,8 @@ function App() {
             getSubjectLabel={getSubjectLabel}
             normalizeSubject={normalizeSubject}
             formatDate={formatDate}
+            searchNavigate={searchNavigate}
+            onClearSearchNavigate={() => setSearchNavigate(null)}
           />
         </Suspense>
       </div>
@@ -3854,6 +3856,8 @@ function App() {
             materialsLoading={materialsLoading}
             loadMaterials={(target) => loadMaterials(normalizeSubject(target || subject))}
             goalConfig={goalConfig}
+            searchNavigate={searchNavigate}
+            onClearSearchNavigate={() => setSearchNavigate(null)}
           />
         ) : page === "records" ? (
           <section className="chat-panel chat-panel--wide learning-records-panel">

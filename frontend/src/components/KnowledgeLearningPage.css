@@ -390,6 +390,13 @@
   background: #f8fdf9;
 }
 
+.kl-kp-card.kp-search-highlight {
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.2);
+  background: #eff6ff;
+  transition: border-color 0.3s, box-shadow 0.3s, background 0.3s;
+}
+
 .kl-kp-card--learning {
   border-color: #bfdbfe;
   background: #f8faff;

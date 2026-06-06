@@ -206,7 +206,7 @@ function KnowledgeStatusControl({ value, onChange, disabled = false }) {
   );
 }
 
-function RouteNodeCard({ node, index, isLast, onClick, isExpanded, onKnowledgePointClick, onStatusChange, statusSavingId }) {
+function RouteNodeCard({ node, index, isLast, onClick, isExpanded, onKnowledgePointClick, onStatusChange, statusSavingId, highlightKpId }) {
   const cfg = getStatusConfig(node.status);
   const children = node.knowledgePoints || [];
   const masteredChildren = children.filter((c) => normalizeKnowledgeStatus(c.status) === "mastered").length;
@@ -275,6 +275,7 @@ function RouteNodeCard({ node, index, isLast, onClick, isExpanded, onKnowledgePo
                 onClick={onKnowledgePointClick}
                 onStatusChange={onStatusChange}
                 statusSavingId={statusSavingId}
+                highlightKpId={highlightKpId}
               />
             ))}
           </div>
@@ -284,14 +285,15 @@ function RouteNodeCard({ node, index, isLast, onClick, isExpanded, onKnowledgePo
   );
 }
 
-function KnowledgePointItem({ kp, onClick, index, onStatusChange, statusSavingId }) {
+function KnowledgePointItem({ kp, onClick, index, onStatusChange, statusSavingId, highlightKpId }) {
   const cfg = getStatusConfig(kp.status);
   const childDisabled = statusSavingId != null && (statusSavingId === kp.nodeKey || statusSavingId === kp.backendId || statusSavingId === kp.id);
   const normalizedStatus = normalizeKnowledgeStatus(kp.status);
 
   return (
     <div
-      className={`kl-kp-card${normalizedStatus === "mastered" ? " kl-kp-card--mastered" : ""}${normalizedStatus === "learning" ? " kl-kp-card--learning" : ""}`}
+      id={`knowledge-point-${kp.id}`}
+      className={`kl-kp-card${highlightKpId === kp.id ? " kp-search-highlight" : ""}${normalizedStatus === "mastered" ? " kl-kp-card--mastered" : ""}${normalizedStatus === "learning" ? " kl-kp-card--learning" : ""}`}
       onClick={() => onClick && onClick(kp)}
     >
       <div className="kl-kp-card-top">
@@ -455,6 +457,8 @@ export default function KnowledgeLearningPage({
   materialsLoading = false,
   loadMaterials = () => {},
   goalConfig = null,
+  searchNavigate,
+  onClearSearchNavigate = () => {},
 }) {
   const courseLabel = getSubjectLabel(course);
   const routeSource = useMemo(() => getRouteSource(course, courseLabel), [course, courseLabel]);
@@ -494,6 +498,24 @@ export default function KnowledgeLearningPage({
 
   const [apiKnowledgePoints, setApiKnowledgePoints] = useState([]);
   const [localStatusByNodeKey, setLocalStatusByNodeKey] = useState({});
+  const [highlightKpId, setHighlightKpId] = useState(null);
+
+  // Handle search navigation — highlight a specific knowledge point
+  useEffect(() => {
+    if (!searchNavigate || searchNavigate.page !== "knowledgeLearning" || !searchNavigate.knowledgePointId) return;
+    setHighlightKpId(searchNavigate.knowledgePointId);
+    const tid = setTimeout(() => {
+      const el = document.getElementById(`knowledge-point-${searchNavigate.knowledgePointId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.classList.add("kp-search-highlight");
+        setTimeout(() => { if (el) el.classList.remove("kp-search-highlight"); }, 2500);
+      }
+      onClearSearchNavigate();
+      setHighlightKpId(null);
+    }, 300);
+    return () => clearTimeout(tid);
+  }, [searchNavigate, onClearSearchNavigate]);
 
   const fetchKnowledgePoints = async () => {
     if (!user?.username || !course) {
@@ -1117,6 +1139,7 @@ export default function KnowledgeLearningPage({
                     onKnowledgePointClick={handleKpClick}
                     onStatusChange={handleUpdateKnowledgeStatus}
                     statusSavingId={statusSavingId}
+                    highlightKpId={highlightKpId}
                   />
                 ))}
               </div>

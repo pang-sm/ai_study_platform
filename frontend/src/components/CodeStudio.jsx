@@ -345,10 +345,22 @@ export default function CodeStudio({
   getSubjectLabel,
   normalizeSubject,
   formatDate,
+  searchNavigate,
+  onClearSearchNavigate = () => {},
 }) {
   const [sessions, setSessions] = useState([]);
   const [selectedSession, setSelectedSession] = useState(null);
   const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [searchNotice, setSearchNotice] = useState("");
+
+  // Handle search navigation — show search origin notice
+  useEffect(() => {
+    if (!searchNavigate || searchNavigate.page !== "codeStudio") return;
+    setSearchNotice("已从搜索进入编程练习");
+    const tid = setTimeout(() => setSearchNotice(""), 4000);
+    onClearSearchNavigate();
+    return () => clearTimeout(tid);
+  }, [searchNavigate, onClearSearchNavigate]);
   const [codeCourseId, setCodeCourseId] = useState(() => normalizeSubject(subject));
   const initialLanguage = getAllowedLanguagesByCourse(`${subject || ""} ${normalizeSubject(subject, "")}`)[0] || "Python";
   const [title, setTitle] = useState("未命名练习");
@@ -2221,6 +2233,17 @@ export default function CodeStudio({
       className={`code-studio-shell${focusMode ? " code-studio-shell--focus" : ""}${resizing ? " code-studio-shell--resizing" : ""}`}
       style={{ display: "flex", flexDirection: "row", height: "100%", overflow: "hidden" }}
     >
+      {searchNotice && (
+        <div style={{
+          position: "absolute", top: 8, left: "50%", transform: "translateX(-50%)", zIndex: 999,
+          background: "#eff6ff", border: "1px solid #2563eb", borderRadius: 12,
+          padding: "10px 24px", fontSize: 14, fontWeight: 600, color: "#1e40af",
+          boxShadow: "0 4px 12px rgba(37,99,235,0.15)",
+        }}>
+          {searchNotice}
+        </div>
+      )}
+
       {/* Left Panel — Session List: completely hidden when collapsed or in focus mode */}
       {!focusMode && !sidebarCollapsed && (
         <>
