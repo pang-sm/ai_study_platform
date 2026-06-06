@@ -1264,10 +1264,16 @@ export default function AdminCenter({ user }) {
                 </section>
               )}
             </>
-          ) : (
-            /* Dashboard failed — still show ops content */
-            <div className="admin-error-card" style={{ margin: 16, padding: 16, background: "#fef2f2", borderRadius: 10, border: "1px solid #fecaca", color: "#991b1b", fontSize: "0.85rem" }}>
-              基础统计数据加载失败。运营看板和旧版数据均不可用。
+          ) : null}
+          {/* Dashboard failed? Only show warning if opsDashboard ALSO unavailable */}
+          {!loading && !dashboard && !opsDashboardLoading && opsDashboardError && (
+            <div className="admin-error-card" style={{ margin: 16, padding: 14, background: "#fef2f2", borderRadius: 10, border: "1px solid #fecaca", color: "#991b1b", fontSize: "0.85rem" }}>
+              运营看板加载失败：{opsDashboardError}。请稍后重试。
+            </div>
+          )}
+          {!loading && !dashboard && !opsDashboardLoading && !opsDashboardError && !opsDashboard && (
+            <div style={{ margin: 16, padding: 14, background: "#f8fafc", borderRadius: 10, border: "1px solid #e2e8f0", color: "#64748b", fontSize: "0.85rem", textAlign: "center" }}>
+              暂无运营数据，请稍后刷新。
             </div>
           )}
           {/* Ops dashboard always visible in overview */}
