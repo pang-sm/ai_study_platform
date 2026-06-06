@@ -1207,8 +1207,9 @@ export default function AdminCenter({ user }) {
                     { label: "AI 使用日志", tabKey: "aiLogs" },
                     { label: "系统监控", tabKey: "systemHealth" },
                     { label: "资料管理", tabKey: "materials" },
+                    { label: "数据备份", tabKey: "backups" },
                     { label: "操作记录", tabKey: "auditLogs" },
-                    { label: "模型配置", tabKey: "platformConfig" },
+                    { label: "模型配置", tabKey: "modelConfig" },
                   ].map(({ label, tabKey }) => {
                     const exists = visibleTabs.some((t) => t.key === tabKey);
                     if (!exists) return null;
