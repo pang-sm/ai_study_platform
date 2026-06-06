@@ -24,6 +24,7 @@ const AdminUsageCenter = lazy(() => import("./components/AdminUsageCenter.jsx"))
 const AdminCenter = lazy(() => import("./components/AdminCenter.jsx"));
 const LearningReportCenter = lazy(() => import("./components/LearningReportCenter.jsx"));
 const SharedReportPage = lazy(() => import("./components/SharedReportPage.jsx"));
+const SearchResultsPage = lazy(() => import("./components/SearchResultsPage.jsx"));
 import MarkdownMessage from "./components/MarkdownMessage.jsx";
 import {
   COURSE_OPTIONS,
@@ -405,7 +406,7 @@ const VALID_PAGES = new Set([
   "learningPlanCenter", "knowledgeBaseCenter", "quotaCenter",
   "learningReportCenter", "adminUsageCenter", "adminCenter",
   "materials", "workspaceMaterials", "chat", "records", "history",
-  "knowledgeLearning",
+  "knowledgeLearning", "searchResults",
   "profileEdit", "onboarding",
 ]);
 
@@ -432,6 +433,7 @@ function clearCurrentPage() {
 function App() {
   const [page, setPageRaw] = useState(getInitialPage);
   const [practiceContext, setPracticeContext] = useState(null);
+  const [searchContext, setSearchContext] = useState(null);
   const [authMode, setAuthMode] = useState("login");
 
   const setPage = (nextPage) => {
@@ -3007,6 +3009,7 @@ function App() {
         apiBase={API_BASE}
         onLogout={logout}
         isAdmin={!!user?.is_admin}
+        setSearchContext={setSearchContext}
         onBeforeProfileEdit={() => {
           setLearningGoals(Array.isArray(user?.learning_goals) ? [...user.learning_goals] : []);
         }}
@@ -3206,6 +3209,21 @@ function App() {
       <div className="app-shell">
         <Suspense fallback={<div className="empty-state">学习报告加载中...</div>}>
           <LearningReportCenter user={user} />
+        </Suspense>
+      </div>
+    );
+  }
+
+  if (page === "searchResults") {
+    return wrapPage(
+      <div className="app-shell">
+        <Suspense fallback={<div className="empty-state">搜索加载中...</div>}>
+          <SearchResultsPage
+            user={user}
+            setPage={setPage}
+            searchContext={searchContext}
+            onClearSearchContext={() => setSearchContext(null)}
+          />
         </Suspense>
       </div>
     );

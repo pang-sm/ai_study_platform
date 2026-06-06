@@ -1,5 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import "./HomePage.css";
+
+const API_BASE = "/api";
+const SEARCH_DEBOUNCE_MS = 300;
 
 
 /* ── Time-based greeting ── */
@@ -17,12 +20,121 @@ function getGreeting() {
    TOPBAR
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function TopBar({ user, avatarObj, hasCustomAvatar, apiBase, onProfileClick }) {
+function TopBar({ user, avatarObj, hasCustomAvatar, apiBase, onProfileClick, onSearch }) {
+  const [searchValue, setSearchValue] = useState("");
+  const [searchResults, setSearchResults] = useState(null);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const searchRef = useRef(null);
+  const debounceRef = useRef(null);
+  const inputRef = useRef(null);
+
+  const doSearch = useCallback(async (q) => {
+    const kw = (q || "").trim();
+    if (!kw || !user?.username) { setSearchResults(null); setShowDropdown(false); return; }
+    setSearchLoading(true);
+    try {
+      const params = new URLSearchParams({ q: kw, username: user.username, limit: "4", include_chunks: "true" });
+      const res = await fetch(`${API_BASE}/search/global?${params}`);
+      const data = await res.json();
+      if (res.ok) setSearchResults(data);
+      else setSearchResults(null);
+      setShowDropdown(true);
+    } catch { setSearchResults(null); } finally { setSearchLoading(false); }
+  }, [user?.username]);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!searchValue.trim()) { setSearchResults(null); setShowDropdown(false); return; }
+    debounceRef.current = setTimeout(() => doSearch(searchValue), SEARCH_DEBOUNCE_MS);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [searchValue, doSearch]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e) => { if (searchRef.current && !searchRef.current.contains(e.target)) setShowDropdown(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Escape") { setShowDropdown(false); inputRef.current?.blur(); }
+    if (e.key === "Enter" && searchValue.trim()) {
+      setShowDropdown(false);
+      if (onSearch) onSearch(searchValue.trim());
+    }
+  };
+
+  const handleResultClick = (item) => {
+    setShowDropdown(false);
+    setSearchValue("");
+    setSearchResults(null);
+    if (onSearch) onSearch(null, item);
+  };
+
+  const handleInputFocus = () => {
+    if (searchValue.trim() && searchResults) setShowDropdown(true);
+  };
+
+  const totalResults = searchResults?.total || 0;
+  const groups = searchResults?.groups || [];
+
   return (
     <header className="hp-topbar">
-      <div className="hp-topbar-search">
+      <div className="hp-topbar-search" ref={searchRef} style={{ position: "relative" }}>
         <span className="hp-search-icon">🔍</span>
-        <input className="hp-search-input" type="text" placeholder="搜索课程、资料、知识点..." />
+        <input
+          ref={inputRef}
+          className="hp-search-input"
+          type="text"
+          placeholder="搜索课程、资料、知识点、任务..."
+          value={searchValue}
+          onChange={(e) => setSearchValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onFocus={handleInputFocus}
+        />
+        {searchLoading && <span className="hp-search-spinner" />}
+
+        {/* Dropdown */}
+        {showDropdown && !searchLoading && groups.length > 0 && (
+          <div className="hp-search-dropdown">
+            {groups.map((group) => (
+              <div key={group.type} className="hp-search-dropdown-group">
+                <div className="hp-search-dropdown-group-title">{group.title}</div>
+                {group.items.map((item, idx) => (
+                  <div
+                    key={`${item.type}-${item.id}-${idx}`}
+                    className="hp-search-dropdown-item"
+                    onClick={() => handleResultClick(item)}
+                  >
+                    <div className="hp-search-dropdown-item-header">
+                      <span className="hp-search-dropdown-item-title">{item.title}</span>
+                      <span className="hp-search-dropdown-item-type">{group.title}</span>
+                    </div>
+                    {item.snippet && (
+                      <div className="hp-search-dropdown-item-snippet">{item.snippet}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ))}
+            <div className="hp-search-dropdown-footer">
+              <span>共 {totalResults} 条结果</span>
+              <button
+                className="hp-search-dropdown-viewall"
+                onClick={() => { setShowDropdown(false); if (onSearch) onSearch(searchValue.trim()); }}
+              >
+                查看全部 →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {showDropdown && !searchLoading && searchValue.trim() && groups.length === 0 && (
+          <div className="hp-search-dropdown">
+            <div className="hp-search-dropdown-empty">未找到相关结果</div>
+          </div>
+        )}
       </div>
       <div className="hp-topbar-actions">
         <button className="hp-icon-btn" title="通知">
@@ -455,6 +567,7 @@ export default function HomePage({
   onLogout,
   isAdmin,
   onBeforeProfileEdit,
+  setSearchContext,
 }) {
   const [stats, setStats] = useState({
     average_mastery: null,
@@ -547,6 +660,23 @@ export default function HomePage({
     setPage(targetPage);
   };
 
+  const handleSearch = (query, resultItem) => {
+    if (resultItem) {
+      // Clicked a specific search result
+      const t = resultItem.target || {};
+      if (!t.page) return;
+      // Set course context if needed
+      if (t.courseId) {
+        if (typeof setSubject === "function") setSubject(t.courseId);
+      }
+      setPage(t.page);
+    } else if (query) {
+      // Navigate to full search results page
+      if (setSearchContext) setSearchContext({ q: query });
+      setPage("searchResults");
+    }
+  };
+
   return (
     <div className="hp-content-area">
       <TopBar
@@ -555,6 +685,7 @@ export default function HomePage({
         hasCustomAvatar={hasCustomAvatar}
         apiBase={apiBase}
         onProfileClick={() => setPage("profile")}
+        onSearch={handleSearch}
       />
       <div className="hp-content">
         <div className="hp-content-left">
