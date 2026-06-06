@@ -9516,6 +9516,13 @@ select.field:focus {
 .batch-result-item.incorrect .batch-result-item-head span {
   color: #b91c1c;
 }
+.batch-result-item.short-answer {
+  border-color: #e2e8f0;
+  background: #f8fafc;
+}
+.batch-result-item.short-answer .batch-result-item-head span {
+  color: #64748b;
+}
 
 .batch-result-row {
   display: flex;

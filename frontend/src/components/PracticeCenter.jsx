@@ -544,6 +544,15 @@ export default function PracticeCenter({
   const [taskGenError, setTaskGenError] = useState("");
   const [taskGenQuestions, setTaskGenQuestions] = useState([]);
 
+  // AI temporary practice mode
+  const [aiTempQuestions, setAiTempQuestions] = useState([]);
+  const [aiTempMode, setAiTempMode] = useState(false);
+  const [aiTempAnswers, setAiTempAnswers] = useState({});
+  const [aiTempCurrentIndex, setAiTempCurrentIndex] = useState(0);
+  const [aiTempResult, setAiTempResult] = useState(null);
+  const [aiTempSubmitting, setAiTempSubmitting] = useState(false);
+  const aiTempStartRef = useRef(Date.now());
+
   const loadKnowledgePoints = async (courseId) => {
     if (!user?.username || !courseId) {
       setKnowledgePoints([]);
@@ -629,6 +638,182 @@ export default function PracticeCenter({
     } finally {
       setTaskGenLoading(false);
     }
+  };
+
+  // ── AI Temp Practice ──
+
+  const startAiTempPractice = () => {
+    if (taskGenQuestions.length === 0) return;
+    const courseId = practiceContext?.courseId || courseFilter || subject || "";
+    const kpId = practiceContext?.knowledgePointId || null;
+    const kpTitle = practiceContext?.knowledgePointTitle || practiceContext?.knowledgePointText || "";
+    const questions = taskGenQuestions.map((q, idx) => ({
+      id: `ai-temp-${idx + 1}`,
+      title: q.stem,
+      content: q.stem,
+      type: q.type,
+      options: q.options && q.options.length > 0
+        ? q.options.map((opt) => `${opt.label}. ${opt.text}`).join("\n")
+        : "",
+      answer: q.answer,
+      explanation: q.analysis,
+      knowledge_point_id: kpId,
+      knowledge_point_title: kpTitle,
+      course_id: courseId,
+      source: "ai_task_preview",
+      difficulty: "medium",
+    }));
+    setAiTempQuestions(questions);
+    setAiTempAnswers({});
+    setAiTempCurrentIndex(0);
+    setAiTempResult(null);
+    setAiTempSubmitting(false);
+    aiTempStartRef.current = Date.now();
+    setAiTempMode(true);
+  };
+
+  const exitAiTempPractice = () => {
+    setAiTempMode(false);
+    setAiTempQuestions([]);
+    setAiTempAnswers({});
+    setAiTempResult(null);
+    setAiTempSubmitting(false);
+  };
+
+  const updateAiTempAnswer = (qid, value) => {
+    setAiTempAnswers((prev) => ({ ...prev, [qid]: value }));
+  };
+
+  const toggleAiTempMultiAnswer = (qid, label) => {
+    setAiTempAnswers((prev) => {
+      const current = parseAnswerList(prev[qid] || "");
+      const next = current.includes(label)
+        ? current.filter((l) => l !== label)
+        : [...current, label];
+      return { ...prev, [qid]: next.sort().join(",") };
+    });
+  };
+
+  const normalizeJudgeAnswer = (ans) => {
+    const s = String(ans || "").trim();
+    if (/^(正确|对|true|yes|是|✔|✓|T|Y)$/i.test(s)) return "正确";
+    if (/^(错误|错|false|no|否|✘|✗|F|N)$/i.test(s)) return "错误";
+    return s;
+  };
+
+  const gradeAiTempQuestion = (question, userAnswer) => {
+    if (!question || !userAnswer) return { is_correct: false, user_answer: userAnswer || "", correct_answer: question.answer || "" };
+    const qtype = question.type;
+    const correctAns = String(question.answer || "").trim();
+    const userAns = String(userAnswer || "").trim();
+
+    if (qtype === "short_answer") {
+      return { is_correct: null, user_answer: userAns, correct_answer: correctAns, note: "简答题不自动判分" };
+    }
+
+    if (qtype === "judge" || qtype === "true_false") {
+      const normUser = normalizeJudgeAnswer(userAns);
+      const normCorrect = normalizeJudgeAnswer(correctAns);
+      return { is_correct: normUser === normCorrect, user_answer: userAns, correct_answer: correctAns };
+    }
+
+    if (qtype === "multiple_choice" || qtype === "select") {
+      const userSet = new Set(parseAnswerList(userAns).filter(Boolean));
+      const correctSet = new Set(parseAnswerList(correctAns).filter(Boolean));
+      const isCorrect = userSet.size === correctSet.size && [...userSet].every((l) => correctSet.has(l));
+      return { is_correct: isCorrect, user_answer: userAns, correct_answer: correctAns };
+    }
+
+    // single_choice or default
+    const normUser = normalizePracticeAnswer(userAns).toUpperCase();
+    const normCorrect = normalizePracticeAnswer(correctAns).toUpperCase();
+    return { is_correct: normUser === normCorrect, user_answer: userAns, correct_answer: correctAns };
+  };
+
+  const submitAiTempPractice = async () => {
+    if (aiTempQuestions.length === 0 || !user?.username) return;
+
+    // Grade all questions
+    const details = aiTempQuestions.map((q) => {
+      const userAns = aiTempAnswers[q.id] ?? "";
+      const result = gradeAiTempQuestion(q, userAns);
+      return {
+        question: q,
+        question_id: q.id,
+        is_correct: result.is_correct,
+        user_answer: result.user_answer,
+        correct_answer: result.correct_answer,
+        knowledge_point_id: q.knowledge_point_id || null,
+        note: result.note || "",
+      };
+    });
+
+    const autoGraded = details.filter((d) => d.is_correct !== null);
+    const correctCount = autoGraded.filter((d) => d.is_correct).length;
+    const totalAuto = autoGraded.length;
+    const totalAll = details.length;
+    const shortAnswerCount = totalAll - totalAuto;
+    const accuracy = totalAuto > 0 ? Math.round(correctCount / totalAuto * 100) : 0;
+    const durationSeconds = Math.round((Date.now() - aiTempStartRef.current) / 1000);
+
+    // Build submit payload (only auto-graded questions for correctness tracking)
+    const questionResults = details
+      .filter((d) => d.is_correct !== null) // skip short_answer for submit-result
+      .map((d) => ({
+        question_id: d.question_id,
+        is_correct: d.is_correct,
+        user_answer: d.user_answer,
+        correct_answer: d.correct_answer,
+        knowledge_point_id: d.knowledge_point_id || null,
+      }));
+
+    setAiTempSubmitting(true);
+    let recordResult = null;
+    try {
+      const body = {
+        username: user.username,
+        course_id: practiceContext?.courseId || courseFilter || subject || "",
+        knowledge_point_id: practiceContext?.knowledgePointId || null,
+        task_id: practiceContext?.taskId || null,
+        duration_seconds: durationSeconds,
+        source: "task_ai_temp_practice",
+        question_results: questionResults.length > 0 ? questionResults : details.map((d) => ({
+          question_id: d.question_id,
+          is_correct: false,
+          user_answer: d.user_answer,
+          correct_answer: d.correct_answer,
+          knowledge_point_id: d.knowledge_point_id || null,
+        })),
+      };
+      const res = await fetch(`${API_BASE}/practice/submit-result`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        recordResult = { error: data.detail || "同步学习记录失败" };
+      } else {
+        recordResult = { success: true, record_id: data.record_id, summary: data.summary };
+      }
+    } catch (e) {
+      recordResult = { error: e.message || "同步学习记录失败" };
+    } finally {
+      setAiTempSubmitting(false);
+    }
+
+    setAiTempResult({
+      total: totalAll,
+      auto_graded: totalAuto,
+      correct: correctCount,
+      incorrect: totalAuto - correctCount,
+      short_answer: shortAnswerCount,
+      accuracy,
+      duration_seconds: durationSeconds,
+      duration_minutes: Math.max(1, Math.round(durationSeconds / 60)),
+      details,
+      record: recordResult,
+    });
   };
 
   const markTaskComplete = async () => {
@@ -1787,6 +1972,214 @@ export default function PracticeCenter({
         </div>
       )}
 
+      {aiTempMode && (
+        <div className="batch-practice-panel">
+          <div className="batch-practice-header">
+            <div>
+              <span className="subject-pill small practice-source-pill" style={{ background: "#fef3c7", color: "#92400e" }}>AI 生成临时练习</span>
+              <h3>AI 生成临时练习</h3>
+              <p style={{ fontSize: 13, color: "#92400e", margin: "4px 0 0" }}>
+                这些题尚未加入正式题库，完成后结果会计入学习记录和知识点掌握度。
+              </p>
+            </div>
+            <button className="ghost-button compact" type="button" onClick={exitAiTempPractice}>
+              退出练习
+            </button>
+          </div>
+
+          {!aiTempResult && aiTempQuestions.length > 0 && (() => {
+            const q = aiTempQuestions[aiTempCurrentIndex];
+            const currentAnswer = aiTempAnswers[q.id] ?? "";
+            const isMultiple = q.type === "multiple_choice" || q.type === "select";
+            const isJudge = q.type === "judge" || q.type === "true_false";
+            const isShort = q.type === "short_answer";
+            const options = parseOptionItems(q.options || "");
+            const displayOptions = (isJudge && options.length === 0)
+              ? [{ label: "A", content: "正确" }, { label: "B", content: "错误" }]
+              : options;
+
+            return (
+              <>
+                <div className="batch-question-nav">
+                  {aiTempQuestions.map((question, idx) => (
+                    <button
+                      key={question.id}
+                      type="button"
+                      className={`batch-question-nav-item${idx === aiTempCurrentIndex ? " active" : ""}${aiTempAnswers[question.id] ? " answered" : ""}`}
+                      onClick={() => setAiTempCurrentIndex(idx)}
+                    >
+                      {idx + 1}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="batch-question-card">
+                  <div className="batch-question-head">
+                    <span>第 {aiTempCurrentIndex + 1} / {aiTempQuestions.length} 题</span>
+                    <span className={`q-type-badge ${getTypeClass(q.type)}`}>
+                      {TYPE_LABELS[q.type] || q.type}
+                    </span>
+                  </div>
+                  <h4 style={{ fontSize: 16, fontWeight: 700, color: "#1e293b", margin: "0 0 10px", lineHeight: 1.6 }}>
+                    {q.title}
+                  </h4>
+
+                  {isShort ? (
+                    <div>
+                      <textarea
+                        className="field batch-answer-input"
+                        style={{ minHeight: 100, width: "100%" }}
+                        value={String(currentAnswer || "")}
+                        onChange={(e) => updateAiTempAnswer(q.id, e.target.value)}
+                        placeholder="请输入你的答案..."
+                      />
+                      <p style={{ fontSize: 12, color: "#94a3b8", marginTop: 6 }}>
+                        💡 简答题暂不自动判分，完成后可查看参考答案和解析。
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="question-options batch-options">
+                      {displayOptions.map((opt) => {
+                        const label = opt.label;
+                        const checked = isMultiple
+                          ? parseAnswerList(currentAnswer).includes(label)
+                          : normalizePracticeAnswer(currentAnswer) === label;
+                        return (
+                          <label key={label} className="question-option-label">
+                            <input
+                              type={isMultiple ? "checkbox" : "radio"}
+                              name={`ai-temp-answer-${q.id}`}
+                              value={label}
+                              checked={checked}
+                              onChange={() => {
+                                if (isMultiple) {
+                                  toggleAiTempMultiAnswer(q.id, label);
+                                } else {
+                                  updateAiTempAnswer(q.id, label);
+                                }
+                              }}
+                            />
+                            <span>{label}. {opt.content}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div className="batch-practice-actions">
+                  <button
+                    className="ghost-button compact"
+                    type="button"
+                    disabled={aiTempCurrentIndex === 0}
+                    onClick={() => setAiTempCurrentIndex((i) => Math.max(i - 1, 0))}
+                  >
+                    上一题
+                  </button>
+                  {aiTempCurrentIndex < aiTempQuestions.length - 1 ? (
+                    <button
+                      className="primary-button compact"
+                      type="button"
+                      onClick={() => setAiTempCurrentIndex((i) => Math.min(i + 1, aiTempQuestions.length - 1))}
+                    >
+                      下一题
+                    </button>
+                  ) : (
+                    <button
+                      className="primary-button compact"
+                      type="button"
+                      onClick={submitAiTempPractice}
+                      disabled={aiTempSubmitting}
+                    >
+                      {aiTempSubmitting ? "提交中..." : "提交练习"}
+                    </button>
+                  )}
+                </div>
+              </>
+            );
+          })()}
+
+          {aiTempResult && (
+            <div className="batch-result">
+              <div className="batch-score-card" style={{ textAlign: "center" }}>
+                <strong style={{ fontSize: 28, color: "#059669" }}>
+                  {aiTempResult.auto_graded > 0 ? `${aiTempResult.accuracy}%` : "--"}
+                </strong>
+                <span style={{ fontSize: 14, color: "#475569" }}>
+                  {aiTempResult.auto_graded > 0
+                    ? `正确 ${aiTempResult.correct} / ${aiTempResult.auto_graded}`
+                    : "无自动判分题"}
+                </span>
+                <div style={{ marginTop: 8, fontSize: 13, color: "#64748b", display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+                  <span>总题数：{aiTempResult.total}</span>
+                  <span>自动判分：{aiTempResult.auto_graded} 题</span>
+                  {aiTempResult.short_answer > 0 && <span>简答题：{aiTempResult.short_answer} 题</span>}
+                  <span>用时：{aiTempResult.duration_minutes} 分钟</span>
+                </div>
+                {aiTempResult.record && (
+                  <div style={{ marginTop: 8, fontSize: 13 }}>
+                    {aiTempResult.record.success ? (
+                      <span style={{ color: "#059669" }}>✅ 学习记录已同步</span>
+                    ) : (
+                      <span style={{ color: "#b91c1c" }}>⚠️ {aiTempResult.record.error}</span>
+                    )}
+                    <span style={{ marginLeft: 12, color: aiTempResult.auto_graded > 0 ? "#059669" : "#94a3b8" }}>
+                      {aiTempResult.auto_graded > 0 ? "知识点掌握度：已更新" : "知识点掌握度：无自动判分题，未更新"}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <p style={{ fontSize: 13, color: "#b45309", textAlign: "center", margin: "12px 0 0" }}>
+                ⚠️ 本次题目未加入正式题库。
+              </p>
+
+              <div className="batch-result-list" style={{ marginTop: 16 }}>
+                {aiTempResult.details.map((item, idx) => {
+                  const isAutoGraded = item.is_correct !== null;
+                  const resultClass = isAutoGraded ? (item.is_correct ? "correct" : "incorrect") : "short-answer";
+                  return (
+                    <div key={item.question.id} className={`batch-result-item ${resultClass}`}>
+                      <div className="batch-result-item-head">
+                        <strong>{idx + 1}. {item.question.title}</strong>
+                        <span>
+                          {isAutoGraded ? (item.is_correct ? "✅ 正确" : "❌ 错误") : "📝 简答题（未自动判分）"}
+                        </span>
+                      </div>
+                      <div className="batch-result-row">
+                        <span>你的答案：</span>
+                        <strong>{item.user_answer || "未作答"}</strong>
+                      </div>
+                      <div className="batch-result-row">
+                        <span>参考答案：</span>
+                        <strong>{item.correct_answer || "未提供"}</strong>
+                      </div>
+                      {item.question.explanation && (
+                        <div className="batch-result-analysis">
+                          <strong>解析：</strong>
+                          <QuestionAnalysisBlock analysis={item.question.explanation} />
+                        </div>
+                      )}
+                      {item.note && (
+                        <p style={{ fontSize: 12, color: "#94a3b8", margin: "4px 0 0" }}>{item.note}</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "center", gap: 10, marginTop: 16 }}>
+                <button className="ghost-button compact" type="button" onClick={exitAiTempPractice}>
+                  返回练习中心
+                </button>
+                {renderTaskCompleteCard()}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {!aiTempMode && (
       <div className="practice-workbench">
         {taskContextActive && (
           <div className="practice-task-banner">
@@ -2047,6 +2440,11 @@ export default function PracticeCenter({
                         <p className="practice-task-gen-hint">
                           ⚠️ 当前为 AI 生成预览，尚未加入题库。你可以查看题目内容、答案和解析用于复习参考。
                         </p>
+                        <div style={{ marginBottom: 16, display: "flex", justifyContent: "center" }}>
+                          <button className="primary-button compact" type="button" onClick={startAiTempPractice}>
+                            使用这些题开始练习
+                          </button>
+                        </div>
                         <div className="practice-task-gen-questions">
                           {taskGenQuestions.map((q, idx) => (
                             <div key={idx} className="practice-task-gen-question">
@@ -2305,6 +2703,7 @@ export default function PracticeCenter({
           </aside>
         </div>
       </div>
+      )}
 
       {/* Detail Drawer */}
       {detailQuestion && (
