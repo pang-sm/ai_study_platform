@@ -1078,6 +1078,20 @@ export default function CourseMaterialsPage({
                         <button className="cmp-btn cmp-btn--ghost" type="button" onClick={closeKnowledgeModal}>
                           关闭
                         </button>
+                        <button
+                          className="cmp-btn cmp-btn--accent"
+                          type="button"
+                          onClick={() => { closeKnowledgeModal(); if (setPage) setPage("knowledgeLearning"); }}
+                        >
+                          查看知识点
+                        </button>
+                        <button
+                          className="cmp-btn cmp-btn--primary"
+                          type="button"
+                          onClick={() => { closeKnowledgeModal(); if (setPage) setPage("taskCenter"); }}
+                        >
+                          创建学习任务
+                        </button>
                       </div>
                     </div>
                   )}
