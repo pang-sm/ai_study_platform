@@ -10256,6 +10256,72 @@ def list_questions(
     }
 
 
+@app.post("/practice/submit-result")
+def submit_practice_result(req: dict, db: Session = Depends(get_db)):
+    """Save practice results to learning_records and update knowledge mastery."""
+    username = str(req.get("username", "")).strip()
+    if not username:
+        raise HTTPException(status_code=400, detail="缺少 username")
+    user = get_user_by_username(username, db)
+    course_id = str(req.get("course_id", "")).strip() or ""
+    task_id = req.get("task_id")
+    question_results = req.get("question_results", [])
+    if not isinstance(question_results, list) or len(question_results) == 0:
+        raise HTTPException(status_code=400, detail="请提供至少一道题的练习结果")
+    duration = int(req.get("duration_seconds", 0) or 0)
+    source = str(req.get("source", "normal_practice")).strip()
+    total = len(question_results)
+    correct = sum(1 for q in question_results if q.get("is_correct"))
+    accuracy = round(correct / total * 100, 1) if total > 0 else 0
+    minutes = max(1, round(duration / 60))
+    kp_title = ""; kp_id = None
+    for q in question_results:
+        if q.get("knowledge_point_id"):
+            kp_id = q["knowledge_point_id"]
+            kp = db.query(models.KnowledgePoint).filter(models.KnowledgePoint.id == kp_id).first()
+            if kp: kp_title = kp.title
+            break
+    if not kp_id: kp_id = req.get("knowledge_point_id")
+    course_label = course_id or "综合练习"
+    kp_label = f" / {kp_title}" if kp_title else ""
+    summary = f"完成{course_label}{kp_label}练习，{total} 题，正确 {correct} 题（{accuracy}%），用时 {minutes} 分钟"
+    record = models.LearningRecord(
+        user_id=user.id, subject=course_id, session_id=None, message_id=None,
+        record_type="practice", question=f"完成{course_label}练习：{total} 题",
+        answer=f"正确 {correct}/{total}，正确率 {accuracy}%，用时 {minutes} 分钟",
+        note=summary,
+        tags=json.dumps({"task_id": task_id, "source": source, "duration_seconds": duration, "total": total, "correct": correct, "accuracy": accuracy}),
+        references_json=None, review_status="pending",
+    )
+    db.add(record); db.commit(); db.refresh(record)
+    # Update knowledge mastery
+    kp_updates = {}
+    for q in question_results:
+        q_kp_id = q.get("knowledge_point_id")
+        if not q_kp_id: continue
+        if q_kp_id not in kp_updates: kp_updates[q_kp_id] = {"total": 0, "correct": 0}
+        kp_updates[q_kp_id]["total"] += 1
+        if q.get("is_correct"): kp_updates[q_kp_id]["correct"] += 1
+    for kp_id_key, stats in kp_updates.items():
+        acc = stats["correct"] / stats["total"] if stats["total"] > 0 else 0
+        prog = db.query(models.UserKnowledgeProgress).filter(
+            models.UserKnowledgeProgress.username == user.username,
+            models.UserKnowledgeProgress.knowledge_point_id == kp_id_key,
+        ).first()
+        if not prog:
+            prog = models.UserKnowledgeProgress(username=user.username, course_id=course_id, knowledge_point_id=kp_id_key, mastery_score=50, status="learning", practice_count=0, task_count=0)
+            db.add(prog); db.flush()
+        delta = max(3, min(12, int(acc * 15))) if acc >= 0.8 else (max(3, min(6, int(acc * 8))) if acc >= 0.5 else max(-8, min(-3, int((acc - 0.5) * 10))))
+        new_status = "mastered" if (prog.mastery_score or 0) + delta >= 80 else ("improving" if acc >= 0.8 else ("reviewing" if acc >= 0.5 else "weak"))
+        prog.mastery_score = max(0, min(100, (prog.mastery_score or 0) + delta))
+        prog.status = new_status; prog.practice_count = (prog.practice_count or 0) + stats["total"]
+        prog.last_studied_at = utc_now(); prog.updated_at = utc_now()
+        evt = models.KnowledgeProgressEvent(username=user.username, course_id=course_id, knowledge_point_id=kp_id_key, event_type="practice_result", delta=delta, reason=f"练习正确率 {int(acc*100)}%，{stats['total']} 题", source_type="task_practice" if task_id else "normal_practice", source_id=record.id)
+        db.add(evt)
+    db.commit()
+    return {"success": True, "record_id": record.id, "summary": summary, "total": total, "correct": correct, "accuracy": accuracy, "duration_seconds": duration, "kp_updates": len(kp_updates)}
+
+
 @app.post("/practice/questions")
 def create_question(req: schemas.QuestionCreate, db: Session = Depends(get_db)):
     user = get_user_by_username(req.username, db)

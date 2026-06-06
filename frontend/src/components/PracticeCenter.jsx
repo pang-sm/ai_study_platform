@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const API_BASE = "/api";
 const IMPORT_JOB_STORAGE_KEY = "practice_import_job_id";
@@ -462,6 +462,7 @@ export default function PracticeCenter({
   const [batchCurrentIndex, setBatchCurrentIndex] = useState(0);
   const [batchAnswers, setBatchAnswers] = useState({});
   const [batchResult, setBatchResult] = useState(null);
+  const practiceStartRef = useRef(Date.now());
   const [batchNotice, setBatchNotice] = useState("");
   const [batchLoading, setBatchLoading] = useState(false);
 
@@ -900,6 +901,32 @@ export default function PracticeCenter({
         }
       )));
       await loadQuestions();
+      // Submit aggregate practice result for learning records
+      try {
+        const questionResults = details.map((d) => ({
+          question_id: d.question.id,
+          is_correct: d.is_correct,
+          user_answer: d.user_answer,
+          correct_answer: d.correct_answer,
+          knowledge_point_id: d.question.knowledge_point_id || null,
+        }));
+        const subRes = await fetch(`${API_BASE}/practice/submit-result`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: user.username,
+            course_id: practiceContext?.courseId || practiceCourse || subject || "",
+            knowledge_point_id: practiceContext?.knowledgePointId || null,
+            task_id: practiceContext?.taskId || null,
+            question_results: questionResults,
+            duration_seconds: Math.round((Date.now() - (practiceStartRef.current || Date.now())) / 1000),
+            source: practiceContext?.taskId ? "task_practice" : "normal_practice",
+          }),
+        });
+        const subData = await subRes.json();
+        if (subData.success) {
+          setBatchResult((prev) => prev ? { ...prev, synced: true, syncSummary: subData.summary } : prev);
+        }
+      } catch (e) { console.error("Failed to submit practice result:", e); }
     } catch (e) {
       console.error("Failed to save batch attempts:", e);
     }
