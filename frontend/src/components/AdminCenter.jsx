@@ -69,6 +69,7 @@ export default function AdminCenter({ user }) {
 
   // Overview
   const [dashboard, setDashboard] = useState(null);
+  const [dashboardError, setDashboardError] = useState("");
 
   // Users
   const [users, setUsers] = useState({ items: [], total: 0, page: 1 });
@@ -158,7 +159,7 @@ export default function AdminCenter({ user }) {
   useEffect(() => {
     if (!isAdmin || !permissionsLoaded || permissionsError) return;
     if (!visibleTabs.some((t) => t.key === tab)) return;
-    if (tab === "overview") { fetchDashboard(); fetchTrendData(trendDays); fetchUsageSummary(); fetchOpsDashboard(); }
+    if (tab === "overview") { fetchDashboard(); fetchTrendData(trendDays); fetchUsageSummary(); fetchOpsDashboard(); fetchSystemHealth(); }
     if (tab === "courses") fetchCourses();
     if (tab === "plans") fetchPlanUsers(1);
     if (tab === "systemHealth") { fetchSystemHealth(); fetchMaterialIssues(1); }
@@ -513,8 +514,15 @@ export default function AdminCenter({ user }) {
   // ── Overview ──
 
   const fetchDashboard = async () => {
-    setLoading(true); setError("");
-    try { setDashboard(await getJson(`${API_BASE}/admin/dashboard?${adminParam}`)); } catch (e) { setError(e.message); } finally { setLoading(false); }
+    setLoading(true); setDashboardError("");
+    try {
+      setDashboard(await getJson(`${API_BASE}/admin/dashboard?${adminParam}`));
+    } catch (e) {
+      setDashboard(null);
+      setDashboardError(e.message || "基础统计加载失败");
+    } finally {
+      setLoading(false);
+    }
   };
 
   // ── Ops Dashboard ──
@@ -907,6 +915,74 @@ export default function AdminCenter({ user }) {
     return dateKeys.map((dk) => ({ label: dk.label, count: byKey[dk.key] || 0, pct: Math.round(((byKey[dk.key] || 0) / maxVal) * 100) }));
   }, [adminPermissionSet, dashboard, permissionsLoaded, trendDays, trendData]);
 
+  const opsOverview = opsDashboard?.overview || {};
+  const legacyOverview = dashboard?.overview || {};
+  const todayAiCalls = opsOverview.today_ai_calls ?? usageSummary?.today_total ?? legacyOverview.today_ai_calls ?? 0;
+  const todayFailedAi = opsOverview.today_failed_ai ?? usageSummary?.total_failed ?? 0;
+  const totalTokens = opsOverview.total_tokens ?? usageSummary?.total_tokens_all ?? 0;
+  const estimatedCost = opsOverview.estimated_cost_cny ?? usageSummary?.cost_estimate?.estimated_cost_cny ?? 0;
+  const activeUserCount = opsOverview.active_users ?? legacyOverview.active_users ?? 0;
+  const todayNewUsers = opsOverview.today_new_users ?? legacyOverview.today_new_users ?? 0;
+  const overviewHasRisk = Boolean(
+    (opsDashboard?.risks?.pending_material_issues || 0) ||
+    (opsDashboard?.risks?.today_failed_ai_calls || 0) ||
+    (opsDashboard?.risks?.high_risk_audits_7d || 0) ||
+    (opsDashboard?.risks?.alerts || []).some((item) => item.level === "danger")
+  );
+  const backupAlert = (opsDashboard?.risks?.alerts || []).find((item) => item.title?.includes("备份"));
+  const modelServiceStatus = systemHealth?.ai_services
+    ? `DeepSeek ${systemHealth.ai_services.deepseek?.configured ? "已配置" : "未配置"} · Qwen ${systemHealth.ai_services.qwen?.configured ? "已配置" : "未配置"}`
+    : "模型服务状态可在系统监控查看";
+  const coreMetricCards = [
+    { label: "总用户", value: opsOverview.total_users ?? legacyOverview.total_users ?? 0, sub: `${activeUserCount || 0} 活跃`, tone: "blue" },
+    { label: "活跃用户", value: activeUserCount || 0, sub: "当前可用账号", tone: "green" },
+    { label: "今日新增", value: todayNewUsers || 0, sub: "新注册用户", tone: "cyan" },
+    { label: "总资料", value: opsOverview.total_materials ?? legacyOverview.total_materials ?? 0, sub: "累计上传", tone: "green" },
+    { label: "今日 AI", value: todayAiCalls, sub: "今日成功调用", tone: "blue" },
+    { label: "今日失败", value: todayFailedAi, sub: "失败调用", tone: todayFailedAi > 0 ? "red" : "green" },
+    { label: "总 Tokens", value: Number(totalTokens || 0).toLocaleString(), sub: "累计消耗", tone: "purple" },
+    { label: "估算成本", value: `¥${Number(estimatedCost || 0).toFixed(2)}`, sub: "仅供参考", tone: "amber" },
+  ];
+  const growthSections = [
+    { label: "新增用户", data: opsDashboard?.growth?.users_7d || [] },
+    { label: "新增资料", data: opsDashboard?.growth?.materials_7d || [] },
+    { label: "AI 调用", data: opsDashboard?.growth?.ai_calls_7d || [] },
+  ];
+  const rankingSections = [
+    { title: "AI 最多用户 Top 5", items: opsDashboard?.rankings?.top_users_by_ai || [], nameKey: "username" },
+    { title: "AI 调用功能 Top 5", items: featureItems.slice(0, 5).map((item) => ({ name: FEATURE_LABELS[item.feature] || item.feature, count: item.count })), nameKey: "name" },
+    { title: "资料最多课程 Top 5", items: opsDashboard?.rankings?.top_courses_by_materials || [], nameKey: "course" },
+  ];
+  const riskCards = [
+    ...(opsDashboard?.risks?.pending_material_issues > 0 ? [{ level: "warning", title: "资料异常", message: `${opsDashboard.risks.pending_material_issues} 个资料需要处理`, tabKey: "systemHealth" }] : []),
+    ...(opsDashboard?.risks?.today_failed_ai_calls > 0 ? [{ level: "danger", title: "AI 失败", message: `今日 ${opsDashboard.risks.today_failed_ai_calls} 次失败`, tabKey: "aiLogs" }] : []),
+    ...(opsDashboard?.risks?.high_risk_audits_7d > 0 ? [{ level: "info", title: "高风险审计", message: `近 7 天 ${opsDashboard.risks.high_risk_audits_7d} 次`, tabKey: "auditLogs" }] : []),
+    ...(backupAlert ? [{ level: backupAlert.level || "warning", title: "备份状态", message: backupAlert.message, tabKey: "backups" }] : []),
+    ...(systemHealth?.ai_services && (!systemHealth.ai_services.deepseek?.configured || !systemHealth.ai_services.qwen?.configured) ? [{ level: "warning", title: "模型服务", message: modelServiceStatus, tabKey: "modelConfig" }] : []),
+  ];
+  const todoItems = [
+    ...(opsDashboard?.todos || []),
+    { type: "backup_shortcut", level: backupAlert?.level === "danger" ? "warning" : "info", title: "创建数据备份", message: backupAlert?.message || "建议定期创建数据库备份", tab: "backups" },
+    ...(todayFailedAi > 0 ? [{ type: "ai_logs", level: "warning", title: "查看 AI 失败日志", message: `今日失败 ${todayFailedAi} 次`, tab: "aiLogs" }] : []),
+    ...(opsDashboard?.risks?.pending_material_issues > 0 ? [{ type: "material_issues", level: "warning", title: "处理资料异常", message: `${opsDashboard.risks.pending_material_issues} 个资料待处理`, tab: "systemHealth" }] : []),
+    { type: "system_monitor", level: "info", title: "查看系统监控", message: "检查数据库、上传目录与模型服务状态", tab: "systemHealth" },
+  ];
+  const quickActions = [
+    { label: "AI 使用日志", tabKey: "aiLogs", permission: "ai_logs.view" },
+    { label: "资料管理", tabKey: "materials", permission: "materials.view" },
+    { label: "系统监控", tabKey: "systemHealth", permission: "system_monitor.view" },
+    { label: "操作记录", tabKey: "auditLogs", permission: "audit_logs.view" },
+    { label: "数据备份", tabKey: "backups", permission: "backups.view" },
+    { label: "模型配置", tabKey: "modelConfig", permission: "model_config.view" },
+    { label: "平台配置", tabKey: "platformConfig", permission: "settings.view" },
+  ].filter((item) => adminPermissionSet.has(item.permission) && visibleTabs.some((tabItem) => tabItem.key === item.tabKey));
+  const recentAiLogs = dashboard?.recent_ai_logs || dashboard?.recent_logs || usageSummary?.recent_logs || [];
+  const overviewPlanCounts = dashboard?.plan_counts || {
+    free: legacyOverview.free_users || 0,
+    pro: legacyOverview.pro_users || 0,
+    admin: legacyOverview.admin_users || 0,
+  };
+
   if (!isAdmin) {
     return (
       <div className="empty-state" style={{ padding: 48 }}>
@@ -950,6 +1026,212 @@ export default function AdminCenter({ user }) {
 
       {/* ── Overview ── */}
       {tab === "overview" && (
+        <div className="admin-tab-content admin-overview-hub">
+          {loading && !dashboard && opsDashboardLoading && !opsDashboard ? (
+            <div className="empty-state">加载中...</div>
+          ) : (
+            <>
+              {!opsDashboard && dashboard && opsDashboardError && (
+                <div className="admin-overview-note warning">运营看板加载失败，已显示基础统计。</div>
+              )}
+              {!dashboard && opsDashboard && dashboardError && (
+                <div className="admin-overview-note info">基础统计加载失败，不影响运营看板使用。</div>
+              )}
+              {!dashboard && !opsDashboard && dashboardError && opsDashboardError && (
+                <div className="admin-overview-note danger">总览数据加载失败：{opsDashboardError || dashboardError}</div>
+              )}
+
+              <section className={`admin-overview-status ${overviewHasRisk ? "warning" : "ok"}`}>
+                <div>
+                  <strong>{overviewHasRisk ? "平台存在待处理风险" : "平台运行正常"}</strong>
+                  <span>当前角色：{ADMIN_ROLE_LABELS[adminRole] || adminRole}</span>
+                </div>
+                <div>
+                  <span>最近更新：{new Date().toLocaleString("zh-CN")}</span>
+                  <span>今日 AI 调用 {todayAiCalls} 次</span>
+                  <span>今日失败 {todayFailedAi} 次</span>
+                  <span>最近备份：{backupAlert ? backupAlert.message : "暂无风险提醒"}</span>
+                </div>
+              </section>
+
+              <div className="admin-overview-grid">
+                {coreMetricCards.map((card) => (
+                  <div key={card.label} className={`admin-overview-card tone-${card.tone}`}>
+                    <div className="admin-overview-label">{card.label}</div>
+                    <div className="admin-overview-value">{card.value ?? 0}</div>
+                    <div className="admin-overview-sub">{card.sub}</div>
+                  </div>
+                ))}
+              </div>
+
+              <section className="admin-ops-section">
+                <div className="admin-ops-section-header">
+                  <h3>运营趋势</h3>
+                  <span>近 7 天新增用户、资料与 AI 调用</span>
+                </div>
+                <div className="admin-ops-three-col">
+                  {growthSections.map((section) => {
+                    const maxVal = Math.max(1, ...section.data.map((item) => item.count || 0));
+                    const total = section.data.reduce((sum, item) => sum + (item.count || 0), 0);
+                    return (
+                      <div key={section.label} className="admin-trend-mini-card">
+                        <div className="admin-trend-mini-head">
+                          <strong>{section.label}</strong>
+                          <span>7 天合计 {total}</span>
+                        </div>
+                        {section.data.length > 0 ? (
+                          <div className="admin-mini-bars">
+                            {section.data.map((item, index) => (
+                              <div key={`${section.label}-${index}`} className="admin-mini-bar-item">
+                                <span>{item.count || 0}</span>
+                                <div className="admin-mini-bar-track">
+                                  <div style={{ height: `${Math.max(6, ((item.count || 0) / maxVal) * 100)}%` }} />
+                                </div>
+                                <small>{item.date}</small>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="admin-empty-inline">暂无趋势数据</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+
+              <section className="admin-ops-section">
+                <div className="admin-ops-section-header">
+                  <h3>AI 使用概览</h3>
+                  <button className="admin-chart-action" onClick={() => activateTab("aiLogs")}>查看日志 →</button>
+                </div>
+                <div className="admin-ai-summary">
+                  <div className="admin-ai-summary-main">
+                    <div><span>今日调用</span><strong>{todayAiCalls}</strong></div>
+                    <div><span>今日失败</span><strong>{todayFailedAi}</strong></div>
+                    <div><span>总 Tokens</span><strong>{Number(totalTokens || 0).toLocaleString()}</strong></div>
+                    <div><span>估算成本</span><strong>¥{Number(estimatedCost || 0).toFixed(2)}</strong></div>
+                  </div>
+                  <div className="admin-feature-list-v2">
+                    {featureItems.slice(0, 6).map((item) => (
+                      <div key={item.feature} className="admin-feature-item-v2">
+                        <span className="admin-feature-dot" />
+                        <span className="admin-feature-name-v2">{FEATURE_LABELS[item.feature] || item.feature}</span>
+                        <span className="admin-feature-count-v2">{item.count}</span>
+                      </div>
+                    ))}
+                    {featureItems.length === 0 && <div className="admin-empty-inline">暂无功能调用统计</div>}
+                  </div>
+                </div>
+                <div className="admin-recent-list">
+                  <h4>最近 AI 调用</h4>
+                  {recentAiLogs.slice(0, 5).map((log, index) => (
+                    <button key={index} className="admin-recent-row" onClick={() => fetchAiLogDetail(log)}>
+                      <span>{log.username || "-"}</span>
+                      <span>{FEATURE_LABELS[log.feature] || log.feature || "-"}</span>
+                      <span className={`status-pill ${log.status === "success" ? "status-pill--ok" : "status-pill--fail"}`}>{log.status === "success" ? "成功" : "失败"}</span>
+                      <span>{log.estimated_tokens || log.tokens || 0} Tokens</span>
+                      <span>{log.created_at ? new Date(log.created_at).toLocaleString("zh-CN") : "-"}</span>
+                    </button>
+                  ))}
+                  {recentAiLogs.length === 0 && <div className="admin-empty-inline">暂无 AI 调用记录</div>}
+                </div>
+              </section>
+
+              <section className="admin-ops-section">
+                <div className="admin-ops-section-header">
+                  <h3>排行榜</h3>
+                  <span>用户、功能与资料课程排行</span>
+                </div>
+                <div className="admin-ops-three-col">
+                  {rankingSections.map((section) => (
+                    <div key={section.title} className="admin-ranking-card">
+                      <h4>{section.title}</h4>
+                      {section.items.length > 0 ? section.items.slice(0, 5).map((item, index) => (
+                        <div key={index} className="admin-ranking-row">
+                          <span>{index + 1}</span>
+                          <strong>{item[section.nameKey] || "未知"}</strong>
+                          <em>{item.count || 0}</em>
+                        </div>
+                      )) : <div className="admin-empty-inline">暂无数据</div>}
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <div className="admin-ops-two-col">
+                <section className="admin-ops-section">
+                  <div className="admin-ops-section-header"><h3>风险提醒</h3></div>
+                  <div className="admin-risk-grid">
+                    {riskCards.map((risk, index) => (
+                      <button key={`${risk.title}-${index}`} className={`admin-risk-card ${risk.level}`} onClick={() => risk.tabKey && activateTab(risk.tabKey)}>
+                        <strong>{risk.title}</strong>
+                        <span>{risk.message}</span>
+                      </button>
+                    ))}
+                    {riskCards.length === 0 && <div className="admin-empty-inline">暂无明显风险</div>}
+                  </div>
+                </section>
+
+                <section className="admin-ops-section">
+                  <div className="admin-ops-section-header"><h3>待处理事项</h3></div>
+                  <div className="admin-todo-list">
+                    {todoItems.slice(0, 6).map((item, index) => (
+                      <button key={`${item.type}-${index}`} className={`admin-todo-item ${item.level || "info"}`} onClick={() => item.tab && activateTab(item.tab)}>
+                        <strong>{item.title}</strong>
+                        <span>{item.message}</span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              </div>
+
+              <section className="admin-ops-section">
+                <div className="admin-ops-section-header"><h3>快捷入口</h3></div>
+                <div className="admin-quick-actions">
+                  {quickActions.map((item) => (
+                    <button key={item.tabKey} className="admin-quick-action" onClick={() => activateTab(item.tabKey)}>
+                      {item.label} →
+                    </button>
+                  ))}
+                  {quickActions.length === 0 && <div className="admin-empty-inline">暂无可用入口</div>}
+                </div>
+              </section>
+
+              <section className="admin-legacy-dashboard">
+                <div className="admin-ops-section-header">
+                  <h3>基础统计与最近记录</h3>
+                  {dashboardError && <span>基础统计加载失败，不影响运营看板使用。</span>}
+                </div>
+                <div className="admin-legacy-grid">
+                  <div>
+                    <h4>用户套餐分布</h4>
+                    <p>免费版：{overviewPlanCounts.free || 0}</p>
+                    <p>专业版：{overviewPlanCounts.pro || 0}</p>
+                    <p>管理员套餐：{overviewPlanCounts.admin || 0}</p>
+                  </div>
+                  <div>
+                    <h4>内容基础统计</h4>
+                    <p>课程：{legacyOverview.total_courses ?? 0}</p>
+                    <p>知识点：{legacyOverview.total_knowledge_points ?? 0}</p>
+                    <p>任务：{legacyOverview.total_tasks ?? 0}</p>
+                    <p>题目：{legacyOverview.total_questions ?? 0}</p>
+                  </div>
+                  <div>
+                    <h4>系统摘要</h4>
+                    <p>{modelServiceStatus}</p>
+                    <p>AI 成功率：{usageSummary?.total_success || usageSummary?.total_failed ? `${Math.round(((usageSummary.total_success || 0) / Math.max(1, (usageSummary.total_success || 0) + (usageSummary.total_failed || 0))) * 100)}%` : "暂无数据"}</p>
+                    <p>今日 Token：{Number(usageSummary?.today_tokens || 0).toLocaleString()}</p>
+                  </div>
+                </div>
+              </section>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── Overview ── */}
+      {false && tab === "overview" && (
         <div className="admin-tab-content">
           {loading && !dashboard ? (
             <div className="empty-state">加载中...</div>
