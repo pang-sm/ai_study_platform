@@ -8941,6 +8941,20 @@ select.field:focus {
   background: #f0fdf4;
   border: 1px solid #bbf7d0;
 }
+
+.practice-task-gen-q-check {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #64748b;
+  cursor: pointer;
+  user-select: none;
+}
+.practice-task-gen-q-check input { cursor: pointer; }
 .practice-task-gen-q-opt-label {
   font-weight: 700;
   color: #475569;

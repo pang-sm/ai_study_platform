@@ -406,6 +406,14 @@ class QuestionCreate(BaseModel):
     raw_text: str | None = None
 
 
+class AiQuestionBatchCreate(BaseModel):
+    username: str
+    course_id: str
+    knowledge_point_id: int | None = None
+    source: str = "ai_task_preview"
+    questions: list
+
+
 class QuestionUpdate(BaseModel):
     username: str
     course_id: str | None = None

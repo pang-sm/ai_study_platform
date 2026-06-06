@@ -10483,6 +10483,146 @@ def create_question(req: schemas.QuestionCreate, db: Session = Depends(get_db)):
     return {"success": True, "question": serialize_question(question)}
 
 
+ALLOWED_SAVE_TYPES = {"single_choice", "multiple_choice", "judge", "short_answer"}
+
+
+def _ai_options_to_text(options):
+    """Convert AI question options [{label, text}] to stored text format."""
+    if not options or not isinstance(options, list):
+        return ""
+    lines = []
+    for opt in options:
+        if isinstance(opt, dict):
+            label = str(opt.get("label", "")).strip()
+            text = str(opt.get("text", "")).strip()
+            if label and text:
+                lines.append(f"{label}. {text}")
+    return "\n".join(lines)
+
+
+def _normalize_judge_answer(ans: str) -> str:
+    s = (ans or "").strip()
+    if s in ("正确", "对", "true", "True", "yes", "Yes", "是", "T", "Y", "✔", "✓"):
+        return "正确"
+    if s in ("错误", "错", "false", "False", "no", "No", "否", "F", "N", "✘", "✗"):
+        return "错误"
+    return s
+
+
+@app.post("/practice/questions/batch-create-from-ai")
+def batch_create_questions_from_ai(req: schemas.AiQuestionBatchCreate, db: Session = Depends(get_db)):
+    """Save selected AI-generated questions to the formal question bank with validation and dedup."""
+    user = get_user_by_username(req.username, db)
+    course_id = normalize_subject(req.course_id)
+    if not course_id:
+        raise HTTPException(status_code=400, detail="课程不能为空")
+
+    questions = req.questions
+    if not isinstance(questions, list) or len(questions) == 0:
+        raise HTTPException(status_code=400, detail="请至少提供一道题")
+
+    # Preload existing stems for dedup
+    existing_stems = set()
+    existing_qs = (
+        db.query(models.Question)
+        .filter(
+            models.Question.username == user.username,
+            models.Question.course_id == course_id,
+            models.Question.knowledge_point_id == req.knowledge_point_id,
+        )
+        .all()
+    )
+    for eq in existing_qs:
+        stem = (eq.content or "").strip()
+        if stem:
+            existing_stems.add(stem)
+
+    created = []
+    skipped = 0
+    try:
+        for idx, q in enumerate(questions):
+            if not isinstance(q, dict):
+                skipped += 1
+                continue
+
+            qtype = str(q.get("type", "")).strip()
+            if qtype not in ALLOWED_SAVE_TYPES:
+                skipped += 1
+                continue
+
+            stem = str(q.get("stem", "")).strip()
+            if not stem:
+                skipped += 1
+                continue
+
+            answer = str(q.get("answer", "")).strip()
+            if not answer:
+                skipped += 1
+                continue
+
+            analysis = str(q.get("analysis", "")).strip()
+            if not analysis:
+                skipped += 1
+                continue
+
+            # Options validation
+            options = q.get("options", [])
+            if not isinstance(options, list):
+                options = []
+            if qtype in ("single_choice", "multiple_choice"):
+                if len(options) < 2:
+                    skipped += 1
+                    continue
+
+            # Normalize judge answer
+            if qtype == "judge":
+                answer = _normalize_judge_answer(answer)
+
+            # Title from stem (first 60 chars)
+            title = stem[:60] if len(stem) > 60 else stem
+
+            # Options text
+            options_text = _ai_options_to_text(options)
+
+            # Dedup by stem
+            if stem in existing_stems:
+                skipped += 1
+                continue
+
+            question = models.Question(
+                username=user.username,
+                course_id=course_id,
+                knowledge_point_id=req.knowledge_point_id,
+                type=qtype,
+                title=title,
+                content=stem,
+                options=options_text or None,
+                answer=answer,
+                explanation=analysis,
+                difficulty="medium",
+                source=req.source or "ai_task_preview",
+                source_style="mixed",
+            )
+            db.add(question)
+            db.flush()
+            existing_stems.add(stem)
+            created.append(question)
+
+        db.commit()
+        for q in created:
+            db.refresh(q)
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="批量保存题目失败，请稍后重试。")
+
+    return {
+        "success": True,
+        "created_count": len(created),
+        "skipped_count": skipped,
+        "question_ids": [q.id for q in created],
+    }
+
+
 def extract_practice_import_text(
     file_bytes: bytes,
     filename: str,

@@ -553,6 +553,118 @@ export default function PracticeCenter({
   const [aiTempSubmitting, setAiTempSubmitting] = useState(false);
   const aiTempStartRef = useRef(Date.now());
 
+  // Save AI questions to bank
+  const [aiSaveSelected, setAiSaveSelected] = useState(() => new Set());
+  const [aiSaveModalOpen, setAiSaveModalOpen] = useState(false);
+  const [aiSaveQuestions, setAiSaveQuestions] = useState([]);
+  const [aiSaveSaving, setAiSaveSaving] = useState(false);
+  const [aiSaveError, setAiSaveError] = useState("");
+  const [aiSaveResult, setAiSaveResult] = useState(null);
+
+  const toggleAiSaveSelect = (idx) => {
+    setAiSaveSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx); else next.add(idx);
+      return next;
+    });
+  };
+
+  const openAiSaveModal = () => {
+    if (aiSaveSelected.size === 0) return;
+    const selected = [];
+    aiSaveSelected.forEach((idx) => {
+      const q = taskGenQuestions[idx];
+      if (q) {
+        selected.push({
+          idx,
+          type: q.type,
+          stem: q.stem,
+          options: q.options || [],
+          answer: q.answer,
+          analysis: q.analysis,
+          original: q,
+        });
+      }
+    });
+    setAiSaveQuestions(selected);
+    setAiSaveError("");
+    setAiSaveResult(null);
+    setAiSaveModalOpen(true);
+  };
+
+  const closeAiSaveModal = () => {
+    setAiSaveModalOpen(false);
+    setAiSaveQuestions([]);
+    setAiSaveError("");
+    setAiSaveResult(null);
+    setAiSaveSelected(new Set());
+  };
+
+  const updateAiSaveQuestion = (idx, field, value) => {
+    setAiSaveQuestions((prev) =>
+      prev.map((q, i) => (i === idx ? { ...q, [field]: value } : q))
+    );
+  };
+
+  const updateAiSaveOption = (qIdx, optIdx, field, value) => {
+    setAiSaveQuestions((prev) =>
+      prev.map((q, i) => {
+        if (i !== qIdx) return q;
+        const newOptions = [...q.options];
+        if (newOptions[optIdx]) {
+          newOptions[optIdx] = { ...newOptions[optIdx], [field]: value };
+        }
+        return { ...q, options: newOptions };
+      })
+    );
+  };
+
+  const removeAiSaveQuestion = (idx) => {
+    setAiSaveQuestions((prev) => prev.filter((_, i) => i !== idx));
+    setAiSaveSelected((prev) => {
+      const next = new Set(prev);
+      const removed = aiSaveQuestions[idx];
+      if (removed) next.delete(removed.idx);
+      return next;
+    });
+  };
+
+  const handleAiSaveToBank = async () => {
+    if (aiSaveQuestions.length === 0) return;
+    setAiSaveSaving(true);
+    setAiSaveError("");
+    setAiSaveResult(null);
+    try {
+      const body = {
+        username: user.username,
+        course_id: practiceContext?.courseId || courseFilter || subject || "",
+        knowledge_point_id: practiceContext?.knowledgePointId || null,
+        source: "ai_task_preview",
+        questions: aiSaveQuestions.map((q) => ({
+          type: q.type,
+          stem: q.stem,
+          options: q.options,
+          answer: q.answer,
+          analysis: q.analysis,
+        })),
+      };
+      const res = await fetch(`${API_BASE}/practice/questions/batch-create-from-ai`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || "保存失败，请稍后重试");
+      }
+      setAiSaveResult(data);
+    } catch (e) {
+      setAiSaveError(e.message || "保存到题库失败，请稍后重试。");
+    } finally {
+      setAiSaveSaving(false);
+    }
+  };
+
   const loadKnowledgePoints = async (courseId) => {
     if (!user?.username || !courseId) {
       setKnowledgePoints([]);
@@ -2454,6 +2566,17 @@ export default function PracticeCenter({
                       <div className="practice-task-gen-result">
                         <div className="practice-task-gen-result-header">
                           <span>✅ 已生成 {taskGenQuestions.length} 道题目预览</span>
+                          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                            <span style={{ fontSize: 13, color: "#64748b" }}>已选 {aiSaveSelected.size} 道</span>
+                            <button
+                              className="primary-button compact"
+                              type="button"
+                              disabled={aiSaveSelected.size === 0}
+                              onClick={openAiSaveModal}
+                            >
+                              保存选中题到题库
+                            </button>
+                          </div>
                           <button className="ghost-button compact" onClick={() => { setTaskGenQuestions([]); setTaskGenError(""); }}>
                             重新生成
                           </button>
@@ -2468,7 +2591,15 @@ export default function PracticeCenter({
                         </div>
                         <div className="practice-task-gen-questions">
                           {taskGenQuestions.map((q, idx) => (
-                            <div key={idx} className="practice-task-gen-question">
+                            <div key={idx} className="practice-task-gen-question" style={{ position: "relative" }}>
+                              <label className="practice-task-gen-q-check" onClick={(e) => e.stopPropagation()}>
+                                <input
+                                  type="checkbox"
+                                  checked={aiSaveSelected.has(idx)}
+                                  onChange={() => toggleAiSaveSelect(idx)}
+                                />
+                                <span>保存到题库</span>
+                              </label>
                               <div className="practice-task-gen-q-header">
                                 <span className="practice-task-gen-q-index">第 {idx + 1} 题</span>
                                 <span className="practice-task-gen-q-type">
@@ -3806,6 +3937,121 @@ export default function PracticeCenter({
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── AI Save to Bank Modal ── */}
+      {aiSaveModalOpen && createPortal(
+        <div className="kam-overlay" onClick={(e) => { if (e.target === e.currentTarget) closeAiSaveModal(); }}>
+          <div className="kam-modal" style={{ maxWidth: 780 }}>
+            <button className="kam-close" onClick={closeAiSaveModal} aria-label="关闭">×</button>
+            <div className="kam-body">
+              <h2 className="kam-title" style={{ marginBottom: 8 }}>保存 AI 题目到题库</h2>
+              <p style={{ fontSize: 13, color: "#64748b", margin: "0 0 16px" }}>
+                编辑确认后保存到正式题库。题干、答案、解析不能为空。
+              </p>
+
+              {!aiSaveResult && !aiSaveError && (
+                <>
+                  {aiSaveQuestions.length === 0 ? (
+                    <p style={{ color: "#94a3b8", textAlign: "center", padding: 24 }}>没有待保存的题目</p>
+                  ) : (
+                    <div style={{ maxHeight: "50vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 12, marginBottom: 16 }}>
+                      {aiSaveQuestions.map((q, qIdx) => (
+                        <div key={qIdx} className="kam-tree-module" style={{ borderColor: "#e5e7eb" }}>
+                          <div className="kam-tree-module-header" style={{ justifyContent: "space-between" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <span style={{ fontWeight: 700, color: "#2563eb" }}>第 {qIdx + 1} 题</span>
+                              <span style={{ fontSize: 12, color: "#94a3b8", background: "#f1f5f9", padding: "2px 8px", borderRadius: 6 }}>
+                                {q.type === "single_choice" ? "单选" : q.type === "multiple_choice" ? "多选" : q.type === "judge" ? "判断" : "简答"}
+                              </span>
+                            </div>
+                            <button className="ghost-button compact" style={{ color: "#ef4444", fontSize: 12 }} type="button" onClick={() => removeAiSaveQuestion(qIdx)}>
+                              删除
+                            </button>
+                          </div>
+                          <div style={{ padding: "8px 16px 12px", display: "flex", flexDirection: "column", gap: 10 }}>
+                            <div>
+                              <label style={{ fontSize: 12, fontWeight: 600, color: "#64748b" }}>题型</label>
+                              <select className="field" style={{ width: "100%", marginTop: 4 }} value={q.type} onChange={(e) => updateAiSaveQuestion(qIdx, "type", e.target.value)}>
+                                <option value="single_choice">单选题</option>
+                                <option value="multiple_choice">多选题</option>
+                                <option value="judge">判断题</option>
+                                <option value="short_answer">简答题</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label style={{ fontSize: 12, fontWeight: 600, color: "#64748b" }}>题干</label>
+                              <textarea className="field" style={{ width: "100%", marginTop: 4, minHeight: 60 }} value={q.stem} onChange={(e) => updateAiSaveQuestion(qIdx, "stem", e.target.value)} />
+                            </div>
+                            {(q.type === "single_choice" || q.type === "multiple_choice") && (
+                              <div>
+                                <label style={{ fontSize: 12, fontWeight: 600, color: "#64748b" }}>选项</label>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 4 }}>
+                                  {q.options.map((opt, oIdx) => (
+                                    <div key={oIdx} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                                      <span style={{ fontWeight: 700, width: 20, color: "#64748b" }}>{opt.label}</span>
+                                      <input className="field" style={{ flex: 1 }} value={opt.text || ""} onChange={(e) => updateAiSaveOption(qIdx, oIdx, "text", e.target.value)} />
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            <div>
+                              <label style={{ fontSize: 12, fontWeight: 600, color: "#64748b" }}>正确答案</label>
+                              <input className="field" style={{ width: "100%", marginTop: 4 }} value={q.answer} onChange={(e) => updateAiSaveQuestion(qIdx, "answer", e.target.value)} placeholder={q.type === "judge" ? "正确 或 错误" : q.type === "multiple_choice" ? "如：A,C" : "如：A"} />
+                            </div>
+                            <div>
+                              <label style={{ fontSize: 12, fontWeight: 600, color: "#64748b" }}>解析</label>
+                              <textarea className="field" style={{ width: "100%", marginTop: 4, minHeight: 60 }} value={q.analysis} onChange={(e) => updateAiSaveQuestion(qIdx, "analysis", e.target.value)} />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="kam-footer">
+                    <span className="kam-footer-hint">共 {aiSaveQuestions.length} 道题待保存</span>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button className="cmp-btn cmp-btn--ghost" type="button" onClick={closeAiSaveModal} disabled={aiSaveSaving}>取消</button>
+                      <button className="cmp-btn cmp-btn--primary" type="button" onClick={handleAiSaveToBank} disabled={aiSaveQuestions.length === 0 || aiSaveSaving}>
+                        {aiSaveSaving ? "保存中..." : "确认保存到题库"}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {aiSaveError && !aiSaveResult && (
+                <div style={{ padding: 24, textAlign: "center" }}>
+                  <p style={{ color: "#b91c1c", margin: "0 0 12px" }}>{aiSaveError}</p>
+                  <button className="cmp-btn cmp-btn--ghost" type="button" onClick={() => setAiSaveError("")}>关闭</button>
+                </div>
+              )}
+
+              {aiSaveResult && (
+                <div style={{ padding: 24, textAlign: "center" }}>
+                  <div style={{ fontSize: 40, marginBottom: 8 }}>✅</div>
+                  <h3 style={{ color: "#059669", margin: "0 0 12px" }}>保存成功</h3>
+                  <div style={{ display: "flex", justifyContent: "center", gap: 16, marginBottom: 12 }}>
+                    <div style={{ background: "#f0fdf4", borderRadius: 10, padding: "10px 18px", border: "1px solid #bbf7d0" }}>
+                      <span style={{ fontSize: 22, fontWeight: 800, color: "#059669" }}>{aiSaveResult.created_count}</span>
+                      <span style={{ fontSize: 12, color: "#64748b", display: "block" }}>新增</span>
+                    </div>
+                    <div style={{ background: "#f8fafc", borderRadius: 10, padding: "10px 18px", border: "1px solid #e2e8f0" }}>
+                      <span style={{ fontSize: 22, fontWeight: 800, color: "#64748b" }}>{aiSaveResult.skipped_count}</span>
+                      <span style={{ fontSize: 12, color: "#64748b", display: "block" }}>跳过重复</span>
+                    </div>
+                  </div>
+                  <p style={{ color: "#475569", fontSize: 13, margin: "0 0 16px" }}>
+                    已保存 {aiSaveResult.created_count} 道题到题库，可在练习中心继续使用。
+                  </p>
+                  <button className="cmp-btn cmp-btn--primary" type="button" onClick={closeAiSaveModal}>关闭</button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </section>
   );
