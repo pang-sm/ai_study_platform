@@ -446,6 +446,8 @@ export default function PracticeCenter({
   normalizeSubject,
   formatDate,
   setPage = () => {},
+  practiceContext = null,
+  onClearPracticeContext = () => {},
 }) {
   const [questions, setQuestions] = useState([]);
   const [papers, setPapers] = useState([]);
@@ -532,6 +534,8 @@ export default function PracticeCenter({
   const [importJobStatus, setImportJobStatus] = useState(null);  // pending | processing | succeeded | failed
   const [importJobProgress, setImportJobProgress] = useState("");
   const [importJob, setImportJob] = useState(null);
+  const [taskCompleteSyncing, setTaskCompleteSyncing] = useState(false);
+  const [taskCompleteMessage, setTaskCompleteMessage] = useState("");
 
   const loadKnowledgePoints = async (courseId) => {
     if (!user?.username || !courseId) {
@@ -577,6 +581,38 @@ export default function PracticeCenter({
   };
 
   // ── Body / html / container scroll lock when any modal/drawer is open ──
+  const taskContextActive = Boolean(practiceContext?.fromTask && practiceContext?.taskId);
+  const taskKnowledgeLabel = practiceContext?.knowledgePointTitle || practiceContext?.knowledgePointText || "";
+  const taskMaterialLabel = practiceContext?.relatedMaterialTitle || "";
+
+  const returnToTaskCenter = () => {
+    onClearPracticeContext();
+    setPage("taskCenter");
+  };
+
+  const markTaskComplete = async () => {
+    if (!taskContextActive || !practiceContext?.taskId || !user?.username) return;
+    setTaskCompleteSyncing(true);
+    setTaskCompleteMessage("");
+    try {
+      const res = await fetch(`${API_BASE}/learning/tasks/${practiceContext.taskId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: user.username, status: "done" }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || "标记任务完成失败");
+      }
+      setTaskCompleteMessage("已同步完成学习任务。");
+    } catch (error) {
+      console.error("Failed to mark task complete:", error);
+      setTaskCompleteMessage("同步学习任务失败，请稍后重试。");
+    } finally {
+      setTaskCompleteSyncing(false);
+    }
+  };
+
   useEffect(() => {
     const shouldLock =
       showCreateModal ||
@@ -644,6 +680,16 @@ export default function PracticeCenter({
       window.scrollTo(0, scrollY);
     };
   }, [showCreateModal, showGenerateModal, showImportModal, editingQuestion, paperDetail, detailQuestion]);
+
+  useEffect(() => {
+    if (!practiceContext?.fromTask) return;
+    const nextCourse = practiceContext.courseId || "";
+    const nextKp = practiceContext.knowledgePointId ? String(practiceContext.knowledgePointId) : "";
+    setCourseFilter(nextCourse);
+    setKpFilter(nextKp);
+    setTypeFilter("");
+    setTaskCompleteMessage("");
+  }, [practiceContext?.taskId]);
 
   useEffect(() => {
     const normalizedCourse = normalizeSubject(courseFilter, "");
@@ -1351,6 +1397,27 @@ export default function PracticeCenter({
   const updateImportDraft = (index, patch) => {
     setImportDrafts((items) => items.map((item, i) => (i === index ? { ...item, ...patch } : item)));
   };
+
+  const renderTaskCompleteCard = () => {
+    if (!taskContextActive) return null;
+    return (
+      <div className="practice-complete-task-card">
+        <div>
+          <strong>已完成本次练习，是否标记任务为已完成？</strong>
+          {taskCompleteMessage && <p>{taskCompleteMessage}</p>}
+        </div>
+        <button
+          type="button"
+          className="primary-button compact"
+          disabled={taskCompleteSyncing}
+          onClick={markTaskComplete}
+        >
+          {taskCompleteSyncing ? "同步中..." : "标记任务完成"}
+        </button>
+      </div>
+    );
+  };
+
   const parseImportFile = async () => {
     // 新逻辑：创建异步 job 然后轮询
     if (!importFile || !user?.username) return;
@@ -1647,12 +1714,32 @@ export default function PracticeCenter({
                   </div>
                 ))}
               </div>
+              {renderTaskCompleteCard()}
             </div>
           )}
         </div>
       )}
 
       <div className="practice-workbench">
+        {taskContextActive && (
+          <div className="practice-task-banner">
+            <div>
+              <span className="practice-task-eyebrow">来自学习任务</span>
+              <h3>{practiceContext.taskTitle || "学习任务练习"}</h3>
+              <div className="practice-task-meta">
+                {practiceContext.courseName && <span>课程：{practiceContext.courseName}</span>}
+                {taskKnowledgeLabel && <span>知识点：{taskKnowledgeLabel}</span>}
+                {taskMaterialLabel && <span>资料：{taskMaterialLabel}</span>}
+                {practiceContext.knowledgePointText && !practiceContext.knowledgePointId && (
+                  <span>提示：可按手动知识点筛选或生成题目</span>
+                )}
+              </div>
+            </div>
+            <button type="button" className="ghost-button compact" onClick={returnToTaskCenter}>
+              返回任务中心
+            </button>
+          </div>
+        )}
         <div className="practice-hero">
           <div className="practice-hero-copy">
             <span className="practice-hero-icon" aria-hidden="true">
@@ -2179,6 +2266,8 @@ export default function PracticeCenter({
                   </>
                 )}
               </div>
+
+              {submittedAttempt && renderTaskCompleteCard()}
 
               {feedback && (
                 <div className="ai-feedback-box">

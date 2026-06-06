@@ -431,6 +431,7 @@ function clearCurrentPage() {
 
 function App() {
   const [page, setPageRaw] = useState(getInitialPage);
+  const [practiceContext, setPracticeContext] = useState(null);
   const [authMode, setAuthMode] = useState("login");
 
   const setPage = (nextPage) => {
@@ -444,6 +445,7 @@ function App() {
       alert("该功能暂时维护中，请稍后再试");
       return;
     }
+    setPracticeContext(null);
     saveCurrentPage(nextPage);
     setPageRaw(nextPage);
   };
@@ -2979,6 +2981,16 @@ function App() {
     );
   };
 
+  const openPracticeFromTask = (context) => {
+    if (!isFeatureEnabled("feature_practice_center_enabled")) {
+      alert("璇ュ姛鑳芥殏鏃剁淮鎶や腑锛岃绋嶅悗鍐嶈瘯");
+      return;
+    }
+    setPracticeContext(context);
+    saveCurrentPage("practiceCenter");
+    setPageRaw("practiceCenter");
+  };
+
   if (page === "home") {
     const avatarObj = AVATARS.find((a) => a.id === (user?.avatar || "")) || AVATARS[0];
     const hasCustomAvatar = (user?.avatar_url || "").startsWith("/me/avatar/");
@@ -3072,6 +3084,7 @@ function App() {
             getSubjectLabel={getSubjectLabel}
             normalizeSubject={normalizeSubject}
             formatDate={formatDate}
+            onStartPractice={openPracticeFromTask}
           />
         </Suspense>
       </div>
@@ -3093,6 +3106,8 @@ function App() {
             normalizeSubject={normalizeSubject}
             formatDate={formatDate}
             setPage={setPage}
+            practiceContext={practiceContext}
+            onClearPracticeContext={() => setPracticeContext(null)}
           />
         </Suspense>
       </div>

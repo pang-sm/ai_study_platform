@@ -59,6 +59,7 @@ export default function TaskCenter({
   getSubjectLabel,
   normalizeSubject,
   formatDate,
+  onStartPractice = () => {},
 }) {
   const [tasks, setTasks] = useState([]);
   const [materials, setMaterials] = useState([]);
@@ -352,6 +353,39 @@ export default function TaskCenter({
     }
   };
 
+  const shouldShowPracticeEntry = (task) => {
+    const typeText = String(task.task_type || "").toLowerCase();
+    return (
+      typeText.includes("练习") ||
+      typeText.includes("practice") ||
+      typeText.includes("challenge") ||
+      typeText.includes("查漏") ||
+      typeText.includes("复盘") ||
+      Boolean(task.knowledge_point_id || task.knowledge_point_text)
+    );
+  };
+
+  const getPracticeStatusLabel = (task) => {
+    if (task.status === "done") return "已完成练习 / 已完成任务";
+    if (task.related_question_id || task.related_session_id || task.related_challenge_id) return "已关联练习";
+    return "未完成";
+  };
+
+  const startPracticeFromTask = (task) => {
+    onStartPractice({
+      fromTask: true,
+      taskId: task.id,
+      courseId: task.course_id || "",
+      courseName: task.course_id ? getSubjectLabel(task.course_id) : "",
+      knowledgePointId: task.knowledge_point_id || null,
+      knowledgePointTitle: task.knowledge_point_title || "",
+      knowledgePointText: task.knowledge_point_text || "",
+      relatedMaterialId: task.related_material_id || null,
+      relatedMaterialTitle: task.related_material_title || task.material_filename || task.material_title || "",
+      taskTitle: task.title || "",
+    });
+  };
+
   const renderKnowledgeSelector = () => {
     if (!normalizedFormCourse) {
       return <p className="task-muted">请先选择所属课程。</p>;
@@ -483,7 +517,17 @@ export default function TaskCenter({
             {task.source && task.source !== "manual" && <span>{SOURCE_LABELS[task.source] || task.source}</span>}
           </div>
         </div>
+        <div className="task-practice-status">练习状态：{getPracticeStatusLabel(task)}</div>
         <div className="task-card-actions-v2">
+          {shouldShowPracticeEntry(task) && (
+            <button
+              type="button"
+              className="tiny-button task-practice-entry"
+              onClick={() => startPracticeFromTask(task)}
+            >
+              {isDone ? "再练一次" : "去练习"}
+            </button>
+          )}
           <button type="button" className="tiny-button" onClick={() => openEditModal(task)}>编辑</button>
           {isDone ? (
             <button
