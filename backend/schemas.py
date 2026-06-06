@@ -591,6 +591,14 @@ class MaterialKnowledgeApplyRequest(BaseModel):
     links: list
 
 
+# ── Material Analyze Knowledge Preview ───────────────────
+
+class MaterialAnalyzeKnowledgeRequest(BaseModel):
+    username: str
+    course_id: str
+    material_ids: list[int]
+
+
 # ── Admin / Plan ────────────────────────────────────────
 
 

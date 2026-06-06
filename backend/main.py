@@ -13585,6 +13585,233 @@ def apply_material_knowledge_recommendations(material_id: int, req: schemas.Mate
     }
 
 
+# ── Material Analyze Knowledge Preview ──────────────────
+
+MAX_ANALYZE_CHUNKS_PER_MATERIAL = 10
+MAX_ANALYZE_CHARS_PER_MATERIAL = 6000
+MAX_TOTAL_ANALYZE_CHARS = 20000
+
+ANALYZE_KNOWLEDGE_PROMPT = """你是一个课程知识结构分析专家。请基于以下课程资料内容，提取适合学生学习路线使用的知识点树。
+
+要求：
+1. 使用中文。
+2. 生成 3 到 8 个大模块。
+3. 每个大模块下生成 2 到 8 个小知识点。
+4. 大模块不要太细，每个大模块应涵盖一个相对完整的知识领域。
+5. 小知识点要具体、可测量，可用于任务绑定和练习筛选。
+6. 每个大模块和知识点给一句简短说明（1-2句话）。
+7. 每个小知识点需要标注 source_material_titles（引用了哪些资料）。
+8. 不要生成与资料内容无关的知识点。
+9. 如果资料内容不足，生成较少的大模块，并在第一个模块的 description 中说明。
+10. 只输出 JSON，不要输出 Markdown。
+
+JSON 格式：
+{
+  "knowledge_tree": [
+    {
+      "title": "进程管理",
+      "description": "围绕进程的创建、调度、同步与通信展开的基础知识模块",
+      "children": [
+        {
+          "title": "进程与线程",
+          "description": "理解进程和线程的基本概念、区别与适用场景",
+          "source_material_titles": ["操作系统第一章.pdf"]
+        }
+      ]
+    }
+  ]
+}"""
+
+
+@app.post("/materials/analyze-knowledge-preview")
+def analyze_knowledge_preview(req: schemas.MaterialAnalyzeKnowledgeRequest, db: Session = Depends(get_db)):
+    """Analyze selected materials and return a knowledge tree preview (no DB writes)."""
+    user = get_user_by_username(req.username, db)
+    course_id = normalize_subject(req.course_id)
+
+    if not course_id:
+        raise HTTPException(status_code=400, detail="课程不能为空")
+
+    if not req.material_ids or len(req.material_ids) == 0:
+        raise HTTPException(status_code=400, detail="请至少选择一份资料")
+
+    # Validate and fetch materials
+    materials = (
+        db.query(models.StudyMaterial)
+        .filter(
+            models.StudyMaterial.id.in_(req.material_ids),
+            models.StudyMaterial.username == user.username,
+            models.StudyMaterial.subject == course_id,
+            models.StudyMaterial.is_deleted.is_(False),
+        )
+        .all()
+    )
+
+    if not materials:
+        raise HTTPException(status_code=404, detail="所选资料不存在或不属于当前课程")
+
+    material_info = [
+        {"id": m.id, "title": m.original_filename}
+        for m in materials
+    ]
+
+    # Collect text content from chunks, falling back to extracted_text
+    content_parts = []
+    total_chars = 0
+    for mat in materials:
+        mat_chars = 0
+        # Try chunks first
+        chunks = (
+            db.query(models.MaterialChunk)
+            .filter(
+                models.MaterialChunk.material_id == mat.id,
+                models.MaterialChunk.is_deleted.is_(False),
+            )
+            .order_by(models.MaterialChunk.chunk_index)
+            .limit(MAX_ANALYZE_CHUNKS_PER_MATERIAL)
+            .all()
+        )
+
+        if chunks:
+            for chunk in chunks:
+                chunk_text = (chunk.chunk_text or "").strip()
+                if not chunk_text:
+                    continue
+                if total_chars + len(chunk_text) > MAX_TOTAL_ANALYZE_CHARS:
+                    remaining = MAX_TOTAL_ANALYZE_CHARS - total_chars
+                    if remaining > 200:
+                        chunk_text = chunk_text[:remaining] + "..."
+                    else:
+                        break
+                content_parts.append(f"【资料：{mat.original_filename}】\n{chunk_text}")
+                total_chars += len(chunk_text)
+                mat_chars += len(chunk_text)
+        else:
+            # Fallback to extracted_text
+            ext_text = (mat.extracted_text or "").strip()
+            if ext_text:
+                if total_chars + len(ext_text) > MAX_TOTAL_ANALYZE_CHARS:
+                    remaining = MAX_TOTAL_ANALYZE_CHARS - total_chars
+                    if remaining > 200:
+                        ext_text = ext_text[:remaining] + "..."
+                    else:
+                        ext_text = ""
+                if ext_text:
+                    content_parts.append(f"【资料：{mat.original_filename}】\n{ext_text}")
+                    total_chars += len(ext_text)
+                    mat_chars += len(ext_text)
+
+        # If no useful content found for this material
+        if mat_chars == 0:
+            content_parts.append(f"【资料：{mat.original_filename}】\n（该资料暂无可用文本内容）")
+
+    if not content_parts:
+        raise HTTPException(status_code=400, detail="所选资料内容不足，无法分析。请确保资料已成功解析并生成了知识索引。")
+
+    combined_content = "\n\n".join(content_parts)
+
+    if len(combined_content.strip()) < 100:
+        raise HTTPException(status_code=400, detail="资料内容不足，无法分析。请上传更多资料或等待资料解析完成后重试。")
+
+    # Build AI prompt
+    user_prompt = f"""课程：{course_id}
+资料数量：{len(materials)} 份
+
+以下是从所选资料中提取的内容片段，请根据这些内容生成知识点树：
+
+{combined_content}"""
+
+    check_usage_limit(user.username, "knowledge_generate", db)
+
+    try:
+        raw = call_deepseek(
+            [{"role": "system", "content": ANALYZE_KNOWLEDGE_PROMPT},
+             {"role": "user", "content": user_prompt}],
+            temperature=0.3,
+            max_tokens=3000,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="AI 分析失败，请稍后重试") from exc
+
+    record_ai_usage(
+        user.username, "knowledge_generate", db,
+        estimated_tokens=estimate_tokens_from_text(user_prompt) + estimate_tokens_from_text(raw),
+        status="success",
+    )
+
+    # Parse JSON response
+    text = raw.strip()
+    if text.startswith("```"):
+        lines = text.split("\n")
+        end_idx = len(lines)
+        for i in range(len(lines) - 1, 0, -1):
+            if lines[i].strip() == "```":
+                end_idx = i
+                break
+        text = "\n".join(lines[1:end_idx]).strip()
+    json_start = text.find("{")
+    json_end = text.rfind("}")
+    if json_start == -1 or json_end == -1:
+        raise HTTPException(status_code=500, detail="AI 返回格式异常，未能生成有效的知识点结构。请稍后重试。")
+
+    try:
+        result = json.loads(text[json_start:json_end + 1])
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=500, detail=f"AI 返回数据解析失败，请稍后重试。错误详情：{str(exc)[:200]}")
+
+    knowledge_tree = result.get("knowledge_tree", [])
+    if not isinstance(knowledge_tree, list):
+        knowledge_tree = []
+
+    # Validate and clean tree structure
+    cleaned_tree = []
+    for module in knowledge_tree:
+        if not isinstance(module, dict):
+            continue
+        title = str(module.get("title", "")).strip()
+        if not title:
+            continue
+        desc = str(module.get("description", "")).strip()
+        children = module.get("children", [])
+        if not isinstance(children, list):
+            children = []
+
+        cleaned_children = []
+        for child in children:
+            if not isinstance(child, dict):
+                continue
+            child_title = str(child.get("title", "")).strip()
+            if not child_title:
+                continue
+            child_desc = str(child.get("description", "")).strip()
+            sources = child.get("source_material_titles", [])
+            if not isinstance(sources, list):
+                sources = []
+            cleaned_children.append({
+                "title": child_title,
+                "description": child_desc,
+                "source_material_titles": [str(s) for s in sources if s],
+            })
+
+        cleaned_tree.append({
+            "title": title,
+            "description": desc,
+            "children": cleaned_children,
+        })
+
+    if not cleaned_tree:
+        raise HTTPException(status_code=500, detail="未能从资料中提取有效知识点。请确认资料内容与课程相关，或尝试选择更多资料后重试。")
+
+    return {
+        "success": True,
+        "course_id": course_id,
+        "materials": material_info,
+        "knowledge_tree": cleaned_tree,
+    }
+
+
 # ══════════════════════════════════════════════════════════════
 #  MEMBERSHIP SYSTEM
 # ══════════════════════════════════════════════════════════════

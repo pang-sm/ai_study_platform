@@ -707,3 +707,296 @@
   .cmp-stats-row { grid-template-columns: 1fr; }
   .cmp-filter-group { flex-direction: column; align-items: flex-start; gap: 6px; }
 }
+
+/* ── Accent Button ── */
+.cmp-btn--accent {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid #2563eb;
+  background: #eff6ff;
+  color: #1d4ed8;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.cmp-btn--accent:hover { background: #dbeafe; border-color: #1d4ed8; transform: translateY(-1px); }
+.cmp-btn--accent:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   Knowledge Analysis Modal (kam-*)
+   ═══════════════════════════════════════════════════════════════════ */
+
+.kam-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 20px;
+}
+.kam-modal {
+  background: #fff;
+  border-radius: 20px;
+  box-shadow: 0 24px 60px rgba(15,23,42,0.18);
+  width: 100%;
+  max-width: 720px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+.kam-close {
+  position: absolute;
+  top: 14px;
+  right: 18px;
+  background: none;
+  border: none;
+  font-size: 28px;
+  color: #94a3b8;
+  cursor: pointer;
+  line-height: 1;
+  z-index: 2;
+}
+.kam-close:hover { color: #0f172a; }
+.kam-body {
+  padding: 28px 28px 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+.kam-title {
+  font-size: 1.2rem;
+  font-weight: 750;
+  color: #0f172a;
+  margin: 0 0 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.kam-step-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #475569;
+  margin: 0 0 12px;
+}
+.kam-empty {
+  text-align: center;
+  padding: 32px 16px;
+  color: #64748b;
+  font-size: 0.85rem;
+}
+.kam-empty p { margin: 0 0 8px; }
+.kam-empty-hint { font-size: 0.78rem; color: #94a3b8; }
+
+/* Material Select List */
+.kam-material-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 360px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+.kam-material-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.12s;
+  background: #fff;
+}
+.kam-material-item:hover { background: #f8fafc; border-color: #cbd5e1; }
+.kam-material-item--selected { background: #eff6ff; border-color: #2563eb; }
+.kam-material-item--disabled { opacity: 0.45; cursor: not-allowed; background: #f1f5f9; }
+.kam-material-check {
+  font-size: 18px;
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #94a3b8;
+  width: 24px;
+  text-align: center;
+}
+.kam-material-item--selected .kam-material-check { color: #2563eb; }
+.kam-material-info { min-width: 0; flex: 1; }
+.kam-material-name {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.kam-material-meta {
+  display: block;
+  font-size: 0.72rem;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+/* Footer */
+.kam-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid #f1f5f9;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.kam-footer-hint { font-size: 0.78rem; color: #94a3b8; }
+.kam-footer-hint--preview { color: #b45309; font-weight: 500; }
+.kam-footer-actions { display: flex; gap: 8px; }
+
+/* Loading */
+.kam-loading {
+  text-align: center;
+  padding: 48px 16px;
+}
+.kam-loading p { font-size: 0.9rem; color: #475569; margin: 12px 0 0; }
+.kam-loading-hint { font-size: 0.78rem; color: #94a3b8; margin-top: 6px; }
+
+/* Error */
+.kam-error {
+  text-align: center;
+  padding: 32px 16px;
+}
+.kam-error p { font-size: 0.85rem; color: #b91c1c; margin: 0 0 16px; }
+.kam-error-actions { display: flex; gap: 8px; justify-content: center; }
+
+/* Result Header */
+.kam-result-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.kam-result-stats { font-size: 0.78rem; color: #64748b; }
+
+/* Knowledge Tree */
+.kam-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 440px;
+  overflow-y: auto;
+  margin-bottom: 4px;
+}
+.kam-tree-module {
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #fff;
+}
+.kam-tree-module-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 16px;
+  background: #f8fafc;
+  border: none;
+  width: 100%;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s;
+}
+.kam-tree-module-header:hover { background: #f1f5f9; }
+.kam-tree-arrow {
+  font-size: 11px;
+  color: #94a3b8;
+  flex-shrink: 0;
+  margin-top: 5px;
+  transition: transform 0.2s;
+  display: inline-block;
+}
+.kam-tree-arrow--open { transform: rotate(90deg); }
+.kam-tree-module-info { flex: 1; min-width: 0; }
+.kam-tree-module-title {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+.kam-tree-module-desc {
+  display: block;
+  font-size: 0.78rem;
+  color: #64748b;
+  margin-top: 4px;
+  line-height: 1.4;
+}
+.kam-tree-module-count {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  background: #f1f5f9;
+  padding: 2px 10px;
+  border-radius: 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Children */
+.kam-tree-children {
+  border-top: 1px solid #f1f5f9;
+  padding: 6px 16px 12px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.kam-tree-child {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #fafbfc;
+  border-radius: 10px;
+  border: 1px solid #f1f5f9;
+}
+.kam-tree-child-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #2563eb;
+  flex-shrink: 0;
+  margin-top: 6px;
+}
+.kam-tree-child-info { flex: 1; min-width: 0; }
+.kam-tree-child-title {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+.kam-tree-child-desc {
+  display: block;
+  font-size: 0.76rem;
+  color: #64748b;
+  margin-top: 3px;
+  line-height: 1.4;
+}
+.kam-tree-child-source {
+  display: block;
+  font-size: 0.7rem;
+  color: #94a3b8;
+  margin-top: 4px;
+  font-style: italic;
+}
+
+/* ── Responsive ── */
+@media (max-width: 560px) {
+  .kam-modal { max-width: 100%; border-radius: 14px; }
+  .kam-body { padding: 18px; }
+  .kam-material-list { max-height: 240px; }
+  .kam-tree { max-height: 300px; }
+}

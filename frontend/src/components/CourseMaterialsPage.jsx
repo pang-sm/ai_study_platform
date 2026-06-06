@@ -1,5 +1,8 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import "./CourseMaterialsPage.css";
+
+const API_BASE = "/api";
 
 const PAGE_SIZE = 5;
 
@@ -326,6 +329,14 @@ export default function CourseMaterialsPage({
   const [filterIndex, setFilterIndex] = useState("all");
   const [searchInput, setSearchInput] = useState("");
 
+  // Knowledge analysis modal
+  const [showKnowledgeModal, setShowKnowledgeModal] = useState(false);
+  const [selectedMaterialIds, setSelectedMaterialIds] = useState(new Set());
+  const [analyzeLoading, setAnalyzeLoading] = useState(false);
+  const [analyzeError, setAnalyzeError] = useState("");
+  const [analyzeResult, setAnalyzeResult] = useState(null);
+  const [expandedModules, setExpandedModules] = useState(new Set());
+
   const courseLabel = getSubjectLabel(subject);
 
   const courseItems = currentFilterItems;
@@ -389,6 +400,72 @@ export default function CourseMaterialsPage({
   const refreshList = () => {
     setMaterialCurrentPage(1);
     loadMaterials(subject);
+  };
+
+  // ── Knowledge Analysis ──
+
+  const openKnowledgeModal = () => {
+    setSelectedMaterialIds(new Set());
+    setAnalyzeError("");
+    setAnalyzeResult(null);
+    setExpandedModules(new Set());
+    setShowKnowledgeModal(true);
+  };
+
+  const closeKnowledgeModal = () => {
+    setShowKnowledgeModal(false);
+    setAnalyzeResult(null);
+    setAnalyzeError("");
+    setSelectedMaterialIds(new Set());
+  };
+
+  const toggleMaterialSelect = (id) => {
+    setSelectedMaterialIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleModuleExpand = (idx) => {
+    setExpandedModules((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx); else next.add(idx);
+      return next;
+    });
+  };
+
+  const handleAnalyzeKnowledge = async () => {
+    if (selectedMaterialIds.size === 0) return;
+    setAnalyzeLoading(true);
+    setAnalyzeError("");
+    setAnalyzeResult(null);
+    setExpandedModules(new Set());
+    try {
+      const res = await fetch(`${API_BASE}/materials/analyze-knowledge-preview`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: user.username,
+          course_id: subject,
+          material_ids: Array.from(selectedMaterialIds),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || "分析失败，请稍后重试");
+      }
+      setAnalyzeResult(data);
+      // Auto-expand first 3 modules
+      const tree = data.knowledge_tree || [];
+      const autoExpand = new Set();
+      tree.slice(0, 3).forEach((_, i) => autoExpand.add(i));
+      setExpandedModules(autoExpand);
+    } catch (e) {
+      setAnalyzeError(e.message || "AI 分析失败，请稍后重试。");
+    } finally {
+      setAnalyzeLoading(false);
+    }
   };
 
   const selectedParseStatus = selectedMaterialDetail?.parse_status || "";
@@ -455,6 +532,20 @@ export default function CourseMaterialsPage({
               <path d="M12 2a10 10 0 1 0 10 10h-10v-10z" />
             </svg>
             {reindexLoading ? "重建中..." : "重建索引"}
+          </button>
+          <button
+            className="cmp-btn cmp-btn--accent"
+            type="button"
+            onClick={openKnowledgeModal}
+            disabled={courseItems.length === 0}
+            title={courseItems.length === 0 ? "当前课程暂无资料" : "从已有资料中提取知识点结构"}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M12 2L2 7l10 5 10-5-10-5z" />
+              <path d="M2 17l10 5 10-5" />
+              <path d="M2 12l10 5 10-5" />
+            </svg>
+            从资料生成知识点
           </button>
         </div>
         <input
@@ -795,6 +886,188 @@ export default function CourseMaterialsPage({
           </button>
         </aside>
       </div>
+
+      {/* ── Knowledge Analysis Modal (Portal) ── */}
+      {showKnowledgeModal && createPortal(
+        <div className="kam-overlay" onClick={(e) => { if (e.target === e.currentTarget) closeKnowledgeModal(); }}>
+          <div className="kam-modal">
+            <button className="kam-close" onClick={closeKnowledgeModal} aria-label="关闭">×</button>
+            <div className="kam-body">
+              <h2 className="kam-title">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0 }}>
+                  <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                  <path d="M2 17l10 5 10-5" />
+                  <path d="M2 12l10 5 10-5" />
+                </svg>
+                从资料生成知识点
+              </h2>
+
+              {/* ── Step 1: Select Materials ── */}
+              {!analyzeResult && !analyzeLoading && (
+                <>
+                  <p className="kam-step-label">步骤 1：选择要分析的资料（可多选）</p>
+                  {courseItems.length === 0 ? (
+                    <div className="kam-empty">
+                      <p>当前课程暂无资料，请先上传资料。</p>
+                      <button className="cmp-btn cmp-btn--primary" type="button" onClick={() => { closeKnowledgeModal(); materialsFileInputRef.current?.click(); }}>
+                        上传课程资料
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="kam-material-list">
+                      {courseItems.map((mat) => {
+                        const isSelected = selectedMaterialIds.has(mat.id);
+                        const hasContent = mat.parse_status === "success" || mat.parse_status === "partial";
+                        return (
+                          <div
+                            key={mat.id}
+                            className={`kam-material-item ${isSelected ? "kam-material-item--selected" : ""} ${!hasContent ? "kam-material-item--disabled" : ""}`}
+                            onClick={() => hasContent && toggleMaterialSelect(mat.id)}
+                          >
+                            <div className="kam-material-check">
+                              {isSelected ? "☑" : "☐"}
+                            </div>
+                            <div className="kam-material-info">
+                              <span className="kam-material-name">
+                                <span>{getFileIconEmoji(mat.file_type)}</span>
+                                {" "}{mat.original_filename}
+                              </span>
+                              <span className="kam-material-meta">
+                                {getFileTypeLabel(mat.file_type)} · {formatFileSize(mat.file_size)} · {formatDate(mat.created_at)}
+                                {" · "}{Number(mat.chunk_count || 0)} 个知识片段
+                                {!hasContent && " · 索引未完成"}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div className="kam-footer">
+                    <span className="kam-footer-hint">
+                      {selectedMaterialIds.size === 0
+                        ? "请至少选择一份已完成 AI 索引的资料"
+                        : `已选择 ${selectedMaterialIds.size} 份资料`}
+                    </span>
+                    <button
+                      className="cmp-btn cmp-btn--primary"
+                      type="button"
+                      onClick={handleAnalyzeKnowledge}
+                      disabled={selectedMaterialIds.size === 0}
+                    >
+                      开始分析
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* ── Loading ── */}
+              {analyzeLoading && (
+                <div className="kam-loading">
+                  <div className="cmp-loading-spinner" />
+                  <p>正在分析资料结构...</p>
+                  <p className="kam-loading-hint">AI 正在读取资料内容并提取知识点，请稍候。</p>
+                </div>
+              )}
+
+              {/* ── Error ── */}
+              {analyzeError && !analyzeLoading && (
+                <div className="kam-error">
+                  <p>{analyzeError}</p>
+                  <div className="kam-error-actions">
+                    <button className="cmp-btn cmp-btn--ghost" type="button" onClick={() => { setAnalyzeError(""); }}>
+                      返回重新选择
+                    </button>
+                    <button className="cmp-btn cmp-btn--primary" type="button" onClick={handleAnalyzeKnowledge}>
+                      重试
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Result: Knowledge Tree Preview ── */}
+              {analyzeResult && !analyzeLoading && (
+                <>
+                  <div className="kam-result-header">
+                    <span className="kam-step-label">知识点树预览</span>
+                    <span className="kam-result-stats">
+                      共 {(analyzeResult.knowledge_tree || []).length} 个大模块，
+                      {(() => { let c = 0; (analyzeResult.knowledge_tree || []).forEach(m => { c += (m.children || []).length; }); return c; })()} 个知识点
+                    </span>
+                  </div>
+
+                  {(analyzeResult.knowledge_tree || []).length === 0 ? (
+                    <div className="kam-empty">
+                      <p>未能从资料中提取有效知识点。</p>
+                      <p className="kam-empty-hint">请确认所选资料内容与课程相关，或尝试选择更多资料后重试。</p>
+                    </div>
+                  ) : (
+                    <div className="kam-tree">
+                      {(analyzeResult.knowledge_tree || []).map((module, idx) => {
+                        const isExpanded = expandedModules.has(idx);
+                        return (
+                          <div key={idx} className="kam-tree-module">
+                            <button
+                              className="kam-tree-module-header"
+                              onClick={() => toggleModuleExpand(idx)}
+                              type="button"
+                            >
+                              <span className={`kam-tree-arrow ${isExpanded ? "kam-tree-arrow--open" : ""}`}>▶</span>
+                              <div className="kam-tree-module-info">
+                                <span className="kam-tree-module-title">{module.title}</span>
+                                {module.description && (
+                                  <span className="kam-tree-module-desc">{module.description}</span>
+                                )}
+                              </div>
+                              <span className="kam-tree-module-count">{module.children ? module.children.length : 0} 项</span>
+                            </button>
+                            {isExpanded && module.children && module.children.length > 0 && (
+                              <div className="kam-tree-children">
+                                {module.children.map((child, cidx) => (
+                                  <div key={cidx} className="kam-tree-child">
+                                    <div className="kam-tree-child-dot" />
+                                    <div className="kam-tree-child-info">
+                                      <span className="kam-tree-child-title">{child.title}</span>
+                                      {child.description && (
+                                        <span className="kam-tree-child-desc">{child.description}</span>
+                                      )}
+                                      {child.source_material_titles && child.source_material_titles.length > 0 && (
+                                        <span className="kam-tree-child-source">
+                                          来源：{child.source_material_titles.join("、")}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div className="kam-footer">
+                    <span className="kam-footer-hint kam-footer-hint--preview">
+                      ⚠️ 当前仅为预览，下一步确认后才会写入知识点树。
+                    </span>
+                    <div className="kam-footer-actions">
+                      <button className="cmp-btn cmp-btn--ghost" type="button" onClick={() => { setAnalyzeResult(null); setAnalyzeError(""); }}>
+                        返回重新选择
+                      </button>
+                      <button className="cmp-btn cmp-btn--primary" type="button" disabled title="下一步开放">
+                        确认写入（下一步开放）
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
