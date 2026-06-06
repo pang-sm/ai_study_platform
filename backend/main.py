@@ -8448,18 +8448,28 @@ def get_learning_dashboard(username: str, db: Session = Depends(get_db)):
         try: return json.loads(tags_str) if tags_str else {}
         except: return {}
 
-    today_q = sum(_parse_practice_tags(r.tags).get("total", 0) for r in today_practice)
+    def _practice_total(tags_dict):
+        # total_questions (all questions including short_answer) if available, else total
+        return tags_dict.get("total_questions", tags_dict.get("total", 0))
+
+    def _practice_graded(tags_dict):
+        # graded_questions (auto-graded count) if available, else total (backward compat)
+        return tags_dict.get("graded_questions", tags_dict.get("total", 0))
+
+    today_q_all = sum(_practice_total(_parse_practice_tags(r.tags)) for r in today_practice)
+    today_q_graded = sum(_practice_graded(_parse_practice_tags(r.tags)) for r in today_practice)
     today_correct = sum(_parse_practice_tags(r.tags).get("correct", 0) for r in today_practice)
-    today_acc = round(today_correct / today_q * 100, 1) if today_q > 0 else 0
+    today_acc = round(today_correct / today_q_graded * 100, 1) if today_q_graded > 0 else 0
     today_dur = sum(_parse_practice_tags(r.tags).get("duration_seconds", 0) for r in today_practice)
-    week_q = sum(_parse_practice_tags(r.tags).get("total", 0) for r in week_practice)
+    week_q_all = sum(_practice_total(_parse_practice_tags(r.tags)) for r in week_practice)
+    week_q_graded = sum(_practice_graded(_parse_practice_tags(r.tags)) for r in week_practice)
     week_correct = sum(_parse_practice_tags(r.tags).get("correct", 0) for r in week_practice)
-    week_acc = round(week_correct / week_q * 100, 1) if week_q > 0 else 0
+    week_acc = round(week_correct / week_q_graded * 100, 1) if week_q_graded > 0 else 0
     week_dur = sum(_parse_practice_tags(r.tags).get("duration_seconds", 0) for r in week_practice)
 
-    overview["today_practice_questions"] = today_q
+    overview["today_practice_questions"] = today_q_all
     overview["today_practice_accuracy"] = today_acc
-    overview["week_practice_questions"] = week_q
+    overview["week_practice_questions"] = week_q_all
     overview["week_practice_accuracy"] = week_acc
     overview["week_study_minutes"] = round(week_dur / 60)
     overview["total_practice_records"] = len(practice_records)
@@ -8477,8 +8487,8 @@ def get_learning_dashboard(username: str, db: Session = Depends(get_db)):
         models.LearningTask.due_date.isnot(None), models.LearningTask.due_date < today
     ).count() if hasattr(models.LearningTask, 'due_date') else 0
 
-    practice_summary = {"today": {"sessions": len(today_practice), "questions": today_q, "correct": today_correct, "accuracy": today_acc, "duration_minutes": round(today_dur / 60)},
-                       "week": {"sessions": len(week_practice), "questions": week_q, "correct": week_correct, "accuracy": week_acc, "duration_minutes": round(week_dur / 60)}}
+    practice_summary = {"today": {"sessions": len(today_practice), "questions": today_q_all, "graded_questions": today_q_graded, "correct": today_correct, "accuracy": today_acc, "duration_minutes": round(today_dur / 60)},
+                       "week": {"sessions": len(week_practice), "questions": week_q_all, "graded_questions": week_q_graded, "correct": week_correct, "accuracy": week_acc, "duration_minutes": round(week_dur / 60)}}
     task_summary = {"today_completed": today_tasks_done, "week_completed": week_tasks_done, "pending": todo_task_count, "overdue": overdue_tasks}
 
     # ── Weak Points (70 threshold) ──
@@ -10325,12 +10335,25 @@ def submit_practice_result(req: dict, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="请提供至少一道题的练习结果")
     duration = int(req.get("duration_seconds", 0) or 0)
     source = str(req.get("source", "normal_practice")).strip()
-    total = len(question_results)
-    correct = sum(1 for q in question_results if q.get("is_correct"))
-    accuracy = round(correct / total * 100, 1) if total > 0 else 0
+
+    # Support total_questions / short_answer_count for AI temp practice
+    total_all = int(req.get("total_questions", 0) or 0)
+    short_answer_count = int(req.get("short_answer_count", 0) or 0)
+    if total_all <= 0:
+        total_all = len(question_results)
+
+    # Only count auto-graded questions (is_correct is True/False, not None)
+    graded_qs = [q for q in question_results if q.get("is_correct") is not None]
+    if not graded_qs:
+        # Fallback: treat all as graded if no explicit null markers
+        graded_qs = question_results
+    graded_total = len(graded_qs)
+    graded_correct = sum(1 for q in graded_qs if q.get("is_correct"))
+    graded_accuracy = round(graded_correct / graded_total * 100, 1) if graded_total > 0 else None
+
     minutes = max(1, round(duration / 60))
     kp_title = ""; kp_id = None
-    for q in question_results:
+    for q in graded_qs:
         if q.get("knowledge_point_id"):
             kp_id = q["knowledge_point_id"]
             kp = db.query(models.KnowledgePoint).filter(models.KnowledgePoint.id == kp_id).first()
@@ -10339,42 +10362,85 @@ def submit_practice_result(req: dict, db: Session = Depends(get_db)):
     if not kp_id: kp_id = req.get("knowledge_point_id")
     course_label = course_id or "综合练习"
     kp_label = f" / {kp_title}" if kp_title else ""
-    summary = f"完成{course_label}{kp_label}练习，{total} 题，正确 {correct} 题（{accuracy}%），用时 {minutes} 分钟"
+
+    # Build summary
+    acc_str = f"{graded_accuracy}%" if graded_accuracy is not None else "未计算"
+    if source == "task_ai_temp_practice":
+        if graded_total > 0 and total_all > graded_total:
+            sa_count = total_all - graded_total
+            summary = f"完成 AI 生成临时练习 {total_all} 题，其中自动判分 {graded_total} 题，正确 {graded_correct} 题，正确率 {acc_str}，简答题 {sa_count} 题未自动判分，用时 {minutes} 分钟"
+        elif graded_total > 0:
+            summary = f"完成 AI 生成临时练习 {total_all} 题，正确 {graded_correct}/{graded_total}（{acc_str}），用时 {minutes} 分钟"
+        else:
+            summary = f"完成 AI 生成临时练习 {total_all} 题，均为简答题，暂未计算自动正确率，用时 {minutes} 分钟"
+    else:
+        summary = f"完成{course_label}{kp_label}练习，{graded_total} 题，正确 {graded_correct} 题（{acc_str}），用时 {minutes} 分钟"
+
+    tags_data = {
+        "task_id": task_id,
+        "source": source,
+        "duration_seconds": duration,
+        "total": graded_total,
+        "correct": graded_correct,
+        "accuracy": graded_accuracy,
+    }
+    if source == "task_ai_temp_practice" or total_all > graded_total or short_answer_count > 0:
+        tags_data["total_questions"] = total_all
+        tags_data["graded_questions"] = graded_total
+        sa = short_answer_count if short_answer_count > 0 else total_all - graded_total
+        tags_data["short_answer_count"] = sa
+
     record = models.LearningRecord(
         user_id=user.id, subject=course_id, session_id=None, message_id=None,
-        record_type="practice", question=f"完成{course_label}练习：{total} 题",
-        answer=f"正确 {correct}/{total}，正确率 {accuracy}%，用时 {minutes} 分钟",
+        record_type="practice", question=f"完成{course_label}练习：{total_all} 题",
+        answer=f"正确 {graded_correct}/{graded_total}" if graded_total > 0 else f"简答题 {total_all} 题，未自动判分",
         note=summary,
-        tags=json.dumps({"task_id": task_id, "source": source, "duration_seconds": duration, "total": total, "correct": correct, "accuracy": accuracy}),
+        tags=json.dumps(tags_data, ensure_ascii=False),
         references_json=None, review_status="pending",
     )
     db.add(record); db.commit(); db.refresh(record)
-    # Update knowledge mastery
+
+    # Update knowledge mastery (only based on auto-graded questions)
     kp_updates = {}
-    for q in question_results:
+    for q in graded_qs:
         q_kp_id = q.get("knowledge_point_id")
         if not q_kp_id: continue
         if q_kp_id not in kp_updates: kp_updates[q_kp_id] = {"total": 0, "correct": 0}
         kp_updates[q_kp_id]["total"] += 1
         if q.get("is_correct"): kp_updates[q_kp_id]["correct"] += 1
-    for kp_id_key, stats in kp_updates.items():
-        acc = stats["correct"] / stats["total"] if stats["total"] > 0 else 0
-        prog = db.query(models.UserKnowledgeProgress).filter(
-            models.UserKnowledgeProgress.username == user.username,
-            models.UserKnowledgeProgress.knowledge_point_id == kp_id_key,
-        ).first()
-        if not prog:
-            prog = models.UserKnowledgeProgress(username=user.username, course_id=course_id, knowledge_point_id=kp_id_key, mastery_score=50, status="learning", practice_count=0, task_count=0)
-            db.add(prog); db.flush()
-        delta = max(3, min(12, int(acc * 15))) if acc >= 0.8 else (max(3, min(6, int(acc * 8))) if acc >= 0.5 else max(-8, min(-3, int((acc - 0.5) * 10))))
-        new_status = "mastered" if (prog.mastery_score or 0) + delta >= 80 else ("improving" if acc >= 0.8 else ("reviewing" if acc >= 0.5 else "weak"))
-        prog.mastery_score = max(0, min(100, (prog.mastery_score or 0) + delta))
-        prog.status = new_status; prog.practice_count = (prog.practice_count or 0) + stats["total"]
-        prog.last_studied_at = utc_now(); prog.updated_at = utc_now()
-        evt = models.KnowledgeProgressEvent(username=user.username, course_id=course_id, knowledge_point_id=kp_id_key, event_type="practice_result", delta=delta, reason=f"练习正确率 {int(acc*100)}%，{stats['total']} 题", source_type="task_practice" if task_id else "normal_practice", source_id=record.id)
-        db.add(evt)
-    db.commit()
-    return {"success": True, "record_id": record.id, "summary": summary, "total": total, "correct": correct, "accuracy": accuracy, "duration_seconds": duration, "kp_updates": len(kp_updates)}
+
+    if graded_total > 0 and kp_updates:
+        for kp_id_key, stats in kp_updates.items():
+            acc = stats["correct"] / stats["total"] if stats["total"] > 0 else 0
+            prog = db.query(models.UserKnowledgeProgress).filter(
+                models.UserKnowledgeProgress.username == user.username,
+                models.UserKnowledgeProgress.knowledge_point_id == kp_id_key,
+            ).first()
+            if not prog:
+                prog = models.UserKnowledgeProgress(username=user.username, course_id=course_id, knowledge_point_id=kp_id_key, mastery_score=50, status="learning", practice_count=0, task_count=0)
+                db.add(prog); db.flush()
+            delta = max(3, min(12, int(acc * 15))) if acc >= 0.8 else (max(3, min(6, int(acc * 8))) if acc >= 0.5 else max(-8, min(-3, int((acc - 0.5) * 10))))
+            new_status = "mastered" if (prog.mastery_score or 0) + delta >= 80 else ("improving" if acc >= 0.8 else ("reviewing" if acc >= 0.5 else "weak"))
+            prog.mastery_score = max(0, min(100, (prog.mastery_score or 0) + delta))
+            prog.status = new_status; prog.practice_count = (prog.practice_count or 0) + stats["total"]
+            prog.last_studied_at = utc_now(); prog.updated_at = utc_now()
+            evt = models.KnowledgeProgressEvent(username=user.username, course_id=course_id, knowledge_point_id=kp_id_key, event_type="practice_result", delta=delta, reason=f"练习正确率 {int(acc*100)}%，{stats['total']} 题", source_type="task_practice" if task_id else "normal_practice", source_id=record.id)
+            db.add(evt)
+        db.commit()
+
+    kp_updates_count = len(kp_updates) if graded_total > 0 else 0
+    return {
+        "success": True,
+        "record_id": record.id,
+        "summary": summary,
+        "total_questions": total_all,
+        "graded_questions": graded_total,
+        "correct": graded_correct,
+        "accuracy": graded_accuracy,
+        "short_answer_count": total_all - graded_total,
+        "duration_seconds": duration,
+        "kp_updates": kp_updates_count,
+    }
 
 
 @app.post("/practice/questions")
@@ -15961,9 +16027,19 @@ def build_learning_report_data(username: str, report_type: str, course_id: str,
         practice_query = practice_query.filter(models.LearningRecord.subject == course_id)
     practice_records = practice_query.all()
     practice_sessions = len(practice_records)
-    practice_q = sum(_parse_tags(r.tags).get("total", 0) for r in practice_records)
+
+    # Use graded_questions for accuracy (excludes short_answer from denominator)
+    def _pq_total(tags_dict):
+        # total_questions if available (all questions), else total (backward compat)
+        return tags_dict.get("total_questions", tags_dict.get("total", 0))
+    def _pq_graded(tags_dict):
+        # graded_questions if available (auto-graded), else total (backward compat)
+        return tags_dict.get("graded_questions", tags_dict.get("total", 0))
+
+    practice_q = sum(_pq_total(_parse_tags(r.tags)) for r in practice_records)
+    practice_q_graded = sum(_pq_graded(_parse_tags(r.tags)) for r in practice_records)
     practice_c = sum(_parse_tags(r.tags).get("correct", 0) for r in practice_records)
-    practice_acc = round(practice_c / practice_q * 100, 1) if practice_q > 0 else 0
+    practice_acc = round(practice_c / practice_q_graded * 100, 1) if practice_q_graded > 0 else 0
     practice_dur = sum(_parse_tags(r.tags).get("duration_seconds", 0) for r in practice_records)
     task_practice_count = sum(1 for r in practice_records if _parse_tags(r.tags).get("task_id"))
 
@@ -15971,13 +16047,14 @@ def build_learning_report_data(username: str, report_type: str, course_id: str,
     course_practice = {}
     for r in practice_records:
         cid = r.subject or ""
-        if cid not in course_practice: course_practice[cid] = {"q": 0, "c": 0, "dur": 0}
+        if cid not in course_practice: course_practice[cid] = {"q": 0, "q_graded": 0, "c": 0, "dur": 0}
         t = _parse_tags(r.tags)
-        course_practice[cid]["q"] += t.get("total", 0)
+        course_practice[cid]["q"] += _pq_total(t)
+        course_practice[cid]["q_graded"] += _pq_graded(t)
         course_practice[cid]["c"] += t.get("correct", 0)
         course_practice[cid]["dur"] += t.get("duration_seconds", 0)
-    course_practice_list = [{"course_name": cid, "questions": d["q"], "correct": d["c"],
-                              "accuracy": round(d["c"]/d["q"]*100,1) if d["q"]>0 else 0,
+    course_practice_list = [{"course_name": cid, "questions": d["q"], "graded_questions": d["q_graded"], "correct": d["c"],
+                              "accuracy": round(d["c"]/d["q_graded"]*100,1) if d["q_graded"]>0 else 0,
                               "duration_minutes": round(d["dur"]/60)} for cid, d in course_practice.items()]
 
     # Latest practice activities

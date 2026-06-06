@@ -777,6 +777,8 @@ export default function PracticeCenter({
         task_id: practiceContext?.taskId || null,
         duration_seconds: durationSeconds,
         source: "task_ai_temp_practice",
+        total_questions: totalAll,
+        short_answer_count: shortAnswerCount,
         question_results: questionResults.length > 0 ? questionResults : details.map((d) => ({
           question_id: d.question_id,
           is_correct: false,
@@ -794,7 +796,16 @@ export default function PracticeCenter({
       if (!res.ok) {
         recordResult = { error: data.detail || "同步学习记录失败" };
       } else {
-        recordResult = { success: true, record_id: data.record_id, summary: data.summary };
+        recordResult = {
+          success: true,
+          record_id: data.record_id,
+          summary: data.summary,
+          backend_total_questions: data.total_questions,
+          backend_graded_questions: data.graded_questions,
+          backend_accuracy: data.accuracy,
+          backend_short_answer_count: data.short_answer_count,
+          backend_kp_updates: data.kp_updates,
+        };
       }
     } catch (e) {
       recordResult = { error: e.message || "同步学习记录失败" };
@@ -802,17 +813,25 @@ export default function PracticeCenter({
       setAiTempSubmitting(false);
     }
 
+    // Use backend values when available, fall back to local computation
+    const finalTotal = recordResult?.backend_total_questions ?? totalAll;
+    const finalGraded = recordResult?.backend_graded_questions ?? totalAuto;
+    const finalAccuracy = recordResult?.backend_accuracy ?? accuracy;
+    const finalShort = recordResult?.backend_short_answer_count ?? shortAnswerCount;
+    const finalKpUpdates = recordResult?.backend_kp_updates ?? totalAuto;
+
     setAiTempResult({
-      total: totalAll,
-      auto_graded: totalAuto,
+      total: finalTotal,
+      auto_graded: finalGraded,
       correct: correctCount,
-      incorrect: totalAuto - correctCount,
-      short_answer: shortAnswerCount,
-      accuracy,
+      incorrect: finalGraded - correctCount,
+      short_answer: finalShort,
+      accuracy: finalAccuracy,
       duration_seconds: durationSeconds,
       duration_minutes: Math.max(1, Math.round(durationSeconds / 60)),
       details,
       record: recordResult,
+      kp_updates: finalKpUpdates,
     });
   };
 
@@ -2123,8 +2142,10 @@ export default function PracticeCenter({
                     ) : (
                       <span style={{ color: "#b91c1c" }}>⚠️ {aiTempResult.record.error}</span>
                     )}
-                    <span style={{ marginLeft: 12, color: aiTempResult.auto_graded > 0 ? "#059669" : "#94a3b8" }}>
-                      {aiTempResult.auto_graded > 0 ? "知识点掌握度：已更新" : "知识点掌握度：无自动判分题，未更新"}
+                    <span style={{ marginLeft: 12, color: (aiTempResult.kp_updates ?? aiTempResult.auto_graded) > 0 ? "#059669" : "#94a3b8" }}>
+                      {(aiTempResult.kp_updates ?? aiTempResult.auto_graded) > 0
+                        ? `知识点掌握度：已更新（${aiTempResult.kp_updates ?? aiTempResult.auto_graded} 个知识点）`
+                        : "知识点掌握度：无自动判分题，未更新"}
                     </span>
                   </div>
                 )}
