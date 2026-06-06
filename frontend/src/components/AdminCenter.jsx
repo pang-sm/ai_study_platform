@@ -1076,6 +1076,98 @@ export default function AdminCenter({ user }) {
                 </>
               )}
 
+              {/* ── Operations Dashboard ── */}
+              {opsDashboard && (
+                <>
+                  {/* Core metrics */}
+                  <div className="admin-stat-row" style={{ marginTop: 6 }}>
+                    {[
+                      { label: "总用户", value: opsDashboard.overview?.total_users ?? 0, sub: `${opsDashboard.overview?.active_users ?? 0} 活跃 · 今日 +${opsDashboard.overview?.today_new_users ?? 0}` },
+                      { label: "总资料", value: opsDashboard.overview?.total_materials ?? 0, sub: "累计上传" },
+                      { label: "今日 AI", value: opsDashboard.overview?.today_ai_calls ?? 0, sub: `失败 ${opsDashboard.overview?.today_failed_ai ?? 0}` },
+                      { label: "总 Tokens", value: (opsDashboard.overview?.total_tokens ?? 0).toLocaleString(), sub: `估算 ¥${(opsDashboard.overview?.estimated_cost_cny ?? 0).toFixed(2)}` },
+                    ].map(({ label, value, sub }) => (
+                      <div key={label} className="admin-stat-card-v2">
+                        <div className="admin-stat-top"><span className="admin-stat-label">{label}</span></div>
+                        <div className="admin-stat-value-v2">{value}</div>
+                        <div className="admin-stat-sub">{sub}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Growth trends */}
+                  {(opsDashboard.growth?.users_7d?.length > 0 || opsDashboard.growth?.materials_7d?.length > 0 || opsDashboard.growth?.ai_calls_7d?.length > 0) && (
+                    <div className="admin-card" style={{ marginBottom: 16, padding: "16px 22px" }}>
+                      <h4 style={{ margin: "0 0 12px", fontWeight: 700, fontSize: "0.9rem" }}>近 7 天趋势</h4>
+                      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                        {[
+                          { label: "新增用户", data: opsDashboard.growth?.users_7d, key: "count" },
+                          { label: "新增资料", data: opsDashboard.growth?.materials_7d, key: "count" },
+                          { label: "AI 调用", data: opsDashboard.growth?.ai_calls_7d, key: "count" },
+                        ].map(({ label, data, key }) => {
+                          if (!data || data.length === 0) return null;
+                          const maxVal = Math.max(1, ...data.map((d) => d[key] || 0));
+                          return (
+                            <div key={label} style={{ flex: "1 1 180px", minWidth: 150 }}>
+                              <div style={{ fontSize: "0.75rem", color: "#64748b", marginBottom: 6, fontWeight: 600 }}>{label}</div>
+                              <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 60 }}>
+                                {data.map((d, i) => (
+                                  <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                                    <span style={{ fontSize: "0.6rem", color: "#94a3b8" }}>{d[key] || 0}</span>
+                                    <div style={{ width: "100%", maxWidth: 20, height: Math.max(2, ((d[key] || 0) / maxVal) * 48), background: "linear-gradient(180deg, #2563eb, #0f766e)", borderRadius: "4px 4px 0 0" }} />
+                                    <span style={{ fontSize: "0.55rem", color: "#cbd5e1", marginTop: 2 }}>{d.date}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Rankings */}
+                  {(opsDashboard.rankings?.top_users_by_ai?.length > 0 || opsDashboard.rankings?.top_courses_by_ai?.length > 0) && (
+                    <div className="admin-card" style={{ marginBottom: 16, padding: "16px 22px" }}>
+                      <h4 style={{ margin: "0 0 12px", fontWeight: 700, fontSize: "0.9rem" }}>排行榜</h4>
+                      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                        {[
+                          { label: "AI 最多用户", items: opsDashboard.rankings?.top_users_by_ai || [], vk: "count", nk: "username" },
+                          { label: "AI 最多课程", items: opsDashboard.rankings?.top_courses_by_ai || [], vk: "count", nk: "course" },
+                        ].map(({ label, items, vk, nk }) => (
+                          <div key={label} style={{ flex: "1 1 200px", minWidth: 180 }}>
+                            <div style={{ fontSize: "0.75rem", color: "#64748b", marginBottom: 6, fontWeight: 600 }}>{label} Top 5</div>
+                            {items.length === 0 ? <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>暂无数据</div> : (
+                              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                {items.slice(0, 5).map((item, i) => (
+                                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "3px 8px", borderRadius: 6, background: i === 0 ? "#eff6ff" : "transparent", fontSize: "0.8rem" }}>
+                                    <span style={{ color: "#475569" }}><span style={{ fontWeight: 700, color: "#2563eb", marginRight: 6 }}>{i + 1}</span>{(item[nk] || "未知").length > 12 ? (item[nk] || "未知").slice(0, 12) + "…" : (item[nk] || "未知")}</span>
+                                    <span style={{ fontWeight: 700, color: "#1e293b" }}>{item[vk]}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Risks & Todos */}
+                  {(opsDashboard.todos?.length > 0) && (
+                    <div className="admin-card" style={{ marginBottom: 16, padding: "16px 22px" }}>
+                      <h4 style={{ margin: "0 0 12px", fontWeight: 700, fontSize: "0.9rem" }}>待处理事项</h4>
+                      {opsDashboard.todos.map((t, i) => (
+                        <div key={i} style={{ padding: "8px 12px", marginBottom: 6, borderRadius: 8, display: "flex", justifyContent: "space-between", alignItems: "center", background: t.level === "danger" ? "#fef2f2" : t.level === "warning" ? "#fffbeb" : "#eff6ff", border: `1px solid ${t.level === "danger" ? "#fecaca" : t.level === "warning" ? "#fde68a" : "#bfdbfe"}`, fontSize: "0.82rem" }}>
+                          <div><strong style={{ color: t.level === "danger" ? "#991b1b" : t.level === "warning" ? "#92400e" : "#1e40af" }}>{t.title}</strong> <span style={{ color: "#64748b" }}>{t.message}</span></div>
+                          {t.tab && <button className="ghost-button compact" onClick={() => activateTab(t.tab)} style={{ flexShrink: 0, marginLeft: 8 }}>前往处理 →</button>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+
               {/* ── Recent AI Logs Table ── */}
               {(dashboard.recent_ai_logs || []).length > 0 && (
                 <section className="admin-card">
