@@ -553,6 +553,11 @@ export default function PracticeCenter({
   const [aiTempSubmitting, setAiTempSubmitting] = useState(false);
   const aiTempStartRef = useRef(Date.now());
 
+  // Mixed practice suggestion
+  const RECOMMENDED_PRACTICE_COUNT = 5;
+  const [mixedSuggestionDismissed, setMixedSuggestionDismissed] = useState(false);
+  const [mixedSupplementQuestions, setMixedSupplementQuestions] = useState([]);
+
   // Save AI questions to bank
   const [aiSaveSelected, setAiSaveSelected] = useState(() => new Set());
   const [aiSaveModalOpen, setAiSaveModalOpen] = useState(false);
@@ -759,6 +764,52 @@ export default function PracticeCenter({
       setTaskGenLoading(false);
     }
   };
+
+  // ── Mixed practice: AI supplement ──
+  const handleMixedSupplement = async (missingCount) => {
+    if (!user?.username || missingCount <= 0) return;
+    setTaskGenLoading(true);
+    setTaskGenError("");
+    setMixedSupplementQuestions([]);
+    setTaskGenQuestions([]);
+    try {
+      const body = {
+        username: user.username,
+        course_id: practiceContext?.courseId || courseFilter || subject || "",
+        knowledge_point_id: practiceContext?.knowledgePointId || null,
+        knowledge_point_title: practiceContext?.knowledgePointTitle || practiceContext?.knowledgePointText || "",
+        task_id: practiceContext?.taskId || null,
+        task_title: practiceContext?.taskTitle || "",
+        count: missingCount,
+      };
+      const res = await fetch(`${API_BASE}/practice/generate-task-preview`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "AI 生成失败，请稍后重试");
+      setMixedSupplementQuestions(data.questions || []);
+      setTaskGenQuestions(data.questions || []);
+    } catch (e) {
+      setTaskGenError(e.message || "AI 题目生成失败，请稍后重试。");
+    } finally {
+      setTaskGenLoading(false);
+    }
+  };
+
+  // Dismiss mixed suggestion
+  const dismissMixedSuggestion = () => {
+    setMixedSuggestionDismissed(true);
+    setMixedSupplementQuestions([]);
+    setTaskGenQuestions([]);
+    setTaskGenError("");
+  };
+
+  // Reset when task context changes
+  useEffect(() => {
+    setMixedSuggestionDismissed(false);
+    setMixedSupplementQuestions([]);
+  }, [practiceContext?.taskId]);
 
   // ── AI Temp Practice ──
 
@@ -2686,7 +2737,96 @@ export default function PracticeCenter({
               </div>
               </>
             ) : (
-              <div className="question-section-card">
+              <>
+                {/* ── Mixed Practice Suggestion Card (case C: 0 < questions < recommended) ── */}
+                {taskContextActive && !aiTempMode && questions.length > 0 && questions.length < RECOMMENDED_PRACTICE_COUNT && !mixedSuggestionDismissed && papers.length === 0 && (
+                  <div className="practice-mixed-suggestion-card">
+                    <div className="practice-mixed-suggestion-header">
+                      <span className="practice-mixed-suggestion-icon">📋</span>
+                      <div>
+                        <h3>题目数量偏少</h3>
+                        <p>
+                          当前任务绑定的知识点下已有 <strong>{questions.length}</strong> 道题，建议本次练习 <strong>{RECOMMENDED_PRACTICE_COUNT}</strong> 道题。
+                          你可以先完成已有题目，也可以让 AI 临时补充 <strong>{RECOMMENDED_PRACTICE_COUNT - questions.length}</strong> 道题，组成一次混合练习。
+                        </p>
+                      </div>
+                    </div>
+
+                    {!taskGenLoading && !taskGenError && mixedSupplementQuestions.length === 0 && (
+                      <div className="practice-mixed-suggestion-actions">
+                        <button
+                          className="ghost-button compact"
+                          type="button"
+                          onClick={() => {
+                            dismissMixedSuggestion();
+                          }}
+                        >
+                          只练题库题
+                        </button>
+                        <button
+                          className="primary-button compact"
+                          type="button"
+                          onClick={() => handleMixedSupplement(RECOMMENDED_PRACTICE_COUNT - questions.length)}
+                        >
+                          ✨ AI 补充题目
+                        </button>
+                        <button
+                          className="ghost-button compact"
+                          type="button"
+                          onClick={() => dismissMixedSuggestion()}
+                        >
+                          稍后再说
+                        </button>
+                      </div>
+                    )}
+
+                    {taskGenLoading && (
+                      <div className="practice-task-gen-loading" style={{ padding: "16px 0" }}>
+                        <div className="cmp-loading-spinner" />
+                        <p>正在生成补充题目...</p>
+                      </div>
+                    )}
+
+                    {taskGenError && !taskGenLoading && (
+                      <div style={{ padding: "12px 0", color: "#b91c1c", fontSize: 13 }}>
+                        <p style={{ margin: "0 0 8px" }}>{taskGenError}</p>
+                        <button className="ghost-button compact" onClick={() => dismissMixedSuggestion()}>关闭</button>
+                      </div>
+                    )}
+
+                    {mixedSupplementQuestions.length > 0 && !taskGenLoading && (
+                      <div style={{ marginTop: 12 }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                          <span style={{ fontSize: 14, fontWeight: 600, color: "#059669" }}>
+                            ✅ AI 已补充 {mixedSupplementQuestions.length} 道临时题
+                          </span>
+                          <button className="ghost-button compact" onClick={() => dismissMixedSuggestion()}>关闭</button>
+                        </div>
+                        <p style={{ fontSize: 13, color: "#b45309", margin: "0 0 12px" }}>
+                          ⚠️ 补充题为临时生成，未加入正式题库。可开始混合练习。
+                        </p>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                          <button
+                            className="primary-button compact"
+                            type="button"
+                            onClick={startAiTempPractice}
+                          >
+                            使用 AI 补充题开始练习
+                          </button>
+                          <button
+                            className="ghost-button compact"
+                            type="button"
+                            onClick={() => dismissMixedSuggestion()}
+                          >
+                            仅练题库题
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="question-section-card">
                 <div className="question-section-head">
                   <h3>练习题列表</h3>
                   <span>共 {totalCount} 条</span>
@@ -2789,6 +2929,7 @@ export default function PracticeCenter({
                   ))}
                 </div>
               </div>
+              </>
             )}
           </main>
 

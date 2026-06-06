@@ -8942,6 +8942,33 @@ select.field:focus {
   border: 1px solid #bbf7d0;
 }
 
+/* ── Mixed Practice Suggestion Card ── */
+.practice-mixed-suggestion-card {
+  background: #fff;
+  border: 1px solid #fcd34d;
+  border-radius: 14px;
+  padding: 18px 22px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 8px rgba(251, 191, 36, 0.1);
+}
+.practice-mixed-suggestion-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.practice-mixed-suggestion-icon { font-size: 26px; flex-shrink: 0; margin-top: 2px; }
+.practice-mixed-suggestion-header h3 {
+  font-size: 0.95rem; font-weight: 700; color: #0f172a; margin: 0 0 4px;
+}
+.practice-mixed-suggestion-header p {
+  font-size: 0.82rem; color: #64748b; margin: 0; line-height: 1.6;
+}
+.practice-mixed-suggestion-header strong { color: #0f172a; }
+.practice-mixed-suggestion-actions {
+  display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+}
+
 .practice-task-gen-q-check {
   position: absolute;
   top: 10px;
