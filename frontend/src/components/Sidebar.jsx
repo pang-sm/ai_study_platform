@@ -11,22 +11,22 @@ export default function Sidebar({
   collapsed,
   onToggle,
 }) {
-  const mainNav = [
+  const allNav = [
     { id: "home", icon: "🏠", label: "首页" },
     { id: "chat", icon: "💬", label: "AI 问答" },
-  ];
-
-  const studyNav = [
-    { id: "dashboard", icon: "📋", label: "课程概览" },
+    { id: "dashboard", icon: "📋", label: "课程工作台" },
     { id: "knowledgeLearning", icon: "🎯", label: "知识点学习" },
     { id: "workspaceMaterials", icon: "📚", label: "资料库" },
     { id: "practiceCenter", icon: "📝", label: "练习中心" },
     { id: "codeStudio", icon: "</>", label: "编程助手" },
     { id: "taskCenter", icon: "✅", label: "学习任务" },
-  ];
-
-  const resourceNav = [
+    { id: "learningDataCenter", icon: "📊", label: "学习数据中心" },
     { id: "learningReportCenter", icon: "📄", label: "学习报告" },
+    { id: "reviewCenter", icon: "🔄", label: "复盘中心" },
+    { id: "learningPlanCenter", icon: "📅", label: "AI 学习计划" },
+    { id: "knowledgeBaseCenter", icon: "📚", label: "知识库中心" },
+    { id: "quotaCenter", icon: "💎", label: "我的额度" },
+    { id: "profileEdit", icon: "⚙️", label: "学习设置" },
     ...(isAdmin ? [{ id: "adminCenter", icon: "🛡️", label: "管理后台" }] : []),
   ];
 
@@ -70,13 +70,7 @@ export default function Sidebar({
 
       {/* Navigation */}
       <nav className="sb-nav">
-        {mainNav.map(renderNavItem)}
-
-        {!collapsed && <div className="sb-section-label">学习</div>}
-        {studyNav.map(renderNavItem)}
-
-        {!collapsed && <div className="sb-section-label">资源</div>}
-        {resourceNav.map(renderNavItem)}
+        {allNav.map(renderNavItem)}
       </nav>
 
       {showMembershipAd && (

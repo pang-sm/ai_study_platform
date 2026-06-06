@@ -171,7 +171,7 @@ function SummaryGrid({ stats }) {
 
 function CoreFeatures({ onNavigate }) {
   const features = [
-    { id: "dashboard", icon: "💬", title: "AI 智能问答", desc: "随时向 AI 提问，获取知识点讲解、解题思路和学习建议", color: "#2563eb" },
+    { id: "chat", icon: "💬", title: "AI 智能问答", desc: "随时向 AI 提问，获取知识点讲解、解题思路和学习建议", color: "#2563eb" },
     { id: "dashboard", icon: "📋", title: "课程工作台", desc: "管理你的学习资料、聊天记录和学习进度", color: "#059669" },
     { id: "practiceCenter", icon: "📝", title: "练习中心", desc: "按知识点刷题练习，AI 自动反馈，支持选择题和简答题", color: "#7c3aed" },
     { id: "codeStudio", icon: "</>", title: "编程学习助手", desc: "在线练习编程，AI 帮你分析代码和解答编程问题", color: "#db2777" },
@@ -255,7 +255,18 @@ const MOCK_RECOMMENDATIONS = [
   { id: 4, title: "C 语言指针深度解析", type: "material", typeLabel: "资料", duration: "25 分钟", icon: "📖" },
 ];
 
-function RecommendationSection() {
+function RecommendationSection({ onNavigate }) {
+  const handleRecommendStart = (item) => {
+    if (item.type === "exercise") {
+      onNavigate("practiceCenter");
+    } else if (item.type === "material") {
+      onNavigate("workspaceMaterials");
+    } else {
+      // course or default → go to course workbench
+      onNavigate("dashboard");
+    }
+  };
+
   return (
     <section className="hp-recommendations">
       <div className="hp-section-header">
@@ -263,7 +274,7 @@ function RecommendationSection() {
           <h2 className="hp-section-title">今日推荐</h2>
           <p className="hp-section-hint">根据你的学习进度，为你精选以下内容</p>
         </div>
-        <button className="hp-section-more">查看全部 →</button>
+        <button className="hp-section-more" onClick={() => onNavigate("dashboard")}>查看全部 →</button>
       </div>
       <div className="hp-recommend-grid">
         {MOCK_RECOMMENDATIONS.map((item) => (
@@ -276,7 +287,7 @@ function RecommendationSection() {
                 <span className="hp-recommend-duration">⏱ {item.duration}</span>
               </div>
             </div>
-            <button className="hp-recommend-btn">开始</button>
+            <button className="hp-recommend-btn" onClick={() => handleRecommendStart(item)}>开始</button>
           </div>
         ))}
       </div>
@@ -555,7 +566,7 @@ export default function HomePage({
           />
           <CoreFeatures onNavigate={handleNavigate} />
           <LearningTools onNavigate={handleNavigate} />
-          <RecommendationSection />
+          <RecommendationSection onNavigate={handleNavigate} />
         </div>
         <RightInsightPanel stats={stats} tasks={[]} achievements={achievements} />
       </div>
