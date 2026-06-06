@@ -15388,6 +15388,45 @@ def build_learning_report_data(username: str, report_type: str, course_id: str,
         "improvements": [{"reason": imp.reason or "", "delta": imp.delta} for imp in improvements],
     }
 
+    # ── Practice (from learning_records) ──
+    def _parse_tags(ts):
+        try: return json.loads(ts) if ts else {}
+        except: return {}
+    practice_query = db.query(models.LearningRecord).filter(
+        models.LearningRecord.user_id == get_user_by_username(username, db).id,
+        models.LearningRecord.record_type == "practice",
+        models.LearningRecord.created_at >= start,
+        models.LearningRecord.created_at <= end,
+    )
+    if course_id:
+        practice_query = practice_query.filter(models.LearningRecord.subject == course_id)
+    practice_records = practice_query.all()
+    practice_sessions = len(practice_records)
+    practice_q = sum(_parse_tags(r.tags).get("total", 0) for r in practice_records)
+    practice_c = sum(_parse_tags(r.tags).get("correct", 0) for r in practice_records)
+    practice_acc = round(practice_c / practice_q * 100, 1) if practice_q > 0 else 0
+    practice_dur = sum(_parse_tags(r.tags).get("duration_seconds", 0) for r in practice_records)
+    task_practice_count = sum(1 for r in practice_records if _parse_tags(r.tags).get("task_id"))
+
+    # Course-level practice aggregation
+    course_practice = {}
+    for r in practice_records:
+        cid = r.subject or ""
+        if cid not in course_practice: course_practice[cid] = {"q": 0, "c": 0, "dur": 0}
+        t = _parse_tags(r.tags)
+        course_practice[cid]["q"] += t.get("total", 0)
+        course_practice[cid]["c"] += t.get("correct", 0)
+        course_practice[cid]["dur"] += t.get("duration_seconds", 0)
+    course_practice_list = [{"course_name": cid, "questions": d["q"], "correct": d["c"],
+                              "accuracy": round(d["c"]/d["q"]*100,1) if d["q"]>0 else 0,
+                              "duration_minutes": round(d["dur"]/60)} for cid, d in course_practice.items()]
+
+    # Latest practice activities
+    recent_practice_activities = [
+        {"title": r.question or "完成练习", "summary": f"完成 {_parse_tags(r.tags).get('total',0)} 题，正确 {_parse_tags(r.tags).get('correct',0)} 题，正确率 {_parse_tags(r.tags).get('accuracy',0)}%"}
+        for r in practice_records[-5:]
+    ]
+
     # ── Questions & Attempts ──
     attempt_query = db.query(models.QuestionAttempt).filter(
         models.QuestionAttempt.username == username,
@@ -15408,6 +15447,15 @@ def build_learning_report_data(username: str, report_type: str, course_id: str,
             {"question_id": a.question_id, "user_answer": str(a.user_answer or "")[:100]}
             for a in wrong_attempts[-5:]
         ],
+        # Real practice from learning_records
+        "sessions": practice_sessions,
+        "questions": practice_q,
+        "practice_correct": practice_c,
+        "practice_accuracy": practice_acc,
+        "duration_minutes": round(practice_dur / 60),
+        "task_practice_count": task_practice_count,
+        "course_details": course_practice_list,
+        "recent_activities": recent_practice_activities,
     }
 
     # ── Materials ──
@@ -15510,6 +15558,11 @@ def generate_report_preview(req: schemas.LearningReportGenerateRequest, db: Sess
 薄弱知识点：{json.dumps(report_data['knowledge']['weak_points'], ensure_ascii=False) if report_data['knowledge']['weak_points'] else '暂无'}
 近期进步：{json.dumps(report_data['knowledge']['improvements'][:5], ensure_ascii=False) if report_data['knowledge']['improvements'] else '暂无'}
 
+【练习表现】
+练习次数：{report_data['practice']['sessions']} 次，完成 {report_data['practice']['questions']} 题，正确 {report_data['practice']['practice_correct']} 题，正确率 {report_data['practice']['practice_accuracy']}%，学习时长 {report_data['practice']['duration_minutes']} 分钟
+来自任务中心练习：{report_data['practice']['task_practice_count']} 次
+按课程练习分布：{json.dumps(report_data['practice']['course_details'], ensure_ascii=False) if report_data['practice']['course_details'] else '暂无'}
+
 【练习与错题】
 作答次数：{report_data['practice']['attempt_count']}，正确率：{round(report_data['practice']['correct_rate'] * 100)}%
 
@@ -15581,6 +15634,19 @@ def generate_report_preview(req: schemas.LearningReportGenerateRequest, db: Sess
         "mastered_point_count": report_data["knowledge"]["mastered"],
         "weak_point_count": len(report_data["knowledge"]["weak_points"]),
         "ai_chat_count": report_data["ai_usage"]["total_calls"],
+        # Real practice stats
+        "practice_sessions": report_data["practice"]["sessions"],
+        "practice_questions": report_data["practice"]["questions"],
+        "practice_accuracy": report_data["practice"]["practice_accuracy"],
+        "practice_duration_minutes": report_data["practice"]["duration_minutes"],
+    }
+    statistics = {
+        "practice_sessions": report_data["practice"]["sessions"],
+        "practice_questions": report_data["practice"]["questions"],
+        "practice_accuracy": report_data["practice"]["practice_accuracy"],
+        "study_minutes": report_data["practice"]["duration_minutes"],
+        "completed_tasks": report_data["tasks"]["completed"],
+        "weak_points": [w["title"] for w in report_data["knowledge"]["weak_points"][:3]],
     }
 
     report = models.LearningReport(
@@ -15614,6 +15680,7 @@ def generate_report_preview(req: schemas.LearningReportGenerateRequest, db: Sess
         "course_id": course_id or "",
         "course_name": course_id or "",
         "created_at": serialize_datetime(report.created_at),
+        "statistics": statistics,
     }
 
 
