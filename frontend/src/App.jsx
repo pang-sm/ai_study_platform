@@ -2720,6 +2720,30 @@ function App() {
     }
   };
 
+  // Handle search navigation to chat — auto-open conversation
+  useEffect(() => {
+    if (!searchNavigate || searchNavigate.page !== "chat" || !searchNavigate.conversationId) return;
+    // If currently on chat page, open the conversation directly
+    if (page === "chat") {
+      const sessionId = searchNavigate.conversationId;
+      // Construct a mock session object to pass to openChatSession
+      const mockSession = { id: sessionId };
+      openChatSession(mockSession);
+      setSearchNavigate(null);
+    } else {
+      // Navigate to chat page first; the conversation will be opened on entry
+      if (searchNavigate.courseId) setSubject(searchNavigate.courseId);
+      setPage("chat");
+      // Delay to let page mount, then open conversation
+      const tid = setTimeout(() => {
+        const sessionId = searchNavigate.conversationId;
+        openChatSession({ id: sessionId });
+        setSearchNavigate(null);
+      }, 400);
+      return () => clearTimeout(tid);
+    }
+  }, [searchNavigate, page]);
+
   if (isSharedReportPath) {
     return (
       <Suspense fallback={<div className="shared-report-shell"><div className="shared-report-card"><div className="shared-report-loading">加载中...</div></div></div>}>
