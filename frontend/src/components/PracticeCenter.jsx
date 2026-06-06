@@ -538,6 +538,12 @@ export default function PracticeCenter({
   const [taskCompleteSyncing, setTaskCompleteSyncing] = useState(false);
   const [taskCompleteMessage, setTaskCompleteMessage] = useState("");
 
+  // Task AI question preview
+  const [taskGenCount, setTaskGenCount] = useState(5);
+  const [taskGenLoading, setTaskGenLoading] = useState(false);
+  const [taskGenError, setTaskGenError] = useState("");
+  const [taskGenQuestions, setTaskGenQuestions] = useState([]);
+
   const loadKnowledgePoints = async (courseId) => {
     if (!user?.username || !courseId) {
       setKnowledgePoints([]);
@@ -589,6 +595,40 @@ export default function PracticeCenter({
   const returnToTaskCenter = () => {
     onClearPracticeContext();
     setPage("taskCenter");
+  };
+
+  // ── Task AI Question Generation ──
+
+  const handleTaskGenerateQuestions = async () => {
+    if (!user?.username) return;
+    setTaskGenLoading(true);
+    setTaskGenError("");
+    setTaskGenQuestions([]);
+    try {
+      const body = {
+        username: user.username,
+        course_id: practiceContext?.courseId || courseFilter || subject || "",
+        knowledge_point_id: practiceContext?.knowledgePointId || null,
+        knowledge_point_title: practiceContext?.knowledgePointTitle || practiceContext?.knowledgePointText || "",
+        task_id: practiceContext?.taskId || null,
+        task_title: practiceContext?.taskTitle || "",
+        count: taskGenCount,
+      };
+      const res = await fetch(`${API_BASE}/practice/generate-task-preview`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || "AI 生成失败，请稍后重试");
+      }
+      setTaskGenQuestions(data.questions || []);
+    } catch (e) {
+      setTaskGenError(e.message || "AI 题目生成失败，请稍后重试。");
+    } finally {
+      setTaskGenLoading(false);
+    }
   };
 
   const markTaskComplete = async () => {
@@ -1948,7 +1988,101 @@ export default function PracticeCenter({
             {loading ? (
               <div className="empty-state practice-loading">加载中...</div>
             ) : questions.length === 0 && papers.length === 0 ? (
-              <div className="empty-inline practice-empty">
+              <>
+                {/* ── Task AI Generation Card (only when coming from a task) ── */}
+                {taskContextActive && (
+                  <div className="practice-task-gen-card">
+                    <div className="practice-task-gen-header">
+                      <span className="practice-task-gen-icon">🤖</span>
+                      <div>
+                        <h3>当前知识点暂无题目</h3>
+                        <p>可让 AI 根据学习任务生成练习题预览，生成后可在下方查看题目和解析，不写入题库。</p>
+                      </div>
+                    </div>
+
+                    {taskGenQuestions.length === 0 && !taskGenLoading && !taskGenError && (
+                      <div className="practice-task-gen-controls">
+                        <div className="practice-task-gen-count">
+                          <label>生成数量</label>
+                          <select value={taskGenCount} onChange={(e) => setTaskGenCount(Number(e.target.value))}>
+                            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+                              <option key={n} value={n}>{n} 道</option>
+                            ))}
+                          </select>
+                        </div>
+                        <button
+                          className="primary-button compact practice-action-button practice-action-button--ai"
+                          onClick={handleTaskGenerateQuestions}
+                          disabled={taskGenLoading}
+                        >
+                          ✨ AI 生成练习题
+                        </button>
+                      </div>
+                    )}
+
+                    {taskGenLoading && (
+                      <div className="practice-task-gen-loading">
+                        <div className="cmp-loading-spinner" />
+                        <p>正在生成练习题预览...</p>
+                      </div>
+                    )}
+
+                    {taskGenError && !taskGenLoading && (
+                      <div className="practice-task-gen-error">
+                        <p>{taskGenError}</p>
+                        <button className="ghost-button compact" onClick={() => { setTaskGenError(""); setTaskGenQuestions([]); }}>
+                          重试
+                        </button>
+                      </div>
+                    )}
+
+                    {taskGenQuestions.length > 0 && !taskGenLoading && (
+                      <div className="practice-task-gen-result">
+                        <div className="practice-task-gen-result-header">
+                          <span>✅ 已生成 {taskGenQuestions.length} 道题目预览</span>
+                          <button className="ghost-button compact" onClick={() => { setTaskGenQuestions([]); setTaskGenError(""); }}>
+                            重新生成
+                          </button>
+                        </div>
+                        <p className="practice-task-gen-hint">
+                          ⚠️ 当前为 AI 生成预览，尚未加入题库。你可以查看题目内容、答案和解析用于复习参考。
+                        </p>
+                        <div className="practice-task-gen-questions">
+                          {taskGenQuestions.map((q, idx) => (
+                            <div key={idx} className="practice-task-gen-question">
+                              <div className="practice-task-gen-q-header">
+                                <span className="practice-task-gen-q-index">第 {idx + 1} 题</span>
+                                <span className="practice-task-gen-q-type">
+                                  {q.type === "single_choice" ? "单选题" : q.type === "multiple_choice" ? "多选题" : q.type === "judge" ? "判断题" : "简答题"}
+                                </span>
+                              </div>
+                              <div className="practice-task-gen-q-stem">{q.stem}</div>
+                              {q.options && q.options.length > 0 && (
+                                <div className="practice-task-gen-q-options">
+                                  {q.options.map((opt, oidx) => (
+                                    <div key={oidx} className={`practice-task-gen-q-option${opt.label === q.answer ? " practice-task-gen-q-option--correct" : ""}`}>
+                                      <span className="practice-task-gen-q-opt-label">{opt.label}</span>
+                                      <span>{opt.text}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              <div className="practice-task-gen-q-answer">
+                                <strong>答案：</strong>{q.answer}
+                              </div>
+                              <div className="practice-task-gen-q-analysis">
+                                <strong>解析：</strong>{q.analysis}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ── Standard Empty State ── */}
+                <div className="empty-inline practice-empty">
                 <div className="practice-empty-left">
                   <div className="practice-empty-icon" aria-hidden="true">📋</div>
                   <h3>还没有匹配的练习题</h3>
@@ -1992,6 +2126,7 @@ export default function PracticeCenter({
                   </div>
                 </div>
               </div>
+              </>
             ) : (
               <div className="question-section-card">
                 <div className="question-section-head">

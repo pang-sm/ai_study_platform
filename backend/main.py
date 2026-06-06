@@ -12564,6 +12564,182 @@ def generate_questions(req: schemas.GenerateQuestionRequest, db: Session = Depen
     }
 
 
+# ── Task Practice: AI Question Preview (no DB write) ──────
+
+TASK_PREVIEW_PROMPT = """你是一个大学课程助教。请根据学生的学习任务，生成适合复习使用的练习题预览。
+
+要求：
+1. 使用中文。
+2. 只围绕指定课程和知识点出题。
+3. 不要生成超出知识点范围的题。
+4. 题目难度适合大学生复习，不要过于简单。
+5. 题型只能是：single_choice（单选）、multiple_choice（多选）、judge（判断）、short_answer（简答）。
+6. 不要生成编程题。
+7. 每道题必须包含：type、stem（题干）、options（选项数组，每个选项含 label 和 text，判断题和简答题可以为空数组）、answer（正确答案）、analysis（详细解析，解释为什么选这个答案）。
+8. 选择题选项必须完整，单选题至少 3 个选项，多选题至少 4 个选项。
+9. 答案必须明确，判断题答案为"正确"或"错误"。
+10. 解析必须清楚说明正确选项的原因，不能出现"我认为"、"让我重新"、"鉴于时间"等内部思考表达。
+11. 不要输出 Markdown。
+12. 只输出严格 JSON。
+
+JSON 格式：
+{
+  "questions": [
+    {
+      "type": "single_choice",
+      "stem": "以下关于进程调度的描述，正确的是？",
+      "options": [
+        {"label": "A", "text": "时间片轮转调度属于非抢占式调度"},
+        {"label": "B", "text": "先来先服务调度可能导致饥饿问题"},
+        {"label": "C", "text": "最短作业优先调度总是最优"},
+        {"label": "D", "text": "多级反馈队列结合了多种调度策略"}
+      ],
+      "answer": "D",
+      "analysis": "多级反馈队列调度算法综合了时间片轮转和优先级调度的优点，通过多个队列实现了对不同类型进程的灵活调度。A错误，时间片轮转是抢占式调度；B描述的是优先级调度可能的问题；C错误，SJF在长作业场景下可能导致饥饿。"
+    }
+  ]
+}"""
+
+
+@app.post("/practice/generate-task-preview")
+def generate_task_question_preview(req: schemas.GenerateTaskQuestionPreviewRequest, db: Session = Depends(get_db)):
+    """Generate AI question preview for a task when no matching questions exist. Preview only — no DB write."""
+    user = get_user_by_username(req.username, db)
+    course_id = normalize_subject(req.course_id)
+
+    if not course_id:
+        raise HTTPException(status_code=400, detail="课程不能为空")
+
+    count = min(max(req.count, 1), 10)
+
+    # Resolve knowledge point info
+    kp_title = (req.knowledge_point_title or "").strip()
+    kp_description = ""
+    if req.knowledge_point_id:
+        kp = (
+            db.query(models.KnowledgePoint)
+            .filter(
+                models.KnowledgePoint.id == req.knowledge_point_id,
+                models.KnowledgePoint.username == user.username,
+            )
+            .first()
+        )
+        if kp:
+            kp_title = kp_title or (kp.title or "")
+            kp_description = (kp.description or "").strip()
+
+    task_title = (req.task_title or "").strip()
+
+    check_usage_limit(user.username, "question_generate", db)
+
+    # Build prompt
+    context_parts = [f"课程：{course_id}"]
+    if kp_title:
+        context_parts.append(f"知识点：{kp_title}")
+    if kp_description:
+        context_parts.append(f"知识点说明：{kp_description}")
+    if task_title:
+        context_parts.append(f"学习任务：{task_title}")
+    context_parts.append(f"数量：{count} 道")
+
+    user_prompt = "\n".join(context_parts) + "\n\n请生成练习题预览。"
+
+    try:
+        raw = call_deepseek(
+            [
+                {"role": "system", "content": TASK_PREVIEW_PROMPT},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=0.5,
+            max_tokens=3000,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="AI 题目生成失败，请稍后重试") from exc
+
+    record_ai_usage(
+        user.username, "question_generate", db,
+        estimated_tokens=estimate_tokens_from_text(user_prompt) + estimate_tokens_from_text(raw),
+        status="success",
+    )
+
+    # Parse JSON
+    text = raw.strip()
+    if text.startswith("```"):
+        lines = text.split("\n")
+        end_idx = len(lines)
+        for i in range(len(lines) - 1, 0, -1):
+            if lines[i].strip() == "```":
+                end_idx = i
+                break
+        text = "\n".join(lines[1:end_idx]).strip()
+    json_start = text.find("{")
+    json_end = text.rfind("}")
+    if json_start == -1 or json_end == -1:
+        raise HTTPException(status_code=500, detail="AI 返回格式异常，未能生成有效的题目。请稍后重试。")
+
+    try:
+        result = json.loads(text[json_start:json_end + 1])
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=500, detail=f"AI 返回数据解析失败，请稍后重试。错误详情：{str(exc)[:200]}")
+
+    raw_questions = result.get("questions", [])
+    if not isinstance(raw_questions, list):
+        raw_questions = []
+
+    # Validate and clean each question
+    ALLOWED_TYPES = {"single_choice", "multiple_choice", "judge", "short_answer"}
+    cleaned = []
+    for q in raw_questions:
+        if not isinstance(q, dict):
+            continue
+        qtype = str(q.get("type", "")).strip()
+        if qtype not in ALLOWED_TYPES:
+            continue
+        stem = str(q.get("stem", "")).strip()
+        if not stem:
+            continue
+        answer = str(q.get("answer", "")).strip()
+        if not answer:
+            continue
+        analysis = str(q.get("analysis", "")).strip()
+        if not analysis:
+            continue
+
+        options = q.get("options", [])
+        if not isinstance(options, list):
+            options = []
+        clean_options = []
+        for opt in options:
+            if not isinstance(opt, dict):
+                continue
+            label = str(opt.get("label", "")).strip()
+            text = str(opt.get("text", "")).strip()
+            if label and text:
+                clean_options.append({"label": label, "text": text})
+
+        cleaned.append({
+            "type": qtype,
+            "stem": stem,
+            "options": clean_options,
+            "answer": answer,
+            "analysis": analysis,
+            "knowledge_point_title": kp_title or course_id,
+        })
+
+    if not cleaned:
+        raise HTTPException(status_code=500, detail="AI 未能生成有效的题目。请确认知识点信息正确，或尝试调整数量后重试。")
+
+    # NOTE: No DB write — preview only
+    return {
+        "success": True,
+        "course_id": course_id,
+        "knowledge_point_title": kp_title or course_id,
+        "questions": cleaned[:count],
+    }
+
+
 # ── AI Learning Plan ─────────────────────────────────────
 
 ALLOWED_PLAN_TYPES = {"today", "three_day", "seven_day", "exam", "coding"}

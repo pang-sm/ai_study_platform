@@ -482,6 +482,16 @@ class GenerateQuestionRequest(BaseModel):
     avoid_too_simple: bool = True
 
 
+class GenerateTaskQuestionPreviewRequest(BaseModel):
+    username: str
+    course_id: str
+    knowledge_point_id: int | None = None
+    knowledge_point_title: str = ""
+    task_id: int | None = None
+    task_title: str = ""
+    count: int = 5
+
+
 class PaperQuestionDraft(BaseModel):
     question_order: int | None = None
     title: str = ""
