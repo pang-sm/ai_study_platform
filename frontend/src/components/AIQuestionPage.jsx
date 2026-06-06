@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import ChatMessage from "./ChatMessage.jsx";
 import MarkdownMessage from "./MarkdownMessage.jsx";
+import GlobalSearchBox from "./GlobalSearchBox.jsx";
 import "./AIQuestionPage.css";
 
 const RECOMMENDATION_POOL = [
@@ -112,6 +113,8 @@ export default function AIQuestionPage({
   onVersionChange = () => {},
   pendingAIContext = null,
   setPendingAIContext = () => {},
+  setSearchContext = null,
+  setSearchNavigate = null,
 }) {
   const [suggestionBatch, setSuggestionBatch] = useState(() =>
     shufflePool(RECOMMENDATION_POOL, 5)
@@ -143,6 +146,35 @@ export default function AIQuestionPage({
     ? (AVATARS.find((a) => a.id === (user?.avatar || "")) || AVATARS[0])
     : { background: "#2563eb" };
   const hasCustomAvatar = (user?.avatar_url || "").startsWith("/me/avatar/");
+
+  const handleGlobalSearch = (query, resultItem) => {
+    if (resultItem) {
+      const t = resultItem.target || {};
+      if (!t.page) return;
+      if (t.courseId && typeof setSubject === "function") {
+        setSubject(t.courseId);
+      }
+      if (setSearchNavigate) {
+        setSearchNavigate({
+          fromSearch: true,
+          page: t.page,
+          courseId: t.courseId || "",
+          materialId: t.materialId,
+          knowledgePointId: t.knowledgePointId,
+          taskId: t.taskId,
+          questionId: t.questionId,
+          conversationId: t.conversationId,
+          tab: t.tab,
+        });
+      }
+      setPage(t.page);
+      return;
+    }
+    if (query) {
+      if (setSearchContext) setSearchContext({ q: query });
+      setPage("searchResults");
+    }
+  };
 
   const referencedFiles = Array.isArray(selectedFiles) ? selectedFiles.filter((f) => !f.uploading) : [];
 
@@ -278,16 +310,10 @@ export default function AIQuestionPage({
           </select>
         </div>
 
-        <div className="aiqp-topbar-search">
-          <span className="aiqp-search-icon">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <circle cx="11" cy="11" r="8" />
-              <path d="M21 21l-4.35-4.35" />
-            </svg>
-          </span>
-          <input
-            className="aiqp-search-input"
-            type="text"
+        <div className="aiqp-topbar-search aiqp-topbar-search--global">
+          <GlobalSearchBox
+            user={user}
+            onSearch={handleGlobalSearch}
             placeholder="搜索课程、资料、知识点..."
           />
         </div>

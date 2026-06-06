@@ -3754,6 +3754,8 @@ function App() {
         onVersionChange={switchMessageVersion}
         pendingAIContext={pendingAIContext}
         setPendingAIContext={setPendingAIContext}
+        setSearchContext={setSearchContext}
+        setSearchNavigate={setSearchNavigate}
       />
         <MaterialPickerModal
           open={showLibraryRefModal}
