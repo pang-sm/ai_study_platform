@@ -1060,15 +1060,19 @@
 }
 
 /* ── Search Result Highlight ── */
-.material-card-highlight {
-  border-radius: 14px;
-  border: 2px solid #2563eb !important;
-  box-shadow: 0 0 0 4px rgba(37,99,235,0.15);
+.material-card-locate-wrapper {
+  border: 2px solid transparent;
+  border-radius: 16px;
+  transition: all 0.25s ease;
+}
+
+.material-card-locate-wrapper.material-card-highlight {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.16);
   background: #eff6ff;
-  transition: border-color 0.3s, box-shadow 0.3s, background 0.3s;
 }
 /* Override inner MaterialCard styling when the wrapper is highlighted */
-.material-card-highlight .cmp-material-card {
+.material-card-locate-wrapper.material-card-highlight .cmp-material-card {
   border-color: transparent;
   background: transparent;
   box-shadow: none;

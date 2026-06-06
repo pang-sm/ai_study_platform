@@ -37,8 +37,12 @@ function saveRecentSearch(q) {
 }
 
 function buildFlatResults(groups) {
+  let index = -1;
   return groups.flatMap((group) =>
-    (group.items || []).map((item) => ({ ...item, groupTitle: group.title })),
+    (group.items || []).map((item) => {
+      index += 1;
+      return { ...item, groupType: group.type, groupTitle: group.title, searchIndex: index };
+    }),
   );
 }
 
@@ -47,10 +51,6 @@ function buildEmptyMenuItems(recentSearches) {
     ...recentSearches.map((kw) => ({ kind: "recent", label: kw, query: kw })),
     ...RECOMMEND_ENTRIES.map((entry) => ({ kind: "recommend", ...entry })),
   ];
-}
-
-function getResultKey(item) {
-  return `${item?.type || ""}-${item?.id || ""}`;
 }
 
 export default function GlobalSearchBox({
@@ -240,33 +240,38 @@ export default function GlobalSearchBox({
 
       {showDropdown && !searchLoading && searchValue.trim() && groups.length > 0 && (
         <div className="global-search-dropdown">
-          {groups.map((group) => (
-            <div key={group.type} className="global-search-group">
-              <div className="global-search-group-title">{group.title}</div>
-              {group.items.map((item, idx) => {
-                const flatIdx = flatResults.findIndex((flat) => getResultKey(flat) === getResultKey(item));
-                const isActive = flatIdx === activeIndex;
-                return (
-                  <button
-                    key={`${item.type}-${item.id}-${idx}`}
-                    className={`global-search-item${isActive ? " global-search-item--active" : ""}`}
-                    type="button"
-                    onClick={() => openResult(item)}
-                    onMouseEnter={() => setActiveIndex(flatIdx)}
-                  >
-                    <span className="global-search-item-head">
-                      <span className="global-search-item-title">{highlightText(item.title, searchValue.trim())}</span>
-                      <span className="global-search-item-type">{group.title}</span>
-                    </span>
-                    {item.snippet && (
-                      <span className="global-search-item-snippet">{highlightText(item.snippet, searchValue.trim())}</span>
-                    )}
-                    {item.match_reason && <span className="global-search-item-reason">{item.match_reason}</span>}
-                  </button>
-                );
-              })}
-            </div>
-          ))}
+          {(() => {
+            let resultIndex = -1;
+            return groups.map((group) => (
+              <div key={group.type} className="global-search-group">
+                <div className="global-search-group-title">{group.title}</div>
+                {(group.items || []).map((item, idx) => {
+                  resultIndex += 1;
+                  const currentIndex = resultIndex;
+                  const isActive = currentIndex === activeIndex;
+                  return (
+                    <button
+                      key={`${group.type}-${item.id || "result"}-${idx}`}
+                      className={`global-search-item${isActive ? " global-search-item--active" : ""}`}
+                      type="button"
+                      onClick={() => openResult(flatResults[currentIndex] || item)}
+                      onMouseDown={(event) => event.preventDefault()}
+                      onMouseEnter={() => setActiveIndex(currentIndex)}
+                    >
+                      <span className="global-search-item-head">
+                        <span className="global-search-item-title">{highlightText(item.title, searchValue.trim())}</span>
+                        <span className="global-search-item-type">{group.title}</span>
+                      </span>
+                      {item.snippet && (
+                        <span className="global-search-item-snippet">{highlightText(item.snippet, searchValue.trim())}</span>
+                      )}
+                      {item.match_reason && <span className="global-search-item-reason">{item.match_reason}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            ));
+          })()}
           <div className="global-search-footer">
             <span>共 {totalResults} 条结果</span>
             <button className="global-search-viewall" type="button" onClick={() => openQuery(searchValue)}>

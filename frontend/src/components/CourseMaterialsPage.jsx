@@ -351,8 +351,8 @@ export default function CourseMaterialsPage({
     setFilterType("all");
     setFilterIndex("all");
     setSearchInput("");
-    if (onClearSearchNavigate) onClearSearchNavigate();
-  }, [searchNavigate, onClearSearchNavigate]);
+    setMaterialCurrentPage(1);
+  }, [searchNavigate, setMaterialCurrentPage]);
 
 
   // Confirm write state
@@ -418,9 +418,14 @@ export default function CourseMaterialsPage({
     if (!pendingSearchMaterialId) return;
     const matId = String(pendingSearchMaterialId);
     // Check if target material is in the displayed list
-    const found = displayedItems.some((m) => String(m.id) === matId);
-    if (!found) {
+    const targetIndex = displayedItems.findIndex((m) => String(m.id) === matId);
+    if (targetIndex < 0) {
       // Not yet loaded or filtered out — keep waiting
+      return;
+    }
+    const targetPage = Math.floor(targetIndex / PAGE_SIZE) + 1;
+    if (materialCurrentPage !== targetPage) {
+      setMaterialCurrentPage(targetPage);
       return;
     }
     // Use rAF to ensure DOM is rendered
@@ -433,14 +438,15 @@ export default function CourseMaterialsPage({
         setTimeout(() => {
           setHighlightMaterialId(null);
           setPendingSearchMaterialId(null);
+          onClearSearchNavigate?.();
         }, 2500);
       } else {
         // DOM not ready yet despite data being present — retry next frame
-        setPendingSearchMaterialId(null);
+        console.warn('Search target material card was not found', matId);
       }
     });
     return () => cancelAnimationFrame(raf);
-  }, [pendingSearchMaterialId, displayedItems]);
+  }, [pendingSearchMaterialId, displayedItems, materialCurrentPage, setMaterialCurrentPage, onClearSearchNavigate]);
 
   const handleSearch = () => {
     const q = searchInput.trim();
@@ -862,7 +868,9 @@ export default function CourseMaterialsPage({
                 <div
                   key={material.id}
                   id={`material-card-${material.id}`}
-                  className={String(highlightMaterialId) === String(material.id) ? "material-card-highlight" : ""}
+                  className={`material-card-locate-wrapper${
+                    String(highlightMaterialId) === String(material.id) ? " material-card-highlight" : ""
+                  }`}
                 >
                 <MaterialCard
                   material={material}
