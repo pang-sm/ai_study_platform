@@ -14860,6 +14860,96 @@ def admin_backups_delete(filename: str, admin_username: str, db: Session = Depen
     return {"success": True, "filename": filename}
 
 
+def validate_model_config_updates(req: dict) -> dict:
+    """Validate and sanitize model config updates. Raises HTTPException on invalid input."""
+    updates = req.get("updates", req)
+    if not isinstance(updates, dict) or not updates:
+        raise HTTPException(status_code=400, detail="请提供要更新的配置项 (updates)")
+
+    validated = {}
+    for key, value in updates.items():
+        key_lower = key.lower()
+        # Reject sensitive keys
+        for part in SENSITIVE_MODEL_CONFIG_KEY_PARTS:
+            if part in key_lower:
+                raise HTTPException(status_code=400, detail=f"不允许通过接口修改敏感配置：{key}")
+        # Reject unknown keys
+        if key not in ALLOWED_MODEL_CONFIG_KEYS:
+            raise HTTPException(status_code=400, detail=f"未知的配置项：{key}")
+
+        # Numeric validation
+        if key == "ai_text_temperature":
+            try:
+                v = float(value)
+                if v < 0 or v > 1.5:
+                    raise HTTPException(status_code=400, detail="ai_text_temperature 取值范围为 0.0 ~ 1.5")
+                validated[key] = str(v)
+            except (TypeError, ValueError):
+                raise HTTPException(status_code=400, detail="ai_text_temperature 必须为数字")
+            continue
+
+        if key == "ai_text_max_tokens":
+            try:
+                v = int(value)
+                if v < 256 or v > 8000:
+                    raise HTTPException(status_code=400, detail="ai_text_max_tokens 取值范围为 256 ~ 8000")
+                validated[key] = str(v)
+            except (TypeError, ValueError):
+                raise HTTPException(status_code=400, detail="ai_text_max_tokens 必须为整数")
+            continue
+
+        if key == "ai_pdf_scan_max_pages":
+            try:
+                v = int(value)
+                if v < 1 or v > 20:
+                    raise HTTPException(status_code=400, detail="ai_pdf_scan_max_pages 取值范围为 1 ~ 20")
+                validated[key] = str(v)
+            except (TypeError, ValueError):
+                raise HTTPException(status_code=400, detail="ai_pdf_scan_max_pages 必须为整数")
+            continue
+
+        # Boolean validation
+        if key in ("ai_vision_enabled", "ai_pdf_scan_parse_enabled", "ai_chat_enabled_model_config", "ai_report_enabled_model_config", "ai_question_generation_enabled_model_config"):
+            sv = str(value).strip().lower()
+            if sv in ("true", "1", "yes", "on"):
+                validated[key] = "true"
+            elif sv in ("false", "0", "no", "off"):
+                validated[key] = "false"
+            else:
+                raise HTTPException(status_code=400, detail=f"{key} 必须为 true/false/1/0")
+            continue
+
+        # Provider validation
+        if key == "ai_text_model_provider":
+            sv = str(value).strip().lower()
+            if sv not in ("deepseek",):
+                raise HTTPException(status_code=400, detail="ai_text_model_provider 目前仅支持 deepseek")
+            validated[key] = sv
+            continue
+
+        if key == "ai_vision_model_provider":
+            sv = str(value).strip().lower()
+            if sv not in ("qwen",):
+                raise HTTPException(status_code=400, detail="ai_vision_model_provider 目前仅支持 qwen")
+            validated[key] = sv
+            continue
+
+        # Model name: non-empty, reasonable length
+        if key == "ai_text_model_name":
+            sv = str(value).strip()
+            if not sv or len(sv) > 100:
+                raise HTTPException(status_code=400, detail="ai_text_model_name 不能为空且不超过100个字符")
+            if "\n" in sv or "\r" in sv:
+                raise HTTPException(status_code=400, detail="ai_text_model_name 不能包含换行符")
+            validated[key] = sv
+            continue
+
+        # Fallback: pass through as string
+        validated[key] = str(value)
+
+    return validated
+
+
 @app.get("/admin/model-config")
 def admin_model_config(admin_username: str, db: Session = Depends(get_db)):
     require_admin_permission(db, admin_username, "model_config.view")
