@@ -273,6 +273,7 @@ class LearningTaskCreate(BaseModel):
     related_challenge_id: int | None = None
     related_material_id: int | None = None
     knowledge_point_id: int | None = None
+    knowledge_point_text: str | None = None
     related_question_id: int | None = None
 
 
@@ -285,6 +286,8 @@ class LearningTaskUpdate(BaseModel):
     priority: str | None = None
     due_date: str | None = None
     knowledge_point_id: int | None = None
+    knowledge_point_text: str | None = None
+    related_material_id: int | None = None
     related_question_id: int | None = None
 
 
@@ -304,6 +307,9 @@ class LearningTaskOut(BaseModel):
     related_material_id: int | None = None
     knowledge_point_id: int | None = None
     knowledge_point_title: str | None = None
+    knowledge_point_text: str | None = None
+    related_material_title: str | None = None
+    related_material_file_type: str | None = None
     related_question_id: int | None = None
     completed_at: str | None = None
     created_at: str | None = None

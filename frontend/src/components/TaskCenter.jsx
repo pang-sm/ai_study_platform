@@ -2,19 +2,19 @@ import { useEffect, useMemo, useState } from "react";
 
 const API_BASE = "/api";
 
-const TASK_TYPE_OPTIONS = [
-  { value: "read_material", label: "阅读资料" },
-  { value: "ask_ai", label: "AI 问答" },
-  { value: "code_practice", label: "代码练习" },
-  { value: "challenge", label: "AI 出题练习" },
-  { value: "review", label: "复习巩固" },
-  { value: "custom", label: "自定义任务" },
-  { value: "__other__", label: "其他 / 自定义输入..." },
-];
+const TASK_TYPE_OPTIONS = ["复习资料", "完成练习", "整理笔记", "查漏补缺", "考前复盘", "自定义"];
 
-const STATUS_OPTIONS = [
-  { value: "", label: "全部" },
-  { value: "todo", label: "未开始" },
+const TASK_TYPE_LABELS = {
+  read_material: "复习资料",
+  ask_ai: "AI 问答",
+  code_practice: "代码练习",
+  challenge: "完成练习",
+  review: "复习资料",
+  custom: "自定义",
+};
+
+const STATUS_COLUMNS = [
+  { value: "todo", label: "待开始" },
   { value: "doing", label: "进行中" },
   { value: "done", label: "已完成" },
 ];
@@ -26,20 +26,31 @@ const SOURCE_LABELS = {
   system: "系统推荐",
 };
 
-const TASK_TYPE_LABELS = {
-  read_material: "阅读资料",
-  ask_ai: "AI 问答",
-  code_practice: "代码练习",
-  challenge: "AI 出题",
-  review: "复习巩固",
-  custom: "自定义",
+const emptyForm = {
+  id: null,
+  title: "",
+  taskType: "复习资料",
+  customTaskType: "",
+  description: "",
+  courseId: "",
+  dueDate: "",
+  knowledgePointId: "",
+  knowledgePointText: "",
+  relatedMaterialId: "",
+  status: "todo",
 };
 
-const STATUS_LABELS = {
-  todo: "未开始",
-  doing: "进行中",
-  done: "已完成",
-};
+function getTaskTypeLabel(value) {
+  return TASK_TYPE_LABELS[value] || value || "学习任务";
+}
+
+function getMaterialTitle(material) {
+  return material?.file_name || material?.original_filename || material?.title || "";
+}
+
+function isIndexedMaterial(material) {
+  return Number(material?.chunk_count || 0) > 0 || material?.parse_status === "success";
+}
 
 export default function TaskCenter({
   user,
@@ -50,41 +61,94 @@ export default function TaskCenter({
   formatDate,
 }) {
   const [tasks, setTasks] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [materials, setMaterials] = useState([]);
+  const [knowledgePoints, setKnowledgePoints] = useState([]);
   const [courseFilter, setCourseFilter] = useState(subject || "");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [reordering, setReordering] = useState(false);
   const [actionTaskId, setActionTaskId] = useState(null);
-
-  // Knowledge points tree
-  const [knowledgePoints, setKnowledgePoints] = useState([]);
-  const [kpLoading, setKpLoading] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [form, setForm] = useState({ ...emptyForm, courseId: subject || "" });
   const [expandedKpIds, setExpandedKpIds] = useState(new Set());
-  const [customKpInput, setCustomKpInput] = useState("");
+  const [kpLoading, setKpLoading] = useState(false);
+  const [materialsLoading, setMaterialsLoading] = useState(false);
 
-  // Create form state
-  const [createTitle, setCreateTitle] = useState("");
-  const [createDescription, setCreateDescription] = useState("");
-  const [createCourse, setCreateCourse] = useState(subject || "");
-  const [createType, setCreateType] = useState("custom");
-  const [customTypeInput, setCustomTypeInput] = useState("");
-  const [createDueDate, setCreateDueDate] = useState("");
-  const [selectedKpIds, setSelectedKpIds] = useState([]);
+  const normalizedFilterCourse = useMemo(
+    () => normalizeSubject(courseFilter, "") || "",
+    [courseFilter, normalizeSubject]
+  );
 
-  // Build knowledge tree from flat list
-  const kpTree = useMemo(() => {
-    const roots = knowledgePoints.filter((kp) => !kp.parent_id);
-    const children = knowledgePoints.filter((kp) => kp.parent_id);
-    const grouped = {};
-    children.forEach((c) => {
-      const pid = c.parent_id;
-      if (!grouped[pid]) grouped[pid] = [];
-      grouped[pid].push(c);
+  const normalizedFormCourse = useMemo(
+    () => normalizeSubject(form.courseId, "") || "",
+    [form.courseId, normalizeSubject]
+  );
+
+  const knowledgeTree = useMemo(() => {
+    const points = Array.isArray(knowledgePoints) ? knowledgePoints : [];
+    const byParent = new Map();
+    points.forEach((point) => {
+      const parentId = point.parent_id || null;
+      if (!byParent.has(parentId)) byParent.set(parentId, []);
+      byParent.get(parentId).push(point);
     });
-    return roots.map((r) => ({ ...r, children: grouped[r.id] || [] }));
+
+    let roots = points.filter((point) => !point.parent_id || Number(point.level || 0) === 1);
+    if (roots.length === 0 && points.length > 0) roots = points;
+
+    return roots.map((root) => {
+      const directChildren = Array.isArray(root.children) ? root.children : [];
+      const groupedChildren = byParent.get(root.id) || [];
+      const children = directChildren.length > 0 ? directChildren : groupedChildren;
+      return { ...root, children: children.filter((child) => child.id !== root.id) };
+    });
   }, [knowledgePoints]);
+
+  const tasksByStatus = useMemo(() => {
+    return STATUS_COLUMNS.reduce((acc, column) => {
+      acc[column.value] = tasks.filter((task) => (task.status || "todo") === column.value);
+      return acc;
+    }, {});
+  }, [tasks]);
+
+  useEffect(() => {
+    setCourseFilter(subject || "");
+  }, [subject]);
+
+  useEffect(() => {
+    if (!modalOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [modalOpen]);
+
+  useEffect(() => {
+    loadTasks();
+  }, [user?.username, normalizedFilterCourse]);
+
+  useEffect(() => {
+    if (!modalOpen) return;
+    loadKnowledgePoints(normalizedFormCourse);
+    loadMaterials(normalizedFormCourse);
+  }, [modalOpen, normalizedFormCourse, user?.username]);
+
+  const loadTasks = async () => {
+    if (!user?.username) return;
+    setLoading(true);
+    try {
+      const query = new URLSearchParams({ username: user.username });
+      if (normalizedFilterCourse) query.set("course_id", normalizedFilterCourse);
+      const res = await fetch(`${API_BASE}/learning/tasks?${query.toString()}`);
+      const data = await res.json();
+      if (res.ok) setTasks(data.tasks || []);
+    } catch (error) {
+      console.error("Failed to load tasks:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const loadKnowledgePoints = async (courseId) => {
     if (!user?.username || !courseId) {
@@ -93,414 +157,534 @@ export default function TaskCenter({
     }
     setKpLoading(true);
     try {
-      const res = await fetch(
-        `${API_BASE}/knowledge-points?username=${encodeURIComponent(user.username)}&course_id=${encodeURIComponent(courseId)}`
-      );
+      const query = new URLSearchParams({ username: user.username, course_id: courseId });
+      const res = await fetch(`${API_BASE}/knowledge-points?${query.toString()}`);
       const data = await res.json();
-      if (res.ok) {
-        setKnowledgePoints(data.knowledge_points || []);
-      }
-    } catch (e) {
-      console.error("Failed to load knowledge points:", e);
+      setKnowledgePoints(res.ok ? data.knowledge_points || [] : []);
+    } catch (error) {
+      console.error("Failed to load knowledge points:", error);
+      setKnowledgePoints([]);
     } finally {
       setKpLoading(false);
     }
   };
 
-  const loadTasks = async () => {
-    if (!user?.username) return;
-    setLoading(true);
+  const loadMaterials = async (courseId) => {
+    if (!user?.username || !courseId) {
+      setMaterials([]);
+      return;
+    }
+    setMaterialsLoading(true);
     try {
-      const query = new URLSearchParams({ username: user.username });
-      const normalizedCourse = normalizeSubject(courseFilter, "");
-      if (normalizedCourse) query.set("course_id", normalizedCourse);
-      if (statusFilter) query.set("status", statusFilter);
-      const res = await fetch(`${API_BASE}/learning/tasks?${query.toString()}`);
+      const query = new URLSearchParams({ username: user.username, subject: courseId });
+      const res = await fetch(`${API_BASE}/materials?${query.toString()}`);
       const data = await res.json();
-      if (res.ok) {
-        setTasks(data.tasks || []);
-      }
-    } catch (e) {
-      console.error("Failed to load tasks:", e);
+      setMaterials(res.ok ? data.materials || [] : []);
+    } catch (error) {
+      console.error("Failed to load materials:", error);
+      setMaterials([]);
     } finally {
-      setLoading(false);
+      setMaterialsLoading(false);
     }
   };
 
-  useEffect(() => {
-    const normalizedCourse = normalizeSubject(courseFilter, "");
-    loadKnowledgePoints(normalizedCourse);
-    loadTasks();
-  }, [user?.username, courseFilter, statusFilter]);
-
-  const moveTask = async (index, direction) => {
-    const newTasks = [...tasks];
-    const targetIndex = index + direction;
-    if (targetIndex < 0 || targetIndex >= newTasks.length) return;
-    [newTasks[index], newTasks[targetIndex]] = [newTasks[targetIndex], newTasks[index]];
-    const reordered = newTasks.map((t, i) => ({ id: t.id, order_index: i }));
-    setTasks(newTasks);
-    setReordering(true);
-    try {
-      await fetch(`${API_BASE}/learning/tasks/reorder`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: user.username, items: reordered }),
-      });
-    } catch (e) {
-      console.error("Failed to reorder tasks:", e);
-      loadTasks();
-    } finally {
-      setReordering(false);
-    }
-  };
-
-  const createTask = async () => {
-    if (!createTitle.trim()) return;
-    setSaving(true);
-    try {
-      const effectiveType = createType === "__other__" && customTypeInput.trim()
-        ? customTypeInput.trim()
-        : createType === "__other__" ? "custom" : createType;
-      const body = {
-        username: user.username,
-        course_id: normalizeSubject(createCourse, "") || "",
-        title: createTitle.trim(),
-        description: createDescription.trim(),
-        task_type: effectiveType,
-        status: "todo",
-        source: "manual",
-        priority: "medium",
-      };
-      if (createDueDate) body.due_date = createDueDate;
-      if (selectedKpIds.length > 0) body.knowledge_point_id = selectedKpIds[0];
-      if (customKpInput.trim()) {
-        body.description = (createDescription.trim() ? createDescription.trim() + "\n" : "") + "自定义知识点: " + customKpInput.trim();
-      }
-      const res = await fetch(`${API_BASE}/learning/tasks`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setShowCreateModal(false);
-        resetCreateForm();
-        await loadTasks();
-      } else {
-        alert(data.detail || "创建失败");
-      }
-    } catch (e) {
-      console.error("Failed to create task:", e);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const resetCreateForm = () => {
-    setCreateTitle("");
-    setCreateDescription("");
-    setCreateCourse(subject || "");
-    setCreateType("custom");
-    setCustomTypeInput("");
-    setCreateDueDate("");
-    setSelectedKpIds([]);
-    setCustomKpInput("");
+  const openCreateModal = () => {
+    setForm({ ...emptyForm, courseId: normalizedFilterCourse || subject || "" });
     setExpandedKpIds(new Set());
+    setModalOpen(true);
+  };
+
+  const openEditModal = (task) => {
+    const knownType = TASK_TYPE_OPTIONS.includes(task.task_type);
+    setForm({
+      id: task.id,
+      title: task.title || "",
+      taskType: knownType ? task.task_type : "自定义",
+      customTaskType: knownType ? "" : task.task_type || "",
+      description: task.description || "",
+      courseId: task.course_id || normalizedFilterCourse || subject || "",
+      dueDate: task.due_date ? String(task.due_date).slice(0, 10) : "",
+      knowledgePointId: task.knowledge_point_id ? String(task.knowledge_point_id) : "",
+      knowledgePointText: task.knowledge_point_text || "",
+      relatedMaterialId: task.related_material_id ? String(task.related_material_id) : "",
+      status: task.status || "todo",
+    });
+    setExpandedKpIds(new Set());
+    setModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setModalOpen(false);
+    setForm({ ...emptyForm, courseId: subject || "" });
+  };
+
+  const updateForm = (field, value) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
   };
 
   const toggleKpExpand = (kpId) => {
     setExpandedKpIds((prev) => {
       const next = new Set(prev);
-      if (next.has(kpId)) next.delete(kpId); else next.add(kpId);
+      if (next.has(kpId)) next.delete(kpId);
+      else next.add(kpId);
       return next;
     });
   };
 
-  const toggleKpSelect = (kpId) => {
-    setSelectedKpIds((prev) =>
-      prev.includes(kpId) ? prev.filter((id) => id !== kpId) : [...prev, kpId]
-    );
+  const selectKnowledgePoint = (point) => {
+    updateForm("knowledgePointId", String(point.id));
   };
 
-  const selectKpBranch = (root) => {
-    const allIds = [root.id, ...(root.children || []).map((c) => c.id)];
-    setSelectedKpIds((prev) => {
-      const existing = new Set(prev);
-      const allSelected = allIds.every((id) => existing.has(id));
-      if (allSelected) return prev.filter((id) => !allIds.includes(id));
-      return [...new Set([...prev, ...allIds])];
-    });
+  const saveTask = async () => {
+    if (!form.title.trim()) return;
+    setSaving(true);
+    const taskType = form.taskType === "自定义"
+      ? (form.customTaskType.trim() || "自定义")
+      : form.taskType;
+    const payload = {
+      username: user.username,
+      title: form.title.trim(),
+      description: form.description.trim(),
+      task_type: taskType,
+      status: form.status || "todo",
+      due_date: form.dueDate || null,
+      knowledge_point_id: form.knowledgePointId ? Number(form.knowledgePointId) : 0,
+      knowledge_point_text: form.knowledgePointText.trim(),
+      related_material_id: form.relatedMaterialId ? Number(form.relatedMaterialId) : 0,
+    };
+    if (!form.id) {
+      payload.course_id = normalizedFormCourse;
+      payload.source = "manual";
+    }
+    try {
+      const res = await fetch(
+        form.id ? `${API_BASE}/learning/tasks/${form.id}` : `${API_BASE}/learning/tasks`,
+        {
+          method: form.id ? "PUT" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data.detail || "保存任务失败");
+        return;
+      }
+      closeModal();
+      await loadTasks();
+    } catch (error) {
+      console.error("Failed to save task:", error);
+      alert("保存任务失败，请稍后重试");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const updateTaskStatus = async (task, newStatus) => {
+  const updateTaskStatus = async (task, nextStatus) => {
     setActionTaskId(task.id);
     try {
       const res = await fetch(`${API_BASE}/learning/tasks/${task.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: user.username, status: newStatus }),
+        body: JSON.stringify({ username: user.username, status: nextStatus }),
       });
       const data = await res.json();
-      if (res.ok) setTasks((prev) => prev.map((t) => (t.id === task.id ? data.task : t)));
-    } catch (e) {
-      console.error("Failed to update task:", e);
+      if (res.ok) {
+        setTasks((prev) => prev.map((item) => (item.id === task.id ? data.task : item)));
+      }
+    } catch (error) {
+      console.error("Failed to update task status:", error);
     } finally {
       setActionTaskId(null);
     }
   };
 
   const deleteTask = async (task) => {
-    if (!window.confirm(`确认删除任务"${task.title}"吗？`)) return;
+    if (!window.confirm(`确认删除任务“${task.title}”吗？`)) return;
     setActionTaskId(task.id);
     try {
-      await fetch(`${API_BASE}/learning/tasks/${task.id}?username=${encodeURIComponent(user.username)}`, { method: "DELETE" });
-      setTasks((prev) => prev.filter((t) => t.id !== task.id));
-    } catch (e) {
-      console.error("Failed to delete task:", e);
+      const res = await fetch(
+        `${API_BASE}/learning/tasks/${task.id}?username=${encodeURIComponent(user.username)}`,
+        { method: "DELETE" }
+      );
+      if (res.ok) setTasks((prev) => prev.filter((item) => item.id !== task.id));
+    } catch (error) {
+      console.error("Failed to delete task:", error);
     } finally {
       setActionTaskId(null);
     }
   };
 
-  const getTaskStatusClass = (status) => {
-    if (status === "done") return "task-status-done";
-    if (status === "doing") return "task-status-doing";
-    return "task-status-todo";
+  const moveTask = async (task, direction) => {
+    const statusTasks = tasksByStatus[task.status || "todo"] || [];
+    const index = statusTasks.findIndex((item) => item.id === task.id);
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= statusTasks.length) return;
+
+    const nextStatusTasks = [...statusTasks];
+    [nextStatusTasks[index], nextStatusTasks[targetIndex]] = [nextStatusTasks[targetIndex], nextStatusTasks[index]];
+    const nextStatusIds = nextStatusTasks.map((item) => item.id);
+    const nextTasks = tasks.map((item) => {
+      const orderIndex = nextStatusIds.indexOf(item.id);
+      return orderIndex >= 0 ? { ...item, order_index: orderIndex } : item;
+    });
+    const previousTasks = tasks;
+    setTasks(nextTasks);
+    setReordering(true);
+    try {
+      const res = await fetch(`${API_BASE}/learning/tasks/reorder`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: user.username,
+          course_id: normalizedFilterCourse,
+          task_ids: nextStatusIds,
+        }),
+      });
+      if (!res.ok) throw new Error(`Reorder failed: ${res.status}`);
+      await loadTasks();
+    } catch (error) {
+      console.error("Failed to reorder tasks:", error);
+      setTasks(previousTasks);
+      await loadTasks();
+    } finally {
+      setReordering(false);
+    }
+  };
+
+  const renderKnowledgeSelector = () => {
+    if (!normalizedFormCourse) {
+      return <p className="task-muted">请先选择所属课程。</p>;
+    }
+    if (kpLoading) {
+      return <p className="task-muted">正在加载课程知识点...</p>;
+    }
+    if (knowledgeTree.length === 0) {
+      return <p className="task-muted">当前课程暂无自动提取的知识点，你可以手动输入。</p>;
+    }
+    return (
+      <div className="task-kp-tree">
+        {knowledgeTree.map((root) => {
+          const expanded = expandedKpIds.has(root.id);
+          const selected = String(root.id) === String(form.knowledgePointId);
+          return (
+            <div className="task-kp-node" key={root.id}>
+              <div className="task-kp-row">
+                <button
+                  type="button"
+                  className="task-icon-button"
+                  onClick={() => toggleKpExpand(root.id)}
+                  aria-label={expanded ? "收起知识点" : "展开知识点"}
+                >
+                  {expanded ? "⌄" : "›"}
+                </button>
+                <button
+                  type="button"
+                  className={`task-kp-select ${selected ? "is-selected" : ""}`}
+                  onClick={() => selectKnowledgePoint(root)}
+                >
+                  {root.title}
+                </button>
+              </div>
+              {expanded && root.children?.length > 0 && (
+                <div className="task-kp-children">
+                  {root.children.map((child) => (
+                    <button
+                      type="button"
+                      key={child.id}
+                      className={`task-kp-child ${String(child.id) === String(form.knowledgePointId) ? "is-selected" : ""}`}
+                      onClick={() => selectKnowledgePoint(child)}
+                    >
+                      {child.title}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const renderMaterialSelector = () => {
+    if (!normalizedFormCourse) {
+      return <p className="task-muted">选择课程后可关联该课程资料。</p>;
+    }
+    if (materialsLoading) {
+      return <p className="task-muted">正在加载资料...</p>;
+    }
+    if (materials.length === 0) {
+      return <p className="task-muted">当前课程暂无资料，可先去资料库上传。</p>;
+    }
+    return (
+      <div className="task-material-list">
+        {materials.map((material) => {
+          const selected = String(material.id) === String(form.relatedMaterialId);
+          return (
+            <button
+              type="button"
+              key={material.id}
+              className={`task-material-item ${selected ? "is-selected" : ""}`}
+              onClick={() => updateForm("relatedMaterialId", selected ? "" : String(material.id))}
+            >
+              <span className="task-material-title">{getMaterialTitle(material)}</span>
+              <span className="task-material-meta">
+                {material.file_type || "资料"} · {formatDate(material.created_at)} · {isIndexedMaterial(material) ? "已索引" : "未索引"}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const renderTaskCard = (task, index, statusTasks) => {
+    const knowledgeLabel = task.knowledge_point_title || task.knowledge_point_text || "未绑定知识点";
+    const materialLabel = task.related_material_title || task.material_filename || task.material_title || "";
+    const isDone = task.status === "done";
+    return (
+      <article className={`task-card-v2 ${isDone ? "is-done" : ""}`} key={task.id}>
+        <div className="task-card-order">
+          <button
+            type="button"
+            className="task-icon-button"
+            disabled={reordering || index === 0}
+            onClick={() => moveTask(task, -1)}
+            aria-label="上移"
+            title="上移"
+          >
+            ↑
+          </button>
+          <button
+            type="button"
+            className="task-icon-button"
+            disabled={reordering || index === statusTasks.length - 1}
+            onClick={() => moveTask(task, 1)}
+            aria-label="下移"
+            title="下移"
+          >
+            ↓
+          </button>
+        </div>
+        <div className="task-card-content">
+          <div className="task-card-topline">
+            <h4>{task.title}</h4>
+            <span className={`task-status-chip task-status-${task.status || "todo"}`}>
+              {STATUS_COLUMNS.find((item) => item.value === task.status)?.label || "待开始"}
+            </span>
+          </div>
+          {task.description && <p className="task-card-description">{task.description}</p>}
+          <div className="task-card-meta-v2">
+            <span>{getTaskTypeLabel(task.task_type)}</span>
+            <span>知识点：{knowledgeLabel}</span>
+            {materialLabel && <span>来源资料：{materialLabel}</span>}
+            {task.due_date && <span>截止：{formatDate(task.due_date)}</span>}
+            {task.source && task.source !== "manual" && <span>{SOURCE_LABELS[task.source] || task.source}</span>}
+          </div>
+        </div>
+        <div className="task-card-actions-v2">
+          <button type="button" className="tiny-button" onClick={() => openEditModal(task)}>编辑</button>
+          {isDone ? (
+            <button
+              type="button"
+              className="tiny-button"
+              disabled={actionTaskId === task.id}
+              onClick={() => updateTaskStatus(task, "todo")}
+            >
+              取消完成
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="tiny-button"
+              disabled={actionTaskId === task.id}
+              onClick={() => updateTaskStatus(task, "done")}
+            >
+              完成
+            </button>
+          )}
+          {!isDone && task.status !== "doing" && (
+            <button
+              type="button"
+              className="tiny-button"
+              disabled={actionTaskId === task.id}
+              onClick={() => updateTaskStatus(task, "doing")}
+            >
+              开始
+            </button>
+          )}
+          <button
+            type="button"
+            className="tiny-button danger"
+            disabled={actionTaskId === task.id}
+            onClick={() => deleteTask(task)}
+          >
+            删除
+          </button>
+        </div>
+      </article>
+    );
   };
 
   return (
-    <section className="chat-panel chat-panel--wide task-center-panel">
-      {/* ── Hero Header Card ── */}
-      <div className="task-center-hero">
-        <div className="task-hero-left">
-          <div className="task-hero-icon">📋</div>
-          <div className="task-hero-text">
-            <h2 className="task-hero-title">学习任务中心</h2>
-            <p className="task-hero-subtitle">管理你的学习任务，规划学习进度，高效达成目标</p>
-          </div>
+    <section className="chat-panel chat-panel--wide task-center-panel task-center-v2">
+      <header className="task-titlebar">
+        <div>
+          <h2>学习任务</h2>
+          <p>把资料、知识点和练习安排成可执行计划</p>
         </div>
-        <button
-          className="task-btn-primary"
-          onClick={() => {
-            resetCreateForm();
-            setShowCreateModal(true);
-          }}
-        >
-          + 新建任务
+        <button type="button" className="task-btn-primary" onClick={openCreateModal}>
+          新建任务
         </button>
-      </div>
+      </header>
 
-      {/* ── Filters Card ── */}
-      <div className="task-center-filters">
-        <div className="task-filter-item">
-          <label className="field-label">课程筛选</label>
-          <select
-            className="field"
-            value={courseFilter}
-            onChange={(e) => setCourseFilter(e.target.value)}
-          >
+      <div className="task-toolbar">
+        <label>
+          <span>课程</span>
+          <select className="field" value={courseFilter} onChange={(event) => setCourseFilter(event.target.value)}>
             <option value="">全部课程</option>
             {courseOptions.map((item) => (
-              <option key={item} value={item}>
-                {getSubjectLabel(item)}
-              </option>
+              <option key={item} value={item}>{getSubjectLabel(item)}</option>
             ))}
           </select>
-        </div>
-        <div className="task-filter-item">
-          <label className="field-label">状态筛选</label>
-          <select
-            className="field"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-          >
-            {STATUS_OPTIONS.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="task-filter-spacer" />
-        <button className="task-btn-refresh" onClick={loadTasks}>
-          ↻ 刷新
-        </button>
+        </label>
+        <button type="button" className="task-btn-secondary" onClick={loadTasks}>刷新</button>
       </div>
 
-      {/* ── Content Area ── */}
       {loading ? (
-        <div className="task-center-empty-state">
-          <div className="task-empty-icon">⏳</div>
-          <p className="task-empty-text">正在加载任务...</p>
-        </div>
+        <div className="task-empty-state-v2">正在加载任务...</div>
       ) : tasks.length === 0 ? (
-        <div className="task-center-empty-state">
-          <div className="task-empty-icon">📝</div>
-          <h3 className="task-empty-title">当前筛选条件下没有学习任务</h3>
-          <p className="task-empty-desc">创建一个新的学习任务，开启你的学习计划吧！</p>
-          <button
-            className="task-btn-primary"
-            onClick={() => {
-              resetCreateForm();
-              setShowCreateModal(true);
-            }}
-          >
-            + 创建第一个任务
-          </button>
+        <div className="task-empty-state-v2">
+          <h3>还没有学习任务，创建一个任务把学习安排起来。</h3>
+          <button type="button" className="task-btn-primary" onClick={openCreateModal}>创建任务</button>
         </div>
       ) : (
-        <div className="task-list">
-          {tasks.map((task, index) => (
-            <div key={task.id} className={`task-card ${task.status === "done" ? "task-card--done" : ""}`}>
-              <div className="task-card-sort">
-                <button
-                  className="task-move-btn"
-                  disabled={reordering || index === 0}
-                  onClick={() => moveTask(index, -1)}
-                  title="上移"
-                >▲</button>
-                <button
-                  className="task-move-btn"
-                  disabled={reordering || index === tasks.length - 1}
-                  onClick={() => moveTask(index, 1)}
-                  title="下移"
-                >▼</button>
-              </div>
-              <div className="task-card-main">
-                <div className="task-card-header">
-                  <h4 className="task-card-title">{task.title}</h4>
-                  <div className="task-card-badges">
-                    <span className={`task-status-badge ${getTaskStatusClass(task.status)}`}>
-                      {STATUS_LABELS[task.status] || task.status}
-                    </span>
-                  </div>
+        <div className="task-board">
+          {STATUS_COLUMNS.map((column) => {
+            const statusTasks = tasksByStatus[column.value] || [];
+            return (
+              <section className="task-board-column" key={column.value}>
+                <div className="task-board-column-header">
+                  <h3>{column.label}</h3>
+                  <span>{statusTasks.length}</span>
                 </div>
-                {task.description && <p className="task-card-desc">{task.description}</p>}
-                <div className="task-card-meta">
-                  {task.course_id && <span className="subject-pill small">{getSubjectLabel(task.course_id)}</span>}
-                  <span className="subject-pill small">{TASK_TYPE_LABELS[task.task_type] || task.task_type}</span>
-                  {task.knowledge_point_title && (
-                    <span className="subject-pill small" style={{ background: "#fef3c7", color: "#92400e" }}>{task.knowledge_point_title}</span>
+                <div className="task-board-list">
+                  {statusTasks.length === 0 ? (
+                    <p className="task-column-empty">暂无任务</p>
+                  ) : (
+                    statusTasks.map((task, index) => renderTaskCard(task, index, statusTasks))
                   )}
-                  {task.source && task.source !== "manual" && (
-                    <span className="subject-pill small" style={{ background: "#ecfdf5", color: "#065f46" }}>{SOURCE_LABELS[task.source] || task.source}</span>
-                  )}
-                  {task.due_date && <span className="history-meta">截止：{formatDate(task.due_date)}</span>}
-                  <span className="history-meta">创建：{formatDate(task.created_at)}</span>
-                  {task.completed_at && <span className="history-meta" style={{ color: "#059669" }}>完成：{formatDate(task.completed_at)}</span>}
                 </div>
-              </div>
-              <div className="task-card-actions">
-                {task.status !== "doing" && task.status !== "done" && (
-                  <button className="tiny-button" disabled={actionTaskId === task.id} onClick={() => updateTaskStatus(task, "doing")}>标记进行中</button>
-                )}
-                {task.status !== "done" && (
-                  <button className="tiny-button" disabled={actionTaskId === task.id} onClick={() => updateTaskStatus(task, "done")} style={{ color: "#059669" }}>标记完成</button>
-                )}
-                {task.status === "done" && (
-                  <button className="tiny-button" disabled={actionTaskId === task.id} onClick={() => updateTaskStatus(task, "todo")}>改回未完成</button>
-                )}
-                <button className="tiny-button" disabled={actionTaskId === task.id} onClick={() => deleteTask(task)} style={{ color: "#dc2626" }}>删除</button>
-              </div>
-            </div>
-          ))}
+              </section>
+            );
+          })}
         </div>
       )}
 
-      {showCreateModal && (
-        <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
-          <div className="modal-card task-create-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>新建学习任务</h3>
-              <button className="modal-close" onClick={() => setShowCreateModal(false)}>&times;</button>
+      {modalOpen && (
+        <div className="task-modal-overlay" role="presentation">
+          <div className="task-modal-card" role="dialog" aria-modal="true" aria-labelledby="task-modal-title">
+            <button type="button" className="task-modal-close" onClick={closeModal} aria-label="关闭">×</button>
+            <div className="task-modal-header">
+              <h3 id="task-modal-title">{form.id ? "编辑学习任务" : "新建学习任务"}</h3>
             </div>
-
             <div className="task-modal-body">
-              <label className="field-label">任务标题 *</label>
-              <input className="field" placeholder="请输入任务标题" value={createTitle} onChange={(e) => setCreateTitle(e.target.value)} />
+              <label className="task-form-field">
+                <span>任务标题</span>
+                <input
+                  className="field"
+                  value={form.title}
+                  placeholder="例如：复习进程调度"
+                  onChange={(event) => updateForm("title", event.target.value)}
+                />
+              </label>
 
-              <label className="field-label">任务描述</label>
-              <textarea className="field" rows={2} placeholder="详细说明任务内容（可选）" value={createDescription} onChange={(e) => setCreateDescription(e.target.value)} />
+              <label className="task-form-field">
+                <span>任务类型</span>
+                <select
+                  className="field"
+                  value={form.taskType}
+                  onChange={(event) => updateForm("taskType", event.target.value)}
+                >
+                  {TASK_TYPE_OPTIONS.map((option) => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+              </label>
+              {form.taskType === "自定义" && (
+                <label className="task-form-field">
+                  <span>自定义任务类型</span>
+                  <input
+                    className="field"
+                    value={form.customTaskType}
+                    placeholder="例如：整理错题"
+                    onChange={(event) => updateForm("customTaskType", event.target.value)}
+                  />
+                </label>
+              )}
 
-              <div className="task-modal-row">
-                <div className="task-modal-col">
-                  <label className="field-label">所属课程</label>
-                  <select className="field" value={createCourse} onChange={(e) => setCreateCourse(e.target.value)}>
+              {!form.id && (
+                <label className="task-form-field">
+                  <span>所属课程</span>
+                  <select
+                    className="field"
+                    value={form.courseId}
+                    onChange={(event) => updateForm("courseId", event.target.value)}
+                  >
                     <option value="">不绑定课程</option>
-                    {courseOptions.map((item) => (<option key={item} value={item}>{getSubjectLabel(item)}</option>))}
+                    {courseOptions.map((item) => (
+                      <option key={item} value={item}>{getSubjectLabel(item)}</option>
+                    ))}
                   </select>
-                </div>
-                <div className="task-modal-col">
-                  <label className="field-label">任务类型</label>
-                  <select className="field" value={createType} onChange={(e) => { setCreateType(e.target.value); if (e.target.value !== "__other__") setCustomTypeInput(""); }}>
-                    {TASK_TYPE_OPTIONS.map((item) => (<option key={item.value} value={item.value}>{item.label}</option>))}
-                  </select>
-                  {createType === "__other__" && (
-                    <input
-                      className="field"
-                      style={{ marginTop: 8 }}
-                      placeholder="请输入自定义任务类型"
-                      value={customTypeInput}
-                      onChange={(e) => setCustomTypeInput(e.target.value)}
-                    />
-                  )}
-                </div>
+                </label>
+              )}
+
+              <div className="task-form-field">
+                <span>绑定知识点</span>
+                {renderKnowledgeSelector()}
               </div>
 
-              <label className="field-label">截止日期（可选）</label>
-              <input className="field" type="date" value={createDueDate} onChange={(e) => setCreateDueDate(e.target.value)} />
+              <label className="task-form-field">
+                <span>手动输入知识点</span>
+                <input
+                  className="field"
+                  value={form.knowledgePointText}
+                  placeholder="例如：银行家算法、进程同步、LRU 页面置换"
+                  onChange={(event) => updateForm("knowledgePointText", event.target.value)}
+                />
+              </label>
 
-              {/* Knowledge Point Binding — tree from materials/knowledge base */}
-              <div className="task-modal-section">
-                <label className="field-label">绑定知识点（可选）</label>
-                {!createCourse ? (
-                  <p className="task-modal-hint">请先选择所属课程以加载该课程的知识点。</p>
-                ) : kpLoading ? (
-                  <p className="task-modal-hint">正在加载课程知识点...</p>
-                ) : kpTree.length === 0 ? (
-                  <p className="task-modal-hint">当前课程暂无知识点。你可以先到知识库上传资料并提取知识点，或下方手动输入。</p>
-                ) : (
-                  <div className="task-kp-tree">
-                    {kpTree.map((root) => {
-                      const isExpanded = expandedKpIds.has(root.id);
-                      return (
-                        <div key={root.id} className="task-kp-node">
-                          <div className="task-kp-node-header">
-                            <button type="button" className="task-kp-expand-btn" onClick={() => toggleKpExpand(root.id)}>
-                              {isExpanded ? "▼" : "▶"}
-                            </button>
-                            <label className="task-kp-check-label">
-                              <input type="checkbox" checked={selectedKpIds.includes(root.id)} onChange={() => selectKpBranch(root)} />
-                              <span className="task-kp-name">{root.title}</span>
-                            </label>
-                          </div>
-                          {isExpanded && root.children.length > 0 && (
-                            <div className="task-kp-children">
-                              {root.children.map((child) => (
-                                <label key={child.id} className="task-kp-child-label">
-                                  <input type="checkbox" checked={selectedKpIds.includes(child.id)} onChange={() => toggleKpSelect(child.id)} />
-                                  <span className="task-kp-child-name">{child.title}</span>
-                                </label>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+              <div className="task-form-field">
+                <span>关联资料</span>
+                {renderMaterialSelector()}
               </div>
 
-              {/* Manual knowledge point input */}
-              <label className="field-label">手动输入知识点</label>
-              <input className="field" placeholder="输入自定义知识点名称，例如：动态规划、指针操作" value={customKpInput} onChange={(e) => setCustomKpInput(e.target.value)} />
+              <label className="task-form-field">
+                <span>截止时间</span>
+                <input
+                  className="field"
+                  type="date"
+                  value={form.dueDate}
+                  onChange={(event) => updateForm("dueDate", event.target.value)}
+                />
+              </label>
+
+              <label className="task-form-field">
+                <span>任务描述</span>
+                <textarea
+                  className="field"
+                  rows={3}
+                  value={form.description}
+                  placeholder="可补充资料章节、练习范围或完成标准"
+                  onChange={(event) => updateForm("description", event.target.value)}
+                />
+              </label>
             </div>
-
-            <div className="task-form-actions">
-              <button className="ghost-button compact" onClick={() => setShowCreateModal(false)}>取消</button>
-              <button className="task-btn-primary" disabled={saving || !createTitle.trim()} onClick={createTask}>
-                {saving ? "创建中..." : "创建任务"}
+            <div className="task-modal-actions">
+              <button type="button" className="task-btn-secondary" onClick={closeModal}>取消</button>
+              <button type="button" className="task-btn-primary" disabled={saving || !form.title.trim()} onClick={saveTask}>
+                {saving ? "保存中..." : "保存任务"}
               </button>
             </div>
           </div>

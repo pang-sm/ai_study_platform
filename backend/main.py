@@ -4950,7 +4950,7 @@ def serialize_code_challenge(challenge):
     }
 
 
-def serialize_learning_task(task, knowledge_point_title=None):
+def serialize_learning_task(task, knowledge_point_title=None, related_material=None):
     return {
         "id": task.id,
         "username": task.username,
@@ -4966,8 +4966,11 @@ def serialize_learning_task(task, knowledge_point_title=None):
         "related_session_id": task.related_session_id,
         "related_challenge_id": task.related_challenge_id,
         "related_material_id": task.related_material_id,
+        "related_material_title": related_material.original_filename if related_material else None,
+        "related_material_file_type": related_material.file_type if related_material else None,
         "knowledge_point_id": getattr(task, "knowledge_point_id", None),
         "knowledge_point_title": knowledge_point_title,
+        "knowledge_point_text": getattr(task, "knowledge_point_text", None),
         "related_question_id": getattr(task, "related_question_id", None),
         "completed_at": serialize_datetime(task.completed_at) if task.completed_at else None,
         "created_at": serialize_datetime(task.created_at) if task.created_at else None,
@@ -8040,9 +8043,8 @@ def get_learning_tasks(username: str, course_id: str = "", status: str = "", db:
     if status_filter and status_filter in ALLOWED_TASK_STATUSES:
         query = query.filter(models.LearningTask.status == status_filter)
     tasks = query.order_by(
-        models.LearningTask.status.asc(),
         models.LearningTask.order_index.asc(),
-        models.LearningTask.created_at.asc(),
+        models.LearningTask.created_at.desc(),
     ).all()
     # Bulk-fetch knowledge point titles
     kp_ids = [getattr(t, "knowledge_point_id", None) for t in tasks if getattr(t, "knowledge_point_id", None)]
@@ -8051,15 +8053,34 @@ def get_learning_tasks(username: str, course_id: str = "", status: str = "", db:
         kps = db.query(models.KnowledgePoint).filter(models.KnowledgePoint.id.in_(kp_ids)).all()
         for kp in kps:
             kp_map[kp.id] = kp.title
-    return {"tasks": [serialize_learning_task(t, knowledge_point_title=kp_map.get(getattr(t, "knowledge_point_id", None))) for t in tasks]}
+    material_ids = [getattr(t, "related_material_id", None) for t in tasks if getattr(t, "related_material_id", None)]
+    material_map: dict[int, models.StudyMaterial] = {}
+    if material_ids:
+        materials = db.query(models.StudyMaterial).filter(
+            models.StudyMaterial.id.in_(material_ids),
+            models.StudyMaterial.username == user.username,
+            models.StudyMaterial.is_deleted == False,
+        ).all()
+        material_map = {m.id: m for m in materials}
+    return {
+        "tasks": [
+            serialize_learning_task(
+                t,
+                knowledge_point_title=kp_map.get(getattr(t, "knowledge_point_id", None)),
+                related_material=material_map.get(getattr(t, "related_material_id", None)),
+            )
+            for t in tasks
+        ]
+    }
 
 
 @app.post("/learning/tasks")
 def create_learning_task(req: schemas.LearningTaskCreate, db: Session = Depends(get_db)):
     user = get_user_by_username(req.username, db)
     task_type = (req.task_type or "").strip()
-    if task_type not in ALLOWED_TASK_TYPES:
+    if not task_type:
         task_type = "custom"
+    task_type = task_type[:50]
     status = (req.status or "todo").strip()
     if status not in ALLOWED_TASK_STATUSES:
         status = "todo"
@@ -8073,12 +8094,18 @@ def create_learning_task(req: schemas.LearningTaskCreate, db: Session = Depends(
     if not title:
         raise HTTPException(status_code=400, detail="任务标题不能为空")
     now = utc_now()
-    max_order = db.query(func.coalesce(func.max(models.LearningTask.order_index), -1)).filter(
+    normalized_course = normalize_subject(req.course_id, default="") or None
+    order_query = db.query(func.coalesce(func.max(models.LearningTask.order_index), -1)).filter(
         models.LearningTask.username == user.username,
-    ).scalar() or -1
+    )
+    if normalized_course:
+        order_query = order_query.filter(models.LearningTask.course_id == normalized_course)
+    else:
+        order_query = order_query.filter(models.LearningTask.course_id.is_(None))
+    max_order = order_query.scalar() or -1
     task = models.LearningTask(
         username=user.username,
-        course_id=normalize_subject(req.course_id, default="") or None,
+        course_id=normalized_course,
         title=title[:255],
         description=(req.description or "").strip() or None,
         task_type=task_type,
@@ -8089,8 +8116,9 @@ def create_learning_task(req: schemas.LearningTaskCreate, db: Session = Depends(
         due_date=req.due_date,
         related_session_id=req.related_session_id,
         related_challenge_id=req.related_challenge_id,
-        related_material_id=req.related_material_id,
-        knowledge_point_id=req.knowledge_point_id,
+        related_material_id=req.related_material_id if req.related_material_id and req.related_material_id > 0 else None,
+        knowledge_point_id=req.knowledge_point_id if req.knowledge_point_id and req.knowledge_point_id > 0 else None,
+        knowledge_point_text=(req.knowledge_point_text or "").strip() or None,
         related_question_id=req.related_question_id,
         completed_at=now if status == "done" else None,
         created_at=now,
@@ -8100,6 +8128,35 @@ def create_learning_task(req: schemas.LearningTaskCreate, db: Session = Depends(
     db.commit()
     db.refresh(task)
     return {"task": serialize_learning_task(task)}
+
+
+@app.put("/learning/tasks/reorder")
+def reorder_learning_tasks_v2(req: dict, db: Session = Depends(get_db)):
+    username = str(req.get("username", "")).strip()
+    course_id = normalize_subject(str(req.get("course_id", "") or ""), default="")
+    task_ids = req.get("task_ids", [])
+    if not username or not isinstance(task_ids, list) or len(task_ids) == 0:
+        raise HTTPException(status_code=400, detail="请求参数无效")
+    user = get_user_by_username(username, db)
+    normalized_ids = [int(task_id) for task_id in task_ids if task_id]
+    if len(normalized_ids) != len(task_ids):
+        raise HTTPException(status_code=400, detail="任务 ID 无效")
+    query = db.query(models.LearningTask).filter(
+        models.LearningTask.id.in_(normalized_ids),
+        models.LearningTask.username == user.username,
+    )
+    if course_id:
+        query = query.filter(models.LearningTask.course_id == course_id)
+    existing = query.all()
+    existing_ids = {task.id for task in existing}
+    if existing_ids != set(normalized_ids):
+        raise HTTPException(status_code=403, detail="无权排序这些任务")
+    for index, task_id in enumerate(normalized_ids):
+        db.query(models.LearningTask).filter(models.LearningTask.id == task_id).update(
+            {"order_index": index, "updated_at": utc_now()}, synchronize_session=False
+        )
+    db.commit()
+    return {"success": True}
 
 
 @app.put("/learning/tasks/{task_id}")
@@ -8125,8 +8182,7 @@ def update_learning_task(task_id: int, req: schemas.LearningTaskUpdate, db: Sess
         task.description = (req.description or "").strip() or None
     if req.task_type is not None:
         new_type = (req.task_type or "").strip()
-        if new_type in ALLOWED_TASK_TYPES:
-            task.task_type = new_type
+        task.task_type = (new_type or "custom")[:50]
     progress_event = None
     if req.status is not None:
         new_status = (req.status or "").strip()
@@ -8167,7 +8223,11 @@ def update_learning_task(task_id: int, req: schemas.LearningTaskUpdate, db: Sess
     if req.due_date is not None:
         task.due_date = req.due_date if (req.due_date or "").strip() else None
     if req.knowledge_point_id is not None:
-        task.knowledge_point_id = req.knowledge_point_id
+        task.knowledge_point_id = req.knowledge_point_id if req.knowledge_point_id > 0 else None
+    if req.knowledge_point_text is not None:
+        task.knowledge_point_text = (req.knowledge_point_text or "").strip() or None
+    if req.related_material_id is not None:
+        task.related_material_id = req.related_material_id if req.related_material_id > 0 else None
     if req.related_question_id is not None:
         task.related_question_id = req.related_question_id
 
@@ -8189,7 +8249,22 @@ def update_learning_task(task_id: int, req: schemas.LearningTaskUpdate, db: Sess
         )
         db.commit()
 
-    return {"task": serialize_learning_task(task)}
+    knowledge_point_title = None
+    if task.knowledge_point_id:
+        kp = db.query(models.KnowledgePoint).filter(
+            models.KnowledgePoint.id == task.knowledge_point_id,
+            models.KnowledgePoint.username == user.username,
+        ).first()
+        knowledge_point_title = kp.title if kp else None
+    related_material = None
+    if task.related_material_id:
+        related_material = db.query(models.StudyMaterial).filter(
+            models.StudyMaterial.id == task.related_material_id,
+            models.StudyMaterial.username == user.username,
+            models.StudyMaterial.is_deleted == False,
+        ).first()
+
+    return {"task": serialize_learning_task(task, knowledge_point_title=knowledge_point_title, related_material=related_material)}
 
 
 @app.post("/learning/tasks/reorder")

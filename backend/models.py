@@ -240,6 +240,7 @@ class LearningTask(Base):
     related_challenge_id = Column(Integer, nullable=True)
     related_material_id = Column(Integer, nullable=True)
     knowledge_point_id = Column(Integer, nullable=True)
+    knowledge_point_text = Column(String, nullable=True)
     related_question_id = Column(Integer, nullable=True)
     completed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=utc_now)
