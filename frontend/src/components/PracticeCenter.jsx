@@ -558,6 +558,15 @@ export default function PracticeCenter({
   const [mixedSuggestionDismissed, setMixedSuggestionDismissed] = useState(false);
   const [mixedSupplementQuestions, setMixedSupplementQuestions] = useState([]);
 
+  // Mixed practice mode
+  const [mixedPracticeMode, setMixedPracticeMode] = useState(false);
+  const [mixedPracticeQuestions, setMixedPracticeQuestions] = useState([]);
+  const [mixedPracticeAnswers, setMixedPracticeAnswers] = useState({});
+  const [mixedPracticeCurrentIndex, setMixedPracticeCurrentIndex] = useState(0);
+  const [mixedPracticeResult, setMixedPracticeResult] = useState(null);
+  const [mixedPracticeSubmitting, setMixedPracticeSubmitting] = useState(false);
+  const mixedPracticeStartRef = useRef(Date.now());
+
   // Save AI questions to bank
   const [aiSaveSelected, setAiSaveSelected] = useState(() => new Set());
   const [aiSaveModalOpen, setAiSaveModalOpen] = useState(false);
@@ -1003,6 +1012,182 @@ export default function PracticeCenter({
       details,
       record: recordResult,
       kp_updates: finalKpUpdates,
+    });
+  };
+
+  // ── Mixed Practice Mode ──
+
+  const startMixedPractice = () => {
+    const bankQuestions = questions || [];
+    const aiQuestions = mixedSupplementQuestions || [];
+    if (bankQuestions.length === 0 && aiQuestions.length === 0) return;
+
+    const courseId = practiceContext?.courseId || courseFilter || subject || "";
+    const kpId = practiceContext?.knowledgePointId || null;
+    const kpTitle = practiceContext?.knowledgePointTitle || practiceContext?.knowledgePointText || "";
+
+    const mixed = [];
+
+    // Add bank questions
+    bankQuestions.forEach((q) => {
+      mixed.push({
+        id: q.id,
+        source: "question_bank",
+        type: q.type,
+        title: q.title,
+        content: q.content,
+        options: q.options || "",
+        answer: q.answer || "",
+        explanation: q.explanation || "",
+        knowledge_point_id: q.knowledge_point_id || kpId,
+        knowledge_point_title: q.knowledge_point_title || kpTitle,
+        course_id: q.course_id || courseId,
+        task_id: practiceContext?.taskId || null,
+        difficulty: q.difficulty || "medium",
+      });
+    });
+
+    // Add AI temp questions
+    aiQuestions.forEach((q, idx) => {
+      mixed.push({
+        id: `ai-temp-${idx + 1}`,
+        source: "ai_task_preview",
+        type: q.type,
+        title: q.stem,
+        content: q.stem,
+        options: q.options && q.options.length > 0
+          ? q.options.map((opt) => `${opt.label}. ${opt.text}`).join("\n")
+          : "",
+        answer: q.answer,
+        explanation: q.analysis,
+        knowledge_point_id: kpId,
+        knowledge_point_title: q.knowledge_point_title || kpTitle,
+        course_id: courseId,
+        task_id: practiceContext?.taskId || null,
+        difficulty: "medium",
+      });
+    });
+
+    setMixedPracticeQuestions(mixed);
+    setMixedPracticeAnswers({});
+    setMixedPracticeCurrentIndex(0);
+    setMixedPracticeResult(null);
+    setMixedPracticeSubmitting(false);
+    mixedPracticeStartRef.current = Date.now();
+    setMixedPracticeMode(true);
+    // Dismiss the suggestion card
+    setMixedSuggestionDismissed(true);
+  };
+
+  const exitMixedPractice = () => {
+    setMixedPracticeMode(false);
+    setMixedPracticeQuestions([]);
+    setMixedPracticeAnswers({});
+    setMixedPracticeResult(null);
+    setMixedPracticeSubmitting(false);
+  };
+
+  const updateMixedAnswer = (qid, value) => {
+    setMixedPracticeAnswers((prev) => ({ ...prev, [qid]: value }));
+  };
+
+  const toggleMixedMultiAnswer = (qid, label) => {
+    setMixedPracticeAnswers((prev) => {
+      const current = parseAnswerList(prev[qid] || "");
+      const next = current.includes(label)
+        ? current.filter((l) => l !== label)
+        : [...current, label];
+      return { ...prev, [qid]: next.sort().join(",") };
+    });
+  };
+
+  const submitMixedPractice = async () => {
+    if (mixedPracticeQuestions.length === 0 || !user?.username) return;
+
+    const details = mixedPracticeQuestions.map((q) => {
+      const userAns = mixedPracticeAnswers[q.id] ?? "";
+      const result = gradeAiTempQuestion(q, userAns);
+      return {
+        question: q,
+        question_id: q.id,
+        is_correct: result.is_correct,
+        user_answer: result.user_answer,
+        correct_answer: result.correct_answer,
+        knowledge_point_id: q.knowledge_point_id || null,
+        source: q.source,
+        note: result.note || "",
+      };
+    });
+
+    const autoGraded = details.filter((d) => d.is_correct !== null);
+    const correctCount = autoGraded.filter((d) => d.is_correct).length;
+    const totalAuto = autoGraded.length;
+    const totalAll = details.length;
+    const shortAnswerCount = totalAll - totalAuto;
+    const bankCount = details.filter((d) => d.source === "question_bank").length;
+    const aiCount = details.filter((d) => d.source === "ai_task_preview").length;
+    const accuracy = totalAuto > 0 ? Math.round(correctCount / totalAuto * 100) : 0;
+    const durationSeconds = Math.round((Date.now() - mixedPracticeStartRef.current) / 1000);
+
+    const questionResults = details
+      .filter((d) => d.is_correct !== null)
+      .map((d) => ({
+        question_id: d.question_id,
+        is_correct: d.is_correct,
+        user_answer: d.user_answer,
+        correct_answer: d.correct_answer,
+        knowledge_point_id: d.knowledge_point_id || null,
+      }));
+
+    setMixedPracticeSubmitting(true);
+    let recordResult = null;
+    try {
+      const body = {
+        username: user.username,
+        course_id: practiceContext?.courseId || courseFilter || subject || "",
+        knowledge_point_id: practiceContext?.knowledgePointId || null,
+        task_id: practiceContext?.taskId || null,
+        duration_seconds: durationSeconds,
+        source: "task_mixed_practice",
+        total_questions: totalAll,
+        short_answer_count: shortAnswerCount,
+        question_results: questionResults.length > 0 ? questionResults : details.map((d) => ({
+          question_id: d.question_id,
+          is_correct: false,
+          user_answer: d.user_answer,
+          correct_answer: d.correct_answer,
+          knowledge_point_id: d.knowledge_point_id || null,
+        })),
+      };
+      const res = await fetch(`${API_BASE}/practice/submit-result`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        recordResult = { error: data.detail || "同步学习记录失败" };
+      } else {
+        recordResult = { success: true, record_id: data.record_id, summary: data.summary };
+      }
+    } catch (e) {
+      recordResult = { error: e.message || "同步学习记录失败" };
+    } finally {
+      setMixedPracticeSubmitting(false);
+    }
+
+    setMixedPracticeResult({
+      total: totalAll,
+      bank_count: bankCount,
+      ai_count: aiCount,
+      auto_graded: totalAuto,
+      correct: correctCount,
+      incorrect: totalAuto - correctCount,
+      short_answer: shortAnswerCount,
+      accuracy,
+      duration_seconds: durationSeconds,
+      duration_minutes: Math.max(1, Math.round(durationSeconds / 60)),
+      details,
+      record: recordResult,
     });
   };
 
@@ -2371,7 +2556,230 @@ export default function PracticeCenter({
         </div>
       )}
 
-      {!aiTempMode && (
+      {mixedPracticeMode && (
+        <div className="batch-practice-panel">
+          <div className="batch-practice-header">
+            <div>
+              <span className="subject-pill small" style={{ background: "#e0f2fe", color: "#0369a1" }}>混合任务练习</span>
+              <h3>混合任务练习</h3>
+              <p style={{ fontSize: 13, color: "#475569", margin: "4px 0 0" }}>
+                本次包含 {(() => { const b = mixedPracticeQuestions.filter(q => q.source === "question_bank").length; const a = mixedPracticeQuestions.length - b; return `${b} 道题库题 + ${a} 道 AI 临时题`; })()}。
+              </p>
+            </div>
+            <button className="ghost-button compact" type="button" onClick={exitMixedPractice}>
+              退出练习
+            </button>
+          </div>
+
+          {!mixedPracticeResult && mixedPracticeQuestions.length > 0 && (() => {
+            const q = mixedPracticeQuestions[mixedPracticeCurrentIndex];
+            const currentAnswer = mixedPracticeAnswers[q.id] ?? "";
+            const isMultiple = q.type === "multiple_choice" || q.type === "select";
+            const isJudge = q.type === "judge" || q.type === "true_false";
+            const isShort = q.type === "short_answer";
+            const options = parseOptionItems(q.options || "");
+            const displayOptions = (isJudge && options.length === 0)
+              ? [{ label: "A", content: "正确" }, { label: "B", content: "错误" }]
+              : options;
+
+            return (
+              <>
+                <div className="batch-question-nav">
+                  {mixedPracticeQuestions.map((mq, idx) => (
+                    <button
+                      key={mq.id}
+                      type="button"
+                      className={`batch-question-nav-item${idx === mixedPracticeCurrentIndex ? " active" : ""}${mixedPracticeAnswers[mq.id] ? " answered" : ""}`}
+                      onClick={() => setMixedPracticeCurrentIndex(idx)}
+                      style={{ position: "relative" }}
+                    >
+                      {idx + 1}
+                      <span style={{ position: "absolute", top: -8, right: -4, fontSize: 9, background: mq.source === "question_bank" ? "#dbeafe" : "#fef3c7", color: mq.source === "question_bank" ? "#1e40af" : "#92400e", padding: "0 4px", borderRadius: 4 }}>
+                        {mq.source === "question_bank" ? "库" : "AI"}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="batch-question-card">
+                  <div className="batch-question-head">
+                    <span>第 {mixedPracticeCurrentIndex + 1} / {mixedPracticeQuestions.length} 题</span>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      <span style={{ fontSize: 11, background: q.source === "question_bank" ? "#dbeafe" : "#fef3c7", color: q.source === "question_bank" ? "#1e40af" : "#92400e", padding: "2px 6px", borderRadius: 6 }}>
+                        {q.source === "question_bank" ? "题库题" : "AI 临时题"}
+                      </span>
+                      <span className={`q-type-badge ${getTypeClass(q.type)}`}>
+                        {TYPE_LABELS[q.type] || q.type}
+                      </span>
+                    </div>
+                  </div>
+                  <h4 style={{ fontSize: 16, fontWeight: 700, color: "#1e293b", margin: "0 0 10px", lineHeight: 1.6 }}>
+                    {q.title}
+                  </h4>
+
+                  {isShort ? (
+                    <div>
+                      <textarea
+                        className="field batch-answer-input"
+                        style={{ minHeight: 100, width: "100%" }}
+                        value={String(currentAnswer || "")}
+                        onChange={(e) => updateMixedAnswer(q.id, e.target.value)}
+                        placeholder="请输入你的答案..."
+                      />
+                      <p style={{ fontSize: 12, color: "#94a3b8", marginTop: 6 }}>
+                        💡 简答题暂不自动判分，完成后可查看参考答案和解析。
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="question-options batch-options">
+                      {displayOptions.map((opt) => {
+                        const label = opt.label;
+                        const checked = isMultiple
+                          ? parseAnswerList(currentAnswer).includes(label)
+                          : normalizePracticeAnswer(currentAnswer) === label;
+                        return (
+                          <label key={label} className="question-option-label">
+                            <input
+                              type={isMultiple ? "checkbox" : "radio"}
+                              name={`mixed-answer-${q.id}`}
+                              value={label}
+                              checked={checked}
+                              onChange={() => {
+                                if (isMultiple) {
+                                  toggleMixedMultiAnswer(q.id, label);
+                                } else {
+                                  updateMixedAnswer(q.id, label);
+                                }
+                              }}
+                            />
+                            <span>{label}. {opt.content}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div className="batch-practice-actions">
+                  <button
+                    className="ghost-button compact"
+                    type="button"
+                    disabled={mixedPracticeCurrentIndex === 0}
+                    onClick={() => setMixedPracticeCurrentIndex((i) => Math.max(i - 1, 0))}
+                  >
+                    上一题
+                  </button>
+                  {mixedPracticeCurrentIndex < mixedPracticeQuestions.length - 1 ? (
+                    <button
+                      className="primary-button compact"
+                      type="button"
+                      onClick={() => setMixedPracticeCurrentIndex((i) => Math.min(i + 1, mixedPracticeQuestions.length - 1))}
+                    >
+                      下一题
+                    </button>
+                  ) : (
+                    <button
+                      className="primary-button compact"
+                      type="button"
+                      onClick={submitMixedPractice}
+                      disabled={mixedPracticeSubmitting}
+                    >
+                      {mixedPracticeSubmitting ? "提交中..." : "提交练习"}
+                    </button>
+                  )}
+                </div>
+              </>
+            );
+          })()}
+
+          {mixedPracticeResult && (
+            <div className="batch-result">
+              <div className="batch-score-card" style={{ textAlign: "center" }}>
+                <strong style={{ fontSize: 28, color: "#059669" }}>
+                  {mixedPracticeResult.auto_graded > 0 ? `${mixedPracticeResult.accuracy}%` : "--"}
+                </strong>
+                <span style={{ fontSize: 14, color: "#475569" }}>
+                  {mixedPracticeResult.auto_graded > 0
+                    ? `正确 ${mixedPracticeResult.correct} / ${mixedPracticeResult.auto_graded}`
+                    : "无自动判分题"}
+                </span>
+                <div style={{ marginTop: 8, fontSize: 13, color: "#64748b", display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+                  <span>总题数：{mixedPracticeResult.total}</span>
+                  <span>题库题：{mixedPracticeResult.bank_count}</span>
+                  <span>AI 临时题：{mixedPracticeResult.ai_count}</span>
+                  <span>自动判分：{mixedPracticeResult.auto_graded} 题</span>
+                  {mixedPracticeResult.short_answer > 0 && <span>简答题：{mixedPracticeResult.short_answer} 题</span>}
+                  <span>用时：{mixedPracticeResult.duration_minutes} 分钟</span>
+                </div>
+                {mixedPracticeResult.record && (
+                  <div style={{ marginTop: 8, fontSize: 13 }}>
+                    {mixedPracticeResult.record.success ? (
+                      <span style={{ color: "#059669" }}>✅ 学习记录已同步</span>
+                    ) : (
+                      <span style={{ color: "#b91c1c" }}>⚠️ {mixedPracticeResult.record.error}</span>
+                    )}
+                    <span style={{ marginLeft: 12, color: mixedPracticeResult.auto_graded > 0 ? "#059669" : "#94a3b8" }}>
+                      {mixedPracticeResult.auto_graded > 0 ? "知识点掌握度：已更新" : "知识点掌握度：无自动判分题，未更新"}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <p style={{ fontSize: 13, color: "#b45309", textAlign: "center", margin: "12px 0 0" }}>
+                ⚠️ AI 临时题未自动加入题库，如需保留，请在预览区选择保存到题库。
+              </p>
+
+              <div className="batch-result-list" style={{ marginTop: 16 }}>
+                {mixedPracticeResult.details.map((item, idx) => {
+                  const isAutoGraded = item.is_correct !== null;
+                  const resultClass = isAutoGraded ? (item.is_correct ? "correct" : "incorrect") : "short-answer";
+                  return (
+                    <div key={item.question.id} className={`batch-result-item ${resultClass}`}>
+                      <div className="batch-result-item-head">
+                        <strong>
+                          <span style={{ fontSize: 11, background: item.source === "question_bank" ? "#dbeafe" : "#fef3c7", color: item.source === "question_bank" ? "#1e40af" : "#92400e", padding: "1px 6px", borderRadius: 4, marginRight: 6 }}>
+                            {item.source === "question_bank" ? "题库题" : "AI 临时题"}
+                          </span>
+                          {idx + 1}. {item.question.title}
+                        </strong>
+                        <span>
+                          {isAutoGraded ? (item.is_correct ? "✅ 正确" : "❌ 错误") : "📝 简答题（未自动判分）"}
+                        </span>
+                      </div>
+                      <div className="batch-result-row">
+                        <span>你的答案：</span>
+                        <strong>{item.user_answer || "未作答"}</strong>
+                      </div>
+                      <div className="batch-result-row">
+                        <span>参考答案：</span>
+                        <strong>{item.correct_answer || "未提供"}</strong>
+                      </div>
+                      {item.question.explanation && (
+                        <div className="batch-result-analysis">
+                          <strong>解析：</strong>
+                          <QuestionAnalysisBlock analysis={item.question.explanation} />
+                        </div>
+                      )}
+                      {item.note && (
+                        <p style={{ fontSize: 12, color: "#94a3b8", margin: "4px 0 0" }}>{item.note}</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "center", gap: 10, marginTop: 16 }}>
+                <button className="ghost-button compact" type="button" onClick={exitMixedPractice}>
+                  返回练习中心
+                </button>
+                {renderTaskCompleteCard()}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {!mixedPracticeMode && !aiTempMode && (
       <div className="practice-workbench">
         {taskContextActive && (
           <div className="practice-task-banner">
@@ -2803,15 +3211,22 @@ export default function PracticeCenter({
                           <button className="ghost-button compact" onClick={() => dismissMixedSuggestion()}>关闭</button>
                         </div>
                         <p style={{ fontSize: 13, color: "#b45309", margin: "0 0 12px" }}>
-                          ⚠️ 补充题为临时生成，未加入正式题库。可开始混合练习。
+                          ⚠️ 补充题为临时生成，未加入正式题库。
                         </p>
                         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                           <button
                             className="primary-button compact"
                             type="button"
+                            onClick={startMixedPractice}
+                          >
+                            开始混合练习（{questions.length} 题库 + {mixedSupplementQuestions.length} AI）
+                          </button>
+                          <button
+                            className="ghost-button compact"
+                            type="button"
                             onClick={startAiTempPractice}
                           >
-                            使用 AI 补充题开始练习
+                            仅练 AI 补充题
                           </button>
                           <button
                             className="ghost-button compact"
