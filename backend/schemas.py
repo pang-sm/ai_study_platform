@@ -599,6 +599,13 @@ class MaterialAnalyzeKnowledgeRequest(BaseModel):
     material_ids: list[int]
 
 
+class MaterialConfirmKnowledgeTreeRequest(BaseModel):
+    username: str
+    course_id: str
+    material_ids: list[int]
+    knowledge_tree: list
+
+
 # ── Admin / Plan ────────────────────────────────────────
 
 

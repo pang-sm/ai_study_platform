@@ -993,6 +993,64 @@
   font-style: italic;
 }
 
+/* Confirm Loading */
+.kam-confirm-loading {
+  text-align: center;
+  padding: 36px 16px;
+}
+.kam-confirm-loading p { font-size: 0.9rem; color: #475569; margin: 12px 0 0; }
+
+/* Confirm Success */
+.kam-confirm-success {
+  text-align: center;
+  padding: 24px 16px 16px;
+}
+.kam-confirm-success-icon { font-size: 40px; margin-bottom: 8px; }
+.kam-confirm-success-title {
+  font-size: 1.05rem;
+  font-weight: 750;
+  color: #059669;
+  margin: 0 0 16px;
+}
+.kam-confirm-stats {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.kam-confirm-stat {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  padding: 12px 20px;
+  text-align: center;
+  min-width: 100px;
+}
+.kam-confirm-stat-value {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #059669;
+}
+.kam-confirm-stat-label {
+  display: block;
+  font-size: 0.72rem;
+  color: #64748b;
+  margin-top: 2px;
+}
+.kam-confirm-success-hint {
+  font-size: 0.82rem;
+  color: #475569;
+  margin: 0 0 16px;
+  line-height: 1.5;
+}
+.kam-confirm-success-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
 /* ── Responsive ── */
 @media (max-width: 560px) {
   .kam-modal { max-width: 100%; border-radius: 14px; }

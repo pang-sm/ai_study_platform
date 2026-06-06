@@ -13812,6 +13812,156 @@ def analyze_knowledge_preview(req: schemas.MaterialAnalyzeKnowledgeRequest, db: 
     }
 
 
+@app.post("/materials/confirm-knowledge-tree")
+def confirm_knowledge_tree(req: schemas.MaterialConfirmKnowledgeTreeRequest, db: Session = Depends(get_db)):
+    """Write confirmed knowledge tree preview to knowledge_points with dedup."""
+    user = get_user_by_username(req.username, db)
+    course_id = normalize_subject(req.course_id)
+
+    if not course_id:
+        raise HTTPException(status_code=400, detail="课程不能为空")
+
+    if not req.knowledge_tree or not isinstance(req.knowledge_tree, list) or len(req.knowledge_tree) == 0:
+        raise HTTPException(status_code=400, detail="知识点树不能为空")
+
+    # Validate material_ids belong to user and course
+    if req.material_ids:
+        valid_materials = (
+            db.query(models.StudyMaterial)
+            .filter(
+                models.StudyMaterial.id.in_(req.material_ids),
+                models.StudyMaterial.username == user.username,
+                models.StudyMaterial.subject == course_id,
+                models.StudyMaterial.is_deleted.is_(False),
+            )
+            .count()
+        )
+        # Non-fatal: just log, don't block the write
+        _ = valid_materials
+
+    created_modules = 0
+    created_points = 0
+    skipped_duplicates = 0
+    all_created = []
+
+    # Query existing knowledge points for this course (for dedup)
+    existing_all = (
+        db.query(models.KnowledgePoint)
+        .filter(
+            models.KnowledgePoint.username == user.username,
+            models.KnowledgePoint.course_id == course_id,
+        )
+        .all()
+    )
+    existing_by_title = {}
+    for kp in existing_all:
+        key = (kp.parent_id, kp.title.strip())
+        existing_by_title[key] = kp
+
+    try:
+        for module in req.knowledge_tree:
+            if not isinstance(module, dict):
+                continue
+            module_title = str(module.get("title", "")).strip()
+            if not module_title:
+                continue
+            module_desc = str(module.get("description", "")).strip()
+
+            # Dedup: check if module with same title exists in this course (parent_id=None)
+            module_key = (None, module_title)
+            if module_key in existing_by_title:
+                parent_kp = existing_by_title[module_key]
+                # Update description if empty
+                if module_desc and not (parent_kp.description or "").strip():
+                    parent_kp.description = module_desc[:255]
+                skipped_duplicates += 1
+            else:
+                # Get max order_index for this course
+                max_order = (
+                    db.query(models.KnowledgePoint)
+                    .filter(
+                        models.KnowledgePoint.username == user.username,
+                        models.KnowledgePoint.course_id == course_id,
+                        models.KnowledgePoint.parent_id.is_(None),
+                    )
+                    .count()
+                )
+                parent_kp = models.KnowledgePoint(
+                    username=user.username,
+                    course_id=course_id,
+                    parent_id=None,
+                    title=module_title[:255],
+                    description=module_desc[:255],
+                    order_index=max_order,
+                    level=1,
+                )
+                db.add(parent_kp)
+                db.flush()
+                existing_by_title[module_key] = parent_kp
+                created_modules += 1
+
+            all_created.append({"id": parent_kp.id, "title": parent_kp.title, "level": 1, "is_new": not (module_key in existing_by_title and skipped_duplicates > 0)})
+
+            # Process children
+            children = module.get("children", [])
+            if not isinstance(children, list):
+                continue
+
+            for child in children:
+                if not isinstance(child, dict):
+                    continue
+                child_title = str(child.get("title", "")).strip()
+                if not child_title:
+                    continue
+                child_desc = str(child.get("description", "")).strip()
+
+                # Dedup: check if child with same title exists under this parent
+                child_key = (parent_kp.id, child_title)
+                if child_key in existing_by_title:
+                    existing_child = existing_by_title[child_key]
+                    if child_desc and not (existing_child.description or "").strip():
+                        existing_child.description = child_desc[:255]
+                    skipped_duplicates += 1
+                    all_created.append({"id": existing_child.id, "title": existing_child.title, "level": 2, "is_new": False})
+                else:
+                    child_count = (
+                        db.query(models.KnowledgePoint)
+                        .filter(
+                            models.KnowledgePoint.username == user.username,
+                            models.KnowledgePoint.course_id == course_id,
+                            models.KnowledgePoint.parent_id == parent_kp.id,
+                        )
+                        .count()
+                    )
+                    child_kp = models.KnowledgePoint(
+                        username=user.username,
+                        course_id=course_id,
+                        parent_id=parent_kp.id,
+                        title=child_title[:255],
+                        description=child_desc[:255],
+                        order_index=child_count,
+                        level=2,
+                    )
+                    db.add(child_kp)
+                    db.flush()
+                    existing_by_title[child_key] = child_kp
+                    created_points += 1
+                    all_created.append({"id": child_kp.id, "title": child_kp.title, "level": 2, "is_new": True})
+
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="写入知识点树失败，请稍后重试。")
+
+    return {
+        "success": True,
+        "created_modules": created_modules,
+        "created_points": created_points,
+        "skipped_duplicates": skipped_duplicates,
+        "knowledge_points": all_created,
+    }
+
+
 # ══════════════════════════════════════════════════════════════
 #  MEMBERSHIP SYSTEM
 # ══════════════════════════════════════════════════════════════

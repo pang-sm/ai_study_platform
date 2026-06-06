@@ -337,6 +337,11 @@ export default function CourseMaterialsPage({
   const [analyzeResult, setAnalyzeResult] = useState(null);
   const [expandedModules, setExpandedModules] = useState(new Set());
 
+  // Confirm write state
+  const [confirmLoading, setConfirmLoading] = useState(false);
+  const [confirmError, setConfirmError] = useState("");
+  const [confirmResult, setConfirmResult] = useState(null);
+
   const courseLabel = getSubjectLabel(subject);
 
   const courseItems = currentFilterItems;
@@ -440,6 +445,8 @@ export default function CourseMaterialsPage({
     setAnalyzeLoading(true);
     setAnalyzeError("");
     setAnalyzeResult(null);
+    setConfirmResult(null);
+    setConfirmError("");
     setExpandedModules(new Set());
     try {
       const res = await fetch(`${API_BASE}/materials/analyze-knowledge-preview`, {
@@ -465,6 +472,34 @@ export default function CourseMaterialsPage({
       setAnalyzeError(e.message || "AI 分析失败，请稍后重试。");
     } finally {
       setAnalyzeLoading(false);
+    }
+  };
+
+  const handleConfirmKnowledgeTree = async () => {
+    if (!analyzeResult || !analyzeResult.knowledge_tree) return;
+    setConfirmLoading(true);
+    setConfirmError("");
+    setConfirmResult(null);
+    try {
+      const res = await fetch(`${API_BASE}/materials/confirm-knowledge-tree`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: user.username,
+          course_id: subject,
+          material_ids: Array.from(selectedMaterialIds),
+          knowledge_tree: analyzeResult.knowledge_tree,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || "写入失败，请稍后重试");
+      }
+      setConfirmResult(data);
+    } catch (e) {
+      setConfirmError(e.message || "写入知识点树失败，请稍后重试。");
+    } finally {
+      setConfirmLoading(false);
     }
   };
 
@@ -917,12 +952,16 @@ export default function CourseMaterialsPage({
                     <div className="kam-material-list">
                       {courseItems.map((mat) => {
                         const isSelected = selectedMaterialIds.has(mat.id);
-                        const hasContent = mat.parse_status === "success" || mat.parse_status === "partial";
+                        // Allow selection unless we're certain there's no analysable text
+                        // (materials with chunks, extracted_text, or even failed-but-parsed may still have content)
+                        const hasChunks = (mat.parse_status === "success" || mat.parse_status === "partial") && Number(mat.chunk_count || 0) > 0;
+                        const mayHaveText = mat.parse_status === "success" || mat.parse_status === "partial" || mat.parse_status === "failed" || !mat.parse_status || mat.parse_status === "unknown";
+                        const disabled = false; // let backend decide — materials without content will get an error from the server
                         return (
                           <div
                             key={mat.id}
-                            className={`kam-material-item ${isSelected ? "kam-material-item--selected" : ""} ${!hasContent ? "kam-material-item--disabled" : ""}`}
-                            onClick={() => hasContent && toggleMaterialSelect(mat.id)}
+                            className={`kam-material-item ${isSelected ? "kam-material-item--selected" : ""}`}
+                            onClick={() => toggleMaterialSelect(mat.id)}
                           >
                             <div className="kam-material-check">
                               {isSelected ? "☑" : "☐"}
@@ -935,7 +974,8 @@ export default function CourseMaterialsPage({
                               <span className="kam-material-meta">
                                 {getFileTypeLabel(mat.file_type)} · {formatFileSize(mat.file_size)} · {formatDate(mat.created_at)}
                                 {" · "}{Number(mat.chunk_count || 0)} 个知识片段
-                                {!hasContent && " · 索引未完成"}
+                                {!hasChunks && mayHaveText && " · 文本模式（无片段）"}
+                                {!hasChunks && !mayHaveText && " · 暂无可用文本"}
                               </span>
                             </div>
                           </div>
@@ -989,78 +1029,143 @@ export default function CourseMaterialsPage({
               {/* ── Result: Knowledge Tree Preview ── */}
               {analyzeResult && !analyzeLoading && (
                 <>
-                  <div className="kam-result-header">
-                    <span className="kam-step-label">知识点树预览</span>
-                    <span className="kam-result-stats">
-                      共 {(analyzeResult.knowledge_tree || []).length} 个大模块，
-                      {(() => { let c = 0; (analyzeResult.knowledge_tree || []).forEach(m => { c += (m.children || []).length; }); return c; })()} 个知识点
-                    </span>
-                  </div>
-
-                  {(analyzeResult.knowledge_tree || []).length === 0 ? (
-                    <div className="kam-empty">
-                      <p>未能从资料中提取有效知识点。</p>
-                      <p className="kam-empty-hint">请确认所选资料内容与课程相关，或尝试选择更多资料后重试。</p>
-                    </div>
-                  ) : (
-                    <div className="kam-tree">
-                      {(analyzeResult.knowledge_tree || []).map((module, idx) => {
-                        const isExpanded = expandedModules.has(idx);
-                        return (
-                          <div key={idx} className="kam-tree-module">
-                            <button
-                              className="kam-tree-module-header"
-                              onClick={() => toggleModuleExpand(idx)}
-                              type="button"
-                            >
-                              <span className={`kam-tree-arrow ${isExpanded ? "kam-tree-arrow--open" : ""}`}>▶</span>
-                              <div className="kam-tree-module-info">
-                                <span className="kam-tree-module-title">{module.title}</span>
-                                {module.description && (
-                                  <span className="kam-tree-module-desc">{module.description}</span>
-                                )}
-                              </div>
-                              <span className="kam-tree-module-count">{module.children ? module.children.length : 0} 项</span>
-                            </button>
-                            {isExpanded && module.children && module.children.length > 0 && (
-                              <div className="kam-tree-children">
-                                {module.children.map((child, cidx) => (
-                                  <div key={cidx} className="kam-tree-child">
-                                    <div className="kam-tree-child-dot" />
-                                    <div className="kam-tree-child-info">
-                                      <span className="kam-tree-child-title">{child.title}</span>
-                                      {child.description && (
-                                        <span className="kam-tree-child-desc">{child.description}</span>
-                                      )}
-                                      {child.source_material_titles && child.source_material_titles.length > 0 && (
-                                        <span className="kam-tree-child-source">
-                                          来源：{child.source_material_titles.join("、")}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
+                  {/* ── Confirm Loading ── */}
+                  {confirmLoading && (
+                    <div className="kam-confirm-loading">
+                      <div className="cmp-loading-spinner" />
+                      <p>正在写入知识点树...</p>
                     </div>
                   )}
 
-                  <div className="kam-footer">
-                    <span className="kam-footer-hint kam-footer-hint--preview">
-                      ⚠️ 当前仅为预览，下一步确认后才会写入知识点树。
-                    </span>
-                    <div className="kam-footer-actions">
-                      <button className="cmp-btn cmp-btn--ghost" type="button" onClick={() => { setAnalyzeResult(null); setAnalyzeError(""); }}>
-                        返回重新选择
-                      </button>
-                      <button className="cmp-btn cmp-btn--primary" type="button" disabled title="下一步开放">
-                        确认写入（下一步开放）
-                      </button>
+                  {/* ── Confirm Error ── */}
+                  {confirmError && !confirmLoading && (
+                    <div className="kam-error">
+                      <p>{confirmError}</p>
+                      <div className="kam-error-actions">
+                        <button className="cmp-btn cmp-btn--ghost" type="button" onClick={() => setConfirmError("")}>
+                          关闭
+                        </button>
+                        <button className="cmp-btn cmp-btn--primary" type="button" onClick={handleConfirmKnowledgeTree}>
+                          重试
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  )}
+
+                  {/* ── Confirm Success ── */}
+                  {confirmResult && !confirmLoading && (
+                    <div className="kam-confirm-success">
+                      <div className="kam-confirm-success-icon">✅</div>
+                      <h3 className="kam-confirm-success-title">知识点已成功写入</h3>
+                      <div className="kam-confirm-stats">
+                        <div className="kam-confirm-stat">
+                          <span className="kam-confirm-stat-value">{confirmResult.created_modules}</span>
+                          <span className="kam-confirm-stat-label">新增大模块</span>
+                        </div>
+                        <div className="kam-confirm-stat">
+                          <span className="kam-confirm-stat-value">{confirmResult.created_points}</span>
+                          <span className="kam-confirm-stat-label">新增小知识点</span>
+                        </div>
+                        <div className="kam-confirm-stat">
+                          <span className="kam-confirm-stat-value">{confirmResult.skipped_duplicates}</span>
+                          <span className="kam-confirm-stat-label">跳过重复</span>
+                        </div>
+                      </div>
+                      <p className="kam-confirm-success-hint">
+                        知识点已写入，可在任务绑定知识点和练习筛选中使用。
+                      </p>
+                      <div className="kam-confirm-success-actions">
+                        <button className="cmp-btn cmp-btn--ghost" type="button" onClick={closeKnowledgeModal}>
+                          关闭
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Tree preview (hidden after confirm success but shown during normal preview/error) ── */}
+                  {!confirmResult && !confirmLoading && (
+                    <>
+                      <div className="kam-result-header">
+                        <span className="kam-step-label">知识点树预览</span>
+                        <span className="kam-result-stats">
+                          共 {(analyzeResult.knowledge_tree || []).length} 个大模块，
+                          {(() => { let c = 0; (analyzeResult.knowledge_tree || []).forEach(m => { c += (m.children || []).length; }); return c; })()} 个知识点
+                        </span>
+                      </div>
+
+                      {(analyzeResult.knowledge_tree || []).length === 0 ? (
+                        <div className="kam-empty">
+                          <p>未能从资料中提取有效知识点。</p>
+                          <p className="kam-empty-hint">请确认所选资料内容与课程相关，或尝试选择更多资料后重试。</p>
+                        </div>
+                      ) : (
+                        <div className="kam-tree">
+                          {(analyzeResult.knowledge_tree || []).map((module, idx) => {
+                            const isExpanded = expandedModules.has(idx);
+                            return (
+                              <div key={idx} className="kam-tree-module">
+                                <button
+                                  className="kam-tree-module-header"
+                                  onClick={() => toggleModuleExpand(idx)}
+                                  type="button"
+                                >
+                                  <span className={`kam-tree-arrow ${isExpanded ? "kam-tree-arrow--open" : ""}`}>▶</span>
+                                  <div className="kam-tree-module-info">
+                                    <span className="kam-tree-module-title">{module.title}</span>
+                                    {module.description && (
+                                      <span className="kam-tree-module-desc">{module.description}</span>
+                                    )}
+                                  </div>
+                                  <span className="kam-tree-module-count">{module.children ? module.children.length : 0} 项</span>
+                                </button>
+                                {isExpanded && module.children && module.children.length > 0 && (
+                                  <div className="kam-tree-children">
+                                    {module.children.map((child, cidx) => (
+                                      <div key={cidx} className="kam-tree-child">
+                                        <div className="kam-tree-child-dot" />
+                                        <div className="kam-tree-child-info">
+                                          <span className="kam-tree-child-title">{child.title}</span>
+                                          {child.description && (
+                                            <span className="kam-tree-child-desc">{child.description}</span>
+                                          )}
+                                          {child.source_material_titles && child.source_material_titles.length > 0 && (
+                                            <span className="kam-tree-child-source">
+                                              来源：{child.source_material_titles.join("、")}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {!confirmError && (
+                        <div className="kam-footer">
+                          <span className="kam-footer-hint kam-footer-hint--preview">
+                            ⚠️ 当前仅为预览，点击确认后写入知识点树。
+                          </span>
+                          <div className="kam-footer-actions">
+                            <button className="cmp-btn cmp-btn--ghost" type="button" onClick={() => { setAnalyzeResult(null); setAnalyzeError(""); setConfirmResult(null); }}>
+                              返回重新选择
+                            </button>
+                            <button
+                              className="cmp-btn cmp-btn--primary"
+                              type="button"
+                              onClick={handleConfirmKnowledgeTree}
+                              disabled={confirmLoading}
+                            >
+                              {confirmLoading ? "写入中..." : "确认写入知识点树"}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </>
               )}
             </div>
