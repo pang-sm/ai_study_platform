@@ -1067,3 +1067,9 @@
   background: #eff6ff;
   transition: border-color 0.3s, box-shadow 0.3s, background 0.3s;
 }
+/* Override inner MaterialCard styling when the wrapper is highlighted */
+.material-card-highlight .cmp-material-card {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}

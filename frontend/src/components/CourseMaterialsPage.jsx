@@ -330,6 +330,7 @@ export default function CourseMaterialsPage({
   const [filterType, setFilterType] = useState("all");
   const [filterIndex, setFilterIndex] = useState("all");
   const [highlightMaterialId, setHighlightMaterialId] = useState(null);
+  const [pendingSearchMaterialId, setPendingSearchMaterialId] = useState(null);
   const [searchInput, setSearchInput] = useState("");
 
   // Knowledge analysis modal
@@ -340,23 +341,47 @@ export default function CourseMaterialsPage({
   const [analyzeResult, setAnalyzeResult] = useState(null);
   const [expandedModules, setExpandedModules] = useState(new Set());
 
-  // Handle search navigation — highlight a specific material
+  // Phase 1: When searchNavigate arrives, set pendingMaterialId and reset filters
   useEffect(() => {
-    if (!searchNavigate || (searchNavigate.page !== "workspaceMaterials" && searchNavigate.page !== "materials")) return;
+    if (!searchNavigate) return;
+    if (searchNavigate.page !== "workspaceMaterials" && searchNavigate.page !== "materials") return;
     if (!searchNavigate.materialId) return;
-    setHighlightMaterialId(searchNavigate.materialId);
-    const tid = setTimeout(() => {
-      const el = document.getElementById(`material-card-${searchNavigate.materialId}`);
+    const matId = String(searchNavigate.materialId);
+    setPendingSearchMaterialId(matId);
+    setFilterType("all");
+    setFilterIndex("all");
+    setSearchInput("");
+    if (onClearSearchNavigate) onClearSearchNavigate();
+  }, [searchNavigate, onClearSearchNavigate]);
+
+  // Phase 2: After materials list renders, find and highlight the pending material
+  useEffect(() => {
+    if (!pendingSearchMaterialId) return;
+    const matId = String(pendingSearchMaterialId);
+    // Check if target material is in the displayed list
+    const found = displayedItems.some((m) => String(m.id) === matId);
+    if (!found) {
+      // Not yet loaded or filtered out — keep waiting
+      return;
+    }
+    // Use rAF to ensure DOM is rendered
+    const raf = requestAnimationFrame(() => {
+      const el = document.getElementById(`material-card-${matId}`);
       if (el) {
         el.scrollIntoView({ behavior: "smooth", block: "center" });
-        el.classList.add("material-card-highlight");
-        setTimeout(() => el.classList.remove("material-card-highlight"), 2500);
+        setHighlightMaterialId(matId);
+        // Remove highlight + pending after 2.5s
+        setTimeout(() => {
+          setHighlightMaterialId(null);
+          setPendingSearchMaterialId(null);
+        }, 2500);
+      } else {
+        // DOM not ready yet despite data being present — retry next frame
+        setPendingSearchMaterialId(null);
       }
-      onClearSearchNavigate();
-      setHighlightMaterialId(null);
-    }, 500);
-    return () => clearTimeout(tid);
-  }, [searchNavigate, onClearSearchNavigate]);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [pendingSearchMaterialId, displayedItems]);
 
   // Confirm write state
   const [confirmLoading, setConfirmLoading] = useState(false);
@@ -836,7 +861,7 @@ export default function CourseMaterialsPage({
                 <div
                   key={material.id}
                   id={`material-card-${material.id}`}
-                  className={highlightMaterialId === material.id ? "material-card-highlight" : ""}
+                  className={String(highlightMaterialId) === String(material.id) ? "material-card-highlight" : ""}
                 >
                 <MaterialCard
                   material={material}
