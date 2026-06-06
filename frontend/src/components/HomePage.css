@@ -130,6 +130,16 @@
   padding: 24px 16px; text-align: center; color: #94a3b8; font-size: 14px;
 }
 
+.hp-search-dropdown-item--active { background: #eff6ff; border-left: 3px solid #2563eb; }
+.hp-search-dropdown-item-reason {
+  font-size: 10px; color: #94a3b8; margin-top: 2px;
+}
+.hp-search-dropdown-clear-recent:hover { color: #ef4444 !important; }
+
+.search-highlight-mark {
+  background: #fef08a; color: #1e293b; border-radius: 4px; padding: 0 2px; font-weight: 600;
+}
+
 .hp-topbar-actions {
   display: flex;
   align-items: center;

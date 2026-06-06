@@ -12887,3 +12887,13 @@ select.field:focus {
     flex-direction: column;
   }
 }
+
+/* ���� Search Highlight ���� */
+/* Search Highlight */
+.search-highlight-mark {
+  background: #fef08a;
+  color: #1e293b;
+  border-radius: 4px;
+  padding: 0 2px;
+  font-weight: 600;
+}

@@ -1,8 +1,32 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import "./HomePage.css";
+import { highlightText } from "../utils/searchHighlight.jsx";
 
 const API_BASE = "/api";
 const SEARCH_DEBOUNCE_MS = 300;
+const RECENT_SEARCHES_KEY = "ai_study_recent_searches";
+const MAX_RECENT = 8;
+
+const RECOMMEND_ENTRIES = [
+  { id: "workspaceMaterials", icon: "📚", label: "课程资料库" },
+  { id: "taskCenter", icon: "✅", label: "任务中心" },
+  { id: "practiceCenter", icon: "📝", label: "练习中心" },
+  { id: "codeStudio", icon: "</>", label: "编程学习助手" },
+  { id: "learningReportCenter", icon: "📄", label: "学习报告" },
+  { id: "learningDataCenter", icon: "📊", label: "学习数据中心" },
+];
+
+function getRecentSearches() {
+  try { return JSON.parse(localStorage.getItem(RECENT_SEARCHES_KEY) || "[]"); } catch { return []; }
+}
+function saveRecentSearch(q) {
+  if (!q || !q.trim()) return;
+  const kw = q.trim();
+  let recent = getRecentSearches().filter((s) => s !== kw);
+  recent.unshift(kw);
+  if (recent.length > MAX_RECENT) recent = recent.slice(0, MAX_RECENT);
+  try { localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(recent)); } catch {}
+}
 
 
 /* ── Time-based greeting ── */
@@ -73,23 +97,58 @@ function TopBar({ user, avatarObj, hasCustomAvatar, apiBase, onProfileClick, onS
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const [recentSearches, setRecentSearches] = useState(() => getRecentSearches());
+  const dropdownListRef = useRef(null);
+
+  const flatResults = searchResults?.groups
+    ? searchResults.groups.flatMap((group) => group.items.map((item) => ({ ...item, groupTitle: group.title })))
+    : [];
+
   const handleKeyDown = (e) => {
-    if (e.key === "Escape") { setShowDropdown(false); inputRef.current?.blur(); }
-    if (e.key === "Enter" && searchValue.trim()) {
-      setShowDropdown(false);
-      if (onSearch) onSearch(searchValue.trim());
+    if (e.key === "Escape") { setShowDropdown(false); setActiveIndex(-1); inputRef.current?.blur(); return; }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      if (flatResults.length === 0) return;
+      setActiveIndex((prev) => Math.min(prev + 1, flatResults.length - 1));
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((prev) => Math.max(prev - 1, 0));
+      return;
+    }
+    if (e.key === "Enter") {
+      if (activeIndex >= 0 && activeIndex < flatResults.length) {
+        e.preventDefault();
+        handleResultClick(flatResults[activeIndex]);
+      } else if (searchValue.trim()) {
+        setShowDropdown(false);
+        saveRecentSearch(searchValue.trim());
+        setRecentSearches(getRecentSearches());
+        if (onSearch) onSearch(searchValue.trim());
+      }
     }
   };
 
   const handleResultClick = (item) => {
+    const kw = searchValue.trim();
+    if (kw) { saveRecentSearch(kw); setRecentSearches(getRecentSearches()); }
     setShowDropdown(false);
     setSearchValue("");
     setSearchResults(null);
+    setActiveIndex(-1);
     if (onSearch) onSearch(null, item);
   };
 
   const handleInputFocus = () => {
     if (searchValue.trim() && searchResults) setShowDropdown(true);
+    if (!searchValue.trim()) setShowDropdown(true);
+  };
+
+  const clearRecentSearches = () => {
+    try { localStorage.removeItem(RECENT_SEARCHES_KEY); } catch {}
+    setRecentSearches([]);
   };
 
   const totalResults = searchResults?.total || 0;
@@ -105,40 +164,57 @@ function TopBar({ user, avatarObj, hasCustomAvatar, apiBase, onProfileClick, onS
           type="text"
           placeholder="搜索课程、资料、知识点、任务..."
           value={searchValue}
-          onChange={(e) => setSearchValue(e.target.value)}
+          onChange={(e) => { setSearchValue(e.target.value); setActiveIndex(-1); }}
           onKeyDown={handleKeyDown}
           onFocus={handleInputFocus}
         />
         {searchLoading && <span className="hp-search-spinner" />}
 
-        {/* Dropdown */}
+        {/* Dropdown: results */}
         {showDropdown && !searchLoading && groups.length > 0 && (
-          <div className="hp-search-dropdown">
+          <div className="hp-search-dropdown" ref={dropdownListRef}>
             {groups.map((group) => (
               <div key={group.type} className="hp-search-dropdown-group">
                 <div className="hp-search-dropdown-group-title">{group.title}</div>
-                {group.items.map((item, idx) => (
-                  <div
-                    key={`${item.type}-${item.id}-${idx}`}
-                    className="hp-search-dropdown-item"
-                    onClick={() => handleResultClick(item)}
-                  >
-                    <div className="hp-search-dropdown-item-header">
-                      <span className="hp-search-dropdown-item-title">{item.title}</span>
-                      <span className="hp-search-dropdown-item-type">{group.title}</span>
+                {group.items.map((item, idx) => {
+                  const flatIdx = flatResults.findIndex((f) => f === item);
+                  const isActive = flatIdx === activeIndex;
+                  return (
+                    <div
+                      key={`${item.type}-${item.id}-${idx}`}
+                      className={`hp-search-dropdown-item${isActive ? " hp-search-dropdown-item--active" : ""}`}
+                      onClick={() => handleResultClick(item)}
+                      onMouseEnter={() => setActiveIndex(flatIdx)}
+                    >
+                      <div className="hp-search-dropdown-item-header">
+                        <span className="hp-search-dropdown-item-title">
+                          {highlightText(item.title, searchValue.trim())}
+                        </span>
+                        <span className="hp-search-dropdown-item-type">{group.title}</span>
+                      </div>
+                      {item.snippet && (
+                        <div className="hp-search-dropdown-item-snippet">
+                          {highlightText(item.snippet, searchValue.trim())}
+                        </div>
+                      )}
+                      {item.match_reason && (
+                        <div className="hp-search-dropdown-item-reason">{item.match_reason}</div>
+                      )}
                     </div>
-                    {item.snippet && (
-                      <div className="hp-search-dropdown-item-snippet">{item.snippet}</div>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ))}
             <div className="hp-search-dropdown-footer">
               <span>共 {totalResults} 条结果</span>
               <button
                 className="hp-search-dropdown-viewall"
-                onClick={() => { setShowDropdown(false); if (onSearch) onSearch(searchValue.trim()); }}
+                onClick={() => {
+                  setShowDropdown(false);
+                  const kw = searchValue.trim();
+                  if (kw) { saveRecentSearch(kw); setRecentSearches(getRecentSearches()); }
+                  if (onSearch) onSearch(kw);
+                }}
               >
                 查看全部 →
               </button>
@@ -146,9 +222,73 @@ function TopBar({ user, avatarObj, hasCustomAvatar, apiBase, onProfileClick, onS
           </div>
         )}
 
+        {/* Dropdown: empty results */}
         {showDropdown && !searchLoading && searchValue.trim() && groups.length === 0 && (
           <div className="hp-search-dropdown">
             <div className="hp-search-dropdown-empty">未找到相关结果</div>
+          </div>
+        )}
+
+        {/* Dropdown: recent searches + recommendations (empty input, focused) */}
+        {showDropdown && !searchLoading && !searchValue.trim() && (
+          <div className="hp-search-dropdown">
+            {recentSearches.length > 0 && (
+              <div className="hp-search-dropdown-group">
+                <div className="hp-search-dropdown-group-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span>最近搜索</span>
+                  <button
+                    className="hp-search-dropdown-clear-recent"
+                    onClick={(e) => { e.stopPropagation(); clearRecentSearches(); }}
+                    style={{ border: "none", background: "none", color: "#94a3b8", cursor: "pointer", fontSize: 11 }}
+                  >
+                    清空
+                  </button>
+                </div>
+                {recentSearches.map((kw, i) => (
+                  <div
+                    key={i}
+                    className="hp-search-dropdown-item"
+                    onClick={() => {
+                      setSearchValue(kw);
+                      setShowDropdown(false);
+                      saveRecentSearch(kw);
+                      setRecentSearches(getRecentSearches());
+                      if (onSearch) onSearch(kw);
+                    }}
+                    onMouseEnter={() => setActiveIndex(i)}
+                    style={activeIndex === i ? { background: "#f1f5f9" } : {}}
+                  >
+                    <div className="hp-search-dropdown-item-header">
+                      <span className="hp-search-dropdown-item-title" style={{ color: "#475569" }}>🕐 {kw}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="hp-search-dropdown-group">
+              <div className="hp-search-dropdown-group-title">推荐入口</div>
+              {RECOMMEND_ENTRIES.map((entry, i) => {
+                const offset = recentSearches.length;
+                return (
+                  <div
+                    key={entry.id}
+                    className="hp-search-dropdown-item"
+                    onClick={() => {
+                      setShowDropdown(false);
+                      if (onSearch) onSearch(null, { target: { page: entry.id } });
+                    }}
+                    onMouseEnter={() => setActiveIndex(offset + i)}
+                    style={activeIndex === offset + i ? { background: "#f1f5f9" } : {}}
+                  >
+                    <div className="hp-search-dropdown-item-header">
+                      <span className="hp-search-dropdown-item-title" style={{ color: "#475569" }}>
+                        {entry.icon} {entry.label}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>

@@ -3,6 +3,7 @@ import csv
 import logging
 import os
 import re
+import time
 import secrets
 import sqlite3
 import subprocess
@@ -3132,6 +3133,72 @@ def _safe_like_pattern(keyword: str) -> str:
     return f"%{safe}%"
 
 
+def _score_exact(text: str, keyword: str, max_score: int) -> int:
+    """Score: exact match = max, normalized exact = max-2, contains keyword = max-10."""
+    if not text or not keyword:
+        return 0
+    t = text.strip()
+    k = keyword.strip()
+    if t == k:
+        return max_score
+    if t.lower() == k.lower():
+        return max_score - 2
+    if k.lower() in t.lower():
+        return max_score - 10
+    return 0
+
+
+def _score_contains(text: str, keyword: str, max_score: int) -> int:
+    """Score: text contains keyword, with frequency bonus (capped)."""
+    if not text or not keyword:
+        return 0
+    t = text.lower()
+    k = keyword.lower()
+    if k not in t:
+        return 0
+    count = t.count(k)
+    bonus = min(count - 1, 5) * 2
+    return min(max_score - 10 + bonus, max_score)
+
+
+def _matched_fields(checks: list[tuple[str, bool]]) -> list[str]:
+    """Return list of field names that matched."""
+    return [name for name, matched in checks if matched]
+
+
+def _match_reason(score: int, fields: list[str]) -> str:
+    """Generate a human-readable match reason from score and matched fields."""
+    if score >= 98:
+        return "完全匹配"
+    if score >= 85:
+        return f"{'、'.join(fields[:2])}命中"
+    if score >= 65:
+        return f"{fields[0] if fields else '内容'}命中"
+    return "关键词命中"
+
+
+def _build_snippet(text: str, keyword: str, max_len: int = 120) -> str:
+    """Smart snippet: show text around keyword, or leading text if no match."""
+    if not text:
+        return ""
+    t = text.strip()
+    if not t:
+        return ""
+    k = keyword.strip().lower()
+    idx = t.lower().find(k)
+    if idx == -1:
+        return t[:max_len] + ("..." if len(t) > max_len else "")
+    # Take ~50 chars before and ~(max_len-50) after the keyword
+    before = max(0, idx - 50)
+    after = min(len(t), idx + len(k) + max_len - 50)
+    snippet = t[before:after]
+    if before > 0:
+        snippet = "..." + snippet
+    if after < len(t):
+        snippet = snippet + "..."
+    return snippet
+
+
 @app.get("/search/global")
 def global_search(
     q: str,
@@ -3141,9 +3208,10 @@ def global_search(
     db: Session = Depends(get_db),
 ):
     """Unified global search across courses, materials, knowledge points, tasks, questions, and chats."""
+    t_start = time.perf_counter()
     keyword = (q or "").strip()
     if not keyword:
-        return {"query": "", "total": 0, "groups": []}
+        return {"query": "", "total": 0, "groups": [], "search_time_ms": 0}
 
     user = get_user_by_username(username, db)
     limit = max(1, min(limit, SEARCH_MAX_RESULTS))
@@ -3184,17 +3252,19 @@ def global_search(
             continue
         if keyword.lower() in cid.lower():
             seen_courses.add(cid)
+            score = _score_exact(cid, keyword, 100)
+            fields = _matched_fields([("课程名", True)])
             course_items.append({
-                "type": "course",
-                "id": cid,
-                "title": cid,
-                "subtitle": "课程",
-                "snippet": f"进入{cid}课程工作台",
+                "type": "course", "id": cid, "title": cid, "subtitle": "课程",
+                "snippet": f"进入 {cid} 课程工作台",
                 "course_id": cid,
+                "score": score, "matched_fields": fields,
+                "match_reason": _match_reason(score, fields),
                 "target": {"page": "dashboard", "courseId": cid},
             })
         if len(course_items) >= limit:
             break
+    course_items.sort(key=lambda x: x["score"], reverse=True)
     total += len(course_items)
     results.append({"type": "course", "title": "课程", "items": course_items})
 
@@ -3210,16 +3280,18 @@ def global_search(
         | (models.StudyMaterial.summary.ilike(pattern))
     ).order_by(models.StudyMaterial.created_at.desc()).limit(limit)
     for m in mat_query.all():
+        score = max(_score_contains(m.original_filename, keyword, 95), _score_contains(m.subject or "", keyword, 70))
+        fields = _matched_fields([("文件名", keyword.lower() in (m.original_filename or "").lower()), ("课程", keyword.lower() in (m.subject or "").lower())])
         mat_items.append({
-            "type": "material",
-            "id": m.id,
-            "title": m.original_filename,
+            "type": "material", "id": m.id, "title": m.original_filename,
             "subtitle": f"资料 · {m.subject or ''}",
-            "snippet": (m.summary or "")[:120],
-            "course_id": m.subject or "",
-            "material_id": m.id,
+            "snippet": _build_snippet(m.original_filename + " " + (m.summary or ""), keyword),
+            "course_id": m.subject or "", "material_id": m.id,
+            "score": score, "matched_fields": fields,
+            "match_reason": _match_reason(score, fields),
             "target": {"page": "workspaceMaterials", "courseId": m.subject or "", "tab": "materials", "materialId": m.id},
         })
+    mat_items.sort(key=lambda x: x["score"], reverse=True)
     total += len(mat_items)
     results.append({"type": "material", "title": "资料", "items": mat_items})
 
@@ -3232,16 +3304,19 @@ def global_search(
             models.MaterialChunk.chunk_text.ilike(pattern),
         ).order_by(models.MaterialChunk.material_id, models.MaterialChunk.chunk_index).limit(limit)
         for c in chunk_query.all():
+            score = _score_contains(c.chunk_text or "", keyword, 75)
+            fields = _matched_fields([("资料内容", True)])
             chunk_items.append({
-                "type": "chunk",
-                "id": c.id,
+                "type": "chunk", "id": c.id,
                 "title": c.source_filename or f"资料 #{c.material_id}",
                 "subtitle": f"内容片段 · 第{c.chunk_index}段",
-                "snippet": (c.chunk_text or "")[:150],
-                "course_id": c.subject or "",
-                "material_id": c.material_id,
+                "snippet": _build_snippet(c.chunk_text or "", keyword, 150),
+                "course_id": c.subject or "", "material_id": c.material_id,
+                "score": score, "matched_fields": fields,
+                "match_reason": _match_reason(score, fields),
                 "target": {"page": "workspaceMaterials", "courseId": c.subject or "", "tab": "materials", "materialId": c.material_id},
             })
+        chunk_items.sort(key=lambda x: x["score"], reverse=True)
     total += len(chunk_items)
     results.append({"type": "chunk", "title": "资料内容", "items": chunk_items})
 
@@ -3252,16 +3327,18 @@ def global_search(
         models.KnowledgePoint.title.ilike(pattern),
     ).order_by(models.KnowledgePoint.course_id, models.KnowledgePoint.order_index).limit(limit)
     for k in kp_query.all():
+        score = max(_score_exact(k.title, keyword, 95), _score_contains(k.description or "", keyword, 65))
+        fields = _matched_fields([("标题", keyword.lower() in (k.title or "").lower()), ("描述", keyword.lower() in (k.description or "").lower())])
         kp_items.append({
-            "type": "knowledge_point",
-            "id": k.id,
-            "title": k.title,
+            "type": "knowledge_point", "id": k.id, "title": k.title,
             "subtitle": f"知识点 · {k.course_id or ''}",
-            "snippet": (k.description or "")[:120],
-            "course_id": k.course_id or "",
-            "knowledge_point_id": k.id,
+            "snippet": _build_snippet(k.description or k.title, keyword),
+            "course_id": k.course_id or "", "knowledge_point_id": k.id,
+            "score": score, "matched_fields": fields,
+            "match_reason": _match_reason(score, fields),
             "target": {"page": "knowledgeLearning", "courseId": k.course_id or "", "knowledgePointId": k.id},
         })
+    kp_items.sort(key=lambda x: x["score"], reverse=True)
     total += len(kp_items)
     results.append({"type": "knowledge_point", "title": "知识点", "items": kp_items})
 
@@ -3274,16 +3351,18 @@ def global_search(
         | (models.LearningTask.knowledge_point_text.ilike(pattern)),
     ).order_by(models.LearningTask.created_at.desc()).limit(limit)
     for t in task_query.all():
+        score = max(_score_exact(t.title, keyword, 90), _score_contains(t.description or "", keyword, 65))
+        fields = _matched_fields([("标题", keyword.lower() in (t.title or "").lower()), ("描述", keyword.lower() in (t.description or "").lower())])
         task_items.append({
-            "type": "task",
-            "id": t.id,
-            "title": t.title,
+            "type": "task", "id": t.id, "title": t.title,
             "subtitle": f"任务 · {t.course_id or ''} · {t.status or 'todo'}",
-            "snippet": (t.description or "")[:120],
-            "course_id": t.course_id or "",
-            "task_id": t.id,
+            "snippet": _build_snippet((t.description or t.title), keyword),
+            "course_id": t.course_id or "", "task_id": t.id,
+            "score": score, "matched_fields": fields,
+            "match_reason": _match_reason(score, fields),
             "target": {"page": "taskCenter", "courseId": t.course_id or "", "taskId": t.id},
         })
+    task_items.sort(key=lambda x: x["score"], reverse=True)
     total += len(task_items)
     results.append({"type": "task", "title": "学习任务", "items": task_items})
 
@@ -3297,17 +3376,18 @@ def global_search(
     for q in q_query.all():
         is_programming = q.type == "programming"
         target_page = "codeStudio" if is_programming else "practiceCenter"
+        score = max(_score_contains(q.title, keyword, 80), _score_contains(q.content or "", keyword, 75))
+        fields = _matched_fields([("标题", keyword.lower() in (q.title or "").lower()), ("题干", keyword.lower() in (q.content or "").lower())])
         q_items.append({
-            "type": "question",
-            "id": q.id,
-            "title": q.title,
+            "type": "question", "id": q.id, "title": q.title,
             "subtitle": f"{'编程题' if is_programming else '练习题'} · {q.type or ''} · {q.course_id or ''}",
-            "snippet": (q.content or "")[:120],
-            "course_id": q.course_id or "",
-            "question_id": q.id,
-            "knowledge_point_id": q.knowledge_point_id,
+            "snippet": _build_snippet(q.content or q.title, keyword),
+            "course_id": q.course_id or "", "question_id": q.id, "knowledge_point_id": q.knowledge_point_id,
+            "score": score, "matched_fields": fields,
+            "match_reason": _match_reason(score, fields),
             "target": {"page": target_page, "courseId": q.course_id or "", "questionId": q.id, "knowledgePointId": q.knowledge_point_id},
         })
+    q_items.sort(key=lambda x: x["score"], reverse=True)
     total += len(q_items)
     results.append({"type": "question", "title": "练习题", "items": q_items})
 
@@ -3323,22 +3403,29 @@ def global_search(
         for msg in chat_query.all():
             session = db.query(models.ChatSession).filter(models.ChatSession.id == msg.session_id).first()
             course_from_session = session.subject or session.course or ""
+            session_title = (session.title if session else "对话") or "对话"
+            score = _score_contains(msg.content or "", keyword, 75 if msg.role == "user" else 60)
+            fields = _matched_fields([("对话内容", True)])
             chat_items.append({
-                "type": "chat",
-                "id": msg.id,
-                "title": (session.title if session else "对话") or "对话",
+                "type": "chat", "id": msg.id,
+                "title": session_title,
                 "subtitle": f"{'你' if msg.role == 'user' else 'AI'} · {course_from_session}",
-                "snippet": (msg.content or "")[:120],
-                "course_id": course_from_session,
-                "conversation_id": msg.session_id,
+                "snippet": _build_snippet(msg.content or "", keyword),
+                "course_id": course_from_session, "conversation_id": msg.session_id,
+                "score": score, "matched_fields": fields,
+                "match_reason": _match_reason(score, fields),
                 "target": {"page": "chat", "courseId": course_from_session, "conversationId": msg.session_id},
             })
+        chat_items.sort(key=lambda x: x["score"], reverse=True)
     total += len(chat_items)
     results.append({"type": "chat", "title": "历史对话", "items": chat_items})
 
     # Remove empty groups with zero items
     results = [g for g in results if len(g["items"]) > 0]
-    return {"query": keyword, "total": total, "groups": results}
+    # Update total to sum of visible groups
+    actual_total = sum(len(g["items"]) for g in results)
+    search_time_ms = round((time.perf_counter() - t_start) * 1000, 2)
+    return {"query": keyword, "total": actual_total, "search_time_ms": search_time_ms, "groups": results}
 
 
 @app.get("/debug/qwen-status")

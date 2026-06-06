@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import "./SearchResultsPage.css";
+import { highlightText } from "../utils/searchHighlight.jsx";
 
 const API_BASE = "/api";
-const SEARCH_DEBOUNCE_MS = 350;
 
 const FILTER_CATEGORIES = [
   { key: "all", label: "全部" },
@@ -143,6 +143,7 @@ export default function SearchResultsPage({ user, setPage, searchContext, onClea
         {query && results && !loading && (
           <p className="srp-result-summary">
             搜索 "{results.query}"，共 {results.total} 条结果
+            {results.search_time_ms != null && ` · ${results.search_time_ms}ms`}
           </p>
         )}
       </div>
@@ -150,15 +151,20 @@ export default function SearchResultsPage({ user, setPage, searchContext, onClea
       {/* Filter Tabs */}
       {results && results.groups && results.groups.length > 0 && (
         <div className="srp-filters">
-          {FILTER_CATEGORIES.map((cat) => (
-            <button
-              key={cat.key}
-              className={`srp-filter-chip${activeFilter === cat.key ? " active" : ""}`}
-              onClick={() => setActiveFilter(cat.key)}
-            >
-              {cat.label}
-            </button>
-          ))}
+          {FILTER_CATEGORIES.map((cat) => {
+            const count = cat.key === "all"
+              ? results.groups.reduce((s, g) => s + g.items.length, 0)
+              : (results.groups.find((g) => g.type === cat.key)?.items.length || 0);
+            return (
+              <button
+                key={cat.key}
+                className={`srp-filter-chip${activeFilter === cat.key ? " active" : ""}`}
+                onClick={() => setActiveFilter(cat.key)}
+              >
+                {cat.label} {count > 0 && <span className="srp-filter-chip-count">{count}</span>}
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -210,7 +216,9 @@ export default function SearchResultsPage({ user, setPage, searchContext, onClea
                       onClick={() => handleResultClick(item)}
                     >
                       <div className="srp-result-item-header">
-                        <span className="srp-result-item-title">{item.title}</span>
+                        <span className="srp-result-item-title">
+                          {highlightText(item.title, query)}
+                        </span>
                         <span
                           className="srp-result-item-type"
                           style={{ background: colors.bg, color: colors.text }}
@@ -220,7 +228,12 @@ export default function SearchResultsPage({ user, setPage, searchContext, onClea
                       </div>
                       <div className="srp-result-item-subtitle">{item.subtitle}</div>
                       {item.snippet && (
-                        <div className="srp-result-item-snippet">{item.snippet}</div>
+                        <div className="srp-result-item-snippet">
+                          {highlightText(item.snippet, query)}
+                        </div>
+                      )}
+                      {item.match_reason && (
+                        <div className="srp-result-item-reason">{item.match_reason}</div>
                       )}
                     </div>
                   );

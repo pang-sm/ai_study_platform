@@ -44,6 +44,13 @@
 .srp-result-item-type { font-size: 11px; padding: 2px 8px; border-radius: 8px; font-weight: 500; white-space: nowrap; flex-shrink: 0; }
 .srp-result-item-subtitle { font-size: 12px; color: #94a3b8; margin-bottom: 4px; }
 .srp-result-item-snippet { font-size: 13px; color: #64748b; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.srp-result-item-reason { font-size: 11px; color: #94a3b8; margin-top: 3px; }
+.srp-filter-chip-count { display: inline-block; font-size: 10px; background: rgba(37,99,235,0.1); color: #2563eb; border-radius: 8px; padding: 0 5px; margin-left: 4px; min-width: 16px; text-align: center; }
+.srp-filter-chip.active .srp-filter-chip-count { background: rgba(255,255,255,0.3); color: #fff; }
+
+.search-highlight-mark {
+  background: #fef08a; color: #1e293b; border-radius: 4px; padding: 0 2px; font-weight: 600;
+}
 
 @media (max-width: 640px) {
   .srp-shell { padding: 16px; }
