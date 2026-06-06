@@ -164,6 +164,100 @@ function renderSectionBody(body) {
   return elements;
 }
 
+/** Safely extract statistics from report (preview.statistics or metrics.statistics or metrics) */
+function extractStatistics(report) {
+  if (!report) return null;
+  // Direct statistics field (from preview or detail endpoint)
+  if (report.statistics && typeof report.statistics === "object") return report.statistics;
+  // Embedded in metrics (for backward compatibility)
+  const m = report.metrics;
+  if (m && typeof m === "object" && m.statistics && typeof m.statistics === "object") return m.statistics;
+  // Fallback: extract from flat metrics (old reports without statistics)
+  if (m && typeof m === "object") {
+    const hasAny = m.practice_sessions != null || m.practice_questions != null;
+    if (hasAny) {
+      return {
+        practice_sessions: m.practice_sessions ?? 0,
+        practice_questions: m.practice_questions ?? 0,
+        practice_accuracy: m.practice_accuracy ?? null,
+        study_minutes: m.practice_duration_minutes ?? 0,
+        completed_tasks: m.task_completed_count ?? 0,
+        weak_points: [],
+      };
+    }
+  }
+  return null;
+}
+
+function safeNum(v, fallback = 0) {
+  if (typeof v === "number" && !isNaN(v)) return v;
+  return fallback;
+}
+
+function formatAccuracy(v) {
+  if (v == null || (typeof v === "number" && isNaN(v))) return "--";
+  return `${Math.round(v)}%`;
+}
+
+function StatisticsBasisCard({ statistics }) {
+  if (!statistics) {
+    return (
+      <div className="report-statistics-basis-card">
+        <h4 className="report-statistics-basis-title">报告数据依据</h4>
+        <p className="report-statistics-basis-empty">
+          暂无足够练习数据。本报告会基于已有任务、资料和学习记录生成，但正确率与练习表现暂无法分析。
+        </p>
+      </div>
+    );
+  }
+
+  const hasAnyPractice = safeNum(statistics.practice_sessions) > 0
+    || safeNum(statistics.practice_questions) > 0
+    || safeNum(statistics.study_minutes) > 0;
+
+  const weakPoints = Array.isArray(statistics.weak_points) ? statistics.weak_points.filter(Boolean) : [];
+
+  return (
+    <div className="report-statistics-basis-card">
+      <h4 className="report-statistics-basis-title">报告数据依据</h4>
+      {!hasAnyPractice && safeNum(statistics.completed_tasks) === 0 ? (
+        <p className="report-statistics-basis-empty">
+          暂无足够练习数据。本报告会基于已有任务、资料和学习记录生成，但正确率与练习表现暂无法分析。
+        </p>
+      ) : (
+        <div className="report-statistics-basis-grid">
+          <div className="report-statistics-basis-item">
+            <div className="report-statistics-basis-value">{safeNum(statistics.practice_sessions)} 次</div>
+            <div className="report-statistics-basis-label">练习次数</div>
+          </div>
+          <div className="report-statistics-basis-item">
+            <div className="report-statistics-basis-value">{safeNum(statistics.practice_questions)} 题</div>
+            <div className="report-statistics-basis-label">练习题数</div>
+          </div>
+          <div className="report-statistics-basis-item">
+            <div className="report-statistics-basis-value">{formatAccuracy(statistics.practice_accuracy)}</div>
+            <div className="report-statistics-basis-label">平均正确率</div>
+          </div>
+          <div className="report-statistics-basis-item">
+            <div className="report-statistics-basis-value">{safeNum(statistics.study_minutes)} 分钟</div>
+            <div className="report-statistics-basis-label">学习时长</div>
+          </div>
+          <div className="report-statistics-basis-item">
+            <div className="report-statistics-basis-value">{safeNum(statistics.completed_tasks)} 个</div>
+            <div className="report-statistics-basis-label">完成任务</div>
+          </div>
+          <div className="report-statistics-basis-item report-statistics-basis-item--wide">
+            <div className="report-statistics-basis-value report-statistics-basis-value--small">
+              {weakPoints.length > 0 ? weakPoints.join("、") : "暂无明显薄弱知识点"}
+            </div>
+            <div className="report-statistics-basis-label">薄弱知识点</div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ReportPreview({ report, onSave, onRetry, onClear, saving, saveMsg, showActions }) {
   const parsed = parseReportMarkdown(report.content);
   const metrics = report.metrics || {};
@@ -633,6 +727,11 @@ export default function LearningReportCenter({ user }) {
         {genError && <div className="report-error">{genError}</div>}
       </div>
 
+      {/* ── Statistics Basis ── */}
+      {preview && (
+        <StatisticsBasisCard statistics={extractStatistics(preview)} />
+      )}
+
       {/* ── Preview ── */}
       {preview && (
         <ReportPreview
@@ -725,6 +824,7 @@ export default function LearningReportCenter({ user }) {
               </button>
               <div className="report-modal-scroll-v2">
                 <h2 className="report-modal-title">{detail.title}</h2>
+                <StatisticsBasisCard statistics={extractStatistics(detail)} />
                 <ReportPreview report={detail} showActions={false} />
 
                 {/* ── Share Info ── */}

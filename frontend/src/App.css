@@ -11214,6 +11214,63 @@ select.field:focus {
 .report-action-body strong { display: block; font-size: 14px; color: #1e293b; margin-bottom: 2px; }
 .report-action-body p { font-size: 13px; color: #64748b; margin: 0; line-height: 1.5; }
 
+/* ── Statistics Basis Card ── */
+.report-statistics-basis-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 20px 24px;
+  margin-bottom: 18px;
+}
+.report-statistics-basis-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.report-statistics-basis-title::before { content: "📋"; }
+.report-statistics-basis-empty {
+  font-size: 0.82rem;
+  color: #94a3b8;
+  margin: 0;
+  line-height: 1.6;
+}
+.report-statistics-basis-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+}
+.report-statistics-basis-item {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 14px 16px;
+  text-align: center;
+  box-sizing: border-box;
+}
+.report-statistics-basis-item--wide {
+  grid-column: 1 / -1;
+  text-align: left;
+}
+.report-statistics-basis-value {
+  font-size: 1.25rem;
+  font-weight: 750;
+  color: #0f172a;
+  line-height: 1.2;
+}
+.report-statistics-basis-value--small {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.report-statistics-basis-label {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-top: 4px;
+}
+
 /* Scrollbar polish for report containers */
 .report-center-v2::-webkit-scrollbar,
 .report-preview-card-v2::-webkit-scrollbar { width: 6px; }
