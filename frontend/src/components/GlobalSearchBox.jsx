@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { highlightText } from "../utils/searchHighlight.jsx";
 import "./GlobalSearchBox.css";
 
@@ -36,6 +36,23 @@ function saveRecentSearch(q) {
   }
 }
 
+function buildFlatResults(groups) {
+  return groups.flatMap((group) =>
+    (group.items || []).map((item) => ({ ...item, groupTitle: group.title })),
+  );
+}
+
+function buildEmptyMenuItems(recentSearches) {
+  return [
+    ...recentSearches.map((kw) => ({ kind: "recent", label: kw, query: kw })),
+    ...RECOMMEND_ENTRIES.map((entry) => ({ kind: "recommend", ...entry })),
+  ];
+}
+
+function getResultKey(item) {
+  return `${item?.type || ""}-${item?.id || ""}`;
+}
+
 export default function GlobalSearchBox({
   user,
   onSearch,
@@ -54,7 +71,7 @@ export default function GlobalSearchBox({
   const abortRef = useRef(null);
   const requestIdRef = useRef(0);
 
-  const doSearch = useCallback(async (q) => {
+  async function doSearch(q) {
     const kw = (q || "").trim();
     if (!kw || !user?.username) {
       setSearchResults(null);
@@ -85,48 +102,13 @@ export default function GlobalSearchBox({
     } finally {
       if (reqId === requestIdRef.current) setSearchLoading(false);
     }
-  }, [user?.username]);
+  }
 
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (!searchValue.trim()) {
-      setSearchResults(null);
-      return;
-    }
-    debounceRef.current = setTimeout(() => doSearch(searchValue), SEARCH_DEBOUNCE_MS);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [searchValue, doSearch]);
+  function refreshRecentSearches() {
+    setRecentSearches(getRecentSearches());
+  }
 
-  useEffect(() => {
-    const handler = (event) => {
-      if (searchRef.current && !searchRef.current.contains(event.target)) {
-        setShowDropdown(false);
-        setActiveIndex(-1);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  const groups = searchResults?.groups || [];
-  const flatResults = useMemo(
-    () => groups.flatMap((group) => group.items.map((item) => ({ ...item, groupTitle: group.title }))),
-    [groups],
-  );
-  const emptyMenuItems = useMemo(
-    () => [
-      ...recentSearches.map((kw) => ({ kind: "recent", label: kw, query: kw })),
-      ...RECOMMEND_ENTRIES.map((entry) => ({ kind: "recommend", ...entry })),
-    ],
-    [recentSearches],
-  );
-  const activeItems = searchValue.trim() ? flatResults : emptyMenuItems;
-
-  const refreshRecentSearches = () => setRecentSearches(getRecentSearches());
-
-  const openResult = (item) => {
+  function openResult(item) {
     const kw = searchValue.trim();
     if (kw) saveRecentSearch(kw);
     refreshRecentSearches();
@@ -135,9 +117,9 @@ export default function GlobalSearchBox({
     setSearchResults(null);
     setActiveIndex(-1);
     onSearch?.(null, item);
-  };
+  }
 
-  const openQuery = (kw) => {
+  function openQuery(kw) {
     const query = (kw || "").trim();
     if (!query) return;
     saveRecentSearch(query);
@@ -146,9 +128,9 @@ export default function GlobalSearchBox({
     setSearchValue("");
     setActiveIndex(-1);
     onSearch?.(query);
-  };
+  }
 
-  const handleEmptyItem = (item) => {
+  function handleEmptyItem(item) {
     if (item.kind === "recent") {
       openQuery(item.query);
       return;
@@ -156,9 +138,9 @@ export default function GlobalSearchBox({
     setShowDropdown(false);
     setActiveIndex(-1);
     onSearch?.(null, { target: { page: item.id } });
-  };
+  }
 
-  const handleKeyDown = (event) => {
+  function handleKeyDown(event) {
     if (event.key === "Escape") {
       setShowDropdown(false);
       setActiveIndex(-1);
@@ -191,9 +173,9 @@ export default function GlobalSearchBox({
         openQuery(searchValue);
       }
     }
-  };
+  }
 
-  const clearRecentSearches = (event) => {
+  function clearRecentSearches(event) {
     event.stopPropagation();
     try {
       localStorage.removeItem(RECENT_SEARCHES_KEY);
@@ -202,7 +184,35 @@ export default function GlobalSearchBox({
     }
     setRecentSearches([]);
     setActiveIndex(-1);
-  };
+  }
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!searchValue.trim()) {
+      setSearchResults(null);
+      return;
+    }
+    debounceRef.current = setTimeout(() => doSearch(searchValue), SEARCH_DEBOUNCE_MS);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [searchValue, user?.username]);
+
+  useEffect(() => {
+    const handler = (event) => {
+      if (searchRef.current && !searchRef.current.contains(event.target)) {
+        setShowDropdown(false);
+        setActiveIndex(-1);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const groups = searchResults?.groups || [];
+  const flatResults = buildFlatResults(groups);
+  const emptyMenuItems = buildEmptyMenuItems(recentSearches);
+  const activeItems = searchValue.trim() ? flatResults : emptyMenuItems;
 
   const totalResults = searchResults?.total || 0;
 
@@ -234,7 +244,7 @@ export default function GlobalSearchBox({
             <div key={group.type} className="global-search-group">
               <div className="global-search-group-title">{group.title}</div>
               {group.items.map((item, idx) => {
-                const flatIdx = flatResults.findIndex((flat) => flat.type === item.type && flat.id === item.id);
+                const flatIdx = flatResults.findIndex((flat) => getResultKey(flat) === getResultKey(item));
                 const isActive = flatIdx === activeIndex;
                 return (
                   <button

@@ -147,7 +147,7 @@ export default function AIQuestionPage({
     : { background: "#2563eb" };
   const hasCustomAvatar = (user?.avatar_url || "").startsWith("/me/avatar/");
 
-  const handleGlobalSearch = (query, resultItem) => {
+  function handleGlobalSearch(query, resultItem) {
     if (resultItem) {
       const t = resultItem.target || {};
       if (!t.page) return;
@@ -174,7 +174,7 @@ export default function AIQuestionPage({
       if (setSearchContext) setSearchContext({ q: query });
       setPage("searchResults");
     }
-  };
+  }
 
   const referencedFiles = Array.isArray(selectedFiles) ? selectedFiles.filter((f) => !f.uploading) : [];
 

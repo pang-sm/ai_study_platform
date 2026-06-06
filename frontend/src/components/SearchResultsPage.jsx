@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import "./SearchResultsPage.css";
 import { highlightText } from "../utils/searchHighlight.jsx";
 
@@ -39,7 +39,7 @@ export default function SearchResultsPage({ user, setPage, searchContext, onClea
   const [error, setError] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
 
-  const doSearch = useCallback(async (q) => {
+  async function doSearch(q) {
     const kw = (q || "").trim();
     if (!kw || !user?.username) {
       setResults(null);
@@ -64,13 +64,13 @@ export default function SearchResultsPage({ user, setPage, searchContext, onClea
     } finally {
       setLoading(false);
     }
-  }, [user?.username]);
+  }
 
   useEffect(() => {
     if (initialQuery) {
       doSearch(initialQuery);
     }
-  }, [initialQuery, doSearch]);
+  }, [initialQuery, user?.username]);
 
   const handleInputSubmit = () => {
     const kw = inputValue.trim();
