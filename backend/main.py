@@ -8113,7 +8113,7 @@ def create_learning_task(req: schemas.LearningTaskCreate, db: Session = Depends(
         source=source,
         priority=priority,
         order_index=max_order + 1,
-        due_date=req.due_date,
+        due_date=parse_optional_datetime(req.due_date),
         related_session_id=req.related_session_id,
         related_challenge_id=req.related_challenge_id,
         related_material_id=req.related_material_id if req.related_material_id and req.related_material_id > 0 else None,
@@ -8221,7 +8221,7 @@ def update_learning_task(task_id: int, req: schemas.LearningTaskUpdate, db: Sess
         if new_priority in ALLOWED_TASK_PRIORITIES:
             task.priority = new_priority
     if req.due_date is not None:
-        task.due_date = req.due_date if (req.due_date or "").strip() else None
+        task.due_date = parse_optional_datetime(req.due_date) if (req.due_date or "").strip() else None
     if req.knowledge_point_id is not None:
         task.knowledge_point_id = req.knowledge_point_id if req.knowledge_point_id > 0 else None
     if req.knowledge_point_text is not None:
