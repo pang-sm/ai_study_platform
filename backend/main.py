@@ -5258,7 +5258,14 @@ def serialize_code_challenge(challenge):
     }
 
 
-def serialize_learning_task(task, knowledge_point_title=None, related_material=None):
+def serialize_learning_task(task, knowledge_point_title=None, related_material=None, related_material_titles=None):
+    task_metadata = None
+    raw_metadata = getattr(task, "task_metadata", None)
+    if raw_metadata:
+        try:
+            task_metadata = json.loads(raw_metadata) if isinstance(raw_metadata, str) else raw_metadata
+        except Exception:
+            task_metadata = None
     return {
         "id": task.id,
         "username": task.username,
@@ -5280,6 +5287,8 @@ def serialize_learning_task(task, knowledge_point_title=None, related_material=N
         "knowledge_point_title": knowledge_point_title,
         "knowledge_point_text": getattr(task, "knowledge_point_text", None),
         "related_question_id": getattr(task, "related_question_id", None),
+        "metadata": task_metadata,
+        "related_material_titles": related_material_titles or [],
         "completed_at": serialize_datetime(task.completed_at) if task.completed_at else None,
         "created_at": serialize_datetime(task.created_at) if task.created_at else None,
         "updated_at": serialize_datetime(task.updated_at) if task.updated_at else None,
@@ -8362,20 +8371,59 @@ def get_learning_tasks(username: str, course_id: str = "", status: str = "", db:
         for kp in kps:
             kp_map[kp.id] = kp.title
     material_ids = [getattr(t, "related_material_id", None) for t in tasks if getattr(t, "related_material_id", None)]
+    # Also collect material IDs from metadata
+    metadata_material_ids = set()
+    for t in tasks:
+        raw_meta = getattr(t, "task_metadata", None)
+        if raw_meta:
+            try:
+                meta = json.loads(raw_meta) if isinstance(raw_meta, str) else raw_meta
+                mids = meta.get("related_material_ids", []) if isinstance(meta, dict) else []
+                for mid in mids:
+                    try:
+                        metadata_material_ids.add(int(mid))
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+    all_material_ids = set(mid for mid in material_ids if mid)
+    all_material_ids.update(metadata_material_ids)
     material_map: dict[int, models.StudyMaterial] = {}
-    if material_ids:
+    material_title_map: dict[int, str] = {}
+    if all_material_ids:
         materials = db.query(models.StudyMaterial).filter(
-            models.StudyMaterial.id.in_(material_ids),
+            models.StudyMaterial.id.in_(list(all_material_ids)),
             models.StudyMaterial.username == user.username,
             models.StudyMaterial.is_deleted == False,
         ).all()
         material_map = {m.id: m for m in materials}
+        material_title_map = {m.id: m.original_filename for m in materials}
+    # Build per-task material titles from metadata
+    task_material_titles = {}
+    for t in tasks:
+        titles = []
+        raw_meta = getattr(t, "task_metadata", None)
+        if raw_meta:
+            try:
+                meta = json.loads(raw_meta) if isinstance(raw_meta, str) else raw_meta
+                mids = meta.get("related_material_ids", []) if isinstance(meta, dict) else []
+                for mid in mids:
+                    try:
+                        title = material_title_map.get(int(mid))
+                        if title:
+                            titles.append(title)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+        task_material_titles[t.id] = titles
     return {
         "tasks": [
             serialize_learning_task(
                 t,
                 knowledge_point_title=kp_map.get(getattr(t, "knowledge_point_id", None)),
                 related_material=material_map.get(getattr(t, "related_material_id", None)),
+                related_material_titles=task_material_titles.get(t.id, []),
             )
             for t in tasks
         ]
@@ -13758,12 +13806,12 @@ def _get_selected_plan_materials(username: str, course_id: str, material_ids: li
         models.StudyMaterial.username == username,
         models.StudyMaterial.is_deleted.is_(False),
     )
-    safe_ids = [int(mid) for mid in (material_ids or [])[:5] if str(mid).isdigit()]
+    safe_ids = [int(mid) for mid in (material_ids or [])[:10] if str(mid).isdigit()]
     if safe_ids:
         query = query.filter(models.StudyMaterial.id.in_(safe_ids))
     elif normalized_course:
         query = query.filter(models.StudyMaterial.subject == normalized_course)
-    return query.order_by(models.StudyMaterial.created_at.desc()).limit(5).all()
+    return query.order_by(models.StudyMaterial.created_at.desc()).limit(10).all()
 
 
 def _get_plan_material_context(username: str, course_id: str, material_ids: list[int], query_text: str, db: Session) -> list[dict]:
@@ -14636,7 +14684,7 @@ async def generate_plan_preview_advanced(
         goal=goal,
         daily_minutes=daily_minutes,
         exam_scope_text=exam_scope_text,
-        selected_material_ids=[int(mid) for mid in parsed_ids[:5] if str(mid).isdigit()],
+        selected_material_ids=[int(mid) for mid in parsed_ids[:10] if str(mid).isdigit()],
     )
     scope_texts = [_extract_text_from_upload(file) for file in (scope_files or [])[:3]]
     paper_texts = [_extract_text_from_upload(file) for file in (paper_files or [])[:3]]
@@ -14719,6 +14767,17 @@ def import_plan_tasks(req: PlanImportTasksRequest, db: Session = Depends(get_db)
             except Exception:
                 related_material_id = 0
 
+        # Build metadata with full context for detail display
+        task_metadata = {
+            "related_material_ids": related_material_ids if isinstance(related_material_ids, list) else [],
+            "source_evidence": source_evidence,
+            "estimated_minutes": estimated,
+            "reason": reason,
+        }
+        exam_analysis = item.get("exam_analysis")
+        if exam_analysis and isinstance(exam_analysis, dict):
+            task_metadata["exam_analysis"] = exam_analysis
+
         task = models.LearningTask(
             username=req.username,
             course_id=course_id,
@@ -14732,6 +14791,7 @@ def import_plan_tasks(req: PlanImportTasksRequest, db: Session = Depends(get_db)
             knowledge_point_id=kp_id,
             knowledge_point_text=str(item.get("knowledge_point_name") or "").strip(),
             related_material_id=related_material_id or None,
+            metadata=json.dumps(task_metadata, ensure_ascii=False),
         )
         db.add(task)
         created_tasks.append(task)

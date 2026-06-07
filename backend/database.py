@@ -176,6 +176,7 @@ LEARNING_TASKS_COLUMNS = {
     "knowledge_point_id": "INTEGER",
     "knowledge_point_text": "TEXT",
     "related_question_id": "INTEGER",
+    "metadata": "TEXT",
     "completed_at": "DATETIME",
     "created_at": "DATETIME NOT NULL",
     "updated_at": "DATETIME NOT NULL",

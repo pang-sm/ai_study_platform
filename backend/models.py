@@ -242,6 +242,7 @@ class LearningTask(Base):
     knowledge_point_id = Column(Integer, nullable=True)
     knowledge_point_text = Column(String, nullable=True)
     related_question_id = Column(Integer, nullable=True)
+    task_metadata = Column("metadata", Text, nullable=True)
     completed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)

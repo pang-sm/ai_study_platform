@@ -58,6 +58,14 @@ const STATUS_COLUMNS = [
   { value: "done", label: "已完成" },
 ];
 
+const STATUS_LABEL_MAP = {
+  todo: "待开始",
+  doing: "进行中",
+  in_progress: "进行中",
+  done: "已完成",
+  completed: "已完成",
+};
+
 const SOURCE_LABELS = {
   manual: "手动创建",
   code_diagnosis: "诊断生成",
@@ -65,6 +73,8 @@ const SOURCE_LABELS = {
   learning_plan: "AI 计划",
   system: "系统推荐",
 };
+
+const MAX_PLAN_MATERIALS = 10;
 
 const emptyForm = {
   id: null,
@@ -157,6 +167,8 @@ export default function TaskCenter({
   const [planImporting, setPlanImporting] = useState(false);
   const [planError, setPlanError] = useState("");
   const [planSuccess, setPlanSuccess] = useState("");
+  const [detailTask, setDetailTask] = useState(null);
+  const [detailOpen, setDetailOpen] = useState(false);
 
   const normalizedFilterCourse = useMemo(
     () => normalizeSubject(courseFilter, "") || "",
@@ -249,13 +261,13 @@ export default function TaskCenter({
   }, [tasks, pendingSearchTaskId, loading]);
 
   useEffect(() => {
-    if (!modalOpen && !planModalOpen) return undefined;
+    if (!modalOpen && !planModalOpen && !detailOpen) return undefined;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [modalOpen, planModalOpen]);
+  }, [modalOpen, planModalOpen, detailOpen]);
 
   useEffect(() => {
     loadTasks();
@@ -402,11 +414,18 @@ export default function TaskCenter({
     setPlanForm((prev) => {
       const id = Number(materialId);
       const selected = prev.selectedMaterialIds.includes(id);
+      if (selected) {
+        return {
+          ...prev,
+          selectedMaterialIds: prev.selectedMaterialIds.filter((item) => item !== id),
+        };
+      }
+      if (prev.selectedMaterialIds.length >= MAX_PLAN_MATERIALS) {
+        return prev;
+      }
       return {
         ...prev,
-        selectedMaterialIds: selected
-          ? prev.selectedMaterialIds.filter((item) => item !== id)
-          : [...prev.selectedMaterialIds, id].slice(0, 5),
+        selectedMaterialIds: [...prev.selectedMaterialIds, id],
       };
     });
     setPlanPreview(null);
@@ -650,6 +669,94 @@ export default function TaskCenter({
     return "未完成";
   };
 
+  const openDetailModal = (task) => {
+    setDetailTask(task);
+    setDetailOpen(true);
+  };
+
+  const closeDetailModal = () => {
+    setDetailOpen(false);
+    setDetailTask(null);
+  };
+
+  const safeField = (task, ...fields) => {
+    for (const f of fields) {
+      const val = task?.[f];
+      if (val !== undefined && val !== null && val !== "") return val;
+    }
+    return "";
+  };
+
+  const safeArray = (val) => (Array.isArray(val) ? val : []);
+
+  const STATUS_TEXT = {
+    todo: "待开始",
+    doing: "进行中",
+    in_progress: "进行中",
+    done: "已完成",
+    completed: "已完成",
+  };
+
+  const TASK_TYPE_TEXT = {
+    review: "复习",
+    practice: "练习",
+    reading: "阅读资料",
+    quiz: "小测",
+    summary: "总结",
+    code: "编程练习",
+    coding: "编程练习",
+    material: "阅读资料",
+    learning_plan: "AI 计划",
+  };
+
+  const SOURCE_TEXT = {
+    manual: "手动创建",
+    code_diagnosis: "诊断生成",
+    course_plan: "课程计划",
+    learning_plan: "AI 计划",
+    system: "系统推荐",
+  };
+
+  const getStatusText = (task) => STATUS_TEXT[task?.status] || task?.status || "待开始";
+  const getTaskTypeText = (task) => TASK_TYPE_TEXT[task?.task_type] || task?.task_type || getTaskTypeLabel(task?.task_type);
+  const getSourceText = (task) => SOURCE_TEXT[task?.source] || SOURCE_LABELS[task?.source] || task?.source || "手动创建";
+  const getTaskTitle = (task) => safeField(task, "title", "name", "task_title") || "未命名任务";
+  const getTaskDescription = (task) => safeField(task, "description", "content", "detail");
+  const getTaskCourseName = (task, getLabel) => {
+    const cid = safeField(task, "course_id", "course", "courseName");
+    if (getLabel && cid) return getLabel(cid);
+    return cid;
+  };
+  const getKnowledgePointName = (task) => safeField(task, "knowledge_point_title", "knowledge_point_text", "knowledgePointName", "knowledge_point", "kp_name");
+  const getDueDate = (task) => safeField(task, "due_date", "deadline");
+  const getEstimatedMinutes = (task) => {
+    const meta = task?.metadata;
+    if (meta?.estimated_minutes) return Number(meta.estimated_minutes);
+    return Number(task?.estimated_minutes) || Number(task?.duration) || Number(task?.minutes) || 0;
+  };
+  const getRelatedMaterialTitles = (task) => {
+    const titles = safeArray(task?.related_material_titles);
+    if (titles.length > 0) return titles;
+    const singleTitle = safeField(task, "related_material_title", "material_title", "material_filename");
+    if (singleTitle) return [singleTitle];
+    const meta = task?.metadata;
+    if (meta?.material_titles) return safeArray(meta.material_titles);
+    return [];
+  };
+  const getRelatedMaterialIds = (task) => {
+    const meta = task?.metadata;
+    if (meta?.related_material_ids) return safeArray(meta.related_material_ids);
+    if (task?.related_material_id) return [task.related_material_id];
+    if (task?.material_ids) return safeArray(task.material_ids);
+    return [];
+  };
+  const getSourceEvidence = (task) => {
+    const meta = task?.metadata;
+    if (meta?.source_evidence) return safeArray(meta.source_evidence);
+    if (task?.source_evidence) return safeArray(task.source_evidence);
+    return [];
+  };
+
   const startPracticeFromTask = (task) => {
     onStartPractice({
       fromTask: true,
@@ -753,98 +860,60 @@ export default function TaskCenter({
   };
 
   const renderTaskCard = (task, index, statusTasks) => {
-    const knowledgeLabel = task.knowledge_point_title || task.knowledge_point_text || "未绑定知识点";
-    const materialLabel = task.related_material_title || task.material_filename || task.material_title || "";
     const isDone = task.status === "done";
+    const isDoing = task.status === "doing";
+    const courseName = getTaskCourseName(task, getSubjectLabel) || "全部课程";
+    const dueDateStr = getDueDate(task) ? formatDate(getDueDate(task)) : "";
+    const estMinutes = getEstimatedMinutes(task);
+    const timeInfo = dueDateStr || (estMinutes > 0 ? `约${estMinutes}分钟` : "");
+    const materialTitles = getRelatedMaterialTitles(task);
+    const materialCount = materialTitles.length || getRelatedMaterialIds(task).length || (task.related_material_id ? 1 : 0);
+
     return (
-      <article id={`task-row-${task.id}`} className={`task-card-v2 ${isDone ? "is-done" : ""} ${highlightTaskId === task.id ? "task-row-highlight" : ""}`} key={task.id}>
-        <div className="task-card-order">
-          <button
-            type="button"
-            className="task-icon-button"
-            disabled={reordering || index === 0}
-            onClick={() => moveTask(task, -1)}
-            aria-label="上移"
-            title="上移"
-          >
-            ↑
-          </button>
-          <button
-            type="button"
-            className="task-icon-button"
-            disabled={reordering || index === statusTasks.length - 1}
-            onClick={() => moveTask(task, 1)}
-            aria-label="下移"
-            title="下移"
-          >
-            ↓
-          </button>
+      <article
+        id={`task-row-${task.id}`}
+        className={`task-card-v2 ${isDone ? "is-done" : ""} ${highlightTaskId === task.id ? "task-row-highlight" : ""}`}
+        key={task.id}
+        onClick={() => openDetailModal(task)}
+      >
+        <div className="task-card-topline">
+          <h4>{getTaskTitle(task)}</h4>
+          <span className={`task-status-chip task-status-${task.status || "todo"}`}>
+            {getStatusText(task)}
+          </span>
         </div>
-        <div className="task-card-content">
-          <div className="task-card-topline">
-            <h4>{task.title}</h4>
-            <span className={`task-status-chip task-status-${task.status || "todo"}`}>
-              {STATUS_COLUMNS.find((item) => item.value === task.status)?.label || "待开始"}
-            </span>
-          </div>
-          {task.description && <p className="task-card-description">{task.description}</p>}
-          <div className="task-card-meta-v2">
-            <span>{getTaskTypeLabel(task.task_type)}</span>
-            <span>知识点：{knowledgeLabel}</span>
-            {materialLabel && <span>来源资料：{materialLabel}</span>}
-            {task.due_date && <span>截止：{formatDate(task.due_date)}</span>}
-            {task.source && task.source !== "manual" && <span>{SOURCE_LABELS[task.source] || task.source}</span>}
-          </div>
+        <div className="task-card-meta-v2">
+          <span>{getTaskTypeText(task)}</span>
+          {courseName && courseName !== "全部课程" && <span>{courseName}</span>}
+          {timeInfo && <span>{timeInfo}</span>}
+          {materialCount > 0 && <span>📎 {materialCount}</span>}
         </div>
-        <div className="task-practice-status">练习状态：{getPracticeStatusLabel(task)}</div>
-        <div className="task-card-actions-v2">
-          {shouldShowPracticeEntry(task) && (
-            <button
-              type="button"
-              className="tiny-button task-practice-entry"
-              onClick={() => startPracticeFromTask(task)}
-            >
-              {isDone ? "再练一次" : "去练习"}
-            </button>
-          )}
-          <button type="button" className="tiny-button" onClick={() => openEditModal(task)}>编辑</button>
+        <div className="task-card-actions-v2" onClick={(e) => e.stopPropagation()}>
           {isDone ? (
-            <button
-              type="button"
-              className="tiny-button"
-              disabled={actionTaskId === task.id}
-              onClick={() => updateTaskStatus(task, "todo")}
-            >
-              取消完成
-            </button>
+            <>
+              <button type="button" className="tiny-button" onClick={() => startPracticeFromTask(task)}>再练一次</button>
+            </>
+          ) : isDoing ? (
+            <>
+              <button
+                type="button" className="tiny-button"
+                disabled={actionTaskId === task.id}
+                onClick={() => updateTaskStatus(task, "done")}
+              >完成</button>
+            </>
           ) : (
             <button
-              type="button"
-              className="tiny-button"
-              disabled={actionTaskId === task.id}
-              onClick={() => updateTaskStatus(task, "done")}
-            >
-              完成
-            </button>
-          )}
-          {!isDone && task.status !== "doing" && (
-            <button
-              type="button"
-              className="tiny-button"
+              type="button" className="tiny-button"
               disabled={actionTaskId === task.id}
               onClick={() => updateTaskStatus(task, "doing")}
-            >
-              开始
-            </button>
+            >开始</button>
           )}
+          <button type="button" className="tiny-button" onClick={(e) => { e.stopPropagation(); openDetailModal(task); }}>详情</button>
           <button
-            type="button"
-            className="tiny-button danger"
+            type="button" className="tiny-button danger"
             disabled={actionTaskId === task.id}
             onClick={() => deleteTask(task)}
-          >
-            删除
-          </button>
+          >删除</button>
         </div>
       </article>
     );
@@ -1163,28 +1232,43 @@ export default function TaskCenter({
               </div>
 
               <div className="task-plan-section">
-                <span className="task-plan-label">资料库资料</span>
+                <span className="task-plan-label">
+                  资料库资料
+                  <span className="task-plan-material-count">
+                    已选择 {planForm.selectedMaterialIds.length} / {MAX_PLAN_MATERIALS} 份资料
+                  </span>
+                </span>
                 {materialsLoading ? (
                   <p className="task-muted">正在加载资料...</p>
                 ) : materials.length === 0 ? (
                   <p className="task-muted">当前课程暂无资料，将根据学习进度降级生成。</p>
                 ) : (
-                  <div className="task-plan-materials">
-                    {materials.slice(0, 8).map((material) => {
-                      const selected = planForm.selectedMaterialIds.includes(Number(material.id));
-                      return (
-                        <button
-                          type="button"
-                          key={material.id}
-                          className={`task-plan-material ${selected ? "is-selected" : ""}`}
-                          onClick={() => togglePlanMaterial(material.id)}
-                        >
-                          <span>{getMaterialTitle(material)}</span>
-                          <small>{material.file_type || "资料"} · {isIndexedMaterial(material) ? "已索引" : "未索引"}</small>
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <>
+                    <div className="task-plan-materials">
+                      {materials.map((material) => {
+                        const selected = planForm.selectedMaterialIds.includes(Number(material.id));
+                        const atLimit = !selected && planForm.selectedMaterialIds.length >= MAX_PLAN_MATERIALS;
+                        return (
+                          <button
+                            type="button"
+                            key={material.id}
+                            className={`task-plan-material ${selected ? "is-selected" : ""}`}
+                            onClick={() => togglePlanMaterial(material.id)}
+                            disabled={atLimit}
+                            title={atLimit ? `最多选择 ${MAX_PLAN_MATERIALS} 份资料，系统会自动提取最相关片段参与生成。` : getMaterialTitle(material)}
+                          >
+                            <span>{getMaterialTitle(material)}</span>
+                            <small>{material.file_type || "资料"} · {isIndexedMaterial(material) ? "已索引" : "未索引"}</small>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {planForm.selectedMaterialIds.length >= MAX_PLAN_MATERIALS && (
+                      <p className="task-plan-hint" style={{ color: "#b45309", margin: "2px 0 0" }}>
+                        最多选择 {MAX_PLAN_MATERIALS} 份资料，系统会自动提取最相关片段参与生成。
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
 
@@ -1340,6 +1424,153 @@ export default function TaskCenter({
                   {planLoading ? "生成中..." : "生成计划预览"}
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {detailOpen && detailTask && (
+        <div className="task-modal-overlay" role="presentation" onClick={closeDetailModal}>
+          <div className="task-modal-card task-detail-modal-card" role="dialog" aria-modal="true" aria-labelledby="task-detail-modal-title" onClick={(e) => e.stopPropagation()}>
+            <button type="button" className="task-modal-close" onClick={closeDetailModal} aria-label="关闭">×</button>
+            <div className="task-modal-header">
+              <h3 id="task-detail-modal-title">任务详情</h3>
+            </div>
+            <div className="task-modal-body">
+              {/* 基本信息 */}
+              <div className="task-detail-section">
+                <h5>基本信息</h5>
+                <h4 className="task-detail-title">{getTaskTitle(detailTask)}</h4>
+                <div className="task-detail-row" style={{ marginTop: 10 }}>
+                  <span className={`task-detail-tag status-tag ${detailTask.status === "done" ? "" : ""}`} style={detailTask.status === "todo" ? { background: "#f1f5f9", color: "#475569", border: "1px solid #e2e8f0" } : detailTask.status === "doing" ? { background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a" } : {}}>
+                    {getStatusText(detailTask)}
+                  </span>
+                  <span className="task-detail-tag type-tag">{getTaskTypeText(detailTask)}</span>
+                </div>
+                <p style={{ marginTop: 10 }}>
+                  <strong>所属课程：</strong>{getTaskCourseName(detailTask, getSubjectLabel) || "未绑定课程"}
+                </p>
+                {getEstimatedMinutes(detailTask) > 0 && (
+                  <p><strong>预计用时：</strong>{getEstimatedMinutes(detailTask)} 分钟</p>
+                )}
+                {getDueDate(detailTask) && (
+                  <p><strong>截止时间：</strong>{formatDate(getDueDate(detailTask))}</p>
+                )}
+                {detailTask.source && (
+                  <p><strong>来源：</strong>{getSourceText(detailTask)}</p>
+                )}
+              </div>
+
+              {/* 学习内容 */}
+              <div className="task-detail-section">
+                <h5>学习内容</h5>
+                {getTaskDescription(detailTask) ? (
+                  <p style={{ whiteSpace: "pre-wrap" }}>{getTaskDescription(detailTask)}</p>
+                ) : (
+                  <p className="task-detail-empty">暂无任务描述</p>
+                )}
+                {detailTask.metadata?.reason && (
+                  <p style={{ marginTop: 8 }}><strong>安排原因：</strong>{detailTask.metadata.reason}</p>
+                )}
+              </div>
+
+              {/* 关联知识点 */}
+              <div className="task-detail-section">
+                <h5>关联知识点</h5>
+                {getKnowledgePointName(detailTask) ? (
+                  <p>{getKnowledgePointName(detailTask)}</p>
+                ) : (
+                  <p className="task-detail-empty">未绑定知识点</p>
+                )}
+              </div>
+
+              {/* 关联资料 */}
+              <div className="task-detail-section">
+                <h5>关联资料</h5>
+                {(() => {
+                  const titles = getRelatedMaterialTitles(detailTask);
+                  const ids = getRelatedMaterialIds(detailTask);
+                  const singleId = detailTask.related_material_id;
+                  const singleTitle = detailTask.related_material_title || detailTask.material_filename || detailTask.material_title;
+                  if (titles.length > 0) {
+                    return (
+                      <>
+                        <p>共 {titles.length} 份资料</p>
+                        <div className="task-detail-materials">
+                          {titles.map((title, idx) => (
+                            <div className="task-detail-material-item" key={idx}>
+                              <span>📄</span>
+                              <span>{title}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    );
+                  }
+                  if (singleTitle) {
+                    return (
+                      <div className="task-detail-materials">
+                        <div className="task-detail-material-item">
+                          <span>📄</span>
+                          <span>{singleTitle}</span>
+                        </div>
+                      </div>
+                    );
+                  }
+                  if (ids.length > 0 || singleId) {
+                    return <p>关联资料 ID：{(ids.length > 0 ? ids : [singleId]).join(", ")}</p>;
+                  }
+                  return <p className="task-detail-empty">未关联资料</p>;
+                })()}
+              </div>
+
+              {/* AI 生成依据 */}
+              <div className="task-detail-section">
+                <h5>AI 生成依据</h5>
+                {(() => {
+                  const evidence = getSourceEvidence(detailTask);
+                  const examAnalysis = detailTask.metadata?.exam_analysis;
+                  if (evidence.length > 0) {
+                    return (
+                      <div>
+                        {evidence.map((ev, idx) => (
+                          <div className="task-detail-evidence" key={idx}>{typeof ev === "string" ? ev : JSON.stringify(ev)}</div>
+                        ))}
+                      </div>
+                    );
+                  }
+                  if (examAnalysis) {
+                    return (
+                      <div>
+                        {examAnalysis.key_knowledge_points?.length > 0 && (
+                          <p><strong>关键知识点：</strong>{examAnalysis.key_knowledge_points.join("、")}</p>
+                        )}
+                        {examAnalysis.suggestions?.length > 0 && (
+                          <div>
+                            <strong>复习建议：</strong>
+                            {examAnalysis.suggestions.map((s, idx) => (
+                              <div className="task-detail-evidence" key={idx}>{s}</div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+                  return <p className="task-detail-empty">暂无生成依据</p>;
+                })()}
+              </div>
+            </div>
+            <div className="task-modal-actions">
+              {detailTask.status === "done" ? (
+                <button type="button" className="task-btn-secondary" onClick={(e) => { closeDetailModal(); startPracticeFromTask(detailTask); }}>再练一次</button>
+              ) : detailTask.status === "doing" ? (
+                <button type="button" className="task-btn-primary" disabled={actionTaskId === detailTask.id} onClick={() => updateTaskStatus(detailTask, "done")}>完成</button>
+              ) : (
+                <button type="button" className="task-btn-primary" disabled={actionTaskId === detailTask.id} onClick={() => updateTaskStatus(detailTask, "doing")}>开始</button>
+              )}
+              <button type="button" className="task-btn-secondary" onClick={() => { closeDetailModal(); openEditModal(detailTask); }}>编辑</button>
+              <button type="button" className="task-btn-secondary danger" disabled={actionTaskId === detailTask.id} onClick={() => { closeDetailModal(); deleteTask(detailTask); }} style={{ color: "#dc2626" }}>删除</button>
+              <button type="button" className="task-btn-secondary" onClick={closeDetailModal}>关闭</button>
             </div>
           </div>
         </div>
