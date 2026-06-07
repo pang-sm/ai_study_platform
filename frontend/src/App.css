@@ -12909,6 +12909,17 @@ select.field:focus {
   font-weight: 700;
 }
 
+.task-plan-fallback-warning {
+  padding: 10px 12px;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 0.84rem;
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+
 .task-plan-hint {
   margin: -4px 0 0;
   color: #b45309;

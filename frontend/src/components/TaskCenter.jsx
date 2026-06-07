@@ -446,13 +446,20 @@ export default function TaskCenter({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setPlanError(data.detail || "学习计划生成失败，请稍后重试。");
+        const rawDetail = data.detail || "";
+        // Mask raw JSON parse errors and show user-friendly message
+        if (rawDetail.includes("JSON") || rawDetail.includes("Expecting") || rawDetail.includes("delimiter") || rawDetail.includes("char")) {
+          console.error("AI plan generation JSON parse error (original):", rawDetail);
+          setPlanError("生成计划失败，AI 输出格式异常，请点击'重新生成'或减少上传文件数量后再试。");
+          return;
+        }
+        setPlanError(rawDetail || "学习计划生成失败，请稍后重试。");
         return;
       }
       setPlanPreview({ ...data, items: Array.isArray(data.items) ? data.items : [] });
     } catch (error) {
       console.error("Failed to generate plan:", error);
-      setPlanError("学习计划生成失败，请稍后重试。");
+      setPlanError("生成计划失败，网络或服务异常，请稍后重试。");
     } finally {
       setPlanLoading(false);
     }
@@ -1256,6 +1263,11 @@ export default function TaskCenter({
 
               {planPreview && (
                 <div className="task-plan-preview">
+                  {planPreview.fallback_used && (
+                    <div className="task-plan-fallback-warning">
+                      <span>{planPreview.warning || "AI 输出格式异常，已为你生成基础学习计划，可点击重新生成获得更完整计划。"}</span>
+                    </div>
+                  )}
                   <div className="task-plan-preview-header">
                     <div>
                       <h4>{planPreview.plan_title || "生成计划预览"}</h4>
