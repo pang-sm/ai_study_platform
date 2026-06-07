@@ -1,20 +1,19 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import "./HomePage.css";
 import { highlightText } from "../utils/searchHighlight.jsx";
+import { HOME_SEARCH_RECOMMEND_ENTRIES } from "../config/navigation.js";
 
 const API_BASE = "/api";
 const SEARCH_DEBOUNCE_MS = 300;
 const RECENT_SEARCHES_KEY = "ai_study_recent_searches";
 const MAX_RECENT = 8;
 
-const RECOMMEND_ENTRIES = [
-  { id: "workspaceMaterials", icon: "📚", label: "课程资料库" },
-  { id: "taskCenter", icon: "✅", label: "任务中心" },
-  { id: "practiceCenter", icon: "📝", label: "练习中心" },
-  { id: "codeStudio", icon: "</>", label: "编程学习助手" },
-  { id: "learningReportCenter", icon: "📄", label: "学习报告" },
-  { id: "learningDataCenter", icon: "📊", label: "学习数据中心" },
-];
+/** 搜索下拉推荐入口（已移除资料库 — 可通过课程工作台内部 Tab 访问） */
+const RECOMMEND_ENTRIES = HOME_SEARCH_RECOMMEND_ENTRIES.map((entry) => ({
+  id: entry.key,
+  icon: entry.icon,
+  label: entry.label,
+}));
 
 function getRecentSearches() {
   try { return JSON.parse(localStorage.getItem(RECENT_SEARCHES_KEY) || "[]"); } catch { return []; }
@@ -444,7 +443,7 @@ function CoreFeatures({ onNavigate }) {
     { id: "practiceCenter", icon: "📝", title: "练习中心", desc: "按知识点刷题练习，AI 自动反馈，支持选择题和简答题", color: "#7c3aed" },
     { id: "codeStudio", icon: "</>", title: "编程学习助手", desc: "在线练习编程，AI 帮你分析代码和解答编程问题", color: "#db2777" },
     { id: "taskCenter", icon: "✅", title: "学习任务中心", desc: "创建和管理学习任务，让 AI 帮你生成个性化学习计划", color: "#ea580c" },
-    { id: "knowledgeBaseCenter", icon: "📚", title: "知识库中心", desc: "管理课程资料与知识点的关联，查看资料覆盖情况", color: "#0f766e" },
+    { id: "knowledgeLearning", icon: "🎯", title: "知识点学习", desc: "按知识点体系逐步学习，支持资料路线和平台推荐路线", color: "#0f766e" },
   ];
 
   return (
@@ -722,7 +721,6 @@ export default function HomePage({
   apiBase,
   onLogout,
   isAdmin,
-  onBeforeProfileEdit,
   setSearchContext,
   setSearchNavigate,
 }) {
@@ -806,11 +804,6 @@ export default function HomePage({
   }, [user?.username, apiBase]);
 
   const handleNavigate = (targetPage) => {
-    if (targetPage === "profileEdit") {
-      if (onBeforeProfileEdit) onBeforeProfileEdit();
-      setPage("profileEdit");
-      return;
-    }
     if (targetPage === "dashboard") {
       setSubject(subject);
     }

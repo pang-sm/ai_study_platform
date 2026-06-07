@@ -6,6 +6,7 @@ export default function AppLayout({
   onNavigate,
   isAdmin,
   showMembershipAd = true,
+  onLogout,
   children,
 }) {
   const { collapsed, toggle } = useSidebarCollapsed();
@@ -19,6 +20,7 @@ export default function AppLayout({
         showMembershipAd={showMembershipAd}
         collapsed={collapsed}
         onToggle={toggle}
+        onLogout={onLogout}
       />
       <main className="al-main">
         {children}

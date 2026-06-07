@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import "./Sidebar.css";
+import { APP_PAGES, SIDEBAR_NAV_GROUPS } from "../config/navigation.js";
 
 const SIDEBAR_COLLAPSED_KEY = "ai_study_sidebar_collapsed";
 
@@ -10,44 +11,42 @@ export default function Sidebar({
   showMembershipAd = true,
   collapsed,
   onToggle,
+  onLogout,
 }) {
-  const allNav = [
-    { id: "home", icon: "🏠", label: "首页" },
-    { id: "chat", icon: "💬", label: "AI 问答" },
-    { id: "dashboard", icon: "📋", label: "课程工作台" },
-    { id: "knowledgeLearning", icon: "🎯", label: "知识点学习" },
-    { id: "workspaceMaterials", icon: "📚", label: "资料库" },
-    { id: "practiceCenter", icon: "📝", label: "练习中心" },
-    { id: "codeStudio", icon: "</>", label: "编程助手" },
-    { id: "taskCenter", icon: "✅", label: "学习任务" },
-    { id: "learningDataCenter", icon: "📊", label: "学习数据中心" },
-    { id: "learningReportCenter", icon: "📄", label: "学习报告" },
-    { id: "reviewCenter", icon: "🔄", label: "复盘中心" },
-    { id: "learningPlanCenter", icon: "📅", label: "AI 学习计划" },
-    { id: "knowledgeBaseCenter", icon: "📚", label: "知识库中心" },
-    { id: "quotaCenter", icon: "💎", label: "我的额度" },
-    { id: "profileEdit", icon: "⚙️", label: "学习设置" },
-    ...(isAdmin ? [{ id: "adminCenter", icon: "🛡️", label: "管理后台" }] : []),
-  ];
-
   function isActive(id) {
     if (activePage === id) return true;
-    if (id === "workspaceMaterials" && activePage === "materials") return true;
     return false;
   }
 
   function renderNavItem(item) {
-    const active = isActive(item.id);
+    const active = isActive(item.key);
     return (
       <button
-        key={item.id}
+        key={item.key}
         className={`sb-nav-item${active ? " active" : ""}`}
-        onClick={() => onNavigate(item.id)}
+        onClick={() => onNavigate(item.key)}
         title={collapsed ? item.label : undefined}
       >
         <span className="sb-nav-icon">{item.icon}</span>
         {!collapsed && <span className="sb-nav-label">{item.label}</span>}
       </button>
+    );
+  }
+
+  function renderNavGroup(group) {
+    // Filter out admin-only items if not admin
+    const items = group.items.filter((item) => {
+      if (item.key === "adminCenter" && !isAdmin) return false;
+      return true;
+    });
+
+    if (items.length === 0) return null;
+
+    return (
+      <div key={group.id} className="sb-nav-group">
+        {!collapsed && <div className="sb-section-label">{group.title}</div>}
+        {items.map(renderNavItem)}
+      </div>
     );
   }
 
@@ -68,9 +67,39 @@ export default function Sidebar({
         </button>
       </div>
 
-      {/* Navigation */}
+      {/* Navigation groups */}
       <nav className="sb-nav">
-        {allNav.map(renderNavItem)}
+        {SIDEBAR_NAV_GROUPS.map(renderNavGroup)}
+
+        {/* Admin center — special group for admin only */}
+        {isAdmin && (
+          <div className="sb-nav-group">
+            {!collapsed && <div className="sb-section-label">管理</div>}
+            <button
+              className={`sb-nav-item${activePage === "adminCenter" ? " active" : ""}`}
+              onClick={() => onNavigate("adminCenter")}
+              title={collapsed ? "管理后台" : undefined}
+            >
+              <span className="sb-nav-icon">🛡️</span>
+              {!collapsed && <span className="sb-nav-label">管理后台</span>}
+            </button>
+          </div>
+        )}
+
+        {/* Logout button */}
+        {onLogout && (
+          <div className="sb-nav-group sb-nav-group--logout">
+            {!collapsed && <div className="sb-section-label">系统</div>}
+            <button
+              className="sb-nav-item sb-nav-item--logout"
+              onClick={onLogout}
+              title={collapsed ? "退出登录" : undefined}
+            >
+              <span className="sb-nav-icon">🚪</span>
+              {!collapsed && <span className="sb-nav-label">退出登录</span>}
+            </button>
+          </div>
+        )}
       </nav>
 
       {showMembershipAd && (

@@ -448,6 +448,18 @@ function App() {
       alert("该功能暂时维护中，请稍后再试");
       return;
     }
+
+    // Auto-initialize profile form when navigating to profileEdit
+    if (nextPage === "profileEdit" && user) {
+      setProfileForm({
+        nickname: user.nickname || "",
+        grade: user.grade || "",
+        major: user.major || "",
+        avatar: user.avatar || "avatar_1",
+      });
+      setLearningGoals(Array.isArray(user?.learning_goals) ? [...user.learning_goals] : []);
+    }
+
     setPracticeContext(null);
     saveCurrentPage(nextPage);
     setPageRaw(nextPage);
@@ -2984,6 +2996,7 @@ function App() {
       onNavigate={setPage}
       isAdmin={!!user?.is_admin}
       showMembershipAd={shouldShowMembershipAd(user)}
+      onLogout={logout}
     >
       {visibleAnnouncements.length > 0 && (
         <div className="announce-banner-area">
@@ -3036,9 +3049,6 @@ function App() {
         isAdmin={!!user?.is_admin}
         setSearchContext={setSearchContext}
         setSearchNavigate={setSearchNavigate}
-        onBeforeProfileEdit={() => {
-          setLearningGoals(Array.isArray(user?.learning_goals) ? [...user.learning_goals] : []);
-        }}
       />
     );
   }
