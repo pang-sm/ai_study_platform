@@ -1767,6 +1767,78 @@ def build_course_dashboard_payload(db: Session, user: models.User, course: str):
             for a in recent_attempts
         ]
 
+    # Unlinked materials (no knowledge point linkage)
+    unlinked_material_count = 0
+    try:
+        linked_ids = db.query(models.MaterialKnowledgeLink.material_id).filter(
+            models.MaterialKnowledgeLink.username == user.username,
+            models.MaterialKnowledgeLink.course_id == normalized_course,
+        ).distinct().subquery()
+        unlinked_material_count = material_query.filter(
+            ~models.StudyMaterial.id.in_(linked_ids)
+        ).count()
+    except Exception:
+        unlinked_material_count = 0
+
+    # Pending materials (parsing / pending status)
+    pending_materials_count = material_query.filter(
+        models.StudyMaterial.parse_status.in_(["parsing", "pending"])
+    ).count()
+
+    # Weekly study minutes
+    weekly_study_minutes = 0
+    try:
+        week_start = datetime.utcnow() - timedelta(days=datetime.utcnow().weekday())
+        week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
+        week_records = db.query(models.LearningRecord).filter(
+            models.LearningRecord.user_id == user.id,
+            models.LearningRecord.subject == normalized_course,
+            models.LearningRecord.is_deleted.is_(False),
+            models.LearningRecord.created_at >= week_start,
+        ).all()
+        # Rough estimate — most learning activities take ~5 min per record
+        weekly_study_minutes = len(week_records) * 5
+        # Add code practice time
+        week_code = db.query(models.CodeSession).filter(
+            models.CodeSession.username == user.username,
+            models.CodeSession.course_id == normalized_course,
+            models.CodeSession.updated_at >= week_start,
+        ).count()
+        weekly_study_minutes += week_code * 10
+    except Exception:
+        weekly_study_minutes = 0
+
+    # Streak days (consecutive days with activity)
+    streak_days = 0
+    try:
+        all_dates = set()
+        records_dates = db.query(models.LearningRecord.created_at).filter(
+            models.LearningRecord.user_id == user.id,
+            models.LearningRecord.subject == normalized_course,
+            models.LearningRecord.is_deleted.is_(False),
+        ).all()
+        for (dt,) in records_dates:
+            if dt: all_dates.add(dt.date())
+        chat_dates = db.query(models.ChatSession.created_at).filter(
+            models.ChatSession.user_id == user.id,
+            or_(models.ChatSession.subject == normalized_course, models.ChatSession.course == normalized_course),
+        ).all()
+        for (dt,) in chat_dates:
+            if dt: all_dates.add(dt.date())
+        code_dates = db.query(models.CodeSession.updated_at).filter(
+            models.CodeSession.username == user.username,
+            models.CodeSession.course_id == normalized_course,
+        ).all()
+        for (dt,) in code_dates:
+            if dt: all_dates.add(dt.date())
+        today = date.today()
+        check_date = today
+        while check_date in all_dates:
+            streak_days += 1
+            check_date -= timedelta(days=1)
+    except Exception:
+        streak_days = 0
+
     if materials_count == 0:
         suggestion = "建议先上传课程资料，方便 AI 结合你的个人资料回答。"
     elif chat_count == 0:
@@ -1786,6 +1858,12 @@ def build_course_dashboard_payload(db: Session, user: models.User, course: str):
             "chat_count": chat_count,
             "pending_review_count": pending_review_count,
             "progress_percent": progress_percent,
+            "knowledge_points_count": kp_total,
+            "unlinked_material_count": unlinked_material_count,
+            "pending_materials_count": pending_materials_count,
+            "weekly_study_minutes": weekly_study_minutes,
+            "streak_days": streak_days,
+            "last_study_date": serialize_datetime(recent_learning_at) if recent_learning_at else None,
         },
         "recent_learning_at": recent_learning_at,
         "recent_materials": [serialize_material_list_item(item) for item in recent_materials],

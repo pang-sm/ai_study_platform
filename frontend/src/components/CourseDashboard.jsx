@@ -94,13 +94,21 @@ export default function CourseDashboard({
       .slice(0, 6);
   }, [courseMaterials]);
 
-  // ── Stats ──
-  const totalKpCount = knowledgePoints.length;
-  const pendingCount = courseMaterials.filter(m => !m.parse_status || m.parse_status === "pending" || m.parse_status === "unknown").length;
+  // ── Stats (all from real backend /course-dashboard) ──
+  const totalKpCount = stats.knowledge_points_count ?? knowledgePoints.length;
+  const materialsCount = stats.materials_count ?? courseMaterials.length;
   const reviewCount = stats.pending_review_count ?? 0;
-  const weeklyHours = stats.weekly_study_minutes ? Math.round(stats.weekly_study_minutes / 60) : null;
+  const unlinkedCount = stats.unlinked_material_count ?? 0;
+  const pendingMatCount = stats.pending_materials_count ?? 0;
+  const weeklyMins = stats.weekly_study_minutes ?? 0;
   const streakDays = stats.streak_days ?? 0;
   const progressPct = stats.progress_percent ?? 0;
+
+  function fmtStudyMinutes(mins) {
+    if (!mins || mins <= 0) return "暂无";
+    if (mins < 60) return `${mins} 分钟`;
+    return `${(mins / 60).toFixed(1)}h`;
+  }
 
   if (loading) {
     return (
@@ -119,7 +127,7 @@ export default function CourseDashboard({
             ═══════════════════════════════════════════════ */}
         <div className="cd-header">
           <div className="cd-header-left">
-            <span className="cd-header-breadcrumb">← 课程工作台</span>
+            <span className="cd-header-breadcrumb">课程工作台</span>
             <h1 className="cd-header-course">{courseLabel || "选择课程"}</h1>
             <p className="cd-header-sub">编程基础课 · 初学者入门</p>
           </div>
@@ -134,7 +142,7 @@ export default function CourseDashboard({
               上次学习：{fmtDate(stats.last_study_date) || "暂无记录"}
             </span>
             <button className="cd-header-settings" type="button"
-              onClick={() => setGoalConfig && setGoalConfig({})}>
+              onClick={() => alert("课程设置功能开发中")}>
               ⚙ 课程设置
             </button>
           </div>
@@ -167,7 +175,7 @@ export default function CourseDashboard({
                 </div>
                 <div className="cd-stat-item">
                   <span className="cd-stat-icon">📚</span>
-                  <span className="cd-stat-val">{courseMaterials.length}</span>
+                  <span className="cd-stat-val">{materialsCount}</span>
                   <span className="cd-stat-lbl">上传资料</span>
                 </div>
                 <div className="cd-stat-item">
@@ -177,22 +185,22 @@ export default function CourseDashboard({
                 </div>
                 <div className="cd-stat-item">
                   <span className="cd-stat-icon">🔄</span>
-                  <span className="cd-stat-val">{reviewCount || pendingCount}</span>
+                  <span className="cd-stat-val">{reviewCount} / {unlinkedCount}</span>
                   <span className="cd-stat-lbl">待复习 / 待关联</span>
                 </div>
                 <div className="cd-stat-item">
-                  <span className="cd-stat-icon">{pendingCount > 0 ? "⚠️" : "✅"}</span>
-                  <span className="cd-stat-val">{pendingCount}</span>
+                  <span className="cd-stat-icon">{pendingMatCount > 0 ? "⚠️" : "✅"}</span>
+                  <span className="cd-stat-val">{pendingMatCount}</span>
                   <span className="cd-stat-lbl">待审核资料</span>
                 </div>
                 <div className="cd-stat-item">
                   <span className="cd-stat-icon">⏱️</span>
-                  <span className="cd-stat-val">{weeklyHours != null ? `${weeklyHours}h` : "—"}</span>
+                  <span className="cd-stat-val">{fmtStudyMinutes(weeklyMins)}</span>
                   <span className="cd-stat-lbl">本周学习</span>
                 </div>
                 <div className="cd-stat-item">
                   <span className="cd-stat-icon">🔥</span>
-                  <span className="cd-stat-val">{streakDays || "—"}</span>
+                  <span className="cd-stat-val">{streakDays > 0 ? `${streakDays} 天` : "0 天"}</span>
                   <span className="cd-stat-lbl">连续天数</span>
                 </div>
               </div>
@@ -299,24 +307,6 @@ export default function CourseDashboard({
               )}
             </div>
 
-            {/* ── Bottom CTA ── */}
-            <div className="cd-cta-row">
-              <button className="cd-cta-card cd-cta-card--blue" type="button"
-                onClick={() => setPage("knowledgeLearning")}>
-                <span className="cd-cta-icon">📖</span>
-                进入知识点学习
-              </button>
-              <button className="cd-cta-card cd-cta-card--purple" type="button"
-                onClick={onStartAsk}>
-                <span className="cd-cta-icon">💬</span>
-                打开 AI 问答
-              </button>
-              <button className="cd-cta-card cd-cta-card--outline" type="button"
-                onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
-                <span className="cd-cta-icon">📤</span>
-                上传资料
-              </button>
-            </div>
           </div>
 
           {/* ━━━━ RIGHT COLUMN ━━━━ */}
@@ -329,19 +319,19 @@ export default function CourseDashboard({
                 基于你的学习情况为你推荐
               </p>
               <ul className="cd-ai-suggestions">
-                {pendingCount > 0 && (
-                  <li>有 {pendingCount} 份资料尚未关联知识点，点击处理。</li>
+                {unlinkedCount > 0 && (
+                  <li>有 {unlinkedCount} 份资料尚未关联知识点，点击处理。</li>
                 )}
                 {reviewCount > 0 && (
                   <li>还有 {reviewCount} 项内容待复习，打开复盘中心巩固。</li>
                 )}
-                {courseMaterials.length > 0 && (
+                {materialsCount > 0 && (
                   <li>基于资料库内容提问，AI 精准回答。</li>
                 )}
-                {courseMaterials.length === 0 && totalKpCount === 0 && (
+                {materialsCount === 0 && totalKpCount === 0 && (
                   <li>上传教材、课件或笔记，开始构建知识体系。</li>
                 )}
-                {totalKpCount === 0 && courseMaterials.length > 0 && (
+                {totalKpCount === 0 && materialsCount > 0 && (
                   <li>资料已就绪，自动解析后可生成知识点。</li>
                 )}
               </ul>
@@ -357,10 +347,6 @@ export default function CourseDashboard({
                 <button className="cd-quick-card" type="button" onClick={() => setPage("knowledgeLearning")}>
                   <span className="cd-quick-card-icon">🗺️</span>
                   <span className="cd-quick-card-label">学习路线</span>
-                </button>
-                <button className="cd-quick-card" type="button" onClick={onStartAsk}>
-                  <span className="cd-quick-card-icon">💬</span>
-                  <span className="cd-quick-card-label">AI 问答</span>
                 </button>
                 <button className="cd-quick-card" type="button" onClick={() => setPage("knowledgeLearning")}>
                   <span className="cd-quick-card-icon">📖</span>
