@@ -52,7 +52,6 @@ export const SIDEBAR_NAV_GROUPS = [
       APP_PAGES.learningDataCenter,
       APP_PAGES.learningReportCenter,
       APP_PAGES.reviewCenter,
-      APP_PAGES.learningPlanCenter,
       APP_PAGES.knowledgeBaseCenter,
     ],
   },
@@ -132,12 +131,6 @@ export const HOME_LEARNING_TOOLS = [
     icon: APP_PAGES.reviewCenter.icon,
     title: "复盘中心",
     desc: "错题与薄弱点",
-  },
-  {
-    id: APP_PAGES.learningPlanCenter.key,
-    icon: APP_PAGES.learningPlanCenter.icon,
-    title: "AI 学习计划",
-    desc: "个性化学习路径",
   },
   {
     id: APP_PAGES.learningReportCenter.key,

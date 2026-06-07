@@ -17,7 +17,6 @@ const PracticeCenter = lazy(() => import("./components/PracticeCenter.jsx"));
 const LearningDataCenter = lazy(() => import("./components/LearningDataCenter.jsx"));
 const ReviewCenter = lazy(() => import("./components/ReviewCenter.jsx"));
 import FeatureUnavailable from "./components/FeatureUnavailable.jsx";
-const LearningPlanCenter = lazy(() => import("./components/LearningPlanCenter.jsx"));
 const KnowledgeBaseCenter = lazy(() => import("./components/KnowledgeBaseCenter.jsx"));
 const QuotaCenter = lazy(() => import("./components/QuotaCenter.jsx"));
 const AdminUsageCenter = lazy(() => import("./components/AdminUsageCenter.jsx"));
@@ -3197,17 +3196,15 @@ function App() {
   if (page === "learningPlanCenter") {
     return wrapPage(
       <div className="app-shell">
-        <header className="workspace-topbar">
-          <div className="workspace-topbar-left">
-            <span className="subject-pill panel-pill">AI 学习计划</span>
+        <section className="chat-panel chat-panel--wide task-center-panel task-center-v2">
+          <div className="task-empty-state-v2">
+            <h3>AI 学习计划已整合到任务中心</h3>
+            <p className="task-muted">进入任务中心后，可以手动新建任务，也可以使用 AI 生成计划。</p>
+            <button type="button" className="task-btn-primary" onClick={() => setPage("taskCenter")}>
+              前往任务中心
+            </button>
           </div>
-        </header>
-        <Suspense fallback={<div className="empty-state">AI 学习计划加载中...</div>}>
-          <LearningPlanCenter
-            user={user}
-            getSubjectLabel={getSubjectLabel}
-          />
-        </Suspense>
+        </section>
       </div>
     );
   }

@@ -483,7 +483,6 @@ function LearningTools({ onNavigate }) {
   const tools = [
     { id: "learningDataCenter", icon: "📊", title: "学习数据中心", desc: "全局学习统计" },
     { id: "reviewCenter", icon: "🔄", title: "复盘中心", desc: "错题与薄弱点" },
-    { id: "learningPlanCenter", icon: "📅", title: "AI 学习计划", desc: "个性化学习路径" },
     { id: "learningReportCenter", icon: "📄", title: "学习报告", desc: "周报月报总结" },
     { id: "quotaCenter", icon: "💎", title: "我的额度", desc: "用量与套餐" },
     { id: "profileEdit", icon: "⚙️", title: "学习设置", desc: "科目与目标管理" },

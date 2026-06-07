@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 const API_BASE = "/api";
+const TASK_COURSE_FILTER_KEY = "ai_study_task_center_course_filter";
 
 const TASK_TYPE_OPTIONS = ["复习资料", "完成练习", "整理笔记", "查漏补缺", "考前复盘", "自定义"];
 
@@ -10,6 +11,25 @@ const TASK_TYPE_LABELS = {
   code_practice: "代码练习",
   challenge: "完成练习",
   review: "复习资料",
+  custom: "自定义",
+};
+
+const PLAN_TYPES = [
+  { value: "today", label: "今日计划", days: 1 },
+  { value: "three_day", label: "3 天弱计划", days: 3 },
+  { value: "seven_day", label: "7 天学习计划", days: 7 },
+  { value: "exam", label: "考前冲刺计划", days: 7 },
+  { value: "coding", label: "编程训练计划", days: 5 },
+];
+
+const DAILY_MINUTES_OPTIONS = [30, 60, 90];
+
+const PLAN_TASK_TYPE_LABELS = {
+  review: "复习",
+  practice: "练习",
+  coding: "编程",
+  material: "资料",
+  summary: "总结",
   custom: "自定义",
 };
 
@@ -40,8 +60,36 @@ const emptyForm = {
   status: "todo",
 };
 
+const emptyPlanForm = {
+  planType: "today",
+  courseId: "",
+  dailyMinutes: 60,
+  customMinutes: "",
+  goal: "",
+};
+
 function getTaskTypeLabel(value) {
   return TASK_TYPE_LABELS[value] || value || "学习任务";
+}
+
+function getPlanTaskTypeLabel(value) {
+  return PLAN_TASK_TYPE_LABELS[value] || getTaskTypeLabel(value);
+}
+
+function getSavedTaskCourseFilter(fallback = "") {
+  try {
+    return localStorage.getItem(TASK_COURSE_FILTER_KEY) || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function saveTaskCourseFilter(courseId) {
+  try {
+    localStorage.setItem(TASK_COURSE_FILTER_KEY, courseId || "");
+  } catch {
+    // ignore storage failures
+  }
 }
 
 function getMaterialTitle(material) {
@@ -66,7 +114,7 @@ export default function TaskCenter({
   const [tasks, setTasks] = useState([]);
   const [materials, setMaterials] = useState([]);
   const [knowledgePoints, setKnowledgePoints] = useState([]);
-  const [courseFilter, setCourseFilter] = useState(subject || "");
+  const [courseFilter, setCourseFilter] = useState(() => getSavedTaskCourseFilter(subject || ""));
   const [highlightTaskId, setHighlightTaskId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -77,6 +125,13 @@ export default function TaskCenter({
   const [expandedKpIds, setExpandedKpIds] = useState(new Set());
   const [kpLoading, setKpLoading] = useState(false);
   const [materialsLoading, setMaterialsLoading] = useState(false);
+  const [planModalOpen, setPlanModalOpen] = useState(false);
+  const [planForm, setPlanForm] = useState({ ...emptyPlanForm, courseId: subject || "" });
+  const [planPreview, setPlanPreview] = useState(null);
+  const [planLoading, setPlanLoading] = useState(false);
+  const [planImporting, setPlanImporting] = useState(false);
+  const [planError, setPlanError] = useState("");
+  const [planSuccess, setPlanSuccess] = useState("");
 
   const normalizedFilterCourse = useMemo(
     () => normalizeSubject(courseFilter, "") || "",
@@ -87,6 +142,23 @@ export default function TaskCenter({
     () => normalizeSubject(form.courseId, "") || "",
     [form.courseId, normalizeSubject]
   );
+
+  const normalizedPlanCourse = useMemo(
+    () => normalizeSubject(planForm.courseId, "") || "",
+    [planForm.courseId, normalizeSubject]
+  );
+
+  const selectedPlanType = useMemo(
+    () => PLAN_TYPES.find((item) => item.value === planForm.planType) || PLAN_TYPES[0],
+    [planForm.planType]
+  );
+
+  const planItems = Array.isArray(planPreview?.items) ? planPreview.items : [];
+
+  const planTotalMinutes = useMemo(() => {
+    if (Number.isFinite(Number(planPreview?.total_minutes))) return Number(planPreview.total_minutes);
+    return planItems.reduce((sum, item) => sum + (Number(item?.estimated_minutes) || 0), 0);
+  }, [planItems, planPreview?.total_minutes]);
 
   const knowledgeTree = useMemo(() => {
     const points = Array.isArray(knowledgePoints) ? knowledgePoints : [];
@@ -116,8 +188,12 @@ export default function TaskCenter({
   }, [tasks]);
 
   useEffect(() => {
-    setCourseFilter(subject || "");
+    setCourseFilter(getSavedTaskCourseFilter(subject || ""));
   }, [subject]);
+
+  useEffect(() => {
+    saveTaskCourseFilter(courseFilter);
+  }, [courseFilter]);
 
   const [pendingSearchTaskId, setPendingSearchTaskId] = useState(null);
 
@@ -148,13 +224,13 @@ export default function TaskCenter({
   }, [tasks, pendingSearchTaskId, loading]);
 
   useEffect(() => {
-    if (!modalOpen) return undefined;
+    if (!modalOpen && !planModalOpen) return undefined;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [modalOpen]);
+  }, [modalOpen, planModalOpen]);
 
   useEffect(() => {
     loadTasks();
@@ -166,12 +242,12 @@ export default function TaskCenter({
     loadMaterials(normalizedFormCourse);
   }, [modalOpen, normalizedFormCourse, user?.username]);
 
-  const loadTasks = async () => {
+  const loadTasks = async (courseOverride = normalizedFilterCourse) => {
     if (!user?.username) return;
     setLoading(true);
     try {
       const query = new URLSearchParams({ username: user.username });
-      if (normalizedFilterCourse) query.set("course_id", normalizedFilterCourse);
+      if (courseOverride) query.set("course_id", courseOverride);
       const res = await fetch(`${API_BASE}/learning/tasks?${query.toString()}`);
       const data = await res.json();
       if (res.ok) setTasks(data.tasks || []);
@@ -252,6 +328,103 @@ export default function TaskCenter({
 
   const updateForm = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const openPlanModal = () => {
+    setPlanForm({ ...emptyPlanForm, courseId: normalizedFilterCourse || subject || "" });
+    setPlanPreview(null);
+    setPlanError("");
+    setPlanModalOpen(true);
+  };
+
+  const closePlanModal = () => {
+    if (planLoading || planImporting) return;
+    setPlanModalOpen(false);
+    setPlanPreview(null);
+    setPlanError("");
+  };
+
+  const updatePlanForm = (field, value) => {
+    setPlanForm((prev) => ({ ...prev, [field]: value }));
+    setPlanPreview(null);
+    setPlanError("");
+  };
+
+  const getPlanMinutes = () => {
+    if (planForm.dailyMinutes === 0) {
+      const customValue = parseInt(planForm.customMinutes, 10);
+      return Number.isFinite(customValue) && customValue > 0 ? customValue : 60;
+    }
+    return planForm.dailyMinutes;
+  };
+
+  const generatePlanPreview = async () => {
+    if (!user?.username) return;
+    setPlanLoading(true);
+    setPlanError("");
+    setPlanSuccess("");
+    try {
+      const res = await fetch(`${API_BASE}/learning/plans/generate-preview`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: user.username,
+          course_id: normalizedPlanCourse,
+          plan_type: planForm.planType,
+          days: selectedPlanType.days,
+          goal: planForm.goal.trim(),
+          daily_minutes: getPlanMinutes(),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setPlanError(data.detail || "学习计划生成失败，请稍后重试。");
+        return;
+      }
+      setPlanPreview({ ...data, items: Array.isArray(data.items) ? data.items : [] });
+    } catch (error) {
+      console.error("Failed to generate plan:", error);
+      setPlanError("学习计划生成失败，请稍后重试。");
+    } finally {
+      setPlanLoading(false);
+    }
+  };
+
+  const importPlanTasks = async () => {
+    if (!user?.username || planItems.length === 0) return;
+    setPlanImporting(true);
+    setPlanError("");
+    try {
+      const res = await fetch(`${API_BASE}/learning/plans/import-tasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: user.username,
+          plan_title: planPreview?.plan_title || "AI 学习计划",
+          items: planItems,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setPlanError(data.detail || "创建任务失败，请稍后重试。");
+        return;
+      }
+      const count = Number(data.created_count || data.count || planItems.length);
+      setPlanSuccess(`已生成 ${count} 个学习任务`);
+      setPlanModalOpen(false);
+      setPlanPreview(null);
+      const nextCourseFilter = normalizedPlanCourse || normalizedFilterCourse;
+      if (nextCourseFilter && nextCourseFilter !== normalizedFilterCourse) {
+        saveTaskCourseFilter(nextCourseFilter);
+        setCourseFilter(nextCourseFilter);
+      }
+      await loadTasks(nextCourseFilter);
+    } catch (error) {
+      console.error("Failed to import plan tasks:", error);
+      setPlanError("创建任务失败，请稍后重试。");
+    } finally {
+      setPlanImporting(false);
+    }
   };
 
   const toggleKpExpand = (kpId) => {
@@ -607,11 +780,16 @@ export default function TaskCenter({
       <header className="task-titlebar">
         <div>
           <h2>学习任务</h2>
-          <p>把资料、知识点和练习安排成可执行计划</p>
+          <p>把资料、知识点和练习安排成可执行计划。</p>
         </div>
-        <button type="button" className="task-btn-primary" onClick={openCreateModal}>
-          新建任务
-        </button>
+        <div className="task-title-actions">
+          <button type="button" className="task-btn-primary" onClick={openCreateModal}>
+            + 新建任务
+          </button>
+          <button type="button" className="task-btn-ai" onClick={openPlanModal}>
+            ✨ AI 生成计划
+          </button>
+        </div>
       </header>
 
       <div className="task-toolbar">
@@ -626,6 +804,13 @@ export default function TaskCenter({
         </label>
         <button type="button" className="task-btn-secondary" onClick={loadTasks}>刷新</button>
       </div>
+
+      {planSuccess && (
+        <div className="task-success-banner">
+          <span>{planSuccess}</span>
+          <button type="button" onClick={() => setPlanSuccess("")}>关闭</button>
+        </div>
+      )}
 
       {loading ? (
         <div className="task-empty-state-v2">正在加载任务...</div>
@@ -761,6 +946,162 @@ export default function TaskCenter({
               <button type="button" className="task-btn-primary" disabled={saving || !form.title.trim()} onClick={saveTask}>
                 {saving ? "保存中..." : "保存任务"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {planModalOpen && (
+        <div className="task-modal-overlay" role="presentation">
+          <div className="task-modal-card task-plan-modal-card" role="dialog" aria-modal="true" aria-labelledby="task-plan-modal-title">
+            <button type="button" className="task-modal-close" onClick={closePlanModal} aria-label="关闭">×</button>
+            <div className="task-modal-header">
+              <h3 id="task-plan-modal-title">AI 生成学习计划</h3>
+              <p>选择课程、目标和时间，系统会自动拆分为学习任务。</p>
+            </div>
+            <div className="task-modal-body">
+              <div className="task-plan-section">
+                <span className="task-plan-label">计划类型</span>
+                <div className="task-plan-options">
+                  {PLAN_TYPES.map((item) => (
+                    <button
+                      type="button"
+                      key={item.value}
+                      className={`task-plan-option ${planForm.planType === item.value ? "is-selected" : ""}`}
+                      onClick={() => updatePlanForm("planType", item.value)}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <label className="task-form-field">
+                <span>课程范围</span>
+                <select
+                  className="field"
+                  value={planForm.courseId}
+                  onChange={(event) => updatePlanForm("courseId", event.target.value)}
+                >
+                  <option value="">全部课程</option>
+                  {courseOptions.map((item) => (
+                    <option key={item} value={item}>{getSubjectLabel(item)}</option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="task-plan-section">
+                <span className="task-plan-label">每日学习时间</span>
+                <div className="task-plan-options task-plan-time-options">
+                  {DAILY_MINUTES_OPTIONS.map((minutes) => (
+                    <button
+                      type="button"
+                      key={minutes}
+                      className={`task-plan-option ${planForm.dailyMinutes === minutes ? "is-selected" : ""}`}
+                      onClick={() => {
+                        setPlanForm((prev) => ({
+                          ...prev,
+                          dailyMinutes: minutes,
+                          customMinutes: "",
+                        }));
+                        setPlanPreview(null);
+                        setPlanError("");
+                      }}
+                    >
+                      {minutes} 分钟
+                    </button>
+                  ))}
+                  <label className={`task-plan-custom ${planForm.dailyMinutes === 0 ? "is-selected" : ""}`}>
+                    <span>自定义</span>
+                    <input
+                      type="number"
+                      min="10"
+                      max="240"
+                      value={planForm.customMinutes}
+                      placeholder="分钟"
+                      onChange={(event) => {
+                        setPlanForm((prev) => ({
+                          ...prev,
+                          dailyMinutes: 0,
+                          customMinutes: event.target.value,
+                        }));
+                        setPlanPreview(null);
+                        setPlanError("");
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <label className="task-form-field">
+                <span>学习目标</span>
+                <input
+                  className="field"
+                  value={planForm.goal}
+                  placeholder="例如：复习 C 语言基础，准备期末考试"
+                  onChange={(event) => updatePlanForm("goal", event.target.value)}
+                />
+              </label>
+
+              {planError && <div className="task-plan-error">{planError}</div>}
+
+              {planPreview && (
+                <div className="task-plan-preview">
+                  <div className="task-plan-preview-header">
+                    <div>
+                      <h4>{planPreview.plan_title || "生成计划预览"}</h4>
+                      <p>
+                        已生成 {planItems.length} 个任务，预计学习时间 {planTotalMinutes || getPlanMinutes()} 分钟。
+                      </p>
+                    </div>
+                  </div>
+                  <div className="task-plan-preview-list">
+                    {planItems.length === 0 ? (
+                      <p className="task-muted">本次没有生成可创建的任务，请调整目标后重新生成。</p>
+                    ) : (
+                      planItems.map((item, index) => {
+                        const courseLabel = item?.course_id ? getSubjectLabel(item.course_id) : "全部课程";
+                        const minutes = Number(item?.estimated_minutes) || getPlanMinutes();
+                        const knowledgeLabel = item?.knowledge_point_title || item?.knowledge_point_text || item?.knowledge_point || "";
+                        return (
+                          <article className="task-plan-preview-item" key={`${item?.title || "task"}-${index}`}>
+                            <div className="task-plan-preview-index">{index + 1}</div>
+                            <div className="task-plan-preview-main">
+                              <h5>{item?.title || `学习任务 ${index + 1}`}</h5>
+                              {item?.description && <p>{item.description}</p>}
+                              <div className="task-plan-preview-meta">
+                                <span>{courseLabel}</span>
+                                <span>{minutes} 分钟</span>
+                                <span>{getPlanTaskTypeLabel(item?.task_type)}</span>
+                                {knowledgeLabel && <span>知识点：{knowledgeLabel}</span>}
+                              </div>
+                            </div>
+                          </article>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="task-modal-actions">
+              <button type="button" className="task-btn-secondary" onClick={closePlanModal} disabled={planLoading || planImporting}>
+                取消
+              </button>
+              {planPreview ? (
+                <>
+                  <button type="button" className="task-btn-secondary" onClick={generatePlanPreview} disabled={planLoading || planImporting}>
+                    {planLoading ? "生成中..." : "重新生成"}
+                  </button>
+                  <button type="button" className="task-btn-primary" onClick={importPlanTasks} disabled={planImporting || planItems.length === 0}>
+                    {planImporting ? "创建中..." : "确认创建任务"}
+                  </button>
+                </>
+              ) : (
+                <button type="button" className="task-btn-primary" onClick={generatePlanPreview} disabled={planLoading}>
+                  {planLoading ? "生成中..." : "生成计划预览"}
+                </button>
+              )}
             </div>
           </div>
         </div>
