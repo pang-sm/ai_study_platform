@@ -3869,6 +3869,7 @@ function App() {
             formatDate={formatDate}
             materials={materials}
             loadMaterials={(target) => loadMaterials(normalizeSubject(target || subject))}
+            loadDashboard={() => loadCourseDashboard(subject)}
             goalConfig={goalConfig}
             setGoalConfig={updateGoalConfig}
           />

@@ -40,7 +40,7 @@ export default function CourseDashboard({
   user, course, courseOptions, dashboard, loading, setPage,
   onCourseChange, getSubjectLabel, materials = [], goalConfig, setGoalConfig,
   onStartAsk, onOpenCodeStudio, onOpenPracticeCenter,
-  formatDate: propsFormatDate, loadMaterials,
+  formatDate: propsFormatDate, loadMaterials, loadDashboard,
 }) {
   const stats = dashboard?.stats || {};
   const courseLabel = getSubjectLabel ? getSubjectLabel(course) : course;
@@ -218,7 +218,10 @@ export default function CourseDashboard({
               <UnifiedMaterialUploader
                 courseId={course} courseName={courseLabel}
                 source="course_workspace"
-                onUploadSuccess={() => { if (loadMaterials) loadMaterials(course); }}
+                onUploadSuccess={() => {
+                  if (loadMaterials) loadMaterials(course);
+                  if (loadDashboard) loadDashboard();
+                }}
                 user={user} getSubjectLabel={getSubjectLabel}
               />
             </div>

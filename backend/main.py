@@ -1780,12 +1780,22 @@ def build_course_dashboard_payload(db: Session, user: models.User, course: str):
     except Exception:
         unlinked_material_count = 0
 
-    # Pending materials (parsing / pending status)
+    # Pending materials: not yet successfully indexed
+    # (null/empty = pending, parsing = in progress, pending = queued)
     pending_materials_count = material_query.filter(
-        models.StudyMaterial.parse_status.in_(["parsing", "pending"])
+        or_(
+            models.StudyMaterial.parse_status.is_(None),
+            models.StudyMaterial.parse_status == "",
+            models.StudyMaterial.parse_status.in_(["parsing", "pending"]),
+        )
     ).count()
 
     # Weekly study minutes
+    # NOTE: LearningRecord / CodeSession / QuestionAttempt tables do not have
+    # explicit duration columns, so this is a best-effort estimate:
+    #   - each learning record ≈ 5 min
+    #   - each code session ≈ 10 min
+    #   - each question attempt ≈ 3 min
     weekly_study_minutes = 0
     try:
         week_start = datetime.utcnow() - timedelta(days=datetime.utcnow().weekday())
@@ -1795,16 +1805,18 @@ def build_course_dashboard_payload(db: Session, user: models.User, course: str):
             models.LearningRecord.subject == normalized_course,
             models.LearningRecord.is_deleted.is_(False),
             models.LearningRecord.created_at >= week_start,
-        ).all()
-        # Rough estimate — most learning activities take ~5 min per record
-        weekly_study_minutes = len(week_records) * 5
-        # Add code practice time
+        ).count()
         week_code = db.query(models.CodeSession).filter(
             models.CodeSession.username == user.username,
             models.CodeSession.course_id == normalized_course,
             models.CodeSession.updated_at >= week_start,
         ).count()
-        weekly_study_minutes += week_code * 10
+        week_attempts = db.query(models.QuestionAttempt).filter(
+            models.QuestionAttempt.username == user.username,
+            models.QuestionAttempt.course_id == normalized_course,
+            models.QuestionAttempt.created_at >= week_start,
+        ).count()
+        weekly_study_minutes = week_records * 5 + week_code * 10 + week_attempts * 3
     except Exception:
         weekly_study_minutes = 0
 
