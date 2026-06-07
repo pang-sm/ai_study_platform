@@ -3843,7 +3843,7 @@ function App() {
         </div>
       </div>
 
-      <main className="workspace-main workspace-main--chat-only">
+      <main className={`workspace-main ${page === "dashboard" || page === "knowledgeLearning" || page === "workspaceMaterials" ? "workspace-main--wide" : "workspace-main--chat-only"}`}>
         {page === "dashboard" ? (
           <CourseDashboard
             user={user}

@@ -854,6 +854,12 @@ select.field:focus {
   width: 100%;
 }
 
+.workspace-main--wide {
+  max-width: none;
+  width: 100%;
+  padding: 0;
+}
+
 .chat-panel {
   border-radius: 30px;
   padding: 24px;
@@ -3639,6 +3645,9 @@ select.field:focus {
 
   .workspace-main--chat-only {
     max-width: 100%;
+  }
+  .workspace-main--wide {
+    padding: 0;
   }
 
   .auth-card {

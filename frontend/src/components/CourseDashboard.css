@@ -5,14 +5,16 @@
 /* ── Page Container ── */
 .cd-page {
   width: 100%;
-  min-height: 100vh;
+  min-width: 0;
   background: #f6f8fc;
   overflow-x: hidden;
 }
 .cd-page-inner {
-  width: min(100%, 1680px);
-  margin: 0 auto;
+  width: 100%;
+  max-width: none;
+  margin: 0;
   padding: 28px 36px 48px;
+  box-sizing: border-box;
 }
 
 /* ── Loading ── */
@@ -30,10 +32,10 @@
    Header Bar
    ═══════════════════════════════════════════════════════ */
 .cd-header {
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; align-items: flex-start; justify-content: space-between;
   gap: 20px; padding: 4px 0 24px; flex-wrap: wrap;
 }
-.cd-header-left { display: flex; flex-direction: column; gap: 3px; }
+.cd-header-left { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .cd-header-breadcrumb { font-size: 0.8rem; color: #64748b; letter-spacing: 0.01em; }
 .cd-header-course { margin: 0; font-size: 1.6rem; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; }
 .cd-header-sub { font-size: 0.86rem; color: #64748b; margin: 0; }
@@ -57,11 +59,11 @@
    Layout Grid — Main + Right Sidebar
    ═══════════════════════════════════════════════════════ */
 .cd-grid {
-  display: grid; grid-template-columns: minmax(0, 1fr) 340px;
-  gap: 20px; align-items: start;
+  display: grid; grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 20px; align-items: start; width: 100%; min-width: 0;
 }
 .cd-main { min-width: 0; display: flex; flex-direction: column; gap: 18px; }
-.cd-right { display: flex; flex-direction: column; gap: 16px; }
+.cd-right { min-width: 0; display: flex; flex-direction: column; gap: 16px; }
 
 /* ═══════════════════════════════════════════════════════
    Cards — Unified Style
@@ -69,6 +71,7 @@
 .cd-card {
   background: #fff; border: 1px solid #e5eaf3; border-radius: 18px;
   padding: 22px 26px; box-shadow: 0 8px 24px rgba(15,23,42,0.04);
+  min-width: 0; overflow: hidden;
 }
 .cd-card-header {
   display: flex; align-items: center; justify-content: space-between;
@@ -85,7 +88,7 @@
    Stats Overview — One large card with internal grid
    ═══════════════════════════════════════════════════════ */
 .cd-stats-grid {
-  display: grid; grid-template-columns: repeat(7, 1fr); gap: 0;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0;
 }
 .cd-stat-item {
   display: flex; flex-direction: column; align-items: center; gap: 4px;
@@ -290,16 +293,14 @@
 /* ═══════════════════════════════════════════════════════
    Responsive
    ═══════════════════════════════════════════════════════ */
-@media (max-width: 1200px) {
+@media (max-width: 1280px) {
   .cd-grid { grid-template-columns: 1fr; }
   .cd-right { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  .cd-stats-grid { grid-template-columns: repeat(4, 1fr); }
   .cd-page-inner { padding: 20px 20px 36px; }
 }
 @media (max-width: 768px) {
   .cd-grid { grid-template-columns: 1fr; }
   .cd-right { grid-template-columns: 1fr; }
-  .cd-stats-grid { grid-template-columns: repeat(2, 1fr); }
   .cd-stat-item:not(:last-child)::after { display: none; }
   .cd-header { flex-direction: column; align-items: flex-start; }
   .cd-header-right { flex-wrap: wrap; width: 100%; }
