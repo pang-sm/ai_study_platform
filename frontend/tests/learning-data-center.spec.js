@@ -83,7 +83,7 @@ test("学习数据中心使用真实数据并支持页面联动", async ({ page,
   await page.locator(".sb-nav").getByRole("button", { name: /学习数据中心/ }).click();
 
   await expect(page.getByRole("heading", { name: "学习数据中心", level: 1 })).toBeVisible();
-  await expect(page.getByText("查看你的学习表现、进度趋势与薄弱点分析")).toBeVisible();
+  await expect(page.getByText("查看你的学习表现、进度趋势与薄弱点概览")).toBeVisible();
   await expect(page.locator(".sb-nav-item.active", { hasText: "学习数据中心" })).toBeVisible();
 
   const expectedTexts = [
@@ -95,7 +95,7 @@ test("学习数据中心使用真实数据并支持页面联动", async ({ page,
     "连续学习天数",
     "学习趋势",
     "学科掌握度",
-    "薄弱知识点",
+    "薄弱知识点概览",
     "学习热力图",
     "最近学习记录",
     "本周目标达成",
@@ -107,6 +107,7 @@ test("学习数据中心使用真实数据并支持页面联动", async ({ page,
   }
   await expect(page.getByRole("button", { name: "刷新数据" })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "时间范围" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "去复盘中心处理" })).toBeVisible();
 
   await expect(page.getByText("学习数据加载失败")).toHaveCount(0);
   await expect(page.getByText("请稍后重试")).toHaveCount(0);
@@ -143,6 +144,13 @@ test("学习数据中心使用真实数据并支持页面联动", async ({ page,
 
   await page.locator(".ldc-kpi-grid").getByRole("button", { name: /^练习正确率/ }).click();
   await expect(page.locator(".sb-nav-item.active", { hasText: "练习中心" })).toBeVisible();
+  await page.locator(".sb-nav").getByRole("button", { name: /学习数据中心/ }).click();
+
+  await page.getByRole("button", { name: "去复盘中心处理" }).click();
+  await expect(page.getByRole("heading", { name: "复盘中心", level: 1 })).toBeVisible();
+  await expect(page.locator(".sb-nav-item.active", { hasText: "复盘中心" })).toBeVisible();
+  await expect(page.locator(".app-shell > .workspace-topbar .subject-pill.panel-pill", { hasText: "复盘中心" })).toHaveCount(0);
+  await expect(page.locator(".review-eyebrow")).toHaveCount(0);
   await page.locator(".sb-nav").getByRole("button", { name: /学习数据中心/ }).click();
 
   await page.screenshot({

@@ -24,17 +24,6 @@
   padding: 20px 22px;
 }
 
-.review-eyebrow {
-  display: inline-flex;
-  margin-bottom: 8px;
-  padding: 4px 9px;
-  border-radius: 999px;
-  background: #ecfeff;
-  color: #0e7490;
-  font-size: 12px;
-  font-weight: 800;
-}
-
 .review-hero h1,
 .review-panel-header h2 {
   margin: 0;

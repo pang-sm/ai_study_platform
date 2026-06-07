@@ -70,9 +70,17 @@ function formatRelativeTime(value) {
 }
 
 function getCourseName(item, getSubjectLabel) {
-  const raw = item?.course_id || item?.course_name || item?.subject || "";
-  if (!raw) return "未分类课程";
-  return getSubjectLabel?.(raw) || item?.course_name || raw;
+  const raw = item?.course_id || item?.course || item?.course_name || item?.courseName || item?.subject || "";
+  if (!raw) return "暂无数据";
+  return getSubjectLabel?.(raw) || item?.course_name || item?.courseName || raw;
+}
+
+function getKnowledgeTitle(item) {
+  return item?.knowledge_point_name || item?.knowledgePointName || item?.title || item?.name || "暂无数据";
+}
+
+function getMasteryValue(item) {
+  return clampPercent(item?.mastery ?? item?.progress ?? item?.mastery_rate ?? item?.masteryRate ?? item?.mastery_score);
 }
 
 function normalizeDashboardData(raw, getSubjectLabel) {
@@ -81,7 +89,7 @@ function normalizeDashboardData(raw, getSubjectLabel) {
   const trend = Array.isArray(data.trend) ? data.trend : [];
   const courses = Array.isArray(data.course_summaries) ? data.course_summaries : [];
   const weakPoints = Array.isArray(data.weak_points)
-    ? data.weak_points.filter((item) => (item.knowledge_point_name || item.title || "").trim()).slice(0, 5)
+    ? data.weak_points.filter((item) => getKnowledgeTitle(item) !== "暂无数据").slice(0, 5)
     : [];
   const heatmap = Array.isArray(data.heatmap) ? data.heatmap : [];
   const activities = Array.isArray(data.recent_activities) ? data.recent_activities.slice(0, 10) : [];
@@ -265,7 +273,7 @@ export default function LearningDataCenter({ user, getSubjectLabel, onNavigate }
       <header className="ldc-header">
         <div>
           <h1>学习数据中心</h1>
-          <p>查看你的学习表现、进度趋势与薄弱点分析</p>
+          <p>查看你的学习表现、进度趋势与薄弱点概览</p>
           {error && (
             <div className="ldc-error-banner">
               当前接口返回异常，已显示真实空状态：{error}
@@ -349,35 +357,44 @@ export default function LearningDataCenter({ user, getSubjectLabel, onNavigate }
 
         <article className="ldc-card">
           <div className="ldc-card-header">
-            <h2>薄弱知识点</h2>
+            <h2>薄弱知识点概览</h2>
           </div>
           {dashboard.weakPoints.length > 0 ? (
             <div className="ldc-weak-list">
               {dashboard.weakPoints.map((item, index) => {
-                const title = item.knowledge_point_name || item.title;
-                const mastery = clampPercent(item.mastery ?? item.mastery_score);
+                const title = getKnowledgeTitle(item);
+                const mastery = getMasteryValue(item);
                 return (
-                  <button
+                  <div
                     key={`${item.knowledge_point_id || title}-${index}`}
-                    type="button"
-                    className="ldc-weak-row ldc-clickable-row"
-                    onClick={() => navigate("knowledgeLearning", { courseId: item.course_id, knowledgePointId: item.knowledge_point_id })}
+                    className="ldc-weak-row ldc-weak-row--overview"
                   >
                     <span className="ldc-rank">{index + 1}</span>
                     <div>
                       <strong>{title}</strong>
-                      <small>{getCourseName(item, getSubjectLabel)} · {item.reason || item.source || "真实学习数据"}</small>
+                      <small>{getCourseName(item, getSubjectLabel)}</small>
                     </div>
                     <div className="ldc-weak-meter">
                       <span style={{ width: `${Math.max(4, mastery)}%` }} />
                     </div>
                     <em>掌握度 {formatPercent(mastery)}</em>
-                  </button>
+                  </div>
                 );
               })}
+              <button type="button" className="ldc-review-center-button" onClick={() => navigate("reviewCenter")}>
+                去复盘中心处理
+              </button>
             </div>
           ) : (
-            <div className="ldc-empty-panel">暂无薄弱知识点，完成更多练习或知识点学习后将自动分析。</div>
+            <div className="ldc-empty-panel">
+              <div>
+                <strong>暂无明显薄弱知识点</strong>
+                <p>继续完成练习和学习任务后，系统会自动生成分析。</p>
+              </div>
+              <button type="button" className="ldc-review-center-button" onClick={() => navigate("reviewCenter")}>
+                去复盘中心处理
+              </button>
+            </div>
           )}
         </article>
       </section>
@@ -446,18 +463,27 @@ export default function LearningDataCenter({ user, getSubjectLabel, onNavigate }
           </div>
           {dashboard.recommendations.length > 0 ? (
             <div className="ldc-recommend-list">
-              {dashboard.recommendations.slice(0, 4).map((item, index) => (
-                <div key={item.id || `${item.title}-${index}`} className="ldc-recommend-item">
-                  <span>{index + 1}</span>
-                  <div>
-                    <strong>{item.title}</strong>
-                    <p>{item.reason}</p>
-                    <button type="button" className="ldc-link-button" onClick={() => navigate(item.target_page, item.target_params)}>
-                      {item.action_text || "去处理"}
-                    </button>
+              {dashboard.recommendations.slice(0, 4).map((item, index) => {
+                const text = `${item.id || ""}${item.title || ""}${item.reason || ""}`;
+                const shouldReview = /weak|薄弱|复盘|复习/.test(text);
+                const target = shouldReview ? "reviewCenter" : item.target_page;
+                return (
+                  <div key={item.id || `${item.title}-${index}`} className="ldc-recommend-item">
+                    <span>{index + 1}</span>
+                    <div>
+                      <strong>{item.title}</strong>
+                      <p>{item.reason}</p>
+                      <button
+                        type="button"
+                        className="ldc-link-button"
+                        onClick={() => navigate(target, item.target_params)}
+                      >
+                        {shouldReview ? "去复盘中心处理" : item.action_text || "去处理"}
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="ldc-empty-panel">暂无学习建议，完成更多学习行为后将自动生成。</div>

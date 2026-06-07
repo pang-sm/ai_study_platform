@@ -13162,6 +13162,8 @@ select.field:focus {
 
 .ldc-empty-panel {
   display: flex;
+  flex-direction: column;
+  gap: 14px;
   min-height: 180px;
   align-items: center;
   justify-content: center;
@@ -13241,6 +13243,16 @@ select.field:focus {
   background: transparent;
 }
 
+.ldc-weak-row--overview {
+  padding: 10px 8px;
+  border-color: #e2e8f0;
+  background: #f8fafc;
+}
+
+.ldc-weak-row--overview > div {
+  min-width: 0;
+}
+
 .ldc-rank {
   display: inline-flex;
   width: 24px;
@@ -13259,6 +13271,10 @@ select.field:focus {
   display: block;
   color: #1e293b;
   font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  word-break: keep-all;
 }
 
 .ldc-weak-row small,
@@ -13267,6 +13283,10 @@ select.field:focus {
   margin-top: 4px;
   color: #64748b;
   font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  word-break: keep-all;
 }
 
 .ldc-weak-meter {
@@ -13288,6 +13308,25 @@ select.field:focus {
   font-size: 12px;
   font-style: normal;
   white-space: nowrap;
+}
+
+.ldc-review-center-button {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.ldc-review-center-button:hover {
+  border-color: #93c5fd;
+  background: #dbeafe;
+  transform: translateY(-1px);
 }
 
 .ldc-heatmap {
@@ -13443,5 +13482,18 @@ select.field:focus {
   .ldc-main-grid,
   .ldc-lower-grid {
     grid-template-columns: 1fr;
+  }
+
+  .ldc-weak-row {
+    grid-template-columns: 26px minmax(0, 1fr);
+  }
+
+  .ldc-weak-meter {
+    grid-column: 2;
+    width: 100%;
+  }
+
+  .ldc-weak-row em {
+    grid-column: 2;
   }
 }

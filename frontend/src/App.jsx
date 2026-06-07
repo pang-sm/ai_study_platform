@@ -3183,11 +3183,6 @@ function App() {
   if (page === "reviewCenter") {
     return wrapPage(
       <div className="app-shell">
-        <header className="workspace-topbar">
-          <div className="workspace-topbar-left">
-            <span className="subject-pill panel-pill">复盘中心</span>
-          </div>
-        </header>
         <Suspense fallback={<div className="empty-state">复盘中心加载中...</div>}>
           <ReviewCenter
             user={user}

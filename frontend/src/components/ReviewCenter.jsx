@@ -232,9 +232,8 @@ export default function ReviewCenter({ user, getSubjectLabel, setPage }) {
     <div className="review-page">
       <header className="review-hero">
         <div>
-          <div className="review-eyebrow">根据错题、负向事件和学习记录自动生成</div>
           <h1>复盘中心</h1>
-          <p>集中诊断薄弱知识点，创建复盘任务，把错题和卡顿变成下一步学习行动。</p>
+          <p>集中处理薄弱知识点、错题和负向事件，创建复盘任务，把问题转化为下一步学习行动。</p>
         </div>
         <button className="review-refresh-button" onClick={fetchReviewData}>
           刷新数据
