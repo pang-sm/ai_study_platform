@@ -437,7 +437,7 @@ function App() {
   const [searchNavigate, setSearchNavigate] = useState(null);
   const [authMode, setAuthMode] = useState("login");
 
-  const setPage = (nextPage) => {
+  const setPage = (nextPage, context = null) => {
     // Feature gating: intercept navigation to disabled features
     const PAGE_FEATURE_MAP = {
       codeStudio: "feature_code_studio_enabled",
@@ -460,7 +460,14 @@ function App() {
       setLearningGoals(Array.isArray(user?.learning_goals) ? [...user.learning_goals] : []);
     }
 
-    setPracticeContext(null);
+    if (context?.courseId) {
+      setSubject(normalizeSubject(context.courseId));
+    }
+    if (nextPage === "practiceCenter" && context) {
+      setPracticeContext(context);
+    } else {
+      setPracticeContext(null);
+    }
     saveCurrentPage(nextPage);
     setPageRaw(nextPage);
   };
@@ -3166,6 +3173,7 @@ function App() {
           <LearningDataCenter
             user={user}
             getSubjectLabel={getSubjectLabel}
+            onNavigate={setPage}
           />
         </Suspense>
       </div>

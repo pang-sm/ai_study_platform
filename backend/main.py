@@ -8675,311 +8675,611 @@ def get_learning_tasks_summary(username: str, course_id: str = "", db: Session =
 def get_learning_dashboard(username: str, db: Session = Depends(get_db)):
     user = get_user_by_username(username, db)
 
-    # ── Collect all distinct course_ids across tables ──
-    course_ids: set[str] = set()
+    now = utc_now()
+    today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = today - timedelta(days=6)
+    heatmap_start = today - timedelta(days=41)
+    done_statuses = {"done", "completed", "finished"}
 
-    materials = (
-        db.query(models.StudyMaterial)
-        .filter(models.StudyMaterial.username == user.username, models.StudyMaterial.is_deleted.is_(False))
-        .all()
-    )
-    for m in materials:
-        if m.subject:
-            course_ids.add(m.subject)
+    def as_aware(value):
+        if not value:
+            return None
+        if isinstance(value, str):
+            try:
+                parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except ValueError:
+                return None
+            value = parsed
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
 
-    kps = db.query(models.KnowledgePoint).filter(models.KnowledgePoint.username == user.username).all()
-    for kp in kps:
-        if kp.course_id:
-            course_ids.add(kp.course_id)
+    def day_key(value):
+        dt = as_aware(value)
+        return dt.date().isoformat() if dt else ""
 
-    tasks = db.query(models.LearningTask).filter(models.LearningTask.username == user.username).all()
-    for t in tasks:
-        if t.course_id:
-            course_ids.add(t.course_id)
+    def safe_int(value, default=0):
+        try:
+            if value is None:
+                return default
+            return int(value)
+        except (TypeError, ValueError):
+            return default
 
-    sessions = db.query(models.CodeSession).filter(models.CodeSession.username == user.username).all()
-    for s in sessions:
-        if s.course_id:
-            course_ids.add(s.course_id)
+    def safe_float(value, default=0.0):
+        try:
+            if value is None:
+                return default
+            return float(value)
+        except (TypeError, ValueError):
+            return default
 
-    questions = db.query(models.Question).filter(models.Question.username == user.username).all()
-    for q in questions:
-        if q.course_id:
-            course_ids.add(q.course_id)
+    def clamp_percent(value):
+        return max(0, min(100, round(safe_float(value), 1)))
 
-    # ── Overview ──
-    kp_progresses = (
-        db.query(models.UserKnowledgeProgress)
-        .filter(models.UserKnowledgeProgress.username == user.username)
-        .all()
-    )
-    avg_mastery = 0
-    if kp_progresses:
-        scores = [p.mastery_score or 0 for p in kp_progresses]
-        avg_mastery = round(sum(scores) / len(scores))
+    def parse_json(value):
+        if not value:
+            return {}
+        try:
+            parsed = json.loads(value)
+            return parsed if isinstance(parsed, dict) else {}
+        except Exception:
+            return {}
 
-    all_tasks = db.query(models.LearningTask).filter(models.LearningTask.username == user.username)
-    todo_task_count = all_tasks.filter(models.LearningTask.status == "todo").count()
-    doing_task_count = all_tasks.filter(models.LearningTask.status == "doing").count()
-    done_task_count = all_tasks.filter(models.LearningTask.status == "done").count()
+    def normalize_title(value):
+        text = (value or "").strip()
+        if not text or text in {"测试", "test", "未命名知识点", "未知知识点", "无"}:
+            return ""
+        return text
 
-    overview = {
-        "course_count": len(course_ids),
-        "material_count": len(materials),
-        "knowledge_point_count": len(kps),
-        "average_mastery": avg_mastery,
-        "todo_task_count": todo_task_count,
-        "doing_task_count": doing_task_count,
-        "done_task_count": done_task_count,
-        "code_session_count": len(sessions),
-        "challenge_count": db.query(models.CodeChallenge).filter(
-            models.CodeChallenge.username == user.username
-        ).count(),
-        "question_count": len(questions),
-        "attempt_count": db.query(models.QuestionAttempt).filter(
-            models.QuestionAttempt.username == user.username
-        ).count(),
-    }
+    def course_name(course_id):
+        return course_id or ""
 
-    # ── Practice stats ──
-    today = utc_now().replace(hour=0, minute=0, second=0, microsecond=0)
-    week_ago = today - timedelta(days=7)
-    practice_records = db.query(models.LearningRecord).filter(
-        models.LearningRecord.user_id == user.id,
-        models.LearningRecord.record_type == "practice",
-    ).all()
-    today_practice = [r for r in practice_records if r.created_at and r.created_at.replace(tzinfo=None) >= today]
-    week_practice = [r for r in practice_records if r.created_at and r.created_at.replace(tzinfo=None) >= week_ago]
-
-    def _parse_practice_tags(tags_str):
-        try: return json.loads(tags_str) if tags_str else {}
-        except: return {}
-
-    def _practice_total(tags_dict):
-        # total_questions (all questions including short_answer) if available, else total
-        return tags_dict.get("total_questions", tags_dict.get("total", 0))
-
-    def _practice_graded(tags_dict):
-        # graded_questions (auto-graded count) if available, else total (backward compat)
-        return tags_dict.get("graded_questions", tags_dict.get("total", 0))
-
-    today_q_all = sum(_practice_total(_parse_practice_tags(r.tags)) for r in today_practice)
-    today_q_graded = sum(_practice_graded(_parse_practice_tags(r.tags)) for r in today_practice)
-    today_correct = sum(_parse_practice_tags(r.tags).get("correct", 0) for r in today_practice)
-    today_acc = round(today_correct / today_q_graded * 100, 1) if today_q_graded > 0 else 0
-    today_dur = sum(_parse_practice_tags(r.tags).get("duration_seconds", 0) for r in today_practice)
-    week_q_all = sum(_practice_total(_parse_practice_tags(r.tags)) for r in week_practice)
-    week_q_graded = sum(_practice_graded(_parse_practice_tags(r.tags)) for r in week_practice)
-    week_correct = sum(_parse_practice_tags(r.tags).get("correct", 0) for r in week_practice)
-    week_acc = round(week_correct / week_q_graded * 100, 1) if week_q_graded > 0 else 0
-    week_dur = sum(_parse_practice_tags(r.tags).get("duration_seconds", 0) for r in week_practice)
-
-    overview["today_practice_questions"] = today_q_all
-    overview["today_practice_accuracy"] = today_acc
-    overview["week_practice_questions"] = week_q_all
-    overview["week_practice_accuracy"] = week_acc
-    overview["week_study_minutes"] = round(week_dur / 60)
-    overview["total_practice_records"] = len(practice_records)
-
-    today_tasks_done = db.query(models.LearningTask).filter(
-        models.LearningTask.username == user.username, models.LearningTask.status == "done",
-        models.LearningTask.updated_at >= today
-    ).count()
-    week_tasks_done = db.query(models.LearningTask).filter(
-        models.LearningTask.username == user.username, models.LearningTask.status == "done",
-        models.LearningTask.updated_at >= week_ago
-    ).count()
-    overdue_tasks = db.query(models.LearningTask).filter(
-        models.LearningTask.username == user.username, models.LearningTask.status != "done",
-        models.LearningTask.due_date.isnot(None), models.LearningTask.due_date < today
-    ).count() if hasattr(models.LearningTask, 'due_date') else 0
-
-    practice_summary = {"today": {"sessions": len(today_practice), "questions": today_q_all, "graded_questions": today_q_graded, "correct": today_correct, "accuracy": today_acc, "duration_minutes": round(today_dur / 60)},
-                       "week": {"sessions": len(week_practice), "questions": week_q_all, "graded_questions": week_q_graded, "correct": week_correct, "accuracy": week_acc, "duration_minutes": round(week_dur / 60)}}
-    task_summary = {"today_completed": today_tasks_done, "week_completed": week_tasks_done, "pending": todo_task_count, "overdue": overdue_tasks}
-
-    # ── Weak Points (70 threshold) ──
-    weak_points = []
-    weak_progresses = (
-        db.query(models.UserKnowledgeProgress)
-        .filter(models.UserKnowledgeProgress.username == user.username, models.UserKnowledgeProgress.mastery_score < 70)
-        .order_by(models.UserKnowledgeProgress.mastery_score.asc()).limit(8).all()
-    )
-    if len(weak_progresses) < 5:
-        extra = (
-            db.query(models.UserKnowledgeProgress)
-            .filter(
-                models.UserKnowledgeProgress.username == user.username,
-                models.UserKnowledgeProgress.status.in_(["not_started", "learning", "reviewing"]),
-                ~models.UserKnowledgeProgress.id.in_([p.id for p in weak_progresses]),
-            )
-            .order_by(models.UserKnowledgeProgress.mastery_score.asc())
-            .limit(5 - len(weak_progresses))
-            .all()
-        )
-        weak_progresses.extend(extra)
-
-    kp_id_to_title: dict[int, str] = {}
-    kp_id_to_course: dict[int, str] = {}
-    if weak_progresses:
-        wp_kp_ids = [p.knowledge_point_id for p in weak_progresses]
-        wp_kps = db.query(models.KnowledgePoint).filter(models.KnowledgePoint.id.in_(wp_kp_ids)).all()
-        for kp in wp_kps:
-            kp_id_to_title[kp.id] = kp.title
-            kp_id_to_course[kp.id] = kp.course_id
-
-    for p in weak_progresses:
-        title = kp_id_to_title.get(p.knowledge_point_id, "")
-        course_id = kp_id_to_course.get(p.knowledge_point_id, p.course_id)
-        # Estimate recent accuracy from practice records
-        kp_acc = 0; kp_q = 0; kp_c = 0
-        for r in practice_records:
-            tags = _parse_practice_tags(r.tags)
-            if tags.get("total", 0) > 0:
-                kp_q += tags["total"]; kp_c += tags.get("correct", 0)
-        recent_kp_acc = round(kp_c / kp_q * 100, 1) if kp_q > 0 else 0
-        reason = "掌握度较低，建议优先复习" if (p.mastery_score or 0) < 40 else ("最近练习正确率偏低" if recent_kp_acc < 60 else "建议继续练习巩固")
-        weak_points.append({
-            "course_id": course_id, "course_name": course_id, "knowledge_point_id": p.knowledge_point_id,
-            "title": title, "mastery_score": p.mastery_score or 0, "status": p.status or "not_started",
-            "recent_accuracy": recent_kp_acc, "practice_count": p.practice_count or 0, "reason": reason,
-        })
-
-    # ── Recent Activities ──
-    activities = []
-    # Recent practice records
-    recent_practice = db.query(models.LearningRecord).filter(
-        models.LearningRecord.user_id == user.id, models.LearningRecord.record_type == "practice"
-    ).order_by(models.LearningRecord.created_at.desc()).limit(6).all()
-    for r in recent_practice:
-        tags = _parse_practice_tags(r.tags)
-        summary = f"完成 {tags.get('total',0)} 题，正确 {tags.get('correct',0)} 题，正确率 {tags.get('accuracy',0)}%"
-        if tags.get('duration_seconds'): summary += f"，用时 {round(tags['duration_seconds']/60)} 分钟"
-        if tags.get('task_id'): summary += f" [任务]"
-        activities.append({"type": "practice", "title": r.question or "完成练习", "summary": summary,
-                           "course_name": r.subject or "", "knowledge_point_name": "", "created_at": serialize_datetime(r.created_at)})
-
-    # Recent completed tasks
-    recent_done_tasks = db.query(models.LearningTask).filter(
-        models.LearningTask.username == user.username, models.LearningTask.status == "done"
-    ).order_by(models.LearningTask.updated_at.desc()).limit(5).all()
-    for t in recent_done_tasks:
-        activities.append({"type": "task_done", "title": t.title, "course_id": t.course_id or "", "course_name": t.course_id or "", "created_at": serialize_datetime(t.updated_at) if t.updated_at else None})
-
-    # Course summaries
-    course_map = {}
-    for r in practice_records:
-        cid = r.subject or ""
-        if cid not in course_map: course_map[cid] = {"questions": 0, "correct": 0, "dur": 0, "count": 0}
-        t = _parse_practice_tags(r.tags)
-        course_map[cid]["questions"] += t.get("total", 0)
-        course_map[cid]["correct"] += t.get("correct", 0)
-        course_map[cid]["dur"] += t.get("duration_seconds", 0)
-        course_map[cid]["count"] += 1
-    course_summaries = [{"course_name": cid, "practice_questions": d["questions"], "practice_accuracy": round(d["correct"]/d["questions"]*100,1) if d["questions"]>0 else 0,
-                         "task_completed": week_tasks_done, "study_minutes": round(d["dur"]/60), "practice_sessions": d["count"]} for cid, d in course_map.items()]
-
-    # Recommendations
-    recommendations = []
-    if weak_points: recommendations.append({"type": "weak_point_review", "title": f"建议复习{weak_points[0].get('title','薄弱点')}", "description": f"最近掌握度为 {weak_points[0].get('mastery_score',0)}%，建议回看资料并继续练习。"})
-    if week_q_all == 0: recommendations.append({"type": "start_practice", "title": "开始第一次练习", "description": "你本周还没有完成任何练习，建议完成一次练习来检验学习效果。"})
-    elif week_acc < 60: recommendations.append({"type": "review_errors", "title": "进行错题复盘", "description": f"本周练习正确率为 {week_acc}%，建议查看错题并针对性复习。"})
-    if overdue_tasks > 0: recommendations.append({"type": "clear_overdue", "title": f"处理 {overdue_tasks} 个逾期任务", "description": "逾期任务可能会影响学习进度，建议尽快完成。"})
-    if today_q_all == 0: recommendations.append({"type": "daily_practice", "title": "完成今日练习", "description": "今天还没有练习记录，建议完成 5 道题保持学习节奏。"})
-
-    # Recent materials
-    recent_materials = (
-        db.query(models.StudyMaterial)
-        .filter(models.StudyMaterial.username == user.username, models.StudyMaterial.is_deleted.is_(False))
-        .order_by(models.StudyMaterial.created_at.desc())
-        .limit(3)
-        .all()
-    )
-    for m in recent_materials:
+    def add_activity(
+        activities,
+        activity_type,
+        title,
+        created_at,
+        *,
+        subtitle="",
+        course_id="",
+        knowledge_point_id=None,
+        material_id=None,
+        target_page="",
+        target_params=None,
+        study_minutes=0,
+        completed_tasks=0,
+        practice_count=0,
+        ai_question_count=0,
+    ):
+        dt = as_aware(created_at)
+        clean_title = (title or "").strip()
+        if not dt or not clean_title:
+            return
         activities.append({
-            "type": "material_uploaded",
-            "title": m.original_filename or "资料",
-            "course_id": m.subject or "",
-            "course_name": m.subject or "",
-            "created_at": serialize_datetime(m.created_at) if m.created_at else None,
+            "id": f"{activity_type}-{len(activities) + 1}",
+            "type": activity_type,
+            "title": clean_title,
+            "subtitle": subtitle or "",
+            "course_id": course_id or "",
+            "course_name": course_name(course_id),
+            "knowledge_point_id": knowledge_point_id,
+            "material_id": material_id,
+            "created_at": serialize_datetime(dt),
+            "target_page": target_page,
+            "target_params": target_params or {},
+            "_dt": dt,
+            "_study_minutes": max(0, safe_int(study_minutes)),
+            "_completed_tasks": max(0, safe_int(completed_tasks)),
+            "_practice_count": max(0, safe_int(practice_count)),
+            "_ai_question_count": max(0, safe_int(ai_question_count)),
         })
 
-    # Sort by created_at desc and limit to 10
-    activities.sort(key=lambda x: x["created_at"] or "", reverse=True)
-    activities = activities[:10]
+    materials = db.query(models.StudyMaterial).filter(
+        models.StudyMaterial.username == user.username,
+        models.StudyMaterial.is_deleted.is_(False),
+    ).all()
+    knowledge_points = db.query(models.KnowledgePoint).filter(
+        models.KnowledgePoint.username == user.username,
+    ).all()
+    progress_rows = db.query(models.UserKnowledgeProgress).filter(
+        models.UserKnowledgeProgress.username == user.username,
+    ).all()
+    progress_events = db.query(models.KnowledgeProgressEvent).filter(
+        models.KnowledgeProgressEvent.username == user.username,
+    ).all()
+    tasks = db.query(models.LearningTask).filter(
+        models.LearningTask.username == user.username,
+    ).all()
+    records = db.query(models.LearningRecord).filter(
+        models.LearningRecord.user_id == user.id,
+        models.LearningRecord.is_deleted.is_(False),
+    ).all()
+    questions = db.query(models.Question).filter(
+        models.Question.username == user.username,
+    ).all()
+    attempts = db.query(models.QuestionAttempt).filter(
+        models.QuestionAttempt.username == user.username,
+    ).all()
+    code_sessions = db.query(models.CodeSession).filter(
+        models.CodeSession.username == user.username,
+    ).all()
+    code_attempts = db.query(models.CodeChallengeAttempt).filter(
+        models.CodeChallengeAttempt.username == user.username,
+    ).all()
+    code_challenges = db.query(models.CodeChallenge).filter(
+        models.CodeChallenge.username == user.username,
+    ).all()
+    reports = db.query(models.LearningReport).filter(
+        models.LearningReport.username == user.username,
+    ).all()
+    chat_rows = (
+        db.query(models.ChatMessage, models.ChatSession)
+        .join(models.ChatSession, models.ChatMessage.session_id == models.ChatSession.id)
+        .filter(models.ChatMessage.user_id == user.id)
+        .all()
+    )
 
-    # ── Course Summaries ──
+    kp_by_id = {kp.id: kp for kp in knowledge_points}
+    course_ids = set()
+    for item in materials:
+        if item.subject:
+            course_ids.add(item.subject)
+    for item in knowledge_points:
+        if item.course_id:
+            course_ids.add(item.course_id)
+    for item in progress_rows:
+        if item.course_id:
+            course_ids.add(item.course_id)
+    for item in tasks:
+        if item.course_id:
+            course_ids.add(item.course_id)
+    for item in questions:
+        if item.course_id:
+            course_ids.add(item.course_id)
+    for item in attempts:
+        if item.course_id:
+            course_ids.add(item.course_id)
+    for item in code_sessions:
+        if item.course_id:
+            course_ids.add(item.course_id)
+    for item in code_challenges:
+        if item.course_id:
+            course_ids.add(item.course_id)
+    for item in reports:
+        if item.course_id:
+            course_ids.add(item.course_id)
+    for _, session in chat_rows:
+        cid = normalize_subject(session.subject or session.course or "", default="")
+        if cid:
+            course_ids.add(cid)
+
+    practice_total = 0
+    practice_correct = 0
+    practice_minutes = 0
+    practice_by_course = defaultdict(lambda: {"total": 0, "correct": 0, "count": 0, "minutes": 0})
+    wrong_by_kp = defaultdict(int)
+    attempts_by_kp = defaultdict(int)
+    activities = []
+
+    for record in records:
+        tags = parse_json(record.tags)
+        duration_seconds = safe_int(tags.get("duration_seconds"))
+        minutes = round(duration_seconds / 60) if duration_seconds else safe_int(tags.get("duration_minutes") or tags.get("minutes"))
+        if minutes:
+            practice_minutes += minutes
+        if record.record_type == "practice":
+            total = safe_int(tags.get("total_questions", tags.get("total", 0)))
+            graded = safe_int(tags.get("graded_questions", total))
+            correct = safe_int(tags.get("correct", 0))
+            if graded > 0:
+                practice_total += graded
+                practice_correct += min(correct, graded)
+            cid = record.subject or ""
+            practice_by_course[cid]["total"] += graded
+            practice_by_course[cid]["correct"] += min(correct, graded)
+            practice_by_course[cid]["count"] += 1
+            practice_by_course[cid]["minutes"] += minutes
+            add_activity(
+                activities,
+                "practice",
+                record.question or "完成练习",
+                record.created_at,
+                subtitle=f"完成 {total} 题" if total else "练习记录",
+                course_id=cid,
+                target_page="practiceCenter",
+                target_params={"courseId": cid},
+                study_minutes=minutes,
+                practice_count=1,
+            )
+        elif minutes:
+            add_activity(
+                activities,
+                "learning_record",
+                record.question or "保存学习记录",
+                record.created_at,
+                subtitle="学习记录",
+                course_id=record.subject or "",
+                target_page="records",
+                target_params={"recordId": record.id},
+                study_minutes=minutes,
+            )
+
+    for attempt in attempts:
+        result = (attempt.self_result or "").lower()
+        is_graded = result in {"correct", "incorrect", "wrong", "right", "partial"}
+        if is_graded:
+            practice_total += 1
+            if result in {"correct", "right"}:
+                practice_correct += 1
+            else:
+                if attempt.knowledge_point_id:
+                    wrong_by_kp[attempt.knowledge_point_id] += 1
+            if attempt.knowledge_point_id:
+                attempts_by_kp[attempt.knowledge_point_id] += 1
+            cid = attempt.course_id or ""
+            practice_by_course[cid]["total"] += 1
+            practice_by_course[cid]["correct"] += 1 if result in {"correct", "right"} else 0
+            practice_by_course[cid]["count"] += 1
+        add_activity(
+            activities,
+            "question_attempt",
+            "完成练习作答",
+            attempt.created_at,
+            subtitle="正确" if result in {"correct", "right"} else ("待复盘" if is_graded else "已作答"),
+            course_id=attempt.course_id or "",
+            knowledge_point_id=attempt.knowledge_point_id,
+            target_page="practiceCenter",
+            target_params={"courseId": attempt.course_id or "", "knowledgePointId": attempt.knowledge_point_id},
+            practice_count=1,
+        )
+
+    completed_tasks = 0
+    pending_tasks = 0
+    for task in tasks:
+        status = (task.status or "").lower()
+        is_done = status in done_statuses
+        completed_tasks += 1 if is_done else 0
+        pending_tasks += 0 if is_done else 1
+        activity_date = task.completed_at or task.updated_at or task.created_at
+        add_activity(
+            activities,
+            "task_done" if is_done else "task_created",
+            task.title,
+            activity_date,
+            subtitle="已完成任务" if is_done else "学习任务",
+            course_id=task.course_id or "",
+            knowledge_point_id=task.knowledge_point_id,
+            target_page="taskCenter",
+            target_params={"taskId": task.id, "courseId": task.course_id or ""},
+            completed_tasks=1 if is_done else 0,
+        )
+
+    ai_question_count = 0
+    for message, session in chat_rows:
+        if message.role == "user":
+            ai_question_count += 1
+            cid = normalize_subject(message.subject if hasattr(message, "subject") else "", default="")
+            if not cid:
+                cid = normalize_subject(session.subject or session.course or "", default="")
+            add_activity(
+                activities,
+                "chat",
+                "AI 问答",
+                message.created_at,
+                subtitle=(message.content or "")[:40],
+                course_id=cid,
+                target_page="chat",
+                target_params={"sessionId": message.session_id, "courseId": cid},
+                ai_question_count=1,
+            )
+
+    for material in materials:
+        add_activity(
+            activities,
+            "material_uploaded",
+            material.original_filename,
+            material.created_at,
+            subtitle="上传资料",
+            course_id=material.subject or "",
+            material_id=material.id,
+            target_page="workspaceMaterials",
+            target_params={"materialId": material.id, "courseId": material.subject or ""},
+        )
+
+    for event in progress_events:
+        kp = kp_by_id.get(event.knowledge_point_id)
+        title = normalize_title(kp.title if kp else "")
+        if not title:
+            continue
+        add_activity(
+            activities,
+            "knowledge_progress",
+            title,
+            event.created_at,
+            subtitle=event.reason or event.event_type or "知识点学习",
+            course_id=event.course_id or (kp.course_id if kp else ""),
+            knowledge_point_id=event.knowledge_point_id,
+            target_page="knowledgeLearning",
+            target_params={"knowledgePointId": event.knowledge_point_id, "courseId": event.course_id or ""},
+        )
+
+    for session in code_sessions:
+        add_activity(
+            activities,
+            "code_session",
+            session.title,
+            session.created_at,
+            subtitle=session.language or "编程练习",
+            course_id=session.course_id or "",
+            target_page="codeStudio",
+            target_params={"sessionId": session.id, "courseId": session.course_id or ""},
+        )
+
+    for attempt in code_attempts:
+        title = "提交编程练习"
+        challenge = next((c for c in code_challenges if c.id == attempt.challenge_id), None)
+        if challenge:
+            title = challenge.title
+        add_activity(
+            activities,
+            "code_attempt",
+            title,
+            attempt.created_at,
+            subtitle=attempt.status or "编程提交",
+            course_id=challenge.course_id if challenge else "",
+            target_page="codeStudio",
+            target_params={"challengeId": attempt.challenge_id, "sessionId": attempt.session_id},
+        )
+
+    for report in reports:
+        add_activity(
+            activities,
+            "report",
+            report.title,
+            report.created_at,
+            subtitle="生成学习报告",
+            course_id=report.course_id or "",
+            target_page="learningReportCenter",
+            target_params={"reportId": report.id, "courseId": report.course_id or ""},
+        )
+
+    trend_map = {}
+    for index in range(7):
+        day = week_start + timedelta(days=index)
+        trend_map[day.date().isoformat()] = {
+            "date": day.date().isoformat(),
+            "study_minutes": 0,
+            "completed_tasks": 0,
+            "practice_count": 0,
+            "ai_question_count": 0,
+        }
+    heatmap_map = {}
+    for index in range(42):
+        day = heatmap_start + timedelta(days=index)
+        heatmap_map[day.date().isoformat()] = {
+            "date": day.date().isoformat(),
+            "activity_count": 0,
+            "study_minutes": 0,
+            "level": 0,
+        }
+    for activity in activities:
+        key = day_key(activity["_dt"])
+        if key in trend_map:
+            trend_map[key]["study_minutes"] += activity["_study_minutes"]
+            trend_map[key]["completed_tasks"] += activity["_completed_tasks"]
+            trend_map[key]["practice_count"] += activity["_practice_count"]
+            trend_map[key]["ai_question_count"] += activity["_ai_question_count"]
+        if key in heatmap_map:
+            heatmap_map[key]["activity_count"] += 1
+            heatmap_map[key]["study_minutes"] += activity["_study_minutes"]
+    for item in heatmap_map.values():
+        count = item["activity_count"]
+        item["level"] = 0 if count == 0 else 1 if count <= 2 else 2 if count <= 5 else 3 if count <= 9 else 4
+
+    total_study_minutes = sum(a["_study_minutes"] for a in activities)
+    week_study_minutes = sum(item["study_minutes"] for item in trend_map.values())
+    active_dates = {day_key(a["_dt"]) for a in activities if as_aware(a["_dt"]) and as_aware(a["_dt"]) >= week_start}
+    all_activity_dates = sorted({day_key(a["_dt"]) for a in activities if day_key(a["_dt"])}, reverse=True)
+    streak_days = 0
+    cursor = today.date()
+    date_set = set(all_activity_dates)
+    while cursor.isoformat() in date_set:
+        streak_days += 1
+        cursor -= timedelta(days=1)
+    best_streak_days = 0
+    current_streak = 0
+    previous = None
+    for key in sorted(date_set):
+        current_date = date.fromisoformat(key)
+        if previous and (current_date - previous).days == 1:
+            current_streak += 1
+        else:
+            current_streak = 1
+        best_streak_days = max(best_streak_days, current_streak)
+        previous = current_date
+
+    practice_accuracy = round(practice_correct / practice_total * 100, 1) if practice_total else 0
+    completed_reports_count = len(reports)
+
     course_summaries = []
     for cid in sorted(course_ids):
-        cid_materials = [m for m in materials if m.subject == cid]
-        cid_kps = [kp for kp in kps if kp.course_id == cid]
-        cid_tasks = [t for t in tasks if t.course_id == cid]
-        cid_sessions = [s for s in sessions if s.course_id == cid]
-        cid_questions_list = [q for q in questions if q.course_id == cid]
-
-        cid_progresses = [
-            p for p in kp_progresses
-            if p.course_id == cid
+        cid_progress = [p for p in progress_rows if p.course_id == cid]
+        cid_scores = [safe_int(p.mastery_score) for p in cid_progress if p.mastery_score is not None]
+        cid_attempts = [a for a in attempts if (a.course_id or "") == cid]
+        cid_practice = practice_by_course[cid]
+        cid_practice_total = cid_practice["total"]
+        cid_practice_correct = cid_practice["correct"]
+        avg_mastery = round(sum(cid_scores) / len(cid_scores), 1) if cid_scores else 0
+        if not cid_scores and cid_practice_total:
+            avg_mastery = round(cid_practice_correct / cid_practice_total * 100, 1)
+        cid_activity_dates = [
+            a["_dt"] for a in activities
+            if a.get("course_id") == cid and a.get("_dt")
         ]
-        cid_avg = 0
-        if cid_progresses:
-            cid_scores = [p.mastery_score or 0 for p in cid_progresses]
-            cid_avg = round(sum(cid_scores) / len(cid_scores))
-
+        weak_count = sum(1 for p in cid_progress if safe_int(p.mastery_score, 100) < 70)
         course_summaries.append({
             "course_id": cid,
-            "course_name": cid,
-            "material_count": len(cid_materials),
-            "knowledge_point_count": len(cid_kps),
-            "average_mastery": cid_avg,
-            "todo_task_count": len([t for t in cid_tasks if t.status == "todo"]),
-            "doing_task_count": len([t for t in cid_tasks if t.status == "doing"]),
-            "done_task_count": len([t for t in cid_tasks if t.status == "done"]),
-            "code_session_count": len(cid_sessions),
-            "challenge_count": db.query(models.CodeChallenge).filter(
-                models.CodeChallenge.username == user.username,
-                models.CodeChallenge.course_id == cid,
-            ).count(),
-            "question_count": len(cid_questions_list),
+            "course_name": course_name(cid),
+            "study_minutes": cid_practice["minutes"],
+            "task_count": len([t for t in tasks if (t.course_id or "") == cid]),
+            "completed_task_count": len([t for t in tasks if (t.course_id or "") == cid and (t.status or "").lower() in done_statuses]),
+            "practice_count": cid_practice["count"] + len(cid_attempts),
+            "practice_accuracy": round(cid_practice_correct / cid_practice_total * 100, 1) if cid_practice_total else 0,
+            "average_mastery": avg_mastery,
+            "weak_point_count": weak_count,
+            "material_count": len([m for m in materials if (m.subject or "") == cid]),
+            "knowledge_point_count": len([kp for kp in knowledge_points if (kp.course_id or "") == cid]),
+            "last_activity_at": serialize_datetime(max(cid_activity_dates)) if cid_activity_dates else None,
         })
 
-    # ── Recommendations (merge old + new) ──
-    if not recommendations:
-        recommendations = []
-    if weak_points:
-        top_weak = weak_points[0]["title"] if weak_points[0]["title"] else "薄弱知识点"
-        recommendations.append(f"你有 {len(weak_points)} 个薄弱知识点，建议优先复习：{top_weak}。")
-    if overview["material_count"] == 0:
-        recommendations.append("建议先上传课程资料，让 AI 回答更贴合你的课程内容。")
-    if overview["knowledge_point_count"] == 0:
-        recommendations.append("建议进入课程工作台，使用 AI 生成知识点路线图。")
-    if overview["code_session_count"] < 3:
-        recommendations.append("建议进入编程学习助手完成几次代码练习，积累诊断数据。")
-    if overview["attempt_count"] < 3:
-        recommendations.append("建议进入练习中心完成几道题，系统会自动更新知识点掌握度。")
-    if not recommendations:
-        recommendations.append("当前学习数据较完整，可以继续按薄弱知识点进行针对性练习。")
-    recommendations = recommendations[:5]
+    weak_candidates = []
+    for progress in progress_rows:
+        kp = kp_by_id.get(progress.knowledge_point_id)
+        title = normalize_title(kp.title if kp else "")
+        if not title:
+            continue
+        mastery = clamp_percent(progress.mastery_score if progress.mastery_score is not None else 0)
+        if mastery < 70 or (progress.status or "") in {"not_started", "learning", "reviewing"}:
+            weak_candidates.append({
+                "knowledge_point_id": progress.knowledge_point_id,
+                "knowledge_point_name": title,
+                "title": title,
+                "course_id": progress.course_id or (kp.course_id if kp else ""),
+                "course_name": course_name(progress.course_id or (kp.course_id if kp else "")),
+                "mastery": mastery,
+                "mastery_score": mastery,
+                "practice_count": safe_int(progress.practice_count),
+                "wrong_count": wrong_by_kp.get(progress.knowledge_point_id, 0),
+                "reason": "掌握度低" if mastery < 70 else "仍在学习中",
+                "source": "user_knowledge_progress",
+            })
+    for kp_id, wrong_count in wrong_by_kp.items():
+        kp = kp_by_id.get(kp_id)
+        title = normalize_title(kp.title if kp else "")
+        if not title or any(item["knowledge_point_id"] == kp_id for item in weak_candidates):
+            continue
+        total = attempts_by_kp.get(kp_id, wrong_count)
+        error_rate = round(wrong_count / total * 100, 1) if total else 0
+        if error_rate >= 40:
+            weak_candidates.append({
+                "knowledge_point_id": kp_id,
+                "knowledge_point_name": title,
+                "title": title,
+                "course_id": kp.course_id if kp else "",
+                "course_name": course_name(kp.course_id if kp else ""),
+                "mastery": max(0, 100 - error_rate),
+                "mastery_score": max(0, 100 - error_rate),
+                "practice_count": total,
+                "wrong_count": wrong_count,
+                "reason": "错题较多",
+                "source": "question_attempts",
+            })
+    weak_points = sorted(
+        weak_candidates,
+        key=lambda item: (safe_float(item["mastery"], 100), -safe_int(item["wrong_count"])),
+    )[:5]
 
-    # Merge practice course summaries into course_summaries
-    for cs in course_summaries:
-        cid = cs.get("course_name") or cs.get("course_id", "")
-        if cid in course_map:
-            cs["practice_questions"] = course_map[cid]["questions"]
-            cs["practice_accuracy"] = round(course_map[cid]["correct"]/course_map[cid]["questions"]*100,1) if course_map[cid]["questions"]>0 else 0
-            cs["study_minutes"] = round(course_map[cid]["dur"]/60)
-    # Build final rec list from rules (existing + new)
-    final_recs = [r for r in recommendations if r]  # keep existing simple string recs
-    for r in (recommendations if isinstance(recommendations, list) and recommendations and isinstance(recommendations[0], dict) else []):
-        if isinstance(r, dict): final_recs.append(r)
+    parsed_learning_goals = []
+    if user.learning_goals:
+        try:
+            parsed = json.loads(user.learning_goals)
+            parsed_learning_goals = parsed if isinstance(parsed, list) else []
+        except Exception:
+            parsed_learning_goals = []
+    goals_configured = False
+    goals = {
+        "configured": goals_configured,
+        "source": "profile_learning_goals" if parsed_learning_goals else "",
+        "learning_goals": parsed_learning_goals,
+        "study_minutes_goal": None,
+        "task_goal": None,
+        "practice_accuracy_goal": None,
+        "ai_question_goal": None,
+        "reference_study_minutes_goal": 300,
+        "reference_task_goal": 5,
+        "reference_practice_accuracy_goal": 80,
+        "reference_ai_question_goal": 10,
+        "current_study_minutes": week_study_minutes,
+        "current_completed_tasks": sum(item["completed_tasks"] for item in trend_map.values()),
+        "current_practice_accuracy": practice_accuracy,
+        "current_ai_questions": sum(item["ai_question_count"] for item in trend_map.values()),
+    }
+
+    recommendations = []
+    def add_recommendation(rec_id, title, reason, action_text, target_page, priority=50, target_params=None):
+        if any(item["id"] == rec_id for item in recommendations):
+            return
+        recommendations.append({
+            "id": rec_id,
+            "title": title,
+            "reason": reason,
+            "action_text": action_text,
+            "target_page": target_page,
+            "target_params": target_params or {},
+            "priority": priority,
+        })
+
+    if weak_points:
+        top = weak_points[0]
+        add_recommendation(
+            "weak-point-review",
+            f"优先复习：{top['knowledge_point_name']}",
+            top["reason"],
+            "去知识点学习",
+            "knowledgeLearning",
+            10,
+            {"courseId": top["course_id"], "knowledgePointId": top["knowledge_point_id"]},
+        )
+    if practice_total and practice_accuracy < 70:
+        add_recommendation("practice-low-accuracy", "练习正确率偏低", f"当前正确率 {practice_accuracy}%", "去专项练习", "practiceCenter", 20)
+    elif practice_total == 0:
+        add_recommendation("start-practice", "完成一次练习建立基线", "暂无真实练习记录", "去练习中心", "practiceCenter", 25)
+    if len(active_dates) < 3:
+        add_recommendation("keep-active", "保持连续学习", f"本周活跃 {len(active_dates)} 天", "查看学习任务", "taskCenter", 30)
+    if pending_tasks >= 3:
+        add_recommendation("pending-tasks", "处理待完成任务", f"还有 {pending_tasks} 个待完成任务", "去任务中心", "taskCenter", 15)
+    low_course = next((c for c in sorted(course_summaries, key=lambda x: x["average_mastery"]) if c["average_mastery"] and c["average_mastery"] < 70), None)
+    if low_course:
+        add_recommendation("low-course-mastery", f"加强 {low_course['course_name']} 掌握度", f"平均掌握度 {low_course['average_mastery']}%", "去课程工作台", "dashboard", 35, {"courseId": low_course["course_id"]})
+    if len(materials) >= 3 and ai_question_count == 0:
+        add_recommendation("ask-with-materials", "用资料库开始 AI 问答", "已有资料但暂无 AI 提问记录", "去 AI 问答", "chat", 40)
+    if not activities:
+        add_recommendation("first-activity", "先建立第一条学习数据", "暂无学习活动", "上传资料", "workspaceMaterials", 5)
+
+    activities.sort(key=lambda item: item["_dt"], reverse=True)
+    recent_activities = []
+    for item in activities[:12]:
+        clean = {k: v for k, v in item.items() if not k.startswith("_")}
+        recent_activities.append(clean)
+
+    overview = {
+        "total_study_minutes": total_study_minutes,
+        "week_study_minutes": week_study_minutes,
+        "active_days_this_week": len(active_dates),
+        "completed_tasks": completed_tasks,
+        "pending_tasks": pending_tasks,
+        "practice_total": practice_total,
+        "practice_correct": practice_correct,
+        "practice_accuracy": practice_accuracy,
+        "ai_question_count": ai_question_count,
+        "streak_days": streak_days,
+        "best_streak_days": best_streak_days,
+        "uploaded_material_count": len(materials),
+        "completed_reports_count": completed_reports_count,
+        "course_count": len(course_ids),
+        "knowledge_point_count": len(knowledge_points),
+    }
+
     return {
         "overview": overview,
-        "practice_summary": practice_summary,
-        "task_summary": task_summary,
-        "weak_points": weak_points,
-        "recent_activities": activities,
+        "trend": list(trend_map.values()),
         "course_summaries": course_summaries,
-        "recommendations": final_recs or recommendations,
+        "weak_points": weak_points,
+        "heatmap": list(heatmap_map.values()),
+        "recent_activities": recent_activities,
+        "goals": goals,
+        "recommendations": sorted(recommendations, key=lambda item: item["priority"])[:5],
     }
 
 

@@ -4,20 +4,29 @@ const API_BASE = "/api";
 
 const ACTIVITY_LABELS = {
   task_done: "完成任务",
+  task_created: "创建任务",
+  learning_record: "学习记录",
   knowledge_progress: "知识点学习",
   material_uploaded: "上传资料",
   code_session: "编程练习",
+  code_attempt: "编程提交",
   question_attempt: "练习作答",
-  challenge_created: "AI 出题",
   practice: "完成练习",
+  chat: "AI 问答",
+  report: "学习报告",
 };
 
 const ACTIVITY_DOTS = {
   task_done: "green",
+  task_created: "orange",
   material_uploaded: "blue",
   practice: "purple",
   question_attempt: "purple",
+  chat: "cyan",
   code_session: "cyan",
+  code_attempt: "cyan",
+  knowledge_progress: "green",
+  report: "blue",
 };
 
 function safeNum(value, fallback = 0) {
@@ -60,149 +69,108 @@ function formatRelativeTime(value) {
   return date.toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" });
 }
 
-function dayKey(date) {
-  return date.toISOString().slice(0, 10);
-}
-
-function parseActivityDate(value) {
-  if (!value) return null;
-  const text = String(value);
-  const normalized = /^\d{4}-\d{2}-\d{2}T/.test(text) && !/[zZ]|[+-]\d{2}:?\d{2}$/.test(text)
-    ? `${text}Z`
-    : text;
-  const date = new Date(normalized);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
 function getCourseName(item, getSubjectLabel) {
   const raw = item?.course_id || item?.course_name || item?.subject || "";
   if (!raw) return "未分类课程";
   return getSubjectLabel?.(raw) || item?.course_name || raw;
 }
 
-function toRecommendationText(item) {
-  if (!item) return "";
-  if (typeof item === "string") return item;
-  const title = item.title || "";
-  const description = item.description || item.summary || "";
-  return [title, description].filter(Boolean).join("：");
-}
-
 function normalizeDashboardData(raw, getSubjectLabel) {
   const data = raw && typeof raw === "object" ? raw : {};
   const overview = data.overview || {};
-  const practice = data.practice_summary || {};
-  const task = data.task_summary || {};
+  const trend = Array.isArray(data.trend) ? data.trend : [];
   const courses = Array.isArray(data.course_summaries) ? data.course_summaries : [];
-  const weakPoints = Array.isArray(data.weak_points) ? data.weak_points.slice(0, 5) : [];
-  const activities = Array.isArray(data.recent_activities) ? data.recent_activities.slice(0, 8) : [];
+  const weakPoints = Array.isArray(data.weak_points)
+    ? data.weak_points.filter((item) => (item.knowledge_point_name || item.title || "").trim()).slice(0, 5)
+    : [];
+  const heatmap = Array.isArray(data.heatmap) ? data.heatmap : [];
+  const activities = Array.isArray(data.recent_activities) ? data.recent_activities.slice(0, 10) : [];
+  const goals = data.goals && typeof data.goals === "object" ? data.goals : {};
+  const recommendations = Array.isArray(data.recommendations) ? data.recommendations : [];
 
-  const weekMinutes = safeNum(overview.week_study_minutes, safeNum(practice.week?.duration_minutes));
-  const totalMinutes = Math.max(weekMinutes, courses.reduce((sum, course) => sum + safeNum(course.study_minutes), 0));
-  const weekStudyDays = Math.min(7, new Set(activities.map((activity) => {
-    const date = parseActivityDate(activity.created_at);
-    return date ? dayKey(date) : "";
-  }).filter(Boolean)).size);
-  const completedTasks = safeNum(task.week_completed, safeNum(overview.done_task_count));
-  const practiceAccuracy = safeNum(practice.week?.accuracy, safeNum(overview.week_practice_accuracy));
-  const aiQuestionCount = safeNum(overview.attempt_count) + safeNum(overview.challenge_count);
-
-  const subjectMastery = courses
-    .map((course) => ({
-      name: getCourseName(course, getSubjectLabel),
-      value: clampPercent(course.average_mastery),
-      meta: `${safeNum(course.knowledge_point_count)} 个知识点`,
-    }))
-    .filter((course) => course.value > 0 || course.meta !== "0 个知识点")
-    .slice(0, 6);
-
-  const trendDays = Array.from({ length: 7 }, (_, index) => {
-    const date = new Date();
-    date.setHours(0, 0, 0, 0);
-    date.setDate(date.getDate() - (6 - index));
-    return {
-      key: dayKey(date),
-      label: date.toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" }),
-      minutes: 0,
-    };
-  });
-
-  activities.forEach((activity) => {
-    const date = parseActivityDate(activity.created_at);
-    if (!date) return;
-    const item = trendDays.find((day) => day.key === dayKey(date));
-    if (item) {
-      item.minutes += activity.type === "practice" ? Math.max(15, safeNum(practice.week?.duration_minutes) ? 20 : 15) : 8;
-    }
-  });
-  if (weekMinutes > 0 && trendDays.every((day) => day.minutes === 0)) {
-    trendDays[trendDays.length - 1].minutes = weekMinutes;
-  }
-
-  const heatmapDays = Array.from({ length: 42 }, (_, index) => {
-    const date = new Date();
-    date.setHours(0, 0, 0, 0);
-    date.setDate(date.getDate() - (41 - index));
-    return { key: dayKey(date), level: 0 };
-  });
-  activities.forEach((activity) => {
-    const date = parseActivityDate(activity.created_at);
-    if (!date) return;
-    const item = heatmapDays.find((day) => day.key === dayKey(date));
-    if (item) item.level = Math.min(4, item.level + (activity.type === "practice" ? 2 : 1));
-  });
-
-  const defaultGoals = [
-    { label: "学习时长目标", current: weekMinutes, target: 20 * 60, unit: "分钟", formatter: formatDuration },
-    { label: "任务完成目标", current: completedTasks, target: 25, unit: "个" },
-    { label: "练习正确率目标", current: practiceAccuracy, target: 85, unit: "%", formatter: formatPercent },
-    { label: "AI 提问目标", current: aiQuestionCount, target: 40, unit: "次" },
+  const hasPractice = safeNum(overview.practice_total) > 0;
+  const kpis = [
+    {
+      label: "总学习时长",
+      value: formatDuration(overview.total_study_minutes),
+      hint: safeNum(overview.total_study_minutes) > 0 ? "来自真实学习时长记录" : "暂无学习时长记录",
+      tone: "blue",
+      target_page: "",
+    },
+    {
+      label: "本周学习天数",
+      value: `${safeNum(overview.active_days_this_week)} 天`,
+      hint: "按真实活动日期去重",
+      tone: "cyan",
+      target_page: "",
+    },
+    {
+      label: "完成任务数",
+      value: `${safeNum(overview.completed_tasks)} 个`,
+      hint: `待完成 ${safeNum(overview.pending_tasks)} 个`,
+      tone: "orange",
+      target_page: "taskCenter",
+    },
+    {
+      label: "练习正确率",
+      value: formatPercent(overview.practice_accuracy),
+      hint: hasPractice ? `${safeNum(overview.practice_correct)} / ${safeNum(overview.practice_total)} 题正确` : "暂无练习记录",
+      tone: "blue",
+      target_page: "practiceCenter",
+    },
+    {
+      label: "AI 提问次数",
+      value: `${safeNum(overview.ai_question_count)} 次`,
+      hint: "来自用户 AI 问答消息",
+      tone: "purple",
+      target_page: "chat",
+    },
+    {
+      label: "连续学习天数",
+      value: `${safeNum(overview.streak_days)} 天`,
+      hint: `最佳连续 ${safeNum(overview.best_streak_days)} 天`,
+      tone: "red",
+      target_page: "",
+    },
   ];
 
-  const recommendations = (Array.isArray(data.recommendations) ? data.recommendations : [])
-    .map(toRecommendationText)
-    .filter(Boolean)
-    .slice(0, 3);
-  if (recommendations.length === 0) {
-    if (weakPoints.length > 0) recommendations.push(`建议优先复习 ${weakPoints[0].title || "薄弱知识点"}，再做专项练习巩固。`);
-    if (practiceAccuracy > 0 && practiceAccuracy < 70) recommendations.push("本周练习正确率偏低，建议先复盘错题再继续刷题。");
-    if (weekStudyDays < 3) recommendations.push("本周学习天数较少，建议安排更稳定的短时学习节奏。");
-    if (recommendations.length === 0) recommendations.push("完成更多练习、任务或资料学习后，系统会给出更具体的建议。");
-  }
+  const subjectMastery = courses
+    .filter((course) => safeNum(course.knowledge_point_count) > 0 || safeNum(course.practice_count) > 0 || safeNum(course.material_count) > 0)
+    .map((course) => ({
+      ...course,
+      name: getCourseName(course, getSubjectLabel),
+      value: clampPercent(course.average_mastery),
+      meta: `${safeNum(course.knowledge_point_count)} 个知识点 · ${safeNum(course.practice_count)} 次练习`,
+    }))
+    .slice(0, 6);
 
   return {
-    kpis: [
-      { label: "总学习时长", value: formatDuration(totalMinutes), hint: totalMinutes > 0 ? "来自学习与练习记录" : "暂无学习时长", tone: "blue" },
-      { label: "本周学习天数", value: `${weekStudyDays} 天`, hint: "按最近记录日期统计", tone: "cyan" },
-      { label: "完成任务数", value: `${completedTasks} 个`, hint: `待完成 ${safeNum(task.pending, overview.todo_task_count)} 个`, tone: "orange" },
-      { label: "练习正确率", value: formatPercent(practiceAccuracy), hint: `${safeNum(practice.week?.questions, overview.week_practice_questions)} 道题`, tone: "blue" },
-      { label: "AI 提问次数", value: `${aiQuestionCount} 次`, hint: "练习作答与 AI 出题", tone: "purple" },
-      { label: "连续学习天数", value: `${weekStudyDays} 天`, hint: weekStudyDays > 0 ? "按现有记录估算" : "暂无连续记录", tone: "red" },
-    ],
-    trendDays,
+    kpis,
+    trendDays: trend,
     subjectMastery,
     weakPoints,
-    heatmapDays,
+    heatmapDays: heatmap,
     activities,
-    goals: defaultGoals,
+    goals,
     recommendations,
-    hasTrendData: trendDays.some((day) => day.minutes > 0),
+    hasTrendData: trend.some((day) => safeNum(day.study_minutes) > 0 || safeNum(day.completed_tasks) > 0 || safeNum(day.practice_count) > 0 || safeNum(day.ai_question_count) > 0),
+    hasHeatmapData: heatmap.some((day) => safeNum(day.activity_count) > 0),
   };
 }
 
 function TrendChart({ days }) {
-  const max = Math.max(...days.map((day) => day.minutes), 1);
+  const max = Math.max(...days.map((day) => safeNum(day.study_minutes)), 1);
   const points = days.map((day, index) => {
     const x = 28 + index * 84;
-    const y = 166 - (day.minutes / max) * 118;
+    const y = 166 - (safeNum(day.study_minutes) / max) * 118;
     return { ...day, x, y };
   });
   const path = points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
-  const area = `${path} L ${points[points.length - 1].x} 176 L ${points[0].x} 176 Z`;
+  const area = points.length ? `${path} L ${points[points.length - 1].x} 176 L ${points[0].x} 176 Z` : "";
 
   return (
     <div className="ldc-trend-chart">
-      <svg viewBox="0 0 560 210" role="img" aria-label="最近 7 天学习时长趋势">
+      <svg viewBox="0 0 560 210" role="img" aria-label="最近 7 天真实学习趋势">
         <defs>
           <linearGradient id="ldcTrendFill" x1="0" x2="0" y1="0" y2="1">
             <stop offset="0%" stopColor="#2563eb" stopOpacity="0.22" />
@@ -212,16 +180,16 @@ function TrendChart({ days }) {
         {[0, 1, 2, 3].map((line) => (
           <line key={line} x1="24" x2="536" y1={48 + line * 42} y2={48 + line * 42} className="ldc-chart-grid" />
         ))}
-        <path d={area} fill="url(#ldcTrendFill)" />
-        <path d={path} className="ldc-chart-line" />
+        {area && <path d={area} fill="url(#ldcTrendFill)" />}
+        {path && <path d={path} className="ldc-chart-line" />}
         {points.map((point) => (
-          <g key={point.key}>
+          <g key={point.date}>
             <circle cx={point.x} cy={point.y} r="5" className="ldc-chart-dot" />
             <text x={point.x} y={point.y - 12} textAnchor="middle" className="ldc-chart-value">
-              {point.minutes > 0 ? `${Math.round(point.minutes / 60 * 10) / 10}h` : "0"}
+              {safeNum(point.study_minutes)}
             </text>
             <text x={point.x} y="202" textAnchor="middle" className="ldc-chart-label">
-              {point.label}
+              {String(point.date || "").slice(5)}
             </text>
           </g>
         ))}
@@ -230,10 +198,30 @@ function TrendChart({ days }) {
   );
 }
 
-export default function LearningDataCenter({ user, getSubjectLabel }) {
+function GoalRow({ label, current, target, formatter = (v) => String(v), onClick }) {
+  const progress = Math.min(100, Math.round((safeNum(current) / Math.max(1, safeNum(target, 1))) * 100));
+  return (
+    <button type="button" className="ldc-goal-row ldc-clickable-row" onClick={onClick}>
+      <div className="ldc-progress-title">
+        <span>{label}</span>
+        <strong>{formatter(current)} / {formatter(target)}</strong>
+      </div>
+      <div className="ldc-progress-track">
+        <span style={{ width: `${progress}%` }} />
+      </div>
+    </button>
+  );
+}
+
+export default function LearningDataCenter({ user, getSubjectLabel, onNavigate }) {
   const [rawData, setRawData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const navigate = (targetPage, targetParams = {}) => {
+    if (!targetPage || !onNavigate) return;
+    onNavigate(targetPage, { ...targetParams, from: "learningDataCenter" });
+  };
 
   const fetchDashboard = async () => {
     if (!user?.username) {
@@ -265,7 +253,7 @@ export default function LearningDataCenter({ user, getSubjectLabel }) {
 
   const dashboard = useMemo(
     () => normalizeDashboardData(rawData, getSubjectLabel),
-    [rawData, getSubjectLabel]
+    [rawData, getSubjectLabel],
   );
 
   if (loading) {
@@ -280,7 +268,7 @@ export default function LearningDataCenter({ user, getSubjectLabel }) {
           <p>查看你的学习表现、进度趋势与薄弱点分析</p>
           {error && (
             <div className="ldc-error-banner">
-              当前接口返回异常，已显示空状态兜底：{error}
+              当前接口返回异常，已显示真实空状态：{error}
             </div>
           )}
         </div>
@@ -295,16 +283,27 @@ export default function LearningDataCenter({ user, getSubjectLabel }) {
       </header>
 
       <section className="ldc-kpi-grid" aria-label="学习统计">
-        {dashboard.kpis.map((item) => (
-          <article key={item.label} className="ldc-kpi-card">
-            <div className={`ldc-kpi-icon ldc-tone-${item.tone}`} />
-            <div className="ldc-kpi-body">
-              <span>{item.label}</span>
-              <strong>{item.value}</strong>
-              <small>{item.hint}</small>
-            </div>
-          </article>
-        ))}
+        {dashboard.kpis.map((item) => {
+          const content = (
+            <>
+              <div className={`ldc-kpi-icon ldc-tone-${item.tone}`} />
+              <div className="ldc-kpi-body">
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+                <small>{item.hint}</small>
+              </div>
+            </>
+          );
+          return item.target_page ? (
+            <button key={item.label} type="button" className="ldc-kpi-card ldc-clickable-card" onClick={() => navigate(item.target_page)}>
+              {content}
+            </button>
+          ) : (
+            <article key={item.label} className="ldc-kpi-card">
+              {content}
+            </article>
+          );
+        })}
       </section>
 
       <section className="ldc-main-grid">
@@ -312,7 +311,7 @@ export default function LearningDataCenter({ user, getSubjectLabel }) {
           <div className="ldc-card-header">
             <div>
               <h2>学习趋势</h2>
-              <p>最近 7 天学习时长趋势</p>
+              <p>最近 7 天真实学习时长、任务、练习和 AI 提问</p>
             </div>
           </div>
           {dashboard.hasTrendData ? (
@@ -329,7 +328,12 @@ export default function LearningDataCenter({ user, getSubjectLabel }) {
           {dashboard.subjectMastery.length > 0 ? (
             <div className="ldc-progress-list">
               {dashboard.subjectMastery.map((item) => (
-                <div key={item.name} className="ldc-progress-row">
+                <button
+                  key={item.course_id || item.name}
+                  type="button"
+                  className="ldc-progress-row ldc-clickable-row"
+                  onClick={() => navigate("dashboard", { courseId: item.course_id })}
+                >
                   <div className="ldc-progress-title">
                     <span>{item.name}</span>
                     <strong>{formatPercent(item.value)}</strong>
@@ -337,39 +341,46 @@ export default function LearningDataCenter({ user, getSubjectLabel }) {
                   <div className="ldc-progress-track">
                     <span style={{ width: `${item.value}%` }} />
                   </div>
-                </div>
+                  <small>{item.meta}</small>
+                </button>
               ))}
             </div>
           ) : (
-            <div className="ldc-empty-panel">暂无学科掌握度数据</div>
+            <div className="ldc-empty-panel">暂无学科掌握度数据，完成练习或知识点学习后将自动生成。</div>
           )}
         </article>
 
         <article className="ldc-card">
           <div className="ldc-card-header">
-            <h2>薄弱知识点 TOP5</h2>
+            <h2>薄弱知识点</h2>
           </div>
           {dashboard.weakPoints.length > 0 ? (
             <div className="ldc-weak-list">
               {dashboard.weakPoints.map((item, index) => {
-                const mastery = clampPercent(item.mastery_score);
+                const title = item.knowledge_point_name || item.title;
+                const mastery = clampPercent(item.mastery ?? item.mastery_score);
                 return (
-                  <div key={`${item.knowledge_point_id || item.title}-${index}`} className="ldc-weak-row">
+                  <button
+                    key={`${item.knowledge_point_id || title}-${index}`}
+                    type="button"
+                    className="ldc-weak-row ldc-clickable-row"
+                    onClick={() => navigate("knowledgeLearning", { courseId: item.course_id, knowledgePointId: item.knowledge_point_id })}
+                  >
                     <span className="ldc-rank">{index + 1}</span>
                     <div>
-                      <strong>{item.title || "未命名知识点"}</strong>
-                      <small>{getCourseName(item, getSubjectLabel)}</small>
+                      <strong>{title}</strong>
+                      <small>{getCourseName(item, getSubjectLabel)} · {item.reason || item.source || "真实学习数据"}</small>
                     </div>
                     <div className="ldc-weak-meter">
                       <span style={{ width: `${Math.max(4, mastery)}%` }} />
                     </div>
                     <em>掌握度 {formatPercent(mastery)}</em>
-                  </div>
+                  </button>
                 );
               })}
             </div>
           ) : (
-            <div className="ldc-empty-panel">暂无薄弱知识点，完成更多练习后将自动分析。</div>
+            <div className="ldc-empty-panel">暂无薄弱知识点，完成更多练习或知识点学习后将自动分析。</div>
           )}
         </article>
       </section>
@@ -378,13 +389,14 @@ export default function LearningDataCenter({ user, getSubjectLabel }) {
         <article className="ldc-card">
           <div className="ldc-card-header">
             <h2>学习热力图</h2>
-            <p>最近 6 周活跃情况</p>
+            <p>最近 6 周真实活跃情况</p>
           </div>
           <div className="ldc-heatmap" aria-label="学习热力图">
             {dashboard.heatmapDays.map((day) => (
-              <span key={day.key} className={`ldc-heat-cell level-${day.level}`} title={day.key} />
+              <span key={day.date} className={`ldc-heat-cell level-${safeNum(day.level)}`} title={`${day.date}：${safeNum(day.activity_count)} 次活动`} />
             ))}
           </div>
+          {!dashboard.hasHeatmapData && <div className="ldc-heat-empty">暂无学习活动</div>}
           <div className="ldc-heat-legend"><span>少</span><i /><i className="level-1" /><i className="level-2" /><i className="level-3" /><i className="level-4" /><span>多</span></div>
         </article>
 
@@ -395,14 +407,19 @@ export default function LearningDataCenter({ user, getSubjectLabel }) {
           {dashboard.activities.length > 0 ? (
             <div className="ldc-activity-list">
               {dashboard.activities.map((activity, index) => (
-                <div key={`${activity.created_at || index}-${activity.title}`} className="ldc-activity-row">
+                <button
+                  key={`${activity.created_at || index}-${activity.title}`}
+                  type="button"
+                  className="ldc-activity-row ldc-clickable-row"
+                  onClick={() => navigate(activity.target_page, activity.target_params)}
+                >
                   <span className={`ldc-activity-dot ${ACTIVITY_DOTS[activity.type] || "blue"}`} />
                   <div>
-                    <strong>{activity.title || ACTIVITY_LABELS[activity.type] || "学习记录"}</strong>
-                    <small>{ACTIVITY_LABELS[activity.type] || activity.type || "学习"} · {getCourseName(activity, getSubjectLabel)}</small>
+                    <strong>{activity.title}</strong>
+                    <small>{ACTIVITY_LABELS[activity.type] || activity.type || "学习"} · {getCourseName(activity, getSubjectLabel)}{activity.subtitle ? ` · ${activity.subtitle}` : ""}</small>
                   </div>
                   <time>{formatRelativeTime(activity.created_at)}</time>
-                </div>
+                </button>
               ))}
             </div>
           ) : (
@@ -412,26 +429,17 @@ export default function LearningDataCenter({ user, getSubjectLabel }) {
 
         <article className="ldc-card">
           <div className="ldc-card-header">
-            <h2>本周目标达成</h2>
-            <p>未设置目标时使用展示兜底</p>
+            <div>
+              <h2>本周目标达成</h2>
+              <p>{dashboard.goals.configured ? "来自学习目标设置" : "未设置目标，使用展示参考线"}</p>
+            </div>
+            <button type="button" className="ldc-link-button" onClick={() => navigate("profileEdit")}>去学习设置</button>
           </div>
           <div className="ldc-goal-list">
-            {dashboard.goals.map((goal) => {
-              const progress = Math.min(100, Math.round((safeNum(goal.current) / Math.max(1, goal.target)) * 100));
-              const currentText = goal.formatter ? goal.formatter(goal.current) : `${Math.round(safeNum(goal.current))} ${goal.unit}`;
-              const targetText = goal.formatter ? goal.formatter(goal.target) : `${goal.target} ${goal.unit}`;
-              return (
-                <div key={goal.label} className="ldc-goal-row">
-                  <div className="ldc-progress-title">
-                    <span>{goal.label}</span>
-                    <strong>{currentText} / {targetText}</strong>
-                  </div>
-                  <div className="ldc-progress-track">
-                    <span style={{ width: `${progress}%` }} />
-                  </div>
-                </div>
-              );
-            })}
+            <GoalRow label="学习时长参考线" current={dashboard.goals.current_study_minutes} target={dashboard.goals.study_minutes_goal || dashboard.goals.reference_study_minutes_goal || 300} formatter={formatDuration} onClick={() => navigate("profileEdit")} />
+            <GoalRow label="任务完成参考线" current={dashboard.goals.current_completed_tasks} target={dashboard.goals.task_goal || dashboard.goals.reference_task_goal || 5} formatter={(v) => `${safeNum(v)} 个`} onClick={() => navigate("taskCenter")} />
+            <GoalRow label="练习正确率参考线" current={dashboard.goals.current_practice_accuracy} target={dashboard.goals.practice_accuracy_goal || dashboard.goals.reference_practice_accuracy_goal || 80} formatter={formatPercent} onClick={() => navigate("practiceCenter")} />
+            <GoalRow label="AI 提问参考线" current={dashboard.goals.current_ai_questions} target={dashboard.goals.ai_question_goal || dashboard.goals.reference_ai_question_goal || 10} formatter={(v) => `${safeNum(v)} 次`} onClick={() => navigate("chat")} />
           </div>
         </article>
 
@@ -439,14 +447,24 @@ export default function LearningDataCenter({ user, getSubjectLabel }) {
           <div className="ldc-card-header">
             <h2>AI 学习建议</h2>
           </div>
-          <div className="ldc-recommend-list">
-            {dashboard.recommendations.slice(0, 3).map((item, index) => (
-              <div key={`${item}-${index}`} className="ldc-recommend-item">
-                <span>{index + 1}</span>
-                <p>{item}</p>
-              </div>
-            ))}
-          </div>
+          {dashboard.recommendations.length > 0 ? (
+            <div className="ldc-recommend-list">
+              {dashboard.recommendations.slice(0, 4).map((item, index) => (
+                <div key={item.id || `${item.title}-${index}`} className="ldc-recommend-item">
+                  <span>{index + 1}</span>
+                  <div>
+                    <strong>{item.title}</strong>
+                    <p>{item.reason}</p>
+                    <button type="button" className="ldc-link-button" onClick={() => navigate(item.target_page, item.target_params)}>
+                      {item.action_text || "去处理"}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="ldc-empty-panel">暂无学习建议，完成更多学习行为后将自动生成。</div>
+          )}
         </article>
       </section>
     </div>
