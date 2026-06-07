@@ -3192,6 +3192,7 @@ function App() {
           <ReviewCenter
             user={user}
             getSubjectLabel={getSubjectLabel}
+            setPage={setPage}
           />
         </Suspense>
       </div>

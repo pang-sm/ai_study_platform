@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import "./ReviewCenter.css";
 
 const API_BASE = "/api";
 
@@ -18,11 +19,64 @@ const STATUS_LABELS = {
   reviewing: "复习中",
 };
 
-export default function ReviewCenter({ user, getSubjectLabel }) {
+const SORT_OPTIONS = [
+  { value: "mastery_asc", label: "掌握度从低到高" },
+  { value: "negative_desc", label: "负向事件从高到低" },
+  { value: "wrong_desc", label: "错题数从高到低" },
+];
+
+function safeNum(value, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function clampPercent(value) {
+  return Math.max(0, Math.min(100, safeNum(value)));
+}
+
+function formatTime(value) {
+  if (!value) return "暂无数据";
+  const normalized = typeof value === "string" && !/[zZ]|[+-]\d{2}:?\d{2}$/.test(value)
+    ? `${value}Z`
+    : value;
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) return "暂无数据";
+  return date.toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" });
+}
+
+function getCourseText(item, getSubjectLabel) {
+  const course = item?.course_id || item?.course_name || item?.course || "";
+  return course ? (getSubjectLabel?.(course) || item?.course_name || course) : "未分类课程";
+}
+
+function getTitle(item) {
+  return item?.title || item?.name || item?.knowledge_point_name || "未命名知识点";
+}
+
+function getMastery(item) {
+  return clampPercent(item?.mastery_score ?? item?.mastery ?? item?.progress ?? item?.mastery_rate ?? 0);
+}
+
+function getSeverityClass(mastery) {
+  if (mastery < 40) return "danger";
+  if (mastery < 70) return "warning";
+  return "good";
+}
+
+function getStatus(item) {
+  const raw = item?.status || item?.progress_status || "";
+  return raw || "review";
+}
+
+export default function ReviewCenter({ user, getSubjectLabel, setPage }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [creatingId, setCreatingId] = useState(null);
+  const [searchText, setSearchText] = useState("");
+  const [courseFilter, setCourseFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [sortMode, setSortMode] = useState("mastery_asc");
 
   const fetchReviewData = async () => {
     if (!user?.username) return;
@@ -30,7 +84,7 @@ export default function ReviewCenter({ user, getSubjectLabel }) {
     setError("");
     try {
       const res = await fetch(
-        `${API_BASE}/review/center?username=${encodeURIComponent(user.username)}`
+        `${API_BASE}/review/center?username=${encodeURIComponent(user.username)}`,
       );
       if (res.ok) {
         const json = await res.json();
@@ -77,6 +131,75 @@ export default function ReviewCenter({ user, getSubjectLabel }) {
     }
   };
 
+  const normalized = useMemo(() => {
+    const source = data || {};
+    const wrongQuestions = Array.isArray(source.wrong_questions) ? source.wrong_questions : [];
+    const negativeEvents = Array.isArray(source.negative_events) ? source.negative_events : [];
+    const reviewTasks = Array.isArray(source.review_tasks) ? source.review_tasks : [];
+    const weakPoints = Array.isArray(source.weak_points) ? source.weak_points : [];
+
+    const wrongByKp = new Map();
+    wrongQuestions.forEach((item) => {
+      if (!item?.knowledge_point_id) return;
+      wrongByKp.set(item.knowledge_point_id, (wrongByKp.get(item.knowledge_point_id) || 0) + 1);
+    });
+
+    const negativeByKp = new Map();
+    const latestByKp = new Map();
+    negativeEvents.forEach((item) => {
+      if (!item?.knowledge_point_id) return;
+      negativeByKp.set(item.knowledge_point_id, (negativeByKp.get(item.knowledge_point_id) || 0) + 1);
+      if (!latestByKp.get(item.knowledge_point_id) || String(item.created_at || "") > String(latestByKp.get(item.knowledge_point_id) || "")) {
+        latestByKp.set(item.knowledge_point_id, item.created_at);
+      }
+    });
+
+    const enrichedWeakPoints = weakPoints.map((item, index) => {
+      const mastery = getMastery(item);
+      const kpId = item.knowledge_point_id || item.id || null;
+      return {
+        ...item,
+        _key: kpId || `${getTitle(item)}-${index}`,
+        _title: getTitle(item),
+        _course: getCourseText(item, getSubjectLabel),
+        _courseId: item.course_id || item.course || "",
+        _status: getStatus(item),
+        _mastery: mastery,
+        _severity: getSeverityClass(mastery),
+        _wrongCount: safeNum(item.wrong_count ?? item.mistake_count ?? wrongByKp.get(kpId)),
+        _negativeCount: safeNum(item.negative_count ?? item.event_count ?? negativeByKp.get(kpId)),
+        _lastStudiedAt: item.last_studied_at || item.updated_at || item.created_at || latestByKp.get(kpId),
+        _practiceCount: safeNum(item.practice_count),
+        _kpId: kpId,
+      };
+    });
+
+    const courses = Array.from(new Map(enrichedWeakPoints.map((item) => [item._courseId || item._course, item._course])).entries());
+    const ov = source.overview || {};
+    return {
+      overview: ov,
+      wrongQuestions,
+      negativeEvents,
+      reviewTasks,
+      weakPoints: enrichedWeakPoints,
+      courses,
+    };
+  }, [data, getSubjectLabel]);
+
+  const filteredWeakPoints = useMemo(() => {
+    const query = searchText.trim().toLowerCase();
+    const list = normalized.weakPoints
+      .filter((item) => !query || item._title.toLowerCase().includes(query))
+      .filter((item) => !courseFilter || item._courseId === courseFilter || item._course === courseFilter)
+      .filter((item) => !statusFilter || item._status === statusFilter);
+
+    return [...list].sort((a, b) => {
+      if (sortMode === "negative_desc") return b._negativeCount - a._negativeCount;
+      if (sortMode === "wrong_desc") return b._wrongCount - a._wrongCount;
+      return a._mastery - b._mastery;
+    });
+  }, [normalized.weakPoints, searchText, courseFilter, statusFilter, sortMode]);
+
   if (loading) {
     return <div className="empty-state">复盘数据加载中...</div>;
   }
@@ -92,111 +215,162 @@ export default function ReviewCenter({ user, getSubjectLabel }) {
     );
   }
 
-  if (!data) {
-    return (
-      <div className="empty-state">
-        <p>当前没有明显需要复盘的内容，继续完成练习和任务后这里会自动更新。</p>
-      </div>
-    );
-  }
+  const ov = normalized.overview || {};
+  const wrongCount = safeNum(ov.wrong_question_count);
+  const weakCount = safeNum(ov.weak_knowledge_count);
+  const negativeCount = safeNum(ov.negative_event_count);
+  const taskCount = safeNum(ov.review_task_count);
 
-  const ov = data.overview || {};
-  const isEmpty =
-    ov.wrong_question_count === 0 &&
-    ov.weak_knowledge_count === 0 &&
-    ov.negative_event_count === 0 &&
-    ov.review_task_count === 0;
-
-  if (isEmpty) {
-    return (
-      <div className="empty-state">
-        <p>当前没有明显需要复盘的内容，继续完成练习和任务后这里会自动更新。</p>
-        <button className="ghost-button compact" onClick={fetchReviewData} style={{ marginTop: 12 }}>
-          刷新
-        </button>
-      </div>
-    );
-  }
+  const overviewCards = [
+    { key: "wrong", icon: "✦", label: "错题", value: wrongCount, desc: "需要重新练习的题目数量", state: wrongCount > 0 ? "建议处理" : "状态良好", tone: "red" },
+    { key: "weak", icon: "◇", label: "薄弱知识点", value: weakCount, desc: "建议优先复盘的知识点", state: weakCount > 0 ? "建议处理" : "状态良好", tone: "orange" },
+    { key: "negative", icon: "!", label: "负向事件", value: negativeCount, desc: "错误、卡顿、失败记录", state: negativeCount > 0 ? "建议处理" : "状态良好", tone: "amber" },
+    { key: "task", icon: "✓", label: "复盘任务", value: taskCount, desc: "已创建的复盘任务数量", state: taskCount > 0 ? "持续推进" : "状态良好", tone: "green" },
+  ];
 
   return (
-    <div className="datacenter-shell">
-      {/* ── Header ── */}
-      <div className="datacenter-header">
+    <div className="review-page">
+      <header className="review-hero">
         <div>
-          <h2 style={{ margin: 0 }}>复盘中心</h2>
-          <p style={{ margin: "4px 0 0", color: "#6b7280", fontSize: 14 }}>
-            集中查看错题、薄弱知识点和需要复习的内容
-          </p>
+          <div className="review-eyebrow">根据错题、负向事件和学习记录自动生成</div>
+          <h1>复盘中心</h1>
+          <p>集中诊断薄弱知识点，创建复盘任务，把错题和卡顿变成下一步学习行动。</p>
         </div>
-        <button className="ghost-button compact" onClick={fetchReviewData}>
+        <button className="review-refresh-button" onClick={fetchReviewData}>
           刷新数据
         </button>
-      </div>
+      </header>
 
-      {/* ── Overview Stats ── */}
-      <section className="dashboard-card">
-        <h3 style={{ margin: "0 0 12px" }}>复盘概览</h3>
-        <div className="learning-stats-grid">
-          <div className="learning-stat-card">
-            <div className="learning-stat-label">错题</div>
-            <div className="learning-stat-value">{ov.wrong_question_count}</div>
-          </div>
-          <div className="learning-stat-card">
-            <div className="learning-stat-label">薄弱知识点</div>
-            <div className="learning-stat-value">{ov.weak_knowledge_count}</div>
-          </div>
-          <div className="learning-stat-card">
-            <div className="learning-stat-label">负向事件</div>
-            <div className="learning-stat-value">{ov.negative_event_count}</div>
-          </div>
-          <div className="learning-stat-card">
-            <div className="learning-stat-label">复盘任务</div>
-            <div className="learning-stat-value">{ov.review_task_count}</div>
-          </div>
-        </div>
+      <section className="review-overview-grid" aria-label="复盘概览">
+        {overviewCards.map((card) => (
+          <article key={card.key} className={`review-overview-card tone-${card.tone}`}>
+            <div className="review-overview-top">
+              <span className="review-overview-icon">{card.icon}</span>
+              <span className="review-overview-state">{card.state}</span>
+            </div>
+            <strong>{card.value}</strong>
+            <div className="review-overview-label">{card.label}</div>
+            <p>{card.desc}</p>
+          </article>
+        ))}
       </section>
 
-      {/* ── Wrong Questions ── */}
-      {data.wrong_questions && data.wrong_questions.length > 0 && (
-        <section className="dashboard-card">
-          <h3 style={{ margin: "0 0 12px" }}>错题列表</h3>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {data.wrong_questions.map((wq) => (
-              <div
-                key={wq.attempt_id}
-                style={{
-                  padding: 12,
-                  borderRadius: 10,
-                  background: "#fef2f2",
-                  border: "1px solid #fecaca",
-                  fontSize: 14,
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
-                  <div>
-                    <span style={{ fontWeight: 600 }}>{wq.title}</span>
-                    {wq.knowledge_point_title && (
-                      <span style={{ color: "#6b7280", marginLeft: 8, fontSize: 13 }}>
-                        [{wq.knowledge_point_title}]
-                      </span>
-                    )}
+      <section className="review-panel">
+        <div className="review-panel-header">
+          <div>
+            <h2>薄弱知识点诊断</h2>
+            <p>按掌握度、错题和负向事件综合排序，优先处理最值得复盘的内容。</p>
+          </div>
+          <span className="review-count-badge">{filteredWeakPoints.length} 个知识点</span>
+        </div>
+
+        <div className="review-toolbar">
+          <input
+            className="review-search"
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            placeholder="搜索知识点"
+          />
+          <select className="review-select" value={courseFilter} onChange={(e) => setCourseFilter(e.target.value)}>
+            <option value="">全部课程</option>
+            {normalized.courses.map(([value, label]) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
+          </select>
+          <select className="review-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="">全部状态</option>
+            {Object.entries(STATUS_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
+          </select>
+          <select className="review-select" value={sortMode} onChange={(e) => setSortMode(e.target.value)}>
+            {SORT_OPTIONS.map((item) => (
+              <option key={item.value} value={item.value}>{item.label}</option>
+            ))}
+          </select>
+        </div>
+
+        {filteredWeakPoints.length > 0 ? (
+          <div className="review-weak-list">
+            {filteredWeakPoints.map((wp, idx) => (
+              <article key={wp._key} className={`review-weak-card severity-${wp._severity}`}>
+                <div className="review-weak-main">
+                  <div className="review-weak-title-row">
+                    <h3>{wp._title}</h3>
+                    <span className={`review-status-pill status-${wp._status}`}>
+                      {STATUS_LABELS[wp._status] || wp._status || "待复习"}
+                    </span>
                   </div>
-                  <span style={{ color: "#dc2626", fontWeight: 600, fontSize: 13 }}>
-                    {wq.question_type === "choice" ? "选择题" : "简答题"}
-                  </span>
+                  <p>{wp._course}</p>
+                  <div className="review-weak-meta">
+                    <span>错题 {wp._wrongCount}</span>
+                    <span>负向事件 {wp._negativeCount}</span>
+                    <span>最近学习 {formatTime(wp._lastStudiedAt)}</span>
+                  </div>
                 </div>
-                <div style={{ fontSize: 13, color: "#4b5563", marginBottom: 4 }}>
-                  你的答案：<span style={{ color: "#dc2626" }}>{wq.user_answer || "未作答"}</span>
-                  {"　"}正确答案：<span style={{ color: "#059669" }}>{wq.correct_answer || "—"}</span>
+
+                <div className="review-diagnosis">
+                  <div className="review-mastery-row">
+                    <span>掌握度</span>
+                    <strong>{wp._mastery}%</strong>
+                  </div>
+                  <div className="review-progress-track">
+                    <span style={{ width: `${wp._mastery}%` }} />
+                  </div>
+                  <p>{wp._mastery < 40 ? "建议立即复盘并补练" : wp._mastery < 70 ? "建议安排专项巩固" : "保持复习节奏"}</p>
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: 12, color: "#9ca3af" }}>
-                    {getSubjectLabel ? getSubjectLabel(wq.course_id) : wq.course_name}
-                    {" · "}
-                    {wq.created_at ? new Date(wq.created_at + "Z").toLocaleString() : ""}
-                  </span>
+
+                <div className="review-card-actions">
                   <button
-                    className="tiny-button"
+                    className="review-primary-action"
+                    disabled={creatingId === `wp-${idx}`}
+                    onClick={() =>
+                      createReviewTask({
+                        key: `wp-${idx}`,
+                        course_id: wp._courseId,
+                        knowledge_point_id: wp._kpId,
+                        title: `复盘：${wp._title}`,
+                        description: `复习「${wp._title}」，并完成相关练习巩固掌握度。`,
+                      })
+                    }
+                  >
+                    {creatingId === `wp-${idx}` ? "创建中..." : "创建复盘任务"}
+                  </button>
+                  <button className="review-secondary-action" onClick={() => setPage?.("practiceCenter")}>
+                    去练习
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="review-empty-card">
+            <h3>暂无明显薄弱知识点</h3>
+            <p>继续完成练习、AI 问答和学习任务后，系统会自动生成复盘建议。</p>
+            <div className="review-empty-actions">
+              <button className="review-primary-action" onClick={() => setPage?.("practiceCenter")}>去练习中心</button>
+              <button className="review-secondary-action" onClick={() => setPage?.("learningDataCenter")}>去学习数据中心</button>
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section className="review-secondary-grid">
+        <div className="review-panel review-compact-panel">
+          <div className="review-panel-header">
+            <h2>错题列表</h2>
+            <span className="review-count-badge">{normalized.wrongQuestions.length}</span>
+          </div>
+          {normalized.wrongQuestions.length > 0 ? (
+            <div className="review-mini-list">
+              {normalized.wrongQuestions.slice(0, 6).map((wq) => (
+                <article key={wq.attempt_id} className="review-mini-item">
+                  <div>
+                    <strong>{wq.title || "错题"}</strong>
+                    <p>{getCourseText(wq, getSubjectLabel)} · {wq.knowledge_point_title || "暂无知识点"}</p>
+                  </div>
+                  <button
+                    className="review-secondary-action"
                     disabled={creatingId === `wq-${wq.attempt_id}`}
                     onClick={() =>
                       createReviewTask({
@@ -208,185 +382,61 @@ export default function ReviewCenter({ user, getSubjectLabel }) {
                         description: `复习「${wq.knowledge_point_title || wq.title}」并重新完成相关练习。`,
                       })
                     }
-                    style={{ color: "#0f766e" }}
                   >
-                    {creatingId === `wq-${wq.attempt_id}` ? "创建中..." : "创建复盘任务"}
+                    {creatingId === `wq-${wq.attempt_id}` ? "创建中" : "建任务"}
                   </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="review-soft-empty">暂无错题记录</div>
+          )}
+        </div>
 
-      {/* ── Weak Points ── */}
-      {data.weak_points && data.weak_points.length > 0 && (
-        <section className="dashboard-card">
-          <h3 style={{ margin: "0 0 12px" }}>薄弱知识点</h3>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {data.weak_points.map((wp, idx) => (
-              <div
-                key={idx}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "10px 14px",
-                  background: "#fffbeb",
-                  border: "1px solid #fde68a",
-                  borderRadius: 10,
-                  fontSize: 14,
-                }}
-              >
-                <div>
-                  <span style={{ fontWeight: 600 }}>{wp.title}</span>
-                  <span style={{ color: "#6b7280", marginLeft: 8, fontSize: 13 }}>
-                    {getSubjectLabel ? getSubjectLabel(wp.course_id) : wp.course_name}
-                  </span>
-                  <span
-                    style={{
-                      marginLeft: 8,
-                      padding: "1px 6px",
-                      borderRadius: 4,
-                      fontSize: 12,
-                      background: "#fef3c7",
-                      color: "#92400e",
-                    }}
-                  >
-                    {STATUS_LABELS[wp.status] || wp.status}
-                  </span>
-                </div>
-                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                  <span style={{ fontWeight: 600, color: wp.mastery_score > 0 ? "#dc2626" : "#9ca3af" }}>
-                    {wp.mastery_score}%
-                  </span>
-                  <button
-                    className="tiny-button"
-                    disabled={creatingId === `wp-${idx}`}
-                    onClick={() =>
-                      createReviewTask({
-                        key: `wp-${idx}`,
-                        course_id: wp.course_id,
-                        knowledge_point_id: wp.knowledge_point_id,
-                      })
-                    }
-                    style={{ color: "#0f766e" }}
-                  >
-                    {creatingId === `wp-${idx}` ? "创建中..." : "创建复盘任务"}
-                  </button>
-                </div>
-              </div>
-            ))}
+        <div className="review-panel review-compact-panel">
+          <div className="review-panel-header">
+            <h2>负向事件</h2>
+            <span className="review-count-badge">{normalized.negativeEvents.length}</span>
           </div>
-        </section>
-      )}
+          {normalized.negativeEvents.length > 0 ? (
+            <div className="review-mini-list">
+              {normalized.negativeEvents.slice(0, 6).map((evt) => (
+                <article key={evt.event_id} className="review-mini-item">
+                  <div>
+                    <strong>{EVENT_LABELS[evt.event_type] || evt.event_type || "负向事件"}</strong>
+                    <p>{evt.knowledge_point_title || "暂无知识点"} · {formatTime(evt.created_at)}</p>
+                  </div>
+                  <span className="review-delta">{evt.delta || 0}</span>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="review-soft-empty">暂无负向事件</div>
+          )}
+        </div>
 
-      {/* ── Negative Events ── */}
-      {data.negative_events && data.negative_events.length > 0 && (
-        <section className="dashboard-card">
-          <h3 style={{ margin: "0 0 12px" }}>负向掌握事件</h3>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {data.negative_events.map((evt) => (
-              <div
-                key={evt.event_id}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "8px 0",
-                  borderBottom: "1px solid #f1f5f9",
-                  fontSize: 14,
-                }}
-              >
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <span
-                    style={{
-                      padding: "1px 6px",
-                      borderRadius: 4,
-                      fontSize: 12,
-                      background: "#fce4ec",
-                      color: "#c62828",
-                    }}
-                  >
-                    {EVENT_LABELS[evt.event_type] || evt.event_type}
-                  </span>
-                  <span style={{ fontWeight: 600, color: "#dc2626" }}>{evt.delta}</span>
-                  {evt.knowledge_point_title && (
-                    <span style={{ color: "#4b5563" }}>{evt.knowledge_point_title}</span>
-                  )}
-                  {evt.reason && (
-                    <span style={{ color: "#9ca3af", fontSize: 13 }}>— {evt.reason}</span>
-                  )}
-                </div>
-                <div style={{ display: "flex", gap: 8, color: "#6b7280", fontSize: 12 }}>
-                  {evt.course_id && (
-                    <span>{getSubjectLabel ? getSubjectLabel(evt.course_id) : evt.course_id}</span>
-                  )}
-                  {evt.created_at && (
-                    <span>{new Date(evt.created_at + "Z").toLocaleString()}</span>
-                  )}
-                </div>
-              </div>
-            ))}
+        <div className="review-panel review-compact-panel">
+          <div className="review-panel-header">
+            <h2>复盘任务</h2>
+            <span className="review-count-badge">{normalized.reviewTasks.length}</span>
           </div>
-        </section>
-      )}
-
-      {/* ── Review Tasks ── */}
-      {data.review_tasks && data.review_tasks.length > 0 && (
-        <section className="dashboard-card">
-          <h3 style={{ margin: "0 0 12px" }}>复盘任务</h3>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {data.review_tasks.map((t) => (
-              <div
-                key={t.task_id}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "10px 14px",
-                  borderRadius: 10,
-                  background: "#f0fdf4",
-                  border: "1px solid #bbf7d0",
-                  fontSize: 14,
-                }}
-              >
-                <div>
-                  <span style={{ fontWeight: 600 }}>{t.title}</span>
-                  {t.knowledge_point_title && (
-                    <span style={{ color: "#6b7280", marginLeft: 8, fontSize: 13 }}>
-                      [{t.knowledge_point_title}]
-                    </span>
-                  )}
-                </div>
-                <div style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 13 }}>
-                  <span
-                    style={{
-                      padding: "1px 6px",
-                      borderRadius: 4,
-                      fontSize: 12,
-                      background: t.status === "todo" ? "#fef3c7" : t.status === "doing" ? "#dbeafe" : "#e2e8f0",
-                      color: t.status === "todo" ? "#92400e" : t.status === "doing" ? "#1e40af" : "#4b5563",
-                    }}
-                  >
-                    {t.status === "todo" ? "待办" : t.status === "doing" ? "进行中" : t.status === "done" ? "已完成" : t.status}
-                  </span>
-                  {t.course_id && (
-                    <span style={{ color: "#6b7280" }}>
-                      {getSubjectLabel ? getSubjectLabel(t.course_id) : t.course_id}
-                    </span>
-                  )}
-                  {t.due_date && (
-                    <span style={{ color: "#9ca3af" }}>
-                      {new Date(t.due_date + "Z").toLocaleDateString()}
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+          {normalized.reviewTasks.length > 0 ? (
+            <div className="review-mini-list">
+              {normalized.reviewTasks.slice(0, 6).map((task) => (
+                <article key={task.task_id} className="review-mini-item">
+                  <div>
+                    <strong>{task.title}</strong>
+                    <p>{getCourseText(task, getSubjectLabel)} · {task.knowledge_point_title || "复盘任务"}</p>
+                  </div>
+                  <span className="review-task-status">{task.status === "todo" ? "待办" : task.status === "doing" ? "进行中" : task.status === "done" ? "已完成" : task.status}</span>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="review-soft-empty">暂无复盘任务</div>
+          )}
+        </div>
+      </section>
     </div>
   );
 }
