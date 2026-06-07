@@ -8882,10 +8882,10 @@ def get_learning_dashboard(username: str, db: Session = Depends(get_db)):
     # Recommendations
     recommendations = []
     if weak_points: recommendations.append({"type": "weak_point_review", "title": f"建议复习{weak_points[0].get('title','薄弱点')}", "description": f"最近掌握度为 {weak_points[0].get('mastery_score',0)}%，建议回看资料并继续练习。"})
-    if week_q == 0: recommendations.append({"type": "start_practice", "title": "开始第一次练习", "description": "你本周还没有完成任何练习，建议完成一次练习来检验学习效果。"})
+    if week_q_all == 0: recommendations.append({"type": "start_practice", "title": "开始第一次练习", "description": "你本周还没有完成任何练习，建议完成一次练习来检验学习效果。"})
     elif week_acc < 60: recommendations.append({"type": "review_errors", "title": "进行错题复盘", "description": f"本周练习正确率为 {week_acc}%，建议查看错题并针对性复习。"})
     if overdue_tasks > 0: recommendations.append({"type": "clear_overdue", "title": f"处理 {overdue_tasks} 个逾期任务", "description": "逾期任务可能会影响学习进度，建议尽快完成。"})
-    if today_q == 0: recommendations.append({"type": "daily_practice", "title": "完成今日练习", "description": "今天还没有练习记录，建议完成 5 道题保持学习节奏。"})
+    if today_q_all == 0: recommendations.append({"type": "daily_practice", "title": "完成今日练习", "description": "今天还没有练习记录，建议完成 5 道题保持学习节奏。"})
 
     # Recent materials
     recent_materials = (
