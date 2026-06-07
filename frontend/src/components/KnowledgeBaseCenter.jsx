@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { COURSE_OPTIONS, getSubjectLabel } from "../courseOptions.js";
+import UnifiedMaterialUploader from "./UnifiedMaterialUploader.jsx";
 
 const API_BASE = "/api";
 
@@ -282,6 +283,30 @@ export default function KnowledgeBaseCenter({ user, getSubjectLabel }) {
             <div className="learning-stat-value">{ov.coverage_rate}%</div>
           </div>
         </div>
+      </section>
+
+      {/* ── Unified Upload Section ── */}
+      <section className="dashboard-card">
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 8, flexWrap: "wrap" }}>
+          <div>
+            <h3 style={{ margin: "0 0 2px" }}>资料上传与知识入库（统一入口）</h3>
+            <p style={{ margin: 0, color: "#64748b", fontSize: 13 }}>
+              与课程工作台上传功能完全一致，上传后自动进入知识库并同步对应课程。
+            </p>
+          </div>
+          <span style={{ padding: "3px 10px", borderRadius: 999, background: "#eff6ff", color: "#2563eb", fontSize: 12, fontWeight: 700 }}>
+            课程工作台已同步同款上传入口
+          </span>
+        </div>
+        <UnifiedMaterialUploader
+          courseId={""}
+          courseName={getSubjectLabel ? getSubjectLabel("") : "全部课程"}
+          source="knowledge_center"
+          onUploadSuccess={(count) => fetchDashboard()}
+          compact={false}
+          user={user}
+          getSubjectLabel={getSubjectLabel}
+        />
       </section>
 
       {/* ── Course Summaries ── */}

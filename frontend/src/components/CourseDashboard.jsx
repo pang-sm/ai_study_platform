@@ -1,85 +1,45 @@
-import { useMemo, useEffect, useState } from "react";
-import { getRouteSource } from "../data/courseKnowledgePlans.js";
+import { useMemo, useState, useEffect } from "react";
+import UnifiedMaterialUploader from "./UnifiedMaterialUploader.jsx";
 import "./CourseDashboard.css";
 
-const GOAL_STORAGE_PREFIX = "ai_study_goal_config_";
+const API_BASE = "/api";
 
-const GOAL_OPTIONS = [
-  { value: "overview", label: "大概了解", desc: "快速理解课程框架和核心概念" },
-  { value: "systematic", label: "系统学习", desc: "正常跟课、掌握主要知识点" },
-  { value: "project", label: "项目实践", desc: "偏应用、偏代码案例" },
-  { value: "exam", label: "期中 / 期末速成", desc: "短期备考，重点考点优先" },
-];
+const PAGE_LABELS = {
+  dashboard: "课程工作台",
+  knowledgeLearning: "知识点学习",
+  workspaceMaterials: "资料管理",
+  chat: "AI 问答",
+  records: "学习记录",
+  reviewCenter: "复盘中心",
+  taskCenter: "任务中心",
+  practiceCenter: "练习中心",
+  codeStudio: "编程助手",
+  knowledgeBaseCenter: "知识库中心",
+};
 
-const DIFFICULTY_OPTIONS = [
-  { value: "intro", label: "入门" },
-  { value: "standard", label: "标准" },
-  { value: "advanced", label: "提高" },
-  { value: "challenge", label: "挑战" },
-];
-
-const DEPTH_OPTIONS = [
-  { value: "brief", label: "粗略" },
-  { value: "standard", label: "标准" },
-  { value: "detailed", label: "详细" },
-];
-
-const DAILY_TIME_OPTIONS = [15, 30, 60, 90];
-
-const EXAM_DAYS_OPTIONS = [
-  { value: "3", label: "3 天内" },
-  { value: "7", label: "1 周内" },
-  { value: "14", label: "2 周内" },
-  { value: "30", label: "1 个月内" },
-  { value: "custom", label: "自定义日期" },
-];
-
-function DonutProgress({ pct, size = 72, strokeWidth = 6 }) {
-  const r = (size - strokeWidth) / 2;
-  const c = Math.PI * r * 2;
-  const offset = c - (Math.min(Math.max(pct, 0), 100) / 100) * c;
-  return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="co-donut">
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#e2e8f0" strokeWidth={strokeWidth} />
-      <circle
-        cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#2563eb"
-        strokeWidth={strokeWidth} strokeLinecap="round"
-        strokeDasharray={c} strokeDashoffset={offset}
-        transform={`rotate(-90 ${size / 2} ${size / 2})`}
-        style={{ transition: "stroke-dashoffset 0.6s ease" }}
-      />
-      <text x={size / 2} y={size / 2} textAnchor="middle" dominantBaseline="central"
-        fill="#0f172a" fontSize={size * 0.26} fontWeight="700">
-        {pct}%
-      </text>
-    </svg>
-  );
-}
-
-function loadGoalConfig(course) {
-  try {
-    const raw = localStorage.getItem(GOAL_STORAGE_PREFIX + course);
-    if (raw) return JSON.parse(raw);
-  } catch { /* ignore */ }
-  return null;
-}
-
-function saveGoalConfig(course, config) {
-  try {
-    localStorage.setItem(GOAL_STORAGE_PREFIX + course, JSON.stringify(config));
-  } catch { /* ignore */ }
-}
-
-function getDefaultGoalConfig() {
-  return {
-    goal: "systematic",
-    difficulty: "standard",
-    depth: "standard",
-    dailyTime: 30,
-    examDays: "7",
-    examCustomDate: "",
-    examPaperUploaded: false,
+function getParseStatusLabel(status) {
+  const map = {
+    success: "已入库", partial: "部分索引", parsing: "解析中",
+    pending: "待关联", failed: "解析失败",
   };
+  return map[status] || "待审核";
+}
+
+function getParseStatusClass(status) {
+  const map = { success: "cd-status-indexed", partial: "cd-status-indexed", parsing: "cd-status-parsing", pending: "cd-status-pending", failed: "cd-status-failed" };
+  return map[status] || "cd-status-pending";
+}
+
+function formatDate(value) {
+  if (!value) return "";
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" });
+}
+
+function getSourceLabel(source) {
+  const map = { manual: "手动上传", ai: "AI 生成", learning_plan: "AI 计划", system: "系统", chat_upload: "对话上传" };
+  return map[source] || source || "手动上传";
 }
 
 export default function CourseDashboard({
@@ -92,293 +52,335 @@ export default function CourseDashboard({
   onCourseChange,
   getSubjectLabel,
   materials = [],
-  goalConfig = null,
-  setGoalConfig = () => {},
-  onStartAsk = () => {},
+  goalConfig,
+  setGoalConfig,
+  onStartAsk,
+  onOpenCodeStudio,
+  onOpenPracticeCenter,
+  formatDate: propsFormatDate,
+  loadMaterials,
+  searchNavigate,
+  onClearSearchNavigate,
 }) {
   const stats = dashboard?.stats || {};
-  const courseLabel = getSubjectLabel(course);
-  const routeSource = useMemo(() => getRouteSource(course, courseLabel), [course, courseLabel]);
-  const hasPlannedRoute = routeSource !== "materials";
+  const courseLabel = getSubjectLabel ? getSubjectLabel(course) : course;
+  const fmtDate = propsFormatDate || formatDate;
 
   // Course-scoped materials
   const courseMaterials = useMemo(() => {
     const list = Array.isArray(materials) ? materials : [];
     if (!courseLabel) return list;
-    return list.filter((m) => getSubjectLabel(m.subject) === courseLabel);
+    return list.filter((m) => {
+      const matSubject = getSubjectLabel ? getSubjectLabel(m.subject) : m.subject;
+      return matSubject === courseLabel;
+    });
   }, [materials, courseLabel, getSubjectLabel]);
 
-  // Goal config — lifted from App.jsx, fallback to defaults
-  const effectiveGoalConfig = goalConfig || getDefaultGoalConfig();
+  // Knowledge points for this course
+  const [knowledgePoints, setKnowledgePoints] = useState([]);
+  const [kpLoading, setKpLoading] = useState(false);
 
-  const updateGoalConfig = (patch) => {
-    setGoalConfig({ ...effectiveGoalConfig, ...patch });
-  };
+  useEffect(() => {
+    if (!user?.username || !course) { setKnowledgePoints([]); return; }
+    setKpLoading(true);
+    fetch(`${API_BASE}/knowledge-points?username=${encodeURIComponent(user.username)}&course_id=${encodeURIComponent(course)}`)
+      .then(r => r.ok ? r.json() : Promise.reject(r))
+      .then(data => setKnowledgePoints(data.knowledge_points || []))
+      .catch(() => setKnowledgePoints([]))
+      .finally(() => setKpLoading(false));
+  }, [user?.username, course]);
 
-  const overallPct = stats.progress_percent ?? 0;
+  // Knowledge tree — group by parent_id
+  const knowledgeTree = useMemo(() => {
+    const points = Array.isArray(knowledgePoints) ? knowledgePoints : [];
+    const roots = points.filter(p => !p.parent_id);
+    const children = points.filter(p => p.parent_id);
+    return roots.map(root => ({
+      ...root,
+      children: children.filter(c => c.parent_id === root.id),
+    }));
+  }, [knowledgePoints]);
+
+  // Count total knowledge points (modules + children)
+  const totalKpCount = knowledgePoints.length;
+  const moduleCount = knowledgeTree.length;
+
+  // Recent materials (last 6)
+  const recentMaterials = useMemo(() => {
+    return [...courseMaterials]
+      .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+      .slice(0, 6);
+  }, [courseMaterials]);
+
+  // Stats calculations
+  const pendingCount = courseMaterials.filter(m => !m.parse_status || m.parse_status === "pending" || m.parse_status === "unknown").length;
+  const reviewCount = stats.pending_review_count ?? 0;
+  const weeklyHours = stats.weekly_study_minutes ? Math.round(stats.weekly_study_minutes / 60) : null;
+  const streakDays = stats.streak_days ?? 0;
 
   if (loading) {
     return (
       <div className="co-loading">
         <div className="co-loading-spinner" />
-        <p>课程概览加载中...</p>
+        <p>课程工作台加载中...</p>
       </div>
     );
   }
 
   return (
-    <div className="co-page">
-      {/* ── Page Title ── */}
-      <div className="co-page-title-area">
-        <div className="co-page-title-icon">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
-            <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
-          </svg>
+    <div className="cd-page">
+      {/* ── Header bar ── */}
+      <div className="cd-header-bar">
+        <div className="cd-header-left">
+          <div>
+            <span className="cd-breadcrumb">← 课程工作台</span>
+            <h1 className="cd-header-course">{courseLabel || "选择课程"}</h1>
+            <p className="cd-header-course-sub">编程基础课 · 初学者入门</p>
+          </div>
         </div>
-        <div>
-          <h1 className="co-page-title">课程概览</h1>
-          <p className="co-page-subtitle">配置学习目标，查看学习概况</p>
+        <div className="cd-header-right">
+          <select
+            className="field cd-header-course-select"
+            value={course}
+            onChange={(e) => onCourseChange(e.target.value)}
+          >
+            {courseOptions.map((opt) => (
+              <option key={opt} value={opt}>{getSubjectLabel ? getSubjectLabel(opt) : opt}</option>
+            ))}
+          </select>
+          <span className="cd-header-last-study">上次学习：{fmtDate(stats.last_study_date) || "暂无记录"}</span>
+          <button className="cu-btn cu-btn--ghost cu-btn--sm" type="button" onClick={() => setGoalConfig && setGoalConfig({})}>
+            课程设置
+          </button>
         </div>
       </div>
 
-      <div className="co-layout">
-        <div className="co-main">
-          {/* ── Learning goal config card ── */}
-          <div className="co-card co-goal-card">
-            <h2 className="co-card-title">学习目标配置</h2>
-            <p className="co-card-desc">选择学习目标，AI 将据此调整学习路线和推荐内容</p>
-
-            {/* Goal */}
-            <div className="co-field-group">
-              <label className="co-field-label">学习目标</label>
-              <div className="co-option-grid co-option-grid--2">
-                {GOAL_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    className={`co-option-card${effectiveGoalConfig.goal === opt.value ? " co-option-card--active" : ""}`}
-                    onClick={() => updateGoalConfig({ goal: opt.value })}
-                  >
-                    <span className="co-option-card-label">{opt.label}</span>
-                    <span className="co-option-card-desc">{opt.desc}</span>
-                  </button>
-                ))}
+      <div className="cd-layout">
+        {/* ── Main area ── */}
+        <div className="cd-main">
+          {/* Learning overview stats */}
+          <div className="cd-stats-grid">
+            <div className="cd-stat-card">
+              <span className="cd-stat-icon">📊</span>
+              <div className="cd-stat-body">
+                <span className="cd-stat-value">{stats.progress_percent ?? 0}%</span>
+                <span className="cd-stat-label">学习进度</span>
               </div>
             </div>
-
-            {/* Difficulty */}
-            <div className="co-field-group">
-              <label className="co-field-label">学习难度</label>
-              <div className="co-chip-row">
-                {DIFFICULTY_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    className={`co-chip${effectiveGoalConfig.difficulty === opt.value ? " co-chip--active" : ""}`}
-                    onClick={() => updateGoalConfig({ difficulty: opt.value })}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
+            <div className="cd-stat-card">
+              <span className="cd-stat-icon">📚</span>
+              <div className="cd-stat-body">
+                <span className="cd-stat-value">{courseMaterials.length}</span>
+                <span className="cd-stat-label">上传资料</span>
               </div>
             </div>
-
-            {/* Depth */}
-            <div className="co-field-group">
-              <label className="co-field-label">知识点细度</label>
-              <div className="co-chip-row">
-                {DEPTH_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    className={`co-chip${effectiveGoalConfig.depth === opt.value ? " co-chip--active" : ""}`}
-                    onClick={() => updateGoalConfig({ depth: opt.value })}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
+            <div className="cd-stat-card">
+              <span className="cd-stat-icon">🧩</span>
+              <div className="cd-stat-body">
+                <span className="cd-stat-value">{totalKpCount}</span>
+                <span className="cd-stat-label">知识点总数</span>
               </div>
             </div>
-
-            {/* Daily time */}
-            <div className="co-field-group">
-              <label className="co-field-label">每日学习时间</label>
-              <div className="co-chip-row">
-                {DAILY_TIME_OPTIONS.map((min) => (
-                  <button
-                    key={min}
-                    type="button"
-                    className={`co-chip${effectiveGoalConfig.dailyTime === min ? " co-chip--active" : ""}`}
-                    onClick={() => updateGoalConfig({ dailyTime: min })}
-                  >
-                    {min} 分钟
-                  </button>
-                ))}
+            <div className="cd-stat-card">
+              <span className="cd-stat-icon">🔄</span>
+              <div className="cd-stat-body">
+                <span className="cd-stat-value">{reviewCount || pendingCount}</span>
+                <span className="cd-stat-label">待复习 / 待关联</span>
+              </div>
+            </div>
+            <div className="cd-stat-card">
+              <span className="cd-stat-icon">⏱️</span>
+              <div className="cd-stat-body">
+                <span className="cd-stat-value">{weeklyHours != null ? `${weeklyHours}h` : "—"}</span>
+                <span className="cd-stat-label">本周学习时长</span>
+              </div>
+            </div>
+            <div className="cd-stat-card">
+              <span className="cd-stat-icon">🔥</span>
+              <div className="cd-stat-body">
+                <span className="cd-stat-value">{streakDays || "—"}</span>
+                <span className="cd-stat-label">连续学习天数</span>
               </div>
             </div>
           </div>
 
-          {/* ── Exam config card (conditional) ── */}
-          {effectiveGoalConfig.goal === "exam" && (
-            <div className="co-card co-exam-card">
-              <h2 className="co-card-title">考试速成配置</h2>
-              <p className="co-card-desc">配置考试信息，AI 将优先安排高频考点</p>
-
-              <div className="co-field-group">
-                <label className="co-field-label">距离考试时间</label>
-                <div className="co-chip-row">
-                  {EXAM_DAYS_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      className={`co-chip${effectiveGoalConfig.examDays === opt.value ? " co-chip--active" : ""}`}
-                      onClick={() => updateGoalConfig({ examDays: opt.value })}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-                {effectiveGoalConfig.examDays === "custom" && (
-                  <input
-                    type="date"
-                    className="co-date-input"
-                    value={effectiveGoalConfig.examCustomDate}
-                    onChange={(e) => updateGoalConfig({ examCustomDate: e.target.value })}
-                  />
-                )}
-              </div>
-
-              {/* Exam paper upload section */}
-              <div className="co-exam-paper-section">
-                <div className="co-exam-paper-icon">
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="1.5" strokeLinecap="round">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                    <polyline points="14 2 14 8 20 8" />
-                    <line x1="16" y1="13" x2="8" y2="13" />
-                    <line x1="16" y1="17" x2="8" y2="17" />
-                    <polyline points="10 9 9 9 8 9" />
-                  </svg>
-                </div>
-                <div className="co-exam-paper-info">
-                  <p className="co-exam-paper-title">上传往年试卷或模拟卷</p>
-                  <p className="co-exam-paper-hint">
-                    建议上传往年试卷或模拟卷，AI 将分析题型、难度和高频知识点，并调整学习路线优先级。
-                  </p>
-                </div>
-                <div className="co-exam-paper-actions">
-                  <button
-                    className="co-btn co-btn--primary"
-                    type="button"
-                    onClick={() => setPage("workspaceMaterials")}
-                  >
-                    上传试卷分析难度
-                  </button>
-                  <button
-                    className="co-btn co-btn--ghost"
-                    type="button"
-                    onClick={() => updateGoalConfig({ examPaperUploaded: false })}
-                  >
-                    暂不上传，使用平台备考路线
-                  </button>
-                </div>
-              </div>
+          {/* ── Unified Upload Section ── */}
+          <div className="cd-section">
+            <div className="cd-section-header">
+              <h3 className="cd-section-title">资料上传与知识入库（统一入口）</h3>
+              <span className="cd-section-badge">知识库已同步同款上传入口</span>
             </div>
-          )}
+            <p className="cd-section-desc">
+              与知识库上传功能完全一致，上传后自动进入知识库并同步课程工作台。
+            </p>
+            <UnifiedMaterialUploader
+              courseId={course}
+              courseName={courseLabel}
+              source="course_workspace"
+              onUploadSuccess={(count) => { if (loadMaterials) loadMaterials(course); }}
+              user={user}
+              getSubjectLabel={getSubjectLabel}
+            />
+          </div>
 
-          {/* ── Current learning summary ── */}
-          <div className="co-card co-summary-card">
-            <h2 className="co-card-title">学习概况</h2>
-            <div className="co-summary-grid">
-              <div className="co-summary-item">
-                <span className="co-summary-val">{overallPct}%</span>
-                <span className="co-summary-lbl">总进度</span>
-              </div>
-              <div className="co-summary-item">
-                <span className="co-summary-val">{stats.materials_count ?? courseMaterials.length}</span>
-                <span className="co-summary-lbl">已上传资料</span>
-              </div>
-              <div className="co-summary-item">
-                <span className="co-summary-val">{stats.mastered_points ?? 0}</span>
-                <span className="co-summary-lbl">已掌握知识点</span>
-              </div>
-              <div className="co-summary-item">
-                <span className="co-summary-val">{stats.pending_review_count ?? 0}</span>
-                <span className="co-summary-lbl">待复习</span>
-              </div>
-              <div className="co-summary-item">
-                <span className="co-summary-val">{hasPlannedRoute ? "可用" : "暂无"}</span>
-                <span className="co-summary-lbl">平台推荐路线</span>
-              </div>
-              <div className="co-summary-item">
-                <span className="co-summary-val">{courseMaterials.length > 0 ? "已上传" : "暂无"}</span>
-                <span className="co-summary-lbl">课程资料</span>
-              </div>
+          {/* ── Quick Actions ── */}
+          <div className="cd-section">
+            <h3 className="cd-section-title" style={{ marginBottom: 14 }}>快速操作</h3>
+            <div className="cd-quick-actions">
+              <button className="cd-quick-action" type="button" onClick={() => setPage("knowledgeLearning")}>
+                <span className="cd-quick-action-icon">🗺️</span> 学习路线
+              </button>
+              <button className="cd-quick-action" type="button" onClick={onStartAsk}>
+                <span className="cd-quick-action-icon">💬</span> AI 问答
+              </button>
+              <button className="cd-quick-action" type="button" onClick={() => setPage("knowledgeLearning")}>
+                <span className="cd-quick-action-icon">📖</span> 知识点学习
+              </button>
+              <button className="cd-quick-action" type="button" onClick={() => setPage("records")}>
+                <span className="cd-quick-action-icon">📝</span> 学习记录
+              </button>
+              <button className="cd-quick-action" type="button" onClick={() => setPage("reviewCenter")}>
+                <span className="cd-quick-action-icon">🔍</span> 待复习
+              </button>
+              <button className="cd-quick-action" type="button" onClick={() => setPage("workspaceMaterials")}>
+                <span className="cd-quick-action-icon">📁</span> 资料管理
+              </button>
             </div>
           </div>
 
-          {/* ── Entry buttons ── */}
-          <div className="co-entry-actions">
-            <button
-              className="co-btn co-btn--primary co-btn--lg"
-              type="button"
-              onClick={() => setPage("knowledgeLearning")}
-            >
+          {/* ── Knowledge Overview ── */}
+          <div className="cd-section">
+            <h3 className="cd-section-title" style={{ marginBottom: 14 }}>知识体系概览</h3>
+            {kpLoading ? (
+              <p style={{ color: "#94a3b8", fontSize: "0.84rem" }}>知识点加载中...</p>
+            ) : knowledgeTree.length === 0 ? (
+              <p style={{ color: "#94a3b8", fontSize: "0.84rem" }}>
+                当前课程还没有知识体系，上传资料后可以自动解析生成知识点。
+              </p>
+            ) : (
+              <div className="cd-knowledge-tree">
+                {knowledgeTree.map((mod) => (
+                  <div className="cd-kp-module" key={mod.id}>
+                    <div className="cd-kp-module-header">
+                      <span>📦</span> {mod.title}
+                      <span className="cd-kp-module-count">{mod.children?.length || 0} 个知识点</span>
+                    </div>
+                    {mod.children?.length > 0 && (
+                      <div className="cd-kp-children">
+                        {mod.children.map((child) => (
+                          <div className="cd-kp-child" key={child.id}
+                            onClick={() => setPage("knowledgeLearning")}
+                            title={child.description || child.title}
+                          >
+                            <span className="cd-kp-child-dot" />
+                            {child.title}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ── Recent Materials ── */}
+          <div className="cd-section">
+            <div className="cd-section-header">
+              <h3 className="cd-section-title">最近上传资料</h3>
+              <button className="cu-btn cu-btn--ghost cu-btn--sm" type="button"
+                onClick={() => setPage("workspaceMaterials")}>
+                查看全部 →
+              </button>
+            </div>
+            {recentMaterials.length === 0 ? (
+              <p style={{ color: "#94a3b8", fontSize: "0.84rem" }}>暂无资料，请上传教材、课件或笔记。</p>
+            ) : (
+              <div className="cd-materials-table">
+                <div className="cd-materials-table-header">
+                  <span>文件名称</span><span>来源</span><span>状态</span><span>上传时间</span>
+                </div>
+                {recentMaterials.map((mat) => (
+                  <div className="cd-materials-row" key={mat.id}
+                    onClick={() => {
+                      setPage("workspaceMaterials");
+                      // Could pass material ID to highlight
+                    }}
+                  >
+                    <span className="cd-materials-name" title={mat.original_filename}>
+                      {mat.original_filename || "未命名文件"}
+                    </span>
+                    <span style={{ fontSize: "0.78rem", color: "#94a3b8" }}>
+                      {getSourceLabel(mat.source || "manual")}
+                    </span>
+                    <span className={`cd-status-badge ${getParseStatusClass(mat.parse_status)}`}>
+                      {getParseStatusLabel(mat.parse_status)}
+                    </span>
+                    <span style={{ fontSize: "0.78rem", color: "#94a3b8" }}>{fmtDate(mat.created_at)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ── Bottom CTA ── */}
+          <div className="cd-bottom-cta">
+            <button className="cu-btn cu-btn--primary cu-btn--lg" type="button"
+              onClick={() => setPage("knowledgeLearning")}>
               进入知识点学习
             </button>
-            <button
-              className="co-btn co-btn--primary co-btn--lg"
-              type="button"
-              onClick={onStartAsk}
-            >
+            <button className="cu-btn cu-btn--primary cu-btn--lg" type="button"
+              onClick={onStartAsk}>
               打开 AI 问答
             </button>
-            <button
-              className="co-btn co-btn--ghost co-btn--lg"
-              type="button"
-              onClick={() => setPage("workspaceMaterials")}
-            >
+            <button className="cu-btn cu-btn--secondary cu-btn--lg" type="button"
+              onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
               上传资料
             </button>
           </div>
         </div>
 
-        {/* ── Right sidebar - course info ── */}
-        <aside className="co-sidebar">
-          <div className="co-card co-side-card">
-            <div className="co-side-card-header">
-              <h3 className="co-side-card-title">当前课程</h3>
-            </div>
-            <div className="co-course-info">
-              <p className="co-course-name">{courseLabel || "未选择"}</p>
-              <p className="co-course-detail">
-                路线来源：{hasPlannedRoute ? "平台预设路线可用" : "需上传资料生成路线"}
-              </p>
-              <p className="co-course-detail">
-                学习目标：{GOAL_OPTIONS.find((g) => g.value === effectiveGoalConfig.goal)?.label || "系统学习"}
-              </p>
-              <p className="co-course-detail">
-                资料数量：{courseMaterials.length} 个
-              </p>
-            </div>
+        {/* ── Right Sidebar ── */}
+        <aside className="cd-sidebar">
+          {/* AI Suggestions */}
+          <div className="cd-section cd-ai-card">
+            <h4>💡 AI 学习建议</h4>
+            <ul className="cd-ai-suggestions">
+              {pendingCount > 0 && (
+                <li>有 {pendingCount} 份资料尚未关联知识点，建议处理。</li>
+              )}
+              {reviewCount > 0 && (
+                <li>还有 {reviewCount} 项内容待复习，打开复盘中心巩固。</li>
+              )}
+              {courseMaterials.length > 0 && (
+                <li>可以打开 AI 问答，基于资料库中的内容提问。</li>
+              )}
+              {totalKpCount === 0 && (
+                <li>上传课程资料后，AI 会自动提取知识点结构。</li>
+              )}
+              {courseMaterials.length === 0 && totalKpCount === 0 && (
+                <li>上传教材、课件或笔记，开始构建知识体系。</li>
+              )}
+            </ul>
+            <button className="cu-btn cu-btn--primary" type="button" onClick={onStartAsk}
+              style={{ marginTop: 10, width: "100%" }}>
+              打开 AI 问答
+            </button>
           </div>
 
-          <div className="co-card co-side-card co-ai-card">
-            <div className="co-side-card-header">
-              <h3 className="co-side-card-title">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" style={{ marginRight: 6 }}>
-                  <path d="M12 2a10 10 0 1 0 10 10h-10v-10z" />
-                </svg>
-                AI 建议
-              </h3>
+          {/* Quick Links */}
+          <div className="cd-section">
+            <h4 style={{ margin: "0 0 10px", fontSize: "0.92rem", fontWeight: 700, color: "#0f172a" }}>快捷入口</h4>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <button className="cu-btn cu-btn--ghost" type="button" onClick={() => setPage("taskCenter")}
+                style={{ justifyContent: "flex-start" }}>📋 任务中心</button>
+              <button className="cu-btn cu-btn--ghost" type="button" onClick={() => setPage("practiceCenter")}
+                style={{ justifyContent: "flex-start" }}>✏️ 练习中心</button>
+              <button className="cu-btn cu-btn--ghost" type="button" onClick={() => setPage("codeStudio")}
+                style={{ justifyContent: "flex-start" }}>💻 编程助手</button>
+              <button className="cu-btn cu-btn--ghost" type="button" onClick={() => setPage("knowledgeBaseCenter")}
+                style={{ justifyContent: "flex-start" }}>🗄️ 知识库中心</button>
             </div>
-            <p className="co-ai-suggestion">
-              {courseMaterials.length === 0
-                ? "还没有上传课程资料，建议上传教材、课件或笔记，或直接使用平台推荐路线开始学习。"
-                : hasPlannedRoute
-                  ? "已上传资料，你可以选择「我的资料路线」或「平台推荐路线」开始学习。"
-                  : "已上传资料，AI 将基于你的资料生成个性化学习路线。"}
-            </p>
           </div>
         </aside>
       </div>
