@@ -12933,7 +12933,6 @@ select.field:focus {
   flex-shrink: 0;
 }
 
-.ldc-select,
 .ldc-refresh-button {
   min-height: 38px;
   border-radius: 8px;
@@ -12973,7 +12972,7 @@ select.field:focus {
 .ldc-kpi-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 14px;
+  gap: 12px;
   margin-bottom: 14px;
 }
 
@@ -12987,10 +12986,12 @@ select.field:focus {
 
 .ldc-kpi-card {
   display: flex;
-  gap: 13px;
+  gap: 12px;
   align-items: center;
-  min-height: 112px;
-  padding: 18px 16px;
+  justify-content: flex-start;
+  min-width: 0;
+  min-height: 104px;
+  padding: 16px 14px;
   text-align: left;
 }
 
@@ -13015,9 +13016,9 @@ select.field:focus {
 }
 
 .ldc-kpi-icon {
-  width: 42px;
-  height: 42px;
-  flex: 0 0 42px;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
   border-radius: 8px;
   position: relative;
 }
@@ -13037,6 +13038,7 @@ select.field:focus {
 .ldc-tone-red { color: #ef4444; background: #fee2e2; }
 
 .ldc-kpi-body {
+  flex: 1;
   min-width: 0;
 }
 
@@ -13044,20 +13046,33 @@ select.field:focus {
 .ldc-kpi-body small {
   display: block;
   color: #64748b;
-  font-size: 13px;
+  font-size: 12px;
+  line-height: 1.25;
+  min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: keep-all;
 }
 
 .ldc-kpi-body strong {
   display: block;
-  margin-top: 8px;
+  margin-top: 7px;
   color: #0f172a;
-  font-size: 26px;
+  font-size: 24px;
   line-height: 1.05;
   font-weight: 800;
+  min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: keep-all;
 }
 
 .ldc-kpi-body small {
-  margin-top: 8px;
+  margin-top: 7px;
 }
 
 .ldc-main-grid,

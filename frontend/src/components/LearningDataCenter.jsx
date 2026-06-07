@@ -93,42 +93,42 @@ function normalizeDashboardData(raw, getSubjectLabel) {
     {
       label: "总学习时长",
       value: formatDuration(overview.total_study_minutes),
-      hint: safeNum(overview.total_study_minutes) > 0 ? "来自真实学习时长记录" : "暂无学习时长记录",
+      hint: safeNum(overview.total_study_minutes) > 0 ? "累计学习" : "暂无记录",
       tone: "blue",
       target_page: "",
     },
     {
       label: "本周学习天数",
       value: `${safeNum(overview.active_days_this_week)} 天`,
-      hint: "按真实活动日期去重",
+      hint: safeNum(overview.active_days_this_week) > 0 ? "活跃天数" : "暂无活动",
       tone: "cyan",
       target_page: "",
     },
     {
       label: "完成任务数",
       value: `${safeNum(overview.completed_tasks)} 个`,
-      hint: `待完成 ${safeNum(overview.pending_tasks)} 个`,
+      hint: safeNum(overview.completed_tasks) || safeNum(overview.pending_tasks) ? `待完成 ${safeNum(overview.pending_tasks)} 个` : "暂无任务",
       tone: "orange",
       target_page: "taskCenter",
     },
     {
       label: "练习正确率",
       value: formatPercent(overview.practice_accuracy),
-      hint: hasPractice ? `${safeNum(overview.practice_correct)} / ${safeNum(overview.practice_total)} 题正确` : "暂无练习记录",
+      hint: hasPractice ? `共 ${safeNum(overview.practice_total)} 道题` : "暂无练习",
       tone: "blue",
       target_page: "practiceCenter",
     },
     {
       label: "AI 提问次数",
       value: `${safeNum(overview.ai_question_count)} 次`,
-      hint: "来自用户 AI 问答消息",
+      hint: safeNum(overview.ai_question_count) > 0 ? "本周问答" : "暂无问答",
       tone: "purple",
       target_page: "chat",
     },
     {
       label: "连续学习天数",
       value: `${safeNum(overview.streak_days)} 天`,
-      hint: `最佳连续 ${safeNum(overview.best_streak_days)} 天`,
+      hint: safeNum(overview.best_streak_days) > 0 ? `最佳 ${safeNum(overview.best_streak_days)} 天` : "暂无连续记录",
       tone: "red",
       target_page: "",
     },
@@ -273,9 +273,6 @@ export default function LearningDataCenter({ user, getSubjectLabel, onNavigate }
           )}
         </div>
         <div className="ldc-header-actions">
-          <select className="ldc-select" value="7d" disabled aria-label="时间范围">
-            <option value="7d">近7天</option>
-          </select>
           <button className="ldc-refresh-button" onClick={fetchDashboard} disabled={loading}>
             刷新数据
           </button>

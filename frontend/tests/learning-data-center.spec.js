@@ -105,6 +105,8 @@ test("学习数据中心使用真实数据并支持页面联动", async ({ page,
   for (const text of expectedTexts) {
     await expect(page.getByText(text).first()).toBeVisible();
   }
+  await expect(page.getByRole("button", { name: "刷新数据" })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "时间范围" })).toHaveCount(0);
 
   await expect(page.getByText("学习数据加载失败")).toHaveCount(0);
   await expect(page.getByText("请稍后重试")).toHaveCount(0);
@@ -144,7 +146,7 @@ test("学习数据中心使用真实数据并支持页面联动", async ({ page,
   await page.locator(".sb-nav").getByRole("button", { name: /学习数据中心/ }).click();
 
   await page.screenshot({
-    path: "test-results/learning-data-center-linked.png",
+    path: "test-results/learning-data-center-kpi-fixed.png",
     fullPage: true,
   });
 
