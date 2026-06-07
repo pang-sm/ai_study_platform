@@ -575,9 +575,12 @@ class PlanGeneratePreviewRequest(BaseModel):
     username: str
     course_id: str = ""
     plan_type: str = "seven_day"
+    plan_scene: str = "daily"
     days: int = 7
     goal: str = ""
     daily_minutes: int = 60
+    exam_scope_text: str = ""
+    selected_material_ids: list[int] = []
 
 
 class PlanImportTasksRequest(BaseModel):

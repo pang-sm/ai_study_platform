@@ -11,8 +11,23 @@ const TASK_TYPE_LABELS = {
   code_practice: "代码练习",
   challenge: "完成练习",
   review: "复习资料",
+  practice: "练习",
+  reading: "阅读资料",
+  quiz: "小测",
+  summary: "总结",
+  code: "编程练习",
+  coding: "编程练习",
+  material: "阅读资料",
+  learning_plan: "学习计划",
   custom: "自定义",
 };
+
+const PLAN_SCENES = [
+  { value: "daily", label: "日常学习计划", hint: "结合课程进度、未学知识点和薄弱点生成。" },
+  { value: "exam", label: "期末考试复习计划", hint: "结合考试范围、资料库和试卷题型生成。" },
+  { value: "weakness", label: "错题薄弱点复盘计划", hint: "优先围绕错题、负向事件和薄弱知识点。" },
+  { value: "coding", label: "编程训练计划", hint: "结合编程练习记录和未掌握知识点。" },
+];
 
 const PLAN_TYPES = [
   { value: "today", label: "今日计划", days: 1 },
@@ -27,9 +42,13 @@ const DAILY_MINUTES_OPTIONS = [30, 60, 90];
 const PLAN_TASK_TYPE_LABELS = {
   review: "复习",
   practice: "练习",
-  coding: "编程",
-  material: "资料",
+  reading: "阅读资料",
+  quiz: "小测",
+  code: "编程练习",
+  coding: "编程练习",
+  material: "阅读资料",
   summary: "总结",
+  learning_plan: "学习计划",
   custom: "自定义",
 };
 
@@ -43,6 +62,7 @@ const SOURCE_LABELS = {
   manual: "手动创建",
   code_diagnosis: "诊断生成",
   course_plan: "课程计划",
+  learning_plan: "AI 计划",
   system: "系统推荐",
 };
 
@@ -61,11 +81,16 @@ const emptyForm = {
 };
 
 const emptyPlanForm = {
+  planScene: "daily",
   planType: "today",
   courseId: "",
   dailyMinutes: 60,
   customMinutes: "",
   goal: "",
+  examScopeText: "",
+  selectedMaterialIds: [],
+  scopeFiles: [],
+  paperFiles: [],
 };
 
 function getTaskTypeLabel(value) {
@@ -242,6 +267,11 @@ export default function TaskCenter({
     loadMaterials(normalizedFormCourse);
   }, [modalOpen, normalizedFormCourse, user?.username]);
 
+  useEffect(() => {
+    if (!planModalOpen) return;
+    loadMaterials(normalizedPlanCourse);
+  }, [planModalOpen, normalizedPlanCourse, user?.username]);
+
   const loadTasks = async (courseOverride = normalizedFilterCourse) => {
     if (!user?.username) return;
     setLoading(true);
@@ -350,6 +380,39 @@ export default function TaskCenter({
     setPlanError("");
   };
 
+  const updatePlanFiles = (field, files) => {
+    setPlanForm((prev) => ({
+      ...prev,
+      [field]: [...prev[field], ...Array.from(files || [])].slice(0, 3),
+    }));
+    setPlanPreview(null);
+    setPlanError("");
+  };
+
+  const removePlanFile = (field, index) => {
+    setPlanForm((prev) => ({
+      ...prev,
+      [field]: prev[field].filter((_, itemIndex) => itemIndex !== index),
+    }));
+    setPlanPreview(null);
+    setPlanError("");
+  };
+
+  const togglePlanMaterial = (materialId) => {
+    setPlanForm((prev) => {
+      const id = Number(materialId);
+      const selected = prev.selectedMaterialIds.includes(id);
+      return {
+        ...prev,
+        selectedMaterialIds: selected
+          ? prev.selectedMaterialIds.filter((item) => item !== id)
+          : [...prev.selectedMaterialIds, id].slice(0, 5),
+      };
+    });
+    setPlanPreview(null);
+    setPlanError("");
+  };
+
   const getPlanMinutes = () => {
     if (planForm.dailyMinutes === 0) {
       const customValue = parseInt(planForm.customMinutes, 10);
@@ -364,17 +427,22 @@ export default function TaskCenter({
     setPlanError("");
     setPlanSuccess("");
     try {
-      const res = await fetch(`${API_BASE}/learning/plans/generate-preview`, {
+      const formData = new FormData();
+      formData.append("username", user.username);
+      formData.append("course_id", normalizedPlanCourse);
+      formData.append("plan_type", planForm.planType);
+      formData.append("plan_scene", planForm.planScene);
+      formData.append("days", String(selectedPlanType.days));
+      formData.append("goal", planForm.goal.trim());
+      formData.append("daily_minutes", String(getPlanMinutes()));
+      formData.append("exam_scope_text", planForm.examScopeText.trim());
+      formData.append("selected_material_ids", JSON.stringify(planForm.selectedMaterialIds));
+      planForm.scopeFiles.forEach((file) => formData.append("scope_files", file));
+      planForm.paperFiles.forEach((file) => formData.append("paper_files", file));
+
+      const res = await fetch(`${API_BASE}/learning/plans/generate-preview-advanced`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: user.username,
-          course_id: normalizedPlanCourse,
-          plan_type: planForm.planType,
-          days: selectedPlanType.days,
-          goal: planForm.goal.trim(),
-          daily_minutes: getPlanMinutes(),
-        }),
+        body: formData,
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -816,8 +884,12 @@ export default function TaskCenter({
         <div className="task-empty-state-v2">正在加载任务...</div>
       ) : tasks.length === 0 ? (
         <div className="task-empty-state-v2">
-          <h3>还没有学习任务，创建一个任务把学习安排起来。</h3>
-          <button type="button" className="task-btn-primary" onClick={openCreateModal}>创建任务</button>
+          <h3>还没有学习任务</h3>
+          <p>可以手动创建任务，也可以让 AI 根据课程进度和资料库生成学习计划。</p>
+          <div className="task-empty-actions">
+            <button type="button" className="task-btn-primary" onClick={openCreateModal}>创建任务</button>
+            <button type="button" className="task-btn-ai" onClick={openPlanModal}>✨ AI 生成计划</button>
+          </div>
         </div>
       ) : (
         <div className="task-board">
@@ -960,6 +1032,29 @@ export default function TaskCenter({
               <p>选择课程、目标和时间，系统会自动拆分为学习任务。</p>
             </div>
             <div className="task-modal-body">
+              <div className="task-plan-group">
+                <h4>基础设置</h4>
+                <p>当前学习进度默认参与生成，AI 会优先考虑未学知识点和薄弱点。</p>
+              </div>
+
+              <div className="task-plan-section">
+                <span className="task-plan-label">计划场景</span>
+                <div className="task-plan-options task-plan-scene-options">
+                  {PLAN_SCENES.map((item) => (
+                    <button
+                      type="button"
+                      key={item.value}
+                      className={`task-plan-option task-plan-scene-option ${planForm.planScene === item.value ? "is-selected" : ""}`}
+                      onClick={() => updatePlanForm("planScene", item.value)}
+                      title={item.hint}
+                    >
+                      <strong>{item.label}</strong>
+                      <small>{item.hint}</small>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="task-plan-section">
                 <span className="task-plan-label">计划类型</span>
                 <div className="task-plan-options">
@@ -981,7 +1076,15 @@ export default function TaskCenter({
                 <select
                   className="field"
                   value={planForm.courseId}
-                  onChange={(event) => updatePlanForm("courseId", event.target.value)}
+                  onChange={(event) => {
+                    setPlanForm((prev) => ({
+                      ...prev,
+                      courseId: event.target.value,
+                      selectedMaterialIds: [],
+                    }));
+                    setPlanPreview(null);
+                    setPlanError("");
+                  }}
                 >
                   <option value="">全部课程</option>
                   {courseOptions.map((item) => (
@@ -1043,6 +1146,112 @@ export default function TaskCenter({
                 />
               </label>
 
+              <div className="task-plan-group">
+                <h4>学习依据</h4>
+                <p>
+                  {planForm.planScene === "exam"
+                    ? "可以补充考试范围、选择课程资料，并上传往年卷或模拟卷。"
+                    : "资料和考试范围为可选项，不填写也会根据学习进度生成。"}
+                </p>
+              </div>
+
+              <div className="task-plan-section">
+                <span className="task-plan-label">资料库资料</span>
+                {materialsLoading ? (
+                  <p className="task-muted">正在加载资料...</p>
+                ) : materials.length === 0 ? (
+                  <p className="task-muted">当前课程暂无资料，将根据学习进度降级生成。</p>
+                ) : (
+                  <div className="task-plan-materials">
+                    {materials.slice(0, 8).map((material) => {
+                      const selected = planForm.selectedMaterialIds.includes(Number(material.id));
+                      return (
+                        <button
+                          type="button"
+                          key={material.id}
+                          className={`task-plan-material ${selected ? "is-selected" : ""}`}
+                          onClick={() => togglePlanMaterial(material.id)}
+                        >
+                          <span>{getMaterialTitle(material)}</span>
+                          <small>{material.file_type || "资料"} · {isIndexedMaterial(material) ? "已索引" : "未索引"}</small>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {planForm.planScene === "exam" && (
+                <>
+                  <label className="task-form-field">
+                    <span>考试范围</span>
+                    <textarea
+                      className="field"
+                      rows={3}
+                      value={planForm.examScopeText}
+                      placeholder="例如：第 1-6 章，重点包括变量、循环、数组、函数、指针、结构体。"
+                      onChange={(event) => updatePlanForm("examScopeText", event.target.value)}
+                    />
+                  </label>
+
+                  {!planForm.examScopeText.trim() && planForm.scopeFiles.length === 0 && (
+                    <p className="task-plan-hint">未提供考试范围，将根据课程资料和学习进度生成复习计划。</p>
+                  )}
+
+                  <div className="task-plan-upload-grid">
+                    <div className="task-plan-upload">
+                      <span className="task-plan-label">考试范围文件</span>
+                      <input
+                        type="file"
+                        multiple
+                        aria-label="上传考试范围文件"
+                        accept=".pdf,.docx,.pptx,.txt,.md,image/*"
+                        onInput={(event) => {
+                          updatePlanFiles("scopeFiles", event.currentTarget.files);
+                        }}
+                        onChange={(event) => {
+                          updatePlanFiles("scopeFiles", event.target.files);
+                          event.target.value = "";
+                        }}
+                      />
+                      <div className="task-plan-file-list">
+                        {planForm.scopeFiles.map((file, index) => (
+                          <span key={`${file.name}-${index}`}>
+                            {file.name}
+                            <button type="button" onClick={() => removePlanFile("scopeFiles", index)}>移除</button>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="task-plan-upload">
+                      <span className="task-plan-label">往年卷 / 模拟卷</span>
+                      <input
+                        type="file"
+                        multiple
+                        aria-label="上传往年卷或模拟卷"
+                        accept=".pdf,.docx,.txt,.md,image/*"
+                        onInput={(event) => {
+                          updatePlanFiles("paperFiles", event.currentTarget.files);
+                        }}
+                        onChange={(event) => {
+                          updatePlanFiles("paperFiles", event.target.files);
+                          event.target.value = "";
+                        }}
+                      />
+                      <div className="task-plan-file-list">
+                        {planForm.paperFiles.map((file, index) => (
+                          <span key={`${file.name}-${index}`}>
+                            {file.name}
+                            <button type="button" onClick={() => removePlanFile("paperFiles", index)}>移除</button>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+
               {planError && <div className="task-plan-error">{planError}</div>}
 
               {planPreview && (
@@ -1053,6 +1262,21 @@ export default function TaskCenter({
                       <p>
                         已生成 {planItems.length} 个任务，预计学习时间 {planTotalMinutes || getPlanMinutes()} 分钟。
                       </p>
+                      {Array.isArray(planPreview.key_knowledge_points) && planPreview.key_knowledge_points.length > 0 && (
+                        <div className="task-plan-preview-tags">
+                          {planPreview.key_knowledge_points.slice(0, 8).map((item, index) => (
+                            <span key={`${item}-${index}`}>{item}</span>
+                          ))}
+                        </div>
+                      )}
+                      {Array.isArray(planPreview.question_type_analysis) && planPreview.question_type_analysis.length > 0 && (
+                        <div className="task-plan-analysis">
+                          <strong>题型分析</strong>
+                          {planPreview.question_type_analysis.map((item, index) => (
+                            <span key={index}>{item.type || "未知题型"}：{item.count ?? 0}</span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="task-plan-preview-list">
@@ -1062,18 +1286,20 @@ export default function TaskCenter({
                       planItems.map((item, index) => {
                         const courseLabel = item?.course_id ? getSubjectLabel(item.course_id) : "全部课程";
                         const minutes = Number(item?.estimated_minutes) || getPlanMinutes();
-                        const knowledgeLabel = item?.knowledge_point_title || item?.knowledge_point_text || item?.knowledge_point || "";
+                        const knowledgeLabel = item?.knowledge_point_name || item?.knowledge_point_title || item?.knowledge_point_text || item?.knowledge_point || "";
                         return (
                           <article className="task-plan-preview-item" key={`${item?.title || "task"}-${index}`}>
                             <div className="task-plan-preview-index">{index + 1}</div>
                             <div className="task-plan-preview-main">
                               <h5>{item?.title || `学习任务 ${index + 1}`}</h5>
                               {item?.description && <p>{item.description}</p>}
+                              {item?.reason && <p className="task-plan-preview-reason">安排原因：{item.reason}</p>}
                               <div className="task-plan-preview-meta">
                                 <span>{courseLabel}</span>
                                 <span>{minutes} 分钟</span>
                                 <span>{getPlanTaskTypeLabel(item?.task_type)}</span>
                                 {knowledgeLabel && <span>知识点：{knowledgeLabel}</span>}
+                                {Array.isArray(item?.related_material_ids) && item.related_material_ids.length > 0 && <span>关联资料：{item.related_material_ids.length} 份</span>}
                               </div>
                             </div>
                           </article>

@@ -13,6 +13,7 @@ import hashlib
 import asyncio
 import threading
 import time
+import zipfile
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError, as_completed
 from datetime import date, datetime, timedelta, timezone
@@ -13556,23 +13557,249 @@ def generate_task_question_preview(req: schemas.GenerateTaskQuestionPreviewReque
 # ── AI Learning Plan ─────────────────────────────────────
 
 ALLOWED_PLAN_TYPES = {"today", "three_day", "seven_day", "exam", "coding"}
-ALLOWED_TASK_TYPES = {"review", "practice", "coding", "material", "summary", "custom"}
+ALLOWED_PLAN_SCENES = {"daily", "exam", "weakness", "coding"}
+ALLOWED_TASK_TYPES = {"review", "practice", "reading", "quiz", "summary", "code", "learning_plan", "coding", "material", "custom"}
 ALLOWED_PRIORITIES = {"high", "medium", "low"}
+PLAN_TASK_TYPE_ALIASES = {
+    "coding": "code",
+    "code_practice": "code",
+    "material": "reading",
+    "read_material": "reading",
+    "test": "quiz",
+    "exam": "quiz",
+}
+PLAN_TASK_TYPE_CN = {
+    "review": "复习",
+    "practice": "练习",
+    "reading": "阅读资料",
+    "quiz": "小测",
+    "summary": "总结",
+    "code": "编程练习",
+    "learning_plan": "学习计划",
+    "custom": "学习任务",
+}
 
 
 class PlanGeneratePreviewRequest(BaseModel):
     username: str
     course_id: str = ""
     plan_type: str = "seven_day"
+    plan_scene: str = "daily"
     days: int = 7
     goal: str = ""
     daily_minutes: int = 60
+    exam_scope_text: str = ""
+    selected_material_ids: list[int] = []
 
 
 class PlanImportTasksRequest(BaseModel):
     username: str
     plan_title: str = ""
     items: list
+
+
+def _truncate_text(value: str, max_len: int) -> str:
+    text = re.sub(r"\s+", " ", str(value or "")).strip()
+    return text[:max_len]
+
+
+def _looks_english(value: str) -> bool:
+    text = str(value or "").strip()
+    if not text:
+        return False
+    ascii_letters = len(re.findall(r"[A-Za-z]", text))
+    cjk_chars = len(re.findall(r"[\u4e00-\u9fff]", text))
+    return ascii_letters >= 6 and ascii_letters > cjk_chars * 2
+
+
+def _normalize_plan_task_type(value: str) -> str:
+    task_type = str(value or "review").strip().lower()
+    task_type = PLAN_TASK_TYPE_ALIASES.get(task_type, task_type)
+    if task_type not in ALLOWED_TASK_TYPES:
+        task_type = "review"
+    return task_type
+
+
+def _fallback_plan_title(course_id: str, plan_type: str, plan_scene: str) -> str:
+    course_name = course_id or "全部课程"
+    if plan_scene == "exam" or plan_type == "exam":
+        return f"{course_name}考试复习计划"
+    if plan_scene == "coding" or plan_type == "coding":
+        return f"{course_name}编程训练计划"
+    if plan_type == "today":
+        return f"{course_name}今日学习计划"
+    return f"{course_name}学习计划"
+
+
+def _fallback_task_title(item: dict, course_id: str, index: int) -> str:
+    course_name = str(item.get("course_id") or course_id or "课程").strip()
+    kp_name = str(item.get("knowledge_point_name") or item.get("knowledge_point_title") or "").strip()
+    task_type = _normalize_plan_task_type(item.get("task_type"))
+    action = PLAN_TASK_TYPE_CN.get(task_type, "学习")
+    base = kp_name or course_name
+    title = f"{base}{action}"
+    if len(title) > 20:
+        title = f"{course_name}{action}"
+    if len(title) > 20:
+        title = f"学习任务{index + 1}"
+    return title
+
+
+def _normalize_plan_text(value: str, fallback: str, max_len: int) -> str:
+    text = _truncate_text(value, max_len)
+    if not text or _looks_english(text):
+        return fallback[:max_len]
+    return text
+
+
+def _build_default_plan_items(req: PlanGeneratePreviewRequest, plan_data: dict) -> list[dict]:
+    minutes = max(30, min(180, int(req.daily_minutes or 60)))
+    per_task = max(15, round(minutes / 3))
+    course_id = normalize_subject(req.course_id, default="") or req.course_id or ""
+    candidates = plan_data.get("weak_points") or []
+    if not candidates:
+        candidates = plan_data.get("not_started_points") or []
+    titles = [item.get("title") for item in candidates[:3] if item.get("title")]
+    while len(titles) < 3:
+        titles.append(["基础概念", "重点练习", "学习总结"][len(titles)])
+    task_types = ["reading", "practice", "summary"]
+    return [
+        {
+            "day_index": 1,
+            "title": f"{title}{PLAN_TASK_TYPE_CN[task_types[index]]}"[:20],
+            "description": "根据当前学习进度安排，先补齐薄弱或未开始知识点，再通过练习巩固。",
+            "course_id": course_id,
+            "knowledge_point_id": candidates[index].get("id") if index < len(candidates) else None,
+            "knowledge_point_name": title,
+            "task_type": task_types[index],
+            "estimated_minutes": per_task,
+            "priority": "medium",
+            "reason": "该内容与当前进度或薄弱点相关，适合优先安排。",
+            "related_material_ids": [],
+            "source_evidence": [],
+        }
+        for index, title in enumerate(titles[:3])
+    ]
+
+
+def _extract_text_from_upload(file: UploadFile, max_chars: int = 6000) -> str:
+    raw = file.file.read()
+    name = (file.filename or "").lower()
+    content_type = (file.content_type or "").lower()
+    text = ""
+    try:
+        if name.endswith(".pdf") or "pdf" in content_type:
+            reader = PdfReader(BytesIO(raw))
+            pages = []
+            for page in reader.pages[:8]:
+                pages.append(page.extract_text() or "")
+            text = "\n".join(pages)
+        elif name.endswith(".docx") or name.endswith(".pptx"):
+            with zipfile.ZipFile(BytesIO(raw)) as zf:
+                xml_names = [
+                    item for item in zf.namelist()
+                    if item.startswith(("word/document", "ppt/slides/slide")) and item.endswith(".xml")
+                ]
+                parts = []
+                for xml_name in xml_names[:12]:
+                    xml = zf.read(xml_name).decode("utf-8", errors="ignore")
+                    parts.append(re.sub(r"<[^>]+>", " ", xml))
+                text = "\n".join(parts)
+        elif content_type.startswith("image/"):
+            image = Image.open(BytesIO(raw))
+            text = pytesseract.image_to_string(image, lang="chi_sim+eng")
+        else:
+            text = raw.decode("utf-8", errors="ignore")
+    except Exception as exc:
+        logger.warning("Failed to parse plan upload %s: %s", file.filename, exc)
+        text = ""
+    return _truncate_text(text, max_chars)
+
+
+def _analyze_exam_paper_text(texts: list[str]) -> dict:
+    joined = "\n".join(texts or "")
+    type_patterns = {
+        "选择题": r"选择题|单选|多选|A[.、]|B[.、]|C[.、]|D[.、]",
+        "填空题": r"填空题|填空|____|（\\s*）",
+        "判断题": r"判断题|判断|对错|正确|错误",
+        "简答题": r"简答题|简述|说明|解释",
+        "编程题": r"编程题|程序|代码|函数|class|public|int main",
+        "综合题": r"综合题|设计|分析|综合",
+    }
+    distribution = []
+    for label, pattern in type_patterns.items():
+        count = len(re.findall(pattern, joined, flags=re.IGNORECASE))
+        if count:
+            distribution.append({"type": label, "count": count})
+    if not distribution:
+        distribution.append({"type": "未知题型", "count": 1 if joined.strip() else 0})
+    keywords = []
+    for word in ["变量", "循环", "数组", "函数", "指针", "结构体", "类", "对象", "继承", "多态", "异常", "集合", "递归"]:
+        if word in joined:
+            keywords.append(word)
+    suggestions = []
+    type_names = {item["type"] for item in distribution}
+    if "编程题" in type_names:
+        suggestions.append("编程题占比较高，建议增加代码练习。")
+    if type_names & {"选择题", "判断题", "填空题"}:
+        suggestions.append("客观题较多，建议安排概念辨析和小测。")
+    if type_names & {"简答题", "综合题"}:
+        suggestions.append("主观题或综合题需要安排总结和综合训练。")
+    return {
+        "question_type_analysis": distribution,
+        "key_knowledge_points": keywords[:8],
+        "paper_suggestions": suggestions,
+    }
+
+
+def _get_selected_plan_materials(username: str, course_id: str, material_ids: list[int], db: Session):
+    normalized_course = normalize_subject(course_id, default="")
+    query = db.query(models.StudyMaterial).filter(
+        models.StudyMaterial.username == username,
+        models.StudyMaterial.is_deleted.is_(False),
+    )
+    safe_ids = [int(mid) for mid in (material_ids or [])[:5] if str(mid).isdigit()]
+    if safe_ids:
+        query = query.filter(models.StudyMaterial.id.in_(safe_ids))
+    elif normalized_course:
+        query = query.filter(models.StudyMaterial.subject == normalized_course)
+    return query.order_by(models.StudyMaterial.created_at.desc()).limit(5).all()
+
+
+def _get_plan_material_context(username: str, course_id: str, material_ids: list[int], query_text: str, db: Session) -> list[dict]:
+    materials = _get_selected_plan_materials(username, course_id, material_ids, db)
+    material_map = {m.id: m for m in materials}
+    if not material_map:
+        return []
+    chunks = search_relevant_material_chunks(
+        username=username,
+        subject=normalize_subject(course_id, default="") or None,
+        question=query_text or course_id or "考试范围 学习重点",
+        top_k=18,
+    )
+    grouped: dict[int, list[dict]] = defaultdict(list)
+    for chunk in chunks:
+        material_id = int(chunk.get("material_id") or 0)
+        if material_id in material_map and len(grouped[material_id]) < 4:
+            grouped[material_id].append(chunk)
+    context = []
+    for material in materials:
+        selected_chunks = grouped.get(material.id, [])
+        if not selected_chunks and material.summary:
+            selected_chunks = [{"chunk_summary": material.summary, "chunk_text": material.summary}]
+        context.append({
+            "material_id": material.id,
+            "title": material.original_filename,
+            "summary": _truncate_text(material.summary or "", 200),
+            "chunks": [
+                {
+                    "summary": _truncate_text(chunk.get("chunk_summary") or chunk.get("chunk_text") or "", 180),
+                    "text": _truncate_text(chunk.get("chunk_text") or "", 260),
+                }
+                for chunk in selected_chunks[:4]
+            ],
+        })
+    return context
 
 
 def _gather_plan_data(username: str, course_id: str, db: Session):
@@ -13594,6 +13821,25 @@ def _gather_plan_data(username: str, course_id: str, db: Session):
     weak_points = [
         {"id": kp_id, "title": title, "course_id": kp_course, "mastery_score": p.mastery_score or 0, "status": p.status or "not_started"}
         for p, title, kp_id, kp_course in weak_kp_rows
+    ]
+
+    # Not-started or low-activity knowledge points (max 10)
+    progress_subquery = db.query(models.UserKnowledgeProgress.knowledge_point_id).filter(
+        models.UserKnowledgeProgress.username == username
+    )
+    kp_base_query = db.query(models.KnowledgePoint).filter(models.KnowledgePoint.username == username)
+    if normalized_course:
+        kp_base_query = kp_base_query.filter(models.KnowledgePoint.course_id == normalized_course)
+    not_started_rows = (
+        kp_base_query
+        .filter(~models.KnowledgePoint.id.in_(progress_subquery))
+        .order_by(models.KnowledgePoint.created_at.asc())
+        .limit(10)
+        .all()
+    )
+    not_started_points = [
+        {"id": kp.id, "title": kp.title, "course_id": kp.course_id, "status": "not_started", "mastery_score": 0}
+        for kp in not_started_rows
     ]
 
     # Wrong questions (max 10)
@@ -13683,6 +13929,24 @@ def _gather_plan_data(username: str, course_id: str, db: Session):
         for cs in code_sessions
     ]
 
+    # Recent learning records (max 8)
+    user = db.query(models.User).filter(models.User.username == username).first()
+    records_data = []
+    if user:
+        record_query = db.query(models.LearningRecord).filter(models.LearningRecord.user_id == user.id)
+        if normalized_course:
+            record_query = record_query.filter(models.LearningRecord.subject == normalized_course)
+        records = record_query.order_by(models.LearningRecord.created_at.desc()).limit(8).all()
+        records_data = [
+            {
+                "subject": record.subject,
+                "record_type": record.record_type,
+                "question": _truncate_text(record.question, 80),
+                "created_at": record.created_at.isoformat() if record.created_at else "",
+            }
+            for record in records
+        ]
+
     # Material and knowledge point counts
     mat_count = db.query(models.StudyMaterial).filter(
         models.StudyMaterial.username == username,
@@ -13696,30 +13960,33 @@ def _gather_plan_data(username: str, course_id: str, db: Session):
 
     return {
         "weak_points": weak_points,
+        "not_started_points": not_started_points,
         "wrong_questions": wrong_questions,
         "unfinished_tasks": tasks_data,
         "negative_events": negative_events,
         "code_sessions": code_data,
+        "learning_records": records_data,
         "material_count": mat_count,
         "knowledge_point_count": kp_count,
     }
 
 
-PLAN_SYSTEM_PROMPT = """You are a learning plan assistant. Generate a structured learning plan based on the user's data.
+PLAN_SYSTEM_PROMPT = """你是中文 AI 学习规划师。请根据用户学习数据生成结构化学习计划。
 
-Rules:
-1. Output ONLY valid JSON — no markdown, no code fences, no extra text.
-2. The JSON must have: plan_title (string), summary (string), items (array).
-3. Each item must have: day_index (int), title (string, short), description (string, specific), course_id (string), knowledge_point_id (int or null), task_type (string), estimated_minutes (int), priority (string).
-4. task_type must be one of: review, practice, coding, material, summary, custom.
-5. priority must be one of: high, medium, low.
-6. knowledge_point_id must be an existing ID from the user's data, or null.
-7. Prioritize low-mastery knowledge points.
-8. Don't overload — each day should have at most 3-4 tasks.
-9. For "coding" plan type, prioritize coding exercises and code review.
-10. For "exam" plan type, prioritize review, practice, and summary.
-11. If user data is sparse, still generate a basic plan but mention it in the summary.
-12. estimated_minutes should be between 15 and 120."""
+硬性规则：
+1. 只输出合法 JSON，不要 markdown、代码块或解释文字。
+2. 所有 plan_title、summary、task.title、task.description、task.reason 必须使用中文；课程名 Java、Python、C语言、C++ 可保留。
+3. 不允许输出英文任务标题，不要出现 Review Java Basics、Practice Basic Coding 这类标题。
+4. plan_title 要中文，任务标题建议 8-18 个中文字符，最多 20 个中文字符。
+5. description 使用中文，建议 40-80 个中文字符，最多 100 个中文字符。
+6. reason 使用中文，最多 80 个中文字符。
+7. 输出 JSON 字段：plan_title、summary、total_tasks、total_minutes、key_knowledge_points、question_type_analysis、items。
+8. items 中每个任务字段：day_index、title、description、course_id、course_name、knowledge_point_id、knowledge_point_name、task_type、estimated_minutes、priority、reason、related_material_ids、source_evidence。
+9. task_type 只能是：review、practice、reading、quiz、summary、code。
+10. knowledge_point_id 必须来自用户数据中的已有 ID，否则为 null；不要编造资料名称。
+11. 计划必须结合当前学习进度、未学知识点、薄弱知识点、错题/负向事件、资料库相关内容、考试范围或试卷题型。
+12. 如果资料不足，正常生成，并在 summary 中说明“根据当前已有学习数据生成”。
+13. 每天最多 3-4 个任务，estimated_minutes 在 10 到 120 之间。"""
 
 
 def _parse_plan_json(raw_text: str, valid_kp_ids: set[int], username: str) -> dict:
@@ -13748,13 +14015,13 @@ def _parse_plan_json(raw_text: str, valid_kp_ids: set[int], username: str) -> di
 
     plan_title = str(data.get("plan_title") or "").strip()
     summary = str(data.get("summary") or "").strip()
-    raw_items = data.get("items", [])
+    raw_items = data.get("items", data.get("tasks", []))
 
     if not isinstance(raw_items, list) or len(raw_items) == 0:
         raise HTTPException(status_code=500, detail="AI 返回的计划任务为空，请重试")
 
     items = []
-    for item in raw_items:
+    for index, item in enumerate(raw_items):
         if not isinstance(item, dict):
             continue
         title = str(item.get("title") or "").strip()
@@ -13762,6 +14029,8 @@ def _parse_plan_json(raw_text: str, valid_kp_ids: set[int], username: str) -> di
             continue
         description = str(item.get("description") or "").strip()
         course_id = str(item.get("course_id") or "").strip()
+        course_name = str(item.get("course_name") or course_id or "").strip()
+        kp_name = str(item.get("knowledge_point_name") or item.get("knowledge_point_title") or "").strip()
         kp_id = item.get("knowledge_point_id")
         if kp_id is not None and isinstance(kp_id, (int, float)):
             kp_id = int(kp_id)
@@ -13769,48 +14038,104 @@ def _parse_plan_json(raw_text: str, valid_kp_ids: set[int], username: str) -> di
                 kp_id = None
         else:
             kp_id = None
-        task_type = str(item.get("task_type") or "review").strip().lower()
-        if task_type not in ALLOWED_TASK_TYPES:
-            task_type = "review"
-        estimated = int(item.get("estimated_minutes", 30))
+        task_type = _normalize_plan_task_type(item.get("task_type"))
+        try:
+            estimated = int(item.get("estimated_minutes", 30))
+        except Exception:
+            estimated = 30
         estimated = max(10, min(120, estimated))
         priority = str(item.get("priority") or "medium").strip().lower()
         if priority not in ALLOWED_PRIORITIES:
             priority = "medium"
-        day_index = int(item.get("day_index", 1))
+        try:
+            day_index = int(item.get("day_index", 1))
+        except Exception:
+            day_index = 1
+        fallback_title = _fallback_task_title({**item, "course_id": course_id}, course_id, index)
+        title = _normalize_plan_text(title, fallback_title, 20)
+        description = _normalize_plan_text(
+            description,
+            f"围绕{kp_name or course_name or '当前课程'}安排{PLAN_TASK_TYPE_CN.get(task_type, '学习')}，结合进度完成巩固。",
+            100,
+        )
+        reason = _normalize_plan_text(
+            str(item.get("reason") or "").strip(),
+            "该任务结合当前学习进度、薄弱点或复习范围安排。",
+            80,
+        )
+        related_material_ids = item.get("related_material_ids") or []
+        if not isinstance(related_material_ids, list):
+            related_material_ids = []
+        related_material_ids = [int(mid) for mid in related_material_ids[:5] if str(mid).isdigit()]
+        source_evidence = item.get("source_evidence") or []
+        if not isinstance(source_evidence, list):
+            source_evidence = []
 
         items.append({
             "day_index": day_index,
             "title": title,
             "description": description,
             "course_id": course_id,
+            "course_name": course_name or course_id,
             "knowledge_point_id": kp_id,
+            "knowledge_point_name": kp_name,
             "task_type": task_type,
             "estimated_minutes": estimated,
             "priority": priority,
+            "reason": reason,
+            "related_material_ids": related_material_ids,
+            "source_evidence": [_truncate_text(item, 120) for item in source_evidence[:3]],
         })
 
     if not items:
         raise HTTPException(status_code=500, detail="AI 返回的计划中没有有效任务")
 
     return {
-        "plan_title": plan_title,
-        "summary": summary,
+        "plan_title": _normalize_plan_text(plan_title, "中文学习计划", 40),
+        "summary": _normalize_plan_text(summary, "根据当前已有学习数据生成计划。", 160),
+        "total_tasks": int(data.get("total_tasks") or len(items)),
+        "total_minutes": int(data.get("total_minutes") or sum(item["estimated_minutes"] for item in items)),
+        "key_knowledge_points": data.get("key_knowledge_points") if isinstance(data.get("key_knowledge_points"), list) else [],
+        "question_type_analysis": data.get("question_type_analysis") if isinstance(data.get("question_type_analysis"), list) else [],
         "items": items,
     }
 
 
-@app.post("/learning/plans/generate-preview")
-def generate_plan_preview(req: PlanGeneratePreviewRequest, db: Session = Depends(get_db)):
+def _generate_plan_preview_core(
+    req: PlanGeneratePreviewRequest,
+    db: Session,
+    scope_file_texts: list[str] | None = None,
+    paper_file_texts: list[str] | None = None,
+):
     user = get_user_by_username(req.username, db)
 
     if req.plan_type not in ALLOWED_PLAN_TYPES:
         raise HTTPException(status_code=400, detail=f"无效的计划类型：{req.plan_type}")
+    if req.plan_scene not in ALLOWED_PLAN_SCENES:
+        req.plan_scene = "daily"
 
     plan_data = _gather_plan_data(req.username, req.course_id, db)
+    exam_scope_text = _truncate_text(req.exam_scope_text or "", 1200)
+    scope_file_texts = scope_file_texts or []
+    paper_file_texts = paper_file_texts or []
+    combined_query = " ".join([
+        req.goal or "",
+        req.course_id or "",
+        exam_scope_text,
+        " ".join(scope_file_texts)[:1200],
+    ])
+    material_context = _get_plan_material_context(
+        req.username,
+        req.course_id,
+        req.selected_material_ids,
+        combined_query,
+        db,
+    )
+    paper_analysis = _analyze_exam_paper_text(paper_file_texts)
 
     # Build valid knowledge point ID set
     valid_kp_ids = {wp["id"] for wp in plan_data["weak_points"]}
+    valid_kp_ids.update(wp["id"] for wp in plan_data.get("not_started_points", []))
     for t in plan_data["unfinished_tasks"]:
         if t["knowledge_point_id"]:
             valid_kp_ids.add(t["knowledge_point_id"])
@@ -13821,68 +14146,103 @@ def generate_plan_preview(req: PlanGeneratePreviewRequest, db: Session = Depends
     ).count()
 
     user_prompt_parts = [
-        f"Plan type: {req.plan_type}",
-        f"Days: {req.days}",
-        f"Daily study time: {req.daily_minutes} minutes",
-        f"User goal: {req.goal or '无特定目标'}" if req.goal else "",
+        f"计划场景：{req.plan_scene}",
+        f"计划类型：{req.plan_type}",
+        f"计划天数：{req.days}",
+        f"每日学习时间：{req.daily_minutes} 分钟",
+        f"学习目标：{req.goal or '无特定目标'}",
     ]
     if req.course_id:
-        user_prompt_parts.append(f"Focus course: {req.course_id}")
+        user_prompt_parts.append(f"课程范围：{req.course_id}")
 
     user_prompt_parts.append("")
-    user_prompt_parts.append("--- User Data ---")
+    user_prompt_parts.append("--- 用户学习数据 ---")
 
-    user_prompt_parts.append(f"Total knowledge points: {all_kp_count}")
-    user_prompt_parts.append(f"Total materials: {plan_data['material_count']}")
+    user_prompt_parts.append(f"知识点总数：{all_kp_count}")
+    user_prompt_parts.append(f"资料总数：{plan_data['material_count']}")
 
     # Weak points
-    user_prompt_parts.append(f"\nWeak knowledge points (mastery < 40, max 10, {len(plan_data['weak_points'])} found):")
+    user_prompt_parts.append(f"\n薄弱知识点（掌握度 < 40，{len(plan_data['weak_points'])} 个）：")
     for wp in plan_data["weak_points"]:
         user_prompt_parts.append(
-            f"  - id={wp['id']}, title={wp['title']}, course={wp['course_id']}, "
-            f"mastery={wp['mastery_score']}%, status={wp['status']}"
+            f"  - id={wp['id']}，名称={wp['title']}，课程={wp['course_id']}，"
+            f"掌握度={wp['mastery_score']}%，状态={wp['status']}"
         )
 
+    user_prompt_parts.append(f"\n未开始知识点（{len(plan_data['not_started_points'])} 个）：")
+    for wp in plan_data["not_started_points"][:10]:
+        user_prompt_parts.append(f"  - id={wp['id']}，名称={wp['title']}，课程={wp['course_id']}")
+
     # Wrong questions
-    user_prompt_parts.append(f"\nRecent wrong answers ({len(plan_data['wrong_questions'])} found):")
+    user_prompt_parts.append(f"\n近期错题（{len(plan_data['wrong_questions'])} 个）：")
     for wq in plan_data["wrong_questions"]:
         user_prompt_parts.append(
-            f"  - {wq['title']} (course: {wq['course_id']}, "
-            f"user answered: {wq['user_answer'][:80]}, correct: {wq['correct_answer'][:80]})"
+            f"  - {wq['title']}（课程：{wq['course_id']}，"
+            f"用户答案：{wq['user_answer'][:80]}，参考答案：{wq['correct_answer'][:80]}）"
         )
 
     # Unfinished tasks
-    user_prompt_parts.append(f"\nUnfinished tasks ({len(plan_data['unfinished_tasks'])} found):")
+    user_prompt_parts.append(f"\n未完成任务（{len(plan_data['unfinished_tasks'])} 个）：")
     for t in plan_data["unfinished_tasks"]:
         user_prompt_parts.append(
-            f"  - {t['title']} ({t['task_type']}, status={t['status']}, "
-            f"course={t['course_id']}, kp_id={t['knowledge_point_id']})"
+            f"  - {t['title']}（类型={t['task_type']}，状态={t['status']}，"
+            f"课程={t['course_id']}，知识点 id={t['knowledge_point_id']}）"
         )
 
     # Negative events
-    user_prompt_parts.append(f"\nNegative mastery events ({len(plan_data['negative_events'])} found):")
+    user_prompt_parts.append(f"\n负向掌握事件（{len(plan_data['negative_events'])} 个）：")
     for e in plan_data["negative_events"]:
         user_prompt_parts.append(
-            f"  - kp={e['knowledge_point_title'] or e['knowledge_point_id']}, "
-            f"delta={e['delta']}, type={e['event_type']}"
+            f"  - 知识点={e['knowledge_point_title'] or e['knowledge_point_id']}，"
+            f"变化={e['delta']}，类型={e['event_type']}，原因={e['reason'][:60]}"
         )
 
     # Code sessions
-    user_prompt_parts.append(f"\nRecent code sessions ({len(plan_data['code_sessions'])} found):")
+    user_prompt_parts.append(f"\n近期代码练习（{len(plan_data['code_sessions'])} 个）：")
     for cs in plan_data["code_sessions"]:
-        user_prompt_parts.append(f"  - {cs['title']} ({cs['language']}, course={cs['course_id']})")
+        user_prompt_parts.append(f"  - {cs['title']}（{cs['language']}，课程={cs['course_id']}）")
+
+    user_prompt_parts.append(f"\n近期学习记录（{len(plan_data['learning_records'])} 条）：")
+    for record in plan_data["learning_records"]:
+        user_prompt_parts.append(f"  - {record['subject']}：{record['question']}（{record['record_type']}）")
+
+    if exam_scope_text or scope_file_texts:
+        user_prompt_parts.append("\n--- 考试范围 ---")
+        if exam_scope_text:
+            user_prompt_parts.append(f"考试范围文本：{exam_scope_text}")
+        for index, scope_text in enumerate(scope_file_texts[:3], 1):
+            user_prompt_parts.append(f"考试范围文件 {index} 摘要：{_truncate_text(scope_text, 600)}")
+
+    user_prompt_parts.append("\n--- 资料库相关内容 ---")
+    if material_context:
+        for material in material_context:
+            user_prompt_parts.append(f"资料 id={material['material_id']}，标题={material['title']}，摘要={material['summary']}")
+            for chunk in material["chunks"][:4]:
+                user_prompt_parts.append(f"  - 相关片段：{chunk['summary'] or chunk['text']}")
+    else:
+        user_prompt_parts.append("当前课程暂无可用资料片段，请根据学习进度降级生成。")
+
+    if paper_file_texts:
+        user_prompt_parts.append("\n--- 往年卷/模拟卷分析 ---")
+        user_prompt_parts.append(f"题型分析：{json.dumps(paper_analysis['question_type_analysis'], ensure_ascii=False)}")
+        user_prompt_parts.append(f"高频知识点：{', '.join(paper_analysis['key_knowledge_points']) or '暂未识别'}")
+        user_prompt_parts.append(f"复习建议：{'；'.join(paper_analysis['paper_suggestions']) or '根据当前试卷内容安排复习'}")
 
     # Instruction
-    user_prompt_parts.append(f"\n--- Instructions ---")
-    user_prompt_parts.append(f"Generate a {req.plan_type} learning plan for {req.days} day(s).")
-    user_prompt_parts.append("Prioritize low-mastery knowledge points and wrong answer topics.")
-    if req.plan_type == "coding":
-        user_prompt_parts.append("This is a CODING plan — prioritize programming practice and code review tasks.")
-    elif req.plan_type == "exam":
-        user_prompt_parts.append("This is an EXAM plan — prioritize review, practice, and summary tasks.")
-    user_prompt_parts.append("Use ONLY the knowledge_point_ids listed above, or null.")
-    user_prompt_parts.append("Each day should have 2-4 tasks totaling around the daily study time.")
-    user_prompt_parts.append("If user data is sparse, note that in the summary and suggest general study activities.")
+    user_prompt_parts.append(f"\n--- 生成要求 ---")
+    user_prompt_parts.append("生成中文 JSON 学习计划，任务标题和描述必须是中文。")
+    user_prompt_parts.append("优先安排未开始知识点、掌握度低的知识点、错题和负向事件相关知识点。")
+    user_prompt_parts.append("不要重复安排已经掌握较高且近期刚完成的知识点。")
+    if req.plan_scene == "exam" or req.plan_type == "exam":
+        user_prompt_parts.append("这是期末考试复习计划，必须结合考试范围、资料片段和试卷题型安排复习。")
+    elif req.plan_scene == "daily":
+        user_prompt_parts.append("这是日常学习计划，必须结合课程学习进度和薄弱知识点安排。")
+    elif req.plan_scene == "coding" or req.plan_type == "coding":
+        user_prompt_parts.append("这是编程训练计划，优先安排代码练习、代码复盘和相关知识点巩固。")
+    user_prompt_parts.append("related_material_ids 只能使用上方资料 id；不确定就返回空数组。")
+    user_prompt_parts.append("source_evidence 写简短依据，例如资料标题、考试范围或薄弱点名称。")
+    user_prompt_parts.append("使用上方已有 knowledge_point_id；无法匹配则为 null。")
+    user_prompt_parts.append("每个任务标题不要超过 20 个中文字符，描述不要超过 100 个中文字符。")
 
     user_prompt = "\n".join(user_prompt_parts)
 
@@ -13903,6 +14263,23 @@ def generate_plan_preview(req: PlanGeneratePreviewRequest, db: Session = Depends
         raise HTTPException(status_code=500, detail="AI 计划生成失败，请稍后重试") from exc
 
     result = _parse_plan_json(raw, valid_kp_ids, req.username)
+    if _looks_english(result["plan_title"]):
+        result["plan_title"] = _fallback_plan_title(req.course_id, req.plan_type, req.plan_scene)
+    if not result["items"]:
+        result["items"] = _build_default_plan_items(req, plan_data)
+    fallback_course = normalize_subject(req.course_id, default="") or req.course_id or ""
+    for item in result["items"]:
+        if not item.get("course_id") and fallback_course:
+            item["course_id"] = fallback_course
+        if not item.get("course_name") and item.get("course_id"):
+            item["course_name"] = item["course_id"]
+    if not result.get("key_knowledge_points"):
+        result["key_knowledge_points"] = [
+            item.get("title") for item in (plan_data.get("weak_points") or plan_data.get("not_started_points") or [])[:6]
+            if item.get("title")
+        ]
+    if paper_analysis.get("question_type_analysis") and not result.get("question_type_analysis"):
+        result["question_type_analysis"] = paper_analysis["question_type_analysis"]
 
     # Add course_name for frontend display
     course_name = req.course_id if req.course_id else "全部课程"
@@ -13910,10 +14287,62 @@ def generate_plan_preview(req: PlanGeneratePreviewRequest, db: Session = Depends
     return {
         "plan_title": result["plan_title"],
         "plan_type": req.plan_type,
+        "plan_scene": req.plan_scene,
         "summary": result["summary"],
+        "total_tasks": result["total_tasks"],
+        "total_minutes": result["total_minutes"],
         "course_name": course_name,
+        "key_knowledge_points": result.get("key_knowledge_points", []),
+        "question_type_analysis": result.get("question_type_analysis", []),
+        "material_context": [
+            {"material_id": item["material_id"], "title": item["title"]}
+            for item in material_context
+        ],
+        "paper_suggestions": paper_analysis.get("paper_suggestions", []),
         "items": result["items"],
     }
+
+
+@app.post("/learning/plans/generate-preview")
+def generate_plan_preview(req: PlanGeneratePreviewRequest, db: Session = Depends(get_db)):
+    return _generate_plan_preview_core(req, db)
+
+
+@app.post("/learning/plans/generate-preview-advanced")
+async def generate_plan_preview_advanced(
+    username: str = Form(...),
+    course_id: str = Form(""),
+    plan_type: str = Form("seven_day"),
+    plan_scene: str = Form("daily"),
+    days: int = Form(7),
+    goal: str = Form(""),
+    daily_minutes: int = Form(60),
+    exam_scope_text: str = Form(""),
+    selected_material_ids: str = Form("[]"),
+    scope_files: list[UploadFile] = File(default=[]),
+    paper_files: list[UploadFile] = File(default=[]),
+    db: Session = Depends(get_db),
+):
+    try:
+        parsed_ids = json.loads(selected_material_ids or "[]")
+        if not isinstance(parsed_ids, list):
+            parsed_ids = []
+    except Exception:
+        parsed_ids = []
+    req = PlanGeneratePreviewRequest(
+        username=username,
+        course_id=course_id,
+        plan_type=plan_type,
+        plan_scene=plan_scene,
+        days=days,
+        goal=goal,
+        daily_minutes=daily_minutes,
+        exam_scope_text=exam_scope_text,
+        selected_material_ids=[int(mid) for mid in parsed_ids[:5] if str(mid).isdigit()],
+    )
+    scope_texts = [_extract_text_from_upload(file) for file in (scope_files or [])[:3]]
+    paper_texts = [_extract_text_from_upload(file) for file in (paper_files or [])[:3]]
+    return _generate_plan_preview_core(req, db, scope_texts, paper_texts)
 
 
 @app.post("/learning/plans/import-tasks")
@@ -13964,20 +14393,33 @@ def import_plan_tasks(req: PlanImportTasksRequest, db: Session = Depends(get_db)
         else:
             kp_id = None
 
-        task_type = str(item.get("task_type") or "review").strip().lower()
-        if task_type not in ALLOWED_TASK_TYPES:
-            task_type = "review"
+        task_type = _normalize_plan_task_type(item.get("task_type"))
 
         priority = str(item.get("priority") or "medium").strip().lower()
         if priority not in ALLOWED_PRIORITIES:
             priority = "medium"
 
         day_index = max(1, int(item.get("day_index", 1)))
-        due_date = today.replace(day=today.day + day_index - 1) if day_index <= 30 else today
-        try:
-            due_date = datetime.combine(due_date, datetime.min.time())
-        except ValueError:
-            due_date = datetime.combine(today, datetime.min.time())
+        due_date = datetime.combine(today + timedelta(days=min(day_index - 1, 30)), datetime.min.time())
+        estimated = max(10, min(120, int(item.get("estimated_minutes") or 30)))
+        reason = _truncate_text(item.get("reason") or "", 80)
+        source_evidence = item.get("source_evidence") or []
+        if not isinstance(source_evidence, list):
+            source_evidence = []
+        description_parts = [description]
+        description_parts.append(f"预计用时：{estimated} 分钟。")
+        if reason:
+            description_parts.append(f"安排原因：{reason}")
+        if source_evidence:
+            description_parts.append(f"依据：{'；'.join(_truncate_text(ev, 60) for ev in source_evidence[:2])}")
+        description = "\n".join(part for part in description_parts if part)
+        related_material_ids = item.get("related_material_ids") or []
+        related_material_id = 0
+        if isinstance(related_material_ids, list) and related_material_ids:
+            try:
+                related_material_id = int(related_material_ids[0])
+            except Exception:
+                related_material_id = 0
 
         task = models.LearningTask(
             username=req.username,
@@ -13990,6 +14432,8 @@ def import_plan_tasks(req: PlanImportTasksRequest, db: Session = Depends(get_db)
             priority=priority,
             due_date=due_date,
             knowledge_point_id=kp_id,
+            knowledge_point_text=str(item.get("knowledge_point_name") or "").strip(),
+            related_material_id=related_material_id or None,
         )
         db.add(task)
         created_tasks.append(task)
