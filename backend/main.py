@@ -14791,7 +14791,7 @@ def import_plan_tasks(req: PlanImportTasksRequest, db: Session = Depends(get_db)
             knowledge_point_id=kp_id,
             knowledge_point_text=str(item.get("knowledge_point_name") or "").strip(),
             related_material_id=related_material_id or None,
-            metadata=json.dumps(task_metadata, ensure_ascii=False),
+            task_metadata=json.dumps(task_metadata, ensure_ascii=False),
         )
         db.add(task)
         created_tasks.append(task)
