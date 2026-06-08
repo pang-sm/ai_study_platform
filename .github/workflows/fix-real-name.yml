@@ -1,0 +1,53 @@
+name: 修复管理员姓名
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-real-name.yml'
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepare SSH
+        shell: bash
+        env:
+          TENCENT_HOST: ${{ secrets.TENCENT_HOST }}
+          TENCENT_SSH_KEY: ${{ secrets.TENCENT_SSH_KEY }}
+          SSH_PORT: ${{ secrets.TENCENT_PORT }}
+        run: |
+          set -euo pipefail
+          : "${TENCENT_HOST:?}" ; : "${TENCENT_SSH_KEY:?}"
+          SSH_PORT="${SSH_PORT:-22}"
+          mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
+          printf '%s\n' "$TENCENT_SSH_KEY" > "$HOME/.ssh/tencent_deploy_key"
+          chmod 600 "$HOME/.ssh/tencent_deploy_key"
+          ssh-keyscan -p "$SSH_PORT" "$TENCENT_HOST" >> "$HOME/.ssh/known_hosts"
+
+      - name: Fix and verify
+        shell: bash
+        env:
+          TENCENT_HOST: ${{ secrets.TENCENT_HOST }}
+          TENCENT_USER: ${{ secrets.TENCENT_USER }}
+          SSH_PORT: ${{ secrets.TENCENT_PORT }}
+        run: |
+          set -euo pipefail
+          SSH_PORT="${SSH_PORT:-22}"
+          ssh -i "$HOME/.ssh/tencent_deploy_key" -p "$SSH_PORT" "$TENCENT_USER@$TENCENT_HOST" 'bash -se' << 'ENDSCRIPT'
+          set -eo pipefail
+          cd ~/ai_study_platform/backend
+          DB="$(pwd)/app.db"
+          echo "DB: $DB"
+
+          echo "=== 修复前 ==="
+          sqlite3 "$DB" "SELECT username, is_admin, plan, admin_role, admin_real_name, hex(admin_real_name) FROM users WHERE username='admin';"
+
+          echo "=== 修复 ==="
+          sqlite3 "$DB" "UPDATE users SET admin_real_name=X'E98084E6A3AEE6B7BC' WHERE username='admin';"
+
+          echo "=== 修复后 ==="
+          sqlite3 "$DB" "SELECT username, is_admin, plan, admin_role, admin_real_name, hex(admin_real_name) FROM users WHERE username='admin';"
+
+          sudo systemctl restart ai-backend
+          sleep 3
+          curl -s http://127.0.0.1/api/health
+          ENDSCRIPT
