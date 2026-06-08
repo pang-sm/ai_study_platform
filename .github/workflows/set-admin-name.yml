@@ -2,7 +2,9 @@ name: 设置管理员姓名（一次性任务）
 run-name: 设置 admin 用户的 admin_real_name
 
 on:
-  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/set-admin-name.yml'
 
 jobs:
   set-admin-name:
