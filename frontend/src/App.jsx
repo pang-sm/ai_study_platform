@@ -2806,9 +2806,7 @@ function App() {
               {authMode === "login" ? "欢迎回来" : "创建你的学习账号"}
             </h1>
             <p className="auth-subtitle">
-              {authMode === "login"
-                ? "继续你的课程学习、资料问答和学习记录。"
-                : "注册后先完善学习方向，我们会为你组织课程工作台。"}
+              让学习更智能，让成长更轻松
             </p>
 
             <ul className="auth-features">
@@ -2877,6 +2875,28 @@ function App() {
                 <button className="auth-submit" onClick={handleRegister}>
                   注册并继续
                 </button>
+              )}
+
+              {authMode === "login" && (
+                <>
+                  <div className="auth-divider">
+                    <span className="auth-divider-line" />
+                    <span className="auth-divider-text">或</span>
+                    <span className="auth-divider-line" />
+                  </div>
+                  <button
+                    className="auth-admin-btn"
+                    type="button"
+                    onClick={() => setPage("adminLogin")}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                    管理员登录
+                  </button>
+                  <p className="auth-admin-hint">管理员请从专用入口登录后台</p>
+                </>
               )}
             </div>
           </div>
