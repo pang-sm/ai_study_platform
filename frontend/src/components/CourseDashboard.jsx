@@ -67,16 +67,28 @@ export default function CourseDashboard({
   const [expandedIds, setExpandedIds] = useState(new Set());
   const [selectedMasteryLevel, setSelectedMasteryLevel] = useState("");
   const [selectedLearningGoal, setSelectedLearningGoal] = useState("");
+  const [courseSettingsOpen, setCourseSettingsOpen] = useState(false);
+  const [draftMasteryLevel, setDraftMasteryLevel] = useState("");
+  const [draftLearningGoal, setDraftLearningGoal] = useState("");
   const [preferenceSaving, setPreferenceSaving] = useState(false);
   const [preferenceError, setPreferenceError] = useState("");
-  const [editingPreference, setEditingPreference] = useState(false);
 
   useEffect(() => {
     setSelectedMasteryLevel(preference?.mastery_level || "系统掌握");
     setSelectedLearningGoal(preference?.learning_goal || "期末复习");
     setPreferenceError("");
-    setEditingPreference(false);
   }, [course, preference?.mastery_level, preference?.learning_goal]);
+
+  useEffect(() => {
+    if (!courseSettingsOpen) return undefined;
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        closeCourseSettingsModal();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [courseSettingsOpen]);
 
   useEffect(() => {
     if (!user?.username || !course) {
@@ -135,12 +147,10 @@ export default function CourseDashboard({
     });
   }
 
-  async function saveCoursePreference() {
-    const masteryLevel = selectedMasteryLevel || "";
-    const learningGoal = selectedLearningGoal || "";
+  async function persistCoursePreference(masteryLevel, learningGoal) {
     if (!masteryLevel || !learningGoal) {
       setPreferenceError("请选择掌握程度和学习目标。");
-      return;
+      return false;
     }
 
     setPreferenceSaving(true);
@@ -159,13 +169,36 @@ export default function CourseDashboard({
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "保存失败");
       onPreferenceChange?.(data.preference);
-      setEditingPreference(false);
       await loadDashboard?.();
+      return true;
     } catch (error) {
       setPreferenceError(error.message || "保存失败，请稍后重试。");
+      return false;
     } finally {
       setPreferenceSaving(false);
     }
+  }
+
+  async function saveCoursePreference() {
+    await persistCoursePreference(selectedMasteryLevel || "", selectedLearningGoal || "");
+  }
+
+  function openCourseSettingsModal() {
+    setDraftMasteryLevel(preference?.mastery_level || selectedMasteryLevel || "系统掌握");
+    setDraftLearningGoal(preference?.learning_goal || selectedLearningGoal || "期末复习");
+    setPreferenceError("");
+    setCourseSettingsOpen(true);
+  }
+
+  function closeCourseSettingsModal() {
+    if (preferenceSaving) return;
+    setCourseSettingsOpen(false);
+    setPreferenceError("");
+  }
+
+  async function saveCourseSettings() {
+    const ok = await persistCoursePreference(draftMasteryLevel || "", draftLearningGoal || "");
+    if (ok) setCourseSettingsOpen(false);
   }
 
   function renderHeader() {
@@ -180,9 +213,7 @@ export default function CourseDashboard({
               <>
                 <span className="cd-pref-tag cd-pref-tag--mastery">掌握程度：{preference.mastery_level}</span>
                 <span className="cd-pref-tag cd-pref-tag--goal">学习目标：{preference.learning_goal}</span>
-                <button className="cd-adjust-link" type="button" onClick={() => setEditingPreference(true)}>
-                  可随时调整
-                </button>
+                <span className="cd-adjust-link">可通过课程设置调整</span>
               </>
             )}
           </div>
@@ -196,7 +227,7 @@ export default function CourseDashboard({
           <span className="cd-header-last-study">
             上次学习：{hasStartedCourse ? (fmtDate(stats.last_study_date) || "暂无记录") : "尚未开始"}
           </span>
-          <button className="cd-header-settings" type="button" onClick={() => setEditingPreference(true)}>
+          <button className="cd-header-settings" type="button" onClick={openCourseSettingsModal}>
             ⚙ 课程设置
           </button>
         </div>
@@ -244,9 +275,9 @@ export default function CourseDashboard({
         {preferenceError && <div className="cd-pref-error">{preferenceError}</div>}
         <div className="cd-pref-actions">
           <button className="cd-btn cd-btn--primary cd-btn--lg" type="button" onClick={saveCoursePreference} disabled={preferenceSaving}>
-            {preferenceSaving ? "保存中..." : compact ? "保存调整" : "保存并开始学习"}
+            {preferenceSaving ? "保存中..." : "保存并开始学习"}
           </button>
-          <button className="cd-btn cd-btn--secondary cd-btn--lg" type="button" onClick={() => compact ? setEditingPreference(false) : null}>
+          <button className="cd-btn cd-btn--secondary cd-btn--lg" type="button" onClick={() => setPreferenceError("")}>
             稍后再说
           </button>
         </div>
@@ -408,22 +439,65 @@ export default function CourseDashboard({
     );
   }
 
-  function renderPreferenceCard() {
+  function renderCourseSettingsModal() {
+    if (!courseSettingsOpen) return null;
+
     return (
-      <div className="cd-card">
-        <h3 className="cd-card-title">当前学习设定</h3>
-        {editingPreference ? (
-          renderPreferenceSelector(true)
-        ) : (
-          <>
-            <div className="cd-current-pref-box">
-              <div><span>掌握程度：</span><b>{preference.mastery_level}</b></div>
-              <div><span>学习目标：</span><b>{preference.learning_goal}</b></div>
+      <div className="cd-modal-backdrop" role="presentation" onClick={closeCourseSettingsModal}>
+        <div className="cd-settings-modal" role="dialog" aria-modal="true" aria-labelledby="cd-settings-title" onClick={(event) => event.stopPropagation()}>
+          <div className="cd-settings-modal-header">
+            <div>
+              <h2 id="cd-settings-title" className="cd-settings-modal-title">课程学习设定</h2>
+              <p className="cd-settings-modal-subtitle">这些设定会作为本课程的长期背景，影响 AI 问答、AI 出题、知识点推荐、学习建议与学习路线。</p>
             </div>
-            <button className="cd-btn cd-btn--secondary cd-pref-adjust-btn" type="button" onClick={() => setEditingPreference(true)}>调整设定</button>
-            <p className="cd-side-desc">这些设定会影响 AI 问答、AI 出题、学习建议与路线推荐。</p>
-          </>
-        )}
+            <button className="cd-settings-modal-close" type="button" aria-label="关闭课程学习设定" onClick={closeCourseSettingsModal}>×</button>
+          </div>
+
+          <div className="cd-settings-modal-body">
+            <div className="cd-settings-course">当前课程：<strong>{courseLabel}</strong></div>
+
+            <section className="cd-settings-section">
+              <h3 className="cd-settings-section-title">想掌握到什么程度</h3>
+              <div className="cd-settings-option-grid">
+                {MASTERY_OPTIONS.map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    className={`cd-settings-option-card${draftMasteryLevel === item ? " active" : ""}`}
+                    onClick={() => setDraftMasteryLevel(item)}
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section className="cd-settings-section">
+              <h3 className="cd-settings-section-title">学习这门科目的目标</h3>
+              <div className="cd-settings-option-grid">
+                {GOAL_OPTIONS.map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    className={`cd-settings-option-card${draftLearningGoal === item ? " active" : ""}`}
+                    onClick={() => setDraftLearningGoal(item)}
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            {preferenceError && <div className="cd-pref-error">{preferenceError}</div>}
+          </div>
+
+          <div className="cd-settings-modal-footer">
+            <button className="cd-btn cd-btn--secondary" type="button" onClick={closeCourseSettingsModal} disabled={preferenceSaving}>取消</button>
+            <button className="cd-btn cd-btn--primary" type="button" onClick={saveCourseSettings} disabled={preferenceSaving}>
+              {preferenceSaving ? "保存中..." : "保存设置"}
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -460,7 +534,6 @@ export default function CourseDashboard({
               <button className="cd-quick-card" type="button" onClick={() => setPage("workspaceMaterials")}><span>📁</span><b>资料管理</b></button>
             </div>
           </div>
-          {renderPreferenceCard()}
         </div>
       </div>
     );
@@ -480,6 +553,7 @@ export default function CourseDashboard({
         {renderHeader()}
         {hasStartedCourse ? renderActiveState() : renderInitialState()}
       </div>
+      {renderCourseSettingsModal()}
     </div>
   );
 }
