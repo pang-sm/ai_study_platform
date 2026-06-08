@@ -112,6 +112,11 @@ jobs:
           TENCENT_USER: ${{ secrets.TENCENT_USER }}
           SSH_PORT: ${{ secrets.TENCENT_PORT || '22' }}
           ADMIN_LOGIN_CODE: ${{ secrets.ADMIN_LOGIN_CODE }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          SMTP_FROM: ${{ secrets.SMTP_FROM }}
         run: |
           set -euo pipefail
 
@@ -124,7 +129,13 @@ jobs:
 
           # Pass ADMIN_LOGIN_CODE as env var to the remote session
           ssh -i "$HOME/.ssh/tencent_deploy_key" -p "$SSH_PORT" "$TENCENT_USER@$HOST_CLEAN" \
-            ADMIN_LOGIN_CODE="$ADMIN_CODE" 'bash -se' <<'DEPLOYEOF'
+            ADMIN_LOGIN_CODE="${ADMIN_LOGIN_CODE:-}" \
+            SMTP_HOST="${SMTP_HOST:-}" \
+            SMTP_PORT="${SMTP_PORT:-}" \
+            SMTP_USER="${SMTP_USER:-}" \
+            SMTP_PASSWORD="${SMTP_PASSWORD:-}" \
+            SMTP_FROM="${SMTP_FROM:-}" \
+            'bash -se' <<'DEPLOYEOF'
           set -euo pipefail
 
           cd ~/ai_study_platform
@@ -174,6 +185,24 @@ jobs:
             echo "[deploy] ADMIN_LOGIN_CODE configured via systemd drop-in"
           else
             echo "[deploy] ADMIN_LOGIN_CODE secret is empty — skipping config"
+          fi
+
+          # ── Configure SMTP for systemd service ──
+          if [ -n "${SMTP_HOST:-}" ] && [ -n "${SMTP_USER:-}" ] && [ -n "${SMTP_PASSWORD:-}" ]; then
+            echo "[deploy] Configuring SMTP in systemd drop-in..."
+            sudo mkdir -p /etc/systemd/system/ai-backend.service.d
+            sudo tee /etc/systemd/system/ai-backend.service.d/smtp.conf > /dev/null <<INNEREOF
+          [Service]
+          Environment="SMTP_HOST=${SMTP_HOST}"
+          Environment="SMTP_PORT=${SMTP_PORT:-587}"
+          Environment="SMTP_USER=${SMTP_USER}"
+          Environment="SMTP_PASSWORD=${SMTP_PASSWORD}"
+          Environment="SMTP_FROM=${SMTP_FROM:-${SMTP_USER}}"
+          INNEREOF
+            sudo systemctl daemon-reload
+            echo "[deploy] SMTP configured via systemd drop-in"
+          else
+            echo "[deploy] SMTP secrets not fully configured — skipping email service"
           fi
 
           sudo systemctl restart ai-backend
