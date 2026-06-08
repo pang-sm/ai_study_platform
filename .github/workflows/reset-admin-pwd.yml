@@ -1,0 +1,122 @@
+name: 重置管理员密码
+on:
+  push:
+    paths:
+      - '.github/workflows/reset-admin-pwd.yml'
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepare SSH
+        shell: bash
+        env:
+          TENCENT_HOST: ${{ secrets.TENCENT_HOST }}
+          TENCENT_SSH_KEY: ${{ secrets.TENCENT_SSH_KEY }}
+          SSH_PORT: ${{ secrets.TENCENT_PORT }}
+        run: |
+          set -euo pipefail
+          : "${TENCENT_HOST:?}" ; : "${TENCENT_SSH_KEY:?}"
+          SSH_PORT="${SSH_PORT:-22}"
+          mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
+          printf '%s\n' "$TENCENT_SSH_KEY" > "$HOME/.ssh/tencent_deploy_key"
+          chmod 600 "$HOME/.ssh/tencent_deploy_key"
+          ssh-keyscan -p "$SSH_PORT" "$TENCENT_HOST" >> "$HOME/.ssh/known_hosts"
+
+      - name: Reset admin password
+        shell: bash
+        env:
+          TENCENT_HOST: ${{ secrets.TENCENT_HOST }}
+          TENCENT_USER: ${{ secrets.TENCENT_USER }}
+          SSH_PORT: ${{ secrets.TENCENT_PORT }}
+        run: |
+          set -euo pipefail
+          SSH_PORT="${SSH_PORT:-22}"
+          ssh -i "$HOME/.ssh/tencent_deploy_key" -p "$SSH_PORT" "$TENCENT_USER@$TENCENT_HOST" 'bash -se' <<'ENDSCRIPT'
+          set -euo pipefail
+
+          # Find the backend directory and venv
+          WORKDIR=$(sudo systemctl show ai-backend -p WorkingDirectory --value 2>/dev/null || echo "")
+          if [ -z "$WORKDIR" ] || [ "$WORKDIR" = "" ]; then
+            WORKDIR="$HOME/ai_study_platform/backend"
+          fi
+          echo "WorkingDirectory: $WORKDIR"
+
+          # Find DB
+          DB="$WORKDIR/app.db"
+          if [ ! -f "$DB" ]; then
+            DB="$HOME/ai_study_platform/backend/app.db"
+          fi
+          if [ ! -f "$DB" ]; then
+            DB=$(find / -maxdepth 6 -name "app.db" -path "*/backend/*" -type f 2>/dev/null | head -1)
+          fi
+          echo "数据库: $DB"
+          ls -la "$DB"
+
+          # Find the venv python
+          PYTHON=""
+          for candidate in "$WORKDIR/.venv/bin/python3" "$HOME/ai_study_platform/backend/.venv/bin/python3" "/usr/bin/python3"; do
+            if [ -x "$candidate" ]; then
+              PYTHON="$candidate"
+              break
+            fi
+          done
+          echo "使用 Python: $PYTHON"
+
+          # Find backend source dir
+          BACKEND_DIR="$WORKDIR"
+          if [ ! -f "$BACKEND_DIR/auth.py" ]; then
+            BACKEND_DIR="$HOME/ai_study_platform/backend"
+          fi
+          echo "后端目录: $BACKEND_DIR"
+
+          echo ""
+          echo "=== 创建重置脚本 ==="
+          cat > /tmp/reset_admin_pwd.py << PYEOF
+import secrets, string, sys, os
+sys.path.insert(0, "$BACKEND_DIR")
+os.chdir("$BACKEND_DIR")
+
+from auth import hash_password
+import sqlite3
+
+DB = "$DB"
+alphabet = string.ascii_letters + string.digits
+new_password = "".join(secrets.choice(alphabet) for _ in range(16))
+hash_val = hash_password(new_password)
+
+conn = sqlite3.connect(DB)
+conn.execute("""
+  UPDATE users
+  SET hashed_password=?,
+      is_admin=1,
+      plan='admin',
+      admin_role='super_admin',
+      admin_real_name=X'E98085E6A3AEE6B7BC'
+  WHERE username='admin'
+""", (hash_val,))
+conn.commit()
+
+row = conn.execute("SELECT username, is_admin, plan, admin_role, admin_real_name FROM users WHERE username='admin'").fetchone()
+conn.close()
+
+print(f"DB: {DB}")
+print(f"User: {row[0]}, is_admin={row[1]}, plan={row[2]}, admin_role={row[3]}, real_name={row[4]}")
+print(f"NEW_PASSWORD: {new_password}")
+PYEOF
+
+          echo "=== 执行重置脚本 ==="
+          $PYTHON /tmp/reset_admin_pwd.py
+
+          echo ""
+          echo "=== 重启服务 ==="
+          sudo systemctl restart ai-backend
+          sleep 3
+          sudo systemctl is-active ai-backend && echo "ACTIVE: yes" || echo "ACTIVE: no"
+          curl -s http://127.0.0.1/api/health
+
+          echo ""
+          echo "=== 清理 ==="
+          rm -f /tmp/reset_admin_pwd.py
+          echo "临时脚本已删除"
+          ENDSCRIPT
