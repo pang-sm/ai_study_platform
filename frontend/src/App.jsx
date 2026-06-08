@@ -19,6 +19,7 @@ const ReviewCenter = lazy(() => import("./components/ReviewCenter.jsx"));
 import FeatureUnavailable from "./components/FeatureUnavailable.jsx";
 const KnowledgeBaseCenter = lazy(() => import("./components/KnowledgeBaseCenter.jsx"));
 const QuotaCenter = lazy(() => import("./components/QuotaCenter.jsx"));
+const AdminLogin = lazy(() => import("./components/AdminLogin.jsx"));
 const AdminUsageCenter = lazy(() => import("./components/AdminUsageCenter.jsx"));
 const AdminCenter = lazy(() => import("./components/AdminCenter.jsx"));
 const LearningReportCenter = lazy(() => import("./components/LearningReportCenter.jsx"));
@@ -407,6 +408,7 @@ const VALID_PAGES = new Set([
   "materials", "workspaceMaterials", "chat", "records", "history",
   "knowledgeLearning", "searchResults",
   "profileEdit", "onboarding",
+  "login", "adminLogin",
 ]);
 
 function getInitialPage() {
@@ -2014,6 +2016,12 @@ function App() {
       }
 
       const loginUser = data.profile || data.user || { username: data.username || username };
+      // Admin accounts should use the dedicated admin login page
+      if (loginUser.is_admin || loginUser.plan === "admin" || loginUser.role === "admin") {
+        setTip("管理员账号请前往管理后台登录");
+        setPage("adminLogin");
+        return;
+      }
       saveLoginUser(loginUser);
       await loadProfile(loginUser);
       if (loginUser.onboarding_completed) {
@@ -2779,6 +2787,15 @@ function App() {
     );
   }
 
+  // Admin login page must render regardless of auth state
+  if (page === "adminLogin") {
+    return (
+      <Suspense fallback={<div className="empty-state">管理员登录加载中...</div>}>
+        <AdminLogin setPage={setPage} setUser={setUser} initialTip={tip} />
+      </Suspense>
+    );
+  }
+
   if (!user) {
     return (
       <div className="auth-shell">
@@ -3269,6 +3286,20 @@ function App() {
             setSearchNavigate={setSearchNavigate}
           />
         </Suspense>
+      </div>
+    );
+  }
+
+  // ── Admin route protection ──
+  const isAdminAuthorized = user && (user.is_admin || user.plan === "admin" || user.role === "admin") && user.admin_verified;
+  if ((page === "adminUsageCenter" || page === "adminCenter") && !isAdminAuthorized) {
+    return (
+      <div className="auth-shell">
+        <div className="auth-card" style={{ textAlign: "center", padding: 40 }}>
+          <h2>需要管理员权限</h2>
+          <p style={{ color: "#64748b", margin: "8px 0 16px" }}>请先通过管理后台登录验证。</p>
+          <button className="auth-submit" onClick={() => setPage("adminLogin")}>前往管理后台登录</button>
+        </div>
       </div>
     );
   }
