@@ -3662,41 +3662,6 @@ def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
 # Admin Auth
 # ═══════════════════════════════════════════════════════════
 
-# In-memory admin login rate limiter (MVP — clears on restart)
-# TODO: migrate to database table for persistence across restarts
-ADMIN_LOGIN_ATTEMPTS: dict[str, dict] = {}  # key -> {failed_count, locked_until}
-
-
-def _clean_expired_admin_locks():
-    now = datetime.utcnow()
-    expired = [k for k, v in ADMIN_LOGIN_ATTEMPTS.items() if v.get("locked_until") and v["locked_until"] < now]
-    for k in expired:
-        del ADMIN_LOGIN_ATTEMPTS[k]
-
-
-def _record_admin_login_failure(key: str):
-    _clean_expired_admin_locks()
-    entry = ADMIN_LOGIN_ATTEMPTS.get(key, {"failed_count": 0, "locked_until": None})
-    entry["failed_count"] = entry.get("failed_count", 0) + 1
-    if entry["failed_count"] >= 5:
-        entry["locked_until"] = datetime.utcnow() + timedelta(minutes=10)
-    ADMIN_LOGIN_ATTEMPTS[key] = entry
-
-
-def _is_admin_login_locked(key: str) -> bool:
-    _clean_expired_admin_locks()
-    entry = ADMIN_LOGIN_ATTEMPTS.get(key)
-    if not entry:
-        return False
-    if entry.get("locked_until") and entry["locked_until"] > datetime.utcnow():
-        return True
-    return False
-
-
-def _reset_admin_login_attempts(key: str):
-    ADMIN_LOGIN_ATTEMPTS.pop(key, None)
-
-
 def is_admin_user(user) -> bool:
     """Check if a user has admin privileges.
     Compatible with: role='admin', is_admin=True, plan='admin', or admin_role in ('super_admin','operator','auditor').
@@ -3722,77 +3687,11 @@ def require_admin_user(current_user):
     return current_user
 
 
-class AdminLoginRequest(BaseModel):
-    username: str
-    password: str
-    admin_name: str
-
-
+# /admin/login has been deprecated — all users now authenticate via /login.
+# The endpoint is kept as a 410 Gone stub for API compatibility.
 @app.post("/admin/login")
-def admin_login(req: AdminLoginRequest, db: Session = Depends(get_db)):
-    username = req.username.strip()
-    password = req.password.strip()
-    admin_name = req.admin_name.strip()
-    if not username or not password or not admin_name:
-        raise HTTPException(status_code=400, detail="管理员认证失败，请检查账号、密码或姓名。")
-
-    # Basic Chinese name format validation
-    import re as _re
-    if not _re.match(r'^[一-鿿·]{2,10}$', admin_name):
-        raise HTTPException(status_code=400, detail="管理员认证失败，请检查账号、密码或姓名。")
-
-    # Rate-limit check (by username)
-    if _is_admin_login_locked(username):
-        raise HTTPException(status_code=429, detail="管理员登录尝试次数过多，请10分钟后再试。")  # rate-limit message — kept distinct from auth failure
-
-    # Validate account credentials
-    db_user = db.query(models.User).filter(models.User.username == username).first()
-    if not db_user:
-        _record_admin_login_failure(username)
-        raise HTTPException(status_code=403, detail="管理员认证失败，请检查账号、密码或姓名。")
-    if not verify_password(password, db_user.hashed_password):
-        _record_admin_login_failure(username)
-        raise HTTPException(status_code=403, detail="管理员认证失败，请检查账号、密码或姓名。")
-
-    # Validate admin identity
-    if not is_admin_user(db_user):
-        _record_admin_login_failure(username)
-        raise HTTPException(status_code=403, detail="管理员认证失败，请检查账号、密码或姓名。")
-
-    # Validate admin real name against database record
-    expected_name = (getattr(db_user, "admin_real_name", None) or "").strip()
-    if not expected_name:
-        # admin_real_name not set for this admin — reject login
-        _record_admin_login_failure(username)
-        try:
-            audit = models.AdminAuditLog(admin_username=username, action="admin_login_failed",
-                target_type="admin", detail="admin_real_name not configured", result="failure")
-            db.add(audit); db.commit()
-        except Exception:
-            pass
-        raise HTTPException(status_code=403, detail="管理员认证失败，请检查账号、密码或姓名。")
-    if admin_name != expected_name:
-        _record_admin_login_failure(username)
-        try:
-            audit = models.AdminAuditLog(admin_username=username, action="admin_login_failed",
-                target_type="admin", detail="admin_name mismatch", result="failure")
-            db.add(audit); db.commit()
-        except Exception:
-            pass
-        raise HTTPException(status_code=403, detail="管理员认证失败，请检查账号、密码或姓名。")
-
-    # Success — reset rate limiter and log
-    _reset_admin_login_attempts(username)
-    try:
-        audit = models.AdminAuditLog(admin_username=username, action="admin_login_success",
-            target_type="admin", detail="Admin login via /admin/login", result="success")
-        db.add(audit); db.commit()
-    except Exception:
-        pass
-
-    profile = user_profile(db_user)
-    profile["admin_verified"] = True
-    return {"message": "管理员登录成功", "user": profile, "profile": profile}
+def admin_login_deprecated():
+    raise HTTPException(status_code=410, detail="管理员专用登录已取消，请使用统一登录入口 /login。")
 
 
 @app.post("/me")
