@@ -268,6 +268,15 @@ class ProfileUpdateRequest(BaseModel):
     avatar: str | None = None
     learning_goals: list[dict] | None = None
     onboarding_completed: bool | None = None
+    school: str | None = None
+    learning_direction: str | None = None
+    default_course_id: str | None = None
+    learning_stage: str | None = None
+    daily_study_minutes: int | None = None
+    ai_answer_style: str | None = None
+    answer_detail_level: str | None = None
+    material_reference_preference: str | None = None
+    focus_courses: str | None = None
 
 
 class AddMaterialFromMessageRequest(BaseModel):
@@ -352,6 +361,16 @@ def user_profile(user: models.User):
         "plan_source": user.plan_source or "",
         "plan_expires_at": serialize_datetime(user.plan_expire_at) if user.plan_expire_at else None,
         "admin_role": (getattr(user, "admin_role", None) or "none").strip(),
+        "school": getattr(user, "school", "") or "",
+        "learning_direction": getattr(user, "learning_direction", "") or "",
+        "default_course_id": getattr(user, "default_course_id", "") or "",
+        "learning_stage": getattr(user, "learning_stage", "") or "",
+        "daily_study_minutes": getattr(user, "daily_study_minutes", 0) or 0,
+        "ai_answer_style": getattr(user, "ai_answer_style", "") or "",
+        "answer_detail_level": getattr(user, "answer_detail_level", "") or "",
+        "material_reference_preference": getattr(user, "material_reference_preference", "") or "",
+        "focus_courses": getattr(user, "focus_courses", "") or "",
+        "created_at": serialize_datetime(user.created_at) if user.created_at else None,
     }
 
 
@@ -3748,6 +3767,26 @@ def update_profile(req: ProfileUpdateRequest, username: str, db: Session = Depen
 
     if req.onboarding_completed is not None:
         user.onboarding_completed = bool(req.onboarding_completed)
+
+    # Learning settings fields
+    if req.school is not None:
+        user.school = (req.school or "").strip()[:100]
+    if req.learning_direction is not None:
+        user.learning_direction = (req.learning_direction or "").strip()[:100]
+    if req.default_course_id is not None:
+        user.default_course_id = (req.default_course_id or "").strip()[:100]
+    if req.learning_stage is not None:
+        user.learning_stage = (req.learning_stage or "").strip()[:50]
+    if req.daily_study_minutes is not None:
+        user.daily_study_minutes = max(0, min(480, req.daily_study_minutes))
+    if req.ai_answer_style is not None:
+        user.ai_answer_style = (req.ai_answer_style or "").strip()[:50]
+    if req.answer_detail_level is not None:
+        user.answer_detail_level = (req.answer_detail_level or "").strip()[:50]
+    if req.material_reference_preference is not None:
+        user.material_reference_preference = (req.material_reference_preference or "").strip()[:50]
+    if req.focus_courses is not None:
+        user.focus_courses = (req.focus_courses or "").strip()[:200]
 
     db.commit()
     db.refresh(user)

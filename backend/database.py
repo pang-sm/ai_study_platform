@@ -38,6 +38,15 @@ PROFILE_COLUMNS = {
     "is_admin": "INTEGER DEFAULT 0",
     "admin_role": "VARCHAR(30) DEFAULT 'none'",
     "admin_real_name": "TEXT",
+    "school": "VARCHAR(100) DEFAULT ''",
+    "learning_direction": "VARCHAR(100) DEFAULT ''",
+    "default_course_id": "VARCHAR(100) DEFAULT ''",
+    "learning_stage": "VARCHAR(50) DEFAULT ''",
+    "daily_study_minutes": "INTEGER DEFAULT 0",
+    "ai_answer_style": "VARCHAR(50) DEFAULT ''",
+    "answer_detail_level": "VARCHAR(50) DEFAULT ''",
+    "material_reference_preference": "VARCHAR(50) DEFAULT ''",
+    "focus_courses": "TEXT DEFAULT ''",
     "is_active": "INTEGER DEFAULT 1",
 }
 
