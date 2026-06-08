@@ -1,0 +1,91 @@
+name: 重置管理员密码为123456
+on:
+  push:
+    paths:
+      - '.github/workflows/reset-pwd.yml'
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python and bcrypt
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install bcrypt
+
+      - name: Generate hash
+        run: |
+          python3 -c "
+          import bcrypt
+          h = bcrypt.hashpw(b'123456', bcrypt.gensalt()).decode()
+          open('/tmp/hash_hex.txt','w').write(h.encode().hex())
+          print('Hash generated')
+          "
+
+      - name: Prepare SSH
+        shell: bash
+        env:
+          TENCENT_HOST: ${{ secrets.TENCENT_HOST }}
+          TENCENT_SSH_KEY: ${{ secrets.TENCENT_SSH_KEY }}
+          SSH_PORT: ${{ secrets.TENCENT_PORT }}
+        run: |
+          set -euo pipefail
+          : "${TENCENT_HOST:?}" ; : "${TENCENT_SSH_KEY:?}"
+          SSH_PORT="${SSH_PORT:-22}"
+          mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
+          printf '%s\n' "$TENCENT_SSH_KEY" > "$HOME/.ssh/tencent_deploy_key"
+          chmod 600 "$HOME/.ssh/tencent_deploy_key"
+          ssh-keyscan -p "$SSH_PORT" "$TENCENT_HOST" >> "$HOME/.ssh/known_hosts"
+
+      - name: Apply and verify
+        shell: bash
+        env:
+          TENCENT_HOST: ${{ secrets.TENCENT_HOST }}
+          TENCENT_USER: ${{ secrets.TENCENT_USER }}
+          SSH_PORT: ${{ secrets.TENCENT_PORT }}
+        run: |
+          set -euo pipefail
+          SSH_PORT="${SSH_PORT:-22}"
+          scp -i "$HOME/.ssh/tencent_deploy_key" -P "$SSH_PORT" /tmp/hash_hex.txt "$TENCENT_USER@$TENCENT_HOST:/tmp/hash_hex.txt"
+
+          ssh -i "$HOME/.ssh/tencent_deploy_key" -p "$SSH_PORT" "$TENCENT_USER@$TENCENT_HOST" 'bash -se' << 'ENDSCRIPT'
+          set -eo pipefail
+          cd ~/ai_study_platform/backend
+          DB="$(pwd)/app.db"
+          echo "DB: $DB"
+
+          echo "=== 更新密码 ==="
+          python3 -c "
+          import sqlite3
+          hexhash = open('/tmp/hash_hex.txt').read().strip()
+          hash_text = bytes.fromhex(hexhash).decode('utf-8')
+          c = sqlite3.connect('$DB')
+          c.execute('UPDATE users SET hashed_password=?, is_admin=1, plan=?, admin_role=? WHERE username=?',
+            (hash_text, 'admin', 'super_admin', 'admin'))
+          c.commit()
+          r = c.execute('SELECT username,is_admin,plan,admin_role FROM users WHERE username=?',('admin',)).fetchone()
+          print(f'OK: {r[0]} is_admin={r[1]} plan={r[2]} admin_role={r[3]}')
+          c.close()
+          "
+          rm -f /tmp/hash_hex.txt
+
+          sudo systemctl restart ai-backend
+          sleep 4
+          curl -s http://127.0.0.1/api/health
+          echo ""
+
+          echo "=== 验证登录 ==="
+          curl -s -X POST http://127.0.0.1/api/login -H 'Content-Type: application/json' -d '{"username":"admin","password":"123456"}' | python3 -c "
+          import json,sys
+          d=json.load(sys.stdin)
+          p=d.get('profile',{})
+          print(f\"login_ok: {'message' in d}\")
+          print(f\"is_admin: {p.get('is_admin')}\")
+          print(f\"plan: {p.get('plan')}\")
+          print(f\"admin_role: {p.get('admin_role')}\")
+          "
+          ENDSCRIPT
