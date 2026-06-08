@@ -28,11 +28,10 @@ jobs:
           import bcrypt
           pw = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(16))
           h = bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode()
-          with open("/tmp/new_pwd.txt", "w") as f:
-              f.write(pw)
-          with open("/tmp/new_hash.txt", "w") as f:
-              f.write(h)
-          print(f"Password generated (16 chars)")
+          hexh = h.encode().hex()
+          with open("/tmp/new_pwd.txt", "w") as f: f.write(pw)
+          with open("/tmp/new_hash.txt", "w") as f: f.write(hexh)
+          print(f"Password generated (16 chars), hash hex: {len(hexh)} chars")
           PYEOF
 
       - name: Prepare SSH
@@ -62,17 +61,16 @@ jobs:
           HASH=$(cat /tmp/new_hash.txt)
           PW=$(cat /tmp/new_pwd.txt)
 
-          # Write hash to temp file to avoid shell expansion of $ signs
-          echo "$HASH" > /tmp/bcrypt_hash.txt
-
-          scp -i "$HOME/.ssh/tencent_deploy_key" -P "$SSH_PORT" /tmp/bcrypt_hash.txt "$TENCENT_USER@$TENCENT_HOST:/tmp/bcrypt_hash.txt"
+          # Copy hex hash to server
+          echo "$HASH" > /tmp/hash_hex.txt
+          scp -i "$HOME/.ssh/tencent_deploy_key" -P "$SSH_PORT" /tmp/hash_hex.txt "$TENCENT_USER@$TENCENT_HOST:/tmp/hash_hex.txt"
 
           ssh -i "$HOME/.ssh/tencent_deploy_key" -p "$SSH_PORT" "$TENCENT_USER@$TENCENT_HOST" 'bash -se' << 'ENDSCRIPT'
           set -eo pipefail
 
-          HASH=$(cat /tmp/bcrypt_hash.txt)
+          HEX=$(cat /tmp/hash_hex.txt)
+          echo "Hash hex length: ${#HEX}"
 
-          # Find app.db
           DB=""
           for d in "$HOME/ai_study_platform/backend" "/root/ai_study_platform/backend"; do
             if [ -f "$d/app.db" ] 2>/dev/null; then DB="$d/app.db"; break; fi
@@ -83,11 +81,11 @@ jobs:
           echo "DB: $DB"
 
           echo "=== 更新 admin ==="
-          sqlite3 "$DB" "UPDATE users SET hashed_password=readfile('/tmp/bcrypt_hash.txt'), is_admin=1, plan='admin', admin_role='super_admin', admin_real_name=X'E98085E6A3AEE6B7BC' WHERE username='admin';"
+          sqlite3 "$DB" "UPDATE users SET hashed_password=CAST(X'$HEX' AS TEXT), is_admin=1, plan='admin', admin_role='super_admin', admin_real_name=X'E98085E6A3AEE6B7BC' WHERE username='admin';"
           echo "=== 验证 ==="
-          sqlite3 "$DB" "SELECT username, is_admin, plan, admin_role, admin_real_name, length(hashed_password) FROM users WHERE username='admin';"
+          sqlite3 "$DB" "SELECT username, is_admin, plan, admin_role, admin_real_name, substr(hashed_password,1,10) FROM users WHERE username='admin';"
 
-          rm -f /tmp/bcrypt_hash.txt
+          rm -f /tmp/hash_hex.txt
 
           sudo systemctl restart ai-backend
           sleep 3
