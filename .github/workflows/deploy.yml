@@ -90,14 +90,18 @@ jobs:
           TENCENT_HOST: ${{ secrets.TENCENT_HOST }}
           TENCENT_USER: ${{ secrets.TENCENT_USER }}
           SSH_PORT: ${{ secrets.TENCENT_PORT }}
+          ADMIN_LOGIN_CODE: ${{ secrets.ADMIN_LOGIN_CODE }}
         run: |
           set -euo pipefail
 
           : "${TENCENT_HOST:?TENCENT_HOST secret is required}"
           : "${TENCENT_USER:?TENCENT_USER secret is required}"
           SSH_PORT="${SSH_PORT:-22}"
+          ADMIN_CODE="${ADMIN_LOGIN_CODE:-}"
 
-          ssh -i "$HOME/.ssh/tencent_deploy_key" -p "$SSH_PORT" "$TENCENT_USER@$TENCENT_HOST" 'bash -se' <<'EOF'
+          # Pass ADMIN_LOGIN_CODE as env var to the remote session
+          ssh -i "$HOME/.ssh/tencent_deploy_key" -p "$SSH_PORT" "$TENCENT_USER@$TENCENT_HOST" \
+            ADMIN_LOGIN_CODE="$ADMIN_CODE" 'bash -se' <<'DEPLOYEOF'
           set -euo pipefail
 
           cd ~/ai_study_platform
@@ -135,8 +139,22 @@ jobs:
           sudo mkdir -p /var/www/ai_study_platform
           sudo rsync -a --delete frontend/dist/ /var/www/ai_study_platform/
 
+          # ── Configure ADMIN_LOGIN_CODE for systemd service ──
+          if [ -n "${ADMIN_LOGIN_CODE:-}" ]; then
+            echo "[deploy] Configuring ADMIN_LOGIN_CODE in systemd drop-in..."
+            sudo mkdir -p /etc/systemd/system/ai-backend.service.d
+            sudo tee /etc/systemd/system/ai-backend.service.d/admin-code.conf > /dev/null <<INNEREOF
+          [Service]
+          Environment="ADMIN_LOGIN_CODE=${ADMIN_LOGIN_CODE}"
+          INNEREOF
+            sudo systemctl daemon-reload
+            echo "[deploy] ADMIN_LOGIN_CODE configured via systemd drop-in"
+          else
+            echo "[deploy] ADMIN_LOGIN_CODE secret is empty — skipping config"
+          fi
+
           sudo systemctl restart ai-backend
           sudo systemctl is-active --quiet ai-backend
 
           curl -fsS http://127.0.0.1 >/dev/null
-          EOF
+          DEPLOYEOF
