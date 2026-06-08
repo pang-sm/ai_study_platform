@@ -25,7 +25,34 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage, onProfil
   const [uploading, setUploading] = useState(false);
   const [cloudAvatarUrl, setCloudAvatarUrl] = useState(null);
 
+  const [pwdOpen, setPwdOpen] = useState(false);
+  const [pwdForm, setPwdForm] = useState({ old_password:"", new_password:"", confirm_password:"" });
+  const [pwdSaving, setPwdSaving] = useState(false);
+  const [pwdError, setPwdError] = useState("");
+
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(""), 2500); };
+
+  const handleChangePassword = async () => {
+    setPwdError("");
+    const { old_password, new_password, confirm_password } = pwdForm;
+    if (!old_password || !new_password || !confirm_password) { setPwdError("所有密码字段不能为空"); return; }
+    if (new_password.length < 8) { setPwdError("新密码长度至少 8 位"); return; }
+    if (new_password !== confirm_password) { setPwdError("两次输入的新密码不一致"); return; }
+    if (new_password === old_password) { setPwdError("新密码不能与旧密码相同"); return; }
+    setPwdSaving(true);
+    try {
+      const res = await fetch(`${apiBase}/me/password?username=${encodeURIComponent(user.username)}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ old_password, new_password, confirm_password }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setPwdError(data.detail || "修改失败"); setPwdSaving(false); return; }
+      setPwdOpen(false);
+      setPwdForm({ old_password:"", new_password:"", confirm_password:"" });
+      showToast("密码修改成功，请妥善保管新密码。");
+    } catch { setPwdError("网络错误，请稍后重试"); }
+    finally { setPwdSaving(false); }
+  };
   const setDraftField = (k, v) => setDraft(d => ({ ...d, [k]: v }));
 
   const loadData = () => {
@@ -181,6 +208,30 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage, onProfil
         </div>
       )}
 
+      {/* ── Password Modal ── */}
+      {pwdOpen && (
+        <div className="pp-overlay">
+          <div className="pp-modal pp-modal-pwd" onClick={e => e.stopPropagation()}>
+            <div className="pp-modal-header">
+              <div><h2>修改密码</h2><p>请输入当前密码并设置新密码</p></div>
+              <button className="pp-modal-close" onClick={() => { setPwdOpen(false); setPwdForm({old_password:"",new_password:"",confirm_password:""}); }}>×</button>
+            </div>
+            <div className="pp-modal-body">
+              <div className="pp-pwd-form">
+                <label className="pp-pwd-field"><span>当前密码</span><input className="pp-field" type="password" value={pwdForm.old_password} onChange={e => setPwdForm(p => ({...p, old_password: e.target.value}))} placeholder="输入当前密码" /></label>
+                <label className="pp-pwd-field"><span>新密码</span><input className="pp-field" type="password" value={pwdForm.new_password} onChange={e => setPwdForm(p => ({...p, new_password: e.target.value}))} placeholder="输入新密码，至少 8 位" /></label>
+                <label className="pp-pwd-field"><span>确认新密码</span><input className="pp-field" type="password" value={pwdForm.confirm_password} onChange={e => setPwdForm(p => ({...p, confirm_password: e.target.value}))} placeholder="再次输入新密码" /></label>
+              </div>
+              {pwdError && <div className="pp-pwd-error">{pwdError}</div>}
+            </div>
+            <div className="pp-modal-footer">
+              <button className="pp-btn pp-btn-cancel" onClick={() => { setPwdOpen(false); setPwdForm({old_password:"",new_password:"",confirm_password:""}); }} disabled={pwdSaving}>取消</button>
+              <button className="pp-btn pp-btn-primary" onClick={handleChangePassword} disabled={pwdSaving}>{pwdSaving ? "修改中..." : "确认修改"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="pp-header"><button className="pp-back-btn" onClick={() => setPage("home")}>← 返回首页</button><h1 className="pp-title">账号中心</h1></div>
 
       <div className="pp-grid">
@@ -231,7 +282,7 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage, onProfil
             <div className="pp-rows">
               <InfoRow icon="📱" label="手机号" value="暂未绑定"><button className="pp-btn pp-btn-mini" onClick={()=>showToast("功能开发中")}>绑定</button></InfoRow>
               <InfoRow icon="📧" label="邮箱" value="暂未绑定"><button className="pp-btn pp-btn-mini" onClick={()=>showToast("功能开发中")}>绑定</button></InfoRow>
-              <InfoRow icon="🔑" label="密码" value="●●●●●●"><button className="pp-btn pp-btn-mini" onClick={()=>showToast("修改密码功能开发中")}>修改</button></InfoRow>
+              <InfoRow icon="🔑" label="密码" value="●●●●●●"><button className="pp-btn pp-btn-mini" onClick={()=>{setPwdForm({old_password:"",new_password:"",confirm_password:""});setPwdError("");setPwdOpen(true);}}>修改</button></InfoRow>
               <InfoRow icon="💻" label="登录设备" value="当前设备 — Windows Chrome" />
             </div>
           </div>

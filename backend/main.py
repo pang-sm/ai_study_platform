@@ -3794,6 +3794,37 @@ def update_profile(req: ProfileUpdateRequest, username: str, db: Session = Depen
     return {"profile": user_profile(user)}
 
 
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
+    confirm_password: str
+
+
+@app.put("/me/password")
+def change_password(req: ChangePasswordRequest, username: str, db: Session = Depends(get_db)):
+    old_pw = req.old_password.strip()
+    new_pw = req.new_password.strip()
+    confirm_pw = req.confirm_password.strip()
+
+    if not old_pw or not new_pw or not confirm_pw:
+        raise HTTPException(status_code=400, detail="所有密码字段不能为空")
+    if len(new_pw) < 8:
+        raise HTTPException(status_code=400, detail="新密码长度至少 8 位")
+    if new_pw != confirm_pw:
+        raise HTTPException(status_code=400, detail="两次输入的新密码不一致")
+    if new_pw == old_pw:
+        raise HTTPException(status_code=400, detail="新密码不能与旧密码相同")
+
+    user = get_user_by_username(username, db)
+    if not verify_password(old_pw, user.hashed_password):
+        raise HTTPException(status_code=401, detail="旧密码不正确")
+
+    user.hashed_password = hash_password(new_pw)
+    db.commit()
+
+    return {"message": "密码修改成功"}
+
+
 @app.get("/me/quota")
 def get_my_quota(username: str, db: Session = Depends(get_db)):
     user = get_user_by_username(username, db)
