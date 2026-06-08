@@ -2847,89 +2847,84 @@ function App() {
         <div className="auth-card">
           <div className="auth-hero">
             <div className="auth-badge">AI 学习平台</div>
-            <h1 className="auth-title">
-              {authMode === "login" ? "欢迎回来" : "创建你的学习账号"}
-            </h1>
-            <p className="auth-subtitle">
-              让学习更智能，让成长更轻松
-            </p>
+            <h1 className="auth-title">让学习更智能，让成长看得见</h1>
+            <p className="auth-subtitle">AI 驱动的学习平台，陪伴你的每一步进步</p>
 
-            <ul className="auth-features">
-              <li className="auth-feature">
-                <span className="auth-feature-icon">💬</span>
-                <div>
-                  <div className="auth-feature-label">AI 问答</div>
-                  <div className="auth-feature-desc">围绕课程进行深度提问</div>
-                </div>
-              </li>
-              <li className="auth-feature">
-                <span className="auth-feature-icon">📚</span>
-                <div>
-                  <div className="auth-feature-label">资料库</div>
-                  <div className="auth-feature-desc">保存、预览和下载原始资料</div>
-                </div>
-              </li>
-              <li className="auth-feature">
-                <span className="auth-feature-icon">📝</span>
-                <div>
-                  <div className="auth-feature-label">学习记录</div>
-                  <div className="auth-feature-desc">沉淀你的学习过程</div>
-                </div>
-              </li>
-            </ul>
+            <div className="auth-demo-card">
+              <div className="auth-demo-header">
+                <span className="auth-demo-dot" />
+                <span>学习概览</span>
+              </div>
+              <div className="auth-demo-stats">
+                <div className="auth-demo-stat"><span className="auth-demo-stat-val">60</span><span className="auth-demo-stat-lbl">分钟学习时长</span></div>
+                <div className="auth-demo-stat"><span className="auth-demo-stat-val">78%</span><span className="auth-demo-stat-lbl">当前掌握度</span></div>
+              </div>
+              <div className="auth-demo-bar"><div className="auth-demo-bar-fill" style={{width:"78%"}} /></div>
+              <p className="auth-demo-hint">知识图谱 · 推荐学习路径</p>
+            </div>
+
+            <div className="auth-capability-tags">
+              <span className="auth-cap-tag">🎯 个性化学习路径</span>
+              <span className="auth-cap-tag">📊 学习数据分析</span>
+              <span className="auth-cap-tag">💬 智能答疑助手</span>
+            </div>
           </div>
 
           <div className="auth-panel">
-            <div className="auth-tabs">
-              <button
-                className={authMode === "login" ? "auth-tab active" : "auth-tab"}
-                onClick={() => { setAuthMode("login"); setTip(""); }}
-              >
-                登录
-              </button>
-              <button
-                className={authMode === "register" ? "auth-tab active" : "auth-tab"}
-                onClick={() => { setAuthMode("register"); setTip(""); }}
-              >
-                注册
-              </button>
-            </div>
+            {authMode === "login" ? (<>
+              <h2 className="auth-panel-title">欢迎回来</h2>
+              <p className="auth-panel-sub">登录后继续你的高效学习之旅</p>
 
-            <div className="auth-form">
-              {authMode === "login" && (
-                <div className="auth-subtabs">
-                  <button className={`auth-subtab ${loginTab==="password"?"auth-subtab--active":""}`} onClick={()=>{setLoginTab("password");setTip("");}}>账号登录</button>
-                  <button className={`auth-subtab ${loginTab==="email"?"auth-subtab--active":""}`} onClick={()=>{setLoginTab("email");setTip("");}}>验证码登录</button>
+              <div className="auth-subtabs">
+                <button className={`auth-subtab ${loginTab==="password"?"auth-subtab--active":""}`} onClick={()=>{setLoginTab("password");setTip("");}}>账号登录</button>
+                <button className={`auth-subtab ${loginTab==="email"?"auth-subtab--active":""}`} onClick={()=>{setLoginTab("email");setTip("");}}>验证码登录</button>
+              </div>
+
+              <div className="auth-form">
+                {loginTab === "password" && (<>
+                  <input className="auth-input" placeholder="用户名" value={username} onChange={e=>setUsername(e.target.value)} />
+                  <input className="auth-input" placeholder="密码" type="password" value={password} onChange={e=>setPassword(e.target.value)} />
+                  {tip && <p className="auth-tip">{tip}</p>}
+                  <button className="auth-submit" onClick={handleLogin}>立即登录</button>
+                </>)}
+
+                {loginTab === "email" && (<>
+                  <input className="auth-input" placeholder="邮箱地址" type="email" value={emailLoginForm.email} onChange={e=>setEmailLoginForm(p=>({...p,email:e.target.value}))} />
+                  <div className="auth-code-row">
+                    <input className="auth-input auth-code-input" placeholder="验证码" value={emailLoginForm.code} onChange={e=>setEmailLoginForm(p=>({...p,code:e.target.value}))} maxLength={6} />
+                    <button className="auth-send-btn" onClick={handleEmailSendCode} disabled={emailLoginSending||emailLoginCountdown>0}>
+                      {emailLoginCountdown>0?`${emailLoginCountdown}s 后重试`:"发送验证码"}
+                    </button>
+                  </div>
+                  {tip && <p className="auth-tip">{tip}</p>}
+                  <button className="auth-submit" onClick={handleEmailLogin} disabled={emailLoginLoading}>{emailLoginLoading?"登录中...":"立即登录"}</button>
+                </>)}
+
+                <div className="auth-bottom-links">
+                  <button className="auth-link" onClick={()=>{setAuthMode("register");setTip("");}}>注册账号</button>
                 </div>
-              )}
+              </div>
+            </>) : (<>
+              <h2 className="auth-panel-title">创建你的学习账号</h2>
+              <p className="auth-panel-sub">注册后完善学习方向，为你定制专属学习工作台</p>
 
-              {authMode === "login" && loginTab === "password" && (<>
-                <input className="auth-input" placeholder="用户名" value={username} onChange={e=>setUsername(e.target.value)} />
-                <input className="auth-input" placeholder="密码" type="password" value={password} onChange={e=>setPassword(e.target.value)} />
-                {tip && <p className="auth-tip">{tip}</p>}
-                <button className="auth-submit" onClick={handleLogin}>立即登录</button>
-              </>)}
-
-              {authMode === "login" && loginTab === "email" && (<>
-                <div style={{display:"flex",gap:10}}>
-                  <input className="auth-input" style={{flex:1}} placeholder="邮箱地址" type="email" value={emailLoginForm.email} onChange={e=>setEmailLoginForm(p=>({...p,email:e.target.value}))} />
-                  <button className="auth-submit" style={{width:"auto",padding:"0 16px",flexShrink:0,fontSize:"0.84rem"}} onClick={handleEmailSendCode} disabled={emailLoginSending||emailLoginCountdown>0}>
-                    {emailLoginCountdown>0?`${emailLoginCountdown}s`:"发送验证码"}
-                  </button>
-                </div>
-                <input className="auth-input" placeholder="验证码" value={emailLoginForm.code} onChange={e=>setEmailLoginForm(p=>({...p,code:e.target.value}))} maxLength={6} />
-                {tip && <p className="auth-tip">{tip}</p>}
-                <button className="auth-submit" onClick={handleEmailLogin} disabled={emailLoginLoading}>{emailLoginLoading?"登录中...":"立即登录"}</button>
-              </>)}
-
-              {authMode === "register" && (<>
+              <div className="auth-form">
                 <input className="auth-input" placeholder="用户名" value={username} onChange={e=>setUsername(e.target.value)} />
                 <input className="auth-input" placeholder="密码" type="password" value={password} onChange={e=>setPassword(e.target.value)} />
                 {tip && <p className="auth-tip">{tip}</p>}
                 <button className="auth-submit" onClick={handleRegister}>注册并继续</button>
-              </>)}
-            </div>
+                <div className="auth-bottom-links">
+                  <button className="auth-link" onClick={()=>{setAuthMode("login");setTip("");}}>← 返回登录</button>
+                </div>
+              </div>
+            </>)}
           </div>
+        </div>
+
+        <div className="auth-footer">
+          <span>© 2026 AI 学习助手 · 南京大学技术支持</span>
+          <span>用户协议</span>
+          <span>隐私政策</span>
         </div>
       </div>
     );
