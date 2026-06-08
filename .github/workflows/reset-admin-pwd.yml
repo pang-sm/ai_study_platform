@@ -61,32 +61,34 @@ jobs:
           HASH=$(cat /tmp/new_hash.txt)
           PW=$(cat /tmp/new_pwd.txt)
 
-          # Copy hex hash to server
           echo "$HASH" > /tmp/hash_hex.txt
           scp -i "$HOME/.ssh/tencent_deploy_key" -P "$SSH_PORT" /tmp/hash_hex.txt "$TENCENT_USER@$TENCENT_HOST:/tmp/hash_hex.txt"
 
           ssh -i "$HOME/.ssh/tencent_deploy_key" -p "$SSH_PORT" "$TENCENT_USER@$TENCENT_HOST" 'bash -se' << 'ENDSCRIPT'
           set -eo pipefail
 
-          HEX=$(cat /tmp/hash_hex.txt)
-          echo "Hash hex length: ${#HEX}"
-
           DB=""
           for d in "$HOME/ai_study_platform/backend" "/root/ai_study_platform/backend"; do
             if [ -f "$d/app.db" ] 2>/dev/null; then DB="$d/app.db"; break; fi
           done
-          if [ -z "$DB" ]; then
-            DB=$(find "$HOME" /root -maxdepth 6 -name "app.db" -path "*/backend/*" -type f 2>/dev/null | head -1)
-          fi
           echo "DB: $DB"
 
-          echo "=== 更新 admin ==="
-          sqlite3 "$DB" "UPDATE users SET hashed_password=CAST(X'$HEX' AS TEXT), is_admin=1, plan='admin', admin_role='super_admin', admin_real_name=X'E98085E6A3AEE6B7BC' WHERE username='admin';"
-          echo "=== 验证 ==="
-          sqlite3 "$DB" "SELECT username, is_admin, plan, admin_role, admin_real_name, substr(hashed_password,1,10) FROM users WHERE username='admin';"
+          # Use python3 to safely decode hex and update (avoids all shell escaping issues)
+          python3 -c "
+          import sqlite3
+          hexhash = open('/tmp/hash_hex.txt').read().strip()
+          hash_text = bytes.fromhex(hexhash).decode('utf-8')
+          real_name_bytes = bytes.fromhex('E98085E6A3AEE6B7BC').decode('utf-8')
+          c = sqlite3.connect('$DB')
+          c.execute('UPDATE users SET hashed_password=?, is_admin=1, plan=?, admin_role=?, admin_real_name=? WHERE username=?',
+            (hash_text, 'admin', 'super_admin', real_name_bytes, 'admin'))
+          c.commit()
+          r = c.execute('SELECT username,is_admin,plan,admin_role,admin_real_name FROM users WHERE username=?',('admin',)).fetchone()
+          print(f'OK: {r[0]} is_admin={r[1]} plan={r[2]} admin_role={r[3]} real_name={r[4]}')
+          c.close()
+          "
 
           rm -f /tmp/hash_hex.txt
-
           sudo systemctl restart ai-backend
           sleep 3
           curl -s http://127.0.0.1/api/health
