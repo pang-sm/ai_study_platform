@@ -351,6 +351,7 @@ def user_profile(user: models.User):
         "plan": user.plan or "free",
         "plan_source": user.plan_source or "",
         "plan_expires_at": serialize_datetime(user.plan_expire_at) if user.plan_expire_at else None,
+        "admin_role": (getattr(user, "admin_role", None) or "none").strip(),
     }
 
 

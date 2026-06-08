@@ -19,7 +19,6 @@ const ReviewCenter = lazy(() => import("./components/ReviewCenter.jsx"));
 import FeatureUnavailable from "./components/FeatureUnavailable.jsx";
 const KnowledgeBaseCenter = lazy(() => import("./components/KnowledgeBaseCenter.jsx"));
 const QuotaCenter = lazy(() => import("./components/QuotaCenter.jsx"));
-const AdminLogin = lazy(() => import("./components/AdminLogin.jsx"));
 const AdminUsageCenter = lazy(() => import("./components/AdminUsageCenter.jsx"));
 const AdminCenter = lazy(() => import("./components/AdminCenter.jsx"));
 const LearningReportCenter = lazy(() => import("./components/LearningReportCenter.jsx"));
@@ -2016,15 +2015,13 @@ function App() {
       }
 
       const loginUser = data.profile || data.user || { username: data.username || username };
-      // Admin accounts should use the dedicated admin login page
-      if (loginUser.is_admin || loginUser.plan === "admin" || loginUser.role === "admin") {
-        setTip("管理员账号请前往管理后台登录");
-        setPage("adminLogin");
-        return;
-      }
+      const isAdmin = loginUser.is_admin || loginUser.plan === "admin" || loginUser.role === "admin"
+        || ["super_admin", "operator", "auditor"].includes(loginUser.admin_role);
       saveLoginUser(loginUser);
       await loadProfile(loginUser);
-      if (loginUser.onboarding_completed) {
+      if (isAdmin) {
+        setPage("adminUsageCenter");
+      } else if (loginUser.onboarding_completed) {
         setPage("home");
       } else {
         setPage("onboarding");
@@ -2787,13 +2784,11 @@ function App() {
     );
   }
 
-  // Admin login page must render regardless of auth state
+  // Admin login page — redirect to unified login
   if (page === "adminLogin") {
-    return (
-      <Suspense fallback={<div className="empty-state">管理员登录加载中...</div>}>
-        <AdminLogin setPage={setPage} setUser={setUser} initialTip={tip} />
-      </Suspense>
-    );
+    setTip("管理员请使用统一登录入口登录。");
+    setPage("login");
+    return null;
   }
 
   if (!user) {
@@ -2877,27 +2872,6 @@ function App() {
                 </button>
               )}
 
-              {authMode === "login" && (
-                <>
-                  <div className="auth-divider">
-                    <span className="auth-divider-line" />
-                    <span className="auth-divider-text">或</span>
-                    <span className="auth-divider-line" />
-                  </div>
-                  <button
-                    className="auth-admin-btn"
-                    type="button"
-                    onClick={() => setPage("adminLogin")}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                    </svg>
-                    管理员登录
-                  </button>
-                  <p className="auth-admin-hint">管理员请从专用入口登录后台</p>
-                </>
-              )}
             </div>
           </div>
         </div>
@@ -3311,7 +3285,8 @@ function App() {
   }
 
   // ── Admin route protection ──
-  const isAdminAuthorized = user && (user.is_admin || user.plan === "admin" || user.role === "admin") && user.admin_verified;
+  const isAdminAuthorized = user && (user.is_admin || user.plan === "admin" || user.role === "admin"
+    || ["super_admin", "operator", "auditor"].includes(user.admin_role));
   if ((page === "adminUsageCenter" || page === "adminCenter") && !isAdminAuthorized) {
     return (
       <div className="auth-shell">
