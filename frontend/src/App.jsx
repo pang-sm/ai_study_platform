@@ -473,6 +473,11 @@ function App() {
   };
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [loginTab, setLoginTab] = useState("password"); // "password" | "email"
+  const [emailLoginForm, setEmailLoginForm] = useState({ email: "", code: "" });
+  const [emailLoginSending, setEmailLoginSending] = useState(false);
+  const [emailLoginCountdown, setEmailLoginCountdown] = useState(0);
+  const [emailLoginLoading, setEmailLoginLoading] = useState(false);
   const [user, setUser] = useState(getSavedUser);
   const [publicFeatures, setPublicFeatures] = useState(null);
   const [userAnnouncements, setUserAnnouncements] = useState([]);
@@ -2033,6 +2038,51 @@ function App() {
     }
   };
 
+  // Email login countdown
+  useEffect(() => {
+    if (emailLoginCountdown <= 0) return;
+    const t = setTimeout(() => setEmailLoginCountdown(c => c-1), 1000);
+    return () => clearTimeout(t);
+  }, [emailLoginCountdown]);
+
+  const handleEmailSendCode = async () => {
+    setTip(""); const e = emailLoginForm.email.trim();
+    if (!e || !e.includes("@")) { setTip("请输入有效的邮箱地址"); return; }
+    setEmailLoginSending(true);
+    try {
+      const res = await fetch(`${API_BASE}/auth/email-login/send-code`, {
+        method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({email:e}),
+      });
+      const data = await res.json();
+      if (!res.ok) { setTip(data.detail||"发送失败"); setEmailLoginSending(false); return; }
+      setEmailLoginCountdown(60);
+    } catch { setTip("无法连接后端服务。"); }
+    finally { setEmailLoginSending(false); }
+  };
+
+  const handleEmailLogin = async () => {
+    setTip(""); const {email, code} = emailLoginForm;
+    if (!email.trim() || !code.trim()) { setTip("请输入邮箱和验证码"); return; }
+    setEmailLoginLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/auth/email-login`, {
+        method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({email:email.trim(), code:code.trim()}),
+      });
+      const data = await res.json();
+      if (!res.ok) { setTip(data.detail||"登录失败"); setEmailLoginLoading(false); return; }
+      const loginUser = data.profile || data.user || {};
+      saveLoginUser(loginUser);
+      await loadProfile(loginUser);
+      const isAdmin = loginUser.is_admin || loginUser.plan === "admin" || loginUser.role === "admin"
+        || ["super_admin","operator","auditor"].includes(loginUser.admin_role);
+      if (isAdmin) setPage("adminUsageCenter");
+      else if (loginUser.onboarding_completed) setPage("home");
+      else setPage("onboarding");
+      setTip("");
+    } catch { setTip("无法连接后端服务。"); }
+    finally { setEmailLoginLoading(false); }
+  };
+
   const saveProfile = async () => {
     if (!user?.username) {
       logout();
@@ -2846,32 +2896,38 @@ function App() {
             </div>
 
             <div className="auth-form">
-              <input
-                className="auth-input"
-                placeholder="用户名"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-              />
-              <input
-                className="auth-input"
-                placeholder="密码"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-
-              {tip && <p className="auth-tip">{tip}</p>}
-
-              {authMode === "login" ? (
-                <button className="auth-submit" onClick={handleLogin}>
-                  登录
-                </button>
-              ) : (
-                <button className="auth-submit" onClick={handleRegister}>
-                  注册并继续
-                </button>
+              {authMode === "login" && (
+                <div className="auth-subtabs">
+                  <button className={`auth-subtab ${loginTab==="password"?"auth-subtab--active":""}`} onClick={()=>{setLoginTab("password");setTip("");}}>账号登录</button>
+                  <button className={`auth-subtab ${loginTab==="email"?"auth-subtab--active":""}`} onClick={()=>{setLoginTab("email");setTip("");}}>验证码登录</button>
+                </div>
               )}
 
+              {authMode === "login" && loginTab === "password" && (<>
+                <input className="auth-input" placeholder="用户名" value={username} onChange={e=>setUsername(e.target.value)} />
+                <input className="auth-input" placeholder="密码" type="password" value={password} onChange={e=>setPassword(e.target.value)} />
+                {tip && <p className="auth-tip">{tip}</p>}
+                <button className="auth-submit" onClick={handleLogin}>立即登录</button>
+              </>)}
+
+              {authMode === "login" && loginTab === "email" && (<>
+                <div style={{display:"flex",gap:10}}>
+                  <input className="auth-input" style={{flex:1}} placeholder="邮箱地址" type="email" value={emailLoginForm.email} onChange={e=>setEmailLoginForm(p=>({...p,email:e.target.value}))} />
+                  <button className="auth-submit" style={{width:"auto",padding:"0 16px",flexShrink:0,fontSize:"0.84rem"}} onClick={handleEmailSendCode} disabled={emailLoginSending||emailLoginCountdown>0}>
+                    {emailLoginCountdown>0?`${emailLoginCountdown}s`:"发送验证码"}
+                  </button>
+                </div>
+                <input className="auth-input" placeholder="验证码" value={emailLoginForm.code} onChange={e=>setEmailLoginForm(p=>({...p,code:e.target.value}))} maxLength={6} />
+                {tip && <p className="auth-tip">{tip}</p>}
+                <button className="auth-submit" onClick={handleEmailLogin} disabled={emailLoginLoading}>{emailLoginLoading?"登录中...":"立即登录"}</button>
+              </>)}
+
+              {authMode === "register" && (<>
+                <input className="auth-input" placeholder="用户名" value={username} onChange={e=>setUsername(e.target.value)} />
+                <input className="auth-input" placeholder="密码" type="password" value={password} onChange={e=>setPassword(e.target.value)} />
+                {tip && <p className="auth-tip">{tip}</p>}
+                <button className="auth-submit" onClick={handleRegister}>注册并继续</button>
+              </>)}
             </div>
           </div>
         </div>

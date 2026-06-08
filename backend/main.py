@@ -3959,6 +3959,105 @@ def verify_email_code(req: VerifyEmailRequest, username: str, db: Session = Depe
     return {"message": "邮箱绑定成功", "profile": user_profile(user)}
 
 
+# ═══════════════════════════════════════════════════════════
+# Email-based Login
+# ═══════════════════════════════════════════════════════════
+
+class EmailLoginSendCodeRequest(BaseModel):
+    email: str
+
+
+class EmailLoginRequest(BaseModel):
+    email: str
+    code: str
+
+
+@app.post("/auth/email-login/send-code")
+def email_login_send_code(req: EmailLoginSendCodeRequest, db: Session = Depends(get_db)):
+    email = req.email.strip()
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="请输入有效的邮箱地址")
+
+    # Find user by verified email
+    user = db.query(models.User).filter(
+        models.User.email == email,
+        models.User.email_verified == True,
+    ).first()
+    if not user:
+        raise HTTPException(status_code=400, detail="该邮箱尚未绑定账号，请先用账号密码登录后在个人资料中绑定邮箱")
+
+    # Rate limit: 60s
+    one_min_ago = datetime.utcnow() - timedelta(seconds=60)
+    recent = db.query(models.VerificationCode).filter(
+        models.VerificationCode.username == user.username,
+        models.VerificationCode.target == email,
+        models.VerificationCode.purpose == "login_email",
+        models.VerificationCode.created_at >= one_min_ago,
+    ).first()
+    if recent:
+        raise HTTPException(status_code=429, detail="请 60 秒后再试")
+
+    code = "".join(__import__("secrets").choice("0123456789") for _ in range(6))
+    code_hash = _hash_code(code)
+    expires_at = datetime.utcnow() + timedelta(minutes=10)
+
+    record = models.VerificationCode(
+        username=user.username, target=email, purpose="login_email",
+        code_hash=code_hash, expires_at=expires_at,
+    )
+    db.add(record)
+    db.commit()
+
+    sent = _send_email_code(email, code)
+    if not sent:
+        raise HTTPException(status_code=503, detail="邮件服务暂未配置，请联系管理员")
+
+    return {"message": "验证码已发送"}
+
+
+@app.post("/auth/email-login")
+def email_login(req: EmailLoginRequest, db: Session = Depends(get_db)):
+    email = req.email.strip()
+    code = req.code.strip()
+    if not email or not code:
+        raise HTTPException(status_code=400, detail="邮箱和验证码不能为空")
+
+    # Find user by verified email
+    user = db.query(models.User).filter(
+        models.User.email == email,
+        models.User.email_verified == True,
+    ).first()
+    if not user:
+        raise HTTPException(status_code=400, detail="该邮箱尚未绑定账号")
+
+    code_hash = _hash_code(code)
+    now = datetime.utcnow()
+
+    record = db.query(models.VerificationCode).filter(
+        models.VerificationCode.username == user.username,
+        models.VerificationCode.target == email,
+        models.VerificationCode.purpose == "login_email",
+        models.VerificationCode.used == False,
+    ).order_by(models.VerificationCode.created_at.desc()).first()
+
+    if not record:
+        raise HTTPException(status_code=400, detail="验证码无效或已过期")
+    if record.expires_at < now:
+        raise HTTPException(status_code=400, detail="验证码已过期，请重新发送")
+    if record.attempts >= 5:
+        raise HTTPException(status_code=400, detail="验证码尝试次数过多，请重新发送")
+    if record.code_hash != code_hash:
+        record.attempts = (record.attempts or 0) + 1
+        db.commit()
+        raise HTTPException(status_code=400, detail="验证码错误")
+
+    record.used = True
+    db.commit()
+
+    profile = user_profile(user)
+    return {"message": "登录成功", "user": profile, "profile": profile}
+
+
 @app.get("/me/quota")
 def get_my_quota(username: str, db: Session = Depends(get_db)):
     user = get_user_by_username(username, db)
