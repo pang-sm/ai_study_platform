@@ -141,33 +141,38 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage, onProfil
       {editOpen && (
         <div className="pp-overlay" onClick={() => setEditOpen(false)}>
           <div className="pp-modal pp-modal-edit" onClick={e => e.stopPropagation()}>
-            <button className="pp-modal-close" onClick={() => setEditOpen(false)}>×</button>
-            <div className="pp-modal-header"><h2>编辑资料与学习设置</h2><p>修改完成后点击保存，所有字段将同步到 AI 问答和学习计划。</p></div>
+            <div className="pp-modal-header">
+              <div>
+                <h2>编辑资料与学习设置</h2>
+                <p>修改完成后点击保存，所有字段将同步到 AI 问答和学习计划。</p>
+              </div>
+              <button className="pp-modal-close" onClick={() => setEditOpen(false)}>×</button>
+            </div>
             <div className="pp-modal-body">
-              <section className="pp-form-section">
-                <h4 className="pp-form-title">基础资料</h4>
+              <div className="pp-form-section">
+                <div className="pp-form-section-title"><span>👤</span><strong>基础资料</strong></div>
                 <div className="pp-form-grid">
-                  <label className="pp-form-field"><span>昵称</span><input className="pp-input pp-input-full" value={draft.nickname} onChange={e => setDraftField("nickname", e.target.value)} placeholder="输入昵称" maxLength={30} /></label>
-                  <label className="pp-form-field"><span>学校</span><input className="pp-input pp-input-full" value={draft.school} onChange={e => setDraftField("school", e.target.value)} placeholder="输入学校名称" maxLength={100} /></label>
-                  <label className="pp-form-field"><span>年级</span><select className="pp-input pp-select pp-input-full" value={draft.grade} onChange={e => setDraftField("grade", e.target.value)}>{GRADE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}<option value="">未设置</option></select></label>
-                  <label className="pp-form-field"><span>专业</span><input className="pp-input pp-input-full" value={draft.major} onChange={e => setDraftField("major", e.target.value)} placeholder="输入专业" maxLength={50} /></label>
-                  <label className="pp-form-field"><span>学习方向</span><input className="pp-input pp-input-full" value={draft.learning_direction} onChange={e => setDraftField("learning_direction", e.target.value)} placeholder="例如：后端开发、数据分析" maxLength={100} /></label>
+                  <label className="pp-form-field"><span>昵称</span><input className="pp-field" value={draft.nickname} onChange={e => setDraftField("nickname", e.target.value)} placeholder="输入昵称" maxLength={30} /></label>
+                  <label className="pp-form-field"><span>学校</span><input className="pp-field" value={draft.school} onChange={e => setDraftField("school", e.target.value)} placeholder="输入学校名称" maxLength={100} /></label>
+                  <label className="pp-form-field"><span>年级</span><select className="pp-field pp-field-select" value={draft.grade} onChange={e => setDraftField("grade", e.target.value)}>{GRADE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}<option value="">未设置</option></select></label>
+                  <label className="pp-form-field"><span>专业</span><input className="pp-field" value={draft.major} onChange={e => setDraftField("major", e.target.value)} placeholder="输入专业" maxLength={50} /></label>
+                  <label className="pp-form-field pp-form-field-full"><span>学习方向</span><input className="pp-field" value={draft.learning_direction} onChange={e => setDraftField("learning_direction", e.target.value)} placeholder="例如：后端开发、数据分析、人工智能" maxLength={100} /></label>
                 </div>
-              </section>
-              <section className="pp-form-section">
-                <h4 className="pp-form-title">学习设置</h4>
+              </div>
+              <div className="pp-form-section">
+                <div className="pp-form-section-title"><span>⚙️</span><strong>学习设置</strong></div>
                 <div className="pp-form-grid">
-                  <label className="pp-form-field"><span>学习目标</span><input className="pp-input pp-input-full" value={draft.learning_goal_text} onChange={e => setDraftField("learning_goal_text", e.target.value)} placeholder="例如：通过离散数学期末考试" /></label>
-                  <label className="pp-form-field"><span>每日学习时长</span>
+                  <label className="pp-form-field pp-form-field-full"><span>学习目标</span><input className="pp-field" value={draft.learning_goal_text} onChange={e => setDraftField("learning_goal_text", e.target.value)} placeholder="例如：通过离散数学期末考试" /></label>
+                  <label className="pp-form-field pp-form-field-full"><span>每日学习时长</span>
                     <div className="pp-chips">{DAILY_MINUTES_OPTS.map(m => <button key={m} className={`pp-chip ${draft.daily_study_minutes===m?"pp-chip--active":""}`} onClick={() => setDraftField("daily_study_minutes",m)} type="button">{m} 分钟</button>)}</div>
                   </label>
-                  <label className="pp-form-field"><span>当前学习阶段</span><select className="pp-input pp-select pp-input-full" value={draft.learning_stage} onChange={e => setDraftField("learning_stage", e.target.value)}>{STAGE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}<option value="">未设置</option></select></label>
-                  <label className="pp-form-field"><span>重点课程</span><input className="pp-input pp-input-full" value={draft.focus_courses} onChange={e => setDraftField("focus_courses", e.target.value)} placeholder="例如：离散数学、数据结构、C语言" maxLength={200} /></label>
-                  <label className="pp-form-field"><span>AI 回答风格</span><select className="pp-input pp-select pp-input-full" value={draft.ai_answer_style} onChange={e => setDraftField("ai_answer_style", e.target.value)}>{ANSWER_STYLE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}<option value="">未设置</option></select></label>
-                  <label className="pp-form-field"><span>回答详细程度</span><select className="pp-input pp-select pp-input-full" value={draft.answer_detail_level} onChange={e => setDraftField("answer_detail_level", e.target.value)}>{DETAIL_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}<option value="">未设置</option></select></label>
-                  <label className="pp-form-field"><span>默认资料引用策略</span><select className="pp-input pp-select pp-input-full" value={draft.material_reference_preference} onChange={e => setDraftField("material_reference_preference", e.target.value)}>{REF_PREF_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}<option value="">未设置</option></select></label>
+                  <label className="pp-form-field"><span>当前学习阶段</span><select className="pp-field pp-field-select" value={draft.learning_stage} onChange={e => setDraftField("learning_stage", e.target.value)}>{STAGE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}<option value="">未设置</option></select></label>
+                  <label className="pp-form-field"><span>AI 回答风格</span><select className="pp-field pp-field-select" value={draft.ai_answer_style} onChange={e => setDraftField("ai_answer_style", e.target.value)}>{ANSWER_STYLE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}<option value="">未设置</option></select></label>
+                  <label className="pp-form-field"><span>回答详细程度</span><select className="pp-field pp-field-select" value={draft.answer_detail_level} onChange={e => setDraftField("answer_detail_level", e.target.value)}>{DETAIL_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}<option value="">未设置</option></select></label>
+                  <label className="pp-form-field"><span>默认资料引用策略</span><select className="pp-field pp-field-select" value={draft.material_reference_preference} onChange={e => setDraftField("material_reference_preference", e.target.value)}>{REF_PREF_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}<option value="">未设置</option></select></label>
+                  <label className="pp-form-field pp-form-field-full"><span>重点课程</span><input className="pp-field" value={draft.focus_courses} onChange={e => setDraftField("focus_courses", e.target.value)} placeholder="例如：离散数学、数据结构、C语言" maxLength={200} /></label>
                 </div>
-              </section>
+              </div>
             </div>
             <div className="pp-modal-footer">
               <button className="pp-btn pp-btn-cancel" onClick={() => setEditOpen(false)} disabled={saving}>取消</button>

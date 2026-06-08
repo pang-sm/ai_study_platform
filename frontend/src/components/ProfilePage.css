@@ -80,25 +80,45 @@
 .pp-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .pp-overlay { position: fixed; inset: 0; z-index: 9999; background: rgba(15,23,42,0.45); display: flex; align-items: center; justify-content: center; padding: 24px; }
-.pp-modal { background: #fff; border-radius: 18px; max-width: 520px; width: 100%; max-height: 80vh; overflow-y: auto; position: relative; box-shadow: 0 24px 80px rgba(15,23,42,0.25); padding: 28px 30px; }
-.pp-modal-close { position: absolute; top: 16px; right: 16px; z-index: 2; width: 32px; height: 32px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; font-size: 1.2rem; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #64748b; }
+
+/* Confirm modal (small) */
+.pp-modal { background: #fff; border-radius: 18px; max-width: 480px; width: 100%; position: relative; box-shadow: 0 24px 80px rgba(15,23,42,0.2); padding: 28px 30px; }
+.pp-modal-close { position: absolute; top: 16px; right: 16px; z-index: 2; width: 34px; height: 34px; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; font-size: 1.25rem; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #64748b; transition: background 0.15s; }
 .pp-modal-close:hover { background: #f1f5f9; }
-.pp-modal h2 { margin: 0; font-size: 1.1rem; }
 .pp-modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
 
-/* Edit modal — wide form */
-.pp-modal-edit { width: min(860px, calc(100vw - 48px)); max-height: 85vh; display: flex; flex-direction: column; padding: 0; overflow: hidden; }
-.pp-modal-header { padding: 24px 28px 0; flex-shrink: 0; }
-.pp-modal-header h2 { margin: 0 0 4px; }
-.pp-modal-header p { margin: 0; color: #64748b; font-size: 0.84rem; }
-.pp-modal-body { padding: 16px 28px; overflow-y: auto; max-height: calc(85vh - 170px); }
-.pp-modal-footer { padding: 14px 28px; border-top: 1px solid #e5e7eb; display: flex; justify-content: flex-end; gap: 12px; flex-shrink: 0; background: #fff; }
+/* ── Edit modal ── */
+.pp-modal-edit { width: min(820px, calc(100vw - 48px)); max-height: 84vh; border-radius: 20px; background: #fff; box-shadow: 0 24px 80px rgba(15,23,42,0.18); display: flex; flex-direction: column; overflow: hidden; padding: 0; }
+.pp-modal-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 22px 28px 16px; border-bottom: 1px solid #edf2f7; flex-shrink: 0; }
+.pp-modal-header h2 { margin: 0 0 4px; font-size: 1.15rem; font-weight: 700; color: #0f172a; }
+.pp-modal-header p { margin: 0; color: #94a3b8; font-size: 0.82rem; }
+.pp-modal-body { flex: 1; overflow-y: auto; padding: 20px 28px; }
+.pp-modal-footer { flex-shrink: 0; padding: 14px 28px; border-top: 1px solid #edf2f7; background: #fff; display: flex; justify-content: flex-end; gap: 12px; }
 
-.pp-form-section { margin-bottom: 20px; }
-.pp-form-title { margin: 0 0 10px; font-size: 0.92rem; font-weight: 700; color: #0f172a; }
-.pp-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.pp-form-field { display: flex; flex-direction: column; gap: 4px; }
-.pp-form-field span { font-size: 0.78rem; font-weight: 600; color: #475569; }
-.pp-input-full { max-width: none !important; width: 100% !important; min-width: 0 !important; }
+/* ── Form sections ── */
+.pp-form-section { margin-bottom: 22px; }
+.pp-form-section:last-child { margin-bottom: 4px; }
+.pp-form-section-title { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding: 8px 14px; background: #f8fafc; border-radius: 10px; border: 1px solid #e5eaf3; }
+.pp-form-section-title span { font-size: 1rem; }
+.pp-form-section-title strong { font-size: 0.88rem; font-weight: 700; color: #1e293b; }
+.pp-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 20px; }
+.pp-form-field { display: flex; flex-direction: column; gap: 6px; }
+.pp-form-field > span { font-size: 0.8rem; font-weight: 600; color: #334155; }
+.pp-form-field-full { grid-column: 1 / -1; }
+
+/* ── Form inputs ── */
+.pp-field { width: 100%; height: 42px; padding: 0 14px; border: 1px solid #d8dee9; border-radius: 10px; font-size: 0.86rem; outline: none; background: #fafbfd; color: #0f172a; font-family: inherit; box-sizing: border-box; transition: border-color 0.15s, box-shadow 0.15s; }
+.pp-field:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.08); background: #fff; }
+.pp-field::placeholder { color: #c0c8d4; }
+.pp-field-select { cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px; }
+
+@media (max-width: 720px) {
+  .pp-modal-edit { width: calc(100vw - 24px); max-height: 88vh; }
+  .pp-form-grid { grid-template-columns: 1fr; }
+  .pp-form-field-full { grid-column: auto; }
+  .pp-modal-header { padding: 18px 20px 14px; }
+  .pp-modal-body { padding: 16px 20px; }
+  .pp-modal-footer { padding: 12px 20px; }
+}
 
 @media (max-width: 860px) { .pp-grid { grid-template-columns: 1fr; } .pp-top-card { flex-direction: column; text-align: center; } .pp-top-meta { justify-content: center; } }
