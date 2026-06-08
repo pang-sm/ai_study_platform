@@ -1,0 +1,111 @@
+name: 管理员登录诊断
+on:
+  push:
+    paths:
+      - '.github/workflows/diag-admin.yml'
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepare SSH
+        shell: bash
+        env:
+          TENCENT_HOST: ${{ secrets.TENCENT_HOST }}
+          TENCENT_SSH_KEY: ${{ secrets.TENCENT_SSH_KEY }}
+          SSH_PORT: ${{ secrets.TENCENT_PORT }}
+        run: |
+          set -euo pipefail
+          : "${TENCENT_HOST:?}" ; : "${TENCENT_SSH_KEY:?}"
+          SSH_PORT="${SSH_PORT:-22}"
+          mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
+          printf '%s\n' "$TENCENT_SSH_KEY" > "$HOME/.ssh/tencent_deploy_key"
+          chmod 600 "$HOME/.ssh/tencent_deploy_key"
+          ssh-keyscan -p "$SSH_PORT" "$TENCENT_HOST" >> "$HOME/.ssh/known_hosts"
+
+      - name: Diagnose
+        shell: bash
+        env:
+          TENCENT_HOST: ${{ secrets.TENCENT_HOST }}
+          TENCENT_USER: ${{ secrets.TENCENT_USER }}
+          SSH_PORT: ${{ secrets.TENCENT_PORT }}
+        run: |
+          set -euo pipefail
+          SSH_PORT="${SSH_PORT:-22}"
+          ssh -i "$HOME/.ssh/tencent_deploy_key" -p "$SSH_PORT" "$TENCENT_USER@$TENCENT_HOST" 'bash -se' <<'EOF'
+          set -euo pipefail
+
+          echo "=== 1. systemd 信息 ==="
+          sudo systemctl show ai-backend -p WorkingDirectory -p ExecStart -p MainPID 2>/dev/null || echo "无法读取 systemd 信息"
+
+          PID=$(sudo systemctl show ai-backend -p MainPID --value 2>/dev/null)
+          echo "ai-backend PID: $PID"
+
+          echo ""
+          echo "=== 2. 进程打开的 db 文件 ==="
+          sudo lsof -p "$PID" 2>/dev/null | grep -E '\.db|\.sqlite' || echo "(lsof 未找到 db 文件)"
+
+          echo ""
+          echo "=== 3. 查找所有 db 文件 ==="
+          sudo find / -maxdepth 5 -type f \( -name "*.db" -o -name "*.sqlite" \) 2>/dev/null | head -20
+
+          echo ""
+          echo "=== 4. 根据 ExecStart 推断数据库路径 ==="
+          WORKDIR=$(sudo systemctl show ai-backend -p WorkingDirectory --value 2>/dev/null || echo "")
+          echo "WorkingDirectory: $WORKDIR"
+          if [ -n "$WORKDIR" ] && [ -d "$WORKDIR" ]; then
+            DB="$WORKDIR/app.db"
+            echo "推断路径: $DB"
+            if [ -f "$DB" ]; then
+              echo "文件存在: YES"
+              ls -la "$DB"
+            else
+              echo "文件存在: NO"
+            fi
+          fi
+
+          echo ""
+          echo "=== 5. 尝试 ~/ai_study_platform/backend/app.db ==="
+          DB2="$HOME/ai_study_platform/backend/app.db"
+          if [ -f "$DB2" ]; then
+            echo "文件存在: YES ($(ls -la "$DB2" | awk '{print $5}') bytes)"
+          else
+            echo "文件不存在"
+          fi
+
+          echo ""
+          echo "=== 6. 对所有候选 db 查询 admin ==="
+          for DB in "$WORKDIR/app.db" "$HOME/ai_study_platform/backend/app.db"; do
+            if [ -f "$DB" ]; then
+              echo ""
+              echo "--- 数据库: $DB ---"
+              sqlite3 "$DB" "SELECT 'USER_EXISTS:', CASE WHEN COUNT(*) > 0 THEN 'true' ELSE 'false' END FROM users WHERE username='admin';" 2>/dev/null || echo "查询失败"
+              sqlite3 "$DB" "SELECT 'is_admin:', is_admin FROM users WHERE username='admin';" 2>/dev/null || echo "无 is_admin"
+              sqlite3 "$DB" "SELECT 'plan:', plan FROM users WHERE username='admin';" 2>/dev/null || echo "无 plan"
+              sqlite3 "$DB" "SELECT 'admin_role:', admin_role FROM users WHERE username='admin';" 2>/dev/null || echo "无 admin_role"
+              sqlite3 "$DB" "SELECT 'admin_real_name_len:', length(COALESCE(admin_real_name, '')) FROM users WHERE username='admin';" 2>/dev/null || echo "无 admin_real_name"
+              VALUE=$(sqlite3 "$DB" "SELECT admin_real_name FROM users WHERE username='admin';" 2>/dev/null || echo "")
+              echo "admin_real_name 值: [$VALUE]"
+              HEX=$(sqlite3 "$DB" "SELECT hex(COALESCE(admin_real_name, '')) FROM users WHERE username='admin';" 2>/dev/null || echo "")
+              echo "admin_real_name hex: $HEX"
+              # Correct hex for 逄森淼: E98085 E6A3AE E6B7BC = E98085E6A3AEE6B7BC
+              echo "期待 hex: E98085E6A3AEE6B7BC"
+            fi
+          done
+
+          echo ""
+          echo "=== 7. 修复 admin 账号 ==="
+          for DB in "$WORKDIR/app.db" "$HOME/ai_study_platform/backend/app.db"; do
+            if [ -f "$DB" ]; then
+              echo "修复: $DB"
+              sqlite3 "$DB" "UPDATE users SET is_admin=1, plan='admin', admin_role='super_admin', admin_real_name=X'E98085E6A3AEE6B7BC' WHERE username='admin';" 2>/dev/null && echo "  UPDATE OK" || echo "  UPDATE FAILED"
+              sqlite3 "$DB" "SELECT username, is_admin, plan, admin_role, admin_real_name, hex(admin_real_name) FROM users WHERE username='admin';" 2>/dev/null || echo "  查询失败"
+            fi
+          done
+
+          echo ""
+          echo "=== 8. 重启 ==="
+          sudo systemctl restart ai-backend && echo "重启成功" || echo "重启失败"
+          sleep 3
+          curl -s http://127.0.0.1/api/health
+          EOF
