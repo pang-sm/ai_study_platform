@@ -33,25 +33,25 @@ jobs:
           set -euo pipefail
           SSH_PORT="${SSH_PORT:-22}"
           ssh -i "$HOME/.ssh/tencent_deploy_key" -p "$SSH_PORT" "$TENCENT_USER@$TENCENT_HOST" 'bash -se' <<'ENDSCRIPT'
-          set -euo pipefail
+          set -eo pipefail
 
           echo "=== 1. 排查路径 ==="
           for d in "$HOME/ai_study_platform" "$HOME/ai_study_platform/backend" "/root/ai_study_platform/backend"; do
             echo -n "检查 $d: "
-            if [ -d "$d" ]; then echo "存在"; else echo "不存在"; fi
-          done
+            if [ -d "$d" ] 2>/dev/null; then echo "存在"; else echo "不存在"; fi
+          done || true
 
-          echo ""
           echo "=== 2. 查找 app.db ==="
-          find "$HOME" /root /var -maxdepth 6 -name "app.db" -type f 2>/dev/null | head -10
+          find "$HOME" /root /var -maxdepth 6 -name "app.db" -type f 2>/dev/null | head -10 || true
 
-          echo ""
           echo "=== 3. 查找 auth.py ==="
-          find "$HOME" /root -maxdepth 5 -name "auth.py" -type f 2>/dev/null | head -5
+          find "$HOME" /root -maxdepth 5 -name "auth.py" -type f 2>/dev/null | head -5 || true
 
-          echo ""
-          echo "=== 4. 查找 venv ==="
-          find "$HOME" /root -maxdepth 5 -name "pip" -path "*venv*" -type f 2>/dev/null | head -5
+          echo "=== 4. 查找 venv pip ==="
+          find "$HOME" /root -maxdepth 5 -name "pip" -path "*venv*" -type f 2>/dev/null | head -5 || true
+
+          echo "=== 5. systemd info ==="
+          sudo systemctl show ai-backend -p WorkingDirectory -p ExecStart 2>/dev/null || true
 
           echo ""
           echo "=== 重启服务 ==="
