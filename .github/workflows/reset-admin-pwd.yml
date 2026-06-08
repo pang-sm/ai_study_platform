@@ -35,23 +35,53 @@ jobs:
           ssh -i "$HOME/.ssh/tencent_deploy_key" -p "$SSH_PORT" "$TENCENT_USER@$TENCENT_HOST" 'bash -se' <<'ENDSCRIPT'
           set -eo pipefail
 
-          echo "=== 1. 排查路径 ==="
-          for d in "$HOME/ai_study_platform" "$HOME/ai_study_platform/backend" "/root/ai_study_platform/backend"; do
-            echo -n "检查 $d: "
-            if [ -d "$d" ] 2>/dev/null; then echo "存在"; else echo "不存在"; fi
-          done || true
+          echo "=== 查找后端目录 ==="
+          BACKEND_DIR=""
+          for d in "$HOME/ai_study_platform/backend" "/root/ai_study_platform/backend"; do
+            if [ -f "$d/auth.py" ] 2>/dev/null; then BACKEND_DIR="$d"; break; fi
+          done
+          if [ -z "$BACKEND_DIR" ]; then
+            BACKEND_DIR=$(find "$HOME" /root -maxdepth 5 -name "auth.py" -path "*/backend/*" -type f 2>/dev/null | head -1 | xargs dirname)
+          fi
+          echo "后端目录: $BACKEND_DIR"
 
-          echo "=== 2. 查找 app.db ==="
-          find "$HOME" /root /var -maxdepth 6 -name "app.db" -type f 2>/dev/null | head -10 || true
+          DB="$BACKEND_DIR/app.db"
+          echo "数据库: $DB"
+          ls -la "$DB" || true
 
-          echo "=== 3. 查找 auth.py ==="
-          find "$HOME" /root -maxdepth 5 -name "auth.py" -type f 2>/dev/null | head -5 || true
+          # Find venv python
+          PYTHON=""
+          for c in "$BACKEND_DIR/.venv/bin/python3" "$BACKEND_DIR/../.venv/bin/python3" "/usr/bin/python3"; do
+            if [ -x "$c" ] 2>/dev/null; then PYTHON="$c"; break; fi
+          done
+          echo "Python: $PYTHON"
 
-          echo "=== 4. 查找 venv pip ==="
-          find "$HOME" /root -maxdepth 5 -name "pip" -path "*venv*" -type f 2>/dev/null | head -5 || true
+          echo ""
+          echo "=== 重置密码 ==="
+          cat > /tmp/rp.py << PYEOF
+import secrets, string, sys, os
+sys.path.insert(0, "$BACKEND_DIR")
+os.chdir("$BACKEND_DIR")
+from auth import hash_password
+import sqlite3
+pw = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(16))
+h = hash_password(pw)
+c = sqlite3.connect("$DB")
+c.execute("UPDATE users SET hashed_password=?, is_admin=1, plan='admin', admin_role='super_admin', admin_real_name=X'E98085E6A3AEE6B7BC' WHERE username='admin'", (h,))
+c.commit()
+r = c.execute("SELECT username, is_admin, plan, admin_role, admin_real_name FROM users WHERE username='admin'").fetchone()
+c.close()
+print(f"User: {r[0]} is_admin={r[1]} plan={r[2]} admin_role={r[3]} real_name={r[4]}")
+print(f"NEW_PASSWORD: {pw}")
+PYEOF
+          $PYTHON /tmp/rp.py
 
-          echo "=== 5. systemd info ==="
-          sudo systemctl show ai-backend -p WorkingDirectory -p ExecStart 2>/dev/null || true
+          echo ""
+          echo "=== 重启 ==="
+          sudo systemctl restart ai-backend
+          sleep 3
+          curl -s http://127.0.0.1/api/health
+          rm -f /tmp/rp.py
 
           echo ""
           echo "=== 重启服务 ==="
