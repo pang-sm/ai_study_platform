@@ -172,7 +172,7 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage, onProfil
           <div className="pp-card">
             <h3 className="pp-card-title"><span className="pp-card-icon">⚙️</span>学习设置</h3>
             <div className="pp-rows">
-              <InfoRow icon="🎯" label="学习目标" value={profile.learning_goals ? JSON.parse(profile.learning_goals).map(g => g.subject).join("、") : "未设置"} editing={editing}>
+              <InfoRow icon="🎯" label="学习目标" value={(Array.isArray(profile.learning_goals) ? profile.learning_goals.map(g => g.subject).join("、") : "") || "未设置"} editing={editing}>
                 <input className="pp-input" value={profile.learning_goal_text || ""} onChange={e => setField("learning_goal_text", e.target.value)} placeholder="例如：通过离散数学期末考试" />
               </InfoRow>
               <InfoRow icon="⏱️" label="每日学习时长" value={profile.daily_study_minutes ? `${profile.daily_study_minutes} 分钟` : "未设置"} editing={editing}>
