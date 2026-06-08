@@ -38,36 +38,16 @@ jobs:
           SSH_PORT="${SSH_PORT:-22}"
           ssh -i "$HOME/.ssh/tencent_deploy_key" -p "$SSH_PORT" "$TENCENT_USER@$TENCENT_HOST" 'bash -se' <<'EOF'
           set -euo pipefail
-
-          echo "=== 定位数据库 ==="
-          DB_PATH="$HOME/ai_study_platform/backend/app.db"
-          if [ ! -f "$DB_PATH" ]; then
-            DB_PATH=$(find "$HOME" -path "*/backend/app.db" -type f 2>/dev/null | head -1)
-          fi
-          if [ ! -f "$DB_PATH" ]; then
-            echo "ERROR: 找不到数据库文件"
-            exit 1
-          fi
-          echo "数据库路径: $DB_PATH"
-
-          echo ""
-          echo "=== 查询 admin 用户（设置前） ==="
-          sqlite3 "$DB_PATH" "SELECT username, is_admin, plan, admin_role, admin_real_name FROM users WHERE username='admin';"
-
-          echo ""
-          echo "=== 设置 admin_real_name ==="
-          sqlite3 "$DB_PATH" "UPDATE users SET admin_real_name='逄森淼' WHERE username='admin';"
-
-          echo ""
-          echo "=== 查询 admin 用户（设置后） ==="
-          sqlite3 "$DB_PATH" "SELECT username, is_admin, plan, admin_role, admin_real_name FROM users WHERE username='admin';"
-
-          echo ""
-          echo "=== 重启 ai-backend ==="
-          sudo systemctl restart ai-backend
-          sudo systemctl is-active --quiet ai-backend && echo "ai-backend 重启成功" || echo "ERROR: ai-backend 重启失败"
-
-          echo ""
-          echo "=== 健康检查 ==="
-          curl -fsS http://127.0.0.1/api/health
+          cd ~/ai_study_platform
+          DB="$(pwd)/backend/app.db"
+          echo "DB: $DB"
+          echo "=== BEFORE ==="
+          sqlite3 "$DB" "SELECT username, is_admin, plan, admin_role, admin_real_name FROM users WHERE username='admin';"
+          echo "=== UPDATE ==="
+          sqlite3 "$DB" "UPDATE users SET admin_real_name=X'E98085E6A3AEE6B7BC' WHERE username='admin';"
+          echo "=== AFTER ==="
+          sqlite3 "$DB" "SELECT username, is_admin, plan, admin_role, admin_real_name FROM users WHERE username='admin';"
+          echo "=== RESTART ==="
+          sudo systemctl restart ai-backend && echo "OK"
+          curl -s http://127.0.0.1/api/health
           EOF
