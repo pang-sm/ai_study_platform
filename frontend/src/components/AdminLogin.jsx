@@ -2,17 +2,24 @@ import { useState } from "react";
 
 const API_BASE = "/api";
 
-export default function AdminLogin({ setPage, setUser, setTip, initialTip = "" }) {
+export default function AdminLogin({ setPage, setUser, initialTip = "" }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [adminCode, setAdminCode] = useState("");
+  const [adminName, setAdminName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(initialTip || "");
 
+  const cjkPattern = /^[一-鿿·]{2,10}$/;
+
   const handleSubmit = async () => {
     setError("");
-    if (!username.trim() || !password.trim() || !adminCode.trim()) {
-      setError("请填写管理员账号、密码和安全码。");
+    const name = adminName.trim();
+    if (!username.trim() || !password.trim() || !name) {
+      setError("请填写管理员账号、密码和姓名。");
+      return;
+    }
+    if (!cjkPattern.test(name)) {
+      setError("管理员认证失败，请检查账号、密码或姓名。");
       return;
     }
     setLoading(true);
@@ -20,16 +27,15 @@ export default function AdminLogin({ setPage, setUser, setTip, initialTip = "" }
       const res = await fetch(`${API_BASE}/admin/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: username.trim(), password, admin_code: adminCode.trim() }),
+        body: JSON.stringify({ username: username.trim(), password, admin_name: name }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.detail || "管理员认证失败，请检查账号、密码或安全码。");
-        setPassword(""); setAdminCode("");
+        setError(data.detail || "管理员认证失败，请检查账号、密码或姓名。");
+        setPassword(""); setAdminName("");
         return;
       }
       const loginUser = data.profile || data.user || { username };
-      // Save to localStorage
       try {
         localStorage.setItem("ai_study_platform_user", JSON.stringify(loginUser));
       } catch {}
@@ -52,7 +58,6 @@ export default function AdminLogin({ setPage, setUser, setTip, initialTip = "" }
         background: "#fff", borderRadius: 20, width: "min(100%, 440px)",
         boxShadow: "0 24px 80px rgba(0,0,0,0.35)", overflow: "hidden",
       }}>
-        {/* Header */}
         <div style={{
           background: "linear-gradient(135deg, #1e293b, #334155)",
           padding: "32px 30px 28px", color: "#fff",
@@ -68,7 +73,6 @@ export default function AdminLogin({ setPage, setUser, setTip, initialTip = "" }
           </p>
         </div>
 
-        {/* Features */}
         <div style={{
           display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10,
           padding: "20px 30px", background: "#f8fafc", borderBottom: "1px solid #e2e8f0",
@@ -88,7 +92,6 @@ export default function AdminLogin({ setPage, setUser, setTip, initialTip = "" }
           ))}
         </div>
 
-        {/* Form */}
         <div style={{ padding: "24px 30px 28px" }}>
           <div style={{ marginBottom: 14 }}>
             <label style={{ display: "block", marginBottom: 5, fontSize: "0.8rem", fontWeight: 700, color: "#334155" }}>管理员账号</label>
@@ -115,14 +118,14 @@ export default function AdminLogin({ setPage, setUser, setTip, initialTip = "" }
             />
           </div>
           <div style={{ marginBottom: 8 }}>
-            <label style={{ display: "block", marginBottom: 5, fontSize: "0.8rem", fontWeight: 700, color: "#334155" }}>管理员安全码</label>
+            <label style={{ display: "block", marginBottom: 5, fontSize: "0.8rem", fontWeight: 700, color: "#334155" }}>管理员姓名</label>
             <input
-              type="password" value={adminCode} onChange={(e) => setAdminCode(e.target.value)}
-              placeholder="输入管理员安全码"
+              type="text" value={adminName} onChange={(e) => setAdminName(e.target.value)}
+              placeholder="输入管理员中文姓名"
               style={{
                 width: "100%", height: 44, padding: "0 14px", borderRadius: 10,
                 border: "1px solid #dce2ec", fontSize: "0.9rem", outline: "none",
-                boxSizing: "border-box", fontFamily: "inherit", letterSpacing: 2,
+                boxSizing: "border-box", fontFamily: "inherit",
               }}
             />
           </div>

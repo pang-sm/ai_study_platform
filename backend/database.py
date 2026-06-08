@@ -37,6 +37,7 @@ PROFILE_COLUMNS = {
     "plan_expire_at": "DATETIME",
     "is_admin": "INTEGER DEFAULT 0",
     "admin_role": "VARCHAR(30) DEFAULT 'none'",
+    "admin_real_name": "TEXT",
     "is_active": "INTEGER DEFAULT 1",
 }
 
