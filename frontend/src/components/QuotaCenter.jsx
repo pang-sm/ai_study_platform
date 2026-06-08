@@ -56,6 +56,11 @@ function formatLimit(limit) {
   return isUnlimited(limit) ? "∞" : Number(limit || 0);
 }
 
+function formatFeatureQuota(item) {
+  if (!item.hasData) return "暂无数据";
+  return `${item.used} / ${formatLimit(item.limit)}`;
+}
+
 function getProgressPct(used, limit) {
   if (isUnlimited(limit) || !Number(limit)) return 0;
   return Math.min(100, Math.round((Number(used || 0) / Number(limit)) * 100));
@@ -98,16 +103,18 @@ export default function QuotaCenter({ user, setPage }) {
     ];
 
     return ordered.map((feature) => {
+      const hasData = Object.prototype.hasOwnProperty.call(featureLimits, feature);
       const info = featureLimits[feature] || {};
-      const used = Number(info.used || 0);
-      const limit = Number(info.limit || 0);
+      const used = hasData ? Number(info.used || 0) : 0;
+      const limit = hasData ? Number(info.limit || 0) : 0;
       return {
         feature,
         label: FEATURE_LABELS[feature] || feature,
         icon: FEATURE_ICONS[feature] || "✨",
+        hasData,
         used,
         limit,
-        pct: getProgressPct(used, limit),
+        pct: hasData ? getProgressPct(used, limit) : 0,
       };
     });
   }, [quota]);
@@ -132,11 +139,13 @@ export default function QuotaCenter({ user, setPage }) {
   const uploadUsed = Number(uploadCount.used || 0);
   const uploadLimit = Number(uploadCount.limit || 0);
   const singleFileSize = Number(upload_limits?.single_file_size_mb || 0);
-  const totalAiCalls = featureRows.reduce((sum, item) => sum + item.used, 0);
-  const isPlanUnlimited = plan.plan === "admin" || featureRows.some((item) => isUnlimited(item.limit));
+  const totalAiCalls = featureRows.reduce((sum, item) => sum + (item.hasData ? item.used : 0), 0);
+  const isPlanUnlimited = plan.plan === "admin" || featureRows.some((item) => item.hasData && isUnlimited(item.limit));
   const remainingQuota = isPlanUnlimited
     ? "∞"
-    : featureRows.reduce((sum, item) => sum + Math.max(0, Number(item.limit || 0) - Number(item.used || 0)), 0);
+    : featureRows.reduce((sum, item) => (
+        item.hasData ? sum + Math.max(0, Number(item.limit || 0) - Number(item.used || 0)) : sum
+      ), 0);
   const uploadPct = getProgressPct(uploadUsed, uploadLimit);
 
   return (
@@ -162,7 +171,7 @@ export default function QuotaCenter({ user, setPage }) {
           <div>
             <span className="quota-overview-label">今日总调用</span>
             <strong>{totalAiCalls} <small>次</small></strong>
-            <p>较昨日 0 · 0%</p>
+            <p>来自今日 AI 功能用量汇总</p>
           </div>
         </article>
         <article className="quota-overview-card">
@@ -195,7 +204,7 @@ export default function QuotaCenter({ user, setPage }) {
               <div className="quota-feature-main">
                 <div className="quota-feature-top">
                   <span>{item.label}</span>
-                  <strong>{item.used} / {formatLimit(item.limit)}</strong>
+                  <strong className={item.hasData ? "" : "quota-feature-missing"}>{formatFeatureQuota(item)}</strong>
                 </div>
                 <div className="quota-bar-track">
                   <div

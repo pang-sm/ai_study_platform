@@ -10869,6 +10869,11 @@ select.field:focus {
   white-space: nowrap;
 }
 
+.quota-feature-top strong.quota-feature-missing {
+  color: #94a3b8;
+  font-weight: 700;
+}
+
 .quota-center .quota-bar-track {
   height: 7px;
   border-radius: 999px;
