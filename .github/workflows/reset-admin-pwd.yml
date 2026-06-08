@@ -35,42 +35,23 @@ jobs:
           ssh -i "$HOME/.ssh/tencent_deploy_key" -p "$SSH_PORT" "$TENCENT_USER@$TENCENT_HOST" 'bash -se' <<'ENDSCRIPT'
           set -euo pipefail
 
-          # Use the same paths that the deploy workflow uses
-          cd ~/ai_study_platform/backend
-          BACKEND_DIR="$(pwd)"
-          DB="$BACKEND_DIR/app.db"
-          echo "数据库: $DB"
-          ls -la "$DB"
-
-          # Use venv python from deploy workflow pattern
-          PYTHON=""
-          for candidate in "backend/.venv/bin/python3" ".venv/bin/python3" "venv/bin/python3"; do
-            if [ -x "$candidate" ]; then PYTHON="$candidate"; break; fi
+          echo "=== 1. 排查路径 ==="
+          for d in "$HOME/ai_study_platform" "$HOME/ai_study_platform/backend" "/root/ai_study_platform/backend"; do
+            echo -n "检查 $d: "
+            if [ -d "$d" ]; then echo "存在"; else echo "不存在"; fi
           done
-          if [ -z "$PYTHON" ]; then PYTHON="python3"; fi
-          echo "使用 Python: $PYTHON"
 
-          cat > /tmp/reset_admin_pwd.py << PYEOF
-import secrets, string, sys, os
-backend_dir = "$BACKEND_DIR"
-sys.path.insert(0, backend_dir)
-os.chdir(backend_dir)
-from auth import hash_password
-import sqlite3
-alphabet = string.ascii_letters + string.digits
-new_password = "".join(secrets.choice(alphabet) for _ in range(16))
-hash_val = hash_password(new_password)
-conn = sqlite3.connect("$DB")
-conn.execute("UPDATE users SET hashed_password=?, is_admin=1, plan='admin', admin_role='super_admin', admin_real_name=X'E98085E6A3AEE6B7BC' WHERE username='admin'", (hash_val,))
-conn.commit()
-row = conn.execute("SELECT username, is_admin, plan, admin_role, admin_real_name FROM users WHERE username='admin'").fetchone()
-conn.close()
-print(f"User: {row[0]}, is_admin={row[1]}, plan={row[2]}, admin_role={row[3]}, real_name={row[4]}")
-print(f"NEW_PASSWORD: {new_password}")
-PYEOF
+          echo ""
+          echo "=== 2. 查找 app.db ==="
+          find "$HOME" /root /var -maxdepth 6 -name "app.db" -type f 2>/dev/null | head -10
 
-          echo "=== 执行 ==="
-          $PYTHON /tmp/reset_admin_pwd.py
+          echo ""
+          echo "=== 3. 查找 auth.py ==="
+          find "$HOME" /root -maxdepth 5 -name "auth.py" -type f 2>/dev/null | head -5
+
+          echo ""
+          echo "=== 4. 查找 venv ==="
+          find "$HOME" /root -maxdepth 5 -name "pip" -path "*venv*" -type f 2>/dev/null | head -5
 
           echo ""
           echo "=== 重启服务 ==="
