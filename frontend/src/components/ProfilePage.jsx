@@ -139,7 +139,7 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage, onProfil
 
       {/* ── Edit Modal ── */}
       {editOpen && (
-        <div className="pp-overlay" onClick={() => setEditOpen(false)}>
+        <div className="pp-overlay">
           <div className="pp-modal pp-modal-edit" onClick={e => e.stopPropagation()}>
             <div className="pp-modal-header">
               <div>
@@ -162,7 +162,6 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage, onProfil
               <div className="pp-form-section">
                 <div className="pp-form-section-title"><span>⚙️</span><strong>学习设置</strong></div>
                 <div className="pp-form-grid">
-                  <label className="pp-form-field pp-form-field-full"><span>学习目标</span><input className="pp-field" value={draft.learning_goal_text} onChange={e => setDraftField("learning_goal_text", e.target.value)} placeholder="例如：通过离散数学期末考试" /></label>
                   <label className="pp-form-field pp-form-field-full"><span>每日学习时长</span>
                     <div className="pp-chips">{DAILY_MINUTES_OPTS.map(m => <button key={m} className={`pp-chip ${draft.daily_study_minutes===m?"pp-chip--active":""}`} onClick={() => setDraftField("daily_study_minutes",m)} type="button">{m} 分钟</button>)}</div>
                   </label>
@@ -216,7 +215,6 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage, onProfil
           </div>
           <div className="pp-card"><h3 className="pp-card-title"><span className="pp-card-icon">⚙️</span>学习设置</h3>
             <div className="pp-rows">
-              <InfoRow icon="🎯" label="学习目标" value={(Array.isArray(profile.learning_goals)?profile.learning_goals.map(g=>g.subject).join("、"):"")||"未设置"} />
               <InfoRow icon="⏱️" label="每日学习时长" value={profile.daily_study_minutes?`${profile.daily_study_minutes} 分钟`:"未设置"} />
               <InfoRow icon="📊" label="当前学习阶段" value={profile.learning_stage||"未设置"} />
               <InfoRow icon="📚" label="重点课程" value={profile.focus_courses||"未设置"} />
