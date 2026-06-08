@@ -60,7 +60,6 @@ export const SIDEBAR_NAV_GROUPS = [
     title: "个人与系统",
     items: [
       APP_PAGES.profile,
-      APP_PAGES.profileEdit,
       APP_PAGES.quotaCenter,
       APP_PAGES.membership,
     ],
@@ -143,12 +142,6 @@ export const HOME_LEARNING_TOOLS = [
     icon: APP_PAGES.quotaCenter.icon,
     title: "我的额度",
     desc: "用量与套餐",
-  },
-  {
-    id: APP_PAGES.profileEdit.key,
-    icon: APP_PAGES.profileEdit.icon,
-    title: "学习设置",
-    desc: "科目与目标管理",
   },
 ];
 

@@ -21,6 +21,16 @@ class ChatRequest(BaseModel):
     session_id: int | None = None
     material_ids: list[int] = []
     hidden_instruction: str = ""
+    mastery_level: str = ""
+    learning_goal: str = ""
+
+
+class CourseLearningPreferenceUpsert(BaseModel):
+    username: str
+    course_id: str = ""
+    subject: str = ""
+    mastery_level: str
+    learning_goal: str
 
 
 class CodeSessionCreate(BaseModel):
@@ -488,6 +498,8 @@ class GenerateQuestionRequest(BaseModel):
     source_style: str = "mixed"
     require_reasoning: bool = True
     avoid_too_simple: bool = True
+    mastery_level: str = ""
+    learning_goal: str = ""
 
 
 class GenerateTaskQuestionPreviewRequest(BaseModel):
@@ -498,6 +510,8 @@ class GenerateTaskQuestionPreviewRequest(BaseModel):
     task_id: int | None = None
     task_title: str = ""
     count: int = 5
+    mastery_level: str = ""
+    learning_goal: str = ""
 
 
 class PaperQuestionDraft(BaseModel):

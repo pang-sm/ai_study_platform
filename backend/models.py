@@ -140,6 +140,23 @@ class CourseProgress(Base):
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
 
+class CourseLearningPreference(Base):
+    __tablename__ = "course_learning_preferences"
+    __table_args__ = (
+        Index("idx_course_learning_preferences_user_course", "username", "course_id", unique=True),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), index=True, nullable=False)
+    course_id = Column(String(100), index=True, nullable=False)
+    mastery_level = Column(String(50), nullable=False, default="")
+    learning_goal = Column(String(50), nullable=False, default="")
+    is_started = Column(Boolean, nullable=False, default=False)
+    started_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+
 class CodeSession(Base):
     __tablename__ = "code_sessions"
 

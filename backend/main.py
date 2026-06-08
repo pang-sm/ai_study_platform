@@ -1540,6 +1540,87 @@ def serialize_course_progress(record: models.CourseProgress):
     }
 
 
+def serialize_course_preference(record: models.CourseLearningPreference | None, course_id: str):
+    if not record:
+        return {
+            "course_id": course_id,
+            "subject": course_id,
+            "mastery_level": "",
+            "learning_goal": "",
+            "is_started": False,
+            "started_at": None,
+            "created_at": None,
+            "updated_at": None,
+        }
+    return {
+        "id": record.id,
+        "course_id": record.course_id,
+        "subject": record.course_id,
+        "mastery_level": record.mastery_level or "",
+        "learning_goal": record.learning_goal or "",
+        "is_started": bool(record.is_started),
+        "started_at": serialize_datetime(record.started_at) if record.started_at else None,
+        "created_at": serialize_datetime(record.created_at) if record.created_at else None,
+        "updated_at": serialize_datetime(record.updated_at) if record.updated_at else None,
+    }
+
+
+def get_course_preference_record(db: Session, username: str, course_id: str):
+    normalized_course = normalize_subject(course_id, default="")
+    if not username or not normalized_course:
+        return None
+    return (
+        db.query(models.CourseLearningPreference)
+        .filter(
+            models.CourseLearningPreference.username == username,
+            models.CourseLearningPreference.course_id == normalized_course,
+        )
+        .first()
+    )
+
+
+def get_course_preference_payload(db: Session, username: str, course_id: str):
+    normalized_course = normalize_subject(course_id, default="")
+    return serialize_course_preference(
+        get_course_preference_record(db, username, normalized_course),
+        normalized_course,
+    )
+
+
+def build_course_preference_prompt(preference: dict | None, course_id: str = "") -> str:
+    if not preference:
+        return ""
+    mastery_level = (preference.get("mastery_level") or "").strip()
+    learning_goal = (preference.get("learning_goal") or "").strip()
+    is_started = bool(preference.get("is_started"))
+    if not (is_started and mastery_level and learning_goal):
+        return ""
+
+    course_label = (course_id or preference.get("course_id") or preference.get("subject") or "").strip()
+    lines = [
+        "当前课程学习背景：",
+        f"- 课程：{course_label}",
+        f"- 用户希望掌握程度：{mastery_level}",
+        f"- 用户学习目标：{learning_goal}",
+        "回答要求：",
+        "- 按该掌握程度调整讲解深度。",
+        "- 按该学习目标组织重点。",
+    ]
+    if learning_goal == "期末复习":
+        lines.append("- 优先总结考点、易错点、常考题型，并给出复习优先级。")
+    if learning_goal == "查漏补缺":
+        lines.append("- 优先诊断薄弱点，覆盖容易混淆的概念，并说明错误原因。")
+    if learning_goal == "项目实践":
+        lines.append("- 优先结合应用场景、案例分析和动手实现。")
+    if mastery_level == "课堂跟上":
+        lines.append("- 难度偏基础，解释更通俗，必要时补充前置知识。")
+    if mastery_level == "系统掌握":
+        lines.append("- 回答要体现知识结构、相互联系和原理链路。")
+    if mastery_level == "深入理解":
+        lines.append("- 可以加入原理分析、边界条件和扩展问题。")
+    return "\n".join(lines)
+
+
 def get_saved_course_progress_map(db: Session, username: str, course: str):
     records = (
         db.query(models.CourseProgress)
@@ -1560,6 +1641,7 @@ def get_saved_course_progress_map(db: Session, username: str, course: str):
 
 def build_course_dashboard_payload(db: Session, user: models.User, course: str):
     normalized_course = normalize_subject(course)
+    course_preference = get_course_preference_payload(db, user.username, normalized_course)
 
     material_query = db.query(models.StudyMaterial).filter(
         models.StudyMaterial.username == user.username,
@@ -1883,6 +1965,7 @@ def build_course_dashboard_payload(db: Session, user: models.User, course: str):
         "progress": progress,
         "roadmap": get_course_roadmap(normalized_course),
         "suggestion": suggestion,
+        "preference": course_preference,
         "progress_status_options": list(COURSE_PROGRESS_STATUSES),
         "code_progress": code_progress,
         "task_summary": task_summary,
@@ -4168,6 +4251,17 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
         )
 
     knowledge_context = build_knowledge_context(user.username, subject, db)
+    course_preference = get_course_preference_payload(db, user.username, subject)
+    if not build_course_preference_prompt(course_preference, subject) and req.mastery_level and req.learning_goal:
+        course_preference = {
+            "course_id": subject,
+            "mastery_level": req.mastery_level,
+            "learning_goal": req.learning_goal,
+            "is_started": True,
+        }
+    course_preference_context = build_course_preference_prompt(course_preference, subject)
+    if course_preference_context:
+        knowledge_context = "\n\n".join([item for item in [knowledge_context, course_preference_context] if item])
 
     system_prompt = build_system_prompt(
         subject,
@@ -5231,6 +5325,52 @@ def update_course_progress(req: CourseProgressUpdateRequest, db: Session = Depen
 def get_course_dashboard(username: str, course: str, db: Session = Depends(get_db)):
     user = get_user_by_username(username, db)
     return build_course_dashboard_payload(db, user, course)
+
+
+@app.get("/course-preferences")
+def get_course_preference(username: str, subject: str = "", course_id: str = "", db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    normalized_course = normalize_subject(course_id or subject, default="")
+    if not normalized_course:
+        raise HTTPException(status_code=400, detail="请提供课程")
+    return {"success": True, "preference": get_course_preference_payload(db, user.username, normalized_course)}
+
+
+@app.post("/course-preferences")
+def save_course_preference(req: schemas.CourseLearningPreferenceUpsert, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+    normalized_course = normalize_subject(req.course_id or req.subject, default="")
+    mastery_level = (req.mastery_level or "").strip()
+    learning_goal = (req.learning_goal or "").strip()
+    if not normalized_course:
+        raise HTTPException(status_code=400, detail="请提供课程")
+    if not mastery_level or not learning_goal:
+        raise HTTPException(status_code=400, detail="请选择掌握程度和学习目标")
+
+    now = utc_now()
+    preference = get_course_preference_record(db, user.username, normalized_course)
+    if preference:
+        preference.mastery_level = mastery_level
+        preference.learning_goal = learning_goal
+        preference.is_started = True
+        preference.started_at = preference.started_at or now
+        preference.updated_at = now
+    else:
+        preference = models.CourseLearningPreference(
+            username=user.username,
+            course_id=normalized_course,
+            mastery_level=mastery_level,
+            learning_goal=learning_goal,
+            is_started=True,
+            started_at=now,
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(preference)
+
+    db.commit()
+    db.refresh(preference)
+    return {"success": True, "preference": serialize_course_preference(preference, normalized_course)}
 
 
 @app.get("/chat/history")
@@ -13293,6 +13433,16 @@ def generate_questions(req: schemas.GenerateQuestionRequest, db: Session = Depen
         )
 
     # ── 日志：请求参数 ──
+    course_preference = get_course_preference_payload(db, user.username, course_id or course_name)
+    if not build_course_preference_prompt(course_preference, course_id or course_name) and req.mastery_level and req.learning_goal:
+        course_preference = {
+            "course_id": course_id or course_name,
+            "mastery_level": req.mastery_level,
+            "learning_goal": req.learning_goal,
+            "is_started": True,
+        }
+    course_preference_context = build_course_preference_prompt(course_preference, course_id or course_name)
+
     logger.info(
         "[practice-generate] request payload: username=%s, course_id=%s, course_name=%s, "
         "kp_id=%s, kp_title=%s, type=%s, difficulty=%s, style=%s, count=%d, "
@@ -13316,6 +13466,9 @@ def generate_questions(req: schemas.GenerateQuestionRequest, db: Session = Depen
 每道题的 analysis 字段必须是给学生看的正式解析，只保留必要解题步骤；禁止包含内部思考、自我纠错、反复试算、对选项不匹配的怀疑，禁止出现"我认为""我可能""让我重新""鉴于时间""为了配合选项"等表达。
 
 请直接输出严格 JSON，不要用 Markdown 代码块包裹，不要输出任何解释文字。"""
+
+    if course_preference_context:
+        user_prompt = f"{course_preference_context}\n\n{user_prompt}"
 
     check_usage_limit(user.username, "question_generate", db)
 
@@ -13581,6 +13734,15 @@ def generate_task_question_preview(req: schemas.GenerateTaskQuestionPreviewReque
             kp_description = (kp.description or "").strip()
 
     task_title = (req.task_title or "").strip()
+    course_preference = get_course_preference_payload(db, user.username, course_id)
+    if not build_course_preference_prompt(course_preference, course_id) and req.mastery_level and req.learning_goal:
+        course_preference = {
+            "course_id": course_id,
+            "mastery_level": req.mastery_level,
+            "learning_goal": req.learning_goal,
+            "is_started": True,
+        }
+    course_preference_context = build_course_preference_prompt(course_preference, course_id)
 
     check_usage_limit(user.username, "question_generate", db)
 
@@ -13595,6 +13757,9 @@ def generate_task_question_preview(req: schemas.GenerateTaskQuestionPreviewReque
     context_parts.append(f"数量：{count} 道")
 
     user_prompt = "\n".join(context_parts) + "\n\n请生成练习题预览。"
+
+    if course_preference_context:
+        user_prompt = f"{course_preference_context}\n\n{user_prompt}"
 
     try:
         raw = call_deepseek(

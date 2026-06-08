@@ -117,6 +117,17 @@ COURSE_PROGRESS_COLUMNS = {
     "updated_at": "DATETIME",
 }
 
+COURSE_LEARNING_PREFERENCES_COLUMNS = {
+    "username": "VARCHAR(50) NOT NULL",
+    "course_id": "VARCHAR(100) NOT NULL",
+    "mastery_level": "VARCHAR(50) NOT NULL DEFAULT ''",
+    "learning_goal": "VARCHAR(50) NOT NULL DEFAULT ''",
+    "is_started": "BOOLEAN NOT NULL DEFAULT 0",
+    "started_at": "DATETIME",
+    "created_at": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+    "updated_at": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+}
+
 CODE_AI_MESSAGES_COLUMNS = {
     "username": "VARCHAR(50) NOT NULL",
     "session_id": "INTEGER NOT NULL",
@@ -517,6 +528,35 @@ def ensure_course_progress_schema(conn):
         )
     )
     ensure_columns(conn, "course_progress", COURSE_PROGRESS_COLUMNS)
+
+
+def ensure_course_learning_preferences_schema(conn):
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS course_learning_preferences (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username VARCHAR(50) NOT NULL,
+                course_id VARCHAR(100) NOT NULL,
+                mastery_level VARCHAR(50) NOT NULL DEFAULT '',
+                learning_goal VARCHAR(50) NOT NULL DEFAULT '',
+                is_started BOOLEAN NOT NULL DEFAULT 0,
+                started_at DATETIME,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+    )
+    ensure_columns(conn, "course_learning_preferences", COURSE_LEARNING_PREFERENCES_COLUMNS)
+    conn.execute(
+        text(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_course_learning_preferences_user_course
+            ON course_learning_preferences (username, course_id)
+            """
+        )
+    )
 
 
 def ensure_code_sessions_schema(conn):
@@ -1108,6 +1148,7 @@ def normalize_existing_subjects(conn):
     update_subject_aliases(conn, "learning_records", "subject")
     update_subject_aliases(conn, "chat_messages", "subject")
     update_subject_aliases(conn, "course_progress", "course")
+    update_subject_aliases(conn, "course_learning_preferences", "course_id")
 
     chat_session_columns = get_existing_columns(conn, "chat_sessions")
     if "subject" in chat_session_columns and "course" in chat_session_columns:
@@ -1140,6 +1181,7 @@ def normalize_existing_subjects(conn):
     fill_blank_subject_column(conn, "learning_records", "subject")
     fill_blank_subject_column(conn, "chat_messages", "subject")
     fill_blank_subject_column(conn, "course_progress", "course")
+    fill_blank_subject_column(conn, "course_learning_preferences", "course_id")
 
 
 def init_user_profile_schema():
@@ -1152,6 +1194,7 @@ def init_user_profile_schema():
         ensure_material_chunks_schema(conn)
         ensure_learning_records_schema(conn)
         ensure_course_progress_schema(conn)
+        ensure_course_learning_preferences_schema(conn)
         ensure_code_sessions_schema(conn)
         ensure_code_ai_messages_schema(conn)
         ensure_code_challenges_schema(conn)

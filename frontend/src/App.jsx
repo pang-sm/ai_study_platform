@@ -597,6 +597,7 @@ function App() {
   });
   const [courseDashboardLoading, setCourseDashboardLoading] = useState(false);
   const [courseDashboardData, setCourseDashboardData] = useState(null);
+  const [coursePreference, setCoursePreference] = useState(null);
   const [courseProgressSavingKey, setCourseProgressSavingKey] = useState("");
   const [pendingAIContext, setPendingAIContext] = useState(null);
 
@@ -639,6 +640,7 @@ function App() {
     if (COURSE_OPTIONS.includes(subject)) {
       try { localStorage.setItem(CURRENT_SUBJECT_KEY, subject); } catch { /* ignore */ }
     }
+    setCoursePreference(null);
   }, [subject]);
 
   const currentChatSubject = activeSessionId ? activeSessionSubject : subject;
@@ -1183,14 +1185,17 @@ function App() {
       if (!res.ok) {
         setTip(getDisplayMessage(data.detail, "加载课程工作台失败"));
         setCourseDashboardData(null);
+        setCoursePreference(null);
         return;
       }
 
       setCourseDashboardData(data);
+      setCoursePreference(data.preference || null);
     } catch (error) {
       console.error("Failed to load course dashboard:", error);
       setTip("暂时无法加载课程工作台。");
       setCourseDashboardData(null);
+      setCoursePreference(null);
     } finally {
       setCourseDashboardLoading(false);
     }
@@ -2406,6 +2411,8 @@ function App() {
           message: currentMessage,
           hidden_instruction: hiddenInstruction,
           subject: normalizeSubject(currentChatSubject),
+          mastery_level: coursePreference?.mastery_level || "",
+          learning_goal: coursePreference?.learning_goal || "",
           grade: user.grade || "",
           major: user.major || "",
           username: user.username,
@@ -2541,6 +2548,8 @@ function App() {
         body: JSON.stringify({
           message: newContent.trim(),
           subject: normalizeSubject(currentChatSubject),
+          mastery_level: coursePreference?.mastery_level || "",
+          learning_goal: coursePreference?.learning_goal || "",
           grade: user.grade || "",
           major: user.major || "",
           username: user.username,
@@ -3157,6 +3166,7 @@ function App() {
             setPage={setPage}
             practiceContext={practiceContext}
             onClearPracticeContext={() => setPracticeContext(null)}
+            coursePreference={coursePreference}
             searchNavigate={searchNavigate}
             onClearSearchNavigate={() => setSearchNavigate(null)}
           />
@@ -3850,6 +3860,8 @@ function App() {
             course={subject}
             courseOptions={COURSE_OPTIONS}
             dashboard={courseDashboardData}
+            coursePreference={coursePreference}
+            onPreferenceChange={setCoursePreference}
             loading={courseDashboardLoading}
             savingPointKey={courseProgressSavingKey}
             setPage={setPage}
