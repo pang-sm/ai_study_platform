@@ -40,13 +40,6 @@
 .cd-header-course { margin: 0; font-size: 1.6rem; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; }
 .cd-header-sub { font-size: 0.86rem; color: #64748b; margin: 0; }
 .cd-header-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
-.cd-header-select {
-  min-width: 180px; height: 40px; padding: 0 36px 0 14px; border: 1px solid #dce2ec;
-  border-radius: 10px; background: #fff; font-size: 0.86rem; font-weight: 600;
-  color: #1e293b; cursor: pointer; appearance: none; outline: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-  background-repeat: no-repeat; background-position: right 12px center;
-}
 .cd-header-last-study { font-size: 0.78rem; color: #94a3b8; white-space: nowrap; }
 .cd-header-settings {
   display: inline-flex; align-items: center; gap: 5px; height: 38px; padding: 0 14px;

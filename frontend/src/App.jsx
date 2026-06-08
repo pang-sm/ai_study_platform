@@ -3858,17 +3858,12 @@ function App() {
           <CourseDashboard
             user={user}
             course={subject}
-            courseOptions={COURSE_OPTIONS}
             dashboard={courseDashboardData}
             coursePreference={coursePreference}
             onPreferenceChange={setCoursePreference}
             loading={courseDashboardLoading}
             savingPointKey={courseProgressSavingKey}
             setPage={setPage}
-            onCourseChange={(newCourse) => {
-              setSubject(newCourse);
-              if (!activeSessionId) setActiveSessionSubject(newCourse);
-            }}
             onProgressChange={updateCourseProgress}
             onStartAsk={() => {
               openChatPageForCourse(subject, true);

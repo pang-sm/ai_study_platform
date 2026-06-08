@@ -42,13 +42,11 @@ function buildKnowledgeTree(points) {
 export default function CourseDashboard({
   user,
   course,
-  courseOptions,
   dashboard,
   coursePreference,
   onPreferenceChange,
   loading,
   setPage,
-  onCourseChange,
   getSubjectLabel,
   materials = [],
   onStartAsk,
@@ -219,11 +217,6 @@ export default function CourseDashboard({
           </div>
         </div>
         <div className="cd-header-right">
-          <select className="cd-header-select" value={course} onChange={(e) => onCourseChange(e.target.value)}>
-            {courseOptions.map((opt) => (
-              <option key={opt} value={opt}>{getSubjectLabel ? getSubjectLabel(opt) : opt}</option>
-            ))}
-          </select>
           <span className="cd-header-last-study">
             上次学习：{hasStartedCourse ? (fmtDate(stats.last_study_date) || "暂无记录") : "尚未开始"}
           </span>
