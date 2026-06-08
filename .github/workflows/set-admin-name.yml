@@ -39,12 +39,12 @@ jobs:
           ssh -i "$HOME/.ssh/tencent_deploy_key" -p "$SSH_PORT" "$TENCENT_USER@$TENCENT_HOST" 'bash -se' <<'EOF'
           set -euo pipefail
 
-          echo "=== 查找数据库 ==="
-          DB_PATH=$(sudo find /var/www/ai_study_platform -type f \( -name "*.db" -o -name "*.sqlite" -o -name "*.sqlite3" \) 2>/dev/null | head -1)
-          if [ -z "$DB_PATH" ]; then
-            DB_PATH=$(find ~ -path "*/ai_study_platform/backend/app.db" -type f 2>/dev/null | head -1)
+          echo "=== 定位数据库 ==="
+          DB_PATH="$HOME/ai_study_platform/backend/app.db"
+          if [ ! -f "$DB_PATH" ]; then
+            DB_PATH=$(find "$HOME" -path "*/backend/app.db" -type f 2>/dev/null | head -1)
           fi
-          if [ -z "$DB_PATH" ]; then
+          if [ ! -f "$DB_PATH" ]; then
             echo "ERROR: 找不到数据库文件"
             exit 1
           fi
