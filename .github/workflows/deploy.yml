@@ -67,7 +67,7 @@ jobs:
         env:
           TENCENT_HOST: ${{ secrets.TENCENT_HOST }}
           TENCENT_SSH_KEY: ${{ secrets.TENCENT_SSH_KEY }}
-          SSH_PORT: ${{ secrets.TENCENT_PORT }}
+          SSH_PORT: ${{ secrets.TENCENT_PORT || '22' }}
         run: |
           set -euo pipefail
 
@@ -75,21 +75,42 @@ jobs:
           : "${TENCENT_SSH_KEY:?TENCENT_SSH_KEY secret is required}"
           SSH_PORT="${SSH_PORT:-22}"
 
+          # Strip trailing dot/port/path from host (e.g. root@ip → ip, ip:22 → ip)
+          HOST_CLEAN="${TENCENT_HOST#*@}"
+          HOST_CLEAN="${HOST_CLEAN%%:*}"
+          HOST_CLEAN="${HOST_CLEAN%%/*}"
+          echo "SSH target: $HOST_CLEAN port $SSH_PORT"
+
           mkdir -p "$HOME/.ssh"
           chmod 700 "$HOME/.ssh"
 
-          printf '%s\n' "$TENCENT_SSH_KEY" > "$HOME/.ssh/tencent_deploy_key"
+          printf '%s\n' "$TENCENT_SSH_KEY" | tr -d '\r' > "$HOME/.ssh/tencent_deploy_key"
           chmod 600 "$HOME/.ssh/tencent_deploy_key"
 
-          ssh-keyscan -p "$SSH_PORT" "$TENCENT_HOST" >> "$HOME/.ssh/known_hosts"
+          echo "Checking SSH connectivity..."
+          timeout 10 bash -c "cat < /dev/null > /dev/tcp/$HOST_CLEAN/$SSH_PORT" 2>/dev/null \
+            && echo "SSH port reachable" \
+            || echo "Warning: TCP check skipped or port unreachable (will retry via ssh-keyscan)"
+
+          echo "Running ssh-keyscan..."
+          if ! ssh-keyscan -T 20 -p "$SSH_PORT" -H "$HOST_CLEAN" >> "$HOME/.ssh/known_hosts" 2>/tmp/ssh-keyscan.err; then
+            echo "ssh-keyscan failed. Check TENCENT_HOST / SSH_PORT / server SSH accessibility."
+            echo "TENCENT_HOST is set: yes (length ${#TENCENT_HOST})"
+            echo "Cleaned host: $HOST_CLEAN"
+            echo "SSH_PORT: $SSH_PORT"
+            echo "--- ssh-keyscan stderr ---"
+            cat /tmp/ssh-keyscan.err || true
+            exit 1
+          fi
           chmod 644 "$HOME/.ssh/known_hosts"
+          echo "ssh-keyscan succeeded"
 
       - name: Deploy to Tencent Cloud
         shell: bash
         env:
           TENCENT_HOST: ${{ secrets.TENCENT_HOST }}
           TENCENT_USER: ${{ secrets.TENCENT_USER }}
-          SSH_PORT: ${{ secrets.TENCENT_PORT }}
+          SSH_PORT: ${{ secrets.TENCENT_PORT || '22' }}
           ADMIN_LOGIN_CODE: ${{ secrets.ADMIN_LOGIN_CODE }}
         run: |
           set -euo pipefail
@@ -98,9 +119,11 @@ jobs:
           : "${TENCENT_USER:?TENCENT_USER secret is required}"
           SSH_PORT="${SSH_PORT:-22}"
           ADMIN_CODE="${ADMIN_LOGIN_CODE:-}"
+          HOST_CLEAN="${TENCENT_HOST#*@}"
+          HOST_CLEAN="${HOST_CLEAN%%:*}"
 
           # Pass ADMIN_LOGIN_CODE as env var to the remote session
-          ssh -i "$HOME/.ssh/tencent_deploy_key" -p "$SSH_PORT" "$TENCENT_USER@$TENCENT_HOST" \
+          ssh -i "$HOME/.ssh/tencent_deploy_key" -p "$SSH_PORT" "$TENCENT_USER@$HOST_CLEAN" \
             ADMIN_LOGIN_CODE="$ADMIN_CODE" 'bash -se' <<'DEPLOYEOF'
           set -euo pipefail
 
