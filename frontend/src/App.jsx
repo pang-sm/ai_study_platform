@@ -2438,7 +2438,14 @@ function App() {
     // Feature gate: AI chat
     if (!guardFeature("feature_ai_chat_enabled", "AI 问答功能暂时维护中，请稍后再试")) return;
 
-    const currentMessage = (overrideText?.trim() ?? trimmedMessage) || overrideText || "";
+    // Safely extract current message: when overrideText is a valid string use it;
+    // otherwise fall back to trimmedMessage (the current input value).
+    const currentMessage = (typeof overrideText === "string" && overrideText.trim()) || trimmedMessage;
+
+    if (!currentMessage) {
+      setTip("请输入问题后再发送。");
+      return;
+    }
 
     // Build hidden learning instruction from pendingAIContext (not saved to history)
     const hiddenInstruction = buildHiddenLearningInstruction(pendingAIContext);
@@ -2723,17 +2730,22 @@ function App() {
     }
 
     if (!hasOverride && !canSendMessage) {
-      if (selectedFilesBlockReason) {
-        setTip("请先输入问题后再发送文件。");
-      }
+      setTip(selectedFilesBlockReason || "请先输入问题后再发送。");
       return;
     }
 
-    if (loading) return;
+    if (loading) {
+      setTip("正在处理上一个问题，请稍后...");
+      return;
+    }
 
     setTip("");
 
-    await sendTextMessage(overrideText);
+    // Only pass overrideText when it is a real string (from KP context clicks).
+    // When called from button onClick/Enter key, the first argument may be a
+    // SyntheticEvent or undefined — forward undefined so sendTextMessage falls
+    // back to the current trimmedMessage.
+    await sendTextMessage(hasOverride ? overrideText.trim() : undefined);
   };
 
   const addMessageToLibrary = async (messageItem, selectedSubject) => {
