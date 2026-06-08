@@ -374,7 +374,6 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage, onProfil
           </div>
           <div className="pp-card"><h3 className="pp-card-title"><span className="pp-card-icon">🗄️</span>隐私与数据</h3>
             <div className="pp-rows">
-              <InfoRow icon="📥" label="导出学习数据" value=""><button className="pp-btn pp-btn-mini" onClick={()=>showToast("功能开发中")}>导出</button></InfoRow>
               <InfoRow icon="🗑️" label="清空聊天记录" value=""><button className="pp-btn pp-btn-mini pp-btn-warn" onClick={()=>setConfirmAction({title:"清空聊天记录",desc:"此操作不可恢复",action:()=>showToast("功能开发中")})}>清空</button></InfoRow>
               <InfoRow icon="📝" label="清空学习记录" value=""><button className="pp-btn pp-btn-mini pp-btn-warn" onClick={()=>setConfirmAction({title:"清空学习记录",desc:"此操作不可恢复",action:()=>showToast("功能开发中")})}>清空</button></InfoRow>
               <InfoRow icon="✏️" label="清空练习记录" value=""><button className="pp-btn pp-btn-mini pp-btn-warn" onClick={()=>setConfirmAction({title:"清空练习记录",desc:"此操作不可恢复",action:()=>showToast("功能开发中")})}>清空</button></InfoRow>
