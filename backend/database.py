@@ -47,6 +47,10 @@ PROFILE_COLUMNS = {
     "answer_detail_level": "VARCHAR(50) DEFAULT ''",
     "material_reference_preference": "VARCHAR(50) DEFAULT ''",
     "focus_courses": "TEXT DEFAULT ''",
+    "email": "VARCHAR(255)",
+    "email_verified": "BOOLEAN NOT NULL DEFAULT 0",
+    "phone": "VARCHAR(30)",
+    "phone_verified": "BOOLEAN NOT NULL DEFAULT 0",
     "is_active": "INTEGER DEFAULT 1",
 }
 
@@ -984,6 +988,26 @@ def ensure_admin_audit_logs_schema(conn):
     ensure_columns(conn, "admin_audit_logs", ADMIN_AUDIT_LOGS_COLUMNS)
 
 
+def ensure_verification_codes_schema(conn):
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS verification_codes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username VARCHAR(50) NOT NULL,
+                target VARCHAR(255) NOT NULL,
+                purpose VARCHAR(30) NOT NULL,
+                code_hash VARCHAR(255) NOT NULL,
+                expires_at DATETIME NOT NULL,
+                used BOOLEAN NOT NULL DEFAULT 0,
+                attempts INTEGER NOT NULL DEFAULT 0,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+    )
+
+
 def ensure_learning_reports_schema(conn):
     conn.execute(
         text(
@@ -1222,6 +1246,7 @@ def init_user_profile_schema():
         ensure_material_knowledge_links_schema(conn)
         ensure_ai_usage_logs_schema(conn)
         ensure_admin_audit_logs_schema(conn)
+        ensure_verification_codes_schema(conn)
         ensure_learning_reports_schema(conn)
         ensure_learning_report_shares_schema(conn)
         ensure_system_announcements_schema(conn)

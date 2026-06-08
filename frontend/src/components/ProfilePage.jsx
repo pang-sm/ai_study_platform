@@ -30,6 +30,53 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage, onProfil
   const [pwdSaving, setPwdSaving] = useState(false);
   const [pwdError, setPwdError] = useState("");
 
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailForm, setEmailForm] = useState({ email:"", code:"" });
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailVerifying, setEmailVerifying] = useState(false);
+  const [emailError, setEmailError] = useState("");
+  const [emailCountdown, setEmailCountdown] = useState(0);
+
+  useEffect(() => {
+    if (emailCountdown <= 0) return;
+    const t = setTimeout(() => setEmailCountdown(c => c-1), 1000);
+    return () => clearTimeout(t);
+  }, [emailCountdown]);
+
+  const handleSendEmailCode = async () => {
+    setEmailError(""); const e = emailForm.email.trim();
+    if (!e || !e.includes("@")) { setEmailError("请输入有效的邮箱地址"); return; }
+    setEmailSending(true);
+    try {
+      const res = await fetch(`${apiBase}/me/email/send-code?username=${encodeURIComponent(user.username)}`, {
+        method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({email:e}),
+      });
+      const data = await res.json();
+      if (!res.ok) { setEmailError(data.detail||"发送失败"); setEmailSending(false); return; }
+      setEmailCountdown(60);
+    } catch { setEmailError("网络错误"); }
+    finally { setEmailSending(false); }
+  };
+
+  const handleVerifyEmail = async () => {
+    setEmailError(""); const e=emailForm.email.trim(), c=emailForm.code.trim();
+    if (!c) { setEmailError("请输入验证码"); return; }
+    setEmailVerifying(true);
+    try {
+      const res = await fetch(`${apiBase}/me/email/verify?username=${encodeURIComponent(user.username)}`, {
+        method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify({email:e,code:c}),
+      });
+      const data = await res.json();
+      if (!res.ok) { setEmailError(data.detail||"验证失败"); setEmailVerifying(false); return; }
+      const updated = data.profile||data;
+      setProfile(updated);
+      try { const s=JSON.parse(localStorage.getItem("ai_study_platform_user")||"{}"); localStorage.setItem("ai_study_platform_user",JSON.stringify({...s,...updated})); } catch {}
+      setEmailOpen(false);
+      showToast("邮箱绑定成功");
+    } catch { setEmailError("网络错误"); }
+    finally { setEmailVerifying(false); }
+  };
+
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(""), 2500); };
 
   const handleChangePassword = async () => {
@@ -232,6 +279,36 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage, onProfil
         </div>
       )}
 
+      {/* ── Email Modal ── */}
+      {emailOpen && (
+        <div className="pp-overlay">
+          <div className="pp-modal pp-modal-pwd" onClick={e => e.stopPropagation()}>
+            <div className="pp-modal-header">
+              <div><h2>{profile.email?"更换邮箱":"绑定邮箱"}</h2><p>输入邮箱地址并验证</p></div>
+              <button className="pp-modal-close" onClick={()=>{setEmailOpen(false);setEmailForm({email:"",code:""});setEmailCountdown(0);}}>×</button>
+            </div>
+            <div className="pp-modal-body">
+              <div className="pp-pwd-form">
+                <label className="pp-pwd-field"><span>邮箱地址</span>
+                  <div style={{display:"flex",gap:10}}>
+                    <input className="pp-field" type="email" value={emailForm.email} onChange={e=>setEmailForm(p=>({...p,email:e.target.value}))} placeholder="输入邮箱地址" style={{flex:1}} />
+                    <button className="pp-btn pp-btn-outline" style={{height:42,flexShrink:0}} onClick={handleSendEmailCode} disabled={emailSending||emailCountdown>0}>
+                      {emailCountdown>0?`${emailCountdown}s`:"发送验证码"}
+                    </button>
+                  </div>
+                </label>
+                <label className="pp-pwd-field"><span>验证码</span><input className="pp-field" value={emailForm.code} onChange={e=>setEmailForm(p=>({...p,code:e.target.value}))} placeholder="输入 6 位验证码" maxLength={6} /></label>
+              </div>
+              {emailError && <div className="pp-pwd-error">{emailError}</div>}
+            </div>
+            <div className="pp-modal-footer">
+              <button className="pp-btn pp-btn-cancel" onClick={()=>{setEmailOpen(false);setEmailForm({email:"",code:""});setEmailCountdown(0);}}>取消</button>
+              <button className="pp-btn pp-btn-primary" onClick={handleVerifyEmail} disabled={emailVerifying}>{emailVerifying?"验证中...":"确认绑定"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="pp-header"><button className="pp-back-btn" onClick={() => setPage("home")}>← 返回首页</button><h1 className="pp-title">账号中心</h1></div>
 
       <div className="pp-grid">
@@ -280,8 +357,8 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage, onProfil
         <div className="pp-col">
           <div className="pp-card"><h3 className="pp-card-title"><span className="pp-card-icon">🔒</span>账号安全</h3>
             <div className="pp-rows">
-              <InfoRow icon="📱" label="手机号" value="暂未绑定"><button className="pp-btn pp-btn-mini" onClick={()=>showToast("功能开发中")}>绑定</button></InfoRow>
-              <InfoRow icon="📧" label="邮箱" value="暂未绑定"><button className="pp-btn pp-btn-mini" onClick={()=>showToast("功能开发中")}>绑定</button></InfoRow>
+              <InfoRow icon="📱" label="手机号" value="暂未绑定"><button className="pp-btn pp-btn-mini" onClick={()=>showToast("手机号绑定需要接入短信服务，暂未开放。")}>绑定</button></InfoRow>
+              <InfoRow icon="📧" label="邮箱" value={profile.email||"暂未绑定"}><button className="pp-btn pp-btn-mini" onClick={()=>{setEmailForm({email:profile.email||"",code:""});setEmailError("");setEmailCountdown(0);setEmailOpen(true);}}>{profile.email?"更换":"绑定"}</button></InfoRow>
               <InfoRow icon="🔑" label="密码" value="●●●●●●"><button className="pp-btn pp-btn-mini" onClick={()=>{setPwdForm({old_password:"",new_password:"",confirm_password:""});setPwdError("");setPwdOpen(true);}}>修改密码</button></InfoRow>
               <InfoRow icon="💻" label="登录设备" value="当前设备 — Windows Chrome" />
             </div>

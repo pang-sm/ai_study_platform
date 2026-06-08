@@ -370,6 +370,10 @@ def user_profile(user: models.User):
         "answer_detail_level": getattr(user, "answer_detail_level", "") or "",
         "material_reference_preference": getattr(user, "material_reference_preference", "") or "",
         "focus_courses": getattr(user, "focus_courses", "") or "",
+        "email": getattr(user, "email", None) or "",
+        "email_verified": bool(getattr(user, "email_verified", False)),
+        "phone": getattr(user, "phone", None) or "",
+        "phone_verified": bool(getattr(user, "phone_verified", False)),
         "created_at": serialize_datetime(user.created_at) if user.created_at else None,
     }
 
@@ -3823,6 +3827,136 @@ def change_password(req: ChangePasswordRequest, username: str, db: Session = Dep
     db.commit()
 
     return {"message": "密码修改成功"}
+
+
+# ═══════════════════════════════════════════════════════════
+# Email Verification
+# ═══════════════════════════════════════════════════════════
+
+import hashlib as _hashlib
+import smtplib as _smtplib
+from email.mime.text import MIMEText as _MIMEText
+import string as _string
+
+def _hash_code(code: str) -> str:
+    return _hashlib.sha256(code.encode()).hexdigest()
+
+
+def _send_email_code(to_email: str, code: str) -> bool:
+    smtp_host = (os.getenv("SMTP_HOST") or "").strip()
+    smtp_port = (os.getenv("SMTP_PORT") or "").strip()
+    smtp_user = (os.getenv("SMTP_USER") or "").strip()
+    smtp_pass = (os.getenv("SMTP_PASSWORD") or "").strip()
+    smtp_from = (os.getenv("SMTP_FROM") or smtp_user or "noreply@ai-study.local").strip()
+
+    if not smtp_host or not smtp_user or not smtp_pass:
+        return False
+
+    try:
+        msg = _MIMEText(
+            f"您的邮箱验证码是：{code}\n\n该验证码 10 分钟内有效，请勿泄露给他人。\n\nAI 学习平台",
+            "plain", "utf-8"
+        )
+        msg["Subject"] = "AI 学习平台 - 邮箱验证码"
+        msg["From"] = smtp_from
+        msg["To"] = to_email
+
+        port = int(smtp_port) if smtp_port else 587
+        if port == 465:
+            server = _smtplib.SMTP_SSL(smtp_host, port, timeout=15)
+        else:
+            server = _smtplib.SMTP(smtp_host, port, timeout=15)
+            server.starttls()
+        server.login(smtp_user, smtp_pass)
+        server.sendmail(smtp_from, [to_email], msg.as_string())
+        server.quit()
+        return True
+    except Exception:
+        return False
+
+
+class SendEmailCodeRequest(BaseModel):
+    email: str
+
+
+class VerifyEmailRequest(BaseModel):
+    email: str
+    code: str
+
+
+@app.post("/me/email/send-code")
+def send_email_code(req: SendEmailCodeRequest, username: str, db: Session = Depends(get_db)):
+    email = req.email.strip()
+    if not email or "@" not in email or "." not in email.split("@")[-1]:
+        raise HTTPException(status_code=400, detail="请输入有效的邮箱地址")
+
+    user = get_user_by_username(username, db)
+
+    # Rate limit: 60s per email
+    one_min_ago = datetime.utcnow() - timedelta(seconds=60)
+    recent = db.query(models.VerificationCode).filter(
+        models.VerificationCode.username == user.username,
+        models.VerificationCode.target == email,
+        models.VerificationCode.purpose == "bind_email",
+        models.VerificationCode.created_at >= one_min_ago,
+    ).first()
+    if recent:
+        raise HTTPException(status_code=429, detail="请 60 秒后再试")
+
+    code = "".join(__import__("secrets").choice("0123456789") for _ in range(6))
+    code_hash = _hash_code(code)
+    expires_at = datetime.utcnow() + timedelta(minutes=10)
+
+    record = models.VerificationCode(
+        username=user.username, target=email, purpose="bind_email",
+        code_hash=code_hash, expires_at=expires_at,
+    )
+    db.add(record)
+    db.commit()
+
+    sent = _send_email_code(email, code)
+    if not sent:
+        raise HTTPException(status_code=503, detail="邮件服务暂未配置，请联系管理员")
+
+    return {"message": "验证码已发送"}
+
+
+@app.put("/me/email/verify")
+def verify_email_code(req: VerifyEmailRequest, username: str, db: Session = Depends(get_db)):
+    email = req.email.strip()
+    code = req.code.strip()
+    if not email or not code:
+        raise HTTPException(status_code=400, detail="邮箱和验证码不能为空")
+
+    user = get_user_by_username(username, db)
+
+    code_hash = _hash_code(code)
+    now = datetime.utcnow()
+
+    record = db.query(models.VerificationCode).filter(
+        models.VerificationCode.username == user.username,
+        models.VerificationCode.target == email,
+        models.VerificationCode.purpose == "bind_email",
+        models.VerificationCode.used == False,
+    ).order_by(models.VerificationCode.created_at.desc()).first()
+
+    if not record:
+        raise HTTPException(status_code=400, detail="验证码无效或已过期")
+    if record.expires_at < now:
+        raise HTTPException(status_code=400, detail="验证码已过期，请重新发送")
+    if record.attempts >= 5:
+        raise HTTPException(status_code=400, detail="验证码尝试次数过多，请重新发送")
+    if record.code_hash != code_hash:
+        record.attempts = (record.attempts or 0) + 1
+        db.commit()
+        raise HTTPException(status_code=400, detail="验证码错误")
+
+    record.used = True
+    user.email = email
+    user.email_verified = True
+    db.commit()
+
+    return {"message": "邮箱绑定成功", "profile": user_profile(user)}
 
 
 @app.get("/me/quota")

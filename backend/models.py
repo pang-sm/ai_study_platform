@@ -36,6 +36,10 @@ class User(Base):
     answer_detail_level = Column(String(50), nullable=True, default="")
     material_reference_preference = Column(String(50), nullable=True, default="")
     focus_courses = Column(Text, nullable=True, default="")
+    email = Column(String(255), nullable=True, default=None)
+    email_verified = Column(Boolean, nullable=False, default=False)
+    phone = Column(String(30), nullable=True, default=None)
+    phone_verified = Column(Boolean, nullable=False, default=False)
     is_active = Column(Integer, nullable=True, default=1)
     created_at = Column(DateTime, default=utc_now)
 
@@ -554,3 +558,16 @@ class SystemSetting(Base):
     description = Column(Text, nullable=True)
     updated_by = Column(String(50), nullable=True)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+
+class VerificationCode(Base):
+    __tablename__ = "verification_codes"
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), index=True, nullable=False)
+    target = Column(String(255), nullable=False)
+    purpose = Column(String(30), nullable=False)
+    code_hash = Column(String(255), nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    used = Column(Boolean, nullable=False, default=False)
+    attempts = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, default=utc_now)
