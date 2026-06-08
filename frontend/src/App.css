@@ -10568,72 +10568,70 @@ select.field:focus {
 
 /* ── Quota Center ─────────────────────────────── */
 
+/* ── Admin Usage Center ── */
 .admin-usage-center {
-  max-width: 800px;
+  width: min(1180px, calc(100vw - 64px));
   margin: 0 auto;
-  padding: 24px;
+  padding: 28px 32px 48px;
+  background: #f6f8fc;
+  min-height: 100vh;
+  box-sizing: border-box;
+  font-family: inherit;
 }
 
-.admin-usage-center .quota-section {
-  margin-bottom: 28px;
-}
+.auc-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+.auc-header-left h1 { margin: 0 0 4px; font-size: 1.5rem; font-weight: 800; color: #0f172a; }
+.auc-header-left p { margin: 0; font-size: 0.88rem; color: #64748b; }
+.auc-header-right { display: flex; align-items: center; gap: 10px; }
 
-.admin-usage-center .quota-section h3 {
-  font-size: 15px;
-  font-weight: 600;
-  color: #1e293b;
-  margin-bottom: 12px;
-}
+.auc-card { background: #fff; border: 1px solid #e5eaf3; border-radius: 18px; padding: 20px 24px; box-shadow: 0 8px 24px rgba(15,23,42,0.04); margin-bottom: 18px; }
+.auc-card-title { margin: 0 0 14px; font-size: 1rem; font-weight: 700; color: #0f172a; display: flex; align-items: center; gap: 8px; }
 
-.admin-usage-center .quota-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
+/* Stats */
+.auc-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }
+.auc-stat { background: #fff; border: 1px solid #e5eaf3; border-radius: 18px; padding: 22px 24px; box-shadow: 0 8px 24px rgba(15,23,42,0.04); display: flex; align-items: center; gap: 16px; transition: box-shadow 0.2s; }
+.auc-stat:hover { box-shadow: 0 12px 32px rgba(15,23,42,0.08); }
+.auc-stat-icon { width: 46px; height: 46px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; flex-shrink: 0; }
+.auc-stat-val { font-size: 1.5rem; font-weight: 800; color: #0f172a; line-height: 1.2; }
+.auc-stat-lbl { font-size: 0.78rem; color: #94a3b8; margin-top: 2px; }
 
-.admin-usage-center .quota-item {
-  background: #f8fafc;
-  border-radius: 10px;
-  padding: 12px 16px;
-}
+/* Feature list */
+.auc-feature-list { display: flex; flex-direction: column; }
+.auc-feature-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f1f5f9; gap: 12px; }
+.auc-feature-row:last-child { border-bottom: none; }
+.auc-feature-name { font-size: 0.86rem; font-weight: 500; color: #334155; }
+.auc-feature-badge { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; font-size: 0.78rem; font-weight: 700; min-width: 28px; justify-content: center; }
+.auc-feature-badge--zero { background: #f1f5f9; color: #94a3b8; }
+.auc-feature-badge--active { background: #eff6ff; color: #2563eb; }
 
-.admin-usage-center .quota-item-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
+/* Grid */
+.auc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 
-.admin-usage-center .quota-item-label {
-  font-size: 14px;
-  font-weight: 500;
-  color: #334155;
-}
+/* Plan form */
+.auc-plan-form { display: flex; flex-direction: column; gap: 12px; }
+.auc-plan-row { display: flex; gap: 10px; align-items: center; }
+.auc-plan-row .field { flex: 1; height: 42px; }
+.auc-plan-msg { margin-top: 8px; font-size: 0.84rem; font-weight: 600; }
+.auc-plan-msg:empty { display: none; }
 
-.admin-usage-center .quota-item-count {
-  font-size: 13px;
-  color: #64748b;
-  font-variant-numeric: tabular-nums;
-}
+/* Table */
+.auc-table-wrap { overflow-x: auto; }
+.auc-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+.auc-table th { text-align: left; padding: 10px 14px; background: #f8fafc; color: #64748b; font-weight: 700; font-size: 0.78rem; border-bottom: 2px solid #e2e8f0; white-space: nowrap; }
+.auc-table td { padding: 10px 14px; border-bottom: 1px solid #f1f5f9; color: #334155; }
+.auc-table tbody tr:hover { background: #f8fafc; }
+.auc-status-success { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; font-size: 0.74rem; font-weight: 700; background: #f0fdf4; color: #16a34a; }
+.auc-status-other { color: #94a3b8; font-size: 0.82rem; }
+.auc-model-tag { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; font-size: 0.74rem; background: #eff6ff; color: #2563eb; font-weight: 600; }
+.auc-empty { padding: 24px 16px; text-align: center; color: #94a3b8; font-size: 0.84rem; }
 
-.admin-usage-center .quota-bar-track {
-  height: 6px;
-  background: #e2e8f0;
-  border-radius: 3px;
-  overflow: hidden;
+@media (max-width: 960px) {
+  .auc-stats { grid-template-columns: repeat(2, 1fr); }
+  .auc-grid { grid-template-columns: 1fr; }
+  .admin-usage-center { padding: 20px 16px 36px; }
 }
-
-.admin-usage-center .quota-bar-fill {
-  height: 100%;
-  background: #6366f1;
-  border-radius: 3px;
-  transition: width 0.3s ease;
-  min-width: 0;
-}
-
-.admin-usage-center .quota-refresh {
-  text-align: center;
-  margin-top: 16px;
+@media (max-width: 600px) {
+  .auc-stats { grid-template-columns: 1fr; }
 }
 
 .quota-center {
