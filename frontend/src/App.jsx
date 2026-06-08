@@ -3240,13 +3240,8 @@ function App() {
   if (page === "quotaCenter") {
     return wrapPage(
       <div className="app-shell">
-        <header className="workspace-topbar">
-          <div className="workspace-topbar-left">
-            <span className="subject-pill panel-pill">我的额度</span>
-          </div>
-        </header>
         <Suspense fallback={<div className="empty-state">额度中心加载中...</div>}>
-          <QuotaCenter user={user} />
+          <QuotaCenter user={user} setPage={setPage} />
         </Suspense>
       </div>
     );
