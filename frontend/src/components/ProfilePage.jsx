@@ -282,7 +282,7 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage, onProfil
             <div className="pp-rows">
               <InfoRow icon="📱" label="手机号" value="暂未绑定"><button className="pp-btn pp-btn-mini" onClick={()=>showToast("功能开发中")}>绑定</button></InfoRow>
               <InfoRow icon="📧" label="邮箱" value="暂未绑定"><button className="pp-btn pp-btn-mini" onClick={()=>showToast("功能开发中")}>绑定</button></InfoRow>
-              <InfoRow icon="🔑" label="密码" value="●●●●●●"><button className="pp-btn pp-btn-mini" onClick={()=>{setPwdForm({old_password:"",new_password:"",confirm_password:""});setPwdError("");setPwdOpen(true);}}>修改</button></InfoRow>
+              <InfoRow icon="🔑" label="密码" value="●●●●●●"><button className="pp-btn pp-btn-mini" onClick={()=>{setPwdForm({old_password:"",new_password:"",confirm_password:""});setPwdError("");setPwdOpen(true);}}>修改密码</button></InfoRow>
               <InfoRow icon="💻" label="登录设备" value="当前设备 — Windows Chrome" />
             </div>
           </div>
@@ -313,6 +313,6 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage, onProfil
   );
 }
 
-function InfoRow({ icon, label, value }) {
-  return <div className="pp-row"><span className="pp-row-label"><span className="pp-row-icon">{icon}</span>{label}</span><span className="pp-row-value">{value}</span></div>;
+function InfoRow({ icon, label, value, children }) {
+  return <div className="pp-row"><span className="pp-row-label"><span className="pp-row-icon">{icon}</span>{label}</span><span className="pp-row-value">{value}</span>{children}</div>;
 }
