@@ -79,12 +79,26 @@
 .pp-btn-warn { color: #d97706; border-color: #fde68a; background: #fffbeb; }
 .pp-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.pp-overlay { position: fixed; inset: 0; z-index: 9999; background: rgba(15,23,42,0.4); display: flex; align-items: center; justify-content: center; padding: 24px; }
-.pp-modal { background: #fff; border-radius: 18px; padding: 28px 30px; max-width: 520px; width: 100%; max-height: 80vh; overflow-y: auto; position: relative; box-shadow: 0 24px 80px rgba(15,23,42,0.25); }
-.pp-modal-wide { max-width: 640px; }
-.pp-modal-close { position: absolute; top: 14px; right: 14px; width: 32px; height: 32px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; font-size: 1.2rem; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #64748b; }
+.pp-overlay { position: fixed; inset: 0; z-index: 9999; background: rgba(15,23,42,0.45); display: flex; align-items: center; justify-content: center; padding: 24px; }
+.pp-modal { background: #fff; border-radius: 18px; max-width: 520px; width: 100%; max-height: 80vh; overflow-y: auto; position: relative; box-shadow: 0 24px 80px rgba(15,23,42,0.25); padding: 28px 30px; }
+.pp-modal-close { position: absolute; top: 16px; right: 16px; z-index: 2; width: 32px; height: 32px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; font-size: 1.2rem; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #64748b; }
 .pp-modal-close:hover { background: #f1f5f9; }
-.pp-modal h2 { margin: 0 0 8px; font-size: 1.1rem; }
+.pp-modal h2 { margin: 0; font-size: 1.1rem; }
 .pp-modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+
+/* Edit modal — wide form */
+.pp-modal-edit { width: min(860px, calc(100vw - 48px)); max-height: 85vh; display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+.pp-modal-header { padding: 24px 28px 0; flex-shrink: 0; }
+.pp-modal-header h2 { margin: 0 0 4px; }
+.pp-modal-header p { margin: 0; color: #64748b; font-size: 0.84rem; }
+.pp-modal-body { padding: 16px 28px; overflow-y: auto; max-height: calc(85vh - 170px); }
+.pp-modal-footer { padding: 14px 28px; border-top: 1px solid #e5e7eb; display: flex; justify-content: flex-end; gap: 12px; flex-shrink: 0; background: #fff; }
+
+.pp-form-section { margin-bottom: 20px; }
+.pp-form-title { margin: 0 0 10px; font-size: 0.92rem; font-weight: 700; color: #0f172a; }
+.pp-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.pp-form-field { display: flex; flex-direction: column; gap: 4px; }
+.pp-form-field span { font-size: 0.78rem; font-weight: 600; color: #475569; }
+.pp-input-full { max-width: none !important; width: 100% !important; min-width: 0 !important; }
 
 @media (max-width: 860px) { .pp-grid { grid-template-columns: 1fr; } .pp-top-card { flex-direction: column; text-align: center; } .pp-top-meta { justify-content: center; } }
