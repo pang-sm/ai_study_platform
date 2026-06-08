@@ -62,9 +62,15 @@ jobs:
           HASH=$(cat /tmp/new_hash.txt)
           PW=$(cat /tmp/new_pwd.txt)
 
-          ssh -i "$HOME/.ssh/tencent_deploy_key" -p "$SSH_PORT" "$TENCENT_USER@$TENCENT_HOST" "bash -s" -- "$HASH" << 'ENDSCRIPT'
-          HASH="$1"
+          # Write hash to temp file to avoid shell expansion of $ signs
+          echo "$HASH" > /tmp/bcrypt_hash.txt
+
+          scp -i "$HOME/.ssh/tencent_deploy_key" -P "$SSH_PORT" /tmp/bcrypt_hash.txt "$TENCENT_USER@$TENCENT_HOST:/tmp/bcrypt_hash.txt"
+
+          ssh -i "$HOME/.ssh/tencent_deploy_key" -p "$SSH_PORT" "$TENCENT_USER@$TENCENT_HOST" 'bash -se' << 'ENDSCRIPT'
           set -eo pipefail
+
+          HASH=$(cat /tmp/bcrypt_hash.txt)
 
           # Find app.db
           DB=""
@@ -77,9 +83,11 @@ jobs:
           echo "DB: $DB"
 
           echo "=== 更新 admin ==="
-          sqlite3 "$DB" "UPDATE users SET hashed_password='$HASH', is_admin=1, plan='admin', admin_role='super_admin', admin_real_name=X'E98085E6A3AEE6B7BC' WHERE username='admin';"
+          sqlite3 "$DB" "UPDATE users SET hashed_password=readfile('/tmp/bcrypt_hash.txt'), is_admin=1, plan='admin', admin_role='super_admin', admin_real_name=X'E98085E6A3AEE6B7BC' WHERE username='admin';"
           echo "=== 验证 ==="
-          sqlite3 "$DB" "SELECT username, is_admin, plan, admin_role, admin_real_name FROM users WHERE username='admin';"
+          sqlite3 "$DB" "SELECT username, is_admin, plan, admin_role, admin_real_name, length(hashed_password) FROM users WHERE username='admin';"
+
+          rm -f /tmp/bcrypt_hash.txt
 
           sudo systemctl restart ai-backend
           sleep 3
