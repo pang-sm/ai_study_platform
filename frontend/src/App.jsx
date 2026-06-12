@@ -2881,9 +2881,67 @@ function App() {
     const authTitle = isLogin ? "\u6b22\u8fce\u56de\u6765 \ud83d\udc4b" : "\u521b\u5efa\u4f60\u7684\u5b66\u4e60\u8d26\u53f7";
     const authSubtitle = isLogin ? "\u767b\u5f55\u540e\u7ee7\u7eed\u4f60\u7684\u5b66\u4e60\u8ba1\u5212" : "\u6ce8\u518c\u540e\u8fdb\u5165\u65b0\u7528\u6237\u5f15\u5bfc\uff0c\u751f\u6210\u4f60\u7684\u5b66\u4e60\u8def\u5f84";
 
+    const heroFeatures = [
+      {
+        title: "\u8bfe\u7a0b\u8d44\u6599\u95ee\u7b54",
+        desc: "\u4e0a\u4f20 PPT\u3001PDF\u3001\u7b14\u8bb0\uff0cAI \u57fa\u4e8e\u8d44\u6599\u56de\u7b54\u95ee\u9898",
+        icon: "\u25d1",
+      },
+      {
+        title: "\u4e2a\u6027\u5316\u5b66\u4e60\u4efb\u52a1",
+        desc: "\u6839\u636e\u8bfe\u7a0b\u3001\u76ee\u6807\u548c\u8584\u5f31\u70b9\u751f\u6210\u6bcf\u65e5\u4efb\u52a1",
+        icon: "\u25c7",
+      },
+      {
+        title: "\u7ec3\u4e60\u4e0e\u590d\u76d8\u95ed\u73af",
+        desc: "\u505a\u9898\u3001\u9519\u9898\u3001\u77e5\u8bc6\u70b9\u638c\u63e1\u5ea6\u81ea\u52a8\u6c89\u6dc0",
+        icon: "\u25ce",
+      },
+    ];
+
     return (
-      <div className="auth-shell auth-shell--reference">
-        <section className="auth-hero-image" aria-label="AI study platform visual" />
+      <div className="auth-page auth-shell--reference">
+        <section className="auth-hero-built">
+          <div className="auth-brand">
+            <span className="auth-brand-mark">AI</span>
+            <span>{"AI \u5b66\u4e60\u52a9\u624b"}</span>
+          </div>
+
+          <div className="auth-hero-copy">
+            <h1>{"AI \u5b66\u4e60\u52a9\u624b"}</h1>
+            <p>{"\u8ba9AI\u771f\u6b63\u878d\u5165\u4f60\u7684\u8ba1\u7b97\u673a\u5b66\u4e60"}</p>
+          </div>
+
+          <div className="auth-hero-visual" aria-hidden="true">
+            <img className="auth-hero-photo" src="/auth-hero-photo.png" alt="" />
+            <div className="auth-floating-card auth-floating-card--answer">
+              <span className="auth-floating-icon">?</span>
+              <div>
+                <strong>{"AI \u95ee\u7b54"}</strong>
+                <span>{"\u5feb\u901f\u89e3\u7b54\u5b66\u4e60\u7591\u95ee"}</span>
+              </div>
+            </div>
+            <div className="auth-floating-card auth-floating-card--advice">
+              <span className="auth-floating-icon">!</span>
+              <div>
+                <strong>{"\u5b66\u4e60\u5efa\u8bae"}</strong>
+                <span>{"\u4e2a\u6027\u5316\u5b66\u4e60\u89c4\u5212"}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="auth-feature-row">
+            {heroFeatures.map((feature) => (
+              <div className="auth-feature-card" key={feature.title}>
+                <span className="auth-feature-card-icon">{feature.icon}</span>
+                <div>
+                  <strong>{feature.title}</strong>
+                  <p>{feature.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
 
         <section className="auth-card-panel">
           <div className="auth-panel auth-panel--reference">
@@ -2905,7 +2963,7 @@ function App() {
                   <>
                     <label className="auth-input-wrap"><span className="auth-input-icon">U</span><input className="auth-input" placeholder={"\u8d26\u53f7 / \u90ae\u7bb1"} value={username} onChange={(e) => setUsername(e.target.value)} /></label>
                     <label className="auth-input-wrap"><span className="auth-input-icon">*</span><input className="auth-input" placeholder={"\u5bc6\u7801"} type="password" value={password} onChange={(e) => setPassword(e.target.value)} /></label>
-                    <div className="auth-options-row"><label className="auth-remember"><input type="checkbox" /><span>{"\u8bb0\u4f4f\u6211"}</span></label><button type="button" className="auth-text-link">{"\u5fd8\u8bb0\u5bc6\u7801\uff1f"}</button></div>
+                    <div className="auth-options-row"><label className="auth-remember"><input type="checkbox" /><span>{"\u8bb0\u4f4f\u6211"}</span></label></div>
                     {tip && <p className="auth-tip">{tip}</p>}
                     <button className="auth-submit" type="button" onClick={handleLogin}>{"\u767b\u5f55"}</button>
                     <button className="auth-outline-submit" type="button" onClick={() => { setLoginTab("email"); setTip(""); }}>{"\u90ae\u7bb1\u767b\u5f55"}</button>
