@@ -473,6 +473,7 @@ function App() {
   };
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loginTab, setLoginTab] = useState("password"); // "password" | "email"
   const [emailLoginForm, setEmailLoginForm] = useState({ email: "", code: "" });
   const [emailLoginSending, setEmailLoginSending] = useState(false);
@@ -853,6 +854,7 @@ function App() {
       major: loginUser.major || "",
       avatar: loginUser.avatar || "avatar_1",
       onboarding_completed: Boolean(loginUser.onboarding_completed),
+      needs_onboarding: Boolean(loginUser.needs_onboarding),
       learning_goals: goals,
     };
 
@@ -865,6 +867,33 @@ function App() {
       avatar: normalizedUser.avatar,
     });
     setLearningGoals(goals);
+  };
+
+  const getPostAuthPage = (loginUser, savedPage = null) => {
+    const isAdmin = loginUser?.is_admin || loginUser?.plan === "admin" || loginUser?.role === "admin"
+      || ["super_admin", "operator", "auditor"].includes(loginUser?.admin_role);
+
+    if (isAdmin) return "adminUsageCenter";
+    if (loginUser?.needs_onboarding === true || loginUser?.onboarding_completed === false) {
+      return "onboarding";
+    }
+    if (savedPage && VALID_PAGES.has(savedPage) && savedPage !== "login" && savedPage !== "adminLogin" && savedPage !== "onboarding") {
+      return savedPage;
+    }
+    return "home";
+  };
+
+  const fetchCurrentUser = async (targetUsername) => {
+    const res = await fetch(`${API_BASE}/me`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: targetUsername }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(getDisplayMessage(data.detail, "Login expired. Please log in again."));
+    }
+    return data.user;
   };
 
   const addLearningGoal = () => {
@@ -901,16 +930,18 @@ function App() {
 
     try {
       const res = await fetch(
-        `${API_BASE}/me/profile?username=${encodeURIComponent(user.username)}`,
+        `${API_BASE}/me/onboarding?username=${encodeURIComponent(user.username)}`,
         {
-          method: "PUT",
+          method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             nickname: profileForm.nickname,
             grade: profileForm.grade,
             major: profileForm.major,
-            learning_goals: filteredGoals,
-            onboarding_completed: true,
+            learning_direction: filteredGoals[0]?.subject || "",
+            learning_goal: filteredGoals[0]?.target_level || "",
+            preferred_subjects: filteredGoals.map((goal) => goal.subject),
+            target: filteredGoals.map((goal) => goal.note).filter(Boolean).join("；"),
           }),
         }
       );
@@ -1913,11 +1944,7 @@ function App() {
         const savedPage = (() => {
           try { return localStorage.getItem(CURRENT_PAGE_KEY); } catch { return null; }
         })();
-        if (!checkedUser.onboarding_completed) {
-          setPage("onboarding");
-        } else if (savedPage && VALID_PAGES.has(savedPage)) {
-          setPage(savedPage);
-        }
+        setPage(getPostAuthPage(checkedUser, savedPage));
       } catch (error) {
         console.error("Failed to verify login status:", error);
       }
@@ -1970,6 +1997,11 @@ function App() {
   const handleRegister = async () => {
     setTip("");
 
+    if (password !== confirmPassword) {
+      setTip("两次输入的密码不一致。");
+      return;
+    }
+
     if (!username.trim() || !password.trim()) {
       setTip("请输入用户名和密码。");
       return;
@@ -1988,9 +2020,10 @@ function App() {
         return;
       }
 
-      const loginUser = data.profile || data.user || { username: data.username || username };
+      const registeredUser = data.profile || data.user || { username: data.username || username };
+      const loginUser = await fetchCurrentUser(registeredUser.username || username);
       saveLoginUser(loginUser);
-      setPage("onboarding");
+      setPage(getPostAuthPage(loginUser));
       setTip("");
     } catch (error) {
       console.error("Register failed:", error);
@@ -2019,18 +2052,11 @@ function App() {
         return;
       }
 
-      const loginUser = data.profile || data.user || { username: data.username || username };
-      const isAdmin = loginUser.is_admin || loginUser.plan === "admin" || loginUser.role === "admin"
-        || ["super_admin", "operator", "auditor"].includes(loginUser.admin_role);
+      const loginResultUser = data.profile || data.user || { username: data.username || username };
+      const loginUser = await fetchCurrentUser(loginResultUser.username || username);
       saveLoginUser(loginUser);
       await loadProfile(loginUser);
-      if (isAdmin) {
-        setPage("adminUsageCenter");
-      } else if (loginUser.onboarding_completed) {
-        setPage("home");
-      } else {
-        setPage("onboarding");
-      }
+      setPage(getPostAuthPage(loginUser));
       setTip("");
     } catch (error) {
       console.error("Login failed:", error);
@@ -2070,14 +2096,11 @@ function App() {
       });
       const data = await res.json();
       if (!res.ok) { setTip(data.detail||"登录失败"); setEmailLoginLoading(false); return; }
-      const loginUser = data.profile || data.user || {};
+      const loginResultUser = data.profile || data.user || {};
+      const loginUser = await fetchCurrentUser(loginResultUser.username);
       saveLoginUser(loginUser);
       await loadProfile(loginUser);
-      const isAdmin = loginUser.is_admin || loginUser.plan === "admin" || loginUser.role === "admin"
-        || ["super_admin","operator","auditor"].includes(loginUser.admin_role);
-      if (isAdmin) setPage("adminUsageCenter");
-      else if (loginUser.onboarding_completed) setPage("home");
-      else setPage("onboarding");
+      setPage(getPostAuthPage(loginUser));
       setTip("");
     } catch { setTip("无法连接后端服务。"); }
     finally { setEmailLoginLoading(false); }
@@ -2854,92 +2877,68 @@ function App() {
   }
 
   if (!user) {
+    const isLogin = authMode === "login";
+    const authTitle = isLogin ? "\u6b22\u8fce\u56de\u6765 \ud83d\udc4b" : "\u521b\u5efa\u4f60\u7684\u5b66\u4e60\u8d26\u53f7";
+    const authSubtitle = isLogin ? "\u767b\u5f55\u540e\u7ee7\u7eed\u4f60\u7684\u5b66\u4e60\u8ba1\u5212" : "\u6ce8\u518c\u540e\u8fdb\u5165\u65b0\u7528\u6237\u5f15\u5bfc\uff0c\u751f\u6210\u4f60\u7684\u5b66\u4e60\u8def\u5f84";
+
     return (
-      <div className="auth-shell">
-        <div className="auth-card">
-          <div className="auth-hero">
-            <div className="auth-badge">AI 学习平台</div>
-            <h1 className="auth-title">让学习更智能，让成长看得见</h1>
-            <p className="auth-subtitle">AI 驱动的学习平台，陪伴你的每一步进步</p>
+      <div className="auth-shell auth-shell--reference">
+        <section className="auth-hero-image" aria-label="AI study platform visual" />
 
-            <div className="auth-demo-card">
-              <div className="auth-demo-header">
-                <span className="auth-demo-dot" />
-                <span>学习概览</span>
-              </div>
-              <div className="auth-demo-stats">
-                <div className="auth-demo-stat"><span className="auth-demo-stat-val">60</span><span className="auth-demo-stat-lbl">分钟学习时长</span></div>
-                <div className="auth-demo-stat"><span className="auth-demo-stat-val">78%</span><span className="auth-demo-stat-lbl">当前掌握度</span></div>
-              </div>
-              <div className="auth-demo-bar"><div className="auth-demo-bar-fill" style={{width:"78%"}} /></div>
-              <p className="auth-demo-hint">知识图谱 · 推荐学习路径</p>
+        <section className="auth-card-panel">
+          <div className="auth-panel auth-panel--reference">
+            <div className="auth-tabs auth-tabs--reference">
+              <button type="button" className={"auth-tab " + (isLogin ? "active" : "")} onClick={() => { setAuthMode("login"); setTip(""); }}>
+                {"\u767b\u5f55"}
+              </button>
+              <button type="button" className={"auth-tab " + (!isLogin ? "active" : "")} onClick={() => { setAuthMode("register"); setTip(""); }}>
+                {"\u6ce8\u518c"}
+              </button>
             </div>
 
-            <div className="auth-capability-tags">
-              <span className="auth-cap-tag">🎯 个性化学习路径</span>
-              <span className="auth-cap-tag">📊 学习数据分析</span>
-              <span className="auth-cap-tag">💬 智能答疑助手</span>
-            </div>
-          </div>
+            <h2 className="auth-panel-title">{authTitle}</h2>
+            <p className="auth-panel-sub">{authSubtitle}</p>
 
-          <div className="auth-panel">
-            {authMode === "login" ? (<>
-              <h2 className="auth-panel-title">欢迎回来</h2>
-              <p className="auth-panel-sub">登录后继续你的高效学习之旅</p>
-
-              <div className="auth-subtabs">
-                <button className={`auth-subtab ${loginTab==="password"?"auth-subtab--active":""}`} onClick={()=>{setLoginTab("password");setTip("");}}>账号登录</button>
-                <button className={`auth-subtab ${loginTab==="email"?"auth-subtab--active":""}`} onClick={()=>{setLoginTab("email");setTip("");}}>验证码登录</button>
-              </div>
-
+            {isLogin ? (
               <div className="auth-form">
-                {loginTab === "password" && (<>
-                  <input className="auth-input" placeholder="用户名" value={username} onChange={e=>setUsername(e.target.value)} />
-                  <input className="auth-input" placeholder="密码" type="password" value={password} onChange={e=>setPassword(e.target.value)} />
-                  {tip && <p className="auth-tip">{tip}</p>}
-                  <button className="auth-submit" onClick={handleLogin}>立即登录</button>
-                </>)}
-
-                {loginTab === "email" && (<>
-                  <input className="auth-input" placeholder="邮箱地址" type="email" value={emailLoginForm.email} onChange={e=>setEmailLoginForm(p=>({...p,email:e.target.value}))} />
-                  <div className="auth-code-row">
-                    <input className="auth-input auth-code-input" placeholder="验证码" value={emailLoginForm.code} onChange={e=>setEmailLoginForm(p=>({...p,code:e.target.value}))} maxLength={6} />
-                    <button className="auth-send-btn" onClick={handleEmailSendCode} disabled={emailLoginSending||emailLoginCountdown>0}>
-                      {emailLoginCountdown>0?`${emailLoginCountdown}s 后重试`:"发送验证码"}
-                    </button>
-                  </div>
-                  {tip && <p className="auth-tip">{tip}</p>}
-                  <button className="auth-submit" onClick={handleEmailLogin} disabled={emailLoginLoading}>{emailLoginLoading?"登录中...":"立即登录"}</button>
-                </>)}
-
-                <div className="auth-bottom-links">
-                  <button className="auth-link" onClick={()=>{setAuthMode("register");setTip("");}}>注册账号</button>
-                </div>
+                {loginTab === "password" ? (
+                  <>
+                    <label className="auth-input-wrap"><span className="auth-input-icon">U</span><input className="auth-input" placeholder={"\u8d26\u53f7 / \u90ae\u7bb1"} value={username} onChange={(e) => setUsername(e.target.value)} /></label>
+                    <label className="auth-input-wrap"><span className="auth-input-icon">*</span><input className="auth-input" placeholder={"\u5bc6\u7801"} type="password" value={password} onChange={(e) => setPassword(e.target.value)} /></label>
+                    <div className="auth-options-row"><label className="auth-remember"><input type="checkbox" /><span>{"\u8bb0\u4f4f\u6211"}</span></label><button type="button" className="auth-text-link">{"\u5fd8\u8bb0\u5bc6\u7801\uff1f"}</button></div>
+                    {tip && <p className="auth-tip">{tip}</p>}
+                    <button className="auth-submit" type="button" onClick={handleLogin}>{"\u767b\u5f55"}</button>
+                    <button className="auth-outline-submit" type="button" onClick={() => { setLoginTab("email"); setTip(""); }}>{"\u90ae\u7bb1\u767b\u5f55"}</button>
+                  </>
+                ) : (
+                  <>
+                    <label className="auth-input-wrap"><span className="auth-input-icon">@</span><input className="auth-input" placeholder={"\u90ae\u7bb1\u5730\u5740"} type="email" value={emailLoginForm.email} onChange={(e) => setEmailLoginForm((p) => ({ ...p, email: e.target.value }))} /></label>
+                    <div className="auth-code-row">
+                      <label className="auth-input-wrap auth-code-input"><span className="auth-input-icon">#</span><input className="auth-input" placeholder={"\u9a8c\u8bc1\u7801"} value={emailLoginForm.code} onChange={(e) => setEmailLoginForm((p) => ({ ...p, code: e.target.value }))} maxLength={6} /></label>
+                      <button className="auth-send-btn" type="button" onClick={handleEmailSendCode} disabled={emailLoginSending || emailLoginCountdown > 0}>{emailLoginCountdown > 0 ? String(emailLoginCountdown) + "s" : "\u53d1\u9001"}</button>
+                    </div>
+                    {tip && <p className="auth-tip">{tip}</p>}
+                    <button className="auth-submit" type="button" onClick={handleEmailLogin} disabled={emailLoginLoading}>{emailLoginLoading ? "\u767b\u5f55\u4e2d..." : "\u767b\u5f55"}</button>
+                    <button className="auth-outline-submit" type="button" onClick={() => { setLoginTab("password"); setTip(""); }}>{"\u8d26\u53f7\u5bc6\u7801\u767b\u5f55"}</button>
+                  </>
+                )}
               </div>
-            </>) : (<>
-              <h2 className="auth-panel-title">创建你的学习账号</h2>
-              <p className="auth-panel-sub">注册后完善学习方向，为你定制专属学习工作台</p>
-
+            ) : (
               <div className="auth-form">
-                <input className="auth-input" placeholder="用户名" value={username} onChange={e=>setUsername(e.target.value)} />
-                <input className="auth-input" placeholder="密码" type="password" value={password} onChange={e=>setPassword(e.target.value)} />
+                <label className="auth-input-wrap"><span className="auth-input-icon">U</span><input className="auth-input" placeholder={"\u8d26\u53f7 / \u90ae\u7bb1"} value={username} onChange={(e) => setUsername(e.target.value)} /></label>
+                <label className="auth-input-wrap"><span className="auth-input-icon">*</span><input className="auth-input" placeholder={"\u8bbe\u7f6e\u5bc6\u7801"} type="password" value={password} onChange={(e) => setPassword(e.target.value)} /></label>
+                <label className="auth-input-wrap"><span className="auth-input-icon">?</span><input className="auth-input" placeholder={"\u786e\u8ba4\u5bc6\u7801"} type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} /></label>
                 {tip && <p className="auth-tip">{tip}</p>}
-                <button className="auth-submit" onClick={handleRegister}>注册并继续</button>
-                <div className="auth-bottom-links">
-                  <button className="auth-link" onClick={()=>{setAuthMode("login");setTip("");}}>← 返回登录</button>
-                </div>
+                <button className="auth-submit" type="button" onClick={handleRegister}>{"\u6ce8\u518c"}</button>
               </div>
-            </>)}
-          </div>
-        </div>
+            )}
 
-        <div className="auth-footer">
-          <span>© 2026 AI 学习助手 · 南京大学技术支持</span>
-          <span>用户协议</span>
-          <span>隐私政策</span>
-        </div>
+            <p className="auth-policy-text">{"\u767b\u5f55\u6216\u6ce8\u518c\u5373\u8868\u793a\u4f60\u540c\u610f "}<span>{"\u7528\u6237\u534f\u8bae"}</span>{" \u548c "}<span>{"\u9690\u79c1\u653f\u7b56"}</span></p>
+          </div>
+        </section>
       </div>
     );
+
   }
 
   const getUserAvatarElement = (sizeClass = "avatar-circle") => {

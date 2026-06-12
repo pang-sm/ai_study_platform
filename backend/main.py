@@ -279,6 +279,18 @@ class ProfileUpdateRequest(BaseModel):
     focus_courses: str | None = None
 
 
+class OnboardingUpdateRequest(BaseModel):
+    nickname: str | None = None
+    grade: str | None = None
+    major: str | None = None
+    learning_direction: str | None = None
+    learning_goal: str | None = None
+    preferred_subjects: list[str] | None = None
+    daily_study_time: str | None = None
+    daily_study_minutes: int | None = None
+    target: str | None = None
+
+
 class AddMaterialFromMessageRequest(BaseModel):
     username: str
     message_id: int
@@ -330,6 +342,12 @@ ALLOWED_AVATAR_TYPES = {
 MAX_AVATAR_SIZE = 3 * 1024 * 1024
 
 
+def user_needs_onboarding(user: models.User) -> bool:
+    if is_admin_user(user):
+        return False
+    return not bool(user.onboarding_completed)
+
+
 def user_profile(user: models.User):
     avatar_id = (user.avatar or "").strip()
     avatar_url = None
@@ -355,6 +373,7 @@ def user_profile(user: models.User):
         "avatar": user.avatar or "",
         "avatar_url": avatar_url,
         "onboarding_completed": bool(user.onboarding_completed),
+        "needs_onboarding": user_needs_onboarding(user),
         "learning_goals": learning_goals,
         "is_admin": bool(user.is_admin),
         "plan": user.plan or "free",
@@ -3796,6 +3815,49 @@ def update_profile(req: ProfileUpdateRequest, username: str, db: Session = Depen
     db.refresh(user)
 
     return {"profile": user_profile(user)}
+
+
+@app.post("/me/onboarding")
+def complete_onboarding(req: OnboardingUpdateRequest, username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+
+    if req.nickname is not None:
+        user.nickname = (req.nickname or "").strip()[:30]
+    if req.grade is not None:
+        user.grade = (req.grade or "").strip()[:20]
+    if req.major is not None:
+        user.major = (req.major or "").strip()[:50]
+    if req.learning_direction is not None:
+        user.learning_direction = (req.learning_direction or "").strip()[:100]
+    if req.daily_study_minutes is not None:
+        user.daily_study_minutes = max(0, min(480, req.daily_study_minutes))
+    if req.daily_study_time is not None and req.daily_study_minutes is None:
+        text_value = (req.daily_study_time or "").strip()
+        minute_match = re.search(r"\d+", text_value)
+        if minute_match:
+            user.daily_study_minutes = max(0, min(480, int(minute_match.group(0))))
+
+    goal_text = (req.learning_goal or req.target or "").strip()
+    subjects = [item.strip() for item in (req.preferred_subjects or []) if item and item.strip()]
+    if goal_text or subjects:
+        user.learning_goals = json.dumps(
+            [
+                {
+                    "subject": subject or user.default_course_id or "general",
+                    "target_level": goal_text or "course_follow",
+                    "note": goal_text,
+                }
+                for subject in (subjects or [user.default_course_id or "general"])
+            ],
+            ensure_ascii=False,
+        )
+
+    user.onboarding_completed = True
+    db.commit()
+    db.refresh(user)
+
+    profile = user_profile(user)
+    return {"message": "onboarding saved", "user": profile, "profile": profile}
 
 
 class ChangePasswordRequest(BaseModel):

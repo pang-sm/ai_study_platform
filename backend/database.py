@@ -1254,6 +1254,39 @@ def init_user_profile_schema():
         ensure_material_chunks_fts(conn)
         normalize_existing_subjects(conn)
 
+        user_columns = get_existing_columns(conn, "users")
+        if "onboarding_completed" in user_columns:
+            conn.execute(
+                text(
+                    """
+                    UPDATE users
+                    SET onboarding_completed = 1
+                    WHERE COALESCE(onboarding_completed, 0) = 0
+                      AND (
+                        COALESCE(is_admin, 0) = 1
+                        OR COALESCE(NULLIF(TRIM(nickname), ''), NULLIF(TRIM(grade), ''), NULLIF(TRIM(major), ''),
+                                    NULLIF(TRIM(learning_direction), ''), NULLIF(TRIM(default_course_id), ''),
+                                    NULLIF(TRIM(learning_goals), '')) IS NOT NULL
+                        OR EXISTS (
+                            SELECT 1 FROM study_materials
+                            WHERE study_materials.username = users.username
+                            LIMIT 1
+                        )
+                        OR EXISTS (
+                            SELECT 1 FROM learning_records
+                            WHERE learning_records.user_id = users.id
+                            LIMIT 1
+                        )
+                        OR EXISTS (
+                            SELECT 1 FROM chat_sessions
+                            WHERE chat_sessions.user_id = users.id
+                            LIMIT 1
+                        )
+                      )
+                    """
+                )
+            )
+
         chat_session_columns = get_existing_columns(conn, "chat_sessions")
         if "subject" in chat_session_columns and "course" in chat_session_columns:
             conn.execute(
