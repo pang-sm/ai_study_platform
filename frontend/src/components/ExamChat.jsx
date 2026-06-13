@@ -436,10 +436,6 @@ export default function ExamChat({
             <h2 className="examchat-title">AI 问答 · {subjectTitle}</h2>
             <p className="examchat-subtitle">当前上下文：{courseName}</p>
           </div>
-          <div className="examchat-header-actions">
-            <button type="button" className="examchat-back-btn" onClick={startNewConversation}>新对话</button>
-            <button type="button" className="examchat-back-btn" onClick={onBackDashboard}>返回首页</button>
-          </div>
         </header>
 
         {error && (
@@ -570,17 +566,10 @@ export default function ExamChat({
         <div className="examchat-side-card">
           <div className="examchat-side-title">
             <h4>本轮引用资料</h4>
-            <button type="button" onClick={openMaterialPicker}>选择资料</button>
           </div>
           {selectedMaterials.length === 0 ? (
             <div className="examchat-side-empty">
               <p>尚未引用资料。</p>
-              <div className="examchat-side-actions">
-                <button type="button" onClick={openMaterialPicker}>选择资料</button>
-                <button type="button" onClick={() => uploadInputRef.current?.click()} disabled={uploading}>
-                  {uploading ? "上传中..." : "上传资料"}
-                </button>
-              </div>
             </div>
           ) : (
             <ul className="examchat-ref-list">
