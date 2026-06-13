@@ -17624,17 +17624,16 @@ select.field:focus {
 }
 /* 11408 subject dashboard */
 .exam-subject-shell {
-  min-height: 100vh;
+  height: 100vh;
   display: grid;
   grid-template-columns: 220px minmax(0, 1fr);
   background: #f7f6ff;
   color: #17203c;
+  overflow: hidden;
 }
 
 .exam-subject-sidebar {
   height: 100vh;
-  position: sticky;
-  top: 0;
   display: flex;
   flex-direction: column;
   gap: 18px;
@@ -17642,6 +17641,7 @@ select.field:focus {
   background: linear-gradient(180deg, #f0ebff 0%, #fbfaff 100%);
   border-right: 1px solid rgba(124, 58, 237, 0.08);
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .exam-subject-nav {
@@ -17732,6 +17732,9 @@ select.field:focus {
   width: min(100%, 1120px);
   margin: 0 auto;
   padding: 28px 34px 42px;
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .exam-subject-header {

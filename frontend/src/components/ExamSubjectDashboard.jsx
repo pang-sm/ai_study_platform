@@ -49,7 +49,6 @@ const NAV_ITEMS = [
   { key: "plan", label: "学习计划", icon: "◫" },
   { key: "practice", label: "练习中心", icon: "✎" },
   { key: "report", label: "学习报告", icon: "▧" },
-  { key: "member", label: "会员卡片", icon: "♕" },
 ];
 
 const MATERIAL_LABELS = ["课件讲义", "习题集", "参考资料", "代码示例"];
@@ -96,13 +95,6 @@ export default function ExamSubjectDashboard({
             </button>
           ))}
         </nav>
-
-        <section className="exam-subject-member-card">
-          <strong>会员</strong>
-          <span>解锁专属权益</span>
-          <p>AI 问答优先使用、学习数据深度分析、更多高级功能。</p>
-          <button type="button" onClick={() => navigate("member")}>了解会员权益 →</button>
-        </section>
 
         <button type="button" className="exam-subject-back" onClick={onBackHome}>
           ← 返回主页
