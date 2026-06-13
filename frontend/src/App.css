@@ -16508,6 +16508,43 @@ select.field:focus {
   font-size: 18px;
 }
 
+/* Target school info row */
+.eh-target-info {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 14px;
+  padding: 10px 16px;
+  background: #faf8ff;
+  border: 1px solid #ede4ff;
+  border-radius: 12px;
+}
+
+.eh-target-info-item {
+  font-size: 13px;
+  color: #475569;
+  white-space: nowrap;
+}
+
+.eh-target-info-item strong {
+  color: #7c3aed;
+  font-weight: 700;
+}
+
+.eh-target-info-hint {
+  font-size: 12px;
+  color: #a78bfa;
+  cursor: pointer;
+  margin-left: auto;
+  transition: color 0.15s;
+}
+
+.eh-target-info-hint:hover {
+  color: #7c3aed;
+  text-decoration: underline;
+}
+
 /* ── Hero right: user + target ── */
 
 .eh-hero-right {

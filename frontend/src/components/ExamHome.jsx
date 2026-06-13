@@ -29,19 +29,26 @@ const PLAN_ITEMS = [
 export default function ExamHome({ user, setPage, subject, setSubject, apiBase, onLogout }) {
   const [daysLeft, setDaysLeft] = useState(128);
   const [targetSchool, setTargetSchool] = useState("");
-  const [schoolModal, setSchoolModal] = useState(false);
+  const [examStage, setExamStage] = useState("");
+  const [examDaily, setExamDaily] = useState("");
   const [planItems, setPlanItems] = useState(PLAN_ITEMS);
-  const [schoolInput, setSchoolInput] = useState("");
 
   useEffect(() => {
-    if (user?.onboarding_detail) {
+    // Read onboarding detail — try tracks first, then user.onboarding_detail
+    const detail = (() => {
       try {
-        const d = typeof user.onboarding_detail === "string"
-          ? JSON.parse(user.onboarding_detail)
-          : user.onboarding_detail;
-        if (d.exam_time) setDaysLeft(calcDaysUntil(d.exam_time));
-        if (d.target_school) setTargetSchool(d.target_school);
-      } catch { /* ignore */ }
+        const examTrack = (user?.tracks || []).find((t) => t.track_type === "exam_408");
+        if (examTrack?.onboarding_detail) return examTrack.onboarding_detail;
+        const d = user?.onboarding_detail;
+        if (!d) return null;
+        return typeof d === "string" ? JSON.parse(d) : d;
+      } catch { return null; }
+    })();
+    if (detail) {
+      if (detail.exam_time) setDaysLeft(calcDaysUntil(detail.exam_time));
+      if (detail.target_school) setTargetSchool(detail.target_school);
+      if (detail.stage) setExamStage(detail.stage);
+      if (detail.daily_study_time) setExamDaily(detail.daily_study_time);
     }
   }, [user]);
 
@@ -92,11 +99,6 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
     if (setPage) setPage("home");
   };
 
-  const saveTargetSchool = () => {
-    setTargetSchool(schoolInput.trim());
-    setSchoolModal(false);
-  };
-
   return (
     <div className="exam-home">
       {/* ── Hero header ── */}
@@ -109,6 +111,15 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
           <p className="eh-countdown">
             📅 距离考试还有 <strong>{daysLeft}</strong> 天，继续保持稳定的复习节奏
           </p>
+          {/* Target school — read-only, displayed inline */}
+          <div className="eh-target-info">
+            <span className="eh-target-info-item">
+              🏫 目标院校：<strong>{targetSchool || "未设置"}</strong>
+            </span>
+            {examStage && <span className="eh-target-info-item">📌 当前阶段：{examStage}</span>}
+            {examDaily && <span className="eh-target-info-item">⏱ 每天学习：{examDaily}</span>}
+            <span className="eh-target-info-hint" onClick={() => setPage && setPage("examProfile")}>如需修改，前往个人中心</span>
+          </div>
         </div>
         <div className="eh-hero-right">
           <div className="eh-user-card" onClick={() => setPage && setPage("examProfile")} style={{ cursor: "pointer" }}>
@@ -118,19 +129,6 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
               <span className="eh-user-tag eh-user-tag--member">
                 {packageLabel}
               </span>
-            </div>
-          </div>
-          <div className="eh-target-card" onClick={() => setSchoolModal(true)}>
-            <div className="eh-target-left">
-              <span className="eh-target-icon">🏫</span>
-            </div>
-            <div className="eh-target-body">
-              <div className="eh-target-head">
-                <strong>目标院校</strong>
-                <span className="eh-target-edit">✎</span>
-              </div>
-              <p>{targetSchool || "点击设置你的目标院校"}</p>
-              <span className="eh-target-motto">明暗自律 · 坚定信念 · 全力以赴</span>
             </div>
           </div>
         </div>
@@ -212,26 +210,6 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
       <div className="eh-bottom-bar">
         <span>✨ 坚持每天学习一点点，11408 上岸近一步！ ✨</span>
       </div>
-
-      {/* ── Target school modal ── */}
-      {schoolModal && (
-        <div className="eh-modal-backdrop" onClick={() => setSchoolModal(false)}>
-          <div className="eh-modal" onClick={(e) => e.stopPropagation()}>
-            <h3>设置目标院校</h3>
-            <input
-              className="ob-select"
-              placeholder="输入目标院校，如：清华大学"
-              value={schoolInput}
-              onChange={(e) => setSchoolInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") saveTargetSchool(); }}
-            />
-            <div className="eh-modal-actions">
-              <button type="button" className="ob-btn-secondary" onClick={() => setSchoolModal(false)}>取消</button>
-              <button type="button" className="ob-btn-primary" onClick={saveTargetSchool}>保存</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
