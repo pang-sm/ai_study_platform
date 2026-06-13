@@ -523,13 +523,13 @@ body {
 .admin-dashboard-shell {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 190px minmax(0, 1fr);
+  grid-template-columns: 232px minmax(0, 1fr);
   background: #f8f7ff;
   color: #1f2a44;
 }
 
 .admin-dashboard-sidebar {
-  padding: 24px 14px;
+  padding: 24px 18px;
   background: linear-gradient(180deg, #f1edff 0%, #fbfaff 100%);
   border-right: 1px solid rgba(124, 58, 237, 0.08);
 }
@@ -558,6 +558,7 @@ body {
   font-size: 15px;
   color: #19233f;
   line-height: 1.25;
+  white-space: nowrap;
 }
 
 .admin-dashboard-brand span:last-child {
@@ -608,6 +609,8 @@ body {
 
 .admin-dashboard-main {
   min-width: 0;
+  max-width: 1440px;
+  width: 100%;
   padding: 24px 30px 28px;
 }
 
@@ -876,6 +879,77 @@ body {
   cursor: pointer;
 }
 
+.admin-dashboard-section-card {
+  min-height: 640px;
+}
+
+.admin-dashboard-section-head {
+  margin-bottom: 18px;
+}
+
+.admin-dashboard-section-head h2 {
+  margin: 0 0 8px;
+  color: #1f2a44;
+  font-size: 20px;
+}
+
+.admin-dashboard-section-head p {
+  margin: 0;
+  color: #7d86a2;
+  font-size: 13px;
+}
+
+.admin-dashboard-empty {
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px dashed #ddd6fe;
+  border-radius: 14px;
+  background: #fbfaff;
+  color: #7d86a2;
+  text-align: center;
+}
+
+.admin-dashboard-empty strong {
+  color: #3f2d64;
+  font-size: 16px;
+}
+
+.admin-dashboard-mini-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.admin-dashboard-mini-stats div {
+  padding: 16px;
+  border: 1px solid #ede9fe;
+  border-radius: 14px;
+  background: #fbfaff;
+}
+
+.admin-dashboard-mini-stats span {
+  display: block;
+  color: #7d86a2;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.admin-dashboard-mini-stats strong {
+  display: block;
+  margin-top: 10px;
+  color: #1f2a44;
+  font-size: 22px;
+}
+
+.admin-dashboard-inner-head {
+  margin: 10px 0 0;
+}
+
 .admin-dashboard-users-more {
   margin-top: 12px;
 }
@@ -944,6 +1018,10 @@ body {
   }
 
   .admin-dashboard-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-dashboard-mini-stats {
     grid-template-columns: 1fr;
   }
 }

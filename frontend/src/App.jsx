@@ -415,12 +415,19 @@ const VALID_PAGES = new Set([
   "home", "dashboard", "profile", "membership", "codeStudio",
   "taskCenter", "practiceCenter", "learningDataCenter", "reviewCenter",
   "learningPlanCenter", "knowledgeBaseCenter", "quotaCenter",
-  "learningReportCenter", "adminDashboard", "adminUsageCenter", "adminCenter",
+  "learningReportCenter", "adminDashboard", "adminAnnouncements", "adminUsers",
+  "adminOrders", "adminMembers", "adminStatistics", "adminSettings",
+  "adminUsageCenter", "adminCenter",
   "materials", "workspaceMaterials", "chat", "records", "history",
   "knowledgeLearning", "searchResults",
   "profileEdit", "onboarding",
   "login", "adminLogin",
 ]);
+
+const ADMIN_PAGES = [
+  "adminDashboard", "adminAnnouncements", "adminUsers", "adminOrders",
+  "adminMembers", "adminStatistics", "adminSettings", "adminUsageCenter", "adminCenter",
+];
 
 function getInitialPage() {
   const savedUser = getSavedUser();
@@ -884,11 +891,13 @@ function App() {
   const getPostAuthPage = (loginUser, savedPage = null) => {
     const isAdmin = hasAdminAccess(loginUser);
 
-    if (isAdmin) return "adminDashboard";
+    if (isAdmin) {
+      return ADMIN_PAGES.includes(savedPage) ? savedPage : "adminDashboard";
+    }
     if (loginUser?.needs_onboarding === true || loginUser?.onboarding_completed === false) {
       return "onboarding";
     }
-    const isSavedAdminPage = ["adminDashboard", "adminUsageCenter", "adminCenter"].includes(savedPage);
+    const isSavedAdminPage = ADMIN_PAGES.includes(savedPage);
     if (savedPage && VALID_PAGES.has(savedPage) && savedPage !== "login" && savedPage !== "adminLogin" && savedPage !== "onboarding" && !isSavedAdminPage) {
       return savedPage;
     }
@@ -1966,7 +1975,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!["adminDashboard", "adminUsageCenter", "adminCenter"].includes(page)) return;
+    if (!ADMIN_PAGES.includes(page)) return;
     if (!user) {
       setPage("login");
       return;
@@ -3369,7 +3378,7 @@ function App() {
 
   // ── Admin route protection ──
   const isAdminAuthorized = user && hasAdminAccess(user);
-  if ((page === "adminDashboard" || page === "adminUsageCenter" || page === "adminCenter") && !isAdminAuthorized) {
+  if (ADMIN_PAGES.includes(page) && !isAdminAuthorized) {
     return (
       <div className="auth-shell">
         <div className="auth-card" style={{ textAlign: "center", padding: 40 }}>
@@ -3381,10 +3390,10 @@ function App() {
     );
   }
 
-  if (page === "adminDashboard") {
+  if (["adminDashboard", "adminAnnouncements", "adminUsers", "adminOrders", "adminMembers", "adminStatistics", "adminSettings"].includes(page)) {
     return (
       <Suspense fallback={<div className="empty-state">管理员首页加载中...</div>}>
-        <AdminDashboard user={user} />
+        <AdminDashboard user={user} activePage={page} setPage={setPage} />
       </Suspense>
     );
   }

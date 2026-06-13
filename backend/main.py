@@ -17103,13 +17103,20 @@ def admin_dashboard(admin_username: str = "", db: Session = Depends(get_db)):
         )
         user_growth.append({"date": day_start.strftime("%m-%d"), "count": count})
 
-    now = utc_now()
+    announcement_rows = (
+        db.query(models.SystemAnnouncement)
+        .order_by(models.SystemAnnouncement.created_at.desc())
+        .limit(5)
+        .all()
+    )
     announcements = [
-        {"title": "系统维护通知", "date": (now - timedelta(days=2)).strftime("%Y-%m-%d")},
-        {"title": "新增上线：AI学习助手", "date": (now - timedelta(days=5)).strftime("%Y-%m-%d")},
-        {"title": "五一活动安排", "date": (now - timedelta(days=12)).strftime("%Y-%m-%d")},
-        {"title": "课程更新：高等数学下册", "date": (now - timedelta(days=18)).strftime("%Y-%m-%d")},
-        {"title": "版本更新 V2.3.0", "date": (now - timedelta(days=28)).strftime("%Y-%m-%d")},
+        {
+            "title": item.title,
+            "date": serialize_datetime(item.created_at) or "",
+            "is_active": bool(item.is_active),
+            "type": item.type or "info",
+        }
+        for item in announcement_rows
     ]
     recent_user_rows = []
     for item in recent_users[:5]:
@@ -17120,7 +17127,8 @@ def admin_dashboard(admin_username: str = "", db: Session = Depends(get_db)):
         )
         learning_minutes = int(getattr(item, "daily_study_minutes", 0) or 0)
         recent_user_rows.append({
-            "username": item.nickname or item.username,
+            "username": item.username,
+            "nickname": item.nickname or "",
             "user_id": str(item.id),
             "register_method": "账号注册",
             "register_time": serialize_datetime(item.created_at) or "",
@@ -17312,6 +17320,11 @@ def admin_users_list(
             )
             .count()
         )
+        last_active = (
+            db.query(func.max(models.AiUsageLog.created_at))
+            .filter(models.AiUsageLog.username == u.username)
+            .scalar()
+        )
         kp_count = (
             db.query(models.KnowledgePoint).filter(models.KnowledgePoint.username == u.username).count()
         )
@@ -17319,8 +17332,13 @@ def admin_users_list(
             db.query(models.LearningTask).filter(models.LearningTask.username == u.username).count()
         )
         items.append({
+            "user_id": str(u.id),
             "username": u.username,
             "nickname": u.nickname or "",
+            "register_method": "账号注册",
+            "register_time": serialize_datetime(u.created_at),
+            "last_active_time": serialize_datetime(last_active or u.created_at),
+            "learning_hours": round((int(getattr(u, "daily_study_minutes", 0) or 0)) / 60, 1),
             "plan": u.plan or "free",
             "is_admin": bool(u.is_admin),
             "admin_role": normalize_admin_role(u),
