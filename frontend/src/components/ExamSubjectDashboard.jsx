@@ -1,3 +1,6 @@
+import { useEffect, useState } from "react";
+import ExamChat from "./ExamChat.jsx";
+
 const SUBJECT_CONFIG = {
   data_structure: {
     title: "数据结构",
@@ -70,12 +73,24 @@ export default function ExamSubjectDashboard({
   onBackHome,
   onProfile,
 }) {
+  const [activeSection, setActiveSection] = useState("home");
   const config = getExamSubjectConfig(subjectKey);
   const courseId = getExamCourseId(subjectKey);
   const displayName = user?.nickname || user?.username || "同学";
 
+  useEffect(() => {
+    setActiveSection("home");
+  }, [subjectKey]);
+
   const navigate = (target) => {
-    if (target === "home") return;
+    if (target === "home") {
+      setActiveSection("home");
+      return;
+    }
+    if (target === "ai") {
+      setActiveSection("ai");
+      return;
+    }
     onNavigate?.(target, { subject: subjectKey, courseId, title: config.title });
   };
 
@@ -87,7 +102,7 @@ export default function ExamSubjectDashboard({
             <button
               key={item.key}
               type="button"
-              className={`exam-subject-nav-item${item.key === "home" ? " active" : ""}`}
+              className={`exam-subject-nav-item${item.key === activeSection ? " active" : ""}`}
               onClick={() => navigate(item.key)}
             >
               <span>{item.icon}</span>
@@ -101,7 +116,18 @@ export default function ExamSubjectDashboard({
         </button>
       </aside>
 
-      <main className="exam-subject-main">
+      <main className={`exam-subject-main${activeSection === "ai" ? " exam-subject-main--chat" : ""}`}>
+        {activeSection === "ai" ? (
+          <ExamChat
+            user={user}
+            subjectKey={subjectKey}
+            subjectTitle={config.title}
+            courseName={courseId}
+            onBackDashboard={() => setActiveSection("home")}
+            onNavigatePackage={() => navigate("member")}
+          />
+        ) : (
+          <>
         <header className="exam-subject-header">
           <div>
             <div className="exam-subject-title-row">
@@ -192,6 +218,8 @@ export default function ExamSubjectDashboard({
             </div>
           </div>
         </section>
+          </>
+        )}
       </main>
     </div>
   );
