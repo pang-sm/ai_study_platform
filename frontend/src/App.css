@@ -18903,7 +18903,7 @@ select.field:focus {
   height: 100%;
   min-height: 0;
   display: grid;
-  grid-template-columns: 246px minmax(0, 1fr);
+  grid-template-columns: 246px minmax(0, 1fr) 300px;
   grid-template-rows: minmax(0, 1fr);
   gap: 16px;
 }
@@ -19035,10 +19035,8 @@ select.field:focus {
 
 .examchat-main-panel {
   min-width: 0;
-  height: 100%;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   overflow: hidden;
 }
 
@@ -19119,34 +19117,18 @@ select.field:focus {
   cursor: pointer;
 }
 
-.examchat-body {
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
-  gap: 16px;
-  overflow: hidden;
-  padding: 16px;
-  background: #fbfaff;
-}
-
 .examchat-main-panel .examchat-messages {
-  width: 100%;
-  height: 100%;
   min-height: 0;
-  display: flex;
-  flex-direction: column;
   overflow-y: auto;
-  border: 1px solid rgba(124, 58, 237, 0.08);
-  border-radius: 16px;
-  background: #fff;
+  border: none;
+  border-radius: 0;
+  background: transparent;
   box-shadow: none;
-  padding: 16px;
+  padding: 18px 20px;
 }
 
 .examchat-main-panel .examchat-empty {
-  flex: 1;
-  min-height: 100%;
+  min-height: min(340px, 42vh);
   display: grid;
   place-items: center;
   align-content: center;
@@ -19292,7 +19274,6 @@ select.field:focus {
 }
 
 .examchat-main-panel .examchat-input-area {
-  flex-shrink: 0;
   display: grid;
   gap: 10px;
   border: none;
@@ -19493,13 +19474,10 @@ select.field:focus {
 }
 
 .examchat-sidebar {
-  min-height: 0;
-  max-height: 100%;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  align-content: start;
   gap: 16px;
   overflow-y: auto;
-  padding-right: 2px;
 }
 
 .examchat-side-card {
@@ -19605,8 +19583,9 @@ select.field:focus {
     grid-template-columns: 220px minmax(0, 1fr);
   }
 
-  .examchat-body {
-    grid-template-columns: minmax(0, 1fr) 240px;
+  .exam-subject-main--chat .examchat-sidebar {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -19620,17 +19599,13 @@ select.field:focus {
     grid-template-columns: 1fr;
   }
 
-  .examchat-body {
-    grid-template-columns: 1fr;
-  }
-
   .examchat-history-panel,
   .examchat-main-panel {
     min-height: 360px;
   }
 
   .exam-subject-main--chat .examchat-sidebar {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
   }
 }
 
@@ -19641,10 +19616,6 @@ select.field:focus {
 
   .examchat-input-row,
   .examchat-empty-actions {
-    grid-template-columns: 1fr;
-  }
-
-  .exam-subject-main--chat .examchat-sidebar {
     grid-template-columns: 1fr;
   }
 }

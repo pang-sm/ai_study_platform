@@ -455,8 +455,7 @@ export default function ExamChat({
           </div>
         )}
 
-        <div className="examchat-body">
-          <div className="examchat-messages">
+        <div className="examchat-messages">
           {messages.length === 0 && !loading ? (
             <div className="examchat-empty">
               <span className="examchat-empty-icon">💬</span>
@@ -508,50 +507,6 @@ export default function ExamChat({
             </div>
           )}
           <div ref={messagesEndRef} />
-          </div>
-
-          <aside className="examchat-sidebar">
-            <div className="examchat-side-card">
-              <div className="examchat-side-title">
-                <h4>本轮引用资料</h4>
-                <button type="button" onClick={openMaterialPicker}>选择资料</button>
-              </div>
-              {selectedMaterials.length === 0 ? (
-                <div className="examchat-side-empty">
-                  <p>尚未引用资料。</p>
-                  <div className="examchat-side-actions">
-                    <button type="button" onClick={openMaterialPicker}>选择资料</button>
-                    <button type="button" onClick={() => uploadInputRef.current?.click()} disabled={uploading}>
-                      {uploading ? "上传中..." : "上传资料"}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <ul className="examchat-ref-list">
-                  {selectedMaterials.map((material) => (
-                    <li key={material.id}>
-                      <span title={material.original_filename || material.file_name}>
-                        {material.original_filename || material.file_name}
-                      </span>
-                      <button type="button" onClick={() => removeSelectedMaterial(material.id)}>
-                        移除
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            <div className="examchat-side-card">
-              <h4>推荐提问</h4>
-              {recommendations.map((question) => (
-                <button key={question} type="button" className="examchat-rec-btn" onClick={() => setInputText(question)}>
-                  {question}
-                </button>
-              ))}
-            </div>
-          </aside>
-
         </div>
 
         <div className="examchat-input-area">
@@ -621,6 +576,48 @@ export default function ExamChat({
           />
         </div>
       </section>
+
+      <aside className="examchat-sidebar">
+        <div className="examchat-side-card">
+          <div className="examchat-side-title">
+            <h4>本轮引用资料</h4>
+            <button type="button" onClick={openMaterialPicker}>选择资料</button>
+          </div>
+          {selectedMaterials.length === 0 ? (
+            <div className="examchat-side-empty">
+              <p>尚未引用资料。</p>
+              <div className="examchat-side-actions">
+                <button type="button" onClick={openMaterialPicker}>选择资料</button>
+                <button type="button" onClick={() => uploadInputRef.current?.click()} disabled={uploading}>
+                  {uploading ? "上传中..." : "上传资料"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <ul className="examchat-ref-list">
+              {selectedMaterials.map((material) => (
+                <li key={material.id}>
+                  <span title={material.original_filename || material.file_name}>
+                    {material.original_filename || material.file_name}
+                  </span>
+                  <button type="button" onClick={() => removeSelectedMaterial(material.id)}>
+                    移除
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="examchat-side-card">
+          <h4>推荐提问</h4>
+          {recommendations.map((question) => (
+            <button key={question} type="button" className="examchat-rec-btn" onClick={() => setInputText(question)}>
+              {question}
+            </button>
+          ))}
+        </div>
+      </aside>
 
       <MaterialPickerModal
         open={pickerOpen}
