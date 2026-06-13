@@ -19311,7 +19311,7 @@ select.field:focus {
 
 .examchat-input-row {
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) auto;
+  grid-template-columns: 48px minmax(0, 1fr) 104px;
   align-items: center;
   gap: 12px;
 }
@@ -19324,8 +19324,8 @@ select.field:focus {
 }
 
 .examchat-plus-btn {
-  width: 42px;
-  height: 42px;
+  width: 48px;
+  height: 48px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -19338,7 +19338,7 @@ select.field:focus {
   font-weight: 900;
   line-height: 1;
   cursor: pointer;
-  box-shadow: 0 10px 24px rgba(124, 58, 237, 0.1);
+  box-shadow: 0 10px 24px rgba(124, 58, 237, 0.09);
   transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
 }
 
@@ -19412,16 +19412,19 @@ select.field:focus {
 .examchat-input {
   width: 100%;
   min-width: 0;
-  min-height: 54px;
-  max-height: 132px;
+  height: 48px;
+  min-height: 48px;
+  max-height: 120px;
   resize: vertical;
   border: 1px solid #ddd6fe;
-  border-radius: 15px;
+  border-radius: 14px;
   background: #fff;
   color: #17203c;
   padding: 12px 14px;
   font: inherit;
+  line-height: 22px;
   outline: none;
+  box-shadow: 0 10px 24px rgba(124, 58, 237, 0.06);
 }
 
 .examchat-input:focus {
@@ -19430,26 +19433,28 @@ select.field:focus {
 }
 
 .examchat-send-btn {
-  min-width: 98px;
-  min-height: 44px;
+  width: 104px;
+  height: 48px;
+  min-width: 104px;
+  min-height: 48px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 7px;
-  border: none;
-  border-radius: 999px;
+  border: 1px solid transparent;
+  border-radius: 14px;
   background: linear-gradient(135deg, #8b5cf6, #6d5dfc);
   color: #fff;
   font: inherit;
   font-weight: 900;
   cursor: pointer;
-  box-shadow: 0 14px 30px rgba(124, 58, 237, 0.24);
+  box-shadow: 0 12px 26px rgba(124, 58, 237, 0.24);
   transition: transform 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease;
 }
 
 .examchat-send-btn:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 18px 36px rgba(124, 58, 237, 0.3);
+  box-shadow: 0 16px 32px rgba(124, 58, 237, 0.3);
 }
 
 .examchat-send-icon {
