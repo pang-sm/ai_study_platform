@@ -476,7 +476,7 @@ EXAM_408_SCHOOLS = [
     "武汉理工大学",
 ]
 
-@app.get("/api/exam-408/schools")
+@app.get("/exam-408/schools")
 def search_exam_408_schools(q: str = ""):
     query = (q or "").strip()
     if not query:
@@ -486,7 +486,7 @@ def search_exam_408_schools(q: str = ""):
     return {"schools": results}
 
 
-@app.put("/api/exam-408/target-school")
+@app.put("/exam-408/target-school")
 def update_target_school(req: dict, db: Session = Depends(get_db)):
     username = str(req.get("username", "")).strip()
     school = str(req.get("school", "")).strip()
