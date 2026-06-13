@@ -905,9 +905,11 @@ function App() {
     if (savedPage && VALID_PAGES.has(savedPage) && savedPage !== "login" && savedPage !== "adminLogin" && savedPage !== "onboarding" && !isSavedAdminPage) {
       return savedPage;
     }
-    // Route exam_408 users to examHome
-    const goalType = loginUser?.learning_goal_type || "";
-    if (goalType === "exam_408") return "examHome";
+    // Route users based on tracks data (new system) or learning_goal_type (legacy)
+    const activeTrack = loginUser?.active_track_type || loginUser?.learning_goal_type || "";
+    if (activeTrack === "exam_408") return "examHome";
+    if (activeTrack === "programming") return "codeStudio";
+    // university_course → home (course dashboard) is the default
     return "home";
   };
 

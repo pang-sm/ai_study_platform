@@ -567,6 +567,26 @@ class SystemSetting(Base):
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
 
+class UserLearningTrack(Base):
+    __tablename__ = "user_learning_tracks"
+    __table_args__ = (
+        Index("idx_user_learning_tracks_user_track", "user_id", "track_type", unique=True),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=False)
+    track_type = Column(String(30), nullable=False)
+    plan = Column(String(30), nullable=True, default="free")
+    package_type = Column(String(30), nullable=True)
+    permissions_json = Column(Text, nullable=True)
+    quota_json = Column(Text, nullable=True)
+    onboarding_detail_json = Column(Text, nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True)
+    status = Column(String(20), nullable=True, default="active")
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+
 class VerificationCode(Base):
     __tablename__ = "verification_codes"
     id = Column(Integer, primary_key=True, index=True)

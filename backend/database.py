@@ -996,6 +996,42 @@ def ensure_admin_audit_logs_schema(conn):
     ensure_columns(conn, "admin_audit_logs", ADMIN_AUDIT_LOGS_COLUMNS)
 
 
+def ensure_user_learning_tracks_schema(conn):
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS user_learning_tracks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                track_type VARCHAR(30) NOT NULL,
+                plan VARCHAR(30) DEFAULT 'free',
+                package_type VARCHAR(30),
+                permissions_json TEXT,
+                quota_json TEXT,
+                onboarding_detail_json TEXT,
+                is_active BOOLEAN NOT NULL DEFAULT 1,
+                status VARCHAR(20) DEFAULT 'active',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, track_type)
+            )
+            """
+        )
+    )
+    # Ensure columns for migrations from older versions
+    USER_LEARNING_TRACK_COLUMNS = {
+        "plan": "VARCHAR(30) DEFAULT 'free'",
+        "package_type": "VARCHAR(30)",
+        "permissions_json": "TEXT",
+        "quota_json": "TEXT",
+        "onboarding_detail_json": "TEXT",
+        "is_active": "BOOLEAN NOT NULL DEFAULT 1",
+        "status": "VARCHAR(20) DEFAULT 'active'",
+        "updated_at": "DATETIME DEFAULT CURRENT_TIMESTAMP",
+    }
+    ensure_columns(conn, "user_learning_tracks", USER_LEARNING_TRACK_COLUMNS)
+
+
 def ensure_verification_codes_schema(conn):
     conn.execute(
         text(
@@ -1255,6 +1291,7 @@ def init_user_profile_schema():
         ensure_ai_usage_logs_schema(conn)
         ensure_admin_audit_logs_schema(conn)
         ensure_verification_codes_schema(conn)
+        ensure_user_learning_tracks_schema(conn)
         ensure_learning_reports_schema(conn)
         ensure_learning_report_shares_schema(conn)
         ensure_system_announcements_schema(conn)

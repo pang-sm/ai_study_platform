@@ -47,9 +47,24 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
 
   const displayName = user?.nickname || user?.username || "小庞同学";
 
-  // Resolve real exam package name from backend-onboarding data
+  // Resolve real exam package name from tracks data
   const getPackageLabel = () => {
     try {
+      // First check user.tracks from new API
+      const tracks = user?.tracks;
+      if (Array.isArray(tracks)) {
+        const examTrack = tracks.find((t) => t.track_type === "exam_408");
+        if (examTrack?.package_type) {
+          const MAP = {
+            free: "免费模式",
+            monthly_sprint: "月度冲刺",
+            quarterly_boost: "季度强化包",
+            full_exam: "全程考包",
+          };
+          if (MAP[examTrack.package_type]) return MAP[examTrack.package_type];
+        }
+      }
+      // Fallback: onboarding_detail
       const d = user?.onboarding_detail
         ? (typeof user.onboarding_detail === "string"
             ? JSON.parse(user.onboarding_detail)

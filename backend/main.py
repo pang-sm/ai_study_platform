@@ -345,6 +345,112 @@ ALLOWED_AVATAR_TYPES = {
 MAX_AVATAR_SIZE = 3 * 1024 * 1024
 
 
+# ── Learning Track Helpers ──
+
+TRACK_PERMISSIONS = {
+    "exam_408": {
+        "access_exam_home": True,
+        "access_exam_subjects": True,
+        "access_exam_plan": True,
+        "access_exam_review": True,
+        "access_exam_report": True,
+    },
+    "university_course": {
+        "access_course_home": True,
+        "access_course_dashboard": True,
+        "access_course_qa": True,
+        "access_material_library": True,
+        "access_practice_center": True,
+        "access_learning_report": True,
+    },
+    "programming": {
+        "access_code_studio": True,
+        "access_code_execute": True,
+        "access_ai_code_review": True,
+        "access_code_practice": True,
+        "access_code_diagnosis": True,
+    },
+}
+
+EXAM_PACKAGE_QUOTA = {
+    "free": {"ai_question_daily_limit": 50, "ai_generate_question_daily_limit": 5, "material_upload_limit_mb": 100, "learning_plan": False, "review": False, "report": False},
+    "monthly_sprint": {"ai_question_daily_limit": 300, "ai_generate_question_daily_limit": 30, "material_upload_limit_mb": 500, "learning_plan": True, "review": True, "report": True},
+    "quarterly_boost": {"ai_question_daily_limit": 300, "ai_generate_question_daily_limit": 30, "material_upload_limit_mb": 500, "learning_plan": True, "review": True, "report": True},
+    "full_exam": {"ai_question_daily_limit": 1000, "ai_generate_question_daily_limit": 100, "material_upload_limit_mb": 2048, "learning_plan": True, "review": True, "report": True},
+}
+
+def get_user_tracks(db: Session, user_id: int):
+    return db.query(models.UserLearningTrack).filter(
+        models.UserLearningTrack.user_id == user_id,
+        models.UserLearningTrack.status == "active",
+    ).all()
+
+def get_user_track(db: Session, user_id: int, track_type: str):
+    return db.query(models.UserLearningTrack).filter(
+        models.UserLearningTrack.user_id == user_id,
+        models.UserLearningTrack.track_type == track_type,
+    ).first()
+
+def user_has_track(db: Session, user_id: int, track_type: str) -> bool:
+    return get_user_track(db, user_id, track_type) is not None
+
+def require_track(db: Session, user_id: int, track_type: str):
+    track = get_user_track(db, user_id, track_type)
+    if not track:
+        raise HTTPException(status_code=403, detail=f"请先开通该学习方向")
+    return track
+
+def upsert_user_track(db: Session, user_id: int, track_type: str, plan: str = "free",
+                      package_type: str | None = None, onboarding_detail: dict | None = None):
+    track = get_user_track(db, user_id, track_type)
+    if not track:
+        track = models.UserLearningTrack(
+            user_id=user_id,
+            track_type=track_type,
+            plan=plan,
+            package_type=package_type,
+        )
+        db.add(track)
+    else:
+        track.plan = plan
+        track.package_type = package_type or track.package_type
+    perms = dict(TRACK_PERMISSIONS.get(track_type, {}))
+    # Merge exam quota based on package
+    if track_type == "exam_408" and package_type and package_type in EXAM_PACKAGE_QUOTA:
+        perms.update(EXAM_PACKAGE_QUOTA[package_type])
+    track.permissions_json = json.dumps(perms, ensure_ascii=False)
+    if onboarding_detail:
+        track.onboarding_detail_json = json.dumps(onboarding_detail, ensure_ascii=False)
+    track.updated_at = utc_now()
+    db.flush()
+    return track
+
+def serialize_track(track):
+    perms = {}
+    try:
+        if track.permissions_json:
+            perms = json.loads(track.permissions_json)
+    except (json.JSONDecodeError, TypeError):
+        pass
+    onboarding = None
+    try:
+        if track.onboarding_detail_json:
+            onboarding = json.loads(track.onboarding_detail_json)
+    except (json.JSONDecodeError, TypeError):
+        pass
+    return {
+        "id": track.id,
+        "track_type": track.track_type,
+        "plan": track.plan or "free",
+        "package_type": track.package_type,
+        "permissions": perms,
+        "onboarding_detail": onboarding,
+        "is_active": bool(track.is_active),
+        "status": track.status or "active",
+        "created_at": serialize_datetime(track.created_at),
+    }
+
+
 def user_needs_onboarding(user: models.User) -> bool:
     if is_admin_user(user):
         return False
@@ -3777,8 +3883,20 @@ def admin_login_deprecated():
 def me(req: MeRequest, db: Session = Depends(get_db)):
     user = get_user_by_username(req.username, db)
     ensure_user_can_access(user)
-    return {"user": user_profile(user)}
+    profile = user_profile(user)
+    tracks = [serialize_track(t) for t in get_user_tracks(db, user.id)]
+    active_track = next((t["track_type"] for t in tracks if t["is_active"]), tracks[0]["track_type"] if tracks else None)
+    profile["tracks"] = tracks
+    profile["active_track_type"] = active_track
+    return {"user": profile}
 
+
+@app.get("/me/tracks")
+def get_my_tracks(username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    tracks = [serialize_track(t) for t in get_user_tracks(db, user.id)]
+    active = next((t["track_type"] for t in tracks if t["is_active"]), tracks[0]["track_type"] if tracks else None)
+    return {"tracks": tracks, "active_track_type": active}
 
 @app.get("/me/profile")
 def get_profile(username: str, db: Session = Depends(get_db)):
@@ -3918,10 +4036,35 @@ def complete_onboarding(req: OnboardingUpdateRequest, username: str, db: Session
             user.learning_direction = user.learning_direction or "编程能力提升"
 
     user.onboarding_completed = True
+
+    # Create or update learning track based on goal_type
+    if goal_type:
+        track_plan = "free"
+        track_package = None
+        if goal_type == "exam_408":
+            track_package = exam_pkg if exam_pkg else "free"
+            track_plan = "free" if track_package == "free" else "pro"
+        elif goal_type == "university_course":
+            track_plan = "free"
+        elif goal_type == "programming":
+            track_plan = "free"
+        upsert_user_track(
+            db, user.id, goal_type,
+            plan=track_plan, package_type=track_package,
+            onboarding_detail=detail,
+        )
+        # Deactivate other tracks
+        for t in get_user_tracks(db, user.id):
+            if t.track_type != goal_type:
+                t.is_active = False
+
     db.commit()
     db.refresh(user)
 
     profile = user_profile(user)
+    tracks = [serialize_track(t) for t in get_user_tracks(db, user.id)]
+    profile["tracks"] = tracks
+    profile["active_track_type"] = goal_type if goal_type else None
     return {"message": "onboarding saved", "user": profile, "profile": profile}
 
 
