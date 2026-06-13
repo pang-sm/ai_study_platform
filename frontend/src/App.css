@@ -4729,24 +4729,28 @@ select.field:focus {
   display: block;
 }
 
-/* Illustration placeholder */
+/* Illustration area */
 .ob-goal-illust {
   width: 100%;
-  height: 100px;
+  height: 130px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 14px;
   background: #faf8ff;
-  font-size: 40px;
   margin-bottom: 14px;
-  border: 1px dashed #e2e0f0;
-  color: #c4b5fd;
+  overflow: hidden;
 }
 
 .ob-goal-card-v2.active .ob-goal-illust {
   background: #f0ebff;
-  border-color: #c4b5fd;
+}
+
+.ob-goal-illust-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
 }
 
 .ob-goal-detail-v2 {
@@ -4941,7 +4945,7 @@ select.field:focus {
   }
 
   .ob-goal-illust {
-    height: 80px;
+    height: 110px;
   }
 }
 

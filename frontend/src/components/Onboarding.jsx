@@ -1,4 +1,7 @@
 import { useState } from "react";
+import goalExamIllustration from "../assets/onboarding/goal-exam-illustration.png";
+import goalCourseIllustration from "../assets/onboarding/goal-course-illustration.png";
+import goalCodeIllustration from "../assets/onboarding/goal-code-illustration.png";
 
 const GOAL_OPTIONS = [
   {
@@ -7,7 +10,7 @@ const GOAL_OPTIONS = [
     title: "考研 11408 备考",
     audience: "适合目标明确的考研用户",
     detail: "围绕数据结构、计算机组成原理、操作系统、计算机网络，制定备考计划、刷题、错题复盘和知识点诊断。",
-    imgHint: "📚📅",
+    illustration: goalExamIllustration,
   },
   {
     key: "university_course",
@@ -15,7 +18,7 @@ const GOAL_OPTIONS = [
     title: "大学课程学习",
     audience: "适合普通大学生",
     detail: "上传课程 PPT、教材、作业、往年卷，让 AI 围绕当前课程辅助学习、答疑、复习和生成练习。",
-    imgHint: "📖📄📁",
+    illustration: goalCourseIllustration,
   },
   {
     key: "programming",
@@ -23,7 +26,7 @@ const GOAL_OPTIONS = [
     title: "编程能力提升",
     audience: "适合想练 C / Python / Java / 算法 / 实验的用户",
     detail: "通过代码运行、AI 纠错、编程练习和错题诊断，提升代码能力。",
-    imgHint: "</>",
+    illustration: goalCodeIllustration,
   },
 ];
 
@@ -309,7 +312,9 @@ export default function Onboarding({ user, onComplete, API_BASE }) {
                   <span className="ob-goal-letter-v2">{g.letter}</span>
                   <strong className="ob-goal-title-v2">{g.title}</strong>
                   <span className="ob-goal-audience-v2">{g.audience}</span>
-                  <div className="ob-goal-illust">{g.imgHint}</div>
+                  <div className="ob-goal-illust">
+                    <img src={g.illustration} alt={g.title} className="ob-goal-illust-img" />
+                  </div>
                   <span className="ob-goal-detail-v2">{g.detail}</span>
                 </button>
               ))}
