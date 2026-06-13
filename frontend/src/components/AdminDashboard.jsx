@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const API_BASE = "/api";
 
@@ -142,6 +142,8 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
   const [showOldPwd, setShowOldPwd] = useState(false);
   const [showNewPwd, setShowNewPwd] = useState(false);
   const [showConfirmPwd, setShowConfirmPwd] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [userAvatarUrl, setUserAvatarUrl] = useState(user?.avatar_url || null);
   const adminRoleLabel = user?.admin_role === "super_admin" ? "超级管理员" : user?.admin_role === "operator" ? "运营管理员" : "管理员";
   const adminRoleDesc = user?.admin_role === "super_admin" ? "负责平台整体运营与管理" : user?.admin_role === "operator" ? "负责日常运营与用户服务" : "负责平台管理与维护";
 
@@ -308,7 +310,6 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           nickname: profileForm.nickname,
-          avatar: profileForm.avatar,
           grade: user?.grade || "",
           major: user?.major || "",
         }),
@@ -696,6 +697,64 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
     </AdminPageCard>
   );
 
+  const avatarInputRef = useRef(null);
+
+  const triggerAvatarUpload = () => {
+    avatarInputRef.current?.click();
+  };
+
+  const uploadAvatar = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Reset input so same file can be re-selected
+    e.target.value = "";
+    setAvatarUploading(true);
+    setActionError("");
+    setActionSuccess("");
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("username", user.username);
+      const res = await fetch(`${API_BASE}/me/avatar`, {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "头像上传失败");
+      setUserAvatarUrl(data.avatar_url || data.profile?.avatar_url || null);
+      setActionSuccess("头像已更新");
+    } catch (err) {
+      setActionError(err.message || "头像上传失败");
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
+  const removeAvatar = async () => {
+    if (!window.confirm("确认删除当前头像吗？")) return;
+    setAvatarUploading(true);
+    setActionError("");
+    setActionSuccess("");
+    try {
+      const res = await fetch(`${API_BASE}/me/avatar?username=${encodeURIComponent(user.username)}`, {
+        method: "DELETE",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "头像删除失败");
+      setUserAvatarUrl(null);
+      setActionSuccess("头像已删除");
+    } catch (err) {
+      setActionError(err.message || "头像删除失败");
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
+  // Sync avatar URL from user data on mount / user change
+  useEffect(() => {
+    if (user?.avatar_url) setUserAvatarUrl(user.avatar_url);
+  }, [user?.avatar_url]);
+
   const copyToClipboard = async (text) => {
     try { await navigator.clipboard.writeText(text); setActionSuccess("已复制到剪贴板"); }
     catch { setActionError("复制失败"); }
@@ -704,8 +763,6 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
   const renderProfile = () => {
     const displayName = profileForm.nickname || user?.nickname || user?.username || "管理员";
     const initial = (displayName || "管").charAt(0);
-    const joinDate = user?.created_at ? formatDateTime(user.created_at).slice(0, 10) : "-";
-    const lastActive = user?.last_active_time ? formatDateTime(user.last_active_time).slice(0, 10) : joinDate;
     const currentEmail = user?.email || "";
     const emailVerified = Boolean(user?.email_verified);
 
@@ -713,13 +770,36 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
       <div className="admin-profile-v2">
         {actionError && <div className="admin-dashboard-error">{actionError}</div>}
         {actionSuccess && <div className="admin-dashboard-success">{actionSuccess}</div>}
+        <input ref={avatarInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="apv2-avatar-input" onChange={uploadAvatar} />
 
         {/* ── Hero card ── */}
         <div className="apv2-hero">
           <div className="apv2-hero-left">
             <div className="apv2-avatar-wrap">
-              <span className="apv2-avatar">{initial}</span>
-              <button type="button" className="apv2-avatar-cam" title="更换头像">📷</button>
+              {userAvatarUrl ? (
+                <span className="apv2-avatar">
+                  <img
+                    src={userAvatarUrl}
+                    alt={displayName}
+                    className="apv2-avatar-img"
+                    onError={() => setUserAvatarUrl(null)}
+                  />
+                </span>
+              ) : (
+                <span className="apv2-avatar apv2-avatar--text">{initial}</span>
+              )}
+              <button
+                type="button"
+                className={`apv2-avatar-cam${avatarUploading ? " apv2-avatar-cam--loading" : ""}`}
+                title="更换头像"
+                onClick={triggerAvatarUpload}
+                disabled={avatarUploading}
+              >
+                {avatarUploading ? "⏳" : "📷"}
+              </button>
+              {userAvatarUrl && !avatarUploading && (
+                <button type="button" className="apv2-avatar-del" title="删除头像" onClick={removeAvatar}>✕</button>
+              )}
             </div>
             <div className="apv2-hero-info">
               <div className="apv2-hero-name-row">
@@ -727,10 +807,6 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
                 <span className="apv2-hero-badge">{adminRoleLabel}</span>
               </div>
               <p className="apv2-hero-desc">{adminRoleDesc}</p>
-              <div className="apv2-hero-dates">
-                <span>📅 加入时间：{joinDate}</span>
-                <span>🕐 最后登录：{lastActive}</span>
-              </div>
             </div>
           </div>
 

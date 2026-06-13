@@ -4193,6 +4193,16 @@ async def upload_avatar(
     if suffix not in {".jpg", ".jpeg", ".png", ".webp", ".gif"}:
         raise HTTPException(status_code=400, detail="头像仅支持 JPG、PNG、WebP 或 GIF 格式")
 
+    # Delete old avatar file if exists
+    old_avatar = (user.avatar or "").strip()
+    if old_avatar and old_avatar not in ALLOWED_AVATARS:
+        try:
+            old_path = AVATAR_UPLOAD_ROOT / old_avatar
+            if old_path.exists() and old_path.is_file():
+                os.remove(old_path)
+        except Exception:
+            pass
+
     avatar_filename = f"{secrets.token_hex(16)}{suffix}"
     AVATAR_UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
     avatar_path = AVATAR_UPLOAD_ROOT / avatar_filename
@@ -4225,6 +4235,23 @@ def serve_avatar(filename: str):
     media_type = media_map.get(ext, "image/png")
 
     return FileResponse(avatar_path, media_type=media_type)
+
+
+@app.delete("/me/avatar")
+def delete_avatar(username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    old_avatar = (user.avatar or "").strip()
+    if old_avatar and old_avatar not in ALLOWED_AVATARS:
+        try:
+            old_path = AVATAR_UPLOAD_ROOT / old_avatar
+            if old_path.exists() and old_path.is_file():
+                os.remove(old_path)
+        except Exception:
+            pass
+    user.avatar = ""
+    db.commit()
+    db.refresh(user)
+    return {"message": "头像已删除", "profile": user_profile(user)}
 
 
 def generate_answer_summary(answer: str, max_chars: int = 200) -> str:
