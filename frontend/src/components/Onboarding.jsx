@@ -5,22 +5,25 @@ const GOAL_OPTIONS = [
     key: "exam_408",
     letter: "A",
     title: "考研 11408 备考",
-    audience: "适合准备考研计算机统考 408 的同学",
-    features: "408 大纲定制 · 真题练习 · 薄弱分析",
+    audience: "适合目标明确的考研用户",
+    detail: "围绕数据结构、计算机组成原理、操作系统、计算机网络，制定备考计划、刷题、错题复盘和知识点诊断。",
+    imgHint: "📚📅",
   },
   {
     key: "university_course",
     letter: "B",
     title: "大学课程学习",
-    audience: "适合正在上计算机相关课程的同学",
-    features: "课程资料 · 作业辅助 · 考前复习",
+    audience: "适合普通大学生",
+    detail: "上传课程 PPT、教材、作业、往年卷，让 AI 围绕当前课程辅助学习、答疑、复习和生成练习。",
+    imgHint: "📖📄📁",
   },
   {
     key: "programming",
     letter: "C",
     title: "编程能力提升",
-    audience: "适合想提升编程实战能力的同学",
-    features: "算法训练 · 项目实战 · AI 编程助手",
+    audience: "适合想练 C / Python / Java / 算法 / 实验的用户",
+    detail: "通过代码运行、AI 纠错、编程练习和错题诊断，提升代码能力。",
+    imgHint: "</>",
   },
 ];
 
@@ -52,7 +55,7 @@ function toggleFromList(list, item) {
 
 export default function Onboarding({ user, onComplete, API_BASE }) {
   const [step, setStep] = useState(1);
-  const [goalType, setGoalType] = useState(null);
+  const [goalType, setGoalType] = useState("university_course");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -286,40 +289,38 @@ export default function Onboarding({ user, onComplete, API_BASE }) {
     <div className="onboarding-v2-page">
       <div className="onboarding-v2-card">
         {step === 1 ? (
-          <>
-            <h1 className="ob-title">你的学习目标</h1>
-            <p className="ob-subtitle">第 1 步</p>
-            <p className="ob-desc">请选择最符合当前阶段的学习方向，我们将为你定制学习内容与功能入口</p>
+          <div className="ob-step1">
+            <div className="ob-step1-head">
+              <span className="ob-subtitle">第 1 步</span>
+              <h1 className="ob-title">你的学习目标</h1>
+              <p className="ob-desc">请选择最符合当前阶段的学习方向，我们将为你定制学习内容与功能入口</p>
+            </div>
 
             {error && <div className="ob-error">{error}</div>}
 
-            <div className="ob-goals">
+            <div className="ob-goals-row">
               {GOAL_OPTIONS.map((g) => (
                 <button
                   key={g.key}
                   type="button"
-                  className={`ob-goal-card${goalType === g.key ? " active" : ""}`}
+                  className={`ob-goal-card-v2${goalType === g.key ? " active" : ""}`}
                   onClick={() => { setGoalType(g.key); setError(""); }}
                 >
-                  <div className="ob-goal-card-left">
-                    <span className="ob-goal-letter">{g.letter}</span>
-                  </div>
-                  <div className="ob-goal-card-body">
-                    <strong className="ob-goal-title">{g.title}</strong>
-                    <span className="ob-goal-audience">{g.audience}</span>
-                    <span className="ob-goal-features">{g.features}</span>
-                  </div>
-                  <div className="ob-goal-card-check">{goalType === g.key ? "✓" : ""}</div>
+                  <span className="ob-goal-letter-v2">{g.letter}</span>
+                  <strong className="ob-goal-title-v2">{g.title}</strong>
+                  <span className="ob-goal-audience-v2">{g.audience}</span>
+                  <div className="ob-goal-illust">{g.imgHint}</div>
+                  <span className="ob-goal-detail-v2">{g.detail}</span>
                 </button>
               ))}
             </div>
 
             <div className="ob-actions">
-              <button className="ob-btn-primary" onClick={handleNext} disabled={!goalType}>
+              <button className="ob-btn-primary" onClick={handleNext}>
                 下一步
               </button>
             </div>
-          </>
+          </div>
         ) : (
           <>
             <button type="button" className="ob-back-link" onClick={handleBack}>← 返回重选目标</button>
