@@ -470,7 +470,7 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
               </ul>
             </div>
             <div className="ep-package-action">
-              <button type="button" className="ep-outline-btn" onClick={() => setActionErr("套餐详情暂未开放")}>查看套餐详情</button>
+              <button type="button" className="ep-outline-btn" onClick={() => setPage && setPage("examPlan")}>查看套餐详情</button>
             </div>
           </div>
         </div>

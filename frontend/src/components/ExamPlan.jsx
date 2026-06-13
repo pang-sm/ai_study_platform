@@ -1,0 +1,137 @@
+import { useEffect, useState } from "react";
+
+const PACKAGES = [
+  { key: "free", name: "免费模式", price: "0", period: "", desc: "基础体验", features: [
+    { label: "AI 问答 50 次 / 每天", ok: true },
+    { label: "AI 出题 5 次 / 每天", ok: true },
+    { label: "资料上传限制 100MB", ok: true },
+    { label: "学习计划", ok: false },
+    { label: "错题复盘", ok: false },
+    { label: "学习报告", ok: false },
+  ], btn: "当前套餐", icon: "🎓" },
+  { key: "monthly_sprint", name: "月度冲刺包", price: "29", period: "/ 月", desc: "短期提升", features: [
+    { label: "AI 问答 300 次 / 每天", ok: true },
+    { label: "AI 出题 30 次 / 每天", ok: true },
+    { label: "资料上传限制 500MB", ok: true },
+    { label: "学习计划", ok: true },
+    { label: "错题复盘", ok: true },
+    { label: "学习报告", ok: true },
+  ], btn: "立即升级", icon: "🚀" },
+  { key: "quarterly_boost", name: "季度强化包", price: "79", period: "/ 季度", desc: "学习更稳", features: [
+    { label: "AI 问答 500 次 / 每天", ok: true },
+    { label: "AI 出题 50 次 / 每天", ok: true },
+    { label: "资料上传限制 1GB", ok: true },
+    { label: "学习计划", ok: true },
+    { label: "错题复盘", ok: true },
+    { label: "学习报告", ok: true },
+  ], btn: "立即升级", icon: "⭐", recommended: true },
+  { key: "full_exam", name: "全程备考包", price: "149", period: "/ 年", desc: "长期备考", features: [
+    { label: "AI 问答 1000 次 / 每天", ok: true },
+    { label: "AI 出题 100 次 / 每天", ok: true },
+    { label: "资料上传限制 2GB", ok: true },
+    { label: "学习计划", ok: true },
+    { label: "错题复盘", ok: true },
+    { label: "学习报告", ok: true },
+  ], btn: "立即升级", icon: "🏆" },
+];
+
+const TIER_ORDER = ["free", "monthly_sprint", "quarterly_boost", "full_exam"];
+
+export default function ExamPlan({ user, setPage, API_BASE }) {
+  const [currentPkg, setCurrentPkg] = useState("free");
+  const [loading, setLoading] = useState("");
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    const examTrack = (user?.tracks || []).find((t) => t.track_type === "exam_408");
+    if (examTrack?.package_type) setCurrentPkg(examTrack.package_type);
+  }, [user]);
+
+  const currentIdx = TIER_ORDER.indexOf(currentPkg);
+
+  const handleUpgrade = async (pkgKey) => {
+    const targetIdx = TIER_ORDER.indexOf(pkgKey);
+    if (targetIdx <= currentIdx) {
+      setErr("当前已是该套餐或更高等级，无需升级");
+      return;
+    }
+    setLoading(pkgKey);
+    setErr(""); setMsg("");
+    try {
+      const res = await fetch(`${API_BASE}/me/tracks/exam_408/package`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: user.username, package_type: pkgKey }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "升级失败");
+      setCurrentPkg(pkgKey);
+      setMsg(data.message || "套餐已更新");
+      setTimeout(() => setMsg(""), 3000);
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setLoading("");
+    }
+  };
+
+  return (
+    <div className="ep-page-wrap">
+      <div className="ep-shell">
+        <div className="ep-header">
+          <button type="button" className="ep-outline-btn" onClick={() => setPage && setPage("examProfile")}>← 返回个人中心</button>
+          <h1 className="ep-title">套餐详情</h1>
+        </div>
+
+        {msg && <div className="admin-dashboard-success" style={{ marginBottom: 12 }}>{msg}</div>}
+        {err && <div className="admin-dashboard-error" style={{ marginBottom: 12 }}>{err}</div>}
+
+        <div className="ep-card">
+          <div className="ob-packages">
+            {PACKAGES.map((pkg) => {
+              const pkgIdx = TIER_ORDER.indexOf(pkg.key);
+              const isCurrent = pkg.key === currentPkg;
+              const canUpgrade = pkgIdx > currentIdx;
+              const isLower = pkgIdx < currentIdx;
+
+              return (
+                <div
+                  key={pkg.key}
+                  className={`ob-package-card${isCurrent ? " active" : ""}${pkg.recommended && !isCurrent ? " recommended" : ""}`}
+                >
+                  {pkg.recommended && !isCurrent && <span className="ob-package-badge">推荐</span>}
+                  {isCurrent && <span className="ob-package-badge" style={{ background: "linear-gradient(135deg, #059669, #10b981)" }}>当前套餐</span>}
+                  <div className="ob-package-icon">{pkg.icon}</div>
+                  <h3 className="ob-package-title">{pkg.name}</h3>
+                  <p className="ob-package-subtitle">{pkg.desc}</p>
+                  <div className="ob-package-price">
+                    <span className="ob-package-currency">￥</span>
+                    <span className="ob-package-amount">{pkg.price}</span>
+                    {pkg.period && <span className="ob-package-period">{pkg.period}</span>}
+                  </div>
+                  <ul className="ob-package-features">
+                    {pkg.features.map((f, i) => (
+                      <li key={i} className={f.ok ? "ob-package-feature" : "ob-package-feature ob-package-feature--unavail"}>
+                        <span className="ob-package-check">{f.ok ? "✓" : "✕"}</span> {f.label}
+                      </li>
+                    ))}
+                  </ul>
+                  <button
+                    type="button"
+                    className={isCurrent ? "ob-btn-secondary" : canUpgrade ? "ob-btn-primary" : "ob-btn-secondary"}
+                    disabled={isLower || loading === pkg.key}
+                    onClick={() => canUpgrade ? handleUpgrade(pkg.key) : (isLower ? setErr("当前已是该套餐或更高等级") : null)}
+                    style={{ opacity: isLower ? 0.4 : 1 }}
+                  >
+                    {loading === pkg.key ? "升级中..." : isCurrent ? "当前套餐" : isLower ? "不可用" : "立即升级"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

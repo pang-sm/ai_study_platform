@@ -12,6 +12,7 @@ import ProfilePage from "./components/ProfilePage.jsx";
 import Onboarding from "./components/Onboarding.jsx";
 import ExamHome from "./components/ExamHome.jsx";
 import ExamProfile from "./components/ExamProfile.jsx";
+import ExamPlan from "./components/ExamPlan.jsx";
 import MembershipPage from "./components/MembershipPage.jsx";
 
 const CodeStudio = lazy(() => import("./components/CodeStudio.jsx"));
@@ -424,7 +425,7 @@ const VALID_PAGES = new Set([
   "adminUsageCenter", "adminCenter",
   "materials", "workspaceMaterials", "chat", "records", "history",
   "knowledgeLearning", "searchResults",
-  "profileEdit", "onboarding", "examHome", "examProfile",
+  "profileEdit", "onboarding", "examHome", "examProfile", "examPlan",
   "login", "adminLogin",
 ]);
 
@@ -3109,6 +3110,12 @@ function App() {
   if (page === "examProfile") {
     return (
       <ExamProfile user={user} setPage={setPage} onLogout={logout} API_BASE={API_BASE} />
+    );
+  }
+
+  if (page === "examPlan") {
+    return (
+      <ExamPlan user={user} setPage={setPage} API_BASE={API_BASE} />
     );
   }
 

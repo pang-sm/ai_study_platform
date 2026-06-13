@@ -530,6 +530,47 @@ def update_exam_motto(req: dict, db: Session = Depends(get_db)):
     return {"welcome_motto": motto, "message": "已更新"}
 
 
+EXAM_PACKAGE_TIERS = ["free", "monthly_sprint", "quarterly_boost", "full_exam"]
+EXAM_PACKAGE_NAMES = {
+    "free": "免费模式",
+    "monthly_sprint": "月度冲刺包",
+    "quarterly_boost": "季度强化包",
+    "full_exam": "全程备考包",
+}
+
+
+@app.put("/me/tracks/exam_408/package")
+def upgrade_exam_package(req: dict, db: Session = Depends(get_db)):
+    username = str(req.get("username", "")).strip()
+    new_pkg = str(req.get("package_type", "")).strip()
+    if new_pkg not in EXAM_PACKAGE_TIERS:
+        raise HTTPException(status_code=400, detail="无效的套餐类型")
+    user = get_user_by_username(username, db)
+    track = ensure_exam_408_track(db, user)
+    if not track:
+        raise HTTPException(status_code=404, detail="尚未开通 11408 备考方向")
+    old_pkg = track.package_type or "free"
+    # Only allow upgrade, not downgrade
+    old_idx = EXAM_PACKAGE_TIERS.index(old_pkg) if old_pkg in EXAM_PACKAGE_TIERS else 0
+    new_idx = EXAM_PACKAGE_TIERS.index(new_pkg)
+    if new_idx <= old_idx:
+        raise HTTPException(status_code=400, detail="当前已是该套餐或更高等级，无需降级")
+    # Apply upgrade
+    track.package_type = new_pkg
+    track.plan = "free" if new_pkg == "free" else "pro"
+    # Update permissions
+    perms = dict(TRACK_PERMISSIONS.get("exam_408", {}))
+    if new_pkg in EXAM_PACKAGE_QUOTA:
+        perms.update(EXAM_PACKAGE_QUOTA[new_pkg])
+    track.permissions_json = json.dumps(perms, ensure_ascii=False)
+    db.commit()
+    db.refresh(track)
+    return {
+        "message": f"已升级至{EXAM_PACKAGE_NAMES.get(new_pkg, new_pkg)}",
+        "track": serialize_track(track),
+    }
+
+
 def ensure_exam_408_track(db: Session, user: models.User):
     """Auto-create exam_408 track for old users who have 11408 data but no track record."""
     existing = get_user_track(db, user.id, "exam_408")
