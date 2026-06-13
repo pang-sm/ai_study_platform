@@ -32,6 +32,9 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
   const [examStage, setExamStage] = useState("");
   const [examDaily, setExamDaily] = useState("");
   const [planItems, setPlanItems] = useState(PLAN_ITEMS);
+  const [motto, setMotto] = useState("保持节奏，每天进步一点点");
+  const [editingMotto, setEditingMotto] = useState(false);
+  const [mottoInput, setMottoInput] = useState("");
 
   // Fetch real data from tracks API on mount
   useEffect(() => {
@@ -46,6 +49,7 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
         if (detail.target_school) setTargetSchool(detail.target_school);
         if (detail.stage) setExamStage(detail.stage);
         if (detail.daily_study_time) setExamDaily(detail.daily_study_time);
+        if (detail.welcome_motto) { setMotto(detail.welcome_motto); setMottoInput(detail.welcome_motto); }
       } catch { /* fallback to prop data */ }
     };
     // Also try prop data immediately
@@ -120,7 +124,30 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
       {/* ── Hero header ── */}
       <div className="eh-hero">
         <div className="eh-hero-left">
-          <p className="eh-motto">🏆 保持节奏，每天进步一点点</p>
+          <div className="eh-motto-wrap">
+            {editingMotto ? (
+              <form className="eh-motto-form" onSubmit={async (e) => {
+                e.preventDefault();
+                const newMotto = mottoInput.trim() || "保持节奏，每天进步一点点";
+                setMotto(newMotto);
+                setEditingMotto(false);
+                try {
+                  await fetch("/api/exam-408/motto", {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ username: user?.username, motto: newMotto }),
+                  });
+                } catch { /* ignore */ }
+              }}>
+                <input className="eh-motto-input" value={mottoInput} onChange={(e) => setMottoInput(e.target.value)} autoFocus onBlur={() => setEditingMotto(false)} />
+              </form>
+            ) : (
+              <p className="eh-motto" onClick={() => { setMottoInput(motto); setEditingMotto(true); }}>
+                🏆 {motto}
+                <button type="button" className="eh-motto-edit" title="编辑" onClick={(e) => { e.stopPropagation(); setMottoInput(motto); setEditingMotto(true); }}>✎</button>
+              </p>
+            )}
+          </div>
           <h1 className="eh-welcome">
             欢迎回来，开始今天的 <span className="eh-welcome-em">11408 备考</span>
           </h1>
@@ -215,10 +242,6 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
               ))}
             </tbody>
           </table>
-        </div>
-        <div className="eh-plan-illust">
-          <span className="eh-plan-illust-icon">📋</span>
-          <span className="eh-plan-illust-text">每日清单</span>
         </div>
       </div>
 

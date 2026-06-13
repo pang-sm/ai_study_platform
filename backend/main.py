@@ -509,6 +509,27 @@ def update_target_school(req: dict, db: Session = Depends(get_db)):
     return {"target_school": school, "message": "目标院校已更新", "track": serialize_track(track)}
 
 
+@app.put("/exam-408/motto")
+def update_exam_motto(req: dict, db: Session = Depends(get_db)):
+    username = str(req.get("username", "")).strip()
+    motto = str(req.get("motto", "")).strip()
+    user = get_user_by_username(username, db)
+    track = ensure_exam_408_track(db, user)
+    if not track:
+        raise HTTPException(status_code=404, detail="尚未开通 11408 备考方向")
+    detail = {}
+    try:
+        if track.onboarding_detail_json:
+            detail = json.loads(track.onboarding_detail_json)
+    except (json.JSONDecodeError, TypeError):
+        pass
+    detail["welcome_motto"] = motto
+    track.onboarding_detail_json = json.dumps(detail, ensure_ascii=False)
+    db.commit()
+    db.refresh(track)
+    return {"welcome_motto": motto, "message": "已更新"}
+
+
 def ensure_exam_408_track(db: Session, user: models.User):
     """Auto-create exam_408 track for old users who have 11408 data but no track record."""
     existing = get_user_track(db, user.id, "exam_408")

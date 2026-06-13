@@ -16478,11 +16478,71 @@ select.field:focus {
   flex: 1;
 }
 
-.eh-motto {
+.eh-motto-wrap {
   margin: 0 0 10px;
+}
+
+.eh-motto {
+  margin: 0;
   font-size: 14px;
   color: #7c3aed;
   font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 4px 10px 4px 0;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+
+.eh-motto:hover {
+  background: #faf8ff;
+}
+
+.eh-motto-edit {
+  border: none;
+  background: none;
+  color: #a78bfa;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.eh-motto:hover .eh-motto-edit {
+  opacity: 1;
+}
+
+.eh-motto-edit:hover {
+  color: #7c3aed;
+  background: #ede4ff;
+}
+
+.eh-motto-form {
+  display: inline-block;
+}
+
+.eh-motto-input {
+  height: 30px;
+  border: 1px solid #c4b5fd;
+  border-radius: 8px;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 14px;
+  color: #7c3aed;
+  font-weight: 700;
+  background: #fff;
+  min-width: 280px;
+  transition: border-color 0.15s;
+}
+
+.eh-motto-input:focus {
+  border-color: #a78bfa;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.08);
 }
 
 .eh-welcome {
@@ -16798,7 +16858,7 @@ select.field:focus {
 
 .eh-bottom {
   display: grid;
-  grid-template-columns: 1fr 140px;
+  grid-template-columns: 1fr;
   gap: 20px;
 }
 
