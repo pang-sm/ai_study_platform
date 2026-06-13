@@ -31,7 +31,7 @@ const GOAL_OPTIONS = [
 ];
 
 const EXAM_TIMES = ["2026 年 12 月", "2027 年 12 月", "暂不确定"];
-const EXAM_STAGES = ["刚开始", "基础阶段", "强化阶段", "冲刺阶段"];
+const EXAM_STAGES = ["基础阶段", "强化阶段", "冲刺阶段"];
 const EXAM_WEAK = ["数据结构", "计算机组成原理", "操作系统", "计算机网络", "暂时不清楚"];
 const EXAM_DAILY = ["4 小时以内", "4 - 6 小时", "6 - 8 小时", "8 小时以上"];
 const EXAM_MATERIALS = ["王道资料", "课程 PPT", "真题", "笔记", "暂时没有"];
@@ -153,7 +153,7 @@ export default function Onboarding({ user, onComplete, API_BASE }) {
       <p className="ob-desc">请补充一些基础信息，我们将为你生成更适合的考内学习入口</p>
 
       <div className="ob-field">
-        <label className="ob-label">距离考试时间</label>
+        <label className="ob-label">考试时间</label>
         <select className="ob-select" value={examTime} onChange={(e) => setExamTime(e.target.value)}>
           {EXAM_TIMES.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
@@ -190,7 +190,13 @@ export default function Onboarding({ user, onComplete, API_BASE }) {
         <label className="ob-label">是否已有资料？（多选）</label>
         <div className="ob-chips">
           {EXAM_MATERIALS.map((m) => (
-            <button key={m} type="button" className={`ob-chip${examMaterials.includes(m) ? " active" : ""}`} onClick={() => setExamMaterials(toggleFromList(examMaterials, m))}>{m}</button>
+            <button key={m} type="button" className={`ob-chip${examMaterials.includes(m) ? " active" : ""}`} onClick={() => {
+              if (m === "暂时没有") {
+                setExamMaterials(examMaterials.includes("暂时没有") ? [] : ["暂时没有"]);
+              } else {
+                setExamMaterials(toggleFromList(examMaterials.filter((x) => x !== "暂时没有"), m));
+              }
+            }}>{m}</button>
           ))}
         </div>
       </div>

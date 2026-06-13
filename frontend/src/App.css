@@ -4858,14 +4858,14 @@ select.field:focus {
 }
 
 .ob-btn-primary {
-  width: 220px;
-  height: 50px;
+  width: 160px;
+  height: 48px;
   border: none;
   border-radius: 14px;
   background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%);
   color: #fff;
   font: inherit;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 800;
   cursor: pointer;
   transition: all 0.15s;
@@ -4883,8 +4883,8 @@ select.field:focus {
 }
 
 .ob-btn-secondary {
-  width: 140px;
-  height: 50px;
+  width: 160px;
+  height: 48px;
   border: 2px solid #e2e8f0;
   border-radius: 14px;
   background: #fff;
