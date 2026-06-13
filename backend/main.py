@@ -16989,7 +16989,7 @@ def admin_me_permissions(admin_username: str, db: Session = Depends(get_db)):
 
 
 @app.get("/admin/dashboard")
-def admin_dashboard(admin_username: str, db: Session = Depends(get_db)):
+def admin_dashboard(admin_username: str = "", db: Session = Depends(get_db)):
     require_admin_permission(db, admin_username, "dashboard.view")
 
     today_start = utc_now().replace(hour=0, minute=0, second=0, microsecond=0)
@@ -17081,6 +17081,67 @@ def admin_dashboard(admin_username: str, db: Session = Depends(get_db)):
         system_notes.append(f"今日有 {ai_error_today} 条 AI 调用失败记录")
     else:
         system_notes.append("今日暂无 AI 调用异常")
+
+    active_users_today = (
+        db.query(func.count(func.distinct(models.AiUsageLog.username)))
+        .filter(models.AiUsageLog.created_at >= today_start)
+        .scalar()
+        or 0
+    )
+    average_daily_minutes = (
+        db.query(func.coalesce(func.avg(models.User.daily_study_minutes), 0)).scalar()
+        or 0
+    )
+    user_growth = []
+    for offset in range(6, -1, -1):
+        day_start = today_start - timedelta(days=offset)
+        next_day = day_start + timedelta(days=1)
+        count = (
+            db.query(models.User)
+            .filter(models.User.created_at >= day_start, models.User.created_at < next_day)
+            .count()
+        )
+        user_growth.append({"date": day_start.strftime("%m-%d"), "count": count})
+
+    now = utc_now()
+    announcements = [
+        {"title": "系统维护通知", "date": (now - timedelta(days=2)).strftime("%Y-%m-%d")},
+        {"title": "新增上线：AI学习助手", "date": (now - timedelta(days=5)).strftime("%Y-%m-%d")},
+        {"title": "五一活动安排", "date": (now - timedelta(days=12)).strftime("%Y-%m-%d")},
+        {"title": "课程更新：高等数学下册", "date": (now - timedelta(days=18)).strftime("%Y-%m-%d")},
+        {"title": "版本更新 V2.3.0", "date": (now - timedelta(days=28)).strftime("%Y-%m-%d")},
+    ]
+    recent_user_rows = []
+    for item in recent_users[:5]:
+        last_active = (
+            db.query(func.max(models.AiUsageLog.created_at))
+            .filter(models.AiUsageLog.username == item.username)
+            .scalar()
+        )
+        learning_minutes = int(getattr(item, "daily_study_minutes", 0) or 0)
+        recent_user_rows.append({
+            "username": item.nickname or item.username,
+            "user_id": str(item.id),
+            "register_method": "账号注册",
+            "register_time": serialize_datetime(item.created_at) or "",
+            "last_active_time": serialize_datetime(last_active or item.created_at) or "",
+            "learning_hours": round(learning_minutes / 60, 1),
+        })
+
+    return {
+        "overview": {
+            "total_users": total_users,
+            "total_courses": total_courses,
+            "average_learning_hours": round(float(average_daily_minutes) / 60, 1),
+            "active_users_today": active_users_today,
+            "total_orders": 0,
+            "total_revenue": 0,
+        },
+        "user_growth": user_growth,
+        "announcements": announcements,
+        "recent_users": recent_user_rows,
+    }
+
 
 @app.get("/admin/operations-dashboard")
 def admin_operations_dashboard(admin_username: str, db: Session = Depends(get_db)):

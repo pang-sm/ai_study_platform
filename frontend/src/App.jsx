@@ -19,6 +19,7 @@ const ReviewCenter = lazy(() => import("./components/ReviewCenter.jsx"));
 import FeatureUnavailable from "./components/FeatureUnavailable.jsx";
 const KnowledgeBaseCenter = lazy(() => import("./components/KnowledgeBaseCenter.jsx"));
 const QuotaCenter = lazy(() => import("./components/QuotaCenter.jsx"));
+const AdminDashboard = lazy(() => import("./components/AdminDashboard.jsx"));
 const AdminUsageCenter = lazy(() => import("./components/AdminUsageCenter.jsx"));
 const AdminCenter = lazy(() => import("./components/AdminCenter.jsx"));
 const LearningReportCenter = lazy(() => import("./components/LearningReportCenter.jsx"));
@@ -237,6 +238,17 @@ function isPrivilegedAccount(user) {
   );
 }
 
+function hasAdminAccess(user) {
+  const adminRole = String(user?.admin_role || user?.profile?.admin_role || "").trim();
+  const role = String(user?.role || user?.profile?.role || "").toLowerCase();
+  return (
+    user?.is_admin === true ||
+    user?.profile?.is_admin === true ||
+    role === "admin" ||
+    (adminRole && adminRole !== "none")
+  );
+}
+
 function shouldShowMembershipAd(user) {
   const plan = String(user?.plan || user?.membership_plan || user?.profile?.plan || "free").toLowerCase();
   return !isPrivilegedAccount(user) && (!plan || plan === "free");
@@ -403,7 +415,7 @@ const VALID_PAGES = new Set([
   "home", "dashboard", "profile", "membership", "codeStudio",
   "taskCenter", "practiceCenter", "learningDataCenter", "reviewCenter",
   "learningPlanCenter", "knowledgeBaseCenter", "quotaCenter",
-  "learningReportCenter", "adminUsageCenter", "adminCenter",
+  "learningReportCenter", "adminDashboard", "adminUsageCenter", "adminCenter",
   "materials", "workspaceMaterials", "chat", "records", "history",
   "knowledgeLearning", "searchResults",
   "profileEdit", "onboarding",
@@ -870,14 +882,14 @@ function App() {
   };
 
   const getPostAuthPage = (loginUser, savedPage = null) => {
-    const isAdmin = loginUser?.is_admin || loginUser?.plan === "admin" || loginUser?.role === "admin"
-      || ["super_admin", "operator", "auditor"].includes(loginUser?.admin_role);
+    const isAdmin = hasAdminAccess(loginUser);
 
-    if (isAdmin) return "adminUsageCenter";
+    if (isAdmin) return "adminDashboard";
     if (loginUser?.needs_onboarding === true || loginUser?.onboarding_completed === false) {
       return "onboarding";
     }
-    if (savedPage && VALID_PAGES.has(savedPage) && savedPage !== "login" && savedPage !== "adminLogin" && savedPage !== "onboarding") {
+    const isSavedAdminPage = ["adminDashboard", "adminUsageCenter", "adminCenter"].includes(savedPage);
+    if (savedPage && VALID_PAGES.has(savedPage) && savedPage !== "login" && savedPage !== "adminLogin" && savedPage !== "onboarding" && !isSavedAdminPage) {
       return savedPage;
     }
     return "home";
@@ -1952,6 +1964,17 @@ function App() {
 
     checkLoginStatus();
   }, []);
+
+  useEffect(() => {
+    if (!["adminDashboard", "adminUsageCenter", "adminCenter"].includes(page)) return;
+    if (!user) {
+      setPage("login");
+      return;
+    }
+    if (!hasAdminAccess(user)) {
+      setPage("home");
+    }
+  }, [page, user?.username, user?.is_admin, user?.admin_role, user?.role]);
 
   useEffect(() => {
     if (page === "records" && user?.username) {
@@ -3345,9 +3368,8 @@ function App() {
   }
 
   // ── Admin route protection ──
-  const isAdminAuthorized = user && (user.is_admin || user.plan === "admin" || user.role === "admin"
-    || ["super_admin", "operator", "auditor"].includes(user.admin_role));
-  if ((page === "adminUsageCenter" || page === "adminCenter") && !isAdminAuthorized) {
+  const isAdminAuthorized = user && hasAdminAccess(user);
+  if ((page === "adminDashboard" || page === "adminUsageCenter" || page === "adminCenter") && !isAdminAuthorized) {
     return (
       <div className="auth-shell">
         <div className="auth-card" style={{ textAlign: "center", padding: 40 }}>
@@ -3356,6 +3378,14 @@ function App() {
           <button className="auth-submit" onClick={() => setPage("adminLogin")}>前往管理后台登录</button>
         </div>
       </div>
+    );
+  }
+
+  if (page === "adminDashboard") {
+    return (
+      <Suspense fallback={<div className="empty-state">管理员首页加载中...</div>}>
+        <AdminDashboard user={user} />
+      </Suspense>
     );
   }
 
