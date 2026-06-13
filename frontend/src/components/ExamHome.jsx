@@ -138,6 +138,7 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
       setPage("examSubjectDashboard", {
         subject: subjKey,
         examCourseId: selected?.name ? `11408 ${selected.name}` : subjKey,
+        forcePanel: "home",
       });
     }
   };

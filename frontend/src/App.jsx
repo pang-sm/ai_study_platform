@@ -472,6 +472,7 @@ function App() {
   const [searchNavigate, setSearchNavigate] = useState(null);
   const [authMode, setAuthMode] = useState("login");
   const [examSubjectKey, setExamSubjectKey] = useState(getInitialExamSubject);
+  const [examSubjectPanelIntent, setExamSubjectPanelIntent] = useState(null);
 
   const setPage = (nextPage, context = null) => {
     // Feature gating: intercept navigation to disabled features
@@ -499,6 +500,11 @@ function App() {
     if (context?.subject) {
       setExamSubjectKey(context.subject);
       try { localStorage.setItem(CURRENT_EXAM_SUBJECT_KEY, context.subject); } catch { /* ignore */ }
+    }
+    if (nextPage === "examSubjectDashboard" && context?.forcePanel) {
+      setExamSubjectPanelIntent({ panel: context.forcePanel, nonce: Date.now() });
+    } else if (nextPage !== "examSubjectDashboard") {
+      setExamSubjectPanelIntent(null);
     }
     if (context?.examCourseId) {
       setSubject(context.examCourseId);
@@ -3193,6 +3199,7 @@ function App() {
       <ExamSubjectDashboard
         user={user}
         subjectKey={examSubjectKey}
+        panelIntent={examSubjectPanelIntent}
         onNavigate={openExamSubjectFeature}
         onBackHome={() => setPage("examHome")}
         onProfile={() => setPage("examProfile")}

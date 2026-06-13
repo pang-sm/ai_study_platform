@@ -162,12 +162,6 @@ export default function ExamChat({ user, subjectKey, subjectTitle, courseName, o
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   };
 
-  // Persist active panel for refresh recovery
-  const PANEL_KEY = `exam_subject_active_panel_${subjectKey}`;
-  useEffect(() => {
-    try { localStorage.setItem(PANEL_KEY, JSON.stringify({ activePanel: "ai", ts: Date.now() })); } catch { /* ignore */ }
-  }, [PANEL_KEY]);
-
   return (
     <div className="examchat-shell">
       {/* ── Header ── */}

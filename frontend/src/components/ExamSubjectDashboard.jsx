@@ -69,28 +69,39 @@ export function getExamCourseId(subjectKey) {
 export default function ExamSubjectDashboard({
   user,
   subjectKey = "data_structure",
+  panelIntent = null,
   onNavigate,
   onBackHome,
   onProfile,
 }) {
   // Persist activeSection per subject to survive refresh
   const PANEL_KEY = `exam_subject_active_panel_${subjectKey}`;
+  const normalizePanel = (panel) => (panel === "ai" || panel === "home" ? panel : null);
   const getSavedPanel = () => {
     try {
       const raw = localStorage.getItem(PANEL_KEY);
-      if (raw) { const d = JSON.parse(raw); if (d?.activePanel === "ai") return "ai"; }
+      if (raw) {
+        const d = JSON.parse(raw);
+        return normalizePanel(d?.activePanel) || "home";
+      }
     } catch { /* ignore */ }
     return "home";
   };
-  const [activeSection, setActiveSection] = useState(getSavedPanel);
+  const [activeSection, setActiveSection] = useState(() => normalizePanel(panelIntent?.panel) || getSavedPanel());
   const config = getExamSubjectConfig(subjectKey);
   const courseId = getExamCourseId(subjectKey);
   const displayName = user?.nickname || user?.username || "同学";
 
+  useEffect(() => {
+    if (!panelIntent?.panel) return;
+    const nextPanel = normalizePanel(panelIntent.panel);
+    if (nextPanel) setActiveSection(nextPanel);
+  }, [panelIntent?.nonce]);
+
   // Persist on change
   useEffect(() => {
     try { localStorage.setItem(PANEL_KEY, JSON.stringify({ activePanel: activeSection, ts: Date.now() })); } catch { /* ignore */ }
-  }, [activeSection]);
+  }, [PANEL_KEY, activeSection]);
 
   const navigate = (target) => {
     if (target === "home") {
