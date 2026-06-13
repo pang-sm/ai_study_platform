@@ -4732,7 +4732,7 @@ select.field:focus {
 /* Illustration area */
 .ob-goal-illust {
   width: 100%;
-  height: 130px;
+  aspect-ratio: 16 / 9;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -4945,7 +4945,7 @@ select.field:focus {
   }
 
   .ob-goal-illust {
-    height: 110px;
+    aspect-ratio: 16 / 9;
   }
 }
 
