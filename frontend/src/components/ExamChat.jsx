@@ -1,7 +1,30 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import MarkdownMessage from "./MarkdownMessage.jsx";
 
 const API_BASE = "/api";
+
+const SUBJECT_RECOMMENDATIONS = {
+  data_structure: [
+    "线性表和链表有什么区别？", "栈和队列的典型题型有哪些？",
+    "二叉树遍历怎么理解？", "图的最短路径怎么做？",
+    "如何分析算法的时间复杂度？",
+  ],
+  computer_organization: [
+    "指令周期包括哪些阶段？", "Cache 命中率怎么计算？",
+    "CPU 和主存如何交换数据？", "流水线冲突有哪些类型？",
+    "数据表示都有哪些常见考点？",
+  ],
+  operating_system: [
+    "进程和线程有什么区别？", "死锁产生的条件是什么？",
+    "页面置换算法怎么比较？", "信号量 PV 操作怎么理解？",
+    "文件系统的实现原理是什么？",
+  ],
+  computer_network: [
+    "TCP 和 UDP 有什么区别？", "三次握手为什么不是两次？",
+    "子网划分怎么计算？", "HTTP 和 HTTPS 有什么区别？",
+    "网络层和传输层各自负责什么？",
+  ],
+};
 
 function formatTime(value) {
   if (!value) return "";
@@ -10,398 +33,259 @@ function formatTime(value) {
   return d.toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
-function formatFileSize(size) {
-  const n = Number(size || 0);
-  if (n <= 0) return "未知大小";
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MB`;
-}
-
-function getErrorMessage(status, detail) {
-  if (status === 429) return "今日 AI 问答额度已用完，请明天再试或升级套餐";
-  if (status === 401) return "登录状态已失效，请重新登录";
-  if (status >= 500) return "AI 服务暂时不可用，请稍后再试";
-  return detail || "网络异常，请检查连接后重试";
-}
-
-function normalizeMessages(items) {
-  return (Array.isArray(items) ? items : []).map((item) => ({
-    id: item.id || `${item.role}-${Math.random()}`,
-    role: item.role,
-    content: item.content || "",
-    references: item.references || [],
-    created_at: item.created_at,
-  }));
+function shuffle(arr, count) {
+  const shuffled = [...arr];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled.slice(0, count);
 }
 
 export default function ExamChat({ user, subjectKey, subjectTitle, courseName, onBackDashboard, onNavigatePackage }) {
   const [currentSessionId, setCurrentSessionId] = useState(null);
   const [messages, setMessages] = useState([]);
-  const [histories, setHistories] = useState([]);
+  const [historySessions, setHistorySessions] = useState([]);
   const [inputText, setInputText] = useState("");
   const [loading, setLoading] = useState(false);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [materialsLoading, setMaterialsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [selectedMaterials, setSelectedMaterials] = useState([]);
-  const [materials, setMaterials] = useState([]);
-  const [materialPickerOpen, setMaterialPickerOpen] = useState(false);
-  const [materialSearch, setMaterialSearch] = useState("");
-  const [renamingSessionId, setRenamingSessionId] = useState(null);
-  const [deletingSessionId, setDeletingSessionId] = useState(null);
-  const endRef = useRef(null);
+  const messagesEndRef = useRef(null);
 
-  const selectedMaterialIds = useMemo(() => selectedMaterials.map((item) => item.id), [selectedMaterials]);
-  const visibleMaterials = useMemo(() => {
-    const q = materialSearch.trim().toLowerCase();
-    if (!q) return materials;
-    return materials.filter((item) => (item.original_filename || item.file_name || "").toLowerCase().includes(q));
-  }, [materials, materialSearch]);
+  // Recommendations per subject
+  const recommendations = useMemo(() => {
+    const pool = SUBJECT_RECOMMENDATIONS[subjectKey] || SUBJECT_RECOMMENDATIONS.data_structure;
+    return shuffle(pool, 4);
+  }, [subjectKey]);
 
-  const relatedHistories = useMemo(() => {
-    const title = subjectTitle || "";
-    return [...histories].sort((a, b) => {
-      const aHit = String(a.subject || a.course || "").includes(title) ? 0 : 1;
-      const bHit = String(b.subject || b.course || "").includes(title) ? 0 : 1;
-      return aHit - bHit;
-    });
-  }, [histories, subjectTitle]);
-
-  const requestJson = async (url, options = {}) => {
-    const res = await fetch(url, options);
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      const err = new Error(getErrorMessage(res.status, data.detail));
-      err.status = res.status;
-      throw err;
-    }
-    return data;
-  };
-
-  const loadHistories = async () => {
-    if (!user?.username) return;
-    setHistoryLoading(true);
+  // Load history on mount and after session changes
+  const loadHistory = useCallback(async () => {
     try {
-      const data = await requestJson(`${API_BASE}/chat/history?username=${encodeURIComponent(user.username)}`);
-      setHistories(data.sessions || []);
-    } catch (err) {
-      setError(err.message || "历史对话加载失败");
-    } finally {
-      setHistoryLoading(false);
-    }
-  };
+      const res = await fetch(`${API_BASE}/chat/history?username=${encodeURIComponent(user.username)}`);
+      const data = await res.json().catch(() => ({}));
+      setHistorySessions(data.sessions || []);
+    } catch { /* ignore */ }
+  }, [user.username]);
 
-  const loadMaterials = async () => {
-    if (!user?.username) return;
-    setMaterialsLoading(true);
-    try {
-      const data = await requestJson(`${API_BASE}/materials?username=${encodeURIComponent(user.username)}&subject=${encodeURIComponent(subjectTitle)}`);
-      setMaterials(data.materials || []);
-    } catch {
-      setMaterials([]);
-    } finally {
-      setMaterialsLoading(false);
-    }
-  };
+  useEffect(() => { loadHistory(); }, [loadHistory]);
 
-  useEffect(() => {
-    setCurrentSessionId(null);
-    setMessages([]);
-    setInputText("");
-    setError("");
-    setSelectedMaterials([]);
-    loadHistories();
-    loadMaterials();
-  }, [user?.username, subjectKey, courseName]);
+  // Auto-scroll
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages, loading]);
-
+  // New conversation
   const startNewConversation = () => {
     setCurrentSessionId(null);
     setMessages([]);
+    setError("");
+  };
+
+  // Load a history session
+  const loadSession = async (sid) => {
+    setError("");
+    try {
+      const res = await fetch(`${API_BASE}/chat/sessions/${sid}?username=${encodeURIComponent(user.username)}`);
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setCurrentSessionId(sid);
+        setMessages((data.messages || []).map((m) => ({
+          id: m.id, role: m.role, content: m.content || "",
+          references: m.references || [], created_at: m.created_at,
+        })));
+      }
+    } catch { setError("加载历史失败"); }
+    setHistoryOpen(false);
+  };
+
+  // Delete session
+  const deleteSession = async (sid) => {
+    try {
+      await fetch(`${API_BASE}/chat/sessions/${sid}?username=${encodeURIComponent(user.username)}`, { method: "DELETE" });
+      if (currentSessionId === sid) startNewConversation();
+      loadHistory();
+    } catch { /* ignore */ }
+  };
+
+  // Send message
+  const sendMessage = async (text) => {
+    const msg = (text || inputText).trim();
+    if (!msg || loading) return;
     setInputText("");
     setError("");
-    setSelectedMaterials([]);
-  };
 
-  const openSession = async (session) => {
-    setError("");
-    try {
-      const data = await requestJson(`${API_BASE}/chat/sessions/${session.id}?username=${encodeURIComponent(user.username)}`);
-      setCurrentSessionId(data.session?.id || session.id);
-      setMessages(normalizeMessages(data.messages || []));
-      setSelectedMaterials([]);
-    } catch (err) {
-      setError(err.message || "历史消息加载失败");
-    }
-  };
-
-  const deleteSession = async (session, event) => {
-    event?.stopPropagation();
-    if (!window.confirm("确认删除这条对话吗？删除后不可恢复。")) return;
-    setDeletingSessionId(session.id);
-    setError("");
-    try {
-      await requestJson(`${API_BASE}/chat/sessions/${session.id}?username=${encodeURIComponent(user.username)}`, { method: "DELETE" });
-      if (currentSessionId === session.id) startNewConversation();
-      await loadHistories();
-    } catch (err) {
-      setError(err.message || "删除对话失败");
-    } finally {
-      setDeletingSessionId(null);
-    }
-  };
-
-  const renameSession = async (session, event) => {
-    event?.stopPropagation();
-    const nextTitle = window.prompt("请输入新的对话标题", session.title || "");
-    if (nextTitle === null) return;
-    const title = nextTitle.trim();
-    if (!title) return;
-    setRenamingSessionId(session.id);
-    setError("");
-    try {
-      await requestJson(`${API_BASE}/conversations/${session.id}?username=${encodeURIComponent(user.username)}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title }),
-      });
-      await loadHistories();
-    } catch (err) {
-      setError(err.message || "重命名失败");
-    } finally {
-      setRenamingSessionId(null);
-    }
-  };
-
-  const toggleMaterial = (material) => {
-    setSelectedMaterials((prev) => (
-      prev.some((item) => item.id === material.id)
-        ? prev.filter((item) => item.id !== material.id)
-        : [...prev, material]
-    ));
-  };
-
-  const sendMessage = async () => {
-    const text = inputText.trim();
-    if (!text || loading) return;
-    const optimisticUserMessage = {
-      id: `local-user-${Date.now()}`,
-      role: "user",
-      content: text,
-      references: [],
-      created_at: new Date().toISOString(),
-    };
-
-    setMessages((prev) => [...prev, optimisticUserMessage]);
-    setInputText("");
-    setError("");
+    const userMsg = { id: Date.now(), role: "user", content: msg, created_at: new Date().toISOString() };
+    setMessages((prev) => [...prev, userMsg]);
     setLoading(true);
 
     try {
-      const data = await requestJson(`${API_BASE}/chat`, {
+      const body = {
+        username: user.username,
+        message: msg,
+        session_id: currentSessionId,
+        subject: subjectTitle,
+        course: courseName,
+        material_ids: selectedMaterials.map((m) => m.id),
+      };
+
+      const res = await fetch(`${API_BASE}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: user.username,
-          message: text,
-          session_id: currentSessionId || null,
-          subject: subjectTitle,
-          course: courseName,
-          hidden_instruction: `你正在辅导用户进行 11408 考研中的【${subjectTitle}】科目学习，请围绕该科目回答。`,
-          material_ids: selectedMaterialIds,
-        }),
+        body: JSON.stringify(body),
       });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status === 429) throw new Error("今日 AI 问答额度已用完，请明天再试或升级套餐");
+        throw new Error(data.detail || "AI 服务调用失败");
+      }
 
-      if (data.session?.id && !currentSessionId) setCurrentSessionId(data.session.id);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: data.assistant_message_id || `assistant-${Date.now()}`,
-          role: "assistant",
-          content: data.answer || "",
-          references: data.references || [],
-          created_at: new Date().toISOString(),
-        },
-      ]);
-      setSelectedMaterials([]);
-      await loadHistories();
+      if (!currentSessionId && data.session?.id) {
+        setCurrentSessionId(data.session.id);
+      }
+
+      setMessages((prev) => [...prev, {
+        id: data.assistant_message_id || Date.now() + 1,
+        role: "assistant",
+        content: data.answer || "",
+        references: data.references || [],
+        created_at: new Date().toISOString(),
+      }]);
+
+      if (!currentSessionId) loadHistory();
     } catch (err) {
-      setInputText(text);
-      setError(err.message || "网络异常，请检查连接后重试");
+      setError(err.message || "发送失败");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleInputKeyDown = (event) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      sendMessage();
-    }
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   };
 
+  // Persist active panel for refresh recovery
+  const PANEL_KEY = `exam_subject_active_panel_${subjectKey}`;
+  useEffect(() => {
+    try { localStorage.setItem(PANEL_KEY, JSON.stringify({ activePanel: "ai", ts: Date.now() })); } catch { /* ignore */ }
+  }, [PANEL_KEY]);
+
   return (
-    <div className="exam-chat-page">
-      <aside className="exam-chat-history">
-        <button type="button" className="exam-chat-new" onClick={startNewConversation}>+ 新建对话</button>
-        <div className="exam-chat-history-head">
-          <strong>历史对话</strong>
-          {historyLoading && <span>加载中...</span>}
+    <div className="examchat-shell">
+      {/* ── Header ── */}
+      <div className="examchat-header">
+        <div>
+          <h2 className="examchat-title">AI 问答 · {subjectTitle}</h2>
+          <p className="examchat-subtitle" style={{ fontSize: 13, color: "#7c3aed" }}>当前上下文：{courseName}</p>
         </div>
-        <div className="exam-chat-session-list">
-          {relatedHistories.length === 0 ? (
-            <p className="exam-chat-empty">暂无历史对话</p>
-          ) : relatedHistories.map((session) => (
-            <button
-              type="button"
-              key={session.id}
-              className={`exam-chat-session${currentSessionId === session.id ? " active" : ""}`}
-              onClick={() => openSession(session)}
-            >
-              <span>{session.title || "未命名对话"}</span>
-              <small>{session.subject || session.course || "全局对话"} · {formatTime(session.created_at)}</small>
-              <i>
-                <b onClick={(event) => renameSession(session, event)}>{renamingSessionId === session.id ? "..." : "重命名"}</b>
-                <b onClick={(event) => deleteSession(session, event)}>{deletingSessionId === session.id ? "..." : "删除"}</b>
-              </i>
-            </button>
-          ))}
+        <div className="examchat-header-actions">
+          <button type="button" className="eh-motto-edit" style={{ padding: "6px 14px", fontSize: 13, fontWeight: 700, border: "1.5px solid #c4b5fd", borderRadius: 10, background: "#fff", color: "#7c3aed", cursor: "pointer" }} onClick={startNewConversation}>+ 新对话</button>
+          <button type="button" className="eh-motto-edit" style={{ padding: "6px 14px", fontSize: 13, fontWeight: 700, border: "1.5px solid #c4b5fd", borderRadius: 10, background: "#fff", color: "#7c3aed", cursor: "pointer" }} onClick={() => { loadHistory(); setHistoryOpen(true); }}>📋 历史对话</button>
+          <button type="button" className="eh-motto-edit" style={{ padding: "6px 14px", fontSize: 13, fontWeight: 700, border: "1.5px solid #c4b5fd", borderRadius: 10, background: "#fff", color: "#7c3aed", cursor: "pointer" }} onClick={onBackDashboard}>← 返回首页</button>
         </div>
-      </aside>
+      </div>
 
-      <section className="exam-chat-main">
-        <header className="exam-chat-header">
-          <div>
-            <button type="button" onClick={onBackDashboard}>← 返回学科首页</button>
-            <h2>AI 问答 · {subjectTitle}</h2>
-            <p>当前上下文：{courseName}</p>
-          </div>
-        </header>
+      {/* ── Error ── */}
+      {error && <div className="ob-error" style={{ margin: "0 0 12px" }}>{error}</div>}
 
-        {error && (
-          <div className="exam-chat-error">
-            <span>{error}</span>
-            {error.includes("额度") && <button type="button" onClick={onNavigatePackage}>查看套餐</button>}
-          </div>
-        )}
-
-        <div className="exam-chat-messages">
-          {messages.length === 0 ? (
-            <div className="exam-chat-welcome">
-              <strong>开始提问 {subjectTitle}</strong>
-              <p>可以问概念、题型、易错点，也可以引用资料后让 AI 按资料回答。</p>
+      {/* ── Body: messages + sidebar ── */}
+      <div className="examchat-body">
+        <div className="examchat-messages">
+          {messages.length === 0 && !loading ? (
+            <div className="examchat-empty">
+              <span className="examchat-empty-icon">💬</span>
+              <strong>开始 AI 问答</strong>
+              <p>输入你的问题，AI 将围绕 {subjectTitle} 课程内容为你解答。</p>
             </div>
-          ) : messages.map((message) => (
-            <article key={message.id} className={`exam-chat-message exam-chat-message--${message.role}`}>
-              <div className="exam-chat-bubble">
-                {message.role === "assistant" ? <MarkdownMessage content={message.content} /> : <p>{message.content}</p>}
-                {message.role === "assistant" && Array.isArray(message.references) && message.references.length > 0 && (
-                  <ReferenceList references={message.references} />
-                )}
+          ) : (
+            messages.map((m) => (
+              <div key={m.id} className={`examchat-msg${m.role === "user" ? " examchat-msg--user" : ""}`}>
+                <div className="examchat-msg-content">
+                  {m.role === "assistant" ? (
+                    <MarkdownMessage content={m.content} />
+                  ) : (
+                    <p>{m.content}</p>
+                  )}
+                  {m.references && m.references.length > 0 && (
+                    <div className="examchat-refs">
+                      <strong>📎 参考资料：</strong>
+                      {m.references.map((r, i) => (
+                        <span key={i} className="examchat-ref">{r.source_filename || `资料 ${i + 1}`}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-            </article>
-          ))}
-          {loading && (
-            <article className="exam-chat-message exam-chat-message--assistant">
-              <div className="exam-chat-bubble exam-chat-thinking">正在思考...</div>
-            </article>
+            ))
           )}
-          <div ref={endRef} />
+          {loading && <div className="examchat-msg"><div className="examchat-msg-content"><p style={{ color: "#94a3b8" }}>AI 正在思考...</p></div></div>}
+          <div ref={messagesEndRef} />
         </div>
 
-        <footer className="exam-chat-input-area">
-          {selectedMaterials.length > 0 && (
-            <div className="exam-chat-selected-materials">
-              <span>已引用：</span>
-              {selectedMaterials.map((item) => (
-                <button key={item.id} type="button" onClick={() => toggleMaterial(item)}>
-                  {item.original_filename || item.file_name} ×
-                </button>
-              ))}
-            </div>
-          )}
-          <div className="exam-chat-input-tools">
-            <button type="button" onClick={() => setMaterialPickerOpen(true)}>引用资料</button>
-            <span>Enter 发送，Shift + Enter 换行</span>
+        {/* ── Sidebar: references + recommendations ── */}
+        <div className="examchat-sidebar">
+          <div className="examchat-side-card">
+            <h4>本轮引用资料</h4>
+            {selectedMaterials.length === 0 ? (
+              <p className="examchat-side-hint">尚未引用资料，点击下方按钮从资料库中选择</p>
+            ) : (
+              <ul className="examchat-ref-list">
+                {selectedMaterials.map((m) => (
+                  <li key={m.id}>
+                    <span>{m.original_filename || m.file_name}</span>
+                    <button type="button" onClick={() => setSelectedMaterials((p) => p.filter((x) => x.id !== m.id))}>✕</button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-          <div className="exam-chat-input-row">
-            <textarea
-              value={inputText}
-              onChange={(event) => setInputText(event.target.value)}
-              onKeyDown={handleInputKeyDown}
-              placeholder={`向 11408 ${subjectTitle} 提问...`}
-              rows={3}
-            />
-            <button type="button" disabled={loading || !inputText.trim()} onClick={sendMessage}>
-              {loading ? "发送中" : "发送"}
-            </button>
-          </div>
-        </footer>
-      </section>
 
-      {materialPickerOpen && (
-        <div className="exam-chat-material-mask" role="presentation">
-          <div className="exam-chat-material-panel" role="dialog" aria-modal="true" aria-label="选择引用资料">
-            <div className="exam-chat-material-head">
+          <div className="examchat-side-card">
+            <h4>推荐提问</h4>
+            {recommendations.map((q, i) => (
+              <button key={i} type="button" className="examchat-rec-btn" onClick={() => sendMessage(q)}>{q}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Input area ── */}
+      <div className="examchat-input-area">
+        <textarea
+          className="examchat-input"
+          value={inputText}
+          onChange={(e) => setInputText(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder={`向 AI 提问 ${subjectTitle} 相关问题...`}
+          rows={2}
+          disabled={loading}
+        />
+        <button type="button" className="ob-btn-primary" style={{ width: 120, height: 48, flexShrink: 0 }} onClick={() => sendMessage()} disabled={loading || !inputText.trim()}>
+          {loading ? "思考中..." : "发送"}
+        </button>
+      </div>
+
+      {/* ── History Modal ── */}
+      {historyOpen && (
+        <div className="eh-modal-backdrop" onClick={() => setHistoryOpen(false)}>
+          <div className="eh-modal" onClick={(e) => e.stopPropagation()} style={{ width: "min(520px, 90vw)", maxHeight: "70vh", overflow: "auto" }}>
+            <div className="eh-modal-head"><h3>历史对话</h3><button type="button" className="eh-modal-close" onClick={() => setHistoryOpen(false)}>×</button></div>
+            {historySessions.length === 0 ? (
+              <p style={{ color: "#94a3b8", textAlign: "center", padding: 20 }}>暂无历史对话记录</p>
+            ) : (
               <div>
-                <h3>引用资料</h3>
-                <p>选择 {courseName} 资料，发送时会携带 material_ids。</p>
+                {historySessions.map((s) => (
+                  <div key={s.id} className="ep-sec-item" style={{ marginBottom: 8, cursor: "pointer" }} onClick={() => loadSession(s.id)}>
+                    <div style={{ flex: 1 }}>
+                      <strong style={{ fontSize: 14 }}>{s.title}</strong>
+                      <p style={{ fontSize: 12, color: "#94a3b8", margin: "2px 0" }}>{s.subject || ""} · {formatTime(s.created_at)}</p>
+                    </div>
+                    <button type="button" className="ep-outline-btn" style={{ fontSize: 12, padding: "4px 10px" }} onClick={(e) => { e.stopPropagation(); deleteSession(s.id); }}>删除</button>
+                  </div>
+                ))}
               </div>
-              <button type="button" onClick={() => setMaterialPickerOpen(false)}>×</button>
-            </div>
-            <input
-              className="exam-chat-material-search"
-              value={materialSearch}
-              onChange={(event) => setMaterialSearch(event.target.value)}
-              placeholder="搜索资料名称"
-            />
-            <div className="exam-chat-material-list">
-              {materialsLoading ? (
-                <p className="exam-chat-empty">资料加载中...</p>
-              ) : visibleMaterials.length === 0 ? (
-                <p className="exam-chat-empty">当前科目暂无可引用资料</p>
-              ) : visibleMaterials.map((material) => {
-                const selected = selectedMaterialIds.includes(material.id);
-                const disabled = (material.parse_status || "success") !== "success" || Number(material.chunk_count || 0) <= 0;
-                return (
-                  <button
-                    key={material.id}
-                    type="button"
-                    className={`exam-chat-material-item${selected ? " selected" : ""}`}
-                    disabled={disabled}
-                    onClick={() => toggleMaterial(material)}
-                  >
-                    <strong>{material.original_filename || material.file_name}</strong>
-                    <span>{material.file_type || "文件"} · {formatFileSize(material.file_size)} · {disabled ? "解析未完成" : `${material.chunk_count || 0} 个片段`}</span>
-                  </button>
-                );
-              })}
-            </div>
-            <div className="exam-chat-material-actions">
-              <span>已选择 {selectedMaterials.length} 份</span>
-              <button type="button" onClick={() => setSelectedMaterials([])}>清空</button>
-              <button type="button" className="primary" onClick={() => setMaterialPickerOpen(false)}>完成</button>
-            </div>
+            )}
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-function ReferenceList({ references }) {
-  return (
-    <div className="exam-chat-references">
-      <strong>参考资料</strong>
-      {references.map((ref, index) => (
-        <details key={`${ref.material_id || index}-${ref.filename || index}`}>
-          <summary>{ref.filename || "资料片段"}</summary>
-          <p>{ref.snippet || ref.chunk_text || ref.chunk_summary || "暂无片段摘要"}</p>
-        </details>
-      ))}
     </div>
   );
 }

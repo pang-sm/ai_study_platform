@@ -73,14 +73,24 @@ export default function ExamSubjectDashboard({
   onBackHome,
   onProfile,
 }) {
-  const [activeSection, setActiveSection] = useState("home");
+  // Persist activeSection per subject to survive refresh
+  const PANEL_KEY = `exam_subject_active_panel_${subjectKey}`;
+  const getSavedPanel = () => {
+    try {
+      const raw = localStorage.getItem(PANEL_KEY);
+      if (raw) { const d = JSON.parse(raw); if (d?.activePanel === "ai") return "ai"; }
+    } catch { /* ignore */ }
+    return "home";
+  };
+  const [activeSection, setActiveSection] = useState(getSavedPanel);
   const config = getExamSubjectConfig(subjectKey);
   const courseId = getExamCourseId(subjectKey);
   const displayName = user?.nickname || user?.username || "同学";
 
+  // Persist on change
   useEffect(() => {
-    setActiveSection("home");
-  }, [subjectKey]);
+    try { localStorage.setItem(PANEL_KEY, JSON.stringify({ activePanel: activeSection, ts: Date.now() })); } catch { /* ignore */ }
+  }, [activeSection]);
 
   const navigate = (target) => {
     if (target === "home") {
