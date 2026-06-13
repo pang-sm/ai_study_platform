@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 function calcDaysUntil(examTimeStr) {
   if (!examTimeStr || examTimeStr === "暂不确定") return 128;
@@ -35,6 +35,7 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
   const [motto, setMotto] = useState("保持节奏，每天进步一点点");
   const [editingMotto, setEditingMotto] = useState(false);
   const [mottoInput, setMottoInput] = useState("");
+  const mottoInputRef = useRef(null);
 
   // Fetch real data from tracks API on mount
   useEffect(() => {
@@ -114,6 +115,22 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
     setPlanItems((prev) => prev.map((p) => (p.id === id ? { ...p, done: !p.done, status: !p.done ? "已完成" : "待完成" } : p)));
   };
 
+  const saveMotto = async () => {
+    // Use ref to get latest DOM value (avoids stale closure)
+    const raw = mottoInputRef.current?.value ?? mottoInput;
+    const newMotto = (raw || "").trim() || "保持节奏，每天进步一点点";
+    setMotto(newMotto);
+    setMottoInput(newMotto);
+    setEditingMotto(false);
+    try {
+      await fetch("/api/exam-408/motto", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: user?.username, motto: newMotto }),
+      });
+    } catch { /* keep UI updated, API best-effort */ }
+  };
+
   const enterSubject = (subjKey) => {
     if (setSubject) setSubject(subjKey);
     if (setPage) setPage("home");
@@ -126,20 +143,19 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
         <div className="eh-hero-left">
           <div className="eh-motto-wrap">
             {editingMotto ? (
-              <form className="eh-motto-form" onSubmit={async (e) => {
-                e.preventDefault();
-                const newMotto = mottoInput.trim() || "保持节奏，每天进步一点点";
-                setMotto(newMotto);
-                setEditingMotto(false);
-                try {
-                  await fetch("/api/exam-408/motto", {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ username: user?.username, motto: newMotto }),
-                  });
-                } catch { /* ignore */ }
-              }}>
-                <input className="eh-motto-input" value={mottoInput} onChange={(e) => setMottoInput(e.target.value)} autoFocus onBlur={() => setEditingMotto(false)} />
+              <form className="eh-motto-form" onSubmit={(e) => e.preventDefault()}>
+                <input
+                  ref={mottoInputRef}
+                  className="eh-motto-input"
+                  value={mottoInput}
+                  onChange={(e) => setMottoInput(e.target.value)}
+                  autoFocus
+                  onKeyDown={async (e) => {
+                    if (e.key === "Enter") { e.preventDefault(); await saveMotto(); }
+                    if (e.key === "Escape") { setMottoInput(motto); setEditingMotto(false); }
+                  }}
+                  onBlur={() => saveMotto()}
+                />
               </form>
             ) : (
               <p className="eh-motto" onClick={() => { setMottoInput(motto); setEditingMotto(true); }}>
