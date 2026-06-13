@@ -2882,13 +2882,8 @@ function App() {
     const authSubtitle = isLogin ? "\u767b\u5f55\u540e\u7ee7\u7eed\u4f60\u7684\u5b66\u4e60\u8ba1\u5212" : "\u6ce8\u518c\u540e\u8fdb\u5165\u65b0\u7528\u6237\u5f15\u5bfc\uff0c\u751f\u6210\u4f60\u7684\u5b66\u4e60\u8def\u5f84";
 
     return (
-      <div className="auth-page auth-shell--reference">
-        <section className="auth-left-shot" aria-label={"AI \u5b66\u4e60\u52a9\u624b"}>
-          <img className="auth-left-shot-img" src="/auth-left-complete.png" alt={"AI \u5b66\u4e60\u52a9\u624b"} />
-        </section>
-
-        <section className="auth-right">
-          <div className="auth-form-shell">
+      <div className="auth-page-wrap">
+        <div className="auth-center-panel">
             <div className="auth-panel auth-panel--reference">
               <div className="auth-tabs auth-tabs--reference">
               <button type="button" className={"auth-tab " + (isLogin ? "active" : "")} onClick={() => { setAuthMode("login"); setTip(""); }}>
@@ -2938,8 +2933,7 @@ function App() {
 
             <p className="auth-policy-text">{"\u767b\u5f55\u6216\u6ce8\u518c\u5373\u8868\u793a\u4f60\u540c\u610f "}<span>{"\u7528\u6237\u534f\u8bae"}</span>{" \u548c "}<span>{"\u9690\u79c1\u653f\u7b56"}</span></p>
             </div>
-          </div>
-        </section>
+        </div>
       </div>
     );
 
