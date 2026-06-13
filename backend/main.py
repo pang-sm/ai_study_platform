@@ -493,7 +493,7 @@ def update_target_school(req: dict, db: Session = Depends(get_db)):
     user = get_user_by_username(username, db)
     if school and school not in EXAM_408_SCHOOLS:
         raise HTTPException(status_code=400, detail="请选择 11408 院校库中的学校")
-    track = get_user_track(db, user.id, "exam_408")
+    track = ensure_exam_408_track(db, user)
     if not track:
         raise HTTPException(status_code=404, detail="尚未开通 11408 备考方向")
     detail = {}
@@ -507,6 +507,47 @@ def update_target_school(req: dict, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(track)
     return {"target_school": school, "message": "目标院校已更新", "track": serialize_track(track)}
+
+
+def ensure_exam_408_track(db: Session, user: models.User):
+    """Auto-create exam_408 track for old users who have 11408 data but no track record."""
+    existing = get_user_track(db, user.id, "exam_408")
+    if existing:
+        return existing
+    # Check if user is a 11408 user via legacy fields
+    goal_type = _parse_onboarding_detail_type(user) or ""
+    ld = (getattr(user, "learning_direction", "") or "").strip()
+    is_408 = (
+        goal_type == "exam_408"
+        or "408" in ld
+        or "11408" in ld
+        or "考研" in ld
+        or "408" in (getattr(user, "default_course_id", "") or "")
+    )
+    if not is_408:
+        return None
+    # Build detail from legacy fields
+    old_detail = _parse_onboarding_detail(user) or {}
+    # Determine package from legacy plan
+    legacy_plan = (getattr(user, "plan", "free") or "free").strip()
+    pkg = old_detail.get("exam_package_type", "free") if old_detail else "free"
+    plan = legacy_plan if legacy_plan != "free" else ("pro" if pkg != "free" else "free")
+    # Create track
+    track = models.UserLearningTrack(
+        user_id=user.id,
+        track_type="exam_408",
+        plan=plan,
+        package_type=pkg,
+    )
+    perms = dict(TRACK_PERMISSIONS.get("exam_408", {}))
+    if pkg in EXAM_PACKAGE_QUOTA:
+        perms.update(EXAM_PACKAGE_QUOTA[pkg])
+    track.permissions_json = json.dumps(perms, ensure_ascii=False)
+    track.onboarding_detail_json = json.dumps(old_detail, ensure_ascii=False) if old_detail else None
+    db.add(track)
+    db.commit()
+    db.refresh(track)
+    return track
 
 
 def user_needs_onboarding(user: models.User) -> bool:
@@ -3941,6 +3982,8 @@ def admin_login_deprecated():
 def me(req: MeRequest, db: Session = Depends(get_db)):
     user = get_user_by_username(req.username, db)
     ensure_user_can_access(user)
+    # Auto-migrate old 408 users
+    ensure_exam_408_track(db, user)
     profile = user_profile(user)
     tracks = [serialize_track(t) for t in get_user_tracks(db, user.id)]
     active_track = next((t["track_type"] for t in tracks if t["is_active"]), tracks[0]["track_type"] if tracks else None)
@@ -3952,6 +3995,8 @@ def me(req: MeRequest, db: Session = Depends(get_db)):
 @app.get("/me/tracks")
 def get_my_tracks(username: str, db: Session = Depends(get_db)):
     user = get_user_by_username(username, db)
+    # Auto-migrate old 408 users
+    ensure_exam_408_track(db, user)
     tracks = [serialize_track(t) for t in get_user_tracks(db, user.id)]
     active = next((t["track_type"] for t in tracks if t["is_active"]), tracks[0]["track_type"] if tracks else None)
     return {"tracks": tracks, "active_track_type": active}
