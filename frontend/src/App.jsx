@@ -3407,7 +3407,7 @@ function App() {
   ].includes(page)) {
     return (
       <Suspense fallback={<div className="empty-state">管理员首页加载中...</div>}>
-        <AdminDashboard user={user} activePage={page} setPage={setPage} />
+        <AdminDashboard user={user} activePage={page} setPage={setPage} onLogout={logout} />
       </Suspense>
     );
   }

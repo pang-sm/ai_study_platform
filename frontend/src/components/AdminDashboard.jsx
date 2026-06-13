@@ -115,7 +115,7 @@ function TrendChart({ data, emptyTitle = "暂无趋势数据", emptyDescription 
   );
 }
 
-export default function AdminDashboard({ user, activePage = "adminDashboard", setPage }) {
+export default function AdminDashboard({ user, activePage = "adminDashboard", setPage, onLogout }) {
   const [dashboard, setDashboard] = useState(null);
   const [usersData, setUsersData] = useState(null);
   const [membersData, setMembersData] = useState(null);
@@ -139,6 +139,11 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
   const [profileForm, setProfileForm] = useState({ nickname: user?.nickname || "", avatar: user?.avatar || "" });
   const [passwordForm, setPasswordForm] = useState({ old_password: "", new_password: "", confirm_password: "" });
   const [emailForm, setEmailForm] = useState({ email: user?.email || "", code: "" });
+  const [showOldPwd, setShowOldPwd] = useState(false);
+  const [showNewPwd, setShowNewPwd] = useState(false);
+  const [showConfirmPwd, setShowConfirmPwd] = useState(false);
+  const adminRoleLabel = user?.admin_role === "super_admin" ? "超级管理员" : user?.admin_role === "operator" ? "运营管理员" : "管理员";
+  const adminRoleDesc = user?.admin_role === "super_admin" ? "负责平台整体运营与管理" : user?.admin_role === "operator" ? "负责日常运营与用户服务" : "负责平台管理与维护";
 
   const navigate = (pageName) => {
     if (setPage) setPage(pageName);
@@ -691,78 +696,181 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
     </AdminPageCard>
   );
 
-  const renderProfile = () => (
-    <AdminPageCard title="个人资料" subtitle="管理管理员头像、昵称、密码和邮箱绑定">
-      {actionError && <div className="admin-dashboard-error">{actionError}</div>}
-      {actionSuccess && <div className="admin-dashboard-success">{actionSuccess}</div>}
-      <div className="admin-profile-grid">
-        <section className="admin-profile-panel">
-          <h3>头像设置</h3>
-          <div className="admin-profile-avatar-row">
-            <span className="admin-profile-avatar">{profileForm.avatar ? <img src={profileForm.avatar} alt="管理员头像" /> : "管"}</span>
-            <div>
-              <strong>{profileForm.nickname || user?.nickname || "管理员"}</strong>
-              <p>头像上传接口暂未接入后台个人页，当前展示默认头像或已有头像。</p>
+  const copyToClipboard = async (text) => {
+    try { await navigator.clipboard.writeText(text); setActionSuccess("已复制到剪贴板"); }
+    catch { setActionError("复制失败"); }
+  };
+
+  const renderProfile = () => {
+    const displayName = profileForm.nickname || user?.nickname || user?.username || "管理员";
+    const initial = (displayName || "管").charAt(0);
+    const joinDate = user?.created_at ? formatDateTime(user.created_at).slice(0, 10) : "-";
+    const lastActive = user?.last_active_time ? formatDateTime(user.last_active_time).slice(0, 10) : joinDate;
+    const currentEmail = user?.email || "";
+    const emailVerified = Boolean(user?.email_verified);
+
+    return (
+      <div className="admin-profile-v2">
+        {actionError && <div className="admin-dashboard-error">{actionError}</div>}
+        {actionSuccess && <div className="admin-dashboard-success">{actionSuccess}</div>}
+
+        {/* ── Hero card ── */}
+        <div className="apv2-hero">
+          <div className="apv2-hero-left">
+            <div className="apv2-avatar-wrap">
+              <span className="apv2-avatar">{initial}</span>
+              <button type="button" className="apv2-avatar-cam" title="更换头像">📷</button>
+            </div>
+            <div className="apv2-hero-info">
+              <div className="apv2-hero-name-row">
+                <strong className="apv2-hero-name">{displayName}</strong>
+                <span className="apv2-hero-badge">{adminRoleLabel}</span>
+              </div>
+              <p className="apv2-hero-desc">{adminRoleDesc}</p>
+              <div className="apv2-hero-dates">
+                <span>📅 加入时间：{joinDate}</span>
+                <span>🕐 最后登录：{lastActive}</span>
+              </div>
             </div>
           </div>
-        </section>
 
-        <section className="admin-profile-panel">
-          <h3>基本信息</h3>
-          <label>
-            昵称
-            <input value={profileForm.nickname} onChange={(e) => setProfileForm((prev) => ({ ...prev, nickname: e.target.value }))} />
-          </label>
-          <label>
-            账号 / 用户名
-            <input value={user?.username || ""} readOnly />
-          </label>
-          <label>
-            管理员身份
-            <input value={user?.admin_role || user?.role || "admin"} readOnly />
-          </label>
-          <button type="button" className="admin-dashboard-primary-action" disabled={actionLoading === "profile"} onClick={saveProfile}>
-            {actionLoading === "profile" ? "保存中..." : "保存"}
-          </button>
-        </section>
+          <div className="apv2-hero-divider" />
 
-        <section className="admin-profile-panel">
-          <h3>密码修改</h3>
-          <label>
-            原密码
-            <input type="password" value={passwordForm.old_password} onChange={(e) => setPasswordForm((prev) => ({ ...prev, old_password: e.target.value }))} />
-          </label>
-          <label>
-            新密码
-            <input type="password" value={passwordForm.new_password} onChange={(e) => setPasswordForm((prev) => ({ ...prev, new_password: e.target.value }))} />
-          </label>
-          <label>
-            确认新密码
-            <input type="password" value={passwordForm.confirm_password} onChange={(e) => setPasswordForm((prev) => ({ ...prev, confirm_password: e.target.value }))} />
-          </label>
-          <button type="button" className="admin-dashboard-primary-action" disabled={actionLoading === "password"} onClick={changePassword}>
-            {actionLoading === "password" ? "修改中..." : "修改密码"}
-          </button>
-        </section>
-
-        <section className="admin-profile-panel">
-          <h3>邮箱绑定</h3>
-          <p className="admin-profile-note">当前邮箱：{user?.email || "未绑定"}</p>
-          <label>
-            新邮箱
-            <input value={emailForm.email} onChange={(e) => setEmailForm((prev) => ({ ...prev, email: e.target.value }))} />
-          </label>
-          <div className="admin-profile-inline">
-            <input placeholder="验证码" value={emailForm.code} onChange={(e) => setEmailForm((prev) => ({ ...prev, code: e.target.value }))} />
-            <button type="button" onClick={sendEmailCode} disabled={actionLoading === "email-code"}>发送验证码</button>
+          <div className="apv2-hero-right">
+            <div className="apv2-hero-mini-cards">
+              <div className="apv2-hero-mini">
+                <span className="apv2-hero-mini-label">账号 / 用户名</span>
+                <strong>{user?.username || "-"}</strong>
+              </div>
+              <div className="apv2-hero-mini">
+                <span className="apv2-hero-mini-label">管理身份</span>
+                <strong>{user?.admin_role || "unknown"}</strong>
+              </div>
+              <div className="apv2-hero-mini">
+                <span className="apv2-hero-mini-label">当前邮箱</span>
+                <strong className="apv2-hero-mini-email">{currentEmail || "未绑定"}</strong>
+              </div>
+            </div>
+            <button type="button" className="apv2-logout-btn" onClick={() => onLogout ? onLogout() : setPage("login")}>
+              <span>退出登录</span>
+            </button>
           </div>
-          <button type="button" className="admin-dashboard-primary-action" disabled={actionLoading === "email-bind"} onClick={bindEmail}>
-            {actionLoading === "email-bind" ? "绑定中..." : "绑定邮箱"}
-          </button>
-        </section>
+        </div>
+
+        {/* ── Three cards row ── */}
+        <div className="apv2-cards">
+          {/* Card 1: Basic Info */}
+          <div className="apv2-card">
+            <div className="apv2-card-head">
+              <div>
+                <h3>基本信息</h3>
+                <p>管理您的基础账户信息</p>
+              </div>
+            </div>
+            <div className="apv2-card-body">
+              <div className="apv2-field">
+                <label>昵称</label>
+                <div className="apv2-field-row">
+                  <input value={profileForm.nickname} onChange={(e) => setProfileForm((prev) => ({ ...prev, nickname: e.target.value }))} placeholder="请输入昵称" />
+                  <button type="button" className="apv2-icon-btn" title="编辑" onClick={() => document.querySelector('.apv2-field-row input')?.focus()}>✎</button>
+                </div>
+              </div>
+              <div className="apv2-field">
+                <label>账号 / 用户名</label>
+                <div className="apv2-field-row">
+                  <input value={user?.username || ""} readOnly />
+                  <button type="button" className="apv2-icon-btn" title="复制" onClick={() => copyToClipboard(user?.username || "")}>⧉</button>
+                </div>
+              </div>
+              <div className="apv2-field">
+                <label>管理身份</label>
+                <div className="apv2-field-row">
+                  <span className="apv2-role-tag">{adminRoleLabel}</span>
+                </div>
+              </div>
+              <button type="button" className="apv2-purple-btn" disabled={actionLoading === "profile"} onClick={saveProfile}>
+                {actionLoading === "profile" ? "保存中..." : "保存修改"}
+              </button>
+            </div>
+          </div>
+
+          {/* Card 2: Security Settings */}
+          <div className="apv2-card">
+            <div className="apv2-card-head">
+              <div>
+                <h3>安全设置</h3>
+                <p>加强账户安全，保护账户安全</p>
+              </div>
+              <div className="apv2-shield-deco">🛡</div>
+            </div>
+            <div className="apv2-card-body">
+              <div className="apv2-field">
+                <label>当前密码</label>
+                <div className="apv2-pwd-row">
+                  <input type={showOldPwd ? "text" : "password"} value={passwordForm.old_password} onChange={(e) => setPasswordForm((prev) => ({ ...prev, old_password: e.target.value }))} placeholder="请输入当前密码" />
+                  <button type="button" className="apv2-eye-btn" onClick={() => setShowOldPwd(!showOldPwd)}>{showOldPwd ? "👁" : "👁‍🗨"}</button>
+                </div>
+              </div>
+              <div className="apv2-field">
+                <label>新密码</label>
+                <div className="apv2-pwd-row">
+                  <input type={showNewPwd ? "text" : "password"} value={passwordForm.new_password} onChange={(e) => setPasswordForm((prev) => ({ ...prev, new_password: e.target.value }))} placeholder="请输入新密码" />
+                  <button type="button" className="apv2-eye-btn" onClick={() => setShowNewPwd(!showNewPwd)}>{showNewPwd ? "👁" : "👁‍🗨"}</button>
+                </div>
+              </div>
+              <div className="apv2-field">
+                <label>确认新密码</label>
+                <div className="apv2-pwd-row">
+                  <input type={showConfirmPwd ? "text" : "password"} value={passwordForm.confirm_password} onChange={(e) => setPasswordForm((prev) => ({ ...prev, confirm_password: e.target.value }))} placeholder="请再次输入新密码" />
+                  <button type="button" className="apv2-eye-btn" onClick={() => setShowConfirmPwd(!showConfirmPwd)}>{showConfirmPwd ? "👁" : "👁‍🗨"}</button>
+                </div>
+              </div>
+              <button type="button" className="apv2-purple-btn" disabled={actionLoading === "password"} onClick={changePassword}>
+                {actionLoading === "password" ? "修改中..." : "修改密码"}
+              </button>
+              <p className="apv2-hint">密码长度需 8-20 位，且包含字母、数字和符号的任意两种</p>
+            </div>
+          </div>
+
+          {/* Card 3: Email Binding */}
+          <div className="apv2-card">
+            <div className="apv2-card-head">
+              <div>
+                <h3>邮箱绑定</h3>
+                <p>绑定邮箱用于接收重要通知与安全验证</p>
+              </div>
+            </div>
+            <div className="apv2-card-body">
+              <div className="apv2-field">
+                <label>当前邮箱</label>
+                <div className="apv2-field-row">
+                  <span className="apv2-current-email">{currentEmail || "未绑定邮箱"}</span>
+                  {emailVerified && currentEmail && <span className="apv2-verified-tag">✓ 已绑定</span>}
+                </div>
+              </div>
+              <div className="apv2-field">
+                <label>新邮箱</label>
+                <input value={emailForm.email} onChange={(e) => setEmailForm((prev) => ({ ...prev, email: e.target.value }))} placeholder="请输入新邮箱地址" />
+              </div>
+              <div className="apv2-field">
+                <label>验证码</label>
+                <div className="apv2-code-row">
+                  <input placeholder="请输入验证码" value={emailForm.code} onChange={(e) => setEmailForm((prev) => ({ ...prev, code: e.target.value }))} />
+                  <button type="button" className="apv2-code-btn" onClick={sendEmailCode} disabled={actionLoading === "email-code"}>
+                    {actionLoading === "email-code" ? "发送中..." : "发送验证码"}
+                  </button>
+                </div>
+              </div>
+              <button type="button" className="apv2-purple-btn" disabled={actionLoading === "email-bind"} onClick={bindEmail}>
+                {actionLoading === "email-bind" ? "绑定中..." : "绑定邮箱"}
+              </button>
+              <p className="apv2-hint">验证码将发送至当前邮箱，请注意查收</p>
+            </div>
+          </div>
+        </div>
       </div>
-    </AdminPageCard>
-  );
+    );
+  };
 
   const renderContent = () => {
     if (loading) return <div className="admin-dashboard-card admin-dashboard-loading">数据加载中...</div>;
@@ -821,7 +929,7 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
         <header className="admin-dashboard-header">
           <div>
             <h1>{activeLabel}</h1>
-            <p>欢迎回来，管理员！今天是 {formatToday()}</p>
+            <p>{activePage === "adminProfile" ? "管理您的个人信息、账号安全与绑定设置" : `欢迎回来，管理员！今天是 ${formatToday()}`}</p>
           </div>
           <button className="admin-dashboard-profile" type="button" onClick={() => navigate("adminProfile")}>
             <span className="admin-dashboard-avatar">管</span>
