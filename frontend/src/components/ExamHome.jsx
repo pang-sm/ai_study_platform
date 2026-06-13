@@ -46,7 +46,27 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
   }, [user]);
 
   const displayName = user?.nickname || user?.username || "小庞同学";
-  const isMember = user?.plan && user.plan !== "free";
+
+  // Resolve real exam package name from backend-onboarding data
+  const getPackageLabel = () => {
+    try {
+      const d = user?.onboarding_detail
+        ? (typeof user.onboarding_detail === "string"
+            ? JSON.parse(user.onboarding_detail)
+            : user.onboarding_detail)
+        : null;
+      const pkg = d?.exam_package_type || "";
+      const MAP = {
+        free: "免费模式",
+        monthly_sprint: "月度冲刺",
+        quarterly_boost: "季度强化包",
+        full_exam: "全程考包",
+      };
+      if (MAP[pkg]) return MAP[pkg];
+    } catch { /* ignore */ }
+    return "未选择套餐";
+  };
+  const packageLabel = getPackageLabel();
 
   const togglePlanItem = (id) => {
     setPlanItems((prev) => prev.map((p) => (p.id === id ? { ...p, done: !p.done, status: !p.done ? "已完成" : "待完成" } : p)));
@@ -80,8 +100,8 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
             <span className="eh-user-avatar">{displayName.charAt(0)}</span>
             <div>
               <strong>{displayName}</strong>
-              <span className={`eh-user-tag${isMember ? " eh-user-tag--member" : ""}`}>
-                {isMember ? "付费会员" : "普通会员"}
+              <span className="eh-user-tag eh-user-tag--member">
+                {packageLabel}
               </span>
             </div>
           </div>

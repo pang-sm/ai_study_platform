@@ -905,6 +905,9 @@ function App() {
     if (savedPage && VALID_PAGES.has(savedPage) && savedPage !== "login" && savedPage !== "adminLogin" && savedPage !== "onboarding" && !isSavedAdminPage) {
       return savedPage;
     }
+    // Route exam_408 users to examHome
+    const goalType = loginUser?.learning_goal_type || "";
+    if (goalType === "exam_408") return "examHome";
     return "home";
   };
 
@@ -3093,8 +3096,10 @@ function App() {
   };
 
   if (page === "examHome") {
-    return wrapPage(
-      <ExamHome user={user} setPage={setPage} subject={subject} setSubject={setSubject} apiBase={API_BASE} onLogout={logout} />
+    return (
+      <div className="onboarding-v2-page" style={{ alignItems: "flex-start", paddingTop: 32 }}>
+        <ExamHome user={user} setPage={setPage} subject={subject} setSubject={setSubject} apiBase={API_BASE} onLogout={logout} />
+      </div>
     );
   }
 
