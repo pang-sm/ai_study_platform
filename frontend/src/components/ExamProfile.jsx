@@ -99,9 +99,19 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
     { icon: "📊", label: "学习报告", value: perks[5]?.ok ? "已解锁" : "未解锁", unit: "", used: "", sub: perks[5]?.ok ? "进阶版可用" : "升级后可用" },
   ];
 
-  // Init target school from track data
-  const savedSchool = onboardingDetail?.target_school || "";
-  useEffect(() => { setTargetSchool(savedSchool); setSchoolQuery(savedSchool); }, [savedSchool]);
+  // Fetch real target school from tracks API on every mount
+  const fetchTargetSchool = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/me/tracks?username=${encodeURIComponent(user.username)}`);
+      const data = await res.json().catch(() => ({}));
+      const tracks = data.tracks || [];
+      const examT = tracks.find((t) => t.track_type === "exam_408");
+      const detail = examT?.onboarding_detail || {};
+      const school = detail?.target_school || "";
+      if (school) { setTargetSchool(school); setSchoolQuery(school); }
+    } catch { /* keep current value */ }
+  };
+  useEffect(() => { fetchTargetSchool(); }, [user?.username]);
 
   const fetchSchools = async (q) => {
     const query = (q || "").trim();
@@ -139,10 +149,14 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || "保存失败");
+      // Re-fetch tracks to confirm persistence
+      await fetchTargetSchool();
       setActionMsg("目标院校已更新");
       setTimeout(() => setActionMsg(""), 2500);
     } catch (err) {
       setActionErr(err.message);
+      // Re-fetch on error too, in case the server saved but client didn't update
+      fetchTargetSchool();
     }
   };
 

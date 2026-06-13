@@ -33,9 +33,23 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
   const [examDaily, setExamDaily] = useState("");
   const [planItems, setPlanItems] = useState(PLAN_ITEMS);
 
+  // Fetch real data from tracks API on mount
   useEffect(() => {
-    // Read onboarding detail — try tracks first, then user.onboarding_detail
-    const detail = (() => {
+    const fetchData = async () => {
+      try {
+        const res = await fetch(`/api/me/tracks?username=${encodeURIComponent(user?.username || "")}`);
+        const data = await res.json().catch(() => ({}));
+        const tracks = data.tracks || [];
+        const examTrack = tracks.find((t) => t.track_type === "exam_408");
+        const detail = examTrack?.onboarding_detail || {};
+        if (detail.exam_time) setDaysLeft(calcDaysUntil(detail.exam_time));
+        if (detail.target_school) setTargetSchool(detail.target_school);
+        if (detail.stage) setExamStage(detail.stage);
+        if (detail.daily_study_time) setExamDaily(detail.daily_study_time);
+      } catch { /* fallback to prop data */ }
+    };
+    // Also try prop data immediately
+    const propDetail = (() => {
       try {
         const examTrack = (user?.tracks || []).find((t) => t.track_type === "exam_408");
         if (examTrack?.onboarding_detail) return examTrack.onboarding_detail;
@@ -44,13 +58,15 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
         return typeof d === "string" ? JSON.parse(d) : d;
       } catch { return null; }
     })();
-    if (detail) {
-      if (detail.exam_time) setDaysLeft(calcDaysUntil(detail.exam_time));
-      if (detail.target_school) setTargetSchool(detail.target_school);
-      if (detail.stage) setExamStage(detail.stage);
-      if (detail.daily_study_time) setExamDaily(detail.daily_study_time);
+    if (propDetail) {
+      if (propDetail.exam_time) setDaysLeft(calcDaysUntil(propDetail.exam_time));
+      if (propDetail.target_school) setTargetSchool(propDetail.target_school);
+      if (propDetail.stage) setExamStage(propDetail.stage);
+      if (propDetail.daily_study_time) setExamDaily(propDetail.daily_study_time);
     }
-  }, [user]);
+    // Then refresh from API for latest data
+    fetchData();
+  }, [user?.username]);
 
   const displayName = user?.nickname || user?.username || "小庞同学";
 
