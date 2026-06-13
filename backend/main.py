@@ -393,6 +393,11 @@ def user_profile(user: models.User):
         "email_verified": bool(getattr(user, "email_verified", False)),
         "phone": getattr(user, "phone", None) or "",
         "phone_verified": bool(getattr(user, "phone_verified", False)),
+        "is_banned": bool(getattr(user, "is_banned", 0)),
+        "banned_reason": getattr(user, "banned_reason", None) or "",
+        "banned_at": getattr(user, "banned_at", None) or "",
+        "is_deleted": bool(getattr(user, "is_deleted", 0)),
+        "deleted_at": getattr(user, "deleted_at", None) or "",
         "created_at": serialize_datetime(user.created_at) if user.created_at else None,
     }
 
@@ -451,6 +456,15 @@ def get_user_by_username(username: str, db: Session):
         raise HTTPException(status_code=401, detail="登录状态无效，请重新登录")
 
     return user
+
+
+def ensure_user_can_access(user: models.User):
+    if bool(getattr(user, "is_deleted", 0)):
+        raise HTTPException(status_code=403, detail="账号已被删除")
+    if bool(getattr(user, "is_banned", 0)):
+        raise HTTPException(status_code=403, detail="账号已被封禁，请联系管理员")
+    if getattr(user, "is_active", 1) == 0:
+        raise HTTPException(status_code=403, detail="账号已被停用，请联系管理员")
 
 
 def get_username_from_upload(username: str | None, authorization: str | None):
@@ -3697,6 +3711,7 @@ def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
     if not verify_password(password, db_user.hashed_password):
         raise HTTPException(status_code=400, detail="密码错误")
 
+    ensure_user_can_access(db_user)
     return {"message": "登录成功", "user": user_profile(db_user), "profile": user_profile(db_user)}
 
 
@@ -3739,6 +3754,7 @@ def admin_login_deprecated():
 @app.post("/me")
 def me(req: MeRequest, db: Session = Depends(get_db)):
     user = get_user_by_username(req.username, db)
+    ensure_user_can_access(user)
     return {"user": user_profile(user)}
 
 
@@ -16644,6 +16660,7 @@ def get_admin_permissions(user) -> list[str]:
 
 def require_admin(username: str, db: Session):
     admin = get_user_by_username(username, db)
+    ensure_user_can_access(admin)
     if getattr(admin, "is_active", 1) == 0:
         raise HTTPException(status_code=403, detail="管理员账号已被禁用")
     if not bool(getattr(admin, "is_admin", 0)):
@@ -17279,6 +17296,7 @@ def admin_users_list(
     admin_username: str = "",
     keyword: str = "",
     plan: str = "",
+    status: str = "",
     page: int = 1,
     page_size: int = 20,
     db: Session = Depends(get_db),
@@ -17290,11 +17308,20 @@ def admin_users_list(
 
     today_start = utc_now().replace(hour=0, minute=0, second=0, microsecond=0)
 
-    query = db.query(models.User)
+    query = db.query(models.User).filter(models.User.is_deleted == 0)
     if keyword := keyword.strip():
-        query = query.filter(models.User.username.contains(keyword))
+        query = query.filter(or_(
+            models.User.username.contains(keyword),
+            models.User.nickname.contains(keyword),
+            models.User.email.contains(keyword),
+        ))
     if plan_filter := plan.strip():
         query = query.filter(models.User.plan == plan_filter)
+    status_filter = status.strip().lower()
+    if status_filter == "banned":
+        query = query.filter(models.User.is_banned == 1)
+    elif status_filter == "normal":
+        query = query.filter(models.User.is_banned == 0)
 
     total = query.count()
     users = query.order_by(models.User.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
@@ -17332,9 +17359,12 @@ def admin_users_list(
             db.query(models.LearningTask).filter(models.LearningTask.username == u.username).count()
         )
         items.append({
+            "id": u.id,
             "user_id": str(u.id),
             "username": u.username,
             "nickname": u.nickname or "",
+            "real_name": getattr(u, "admin_real_name", None) or "",
+            "email": getattr(u, "email", None) or "",
             "register_method": "账号注册",
             "register_time": serialize_datetime(u.created_at),
             "last_active_time": serialize_datetime(last_active or u.created_at),
@@ -17343,6 +17373,11 @@ def admin_users_list(
             "is_admin": bool(u.is_admin),
             "admin_role": normalize_admin_role(u),
             "admin_role_label": get_admin_role_label(normalize_admin_role(u)),
+            "is_banned": bool(getattr(u, "is_banned", 0)),
+            "banned_reason": getattr(u, "banned_reason", None) or "",
+            "banned_at": getattr(u, "banned_at", None) or "",
+            "is_deleted": bool(getattr(u, "is_deleted", 0)),
+            "deleted_at": getattr(u, "deleted_at", None) or "",
             "plan_expires_at": serialize_datetime(u.plan_expire_at),
             "material_count": material_count,
             "ai_call_count": ai_call_count,
@@ -19366,6 +19401,95 @@ def admin_user_status(target_username: str, req: dict, db: Session = Depends(get
     return {"success": True, "username": target_username, "is_active": bool(is_active)}
 
 
+def get_admin_target_user(db: Session, user_id: int):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    return user
+
+
+def ensure_admin_can_modify_user(admin: models.User, target: models.User, action: str):
+    if target.username == admin.username:
+        raise HTTPException(status_code=400, detail=f"不能{action}当前管理员自己的账号")
+    if bool(getattr(target, "is_admin", 0)) or normalize_admin_role(target) != "none":
+        raise HTTPException(status_code=403, detail=f"不能{action}管理员账号")
+
+
+@app.post("/admin/users/{user_id}/ban")
+def admin_ban_user(user_id: int, req: dict, db: Session = Depends(get_db)):
+    admin_name = str(req.get("admin_username", "")).strip()
+    admin = require_admin_permission(db, admin_name, "users.manage_status")
+    target = get_admin_target_user(db, user_id)
+    ensure_admin_can_modify_user(admin, target, "封禁")
+    if bool(getattr(target, "is_deleted", 0)):
+        raise HTTPException(status_code=400, detail="用户已被删除")
+
+    reason = str(req.get("reason", "")).strip()[:500]
+    target.is_banned = 1
+    target.banned_reason = reason
+    target.banned_at = serialize_datetime(utc_now())
+    db.commit()
+    _write_audit_log(
+        admin_name,
+        f"封禁用户 {target.username}",
+        db,
+        target_type="user",
+        target_id=str(target.id),
+        target_username=target.username,
+        detail=reason,
+        details={"user_id": target.id, "reason": reason},
+    )
+    return {"success": True, "user": user_profile(target)}
+
+
+@app.post("/admin/users/{user_id}/unban")
+def admin_unban_user(user_id: int, req: dict, db: Session = Depends(get_db)):
+    admin_name = str(req.get("admin_username", "")).strip()
+    require_admin_permission(db, admin_name, "users.manage_status")
+    target = get_admin_target_user(db, user_id)
+    if bool(getattr(target, "is_deleted", 0)):
+        raise HTTPException(status_code=400, detail="用户已被删除")
+
+    target.is_banned = 0
+    target.banned_reason = None
+    target.banned_at = None
+    db.commit()
+    _write_audit_log(
+        admin_name,
+        f"解封用户 {target.username}",
+        db,
+        target_type="user",
+        target_id=str(target.id),
+        target_username=target.username,
+        detail=f"user_id={target.id}",
+        details={"user_id": target.id},
+    )
+    return {"success": True, "user": user_profile(target)}
+
+
+@app.delete("/admin/users/{user_id}")
+def admin_delete_user(user_id: int, admin_username: str = "", db: Session = Depends(get_db)):
+    admin = require_admin_permission(db, admin_username, "users.manage_status")
+    target = get_admin_target_user(db, user_id)
+    ensure_admin_can_modify_user(admin, target, "删除")
+
+    if not bool(getattr(target, "is_deleted", 0)):
+        target.is_deleted = 1
+        target.deleted_at = serialize_datetime(utc_now())
+        db.commit()
+        _write_audit_log(
+            admin_username,
+            f"删除用户 {target.username}",
+            db,
+            target_type="user",
+            target_id=str(target.id),
+            target_username=target.username,
+            detail=f"user_id={target.id}",
+            details={"user_id": target.id, "soft_delete": True},
+        )
+    return {"success": True, "user_id": user_id, "is_deleted": True}
+
+
 # ── Admin: Material Delete ──────────────────────────────
 
 @app.delete("/admin/materials/{material_id}")
@@ -19570,11 +19694,13 @@ def admin_announcements_create(req: dict, db: Session = Depends(get_db)):
     content = str(req.get("content", "")).strip()
     if not title or not content:
         raise HTTPException(status_code=400, detail="标题和内容不能为空")
+    status = str(req.get("status", "published")).strip().lower()
+    is_active = 0 if status in ("draft", "inactive", "disabled") else 1
     a = models.SystemAnnouncement(
         title=title[:500], content=content[:5000],
         type=str(req.get("type", "info")).strip() or "info",
         target=str(req.get("target", "all")).strip() or "all",
-        is_active=int(req.get("is_active", 1)),
+        is_active=int(req.get("is_active", is_active)),
         created_by=admin_name,
     )
     db.add(a); db.commit(); db.refresh(a)
@@ -19587,7 +19713,21 @@ def admin_announcements_create(req: dict, db: Session = Depends(get_db)):
         detail=f"id={a.id}",
         details={"id": a.id, "title": a.title, "type": a.type, "target": a.target, "is_active": bool(a.is_active)},
     )
-    return {"success": True, "announcement": {"id": a.id, "title": a.title, "content": a.content, "type": a.type, "is_active": bool(a.is_active), "target": a.target}}
+    return {
+        "success": True,
+        "announcement": {
+            "id": a.id,
+            "title": a.title,
+            "content": a.content,
+            "type": a.type,
+            "is_active": bool(a.is_active),
+            "status": "published" if a.is_active else "draft",
+            "target": a.target,
+            "created_by": a.created_by,
+            "created_at": serialize_datetime(a.created_at),
+            "updated_at": serialize_datetime(a.updated_at),
+        },
+    }
 
 
 @app.put("/admin/announcements/{a_id}")

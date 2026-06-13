@@ -52,6 +52,11 @@ PROFILE_COLUMNS = {
     "phone": "VARCHAR(30)",
     "phone_verified": "BOOLEAN NOT NULL DEFAULT 0",
     "is_active": "INTEGER DEFAULT 1",
+    "is_banned": "INTEGER DEFAULT 0",
+    "banned_reason": "TEXT",
+    "banned_at": "TEXT",
+    "is_deleted": "INTEGER DEFAULT 0",
+    "deleted_at": "TEXT",
 }
 
 CHAT_SESSION_COLUMNS = {

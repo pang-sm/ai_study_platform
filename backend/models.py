@@ -41,6 +41,11 @@ class User(Base):
     phone = Column(String(30), nullable=True, default=None)
     phone_verified = Column(Boolean, nullable=False, default=False)
     is_active = Column(Integer, nullable=True, default=1)
+    is_banned = Column(Integer, nullable=True, default=0)
+    banned_reason = Column(Text, nullable=True)
+    banned_at = Column(Text, nullable=True)
+    is_deleted = Column(Integer, nullable=True, default=0)
+    deleted_at = Column(Text, nullable=True)
     created_at = Column(DateTime, default=utc_now)
 
 

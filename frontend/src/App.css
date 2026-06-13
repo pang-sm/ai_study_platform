@@ -904,6 +904,13 @@ body {
   margin-bottom: 18px;
 }
 
+.admin-dashboard-section-head--row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
 .admin-dashboard-section-head h2 {
   margin: 0 0 8px;
   color: #1f2a44;
@@ -984,6 +991,207 @@ body {
   background: #7c3aed;
   color: #fff;
   font: inherit;
+  cursor: pointer;
+}
+
+.admin-dashboard-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.admin-dashboard-toolbar input,
+.admin-dashboard-toolbar select,
+.admin-dashboard-modal input,
+.admin-dashboard-modal select,
+.admin-dashboard-modal textarea {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  color: #1f2a44;
+  font: inherit;
+  outline: none;
+}
+
+.admin-dashboard-toolbar input {
+  min-width: 260px;
+  height: 40px;
+  padding: 0 12px;
+}
+
+.admin-dashboard-toolbar select {
+  height: 40px;
+  padding: 0 12px;
+}
+
+.admin-dashboard-toolbar button,
+.admin-dashboard-primary-action {
+  min-height: 40px;
+  border: none;
+  border-radius: 10px;
+  padding: 0 16px;
+  background: #7c3aed;
+  color: #fff;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.admin-dashboard-primary-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.admin-dashboard-error {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  background: #fff1f2;
+  color: #b91c1c;
+  font-size: 13px;
+}
+
+.admin-dashboard-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  border-radius: 999px;
+  padding: 0 9px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.admin-dashboard-status--ok {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.admin-dashboard-status--danger {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.admin-dashboard-status--muted {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.admin-dashboard-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.admin-dashboard-actions button {
+  border: none;
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: #f3f0ff;
+  color: #6d28d9;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.admin-dashboard-actions button.warning {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.admin-dashboard-actions button.danger {
+  background: #fff1f2;
+  color: #be123c;
+}
+
+.admin-dashboard-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.admin-dashboard-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(30, 27, 75, 0.28);
+}
+
+.admin-dashboard-modal {
+  width: min(100%, 520px);
+  border-radius: 18px;
+  border: 1px solid rgba(124, 58, 237, 0.12);
+  background: #fff;
+  box-shadow: 0 24px 80px rgba(31, 42, 68, 0.24);
+  padding: 22px;
+}
+
+.admin-dashboard-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.admin-dashboard-modal-head h3 {
+  margin: 0;
+  color: #1f2a44;
+  font-size: 18px;
+}
+
+.admin-dashboard-modal-head button {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.admin-dashboard-modal label {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 14px;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.admin-dashboard-modal input,
+.admin-dashboard-modal select {
+  height: 42px;
+  padding: 0 12px;
+}
+
+.admin-dashboard-modal textarea {
+  resize: vertical;
+  padding: 10px 12px;
+}
+
+.admin-dashboard-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.admin-dashboard-modal-actions button:not(.admin-dashboard-primary-action) {
+  min-height: 40px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0 16px;
+  background: #fff;
+  color: #475569;
+  font: inherit;
+  font-weight: 800;
   cursor: pointer;
 }
 

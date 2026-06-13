@@ -12,15 +12,6 @@ const MENU_GROUPS = [
     ],
   },
   {
-    title: "业务管理",
-    items: [
-      { page: "adminCourses", label: "课程管理", icon: "C" },
-      { page: "adminMaterials", label: "资料库管理", icon: "M" },
-      { page: "adminPractice", label: "练习 / 题库管理", icon: "Q" },
-      { page: "adminTasks", label: "学习任务管理", icon: "T" },
-    ],
-  },
-  {
     title: "运营管理",
     items: [
       { page: "adminMembers", label: "会员管理", icon: "V" },
@@ -65,14 +56,6 @@ function formatDateTime(value) {
   if (Number.isNaN(date.getTime())) return text.replace("T", " ").replace(/\.\d+Z?$/, "");
   const pad = (num) => String(num).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
-function formatFileSize(value) {
-  const bytes = Number(value || 0);
-  if (!Number.isFinite(bytes) || bytes <= 0) return "-";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function displayUserName(user) {
@@ -140,14 +123,16 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
   const [settings, setSettings] = useState(null);
   const [usageSummary, setUsageSummary] = useState(null);
   const [usageTrend, setUsageTrend] = useState(null);
-  const [courses, setCourses] = useState(null);
-  const [materials, setMaterials] = useState(null);
-  const [practice, setPractice] = useState(null);
-  const [tasks, setTasks] = useState(null);
   const [quota, setQuota] = useState(null);
   const [logs, setLogs] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [userKeyword, setUserKeyword] = useState("");
+  const [userStatus, setUserStatus] = useState("all");
+  const [actionLoading, setActionLoading] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [showAnnouncementForm, setShowAnnouncementForm] = useState(false);
+  const [announcementForm, setAnnouncementForm] = useState({ title: "", content: "", status: "published" });
 
   const navigate = (pageName) => {
     if (setPage) setPage(pageName);
@@ -155,8 +140,8 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
 
   const adminParam = user?.username ? `admin_username=${encodeURIComponent(user.username)}` : "";
 
-  const getJson = async (url) => {
-    const res = await fetch(url);
+  const getJson = async (url, options) => {
+    const res = await fetch(url, options);
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.detail || "数据加载失败");
     return data;
@@ -173,15 +158,10 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
         const data = await getJson(`${API_BASE}/admin/announcements?${adminParam}`);
         setAnnouncements(data.items || []);
       } else if (activePage === "adminUsers") {
-        setUsersData(await getJson(`${API_BASE}/admin/users?${adminParam}&page_size=16`));
-      } else if (activePage === "adminCourses") {
-        setCourses(await getJson(`${API_BASE}/admin/courses?${adminParam}`));
-      } else if (activePage === "adminMaterials") {
-        setMaterials(await getJson(`${API_BASE}/admin/materials?${adminParam}&page_size=16`));
-      } else if (activePage === "adminPractice") {
-        setPractice(await getJson(`${API_BASE}/admin/practice?${adminParam}`));
-      } else if (activePage === "adminTasks") {
-        setTasks(await getJson(`${API_BASE}/admin/tasks?${adminParam}`));
+        const params = new URLSearchParams({ admin_username: user.username, page_size: "16" });
+        if (userKeyword.trim()) params.set("keyword", userKeyword.trim());
+        if (userStatus !== "all") params.set("status", userStatus);
+        setUsersData(await getJson(`${API_BASE}/admin/users?${params.toString()}`));
       } else if (activePage === "adminMembers") {
         setMembersData(await getJson(`${API_BASE}/admin/users?${adminParam}&page_size=16`));
       } else if (activePage === "adminQuota") {
@@ -208,7 +188,7 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
 
   useEffect(() => {
     loadCurrentPage();
-  }, [activePage, user?.username]);
+  }, [activePage, user?.username, userStatus]);
 
   const overview = dashboard?.overview || {};
   const statCards = useMemo(() => ([
@@ -222,6 +202,90 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
 
   const memberRows = (membersData?.items || []).filter((item) => item.plan && item.plan !== "free");
   const activeLabel = MENU_ITEMS.find((item) => item.page === activePage)?.label || "首页";
+
+  const submitAnnouncement = async () => {
+    setActionError("");
+    const title = announcementForm.title.trim();
+    const content = announcementForm.content.trim();
+    if (!title || !content) {
+      setActionError("请填写公告标题和内容");
+      return;
+    }
+    setActionLoading("announcement");
+    try {
+      await getJson(`${API_BASE}/admin/announcements`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          admin_username: user.username,
+          title,
+          content,
+          status: announcementForm.status,
+        }),
+      });
+      setShowAnnouncementForm(false);
+      setAnnouncementForm({ title: "", content: "", status: "published" });
+      await loadCurrentPage();
+    } catch (err) {
+      setActionError(err.message || "发布公告失败");
+    } finally {
+      setActionLoading("");
+    }
+  };
+
+  const banUser = async (item) => {
+    const reason = window.prompt(`请输入封禁 ${displayUserName(item)} 的原因：`, item.banned_reason || "");
+    if (reason === null) return;
+    setActionError("");
+    setActionLoading(`ban-${item.user_id}`);
+    try {
+      await getJson(`${API_BASE}/admin/users/${item.user_id}/ban`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ admin_username: user.username, reason }),
+      });
+      await loadCurrentPage();
+    } catch (err) {
+      setActionError(err.message || "封号失败");
+    } finally {
+      setActionLoading("");
+    }
+  };
+
+  const unbanUser = async (item) => {
+    if (!window.confirm(`确认解封 ${displayUserName(item)} 吗？`)) return;
+    setActionError("");
+    setActionLoading(`unban-${item.user_id}`);
+    try {
+      await getJson(`${API_BASE}/admin/users/${item.user_id}/unban`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ admin_username: user.username }),
+      });
+      await loadCurrentPage();
+    } catch (err) {
+      setActionError(err.message || "解封失败");
+    } finally {
+      setActionLoading("");
+    }
+  };
+
+  const deleteUser = async (item) => {
+    const message = `删除后该用户将无法登录，相关学习数据保留用于统计。\n\n确认删除 ${displayUserName(item)} 吗？`;
+    if (!window.confirm(message)) return;
+    setActionError("");
+    setActionLoading(`delete-${item.user_id}`);
+    try {
+      await getJson(`${API_BASE}/admin/users/${item.user_id}?admin_username=${encodeURIComponent(user.username)}`, {
+        method: "DELETE",
+      });
+      await loadCurrentPage();
+    } catch (err) {
+      setActionError(err.message || "删除用户失败");
+    } finally {
+      setActionLoading("");
+    }
+  };
 
   const renderDashboard = () => (
     <>
@@ -269,116 +333,84 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
 
       <section className="admin-dashboard-card admin-dashboard-users-card">
         <h2>最近用户</h2>
-        <UsersTable rows={(dashboard?.recent_users || []).slice(0, 5)} compact hideActions />
+        <UsersTable rows={(dashboard?.recent_users || []).slice(0, 5)} hideActions />
       </section>
     </>
   );
 
   const renderAnnouncements = () => (
-    <AdminPageCard title="系统公告" subtitle="管理平台公告与用户可见通知。">
+    <AdminPageCard
+      title="系统公告"
+      subtitle="管理平台公告与用户可见通知。"
+      action={<button className="admin-dashboard-primary-action" type="button" onClick={() => setShowAnnouncementForm(true)}>发布公告</button>}
+    >
+      {actionError && <div className="admin-dashboard-error">{actionError}</div>}
       {(announcements || []).length > 0 ? (
         <DataTable
-          columns={["标题", "类型", "目标", "状态", "创建时间"]}
+          columns={["标题", "内容摘要", "发布时间", "状态", "操作"]}
           rows={announcements.map((item) => [
             item.title,
-            item.type || "info",
-            item.target || "all",
-            item.is_active ? "已启用" : "已停用",
+            (item.content || "").slice(0, 48) || "-",
             formatDateTime(item.created_at),
+            <StatusBadge tone={item.is_active ? "ok" : "muted"}>{item.is_active ? "已发布" : "草稿"}</StatusBadge>,
+            "只读",
           ])}
         />
       ) : (
         <EmptyState title="暂无公告" description="当前没有系统公告。" />
       )}
+      {showAnnouncementForm && (
+        <div className="admin-dashboard-modal-backdrop" role="presentation">
+          <div className="admin-dashboard-modal" role="dialog" aria-modal="true" aria-labelledby="announcement-title">
+            <div className="admin-dashboard-modal-head">
+              <h3 id="announcement-title">发布公告</h3>
+              <button type="button" onClick={() => setShowAnnouncementForm(false)}>×</button>
+            </div>
+            <label>
+              公告标题
+              <input value={announcementForm.title} onChange={(e) => setAnnouncementForm((prev) => ({ ...prev, title: e.target.value }))} />
+            </label>
+            <label>
+              公告内容
+              <textarea rows={6} value={announcementForm.content} onChange={(e) => setAnnouncementForm((prev) => ({ ...prev, content: e.target.value }))} />
+            </label>
+            <label>
+              公告状态
+              <select value={announcementForm.status} onChange={(e) => setAnnouncementForm((prev) => ({ ...prev, status: e.target.value }))}>
+                <option value="published">发布</option>
+                <option value="draft">草稿</option>
+              </select>
+            </label>
+            <div className="admin-dashboard-modal-actions">
+              <button type="button" onClick={() => setShowAnnouncementForm(false)}>取消</button>
+              <button type="button" className="admin-dashboard-primary-action" disabled={actionLoading === "announcement"} onClick={submitAnnouncement}>
+                {actionLoading === "announcement" ? "发布中..." : "发布公告"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminPageCard>
   );
 
   const renderUsers = () => (
-    <AdminPageCard title="用户管理" subtitle="查看用户列表、套餐、管理员角色与使用概况。">
-      <UsersTable rows={usersData?.items || []} />
-    </AdminPageCard>
-  );
-
-  const renderCourses = () => (
-    <AdminPageCard title="课程管理" subtitle="基于真实课程、资料和学习进度聚合课程概况。">
-      {(courses?.items || []).length > 0 ? (
-        <DataTable
-          columns={["课程名称", "创建时间", "资料数量", "用户数量", "操作"]}
-          rows={courses.items.map((item) => [
-            item.course_name || "-",
-            formatDateTime(item.created_at),
-            formatNumber(item.material_count),
-            formatNumber(item.user_count),
-            "只读",
-          ])}
+    <AdminPageCard title="用户管理" subtitle="管理用户账号、状态和权限">
+      <div className="admin-dashboard-toolbar">
+        <input
+          value={userKeyword}
+          placeholder="按用户名 / 昵称 / 邮箱搜索"
+          onChange={(e) => setUserKeyword(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") loadCurrentPage(); }}
         />
-      ) : (
-        <EmptyState title="暂无课程管理数据" description="有课程资料或学习进度后会展示在这里。" />
-      )}
-    </AdminPageCard>
-  );
-
-  const renderMaterials = () => (
-    <AdminPageCard title="资料库管理" subtitle="查看平台最近上传资料和解析状态。">
-      {(materials?.items || []).length > 0 ? (
-        <DataTable
-          columns={["资料名称", "所属用户", "类型", "课程", "上传时间", "大小"]}
-          rows={materials.items.map((item) => [
-            item.title || item.original_filename || "-",
-            item.username || "-",
-            item.file_type || "-",
-            item.subject || "-",
-            formatDateTime(item.created_at),
-            formatFileSize(item.file_size),
-          ])}
-        />
-      ) : (
-        <EmptyState title="暂无资料数据" description="用户上传 PPT、PDF 或笔记后会展示在这里。" />
-      )}
-    </AdminPageCard>
-  );
-
-  const renderPractice = () => (
-    <AdminPageCard title="练习 / 题库管理" subtitle="查看题目、试卷和编程练习的真实概况。">
-      <div className="admin-dashboard-mini-stats">
-        <div><span>题目总数</span><strong>{formatNumber(practice?.overview?.question_total)}</strong></div>
-        <div><span>试卷总数</span><strong>{formatNumber(practice?.overview?.paper_total)}</strong></div>
-        <div><span>编程练习</span><strong>{formatNumber(practice?.overview?.challenge_total)}</strong></div>
+        <select value={userStatus} onChange={(e) => setUserStatus(e.target.value)}>
+          <option value="all">全部</option>
+          <option value="normal">正常</option>
+          <option value="banned">已封禁</option>
+        </select>
+        <button type="button" onClick={loadCurrentPage}>刷新</button>
       </div>
-      {(practice?.items || []).length > 0 ? (
-        <DataTable
-          columns={["题目", "课程", "类型", "来源", "创建时间"]}
-          rows={practice.items.map((item) => [
-            item.title || "-",
-            item.course_id || "-",
-            item.type || "-",
-            item.source || "-",
-            formatDateTime(item.created_at),
-          ])}
-        />
-      ) : (
-        <EmptyState title="暂无题库数据" description="生成练习或导入试卷后会展示在这里。" />
-      )}
-    </AdminPageCard>
-  );
-
-  const renderTasks = () => (
-    <AdminPageCard title="学习任务管理" subtitle="查看用户学习任务数量、最近任务和状态。">
-      {(tasks?.items || []).length > 0 ? (
-        <DataTable
-          columns={["任务", "所属用户", "课程", "类型", "状态", "创建时间"]}
-          rows={tasks.items.map((item) => [
-            item.title || "-",
-            item.username || "-",
-            item.course_id || "-",
-            item.task_type || "-",
-            item.status || "-",
-            formatDateTime(item.created_at),
-          ])}
-        />
-      ) : (
-        <EmptyState title="暂无学习任务数据" description="用户创建或生成学习任务后会展示在这里。" />
-      )}
+      {actionError && <div className="admin-dashboard-error">{actionError}</div>}
+      <UsersTable rows={usersData?.items || []} onBan={banUser} onUnban={unbanUser} onDelete={deleteUser} actionLoading={actionLoading} />
     </AdminPageCard>
   );
 
@@ -457,10 +489,7 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
         </div>
         <TrendChart data={(usageTrend?.items || []).map((item) => ({ date: item.date?.slice(5), count: item.count }))} />
         {ranking.length > 0 ? (
-          <DataTable
-            columns={["功能", "调用次数"]}
-            rows={ranking.map((item) => [item.feature, formatNumber(item.count)])}
-          />
+          <DataTable columns={["功能", "调用次数"]} rows={ranking.map((item) => [item.feature, formatNumber(item.count)])} />
         ) : (
           <EmptyState title="暂无 AI 用量排行" description="产生 AI 调用后会展示功能使用排行。" />
         )}
@@ -473,12 +502,7 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
       {(settings || []).length > 0 ? (
         <DataTable
           columns={["配置项", "当前值", "说明", "更新时间"]}
-          rows={settings.map((item) => [
-            item.key,
-            String(item.value ?? ""),
-            item.description || "-",
-            formatDateTime(item.updated_at),
-          ])}
+          rows={settings.map((item) => [item.key, String(item.value ?? ""), item.description || "-", formatDateTime(item.updated_at)])}
         />
       ) : (
         <EmptyState title="暂无设置项" description="系统设置初始化后会展示在这里。" />
@@ -518,10 +542,6 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
     }
     if (activePage === "adminAnnouncements") return renderAnnouncements();
     if (activePage === "adminUsers") return renderUsers();
-    if (activePage === "adminCourses") return renderCourses();
-    if (activePage === "adminMaterials") return renderMaterials();
-    if (activePage === "adminPractice") return renderPractice();
-    if (activePage === "adminTasks") return renderTasks();
     if (activePage === "adminOrders") return renderOrders();
     if (activePage === "adminMembers") return renderMembers();
     if (activePage === "adminQuota") return renderQuota();
@@ -580,12 +600,15 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
   );
 }
 
-function AdminPageCard({ title, subtitle, children }) {
+function AdminPageCard({ title, subtitle, action, children }) {
   return (
     <section className="admin-dashboard-card admin-dashboard-section-card">
-      <div className="admin-dashboard-section-head">
-        <h2>{title}</h2>
-        <p>{subtitle}</p>
+      <div className="admin-dashboard-section-head admin-dashboard-section-head--row">
+        <div>
+          <h2>{title}</h2>
+          <p>{subtitle}</p>
+        </div>
+        {action}
       </div>
       {children}
     </section>
@@ -612,22 +635,40 @@ function DataTable({ columns, rows }) {
   );
 }
 
-function UsersTable({ rows, hideActions = false }) {
+function StatusBadge({ tone = "ok", children }) {
+  return <span className={`admin-dashboard-status admin-dashboard-status--${tone}`}>{children}</span>;
+}
+
+function UsersTable({ rows, hideActions = false, onBan, onUnban, onDelete, actionLoading = "" }) {
   if (!rows || rows.length === 0) {
     return <EmptyState title="暂无用户数据" description="当前没有可展示的用户记录。" />;
   }
-  const columns = ["用户昵称", "用户ID", "注册方式", "注册时间", "最后登录时间", "学习时长"];
-  if (!hideActions) columns.push("状态");
+  const columns = ["用户昵称", "用户ID", "账号", "注册时间", "最后登录", "学习时长", "状态"];
+  if (!hideActions) columns.push("操作");
   const tableRows = rows.map((item) => {
+    const isBanned = Boolean(item.is_banned);
+    const isAdmin = Boolean(item.is_admin) || (item.admin_role && item.admin_role !== "none");
+    const status = isBanned ? <StatusBadge tone="danger">已封禁</StatusBadge> : <StatusBadge tone="ok">正常</StatusBadge>;
+    const actions = (
+      <div className="admin-dashboard-actions">
+        {isBanned ? (
+          <button type="button" disabled={!!actionLoading || isAdmin} onClick={() => onUnban?.(item)}>解封</button>
+        ) : (
+          <button type="button" className="warning" disabled={!!actionLoading || isAdmin} onClick={() => onBan?.(item)}>封号</button>
+        )}
+        <button type="button" className="danger" disabled={!!actionLoading || isAdmin} onClick={() => onDelete?.(item)}>删除</button>
+      </div>
+    );
     const base = [
       <><span className="admin-dashboard-user-avatar">U</span>{displayUserName(item)}</>,
       item.user_id || item.id || "-",
-      item.register_method || "账号注册",
+      item.username || "-",
       formatDateTime(item.register_time || item.created_at),
       formatDateTime(item.last_active_time),
       `${formatNumber(item.learning_hours, 1)} 小时`,
+      status,
     ];
-    if (!hideActions) base.push(item.is_active === 0 ? "已停用" : "正常");
+    if (!hideActions) base.push(actions);
     return base;
   });
   return <DataTable columns={columns} rows={tableRows} />;

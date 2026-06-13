@@ -416,7 +416,6 @@ const VALID_PAGES = new Set([
   "taskCenter", "practiceCenter", "learningDataCenter", "reviewCenter",
   "learningPlanCenter", "knowledgeBaseCenter", "quotaCenter",
   "learningReportCenter", "adminDashboard", "adminAnnouncements", "adminUsers",
-  "adminCourses", "adminMaterials", "adminPractice", "adminTasks",
   "adminOrders", "adminMembers", "adminQuota", "adminStatistics", "adminUsage",
   "adminSettings", "adminLogs",
   "adminUsageCenter", "adminCenter",
@@ -428,7 +427,6 @@ const VALID_PAGES = new Set([
 
 const ADMIN_PAGES = [
   "adminDashboard", "adminAnnouncements", "adminUsers", "adminOrders",
-  "adminCourses", "adminMaterials", "adminPractice", "adminTasks",
   "adminMembers", "adminQuota", "adminStatistics", "adminUsage",
   "adminSettings", "adminLogs", "adminUsageCenter", "adminCenter",
 ];
@@ -917,6 +915,9 @@ function App() {
     const data = await res.json();
     if (!res.ok) {
       throw new Error(getDisplayMessage(data.detail, "Login expired. Please log in again."));
+    }
+    if (data.user?.is_banned || data.user?.is_deleted) {
+      throw new Error(data.user?.is_deleted ? "账号已被删除" : "账号已被封禁，请联系管理员");
     }
     return data.user;
   };
@@ -1964,6 +1965,11 @@ function App() {
         }
 
         const checkedUser = data.user || savedUser;
+        if (checkedUser?.is_banned || checkedUser?.is_deleted) {
+          logout();
+          setTip(checkedUser.is_deleted ? "账号已被删除" : "账号已被封禁，请联系管理员");
+          return;
+        }
         saveLoginUser(checkedUser);
         await loadProfile(checkedUser);
         const savedPage = (() => {
@@ -3395,8 +3401,7 @@ function App() {
   }
 
   if ([
-    "adminDashboard", "adminAnnouncements", "adminUsers", "adminCourses",
-    "adminMaterials", "adminPractice", "adminTasks", "adminOrders",
+    "adminDashboard", "adminAnnouncements", "adminUsers", "adminOrders",
     "adminMembers", "adminQuota", "adminStatistics", "adminUsage",
     "adminSettings", "adminLogs",
   ].includes(page)) {
