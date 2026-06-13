@@ -115,7 +115,7 @@ function TrendChart({ data, emptyTitle = "暂无趋势数据", emptyDescription 
   );
 }
 
-export default function AdminDashboard({ user, activePage = "adminDashboard", setPage, onLogout }) {
+export default function AdminDashboard({ user, activePage = "adminDashboard", setPage, onLogout, onUserUpdate }) {
   const [dashboard, setDashboard] = useState(null);
   const [usersData, setUsersData] = useState(null);
   const [membersData, setMembersData] = useState(null);
@@ -721,7 +721,11 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || "头像上传失败");
-      setUserAvatarUrl(data.avatar_url || data.profile?.avatar_url || null);
+      const newAvatarUrl = data.avatar_url || data.profile?.avatar_url || null;
+      setUserAvatarUrl(newAvatarUrl);
+      if (onUserUpdate && data.profile) {
+        onUserUpdate(data.profile);
+      }
       setActionSuccess("头像已更新");
     } catch (err) {
       setActionError(err.message || "头像上传失败");
@@ -742,6 +746,9 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || "头像删除失败");
       setUserAvatarUrl(null);
+      if (onUserUpdate && data.profile) {
+        onUserUpdate(data.profile);
+      }
       setActionSuccess("头像已删除");
     } catch (err) {
       setActionError(err.message || "头像删除失败");

@@ -355,7 +355,7 @@ def user_profile(user: models.User):
         if avatar_id in ALLOWED_AVATARS:
             avatar_url = avatar_id
         else:
-            avatar_url = f"/me/avatar/{avatar_id}"
+            avatar_url = f"/api/me/avatar/{avatar_id}"
 
     learning_goals = []
     if user.learning_goals:
@@ -4214,7 +4214,7 @@ async def upload_avatar(
     db.commit()
     db.refresh(user)
 
-    return {"avatar_url": f"/me/avatar/{avatar_filename}", "profile": user_profile(user)}
+    return {"avatar_url": f"/api/me/avatar/{avatar_filename}", "message": "头像已更新", "profile": user_profile(user)}
 
 
 @app.get("/me/avatar/{filename}")
