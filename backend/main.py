@@ -413,7 +413,7 @@ def upsert_user_track(db: Session, user_id: int, track_type: str, plan: str = "f
         db.add(track)
     else:
         track.plan = plan
-        track.package_type = package_type or track.package_type
+        track.package_type = normalize_package_type(package_type or track.package_type)
     perms = dict(TRACK_PERMISSIONS.get(track_type, {}))
     # Merge exam quota based on package
     if track_type == "exam_408" and package_type and package_type in EXAM_PACKAGE_QUOTA:
@@ -442,7 +442,7 @@ def serialize_track(track):
         "id": track.id,
         "track_type": track.track_type,
         "plan": track.plan or "free",
-        "package_type": track.package_type,
+        "package_type": normalize_package_type(track.package_type),
         "permissions": perms,
         "onboarding_detail": onboarding,
         "is_active": bool(track.is_active),
@@ -538,27 +538,48 @@ EXAM_PACKAGE_NAMES = {
     "full_exam": "全程备考包",
 }
 
+# Normalize legacy/Chinese package values to English enum
+PACKAGE_NORMALIZE_MAP = {
+    "免费模式": "free", "free": "free",
+    "月度冲刺": "monthly_sprint", "月度冲刺包": "monthly_sprint", "exam_monthly": "monthly_sprint", "monthly_sprint": "monthly_sprint",
+    "季度强化包": "quarterly_boost", "quarterly": "quarterly_boost", "exam_quarterly": "quarterly_boost", "quarterly_boost": "quarterly_boost",
+    "全程考包": "full_exam", "全程备考包": "full_exam", "exam_yearly": "full_exam", "full_exam": "full_exam",
+}
+
+
+def normalize_package_type(raw):
+    if not raw:
+        return "free"
+    val = str(raw).strip()
+    return PACKAGE_NORMALIZE_MAP.get(val, "free")
+
 
 @app.put("/me/tracks/exam_408/package")
 def upgrade_exam_package(req: dict, db: Session = Depends(get_db)):
     username = str(req.get("username", "")).strip()
-    new_pkg = str(req.get("package_type", "")).strip()
+    raw_pkg = str(req.get("package_type", "")).strip()
+    new_pkg = normalize_package_type(raw_pkg)
     if new_pkg not in EXAM_PACKAGE_TIERS:
         raise HTTPException(status_code=400, detail="无效的套餐类型")
     user = get_user_by_username(username, db)
     track = ensure_exam_408_track(db, user)
     if not track:
         raise HTTPException(status_code=404, detail="尚未开通 11408 备考方向")
-    old_pkg = track.package_type or "free"
-    # Only allow upgrade, not downgrade
-    old_idx = EXAM_PACKAGE_TIERS.index(old_pkg) if old_pkg in EXAM_PACKAGE_TIERS else 0
+    # Normalize current package too (handles legacy Chinese values in DB)
+    old_raw = track.package_type
+    old_pkg = normalize_package_type(old_raw)
+    # If legacy value differs from normalized, clean up the DB
+    if old_raw != old_pkg:
+        track.package_type = old_pkg
+    old_idx = EXAM_PACKAGE_TIERS.index(old_pkg)
     new_idx = EXAM_PACKAGE_TIERS.index(new_pkg)
-    if new_idx <= old_idx:
+    if new_idx < old_idx:
         raise HTTPException(status_code=400, detail="当前已是该套餐或更高等级，无需降级")
-    # Apply upgrade
+    if new_idx == old_idx:
+        raise HTTPException(status_code=400, detail="当前已是该套餐或更高等级，无需升级")
+    # Upgrade
     track.package_type = new_pkg
     track.plan = "free" if new_pkg == "free" else "pro"
-    # Update permissions
     perms = dict(TRACK_PERMISSIONS.get("exam_408", {}))
     if new_pkg in EXAM_PACKAGE_QUOTA:
         perms.update(EXAM_PACKAGE_QUOTA[new_pkg])
@@ -590,9 +611,10 @@ def ensure_exam_408_track(db: Session, user: models.User):
         return None
     # Build detail from legacy fields
     old_detail = _parse_onboarding_detail(user) or {}
-    # Determine package from legacy plan
+    # Determine package from legacy plan — normalize
     legacy_plan = (getattr(user, "plan", "free") or "free").strip()
-    pkg = old_detail.get("exam_package_type", "free") if old_detail else "free"
+    raw_pkg = old_detail.get("exam_package_type", "free") if old_detail else "free"
+    pkg = normalize_package_type(raw_pkg)
     plan = legacy_plan if legacy_plan != "free" else ("pro" if pkg != "free" else "free")
     # Create track
     track = models.UserLearningTrack(

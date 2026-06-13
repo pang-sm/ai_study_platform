@@ -43,10 +43,17 @@ export default function ExamPlan({ user, setPage, API_BASE }) {
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
 
-  useEffect(() => {
-    const examTrack = (user?.tracks || []).find((t) => t.track_type === "exam_408");
-    if (examTrack?.package_type) setCurrentPkg(examTrack.package_type);
-  }, [user]);
+  // Fetch real package from tracks API — not from stale prop
+  const fetchPackage = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/me/tracks?username=${encodeURIComponent(user.username)}`);
+      const data = await res.json().catch(() => ({}));
+      const tracks = data.tracks || [];
+      const examTrack = tracks.find((t) => t.track_type === "exam_408");
+      if (examTrack?.package_type) setCurrentPkg(examTrack.package_type);
+    } catch { /* keep default */ }
+  };
+  useEffect(() => { fetchPackage(); }, []);
 
   const currentIdx = TIER_ORDER.indexOf(currentPkg);
 
