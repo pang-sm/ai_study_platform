@@ -302,6 +302,7 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
     <div className="ep-page-wrap">
       <div className="ep-shell">
         <div className="ep-header">
+          <button type="button" className="ep-outline-btn" onClick={() => setPage && setPage("examHome")}>← 返回 11408 主页</button>
           <h1 className="ep-title">🛡 个人中心</h1>
         </div>
 

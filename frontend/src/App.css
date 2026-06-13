@@ -17010,6 +17010,10 @@ select.field:focus {
 
 .ep-header {
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
 }
 
 .ep-title {
