@@ -60,6 +60,13 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
   const [nickname, setNickname] = useState(user?.nickname || "");
   const avatarInputRef = useRef(null);
 
+  // Target school search
+  const [targetSchool, setTargetSchool] = useState("");
+  const [schoolQuery, setSchoolQuery] = useState("");
+  const [schoolResults, setSchoolResults] = useState([]);
+  const [schoolFocused, setSchoolFocused] = useState(false);
+  const schoolRef = useRef(null);
+
   // Resolve package data from tracks
   const examTrack = (user?.tracks || []).find((t) => t.track_type === "exam_408");
   const pkgType = examTrack?.package_type || "";
@@ -84,13 +91,51 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
     { icon: "📊", label: "学习报告", value: perks[5]?.ok ? "已解锁" : "未解锁", unit: "", used: "", sub: perks[5]?.ok ? "进阶版可用" : "升级后可用" },
   ];
 
+  // Init target school from track data
+  const savedSchool = onboardingDetail?.target_school || "";
+  useEffect(() => { setTargetSchool(savedSchool); setSchoolQuery(savedSchool); }, [savedSchool]);
+
+  const fetchSchools = async (q) => {
+    try {
+      const res = await fetch(`${API_BASE}/exam-408/schools?q=${encodeURIComponent(q || "")}`);
+      const data = await res.json().catch(() => ({}));
+      setSchoolResults(data.schools || []);
+    } catch { setSchoolResults([]); }
+  };
+
+  const selectSchool = async (school) => {
+    setSchoolQuery(school);
+    setTargetSchool(school);
+    setSchoolFocused(false);
+    // Save to backend
+    try {
+      const res = await fetch(`${API_BASE}/exam-408/target-school`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: user.username, school }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "保存失败");
+      setActionMsg("目标院校已更新");
+      setTimeout(() => setActionMsg(""), 2500);
+    } catch (err) {
+      setActionErr(err.message);
+    }
+  };
+
+  // Click outside to close dropdown
+  useEffect(() => {
+    const handler = (e) => { if (schoolRef.current && !schoolRef.current.contains(e.target)) setSchoolFocused(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
   const displayName = user?.nickname || user?.username || "小庞同学";
   const username = user?.username || "xiaopang";
   const examTime = onboardingDetail?.exam_time || "2026 年 12 月";
   const examStage = onboardingDetail?.stage || "基础阶段";
   const examDaily = onboardingDetail?.daily_study_time || "6 - 8 小时";
   const registerTime = user?.created_at || "2024-12-01 10:30:25";
-  const targetSchool = onboardingDetail?.target_school || "北京大学";
   const realEmail = user?.email || "";
   const emailDisplay = realEmail ? maskEmail(realEmail) : "未绑定";
   const emailBtnLabel = realEmail ? "修改" : "绑定";
@@ -269,7 +314,35 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
                 {editing ? <input className="ep-info-input" value={nickname} onChange={(e) => setNickname(e.target.value)} /> : <span>{displayName}</span>}
               </div>
               <div className="ep-info-row"><span className="ep-info-label">学习方向</span><span className="ep-info-tag">11408 考研</span></div>
-              <div className="ep-info-row"><span className="ep-info-label">目标院校</span><span>{targetSchool}</span></div>
+              <div className="ep-info-row">
+                <span className="ep-info-label">目标院校</span>
+                <div className="ep-school-wrap" ref={schoolRef}>
+                  {editing ? (
+                    <>
+                      <input
+                        className="ep-school-input"
+                        value={schoolQuery}
+                        placeholder="输入院校名称搜索..."
+                        onChange={(e) => { setSchoolQuery(e.target.value); fetchSchools(e.target.value); }}
+                        onFocus={() => { setSchoolFocused(true); if (!schoolQuery) fetchSchools(""); }}
+                      />
+                      {schoolFocused && (
+                        <div className="ep-school-drop">
+                          {schoolResults.length === 0 ? (
+                            <span className="ep-school-none">未找到匹配院校</span>
+                          ) : (
+                            schoolResults.map((s) => (
+                              <button key={s} type="button" className="ep-school-opt" onClick={() => selectSchool(s)}>{s}</button>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <span>{targetSchool || "未设置"}</span>
+                  )}
+                </div>
+              </div>
             </div>
             <div className="ep-info-col">
               <div className="ep-info-row"><span className="ep-info-label">考试时间</span><span>{examTime}</span></div>

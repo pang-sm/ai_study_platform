@@ -451,6 +451,53 @@ def serialize_track(track):
     }
 
 
+# ── 11408 School Whitelist ──
+
+EXAM_408_SCHOOLS = [
+    "北京大学", "南京大学", "复旦大学", "浙江大学",
+    "上海交通大学", "中国科学技术大学", "哈尔滨工业大学",
+    "西安交通大学", "华中科技大学", "武汉大学",
+    "东南大学", "同济大学", "北京航空航天大学",
+    "北京邮电大学", "电子科技大学", "华南理工大学",
+    "中山大学", "南开大学", "天津大学", "四川大学",
+    "重庆大学", "湖南大学", "中南大学",
+    "大连理工大学", "东北大学", "吉林大学",
+    "山东大学", "厦门大学", "西北工业大学",
+    "北京理工大学", "北京交通大学", "西安电子科技大学",
+]
+
+@app.get("/api/exam-408/schools")
+def search_exam_408_schools(q: str = ""):
+    query = (q or "").strip()
+    if not query:
+        return {"schools": EXAM_408_SCHOOLS}
+    lower_q = query.lower()
+    results = [s for s in EXAM_408_SCHOOLS if lower_q in s.lower()]
+    return {"schools": results}
+
+
+@app.put("/api/exam-408/target-school")
+def update_target_school(req: dict, db: Session = Depends(get_db)):
+    username = str(req.get("username", "")).strip()
+    school = str(req.get("school", "")).strip()
+    user = get_user_by_username(username, db)
+    if school and school not in EXAM_408_SCHOOLS:
+        raise HTTPException(status_code=400, detail="请选择 11408 院校库中的学校")
+    track = get_user_track(db, user.id, "exam_408")
+    if track:
+        detail = {}
+        try:
+            if track.onboarding_detail_json:
+                detail = json.loads(track.onboarding_detail_json)
+        except (json.JSONDecodeError, TypeError):
+            pass
+        detail["target_school"] = school
+        track.onboarding_detail_json = json.dumps(detail, ensure_ascii=False)
+        db.commit()
+        db.refresh(track)
+    return {"target_school": school, "message": "目标院校已更新"}
+
+
 def user_needs_onboarding(user: models.User) -> bool:
     if is_admin_user(user):
         return False

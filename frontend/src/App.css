@@ -17187,6 +17187,74 @@ select.field:focus {
   width: 140px;
 }
 
+/* School search */
+.ep-school-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.ep-school-input {
+  width: 100%;
+  height: 30px;
+  border: 1px solid #c4b5fd;
+  border-radius: 8px;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 14px;
+  color: #1e293b;
+  background: #fff;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.ep-school-input:focus {
+  border-color: #a78bfa;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.08);
+}
+
+.ep-school-drop {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background: #fff;
+  border: 1px solid #ede4ff;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(124, 58, 237, 0.1);
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 50;
+}
+
+.ep-school-opt {
+  display: block;
+  width: 100%;
+  border: none;
+  background: none;
+  padding: 10px 14px;
+  font: inherit;
+  font-size: 14px;
+  color: #334155;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.ep-school-opt:hover {
+  background: #f5f3ff;
+  color: #7c3aed;
+}
+
+.ep-school-none {
+  display: block;
+  padding: 12px 14px;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
 /* ── Switch buttons ── */
 
 .ep-switch-btns {
