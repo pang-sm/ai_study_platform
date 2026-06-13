@@ -1,5 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 
+const EXAM_408_SCHOOLS = [
+  "北京大学", "南京大学", "浙江大学", "上海交通大学",
+  "复旦大学", "中国科学技术大学", "武汉大学", "华中科技大学",
+  "同济大学", "中国人民大学", "北京邮电大学", "北京工业大学",
+  "北京交通大学", "南京理工大学", "华东理工大学", "上海大学",
+  "郑州大学", "云南大学", "河北工业大学", "武汉理工大学",
+];
+
 const PACKAGE_LABELS = {
   free: "免费模式",
   monthly_sprint: "月度冲刺",
@@ -96,14 +104,29 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
   useEffect(() => { setTargetSchool(savedSchool); setSchoolQuery(savedSchool); }, [savedSchool]);
 
   const fetchSchools = async (q) => {
+    const query = (q || "").trim();
+    // Try backend API first
     try {
-      const res = await fetch(`${API_BASE}/exam-408/schools?q=${encodeURIComponent(q || "")}`);
+      const res = await fetch(`${API_BASE}/exam-408/schools?q=${encodeURIComponent(query)}`);
       const data = await res.json().catch(() => ({}));
-      setSchoolResults(data.schools || []);
-    } catch { setSchoolResults([]); }
+      if (data.schools && data.schools.length > 0) {
+        setSchoolResults(data.schools);
+        return;
+      }
+    } catch { /* fallback to local list */ }
+    // Fallback: filter local constant
+    const lower = query.toLowerCase();
+    const results = query
+      ? EXAM_408_SCHOOLS.filter((s) => s.toLowerCase().includes(lower))
+      : EXAM_408_SCHOOLS;
+    setSchoolResults(results);
   };
 
   const selectSchool = async (school) => {
+    if (!EXAM_408_SCHOOLS.includes(school)) {
+      setActionErr("请选择 11408 院校库中的学校");
+      return;
+    }
     setSchoolQuery(school);
     setTargetSchool(school);
     setSchoolFocused(false);
