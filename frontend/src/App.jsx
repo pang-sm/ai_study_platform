@@ -10,6 +10,7 @@ import AIQuestionPage from "./components/AIQuestionPage.jsx";
 import MaterialPickerModal from "./components/MaterialPickerModal.jsx";
 import ProfilePage from "./components/ProfilePage.jsx";
 import Onboarding from "./components/Onboarding.jsx";
+import ExamHome from "./components/ExamHome.jsx";
 import MembershipPage from "./components/MembershipPage.jsx";
 
 const CodeStudio = lazy(() => import("./components/CodeStudio.jsx"));
@@ -422,7 +423,7 @@ const VALID_PAGES = new Set([
   "adminUsageCenter", "adminCenter",
   "materials", "workspaceMaterials", "chat", "records", "history",
   "knowledgeLearning", "searchResults",
-  "profileEdit", "onboarding",
+  "profileEdit", "onboarding", "examHome",
   "login", "adminLogin",
 ]);
 
@@ -3005,7 +3006,7 @@ function App() {
   if (page === "onboarding") {
     const handleOnboardingComplete = (profile, goalType) => {
       saveLoginUser(profile);
-      setPage("home");
+      setPage(goalType === "exam_408" ? "examHome" : "home");
     };
     return <Onboarding user={user} onComplete={handleOnboardingComplete} API_BASE={API_BASE} />;
   }
@@ -3090,6 +3091,12 @@ function App() {
       // ignore
     }
   };
+
+  if (page === "examHome") {
+    return wrapPage(
+      <ExamHome user={user} setPage={setPage} subject={subject} setSubject={setSubject} apiBase={API_BASE} onLogout={logout} />
+    );
+  }
 
   if (page === "profile") {
     return wrapPage(
