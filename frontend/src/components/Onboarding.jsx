@@ -494,11 +494,8 @@ export default function Onboarding({ user, onComplete, API_BASE }) {
 
             {error && <div className="ob-error">{error}</div>}
 
-            <div className="ob-actions ob-actions--dual">
+            <div className="ob-actions">
               <button type="button" className="ob-btn-secondary" onClick={handleBack}>上一步</button>
-              <button type="button" className="ob-btn-primary" onClick={handleSubmit} disabled={saving}>
-                {saving ? "保存中..." : "继续"}
-              </button>
             </div>
           </>
         )}
