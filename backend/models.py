@@ -554,6 +554,7 @@ class SystemAnnouncement(Base):
     created_by = Column(String(50), nullable=True)
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+    withdrawn_at = Column(DateTime, nullable=True)
 
 
 class SystemSetting(Base):

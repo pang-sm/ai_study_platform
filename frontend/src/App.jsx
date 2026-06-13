@@ -417,7 +417,7 @@ const VALID_PAGES = new Set([
   "learningPlanCenter", "knowledgeBaseCenter", "quotaCenter",
   "learningReportCenter", "adminDashboard", "adminAnnouncements", "adminUsers",
   "adminOrders", "adminMembers", "adminQuota", "adminStatistics", "adminUsage",
-  "adminSettings", "adminLogs",
+  "adminSettings", "adminLogs", "adminProfile",
   "adminUsageCenter", "adminCenter",
   "materials", "workspaceMaterials", "chat", "records", "history",
   "knowledgeLearning", "searchResults",
@@ -428,7 +428,7 @@ const VALID_PAGES = new Set([
 const ADMIN_PAGES = [
   "adminDashboard", "adminAnnouncements", "adminUsers", "adminOrders",
   "adminMembers", "adminQuota", "adminStatistics", "adminUsage",
-  "adminSettings", "adminLogs", "adminUsageCenter", "adminCenter",
+  "adminSettings", "adminLogs", "adminProfile", "adminUsageCenter", "adminCenter",
 ];
 
 function getInitialPage() {
@@ -3403,7 +3403,7 @@ function App() {
   if ([
     "adminDashboard", "adminAnnouncements", "adminUsers", "adminOrders",
     "adminMembers", "adminQuota", "adminStatistics", "adminUsage",
-    "adminSettings", "adminLogs",
+    "adminSettings", "adminLogs", "adminProfile",
   ].includes(page)) {
     return (
       <Suspense fallback={<div className="empty-state">管理员首页加载中...</div>}>

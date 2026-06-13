@@ -696,6 +696,7 @@ SYSTEM_ANNOUNCEMENTS_COLUMNS = {
     "created_by": "VARCHAR(50)",
     "created_at": "DATETIME",
     "updated_at": "DATETIME",
+    "withdrawn_at": "DATETIME",
 }
 
 SYSTEM_SETTINGS_COLUMNS = {
@@ -713,7 +714,8 @@ def ensure_system_announcements_schema(conn):
         type VARCHAR(20) DEFAULT 'info', is_active INTEGER DEFAULT 1,
         target VARCHAR(20) DEFAULT 'all', created_by VARCHAR(50),
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)"""))
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        withdrawn_at DATETIME)"""))
     ensure_columns(conn, "system_announcements", SYSTEM_ANNOUNCEMENTS_COLUMNS)
 
 

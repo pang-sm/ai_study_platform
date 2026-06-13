@@ -17122,6 +17122,7 @@ def admin_dashboard(admin_username: str = "", db: Session = Depends(get_db)):
 
     announcement_rows = (
         db.query(models.SystemAnnouncement)
+        .filter(models.SystemAnnouncement.is_active == 1)
         .order_by(models.SystemAnnouncement.created_at.desc())
         .limit(5)
         .all()
@@ -19683,7 +19684,29 @@ def admin_material_issues(admin_username: str, issue_type: str = "all", page: in
 def admin_announcements_list(admin_username: str = "", db: Session = Depends(get_db)):
     require_admin_permission(db, admin_username, "settings.view")
     items = db.query(models.SystemAnnouncement).order_by(models.SystemAnnouncement.created_at.desc()).all()
-    return {"items": [{"id": a.id, "title": a.title, "content": a.content, "type": a.type, "is_active": bool(a.is_active), "target": a.target, "created_by": a.created_by, "created_at": serialize_datetime(a.created_at), "updated_at": serialize_datetime(a.updated_at)} for a in items]}
+    return {"items": [_serialize_admin_announcement(a) for a in items]}
+
+
+def _announcement_status(a):
+    if getattr(a, "withdrawn_at", None):
+        return "withdrawn"
+    return "published" if a.is_active else "draft"
+
+
+def _serialize_admin_announcement(a):
+    return {
+        "id": a.id,
+        "title": a.title,
+        "content": a.content,
+        "type": a.type,
+        "is_active": bool(a.is_active),
+        "status": _announcement_status(a),
+        "target": a.target,
+        "created_by": a.created_by,
+        "created_at": serialize_datetime(a.created_at),
+        "updated_at": serialize_datetime(a.updated_at),
+        "withdrawn_at": serialize_datetime(getattr(a, "withdrawn_at", None)),
+    }
 
 
 @app.post("/admin/announcements")
@@ -19713,21 +19736,7 @@ def admin_announcements_create(req: dict, db: Session = Depends(get_db)):
         detail=f"id={a.id}",
         details={"id": a.id, "title": a.title, "type": a.type, "target": a.target, "is_active": bool(a.is_active)},
     )
-    return {
-        "success": True,
-        "announcement": {
-            "id": a.id,
-            "title": a.title,
-            "content": a.content,
-            "type": a.type,
-            "is_active": bool(a.is_active),
-            "status": "published" if a.is_active else "draft",
-            "target": a.target,
-            "created_by": a.created_by,
-            "created_at": serialize_datetime(a.created_at),
-            "updated_at": serialize_datetime(a.updated_at),
-        },
-    }
+    return {"success": True, "announcement": _serialize_admin_announcement(a)}
 
 
 @app.put("/admin/announcements/{a_id}")
@@ -19741,7 +19750,10 @@ def admin_announcements_update(a_id: int, req: dict, db: Session = Depends(get_d
     if "content" in req: a.content = str(req["content"]).strip()[:5000]
     if "type" in req: a.type = str(req["type"]).strip() or "info"
     if "target" in req: a.target = str(req["target"]).strip() or "all"
-    if "is_active" in req: a.is_active = int(req["is_active"])
+    if "is_active" in req:
+        a.is_active = int(req["is_active"])
+        if a.is_active:
+            a.withdrawn_at = None
     a.updated_at = utc_now()
     db.commit()
     _write_audit_log(
@@ -19753,7 +19765,88 @@ def admin_announcements_update(a_id: int, req: dict, db: Session = Depends(get_d
         detail=f"id={a.id}",
         details={"id": a.id, "old_values": old_values, "new_values": {"title": a.title, "content": a.content, "type": a.type, "target": a.target, "is_active": bool(a.is_active)}},
     )
-    return {"success": True}
+    db.refresh(a)
+    return {"success": True, "announcement": _serialize_admin_announcement(a)}
+
+
+@app.patch("/admin/announcements/{a_id}")
+def admin_announcements_patch(a_id: int, req: dict, db: Session = Depends(get_db)):
+    admin_name = str(req.get("admin_username", "")).strip()
+    require_admin_permission(db, admin_name, "announcements.manage")
+    a = db.query(models.SystemAnnouncement).filter(models.SystemAnnouncement.id == a_id).first()
+    if not a:
+        raise HTTPException(status_code=404, detail="公告不存在")
+
+    title = str(req.get("title", a.title) or "").strip()
+    content = str(req.get("content", a.content) or "").strip()
+    if not title or not content:
+        raise HTTPException(status_code=400, detail="标题和内容不能为空")
+
+    old_values = {
+        "title": a.title,
+        "content": a.content,
+        "type": a.type,
+        "target": a.target,
+        "is_active": bool(a.is_active),
+        "status": _announcement_status(a),
+    }
+    a.title = title[:500]
+    a.content = content[:5000]
+    if "type" in req:
+        a.type = str(req["type"]).strip() or "info"
+    if "target" in req:
+        a.target = str(req["target"]).strip() or "all"
+    status = str(req.get("status", _announcement_status(a))).strip().lower()
+    if status == "published":
+        a.is_active = 1
+        a.withdrawn_at = None
+    elif status == "withdrawn":
+        a.is_active = 0
+        a.withdrawn_at = a.withdrawn_at or utc_now()
+    elif status in ("draft", "inactive", "disabled"):
+        a.is_active = 0
+        a.withdrawn_at = None
+    if "is_active" in req and "status" not in req:
+        a.is_active = int(req["is_active"])
+        if a.is_active:
+            a.withdrawn_at = None
+    a.updated_at = utc_now()
+    db.commit()
+    db.refresh(a)
+    _write_audit_log(
+        admin_name,
+        f"修改公告 {a.title}",
+        db,
+        target_type="announcement",
+        target_id=str(a.id),
+        detail=f"id={a.id}",
+        details={"id": a.id, "old_values": old_values, "new_values": _serialize_admin_announcement(a)},
+    )
+    return {"success": True, "announcement": _serialize_admin_announcement(a)}
+
+
+@app.post("/admin/announcements/{a_id}/withdraw")
+def admin_announcements_withdraw(a_id: int, req: dict, db: Session = Depends(get_db)):
+    admin_name = str(req.get("admin_username", "")).strip()
+    require_admin_permission(db, admin_name, "announcements.manage")
+    a = db.query(models.SystemAnnouncement).filter(models.SystemAnnouncement.id == a_id).first()
+    if not a:
+        raise HTTPException(status_code=404, detail="公告不存在")
+    a.is_active = 0
+    a.withdrawn_at = utc_now()
+    a.updated_at = utc_now()
+    db.commit()
+    db.refresh(a)
+    _write_audit_log(
+        admin_name,
+        f"撤回公告 {a.title}",
+        db,
+        target_type="announcement",
+        target_id=str(a.id),
+        detail=f"id={a.id}",
+        details={"id": a.id, "title": a.title, "status": "withdrawn"},
+    )
+    return {"success": True, "announcement": _serialize_admin_announcement(a)}
 
 
 @app.put("/admin/announcements/{a_id}/status")
@@ -19764,6 +19857,8 @@ def admin_announcements_toggle(a_id: int, req: dict, db: Session = Depends(get_d
     if not a: raise HTTPException(status_code=404, detail="公告不存在")
     old_active = bool(a.is_active)
     a.is_active = int(req.get("is_active", 0))
+    if a.is_active:
+        a.withdrawn_at = None
     a.updated_at = utc_now()
     db.commit()
     _write_audit_log(

@@ -131,8 +131,14 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
   const [userStatus, setUserStatus] = useState("all");
   const [actionLoading, setActionLoading] = useState("");
   const [actionError, setActionError] = useState("");
+  const [actionSuccess, setActionSuccess] = useState("");
   const [showAnnouncementForm, setShowAnnouncementForm] = useState(false);
+  const [announcementFormError, setAnnouncementFormError] = useState("");
+  const [editingAnnouncement, setEditingAnnouncement] = useState(null);
   const [announcementForm, setAnnouncementForm] = useState({ title: "", content: "", status: "published" });
+  const [profileForm, setProfileForm] = useState({ nickname: user?.nickname || "", avatar: user?.avatar || "" });
+  const [passwordForm, setPasswordForm] = useState({ old_password: "", new_password: "", confirm_password: "" });
+  const [emailForm, setEmailForm] = useState({ email: user?.email || "", code: "" });
 
   const navigate = (pageName) => {
     if (setPage) setPage(pageName);
@@ -187,8 +193,16 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
   };
 
   useEffect(() => {
+    setActionError("");
+    setActionSuccess("");
+    setAnnouncementFormError("");
     loadCurrentPage();
   }, [activePage, user?.username, userStatus]);
+
+  useEffect(() => {
+    setProfileForm({ nickname: user?.nickname || "", avatar: user?.avatar || "" });
+    setEmailForm((prev) => ({ ...prev, email: user?.email || "" }));
+  }, [user?.nickname, user?.avatar, user?.email]);
 
   const overview = dashboard?.overview || {};
   const statCards = useMemo(() => ([
@@ -201,20 +215,46 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
   ]), [overview]);
 
   const memberRows = (membersData?.items || []).filter((item) => item.plan && item.plan !== "free");
-  const activeLabel = MENU_ITEMS.find((item) => item.page === activePage)?.label || "首页";
+  const activeLabel = activePage === "adminProfile" ? "个人资料" : (MENU_ITEMS.find((item) => item.page === activePage)?.label || "首页");
+
+  const openAnnouncementForm = (item = null) => {
+    setActionError("");
+    setAnnouncementFormError("");
+    setEditingAnnouncement(item);
+    setAnnouncementForm({
+      title: item?.title || "",
+      content: item?.content || "",
+      status: item?.status || (item?.is_active ? "published" : "draft"),
+    });
+    setShowAnnouncementForm(true);
+  };
+
+  const closeAnnouncementForm = () => {
+    setShowAnnouncementForm(false);
+    setAnnouncementFormError("");
+    setEditingAnnouncement(null);
+    setAnnouncementForm({ title: "", content: "", status: "published" });
+  };
+
+  const announcementStatusLabel = (item) => {
+    if (item?.status === "withdrawn") return "已撤回";
+    if (item?.status === "draft" || !item?.is_active) return "草稿";
+    return "已发布";
+  };
 
   const submitAnnouncement = async () => {
-    setActionError("");
+    setAnnouncementFormError("");
     const title = announcementForm.title.trim();
     const content = announcementForm.content.trim();
     if (!title || !content) {
-      setActionError("请填写公告标题和内容");
+      setAnnouncementFormError("请填写公告标题和内容");
       return;
     }
     setActionLoading("announcement");
     try {
-      await getJson(`${API_BASE}/admin/announcements`, {
-        method: "POST",
+      const isEditing = Boolean(editingAnnouncement?.id);
+      await getJson(isEditing ? `${API_BASE}/admin/announcements/${editingAnnouncement.id}` : `${API_BASE}/admin/announcements`, {
+        method: isEditing ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           admin_username: user.username,
@@ -223,11 +263,119 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
           status: announcementForm.status,
         }),
       });
-      setShowAnnouncementForm(false);
-      setAnnouncementForm({ title: "", content: "", status: "published" });
+      closeAnnouncementForm();
+      setActionSuccess(isEditing ? "公告已修改" : "公告已发布");
       await loadCurrentPage();
     } catch (err) {
-      setActionError(err.message || "发布公告失败");
+      setAnnouncementFormError(err.message || "公告保存失败");
+    } finally {
+      setActionLoading("");
+    }
+  };
+
+  const withdrawAnnouncement = async (item) => {
+    if (!window.confirm("确认撤回该公告吗？撤回后用户将不再看到该公告。")) return;
+    setActionError("");
+    setActionSuccess("");
+    setActionLoading(`withdraw-${item.id}`);
+    try {
+      await getJson(`${API_BASE}/admin/announcements/${item.id}/withdraw`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ admin_username: user.username }),
+      });
+      setActionSuccess("公告已撤回");
+      await loadCurrentPage();
+    } catch (err) {
+      setActionError(err.message || "公告撤回失败");
+    } finally {
+      setActionLoading("");
+    }
+  };
+
+  const saveProfile = async () => {
+    setActionError("");
+    setActionSuccess("");
+    setActionLoading("profile");
+    try {
+      await getJson(`${API_BASE}/me/profile?username=${encodeURIComponent(user.username)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nickname: profileForm.nickname,
+          avatar: profileForm.avatar,
+          grade: user?.grade || "",
+          major: user?.major || "",
+        }),
+      });
+      setActionSuccess("个人资料已保存");
+    } catch (err) {
+      setActionError(err.message || "个人资料保存失败");
+    } finally {
+      setActionLoading("");
+    }
+  };
+
+  const changePassword = async () => {
+    setActionError("");
+    setActionSuccess("");
+    if (passwordForm.new_password !== passwordForm.confirm_password) {
+      setActionError("新密码和确认密码不一致");
+      return;
+    }
+    setActionLoading("password");
+    try {
+      await getJson(`${API_BASE}/me/password?username=${encodeURIComponent(user.username)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(passwordForm),
+      });
+      setPasswordForm({ old_password: "", new_password: "", confirm_password: "" });
+      setActionSuccess("密码已修改");
+    } catch (err) {
+      setActionError(err.message || "密码修改失败");
+    } finally {
+      setActionLoading("");
+    }
+  };
+
+  const sendEmailCode = async () => {
+    setActionError("");
+    setActionSuccess("");
+    const email = emailForm.email.trim();
+    if (!email) {
+      setActionError("请输入新邮箱");
+      return;
+    }
+    setActionLoading("email-code");
+    try {
+      await getJson(`${API_BASE}/me/email/send-code?username=${encodeURIComponent(user.username)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      setActionSuccess("验证码已发送");
+    } catch (err) {
+      setActionError(err.message || "邮箱验证码发送失败");
+    } finally {
+      setActionLoading("");
+    }
+  };
+
+  const bindEmail = async () => {
+    setActionError("");
+    setActionSuccess("");
+    setActionLoading("email-bind");
+    try {
+      await getJson(`${API_BASE}/me/email/verify?username=${encodeURIComponent(user.username)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: emailForm.email.trim(), code: emailForm.code.trim() }),
+      });
+      setEmailForm((prev) => ({ ...prev, code: "" }));
+      setActionSuccess("邮箱已绑定");
+    } catch (err) {
+      setActionError(err.message || "邮箱绑定失败");
     } finally {
       setActionLoading("");
     }
@@ -342,9 +490,10 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
     <AdminPageCard
       title="系统公告"
       subtitle="管理平台公告与用户可见通知。"
-      action={<button className="admin-dashboard-primary-action" type="button" onClick={() => setShowAnnouncementForm(true)}>发布公告</button>}
+      action={<button className="admin-dashboard-primary-action" type="button" onClick={() => openAnnouncementForm()}>发布公告</button>}
     >
       {actionError && <div className="admin-dashboard-error">{actionError}</div>}
+      {actionSuccess && <div className="admin-dashboard-success">{actionSuccess}</div>}
       {(announcements || []).length > 0 ? (
         <DataTable
           columns={["标题", "内容摘要", "发布时间", "状态", "操作"]}
@@ -352,8 +501,18 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
             item.title,
             (item.content || "").slice(0, 48) || "-",
             formatDateTime(item.created_at),
-            <StatusBadge tone={item.is_active ? "ok" : "muted"}>{item.is_active ? "已发布" : "草稿"}</StatusBadge>,
-            "只读",
+            <StatusBadge tone={item.status === "withdrawn" ? "danger" : (item.is_active ? "ok" : "muted")}>{announcementStatusLabel(item)}</StatusBadge>,
+            <div className="admin-dashboard-actions">
+              <button type="button" onClick={() => openAnnouncementForm(item)}>编辑</button>
+              <button
+                type="button"
+                className="warning"
+                disabled={actionLoading === `withdraw-${item.id}` || item.status === "withdrawn"}
+                onClick={() => withdrawAnnouncement(item)}
+              >
+                撤回
+              </button>
+            </div>,
           ])}
         />
       ) : (
@@ -363,9 +522,10 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
         <div className="admin-dashboard-modal-backdrop" role="presentation">
           <div className="admin-dashboard-modal" role="dialog" aria-modal="true" aria-labelledby="announcement-title">
             <div className="admin-dashboard-modal-head">
-              <h3 id="announcement-title">发布公告</h3>
-              <button type="button" onClick={() => setShowAnnouncementForm(false)}>×</button>
+              <h3 id="announcement-title">{editingAnnouncement ? "编辑公告" : "发布公告"}</h3>
+              <button type="button" onClick={closeAnnouncementForm}>×</button>
             </div>
+            {announcementFormError && <div className="admin-dashboard-error admin-dashboard-modal-error">{announcementFormError}</div>}
             <label>
               公告标题
               <input value={announcementForm.title} onChange={(e) => setAnnouncementForm((prev) => ({ ...prev, title: e.target.value }))} />
@@ -379,12 +539,13 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
               <select value={announcementForm.status} onChange={(e) => setAnnouncementForm((prev) => ({ ...prev, status: e.target.value }))}>
                 <option value="published">发布</option>
                 <option value="draft">草稿</option>
+                {editingAnnouncement?.status === "withdrawn" && <option value="withdrawn">已撤回</option>}
               </select>
             </label>
             <div className="admin-dashboard-modal-actions">
-              <button type="button" onClick={() => setShowAnnouncementForm(false)}>取消</button>
+              <button type="button" onClick={closeAnnouncementForm}>取消</button>
               <button type="button" className="admin-dashboard-primary-action" disabled={actionLoading === "announcement"} onClick={submitAnnouncement}>
-                {actionLoading === "announcement" ? "发布中..." : "发布公告"}
+                {actionLoading === "announcement" ? "保存中..." : (editingAnnouncement ? "保存修改" : "发布公告")}
               </button>
             </div>
           </div>
@@ -530,6 +691,79 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
     </AdminPageCard>
   );
 
+  const renderProfile = () => (
+    <AdminPageCard title="个人资料" subtitle="管理管理员头像、昵称、密码和邮箱绑定">
+      {actionError && <div className="admin-dashboard-error">{actionError}</div>}
+      {actionSuccess && <div className="admin-dashboard-success">{actionSuccess}</div>}
+      <div className="admin-profile-grid">
+        <section className="admin-profile-panel">
+          <h3>头像设置</h3>
+          <div className="admin-profile-avatar-row">
+            <span className="admin-profile-avatar">{profileForm.avatar ? <img src={profileForm.avatar} alt="管理员头像" /> : "管"}</span>
+            <div>
+              <strong>{profileForm.nickname || user?.nickname || "管理员"}</strong>
+              <p>头像上传接口暂未接入后台个人页，当前展示默认头像或已有头像。</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="admin-profile-panel">
+          <h3>基本信息</h3>
+          <label>
+            昵称
+            <input value={profileForm.nickname} onChange={(e) => setProfileForm((prev) => ({ ...prev, nickname: e.target.value }))} />
+          </label>
+          <label>
+            账号 / 用户名
+            <input value={user?.username || ""} readOnly />
+          </label>
+          <label>
+            管理员身份
+            <input value={user?.admin_role || user?.role || "admin"} readOnly />
+          </label>
+          <button type="button" className="admin-dashboard-primary-action" disabled={actionLoading === "profile"} onClick={saveProfile}>
+            {actionLoading === "profile" ? "保存中..." : "保存"}
+          </button>
+        </section>
+
+        <section className="admin-profile-panel">
+          <h3>密码修改</h3>
+          <label>
+            原密码
+            <input type="password" value={passwordForm.old_password} onChange={(e) => setPasswordForm((prev) => ({ ...prev, old_password: e.target.value }))} />
+          </label>
+          <label>
+            新密码
+            <input type="password" value={passwordForm.new_password} onChange={(e) => setPasswordForm((prev) => ({ ...prev, new_password: e.target.value }))} />
+          </label>
+          <label>
+            确认新密码
+            <input type="password" value={passwordForm.confirm_password} onChange={(e) => setPasswordForm((prev) => ({ ...prev, confirm_password: e.target.value }))} />
+          </label>
+          <button type="button" className="admin-dashboard-primary-action" disabled={actionLoading === "password"} onClick={changePassword}>
+            {actionLoading === "password" ? "修改中..." : "修改密码"}
+          </button>
+        </section>
+
+        <section className="admin-profile-panel">
+          <h3>邮箱绑定</h3>
+          <p className="admin-profile-note">当前邮箱：{user?.email || "未绑定"}</p>
+          <label>
+            新邮箱
+            <input value={emailForm.email} onChange={(e) => setEmailForm((prev) => ({ ...prev, email: e.target.value }))} />
+          </label>
+          <div className="admin-profile-inline">
+            <input placeholder="验证码" value={emailForm.code} onChange={(e) => setEmailForm((prev) => ({ ...prev, code: e.target.value }))} />
+            <button type="button" onClick={sendEmailCode} disabled={actionLoading === "email-code"}>发送验证码</button>
+          </div>
+          <button type="button" className="admin-dashboard-primary-action" disabled={actionLoading === "email-bind"} onClick={bindEmail}>
+            {actionLoading === "email-bind" ? "绑定中..." : "绑定邮箱"}
+          </button>
+        </section>
+      </div>
+    </AdminPageCard>
+  );
+
   const renderContent = () => {
     if (loading) return <div className="admin-dashboard-card admin-dashboard-loading">数据加载中...</div>;
     if (error) {
@@ -549,6 +783,7 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
     if (activePage === "adminUsage") return renderUsage();
     if (activePage === "adminSettings") return renderSettings();
     if (activePage === "adminLogs") return renderLogs();
+    if (activePage === "adminProfile") return renderProfile();
     return renderDashboard();
   };
 
@@ -588,11 +823,11 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
             <h1>{activeLabel}</h1>
             <p>欢迎回来，管理员！今天是 {formatToday()}</p>
           </div>
-          <div className="admin-dashboard-profile">
+          <button className="admin-dashboard-profile" type="button" onClick={() => navigate("adminProfile")}>
             <span className="admin-dashboard-avatar">管</span>
             <strong>管理员</strong>
             <span>⌄</span>
-          </div>
+          </button>
         </header>
         {renderContent()}
       </main>
