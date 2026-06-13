@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MarkdownMessage from "./MarkdownMessage.jsx";
+import MaterialPickerModal from "./MaterialPickerModal.jsx";
 
 const API_BASE = "/api";
+const ALLOWED_UPLOAD_EXTENSIONS = ".pdf,.png,.jpg,.jpeg,.webp,.docx,.pptx,.txt,.md,.markdown,.py,.java,.c,.cpp,.h,.hpp,.js,.jsx,.ts,.tsx,.html,.htm,.css,.json,.xml,.yaml,.yml,.sql,.sh,.bash,.go,.rs,.php,.rb";
 
 const SUBJECT_RECOMMENDATIONS = {
   data_structure: [
@@ -46,8 +48,54 @@ function formatTime(value) {
   });
 }
 
+function formatFileSize(value) {
+  const bytes = Number(value || 0);
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function getFileTypeLabel(type) {
+  const normalized = String(type || "").toLowerCase();
+  if (!normalized) return "未知";
+  if (normalized.includes("pdf")) return "PDF";
+  if (normalized.includes("doc")) return "Word";
+  if (normalized.includes("ppt")) return "PPT";
+  if (["png", "jpg", "jpeg", "webp", "gif", "bmp", "svg"].includes(normalized)) return "图片";
+  if (["txt", "md", "markdown"].includes(normalized)) return "文本";
+  if (["py", "java", "c", "cpp", "h", "hpp", "js", "jsx", "ts", "tsx", "go", "rs", "php", "rb", "sql", "sh", "bash", "html", "css", "json", "xml", "yaml", "yml"].includes(normalized)) return "代码";
+  return normalized.toUpperCase();
+}
+
+function getParseStatusLabel(status) {
+  const normalized = String(status || "").toLowerCase();
+  if (normalized === "success") return "已索引";
+  if (normalized === "partial") return "部分索引";
+  if (normalized === "pending") return "等待解析";
+  if (normalized === "parsing") return "解析中";
+  if (normalized === "failed") return "解析失败";
+  return "未索引";
+}
+
 function getRecommendations(subjectKey) {
   return SUBJECT_RECOMMENDATIONS[subjectKey] || SUBJECT_RECOMMENDATIONS.data_structure;
+}
+
+function normalizeUploadedMaterial(data, file) {
+  const id = data.material_id || data.id;
+  if (!id) return null;
+  return {
+    id,
+    material_id: id,
+    original_filename: data.filename || data.original_filename || file?.name || "未命名资料",
+    file_name: data.filename || data.original_filename || file?.name || "未命名资料",
+    file_type: data.file_type || file?.name?.split(".").pop()?.toLowerCase() || "",
+    file_size: data.file_size || file?.size || 0,
+    parse_status: data.parse_status || "pending",
+    parse_progress: data.parse_progress || 0,
+    chunk_count: data.chunk_count || 0,
+  };
 }
 
 export default function ExamChat({
@@ -56,7 +104,6 @@ export default function ExamChat({
   subjectTitle,
   courseName,
   onBackDashboard,
-  onOpenMaterials,
 }) {
   const [currentSessionId, setCurrentSessionId] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -64,10 +111,33 @@ export default function ExamChat({
   const [inputText, setInputText] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [selectedMaterials, setSelectedMaterials] = useState([]);
+  const [libraryMaterials, setLibraryMaterials] = useState([]);
+  const [libraryLoading, setLibraryLoading] = useState(false);
+  const [librarySearchQuery, setLibrarySearchQuery] = useState("");
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const messagesEndRef = useRef(null);
+  const uploadInputRef = useRef(null);
 
   const recommendations = useMemo(() => getRecommendations(subjectKey).slice(0, 5), [subjectKey]);
+  const sessionStorageKey = `exam_chat_session_${subjectKey}`;
+
+  const canReferenceMaterial = useCallback((material) => {
+    const status = String(material?.parse_status || "").toLowerCase();
+    return (status === "success" || status === "partial") && Number(material?.chunk_count || 0) > 0;
+  }, []);
+
+  const getUnreferenceableReason = useCallback((material) => {
+    const status = String(material?.parse_status || "").toLowerCase();
+    if (status === "pending" || status === "parsing") return "资料正在解析，完成后可引用";
+    if (status === "failed") return "资料解析失败，不能用于问答";
+    if ((status === "success" || status === "partial") && Number(material?.chunk_count || 0) <= 0) {
+      return "尚未生成知识片段";
+    }
+    return "暂不可引用";
+  }, []);
 
   const loadHistory = useCallback(async () => {
     if (!user?.username) return;
@@ -80,29 +150,34 @@ export default function ExamChat({
     }
   }, [user?.username]);
 
-  useEffect(() => {
-    loadHistory();
-  }, [loadHistory]);
+  const loadMaterials = useCallback(async () => {
+    if (!user?.username) return [];
+    setLibraryLoading(true);
+    try {
+      const query = new URLSearchParams({ username: user.username });
+      if (courseName) query.set("subject", courseName);
+      const res = await fetch(`${API_BASE}/materials?${query.toString()}`);
+      const data = await res.json().catch(() => ({}));
+      const materials = res.ok && Array.isArray(data.materials) ? data.materials : [];
+      setLibraryMaterials(materials);
+      return materials;
+    } catch {
+      setLibraryMaterials([]);
+      return [];
+    } finally {
+      setLibraryLoading(false);
+    }
+  }, [courseName, user?.username]);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages, loading]);
-
-  const startNewConversation = () => {
-    setCurrentSessionId(null);
-    setMessages([]);
-    setInputText("");
-    setError("");
-  };
-
-  const loadSession = async (sessionId) => {
-    if (!user?.username) return;
+  const loadSession = useCallback(async (sessionId) => {
+    if (!user?.username || !sessionId) return;
     setError("");
     try {
       const res = await fetch(`${API_BASE}/chat/sessions/${sessionId}?username=${encodeURIComponent(user.username)}`);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || "加载历史对话失败");
-      setCurrentSessionId(sessionId);
+      setCurrentSessionId(Number(sessionId));
+      try { localStorage.setItem(sessionStorageKey, String(sessionId)); } catch { /* ignore */ }
       setMessages((data.messages || []).map((message) => ({
         id: message.id,
         role: message.role,
@@ -113,6 +188,36 @@ export default function ExamChat({
     } catch (err) {
       setError(err.message || "加载历史对话失败");
     }
+  }, [sessionStorageKey, user?.username]);
+
+  useEffect(() => {
+    loadHistory();
+  }, [loadHistory]);
+
+  useEffect(() => {
+    const savedSessionId = (() => {
+      try { return localStorage.getItem(sessionStorageKey); } catch { return null; }
+    })();
+    if (savedSessionId) loadSession(savedSessionId);
+  }, [loadSession, sessionStorageKey]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages, loading]);
+
+  const openMaterialPicker = async () => {
+    setPickerOpen(true);
+    setLibrarySearchQuery("");
+    await loadMaterials();
+  };
+
+  const startNewConversation = () => {
+    setCurrentSessionId(null);
+    try { localStorage.removeItem(sessionStorageKey); } catch { /* ignore */ }
+    setMessages([]);
+    setInputText("");
+    setError("");
+    setNotice("");
   };
 
   const deleteSession = async (sessionId, event) => {
@@ -152,6 +257,64 @@ export default function ExamChat({
     }
   };
 
+  const toggleMaterialSelection = (material) => {
+    if (!canReferenceMaterial(material)) return;
+    setSelectedMaterials((prev) => {
+      const exists = prev.some((item) => item.id === material.id);
+      if (exists) return prev.filter((item) => item.id !== material.id);
+      return [...prev, material];
+    });
+  };
+
+  const removeSelectedMaterial = (materialId) => {
+    setSelectedMaterials((prev) => prev.filter((item) => item.id !== materialId));
+  };
+
+  const handleUploadFiles = async (files) => {
+    const fileList = Array.from(files || []);
+    if (fileList.length === 0 || !user?.username) return;
+    setUploading(true);
+    setError("");
+    setNotice("");
+    try {
+      const uploadedMaterials = [];
+      for (const file of fileList) {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("username", user.username);
+        formData.append("subject", courseName || subjectTitle);
+        formData.append("save_to_materials", "true");
+        const res = await fetch(`${API_BASE}/materials/upload`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${user.username}` },
+          body: formData,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.detail || `上传失败：${file.name}`);
+        const material = normalizeUploadedMaterial(data, file);
+        if (material) uploadedMaterials.push(material);
+      }
+      const latestMaterials = await loadMaterials();
+      const byId = new Map(latestMaterials.map((material) => [material.id, material]));
+      const readyUploads = uploadedMaterials
+        .map((material) => byId.get(material.id) || material)
+        .filter(canReferenceMaterial);
+      if (readyUploads.length > 0) {
+        setSelectedMaterials((prev) => {
+          const existing = new Set(prev.map((item) => item.id));
+          return [...prev, ...readyUploads.filter((item) => !existing.has(item.id))];
+        });
+        setNotice("资料已上传并加入本轮引用");
+      } else {
+        setNotice("资料已上传，解析完成后可在资料选择中引用");
+      }
+    } catch (err) {
+      setError(err.message || "资料上传失败");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const sendMessage = async (text) => {
     const msg = (text || inputText).trim();
     if (!msg || loading || !user?.username) return;
@@ -174,7 +337,7 @@ export default function ExamChat({
         session_id: currentSessionId,
         subject: subjectTitle,
         course: courseName,
-        material_ids: selectedMaterials.map((material) => material.id),
+        material_ids: selectedMaterials.filter(canReferenceMaterial).map((material) => material.id),
       };
 
       const res = await fetch(`${API_BASE}/chat`, {
@@ -190,6 +353,7 @@ export default function ExamChat({
 
       if (!currentSessionId && data.session?.id) {
         setCurrentSessionId(data.session.id);
+        try { localStorage.setItem(sessionStorageKey, String(data.session.id)); } catch { /* ignore */ }
       }
 
       setMessages((prev) => [...prev, {
@@ -253,13 +417,22 @@ export default function ExamChat({
             <h2 className="examchat-title">AI 问答 · {subjectTitle}</h2>
             <p className="examchat-subtitle">当前上下文：{courseName}</p>
           </div>
-          <button type="button" className="examchat-back-btn" onClick={onBackDashboard}>返回首页</button>
+          <div className="examchat-header-actions">
+            <button type="button" className="examchat-back-btn" onClick={startNewConversation}>新对话</button>
+            <button type="button" className="examchat-back-btn" onClick={onBackDashboard}>返回首页</button>
+          </div>
         </header>
 
         {error && (
           <div className="examchat-error">
             <span>{error}</span>
             <button type="button" onClick={() => setError("")}>关闭</button>
+          </div>
+        )}
+        {notice && !error && (
+          <div className="examchat-notice">
+            <span>{notice}</span>
+            <button type="button" onClick={() => setNotice("")}>知道了</button>
           </div>
         )}
 
@@ -269,6 +442,13 @@ export default function ExamChat({
               <span className="examchat-empty-icon">💬</span>
               <strong>开始 AI 问答</strong>
               <p>围绕 {subjectTitle} 提问，AI 会结合当前科目和引用资料给出讲解。</p>
+              <div className="examchat-empty-actions">
+                {recommendations.slice(0, 4).map((question) => (
+                  <button key={question} type="button" onClick={() => setInputText(question)}>
+                    {question}
+                  </button>
+                ))}
+              </div>
             </div>
           ) : (
             messages.map((message) => (
@@ -281,12 +461,19 @@ export default function ExamChat({
                   )}
                   {Array.isArray(message.references) && message.references.length > 0 && (
                     <div className="examchat-refs">
-                      <strong>参考资料：</strong>
-                      {message.references.map((reference, index) => (
-                        <span key={`${reference.material_id || index}-${index}`} className="examchat-ref">
-                          {reference.source_filename || reference.filename || `资料 ${index + 1}`}
-                        </span>
-                      ))}
+                      <strong>参考资料</strong>
+                      {message.references.map((reference, index) => {
+                        const title = reference.source_filename || reference.filename || `资料 ${index + 1}`;
+                        const summary = reference.chunk_summary || reference.summary || reference.snippet || "";
+                        const text = reference.chunk_text || reference.text || "";
+                        return (
+                          <details key={`${reference.material_id || index}-${index}`} className="examchat-ref-detail">
+                            <summary>{title}</summary>
+                            {summary && <p>{summary}</p>}
+                            {text && <pre>{text}</pre>}
+                          </details>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -304,23 +491,52 @@ export default function ExamChat({
         </div>
 
         <div className="examchat-input-area">
-          <textarea
-            className="examchat-input"
-            value={inputText}
-            onChange={(event) => setInputText(event.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={`向 AI 提问 ${subjectTitle} 相关问题...`}
-            rows={2}
-            disabled={loading}
+          {selectedMaterials.length > 0 && (
+            <div className="examchat-selected-bar">
+              <span>已引用：</span>
+              {selectedMaterials.map((material) => (
+                <button key={material.id} type="button" onClick={() => removeSelectedMaterial(material.id)}>
+                  {material.original_filename || material.file_name || "资料"} ×
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="examchat-input-row">
+            <button type="button" className="examchat-tool-btn" onClick={openMaterialPicker}>
+              引用资料
+            </button>
+            <button type="button" className="examchat-tool-btn" onClick={() => uploadInputRef.current?.click()} disabled={uploading}>
+              {uploading ? "上传中..." : "上传资料"}
+            </button>
+            <textarea
+              className="examchat-input"
+              value={inputText}
+              onChange={(event) => setInputText(event.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={`向 AI 提问 ${subjectTitle} 相关问题...`}
+              rows={2}
+              disabled={loading}
+            />
+            <button
+              type="button"
+              className="examchat-send-btn"
+              onClick={() => sendMessage()}
+              disabled={loading || !inputText.trim()}
+            >
+              {loading ? "思考中..." : "发送"}
+            </button>
+          </div>
+          <input
+            ref={uploadInputRef}
+            type="file"
+            multiple
+            accept={ALLOWED_UPLOAD_EXTENSIONS}
+            onChange={(event) => {
+              handleUploadFiles(event.target.files);
+              event.target.value = "";
+            }}
+            style={{ display: "none" }}
           />
-          <button
-            type="button"
-            className="examchat-send-btn"
-            onClick={() => sendMessage()}
-            disabled={loading || !inputText.trim()}
-          >
-            {loading ? "思考中..." : "发送"}
-          </button>
         </div>
       </section>
 
@@ -328,22 +544,26 @@ export default function ExamChat({
         <div className="examchat-side-card">
           <div className="examchat-side-title">
             <h4>本轮引用资料</h4>
-            <button type="button" onClick={onOpenMaterials}>全部资料库</button>
+            <button type="button" onClick={openMaterialPicker}>选择资料</button>
           </div>
           {selectedMaterials.length === 0 ? (
             <div className="examchat-side-empty">
               <p>尚未引用资料。</p>
-              <button type="button" onClick={onOpenMaterials}>去资料库选择</button>
+              <div className="examchat-side-actions">
+                <button type="button" onClick={openMaterialPicker}>选择资料</button>
+                <button type="button" onClick={() => uploadInputRef.current?.click()} disabled={uploading}>
+                  {uploading ? "上传中..." : "上传资料"}
+                </button>
+              </div>
             </div>
           ) : (
             <ul className="examchat-ref-list">
               {selectedMaterials.map((material) => (
                 <li key={material.id}>
-                  <span>{material.original_filename || material.file_name}</span>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedMaterials((prev) => prev.filter((item) => item.id !== material.id))}
-                  >
+                  <span title={material.original_filename || material.file_name}>
+                    {material.original_filename || material.file_name}
+                  </span>
+                  <button type="button" onClick={() => removeSelectedMaterial(material.id)}>
                     移除
                   </button>
                 </li>
@@ -355,12 +575,29 @@ export default function ExamChat({
         <div className="examchat-side-card">
           <h4>推荐提问</h4>
           {recommendations.map((question) => (
-            <button key={question} type="button" className="examchat-rec-btn" onClick={() => sendMessage(question)}>
+            <button key={question} type="button" className="examchat-rec-btn" onClick={() => setInputText(question)}>
               {question}
             </button>
           ))}
         </div>
       </aside>
+
+      <MaterialPickerModal
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        subjectLabel={courseName || subjectTitle}
+        materials={libraryMaterials}
+        loading={libraryLoading}
+        searchQuery={librarySearchQuery}
+        onSearchChange={setLibrarySearchQuery}
+        selectedMaterials={selectedMaterials}
+        onToggleMaterial={toggleMaterialSelection}
+        canReferenceMaterial={canReferenceMaterial}
+        getUnreferenceableReason={getUnreferenceableReason}
+        getFileTypeLabel={getFileTypeLabel}
+        formatFileSize={formatFileSize}
+        getParseStatusLabel={getParseStatusLabel}
+      />
     </div>
   );
 }

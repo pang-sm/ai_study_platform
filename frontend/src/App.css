@@ -19081,6 +19081,31 @@ select.field:focus {
   font-size: 13px;
 }
 
+.examchat-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 12px 20px 0;
+  border: 1px solid #bbf7d0;
+  border-radius: 13px;
+  background: #f0fdf4;
+  padding: 10px 12px;
+  color: #15803d;
+  font-size: 13px;
+}
+
+.examchat-notice button {
+  border: none;
+  border-radius: 10px;
+  background: #dcfce7;
+  color: #166534;
+  padding: 7px 10px;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
 .examchat-error button {
   border: none;
   border-radius: 10px;
@@ -19103,7 +19128,7 @@ select.field:focus {
 }
 
 .examchat-main-panel .examchat-empty {
-  min-height: 100%;
+  min-height: min(340px, 42vh);
   display: grid;
   place-items: center;
   align-content: center;
@@ -19114,6 +19139,33 @@ select.field:focus {
   color: #6f7896;
   padding: 24px;
   text-align: center;
+}
+
+.examchat-empty-actions {
+  width: min(560px, 100%);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.examchat-empty-actions button {
+  border: 1px solid #ede9fe;
+  border-radius: 13px;
+  background: #fff;
+  color: #33406a;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+
+.examchat-empty-actions button:hover {
+  border-color: #c4b5fd;
+  background: #f1ecff;
+  color: #6d28d9;
 }
 
 .examchat-empty-icon {
@@ -19170,9 +19222,7 @@ select.field:focus {
 }
 
 .examchat-refs {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
+  display: grid;
   gap: 8px;
   margin-top: 12px;
   border-top: 1px solid #ede9fe;
@@ -19182,6 +19232,36 @@ select.field:focus {
 .examchat-refs strong {
   color: #6d28d9;
   font-size: 13px;
+}
+
+.examchat-ref-detail {
+  border-radius: 12px;
+  background: #fbfaff;
+  padding: 9px 11px;
+}
+
+.examchat-ref-detail summary {
+  color: #25304e;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.examchat-ref-detail p {
+  margin: 8px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.examchat-ref-detail pre {
+  max-height: 180px;
+  overflow: auto;
+  margin: 8px 0 0;
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 10px;
+  color: #334155;
+  white-space: pre-wrap;
 }
 
 .examchat-ref {
@@ -19195,8 +19275,6 @@ select.field:focus {
 
 .examchat-main-panel .examchat-input-area {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 104px;
-  align-items: end;
   gap: 10px;
   border: none;
   border-top: 1px solid #ede9fe;
@@ -19204,6 +19282,57 @@ select.field:focus {
   background: #fff;
   box-shadow: none;
   padding: 14px 16px 16px;
+}
+
+.examchat-selected-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.examchat-selected-bar span {
+  color: #7a84a0;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.examchat-selected-bar button {
+  border: none;
+  border-radius: 999px;
+  background: #f1ecff;
+  color: #6d28d9;
+  padding: 7px 11px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.examchat-input-row {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) 104px;
+  align-items: end;
+  gap: 10px;
+}
+
+.examchat-tool-btn {
+  min-height: 44px;
+  border: 1px solid #ddd6fe;
+  border-radius: 13px;
+  background: #fbfaff;
+  color: #6d28d9;
+  padding: 0 13px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.examchat-tool-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .examchat-input {
@@ -19274,6 +19403,12 @@ select.field:focus {
   border-radius: 14px;
   background: #fbfaff;
   padding: 14px;
+}
+
+.examchat-side-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .examchat-side-empty p {
@@ -19374,6 +19509,11 @@ select.field:focus {
 
 @media (max-width: 620px) {
   .examchat-main-panel .examchat-input-area {
+    grid-template-columns: 1fr;
+  }
+
+  .examchat-input-row,
+  .examchat-empty-actions {
     grid-template-columns: 1fr;
   }
 }
