@@ -289,6 +289,8 @@ class OnboardingUpdateRequest(BaseModel):
     daily_study_time: str | None = None
     daily_study_minutes: int | None = None
     target: str | None = None
+    learning_goal_type: str | None = None
+    onboarding_detail: dict | None = None
 
 
 class AddMaterialFromMessageRequest(BaseModel):
@@ -348,6 +350,23 @@ def user_needs_onboarding(user: models.User) -> bool:
     return not bool(user.onboarding_completed)
 
 
+def _parse_onboarding_detail(user):
+    raw = getattr(user, "onboarding_detail", None)
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return None
+
+
+def _parse_onboarding_detail_type(user):
+    detail = _parse_onboarding_detail(user)
+    if detail and isinstance(detail, dict):
+        return detail.get("learning_goal_type", None)
+    return None
+
+
 def user_profile(user: models.User):
     avatar_id = (user.avatar or "").strip()
     avatar_url = None
@@ -375,6 +394,8 @@ def user_profile(user: models.User):
         "onboarding_completed": bool(user.onboarding_completed),
         "needs_onboarding": user_needs_onboarding(user),
         "learning_goals": learning_goals,
+        "learning_goal_type": _parse_onboarding_detail_type(user),
+        "onboarding_detail": _parse_onboarding_detail(user),
         "is_admin": bool(user.is_admin),
         "plan": user.plan or "free",
         "plan_source": user.plan_source or "",
@@ -3853,6 +3874,7 @@ def complete_onboarding(req: OnboardingUpdateRequest, username: str, db: Session
         if minute_match:
             user.daily_study_minutes = max(0, min(480, int(minute_match.group(0))))
 
+    goal_type = (req.learning_goal_type or "").strip()
     goal_text = (req.learning_goal or req.target or "").strip()
     subjects = [item.strip() for item in (req.preferred_subjects or []) if item and item.strip()]
     if goal_text or subjects:
@@ -3867,6 +3889,18 @@ def complete_onboarding(req: OnboardingUpdateRequest, username: str, db: Session
             ],
             ensure_ascii=False,
         )
+
+    # Save onboarding detail as JSON
+    if goal_type:
+        detail = dict(req.onboarding_detail or {})
+        detail["learning_goal_type"] = goal_type
+        user.onboarding_detail = json.dumps(detail, ensure_ascii=False)
+        if goal_type == "exam_408":
+            user.learning_direction = user.learning_direction or "考研 408 备考"
+        elif goal_type == "university_course":
+            user.learning_direction = user.learning_direction or "大学课程学习"
+        elif goal_type == "programming":
+            user.learning_direction = user.learning_direction or "编程能力提升"
 
     user.onboarding_completed = True
     db.commit()

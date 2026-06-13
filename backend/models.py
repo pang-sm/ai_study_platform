@@ -21,6 +21,7 @@ class User(Base):
     major = Column(String(100), nullable=False, default="")
     onboarding_completed = Column(Boolean, nullable=False, default=False)
     learning_goals = Column(Text, nullable=True)
+    onboarding_detail = Column(Text, nullable=True)
     plan = Column(String(20), nullable=True, default="free")
     plan_source = Column(String(30), nullable=True, default="")
     plan_expire_at = Column(DateTime, nullable=True)

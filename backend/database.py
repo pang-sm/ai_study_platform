@@ -51,6 +51,7 @@ PROFILE_COLUMNS = {
     "email_verified": "BOOLEAN NOT NULL DEFAULT 0",
     "phone": "VARCHAR(30)",
     "phone_verified": "BOOLEAN NOT NULL DEFAULT 0",
+    "onboarding_detail": "TEXT",
     "is_active": "INTEGER DEFAULT 1",
     "is_banned": "INTEGER DEFAULT 0",
     "banned_reason": "TEXT",
