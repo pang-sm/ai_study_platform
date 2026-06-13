@@ -40,7 +40,7 @@ export default function AdminLogin({ setPage, setUser, initialTip = "" }) {
         localStorage.setItem("ai_study_platform_user", JSON.stringify(loginUser));
       } catch {}
       setUser(loginUser);
-      setPage("adminUsageCenter");
+      setPage("adminDashboard");
     } catch {
       setError("无法连接后端服务。");
     } finally {

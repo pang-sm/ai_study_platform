@@ -529,9 +529,11 @@ body {
 }
 
 .admin-dashboard-sidebar {
+  height: 100vh;
   padding: 24px 18px;
   background: linear-gradient(180deg, #f1edff 0%, #fbfaff 100%);
   border-right: 1px solid rgba(124, 58, 237, 0.08);
+  overflow-y: auto;
 }
 
 .admin-dashboard-brand {
@@ -542,13 +544,15 @@ body {
 }
 
 .admin-dashboard-logo {
-  width: 34px;
+  width: 38px;
   height: 34px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 12px;
   color: #fff;
+  font-size: 13px;
+  font-weight: 900;
   background: linear-gradient(135deg, #8b5cf6, #6d5dfc);
   box-shadow: 0 12px 24px rgba(124, 58, 237, 0.22);
 }
@@ -571,17 +575,31 @@ body {
 .admin-dashboard-nav {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 18px;
+}
+
+.admin-dashboard-nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.admin-dashboard-nav-group p {
+  margin: 0 0 2px;
+  padding: 0 8px;
+  color: #9aa1b8;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .admin-dashboard-nav-item {
-  height: 44px;
+  min-height: 40px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   border: none;
   border-radius: 10px;
-  padding: 0 13px;
+  padding: 0 11px;
   color: #53607c;
   background: transparent;
   font: inherit;
@@ -593,8 +611,15 @@ body {
 
 .admin-dashboard-nav-item span {
   width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
   color: #74809f;
-  font-size: 17px;
+  background: rgba(255, 255, 255, 0.58);
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .admin-dashboard-nav-item.active {
@@ -611,6 +636,7 @@ body {
   min-width: 0;
   max-width: 1440px;
   width: 100%;
+  margin: 0 auto;
   padding: 24px 30px 28px;
 }
 
@@ -706,7 +732,7 @@ body {
   display: block;
   margin-top: 8px;
   color: #1d2743;
-  font-size: 21px;
+  font-size: 24px;
   line-height: 1;
 }
 
@@ -748,6 +774,7 @@ body {
   font-size: 16px;
 }
 
+.admin-dashboard-filter,
 .admin-dashboard-card-head button {
   height: 30px;
   padding: 0 13px;
@@ -757,15 +784,17 @@ body {
   color: #7d86a2;
   font: inherit;
   font-size: 13px;
+  display: inline-flex;
+  align-items: center;
 }
 
 .admin-dashboard-chart-card {
-  min-height: 270px;
+  min-height: 260px;
 }
 
 .admin-dashboard-chart {
   width: 100%;
-  height: 230px;
+  height: 220px;
   display: block;
 }
 
@@ -807,18 +836,6 @@ body {
 
 .admin-dashboard-announcement time {
   color: #8791ad;
-}
-
-.admin-dashboard-more {
-  display: block;
-  margin: 24px auto 0;
-  border: none;
-  background: transparent;
-  color: #8b5cf6;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 800;
-  cursor: pointer;
 }
 
 .admin-dashboard-users-card {
@@ -900,13 +917,13 @@ body {
 }
 
 .admin-dashboard-empty {
-  min-height: 220px;
+  min-height: 180px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border: 1px dashed #ddd6fe;
+  border: 1px dashed rgba(124, 58, 237, 0.22);
   border-radius: 14px;
   background: #fbfaff;
   color: #7d86a2;
@@ -920,7 +937,7 @@ body {
 
 .admin-dashboard-mini-stats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 14px;
   margin-bottom: 18px;
 }
@@ -948,10 +965,6 @@ body {
 
 .admin-dashboard-inner-head {
   margin: 10px 0 0;
-}
-
-.admin-dashboard-users-more {
-  margin-top: 12px;
 }
 
 .admin-dashboard-loading {

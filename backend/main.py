@@ -17276,7 +17276,7 @@ def admin_dashboard_v1(db: Session = Depends(get_db)):
 
 @app.get("/admin/users")
 def admin_users_list(
-    admin_username: str,
+    admin_username: str = "",
     keyword: str = "",
     plan: str = "",
     page: int = 1,
@@ -17353,6 +17353,207 @@ def admin_users_list(
             "created_at": serialize_datetime(u.created_at),
         })
 
+    return {"items": items, "total": total, "page": page, "page_size": page_size}
+
+
+@app.get("/admin/courses")
+def admin_courses_list(admin_username: str = "", db: Session = Depends(get_db)):
+    require_admin_permission(db, admin_username, "courses.view")
+
+    material_rows = (
+        db.query(
+            models.StudyMaterial.subject,
+            func.count(models.StudyMaterial.id),
+            func.count(func.distinct(models.StudyMaterial.username)),
+            func.max(models.StudyMaterial.created_at),
+        )
+        .filter(models.StudyMaterial.is_deleted.is_(False), models.StudyMaterial.subject != "")
+        .group_by(models.StudyMaterial.subject)
+        .all()
+    )
+    progress_rows = (
+        db.query(
+            models.CourseProgress.course,
+            func.count(func.distinct(models.CourseProgress.username)),
+            func.max(models.CourseProgress.created_at),
+        )
+        .filter(models.CourseProgress.course != "")
+        .group_by(models.CourseProgress.course)
+        .all()
+    )
+
+    courses = {}
+    for name, material_count, user_count, created_at in material_rows:
+        courses[name] = {
+            "course_name": name,
+            "material_count": material_count or 0,
+            "user_count": user_count or 0,
+            "created_at": serialize_datetime(created_at),
+        }
+    for name, user_count, created_at in progress_rows:
+        item = courses.setdefault(name, {
+            "course_name": name,
+            "material_count": 0,
+            "user_count": 0,
+            "created_at": serialize_datetime(created_at),
+        })
+        item["user_count"] = max(int(item.get("user_count") or 0), int(user_count or 0))
+        if not item.get("created_at"):
+            item["created_at"] = serialize_datetime(created_at)
+
+    items = sorted(courses.values(), key=lambda item: item.get("created_at") or "", reverse=True)
+    return {"items": items, "total": len(items)}
+
+
+@app.get("/admin/practice")
+def admin_practice_list(admin_username: str = "", db: Session = Depends(get_db)):
+    require_admin_permission(db, admin_username, "courses.view")
+
+    question_total = db.query(models.Question).count()
+    paper_total = db.query(models.PracticePaper).count()
+    challenge_total = db.query(models.CodeChallenge).count()
+    recent_questions = (
+        db.query(models.Question)
+        .order_by(models.Question.created_at.desc())
+        .limit(12)
+        .all()
+    )
+    recent_challenges = (
+        db.query(models.CodeChallenge)
+        .order_by(models.CodeChallenge.created_at.desc())
+        .limit(8)
+        .all()
+    )
+    items = [
+        {
+            "id": f"q-{item.id}",
+            "title": item.title or item.content[:40],
+            "course_id": item.course_id or "",
+            "type": item.type or "question",
+            "source": item.source or item.imported_from or "题库",
+            "created_at": serialize_datetime(item.created_at),
+        }
+        for item in recent_questions
+    ]
+    items.extend([
+        {
+            "id": f"c-{item.id}",
+            "title": item.title,
+            "course_id": item.course_id or "",
+            "type": item.difficulty or "code",
+            "source": item.source or "编程练习",
+            "created_at": serialize_datetime(item.created_at),
+        }
+        for item in recent_challenges
+    ])
+    items = sorted(items, key=lambda item: item.get("created_at") or "", reverse=True)[:12]
+    return {
+        "overview": {
+            "question_total": question_total,
+            "paper_total": paper_total,
+            "challenge_total": challenge_total,
+        },
+        "items": items,
+    }
+
+
+@app.get("/admin/tasks")
+def admin_tasks_list(admin_username: str = "", db: Session = Depends(get_db)):
+    require_admin_permission(db, admin_username, "courses.view")
+
+    total = db.query(models.LearningTask).count()
+    rows = (
+        db.query(models.LearningTask)
+        .order_by(models.LearningTask.created_at.desc())
+        .limit(20)
+        .all()
+    )
+    items = [
+        {
+            "id": item.id,
+            "title": item.title,
+            "username": item.username,
+            "course_id": item.course_id or "",
+            "task_type": item.task_type,
+            "status": item.status,
+            "created_at": serialize_datetime(item.created_at),
+            "due_date": serialize_datetime(item.due_date),
+        }
+        for item in rows
+    ]
+    return {"items": items, "total": total}
+
+
+@app.get("/admin/quota")
+def admin_quota_list(
+    admin_username: str = "",
+    page: int = 1,
+    page_size: int = 20,
+    db: Session = Depends(get_db),
+):
+    require_admin_permission(db, admin_username, "users.view")
+
+    page = max(1, page)
+    page_size = min(100, max(1, page_size))
+    query = db.query(models.User)
+    total = query.count()
+    users = query.order_by(models.User.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    items = []
+    for u in users:
+        effective_plan = get_effective_plan(u)
+        limits = get_plan_limits_v2(effective_plan["plan_code"])
+        total_calls = (
+            db.query(models.AiUsageLog)
+            .filter(models.AiUsageLog.username == u.username, models.AiUsageLog.status == "success")
+            .count()
+        )
+        items.append({
+            "user_id": str(u.id),
+            "username": u.username,
+            "nickname": u.nickname or "",
+            "plan": effective_plan["plan_code"],
+            "daily_ai_limit": limits.get("daily_ai_limit", -1),
+            "monthly_ai_limit": -1,
+            "total_ai_calls": total_calls,
+            "plan_expires_at": serialize_datetime(u.plan_expire_at),
+        })
+    return {"items": items, "total": total, "page": page, "page_size": page_size}
+
+
+@app.get("/admin/logs")
+def admin_logs_list(
+    admin_username: str = "",
+    page: int = 1,
+    page_size: int = 20,
+    db: Session = Depends(get_db),
+):
+    require_admin_permission(db, admin_username, "audit_logs.view")
+
+    page = max(1, page)
+    page_size = min(100, max(1, page_size))
+    query = db.query(models.AdminAuditLog)
+    total = query.count()
+    rows = (
+        query.order_by(models.AdminAuditLog.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+    items = [
+        {
+            "id": item.id,
+            "admin_username": item.admin_username,
+            "action": item.action,
+            "target_type": item.target_type or "",
+            "target_id": item.target_id or "",
+            "target_username": item.target_username or "",
+            "result": item.result or "",
+            "detail": item.detail or item.details or "",
+            "ip": item.ip or "",
+            "created_at": serialize_datetime(item.created_at),
+        }
+        for item in rows
+    ]
     return {"items": items, "total": total, "page": page, "page_size": page_size}
 
 
@@ -17588,7 +17789,7 @@ def admin_ai_logs_export(
 
 @app.get("/admin/materials")
 def admin_materials(
-    admin_username: str,
+    admin_username: str = "",
     keyword: str = "",
     course_id: str = "",
     page: int = 1,
@@ -17744,7 +17945,7 @@ def admin_update_user_plan(
 
 
 @app.get("/admin/usage-trend")
-def admin_usage_trend(admin_username: str, days: int = 7, db: Session = Depends(get_db)):
+def admin_usage_trend(admin_username: str = "", days: int = 7, db: Session = Depends(get_db)):
     """Return per-day AI call counts for trend chart (7/30/90 days)."""
     require_admin_permission(db, admin_username, "dashboard.view")
     days = max(1, min(365, days))
@@ -17770,7 +17971,7 @@ def admin_usage_trend(admin_username: str, days: int = 7, db: Session = Depends(
 
 
 @app.get("/admin/usage-summary")
-def admin_usage_summary(admin_username: str, db: Session = Depends(get_db)):
+def admin_usage_summary(admin_username: str = "", db: Session = Depends(get_db)):
     require_admin_permission(db, admin_username, "dashboard.view")
     from sqlalchemy import func as sqlfunc
 
@@ -19355,7 +19556,7 @@ def admin_material_issues(admin_username: str, issue_type: str = "all", page: in
 # ── Admin: Announcements ──────────────────────────────
 
 @app.get("/admin/announcements")
-def admin_announcements_list(admin_username: str, db: Session = Depends(get_db)):
+def admin_announcements_list(admin_username: str = "", db: Session = Depends(get_db)):
     require_admin_permission(db, admin_username, "settings.view")
     items = db.query(models.SystemAnnouncement).order_by(models.SystemAnnouncement.created_at.desc()).all()
     return {"items": [{"id": a.id, "title": a.title, "content": a.content, "type": a.type, "is_active": bool(a.is_active), "target": a.target, "created_by": a.created_by, "created_at": serialize_datetime(a.created_at), "updated_at": serialize_datetime(a.updated_at)} for a in items]}
@@ -19470,7 +19671,7 @@ def _safe_setting_audit_value(key: str, value):
     return str(value)
 
 @app.get("/admin/settings")
-def admin_settings(admin_username: str, db: Session = Depends(get_db)):
+def admin_settings(admin_username: str = "", db: Session = Depends(get_db)):
     require_admin_permission(db, admin_username, "settings.view")
     items = db.query(models.SystemSetting).all()
     return {"items": [{"key": s.key, "value": s.value, "description": s.description, "updated_by": s.updated_by, "updated_at": serialize_datetime(s.updated_at)} for s in items]}

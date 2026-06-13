@@ -416,7 +416,9 @@ const VALID_PAGES = new Set([
   "taskCenter", "practiceCenter", "learningDataCenter", "reviewCenter",
   "learningPlanCenter", "knowledgeBaseCenter", "quotaCenter",
   "learningReportCenter", "adminDashboard", "adminAnnouncements", "adminUsers",
-  "adminOrders", "adminMembers", "adminStatistics", "adminSettings",
+  "adminCourses", "adminMaterials", "adminPractice", "adminTasks",
+  "adminOrders", "adminMembers", "adminQuota", "adminStatistics", "adminUsage",
+  "adminSettings", "adminLogs",
   "adminUsageCenter", "adminCenter",
   "materials", "workspaceMaterials", "chat", "records", "history",
   "knowledgeLearning", "searchResults",
@@ -426,7 +428,9 @@ const VALID_PAGES = new Set([
 
 const ADMIN_PAGES = [
   "adminDashboard", "adminAnnouncements", "adminUsers", "adminOrders",
-  "adminMembers", "adminStatistics", "adminSettings", "adminUsageCenter", "adminCenter",
+  "adminCourses", "adminMaterials", "adminPractice", "adminTasks",
+  "adminMembers", "adminQuota", "adminStatistics", "adminUsage",
+  "adminSettings", "adminLogs", "adminUsageCenter", "adminCenter",
 ];
 
 function getInitialPage() {
@@ -3390,7 +3394,12 @@ function App() {
     );
   }
 
-  if (["adminDashboard", "adminAnnouncements", "adminUsers", "adminOrders", "adminMembers", "adminStatistics", "adminSettings"].includes(page)) {
+  if ([
+    "adminDashboard", "adminAnnouncements", "adminUsers", "adminCourses",
+    "adminMaterials", "adminPractice", "adminTasks", "adminOrders",
+    "adminMembers", "adminQuota", "adminStatistics", "adminUsage",
+    "adminSettings", "adminLogs",
+  ].includes(page)) {
     return (
       <Suspense fallback={<div className="empty-state">管理员首页加载中...</div>}>
         <AdminDashboard user={user} activePage={page} setPage={setPage} />
