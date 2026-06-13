@@ -4920,8 +4920,150 @@ select.field:focus {
   background: #faf8ff;
 }
 
+/* ── Step 3: Package Cards ── */
+
+.ob-packages {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  width: 100%;
+  margin-bottom: 28px;
+}
+
+.ob-package-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  border: 2px solid #e2e8f0;
+  border-radius: 20px;
+  background: #fff;
+  padding: 24px 16px 20px;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+  font: inherit;
+}
+
+.ob-package-card:hover {
+  border-color: #c4b5fd;
+}
+
+.ob-package-card.active {
+  border-color: #7c3aed;
+  background: #faf8ff;
+  box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.08), 0 6px 20px rgba(124, 58, 237, 0.1);
+}
+
+.ob-package-badge {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 16px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #7c3aed, #a78bfa);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+
+.ob-package-icon {
+  font-size: 36px;
+  margin-bottom: 10px;
+}
+
+.ob-package-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: #1a1f36;
+  margin: 0 0 4px;
+}
+
+.ob-package-subtitle {
+  font-size: 12px;
+  color: #94a3b8;
+  margin: 0 0 12px;
+}
+
+.ob-package-price {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.ob-package-currency {
+  font-size: 16px;
+  font-weight: 700;
+  color: #7c3aed;
+}
+
+.ob-package-amount {
+  font-size: 36px;
+  font-weight: 900;
+  color: #7c3aed;
+  line-height: 1;
+}
+
+.ob-package-period {
+  font-size: 13px;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.ob-package-features {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  width: 100%;
+  text-align: left;
+  flex: 1;
+}
+
+.ob-package-feature {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: 12px;
+  color: #475569;
+}
+
+.ob-package-feature--unavail {
+  color: #ef4444;
+}
+
+.ob-package-check {
+  width: 18px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+  color: #7c3aed;
+}
+
+.ob-package-feature--unavail .ob-package-check {
+  color: #ef4444;
+}
+
+.ob-package-card .ob-btn-primary,
+.ob-package-card .ob-btn-secondary {
+  width: 100%;
+  height: 40px;
+  font-size: 13px;
+  margin-top: auto;
+}
+
 /* Responsive */
 @media (max-width: 860px) {
+  .ob-packages {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .ob-goals-row {
     grid-template-columns: 1fr;
     max-width: 420px;

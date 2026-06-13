@@ -56,6 +56,85 @@ function toggleFromList(list, item) {
   return list.includes(item) ? list.filter((x) => x !== item) : [...list, item];
 }
 
+const EXAM_PACKAGES = [
+  {
+    key: "free",
+    title: "免费模式",
+    subtitle: "基础体验",
+    price: "0",
+    period: "",
+    icon: "🎓",
+    features: [
+      { text: "基础备考体验", avail: true },
+      { text: "AI问答次数：50次/每天", avail: true },
+      { text: "AI出题次数：5次/每天", avail: true },
+      { text: "资料上传限制：100MB", avail: true },
+      { text: "学习计划", avail: false },
+      { text: "错题复盘", avail: false },
+      { text: "学习报告", avail: false },
+    ],
+    btnLabel: "免费体验",
+    recommended: false,
+  },
+  {
+    key: "monthly_sprint",
+    title: "月度冲刺",
+    subtitle: "短期提升",
+    price: "29",
+    period: "/ 月",
+    icon: "🚀",
+    features: [
+      { text: "进阶备考体验", avail: true },
+      { text: "AI问答次数：300次/每天", avail: true },
+      { text: "AI出题次数：30次/每天", avail: true },
+      { text: "资料上传限制：500MB", avail: true },
+      { text: "学习计划", avail: true },
+      { text: "错题复盘", avail: true },
+      { text: "学习报告", avail: true },
+    ],
+    btnLabel: "去支付",
+    recommended: false,
+  },
+  {
+    key: "quarterly_boost",
+    title: "季度强化包",
+    subtitle: "学习更稳",
+    price: "79",
+    period: "/ 季度",
+    icon: "⭐",
+    features: [
+      { text: "进阶备考体验", avail: true },
+      { text: "AI问答次数：300次/每天", avail: true },
+      { text: "AI出题次数：30次/每天", avail: true },
+      { text: "资料上传限制：500MB", avail: true },
+      { text: "学习计划", avail: true },
+      { text: "错题复盘", avail: true },
+      { text: "学习报告", avail: true },
+    ],
+    btnLabel: "去支付",
+    recommended: true,
+  },
+  {
+    key: "full_exam",
+    title: "全程考包",
+    subtitle: "长期备考",
+    price: "149",
+    period: "/ 年",
+    icon: "🏆",
+    features: [
+      { text: "长期备考体验", avail: true },
+      { text: "AI问答次数：1000次/每天", avail: true },
+      { text: "AI出题次数：100次/每天", avail: true },
+      { text: "资料上传限制：2GB", avail: true },
+      { text: "学习计划", avail: true },
+      { text: "错题复盘", avail: true },
+      { text: "学习报告", avail: true },
+    ],
+    btnLabel: "去支付",
+    recommended: false,
+  },
+];
+
 export default function Onboarding({ user, onComplete, API_BASE }) {
   const [step, setStep] = useState(1);
   const [goalType, setGoalType] = useState("university_course");
@@ -80,18 +159,31 @@ export default function Onboarding({ user, onComplete, API_BASE }) {
   const [codeLevel, setCodeLevel] = useState("");
   const [codeProblems, setCodeProblems] = useState([]);
 
+  // ── Exam package step ──
+  const [selectedPackage, setSelectedPackage] = useState("quarterly_boost");
+
   const handleNext = () => {
     if (!goalType) {
       setError("请选择一个学习目标");
       return;
     }
     setError("");
-    setStep(2);
+    if (goalType === "exam_408") { setStep(2); } else { setStep(2); }
+  };
+
+  const handleStep2Next = () => {
+    setError("");
+    if (goalType === "exam_408") {
+      if (!examStage) { setError("请选择当前备考阶段"); return; }
+      setStep(3);
+    } else {
+      handleSubmit();
+    }
   };
 
   const handleBack = () => {
     setError("");
-    setStep(1);
+    if (step === 3) { setStep(2); } else { setStep(1); }
   };
 
   const handleSubmit = async () => {
@@ -103,7 +195,7 @@ export default function Onboarding({ user, onComplete, API_BASE }) {
 
     if (goalType === "exam_408") {
       if (!examStage) { setError("请选择当前备考阶段"); setSaving(false); return; }
-      detail = { exam_time: examTime, stage: examStage, weak_subject: examWeak, daily_study_time: examDaily, materials: examMaterials };
+      detail = { exam_time: examTime, stage: examStage, weak_subject: examWeak, daily_study_time: examDaily, materials: examMaterials, exam_package_type: selectedPackage };
     } else if (goalType === "university_course") {
       if (!courseMajor) { setError("请选择专业"); setSaving(false); return; }
       if (!courseGrade) { setError("请选择年级"); setSaving(false); return; }
@@ -125,6 +217,7 @@ export default function Onboarding({ user, onComplete, API_BASE }) {
           learning_direction: goalType,
           learning_goal_type: goalType,
           onboarding_detail: detail,
+          exam_package_type: goalType === "exam_408" ? selectedPackage : undefined,
           preferred_subjects:
             goalType === "university_course" ? courseCourses
             : goalType === "exam_408" ? examMaterials.filter((m) => m !== "暂时没有")
@@ -289,6 +382,54 @@ export default function Onboarding({ user, onComplete, API_BASE }) {
     </>
   );
 
+  // ══════════════════════════════════════════════════════
+  // STEP 3: Exam package selection
+  // ══════════════════════════════════════════════════════
+  const renderExamPackages = () => (
+    <>
+      <div className="ob-step2-head">
+        <p className="ob-subtitle">第 3 步</p>
+        <h1 className="ob-title">选择你的备考套餐</h1>
+        <p className="ob-desc">根据你的学习方向，为你推荐适合 11408 备考的使用方案</p>
+      </div>
+
+      <div className="ob-packages">
+        {EXAM_PACKAGES.map((pkg) => (
+          <div
+            key={pkg.key}
+            className={`ob-package-card${selectedPackage === pkg.key ? " active" : ""}${pkg.recommended ? " recommended" : ""}`}
+            onClick={() => setSelectedPackage(pkg.key)}
+          >
+            {pkg.recommended && <span className="ob-package-badge">推荐</span>}
+            <div className="ob-package-icon">{pkg.icon}</div>
+            <h3 className="ob-package-title">{pkg.title}</h3>
+            <p className="ob-package-subtitle">{pkg.subtitle}</p>
+            <div className="ob-package-price">
+              <span className="ob-package-currency">￥</span>
+              <span className="ob-package-amount">{pkg.price}</span>
+              {pkg.period && <span className="ob-package-period">{pkg.period}</span>}
+            </div>
+            <ul className="ob-package-features">
+              {pkg.features.map((f, i) => (
+                <li key={i} className={f.avail ? "ob-package-feature" : "ob-package-feature ob-package-feature--unavail"}>
+                  <span className="ob-package-check">{f.avail ? "✓" : "✕"}</span>
+                  {f.text}
+                </li>
+              ))}
+            </ul>
+            <button
+              type="button"
+              className={selectedPackage === pkg.key ? "ob-btn-primary" : "ob-btn-secondary"}
+              onClick={(e) => { e.stopPropagation(); setSelectedPackage(pkg.key); handleSubmit(); }}
+            >
+              {pkg.btnLabel}
+            </button>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+
   const renderStep2 = () => {
     if (goalType === "exam_408") return renderExamDetail();
     if (goalType === "university_course") return renderCourseDetail();
@@ -334,7 +475,7 @@ export default function Onboarding({ user, onComplete, API_BASE }) {
               </button>
             </div>
           </div>
-        ) : (
+        ) : step === 2 ? (
           <>
             {renderStep2()}
 
@@ -342,8 +483,21 @@ export default function Onboarding({ user, onComplete, API_BASE }) {
 
             <div className="ob-actions ob-actions--dual">
               <button type="button" className="ob-btn-secondary" onClick={handleBack}>上一步</button>
+              <button type="button" className="ob-btn-primary" onClick={handleStep2Next} disabled={saving && goalType !== "exam_408"}>
+                {goalType === "exam_408" ? "下一步" : (saving ? "保存中..." : "保存并进入")}
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            {renderExamPackages()}
+
+            {error && <div className="ob-error">{error}</div>}
+
+            <div className="ob-actions ob-actions--dual">
+              <button type="button" className="ob-btn-secondary" onClick={handleBack}>上一步</button>
               <button type="button" className="ob-btn-primary" onClick={handleSubmit} disabled={saving}>
-                {saving ? "保存中..." : "下一步"}
+                {saving ? "保存中..." : "继续"}
               </button>
             </div>
           </>

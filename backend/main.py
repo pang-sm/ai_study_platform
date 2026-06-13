@@ -291,6 +291,7 @@ class OnboardingUpdateRequest(BaseModel):
     target: str | None = None
     learning_goal_type: str | None = None
     onboarding_detail: dict | None = None
+    exam_package_type: str | None = None
 
 
 class AddMaterialFromMessageRequest(BaseModel):
@@ -3894,6 +3895,20 @@ def complete_onboarding(req: OnboardingUpdateRequest, username: str, db: Session
     if goal_type:
         detail = dict(req.onboarding_detail or {})
         detail["learning_goal_type"] = goal_type
+
+        # Save exam package type if provided
+        exam_pkg = (req.exam_package_type or "").strip()
+        if exam_pkg and goal_type == "exam_408":
+            detail["exam_package_type"] = exam_pkg
+            package_plan_map = {
+                "free": "free",
+                "monthly_sprint": "pro",
+                "quarterly_boost": "pro",
+                "full_exam": "pro",
+            }
+            mapped_plan = package_plan_map.get(exam_pkg, "free")
+            user.plan = mapped_plan
+
         user.onboarding_detail = json.dumps(detail, ensure_ascii=False)
         if goal_type == "exam_408":
             user.learning_direction = user.learning_direction or "考研 408 备考"
