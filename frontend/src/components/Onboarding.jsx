@@ -334,8 +334,6 @@ export default function Onboarding({ user, onComplete, API_BASE }) {
           </div>
         ) : (
           <>
-            <button type="button" className="ob-back-link" onClick={handleBack}>← 返回重选目标</button>
-
             {renderStep2()}
 
             {error && <div className="ob-error">{error}</div>}
