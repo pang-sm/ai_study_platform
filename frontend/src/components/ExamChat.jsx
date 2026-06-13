@@ -457,18 +457,7 @@ export default function ExamChat({
 
         <div className="examchat-messages">
           {messages.length === 0 && !loading ? (
-            <div className="examchat-empty">
-              <span className="examchat-empty-icon">💬</span>
-              <strong>开始 AI 问答</strong>
-              <p>围绕 {subjectTitle} 提问，AI 会结合当前科目和引用资料给出讲解。</p>
-              <div className="examchat-empty-actions">
-                {recommendations.slice(0, 4).map((question) => (
-                  <button key={question} type="button" onClick={() => setInputText(question)}>
-                    {question}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <div className="examchat-empty" />
           ) : (
             messages.map((message) => (
               <div key={message.id} className={`examchat-msg${message.role === "user" ? " examchat-msg--user" : ""}`}>
