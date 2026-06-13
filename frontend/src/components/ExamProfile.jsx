@@ -42,6 +42,16 @@ const PACKAGE_PERKS = {
   ],
 };
 
+function maskEmail(email) {
+  if (!email) return "";
+  const at = email.indexOf("@");
+  if (at <= 0) return email;
+  const name = email.slice(0, at);
+  const domain = email.slice(at);
+  if (name.length <= 3) return name.slice(0, 1) + "***" + domain;
+  return name.slice(0, 3) + "***" + domain;
+}
+
 export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [actionMsg, setActionMsg] = useState("");
@@ -65,7 +75,6 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
   const displayPkg = PACKAGE_LABELS[pkgType] || "免费模式";
   const perks = PACKAGE_PERKS[pkgType] || PACKAGE_PERKS.free;
 
-  // Quota items
   const quotaItems = [
     { icon: "💬", label: "AI 问答次数", value: perks.find((p) => p.label.includes("AI 问答"))?.label.split("AI 问答 ")[1]?.split(" ")[0] || "300", unit: "次 / 每天", used: "45", sub: "已使用 45 次" },
     { icon: "📝", label: "AI 出题次数", value: perks.find((p) => p.label.includes("AI 出题"))?.label.split("AI 出题 ")[1]?.split(" ")[0] || "30", unit: "次 / 每天", used: "8", sub: "已使用 8 次" },
@@ -82,23 +91,22 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
   const examDaily = onboardingDetail?.daily_study_time || "6 - 8 小时";
   const registerTime = user?.created_at || "2024-12-01 10:30:25";
   const targetSchool = onboardingDetail?.target_school || "北京大学";
-  const emailDisplay = user?.email ? `${user.email.slice(0, 4)}***@${user.email.split("@")[1] || "example.com"}` : "pang***@example.com";
+  const realEmail = user?.email || "";
+  const emailDisplay = realEmail ? maskEmail(realEmail) : "未绑定";
+  const emailBtnLabel = realEmail ? "修改" : "绑定";
 
   const hasCourseTrack = (user?.tracks || []).some((t) => t.track_type === "university_course");
   const hasCodeTrack = (user?.tracks || []).some((t) => t.track_type === "programming");
 
   const switchTrack = (targetTrack) => {
-    const has = (user?.tracks || []).some((t) => t.track_type === targetTrack);
-    if (!has) {
-      const names = { university_course: "课程学习", programming: "编程能力提升" };
-      setActionErr(`请先开通${names[targetTrack] || targetTrack}方向`);
+    if (!(user?.tracks || []).some((t) => t.track_type === targetTrack)) {
+      setActionErr(`请先开通${targetTrack === "university_course" ? "课程学习" : "编程能力提升"}方向`);
       return;
     }
-    const pages = { university_course: "home", programming: "codeStudio" };
-    if (setPage) setPage(pages[targetTrack] || "home");
+    if (setPage) setPage(targetTrack === "university_course" ? "home" : "codeStudio");
   };
 
-  // Avatar upload
+  // ── Avatar ──
   const uploadAvatar = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -109,11 +117,11 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
       const fd = new FormData();
       fd.append("file", file);
       fd.append("username", user.username);
-      const res = await fetch(`${API_BASE || "/api"}/me/avatar`, { method: "POST", body: fd });
+      const res = await fetch(`${API_BASE}/me/avatar`, { method: "POST", body: fd });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || "上传失败");
       setActionMsg("头像已更新");
-      setTimeout(() => setActionMsg(""), 2000);
+      setTimeout(() => setActionMsg(""), 2500);
     } catch (err) {
       setActionErr(err.message);
     } finally {
@@ -124,7 +132,7 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
   const saveBasicInfo = async () => {
     setActionErr("");
     try {
-      const res = await fetch(`${API_BASE || "/api"}/me/profile?username=${encodeURIComponent(user.username)}`, {
+      const res = await fetch(`${API_BASE}/me/profile?username=${encodeURIComponent(user.username)}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ nickname, grade: user?.grade || "", major: user?.major || "" }),
@@ -133,16 +141,98 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
       if (!res.ok) throw new Error(data.detail || "保存失败");
       setEditing(false);
       setActionMsg("资料已保存");
-      setTimeout(() => setActionMsg(""), 2000);
+      setTimeout(() => setActionMsg(""), 2500);
     } catch (err) {
       setActionErr(err.message);
     }
   };
 
+  // ── Password modal ──
+  const [pwdModal, setPwdModal] = useState(false);
+  const [pwdForm, setPwdForm] = useState({ old_password: "", new_password: "", confirm_password: "" });
+  const [pwdSaving, setPwdSaving] = useState(false);
+  const [pwdErr, setPwdErr] = useState("");
+
+  const openPwdModal = () => { setPwdForm({ old_password: "", new_password: "", confirm_password: "" }); setPwdErr(""); setPwdModal(true); };
+  const changePassword = async () => {
+    setPwdErr("");
+    if (pwdForm.new_password !== pwdForm.confirm_password) { setPwdErr("新密码和确认密码不一致"); return; }
+    setPwdSaving(true);
+    try {
+      const res = await fetch(`${API_BASE}/me/password?username=${encodeURIComponent(user.username)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(pwdForm),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "密码修改失败");
+      setPwdModal(false);
+      setActionMsg("密码修改成功");
+      setTimeout(() => setActionMsg(""), 2500);
+    } catch (err) {
+      setPwdErr(err.message);
+    } finally {
+      setPwdSaving(false);
+    }
+  };
+
+  // ── Email modal ──
+  const [emailModal, setEmailModal] = useState(false);
+  const [emailForm, setEmailForm] = useState({ email: "", code: "" });
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailBinding, setEmailBinding] = useState(false);
+  const [emailErr, setEmailErr] = useState("");
+  const [emailMsg, setEmailMsg] = useState("");
+
+  const openEmailModal = () => {
+    setEmailForm({ email: "", code: "" });
+    setEmailErr(""); setEmailMsg("");
+    setEmailModal(true);
+  };
+
+  const sendEmailCode = async () => {
+    const em = emailForm.email.trim();
+    if (!em) { setEmailErr("请输入邮箱地址"); return; }
+    setEmailSending(true); setEmailErr(""); setEmailMsg("");
+    try {
+      const res = await fetch(`${API_BASE}/me/email/send-code?username=${encodeURIComponent(user.username)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: em }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "验证码发送失败");
+      setEmailMsg("验证码已发送");
+    } catch (err) {
+      setEmailErr(err.message);
+    } finally {
+      setEmailSending(false);
+    }
+  };
+
+  const bindEmail = async () => {
+    setEmailBinding(true); setEmailErr(""); setEmailMsg("");
+    try {
+      const res = await fetch(`${API_BASE}/me/email/verify?username=${encodeURIComponent(user.username)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: emailForm.email.trim(), code: emailForm.code.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "邮箱绑定失败");
+      setEmailModal(false);
+      setActionMsg("邮箱已绑定");
+      setTimeout(() => setActionMsg(""), 2500);
+    } catch (err) {
+      setEmailErr(err.message);
+    } finally {
+      setEmailBinding(false);
+    }
+  };
+
   return (
-    <div className="onboarding-v2-page" style={{ alignItems: "flex-start", paddingTop: 32 }}>
+    <div className="ep-page-wrap">
       <div className="ep-shell">
-        {/* ── Header ── */}
         <div className="ep-header">
           <h1 className="ep-title">🛡 个人中心</h1>
         </div>
@@ -159,7 +249,6 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
             </button>
           </div>
           <div className="ep-basic-grid">
-            {/* Avatar */}
             <div className="ep-avatar-col">
               <div className="ep-avatar-wrap">
                 {user?.avatar_url ? (
@@ -173,7 +262,6 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
                 {avatarUploading ? "上传中..." : "更换头像"}
               </button>
             </div>
-            {/* Info columns */}
             <div className="ep-info-col">
               <div className="ep-info-row"><span className="ep-info-label">用户名</span><span>{username}</span></div>
               <div className="ep-info-row">
@@ -223,15 +311,15 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
                 <p>用于登录账号的密码</p>
                 <span>********</span>
               </div>
-              <button type="button" className="ep-outline-btn" onClick={() => setPage && setPage("profile")}>修改</button>
+              <button type="button" className="ep-outline-btn" onClick={openPwdModal}>修改</button>
             </div>
             <div className="ep-sec-item">
               <div>
                 <strong>绑定手机号</strong>
                 <p>用于接收验证码和安全验证</p>
-                <span>138****5678</span>
+                <span>{user?.phone ? maskEmail(user.phone).replace("@","") : "未绑定"}</span>
               </div>
-              <button type="button" className="ep-outline-btn" onClick={() => setActionErr("手机绑定暂未开放")}>修改</button>
+              <button type="button" className="ep-outline-btn" onClick={() => setActionErr("手机号绑定功能暂未开放")}>修改</button>
             </div>
             <div className="ep-sec-item">
               <div>
@@ -239,15 +327,7 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
                 <p>用于接收重要通知和找回密码</p>
                 <span>{emailDisplay}</span>
               </div>
-              <button type="button" className="ep-outline-btn" onClick={() => setPage && setPage("profile")}>修改</button>
-            </div>
-            <div className="ep-sec-item">
-              <div>
-                <strong>账号安全等级</strong>
-                <p>较高的安全等级可以更好保护账号</p>
-                <span className="ep-sec-high">高</span>
-              </div>
-              <button type="button" className="ep-outline-btn" onClick={() => setPage && setPage("profile")}>查看</button>
+              <button type="button" className="ep-outline-btn" onClick={openEmailModal}>{emailBtnLabel}</button>
             </div>
           </div>
         </div>
@@ -283,9 +363,51 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
           </div>
         </div>
 
-        {/* ── Footer ── */}
         <p className="ep-footer">如有疑问，请联系<span className="ep-footer-link">客服支持</span></p>
       </div>
+
+      {/* ── Password Modal ── */}
+      {pwdModal && (
+        <div className="eh-modal-backdrop" onClick={() => setPwdModal(false)}>
+          <div className="eh-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="eh-modal-head"><h3>修改密码</h3><button type="button" className="eh-modal-close" onClick={() => setPwdModal(false)}>×</button></div>
+            {pwdErr && <div className="ob-error" style={{ marginBottom: 12 }}>{pwdErr}</div>}
+            <label className="ob-label">当前密码</label>
+            <input type="password" className="ob-select" style={{ marginBottom: 14 }} value={pwdForm.old_password} placeholder="请输入当前密码" onChange={(e) => setPwdForm((p) => ({ ...p, old_password: e.target.value }))} />
+            <label className="ob-label">新密码</label>
+            <input type="password" className="ob-select" style={{ marginBottom: 14 }} value={pwdForm.new_password} placeholder="请输入新密码" onChange={(e) => setPwdForm((p) => ({ ...p, new_password: e.target.value }))} />
+            <label className="ob-label">确认新密码</label>
+            <input type="password" className="ob-select" style={{ marginBottom: 16 }} value={pwdForm.confirm_password} placeholder="请再次输入新密码" onChange={(e) => setPwdForm((p) => ({ ...p, confirm_password: e.target.value }))} />
+            <div className="eh-modal-actions">
+              <button type="button" className="ob-btn-secondary" onClick={() => setPwdModal(false)}>取消</button>
+              <button type="button" className="ob-btn-primary" onClick={changePassword} disabled={pwdSaving}>{pwdSaving ? "修改中..." : "确认修改"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Email Modal ── */}
+      {emailModal && (
+        <div className="eh-modal-backdrop" onClick={() => setEmailModal(false)}>
+          <div className="eh-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="eh-modal-head"><h3>{realEmail ? "更换邮箱" : "绑定邮箱"}</h3><button type="button" className="eh-modal-close" onClick={() => setEmailModal(false)}>×</button></div>
+            {realEmail && <p style={{ color: "#64748b", fontSize: 13, margin: "0 0 12px" }}>当前邮箱：{maskEmail(realEmail)}</p>}
+            {emailErr && <div className="ob-error" style={{ marginBottom: 12 }}>{emailErr}</div>}
+            {emailMsg && <div className="admin-dashboard-success" style={{ marginBottom: 12 }}>{emailMsg}</div>}
+            <label className="ob-label">新邮箱</label>
+            <input className="ob-select" style={{ marginBottom: 14 }} value={emailForm.email} placeholder="请输入新邮箱地址" onChange={(e) => setEmailForm((p) => ({ ...p, email: e.target.value }))} />
+            <label className="ob-label">验证码</label>
+            <div className="ob-row" style={{ marginBottom: 16 }}>
+              <input className="ob-select" style={{ flex: 1 }} value={emailForm.code} placeholder="请输入验证码" onChange={(e) => setEmailForm((p) => ({ ...p, code: e.target.value }))} />
+              <button type="button" className="ob-btn-secondary" style={{ width: 120, height: 44, flexShrink: 0 }} onClick={sendEmailCode} disabled={emailSending}>{emailSending ? "发送中..." : "发送验证码"}</button>
+            </div>
+            <div className="eh-modal-actions">
+              <button type="button" className="ob-btn-secondary" onClick={() => setEmailModal(false)}>取消</button>
+              <button type="button" className="ob-btn-primary" onClick={bindEmail} disabled={emailBinding}>{emailBinding ? "绑定中..." : "确认绑定"}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

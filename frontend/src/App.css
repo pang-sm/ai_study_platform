@@ -16885,10 +16885,37 @@ select.field:focus {
   box-shadow: 0 16px 48px rgba(15, 23, 42, 0.15);
 }
 
-.eh-modal h3 {
-  margin: 0 0 16px;
+.eh-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.eh-modal-head h3 {
+  margin: 0;
   font-size: 18px;
   color: #1a1f36;
+}
+
+.eh-modal-close {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: #f1f5f9;
+  border-radius: 8px;
+  font-size: 18px;
+  color: #64748b;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.eh-modal-close:hover {
+  background: #e2e8f0;
+  color: #334155;
 }
 
 .eh-modal input {
@@ -16943,6 +16970,14 @@ select.field:focus {
 /* ══════════════════════════════════════════════════════
    11408 Exam Profile
    ══════════════════════════════════════════════════════ */
+
+/* Page wrapper — scrollable, no height lock */
+.ep-page-wrap {
+  min-height: 100vh;
+  background: linear-gradient(150deg, #f5f0ff 0%, #ede4ff 30%, #faf8ff 60%, #f5f3ff 100%);
+  padding: 32px 32px 48px;
+  box-sizing: border-box;
+}
 
 .ep-shell {
   max-width: 1100px;
@@ -17189,7 +17224,7 @@ select.field:focus {
 
 .ep-security-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 16px;
 }
 
@@ -17368,7 +17403,7 @@ select.field:focus {
   }
 
   .ep-security-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
   }
 
   .ep-package-row {
@@ -17382,5 +17417,19 @@ select.field:focus {
 
   .ep-perks-list {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .ep-page-wrap {
+    padding: 20px 16px;
+  }
+
+  .ep-security-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ep-quota-grid {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
