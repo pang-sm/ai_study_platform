@@ -145,7 +145,7 @@ export default function ExamSubjectDashboard({
             subjectTitle={config.title}
             courseName={courseId}
             onBackDashboard={() => setActiveSection("home")}
-            onNavigatePackage={() => navigate("member")}
+            onOpenMaterials={() => navigate("materials")}
           />
         ) : (
           <>

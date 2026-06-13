@@ -18888,3 +18888,492 @@ select.field:focus {
     grid-template-columns: 1fr;
   }
 }
+
+/* 11408 subject AI chat - fixed workstation layout */
+.exam-subject-main.exam-subject-main--chat {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 18px 20px;
+  overflow: hidden;
+}
+
+.exam-subject-main--chat .examchat-shell {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 246px minmax(0, 1fr) 300px;
+  grid-template-rows: minmax(0, 1fr);
+  gap: 16px;
+}
+
+.examchat-history-panel,
+.examchat-main-panel,
+.examchat-sidebar {
+  min-height: 0;
+}
+
+.examchat-history-panel,
+.examchat-main-panel,
+.examchat-side-card {
+  border: 1px solid rgba(124, 58, 237, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 18px 48px rgba(31, 42, 68, 0.07);
+}
+
+.examchat-history-panel {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 14px;
+  padding: 16px;
+  overflow: hidden;
+}
+
+.examchat-new-btn {
+  min-height: 42px;
+  border: none;
+  border-radius: 13px;
+  background: linear-gradient(135deg, #8b5cf6, #6d5dfc);
+  color: #fff;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.examchat-history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: #25304e;
+}
+
+.examchat-history-head strong {
+  font-size: 15px;
+}
+
+.examchat-history-head button,
+.examchat-side-title button,
+.examchat-side-empty button,
+.examchat-back-btn {
+  border: none;
+  border-radius: 999px;
+  background: #f1ecff;
+  color: #6d28d9;
+  padding: 7px 11px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.examchat-history-list {
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  align-content: start;
+  gap: 9px;
+  padding-right: 2px;
+}
+
+.examchat-history-empty {
+  border: 1px dashed rgba(124, 58, 237, 0.2);
+  border-radius: 13px;
+  background: #fbfaff;
+  color: #7a84a0;
+  padding: 16px;
+  text-align: center;
+  font-size: 13px;
+}
+
+.examchat-history-item {
+  display: grid;
+  gap: 6px;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  background: #fbfaff;
+  color: #33406a;
+  padding: 11px;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.examchat-history-item.active {
+  border-color: rgba(124, 58, 237, 0.32);
+  background: #f1ecff;
+}
+
+.examchat-history-item span {
+  overflow: hidden;
+  color: #25304e;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.examchat-history-item small {
+  overflow: hidden;
+  color: #7a84a0;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.examchat-history-item i {
+  display: flex;
+  gap: 10px;
+  font-style: normal;
+}
+
+.examchat-history-item b {
+  color: #6d28d9;
+  font-size: 12px;
+}
+
+.examchat-main-panel {
+  min-width: 0;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  overflow: hidden;
+}
+
+.examchat-main-panel .examchat-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  border: none;
+  border-bottom: 1px solid #ede9fe;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 18px 20px 16px;
+}
+
+.examchat-title {
+  margin: 0 0 6px;
+  color: #17203c;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.examchat-subtitle {
+  margin: 0;
+  color: #6f7896;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.examchat-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 12px 20px 0;
+  border: 1px solid #fecaca;
+  border-radius: 13px;
+  background: #fff1f2;
+  padding: 10px 12px;
+  color: #b91c1c;
+  font-size: 13px;
+}
+
+.examchat-error button {
+  border: none;
+  border-radius: 10px;
+  background: #7c3aed;
+  color: #fff;
+  padding: 7px 10px;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.examchat-main-panel .examchat-messages {
+  min-height: 0;
+  overflow-y: auto;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 18px 20px;
+}
+
+.examchat-main-panel .examchat-empty {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  border: 1px dashed rgba(124, 58, 237, 0.22);
+  border-radius: 18px;
+  background: #fbfaff;
+  color: #6f7896;
+  padding: 24px;
+  text-align: center;
+}
+
+.examchat-empty-icon {
+  font-size: 38px;
+}
+
+.examchat-empty strong {
+  color: #25304e;
+  font-size: 20px;
+}
+
+.examchat-empty p {
+  max-width: 520px;
+  margin: 0;
+  line-height: 1.7;
+}
+
+.examchat-msg {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 14px;
+}
+
+.examchat-msg--user {
+  justify-content: flex-end;
+}
+
+.examchat-msg-content {
+  max-width: min(760px, 86%);
+  border: 1px solid #ede9fe;
+  border-radius: 18px;
+  border-bottom-left-radius: 6px;
+  background: #fff;
+  padding: 14px 16px;
+  color: #25304e;
+  line-height: 1.75;
+}
+
+.examchat-msg--user .examchat-msg-content {
+  border-color: transparent;
+  border-bottom-right-radius: 6px;
+  border-bottom-left-radius: 18px;
+  background: linear-gradient(135deg, #8b5cf6, #6d5dfc);
+  color: #fff;
+}
+
+.examchat-msg-content p {
+  margin: 0;
+}
+
+.examchat-thinking {
+  color: #6d28d9;
+  font-weight: 900;
+}
+
+.examchat-refs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+  border-top: 1px solid #ede9fe;
+  padding-top: 10px;
+}
+
+.examchat-refs strong {
+  color: #6d28d9;
+  font-size: 13px;
+}
+
+.examchat-ref {
+  border-radius: 999px;
+  background: #f1ecff;
+  color: #6d28d9;
+  padding: 5px 9px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.examchat-main-panel .examchat-input-area {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 104px;
+  align-items: end;
+  gap: 10px;
+  border: none;
+  border-top: 1px solid #ede9fe;
+  border-radius: 0;
+  background: #fff;
+  box-shadow: none;
+  padding: 14px 16px 16px;
+}
+
+.examchat-input {
+  width: 100%;
+  min-width: 0;
+  min-height: 68px;
+  max-height: 150px;
+  resize: vertical;
+  border: 1px solid #ddd6fe;
+  border-radius: 15px;
+  background: #fff;
+  color: #17203c;
+  padding: 12px 14px;
+  font: inherit;
+  outline: none;
+}
+
+.examchat-input:focus {
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.12);
+}
+
+.examchat-send-btn {
+  min-height: 48px;
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #8b5cf6, #6d5dfc);
+  color: #fff;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.examchat-send-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.examchat-sidebar {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  overflow-y: auto;
+}
+
+.examchat-side-card {
+  padding: 18px;
+}
+
+.examchat-side-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.examchat-side-card h4 {
+  margin: 0;
+  color: #25304e;
+  font-size: 16px;
+}
+
+.examchat-side-empty {
+  display: grid;
+  gap: 12px;
+  border: 1px dashed rgba(124, 58, 237, 0.2);
+  border-radius: 14px;
+  background: #fbfaff;
+  padding: 14px;
+}
+
+.examchat-side-empty p {
+  margin: 0;
+  color: #7a84a0;
+  font-size: 13px;
+}
+
+.examchat-ref-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.examchat-ref-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-radius: 12px;
+  background: #fbfaff;
+  padding: 9px 10px;
+}
+
+.examchat-ref-list li span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.examchat-ref-list li button {
+  border: none;
+  background: transparent;
+  color: #6d28d9;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.examchat-rec-btn {
+  width: 100%;
+  min-height: 44px;
+  display: block;
+  margin-top: 9px;
+  border: 1px solid #ede9fe;
+  border-radius: 13px;
+  background: #fbfaff;
+  color: #33406a;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.45;
+  text-align: left;
+  cursor: pointer;
+}
+
+.examchat-rec-btn:hover {
+  border-color: #c4b5fd;
+  background: #f1ecff;
+  color: #6d28d9;
+}
+
+@media (max-width: 1180px) {
+  .exam-subject-main--chat .examchat-shell {
+    grid-template-columns: 220px minmax(0, 1fr);
+  }
+
+  .exam-subject-main--chat .examchat-sidebar {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 860px) {
+  .exam-subject-main.exam-subject-main--chat {
+    overflow-y: auto;
+  }
+
+  .exam-subject-main--chat .examchat-shell {
+    height: auto;
+    grid-template-columns: 1fr;
+  }
+
+  .examchat-history-panel,
+  .examchat-main-panel {
+    min-height: 360px;
+  }
+
+  .exam-subject-main--chat .examchat-sidebar {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .examchat-main-panel .examchat-input-area {
+    grid-template-columns: 1fr;
+  }
+}
