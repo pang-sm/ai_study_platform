@@ -373,11 +373,11 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
             <div className="eh-modal-head"><h3>修改密码</h3><button type="button" className="eh-modal-close" onClick={() => setPwdModal(false)}>×</button></div>
             {pwdErr && <div className="ob-error" style={{ marginBottom: 12 }}>{pwdErr}</div>}
             <label className="ob-label">当前密码</label>
-            <input type="password" className="ob-select" style={{ marginBottom: 14 }} value={pwdForm.old_password} placeholder="请输入当前密码" onChange={(e) => setPwdForm((p) => ({ ...p, old_password: e.target.value }))} />
+            <input type="password" className="ep-modal-input" style={{ marginBottom: 14 }} value={pwdForm.old_password} placeholder="请输入当前密码" onChange={(e) => setPwdForm((p) => ({ ...p, old_password: e.target.value }))} />
             <label className="ob-label">新密码</label>
-            <input type="password" className="ob-select" style={{ marginBottom: 14 }} value={pwdForm.new_password} placeholder="请输入新密码" onChange={(e) => setPwdForm((p) => ({ ...p, new_password: e.target.value }))} />
+            <input type="password" className="ep-modal-input" style={{ marginBottom: 14 }} value={pwdForm.new_password} placeholder="请输入新密码" onChange={(e) => setPwdForm((p) => ({ ...p, new_password: e.target.value }))} />
             <label className="ob-label">确认新密码</label>
-            <input type="password" className="ob-select" style={{ marginBottom: 16 }} value={pwdForm.confirm_password} placeholder="请再次输入新密码" onChange={(e) => setPwdForm((p) => ({ ...p, confirm_password: e.target.value }))} />
+            <input type="password" className="ep-modal-input" style={{ marginBottom: 16 }} value={pwdForm.confirm_password} placeholder="请再次输入新密码" onChange={(e) => setPwdForm((p) => ({ ...p, confirm_password: e.target.value }))} />
             <div className="eh-modal-actions">
               <button type="button" className="ob-btn-secondary" onClick={() => setPwdModal(false)}>取消</button>
               <button type="button" className="ob-btn-primary" onClick={changePassword} disabled={pwdSaving}>{pwdSaving ? "修改中..." : "确认修改"}</button>
@@ -395,10 +395,10 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
             {emailErr && <div className="ob-error" style={{ marginBottom: 12 }}>{emailErr}</div>}
             {emailMsg && <div className="admin-dashboard-success" style={{ marginBottom: 12 }}>{emailMsg}</div>}
             <label className="ob-label">新邮箱</label>
-            <input className="ob-select" style={{ marginBottom: 14 }} value={emailForm.email} placeholder="请输入新邮箱地址" onChange={(e) => setEmailForm((p) => ({ ...p, email: e.target.value }))} />
+            <input className="ep-modal-input" style={{ marginBottom: 14 }} value={emailForm.email} placeholder="请输入新邮箱地址" onChange={(e) => setEmailForm((p) => ({ ...p, email: e.target.value }))} />
             <label className="ob-label">验证码</label>
             <div className="ob-row" style={{ marginBottom: 16 }}>
-              <input className="ob-select" style={{ flex: 1 }} value={emailForm.code} placeholder="请输入验证码" onChange={(e) => setEmailForm((p) => ({ ...p, code: e.target.value }))} />
+              <input className="ep-modal-input" style={{ flex: 1 }} value={emailForm.code} placeholder="请输入验证码" onChange={(e) => setEmailForm((p) => ({ ...p, code: e.target.value }))} />
               <button type="button" className="ob-btn-secondary" style={{ width: 120, height: 44, flexShrink: 0 }} onClick={sendEmailCode} disabled={emailSending}>{emailSending ? "发送中..." : "发送验证码"}</button>
             </div>
             <div className="eh-modal-actions">

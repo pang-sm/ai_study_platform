@@ -16923,6 +16923,26 @@ select.field:focus {
   box-sizing: border-box;
 }
 
+.ep-modal-input {
+  width: 100%;
+  height: 44px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  padding: 0 14px;
+  color: #1e293b;
+  font: inherit;
+  font-size: 14px;
+  transition: border-color 0.15s;
+  box-sizing: border-box;
+}
+
+.ep-modal-input:focus {
+  border-color: #a78bfa;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.08);
+}
+
 .eh-modal-actions {
   display: flex;
   gap: 12px;
