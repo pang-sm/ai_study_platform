@@ -132,8 +132,14 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
   };
 
   const enterSubject = (subjKey) => {
-    if (setSubject) setSubject(subjKey);
-    if (setPage) setPage("home");
+    const selected = SUBJECTS.find((item) => item.key === subjKey);
+    if (setSubject && selected?.name) setSubject(`11408 ${selected.name}`);
+    if (setPage) {
+      setPage("examSubjectDashboard", {
+        subject: subjKey,
+        examCourseId: selected?.name ? `11408 ${selected.name}` : subjKey,
+      });
+    }
   };
 
   return (

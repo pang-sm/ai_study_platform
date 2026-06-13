@@ -13,6 +13,7 @@ import Onboarding from "./components/Onboarding.jsx";
 import ExamHome from "./components/ExamHome.jsx";
 import ExamProfile from "./components/ExamProfile.jsx";
 import ExamPlan from "./components/ExamPlan.jsx";
+import ExamSubjectDashboard, { getExamCourseId } from "./components/ExamSubjectDashboard.jsx";
 import MembershipPage from "./components/MembershipPage.jsx";
 
 const CodeStudio = lazy(() => import("./components/CodeStudio.jsx"));
@@ -41,6 +42,7 @@ const USER_STORAGE_KEY = "ai_study_platform_user";
 const ACTIVE_SESSION_STORAGE_KEY = "ai_study_platform_active_session_id";
 const CURRENT_PAGE_KEY = "ai_study_current_page";
 const CURRENT_SUBJECT_KEY = "ai_study_current_subject";
+const CURRENT_EXAM_SUBJECT_KEY = "ai_study_current_exam_subject";
 const API_BASE = "/api";
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
@@ -425,7 +427,7 @@ const VALID_PAGES = new Set([
   "adminUsageCenter", "adminCenter",
   "materials", "workspaceMaterials", "chat", "records", "history",
   "knowledgeLearning", "searchResults",
-  "profileEdit", "onboarding", "examHome", "examProfile", "examPlan",
+  "profileEdit", "onboarding", "examHome", "examProfile", "examPlan", "examSubjectDashboard",
   "login", "adminLogin",
 ]);
 
@@ -455,12 +457,21 @@ function clearCurrentPage() {
   try { localStorage.removeItem(CURRENT_PAGE_KEY); } catch { /* ignore */ }
 }
 
+function getInitialExamSubject() {
+  try {
+    return localStorage.getItem(CURRENT_EXAM_SUBJECT_KEY) || "data_structure";
+  } catch {
+    return "data_structure";
+  }
+}
+
 function App() {
   const [page, setPageRaw] = useState(getInitialPage);
   const [practiceContext, setPracticeContext] = useState(null);
   const [searchContext, setSearchContext] = useState(null);
   const [searchNavigate, setSearchNavigate] = useState(null);
   const [authMode, setAuthMode] = useState("login");
+  const [examSubjectKey, setExamSubjectKey] = useState(getInitialExamSubject);
 
   const setPage = (nextPage, context = null) => {
     // Feature gating: intercept navigation to disabled features
@@ -485,7 +496,13 @@ function App() {
       setLearningGoals(Array.isArray(user?.learning_goals) ? [...user.learning_goals] : []);
     }
 
-    if (context?.courseId) {
+    if (context?.subject) {
+      setExamSubjectKey(context.subject);
+      try { localStorage.setItem(CURRENT_EXAM_SUBJECT_KEY, context.subject); } catch { /* ignore */ }
+    }
+    if (context?.examCourseId) {
+      setSubject(context.examCourseId);
+    } else if (context?.courseId) {
       setSubject(normalizeSubject(context.courseId));
     }
     if (nextPage === "practiceCenter" && context) {
@@ -2472,6 +2489,14 @@ function App() {
   };
 
   function buildHiddenLearningInstruction(ctx) {
+    if (ctx?.type === "exam_subject") {
+      return [
+        "你正在 11408 考研备考场景中回答问题。",
+        `当前科目：${ctx.courseName || ctx.subjectTitle || "11408"}`,
+        "回答应围绕当前 11408 科目组织，优先使用考研复习视角，突出高频考点、易错点、题型和复盘建议。",
+        "不要在回答开头机械复述这些隐藏上下文，直接自然回答学生的问题。",
+      ].join("\n");
+    }
     if (!ctx || ctx.type !== "knowledge_point") return "";
     const goalLabel = ({ overview: "大概了解", systematic: "系统学习", project: "项目实践", exam: "期中/期末速成" })[ctx.goal] || "系统学习";
     const diffLabel = ({ intro: "入门", standard: "标准", advanced: "提高", challenge: "挑战" })[ctx.difficulty] || "标准";
@@ -3061,6 +3086,62 @@ function App() {
     setPageRaw("practiceCenter");
   };
 
+  const openExamSubjectFeature = (target, context = {}) => {
+    const subjectKey = context.subject || examSubjectKey || "data_structure";
+    const courseId = context.courseId || getExamCourseId(subjectKey);
+    const navContext = {
+      subject: subjectKey,
+      examCourseId: courseId,
+      courseId,
+      courseName: courseId,
+      examMode: true,
+      source: "exam_408",
+    };
+
+    if (target === "ai") {
+      setPendingAIContext({
+        type: "exam_subject",
+        courseName: courseId,
+        subjectKey,
+        subjectTitle: context.title || courseId.replace(/^11408\s*/, ""),
+      });
+      openChatPageForCourse(courseId, true);
+      return;
+    }
+
+    if (target === "materials") {
+      setMaterialSubjectFilter(courseId);
+      setMaterialCurrentPage(1);
+      setPage("workspaceMaterials", navContext);
+      loadMaterials(courseId);
+      return;
+    }
+
+    if (target === "knowledge") {
+      setPage("knowledgeLearning", navContext);
+      return;
+    }
+
+    if (target === "plan") {
+      setPage("taskCenter", navContext);
+      return;
+    }
+
+    if (target === "practice") {
+      setPage("practiceCenter", navContext);
+      return;
+    }
+
+    if (target === "report") {
+      setPage("learningReportCenter", navContext);
+      return;
+    }
+
+    if (target === "member") {
+      setPage("membership", navContext);
+    }
+  };
+
   if (page === "home") {
     const avatarObj = AVATARS.find((a) => a.id === (user?.avatar || "")) || AVATARS[0];
     const hasCustomAvatar = (user?.avatar_url || "").startsWith("/me/avatar/");
@@ -3104,6 +3185,18 @@ function App() {
       <div className="onboarding-v2-page" style={{ alignItems: "flex-start", paddingTop: 32 }}>
         <ExamHome user={user} setPage={setPage} subject={subject} setSubject={setSubject} apiBase={API_BASE} onLogout={logout} />
       </div>
+    );
+  }
+
+  if (page === "examSubjectDashboard") {
+    return (
+      <ExamSubjectDashboard
+        user={user}
+        subjectKey={examSubjectKey}
+        onNavigate={openExamSubjectFeature}
+        onBackHome={() => setPage("examHome")}
+        onProfile={() => setPage("examProfile")}
+      />
     );
   }
 
