@@ -148,9 +148,11 @@ export default function Onboarding({ user, onComplete, API_BASE }) {
   // ══════════════════════════════════════════════════════
   const renderExamDetail = () => (
     <>
-      <h1 className="ob-title">备考详情</h1>
-      <p className="ob-subtitle">第 2 步</p>
-      <p className="ob-desc">请补充一些基础信息，我们将为你生成更适合的考内学习入口</p>
+      <div className="ob-step2-head">
+        <p className="ob-subtitle">第 2 步</p>
+        <h1 className="ob-title">备考详情</h1>
+        <p className="ob-desc">请补充一些基础信息，我们将为你生成更适合的考内学习入口</p>
+      </div>
 
       <div className="ob-field">
         <label className="ob-label">考试时间</label>

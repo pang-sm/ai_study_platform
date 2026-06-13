@@ -4659,6 +4659,25 @@ select.field:focus {
   margin-bottom: 10px;
 }
 
+/* Step 2 header — centered */
+.ob-step2-head {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.ob-step2-head .ob-subtitle {
+  display: inline-block;
+  margin: 0 0 10px;
+}
+
+.ob-step2-head .ob-title {
+  margin: 0 0 6px;
+}
+
+.ob-step2-head .ob-desc {
+  margin: 8px 0 0;
+}
+
 /* Goal cards row — horizontal 3-column */
 .ob-goals-row {
   display: grid;
