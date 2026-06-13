@@ -11,6 +11,7 @@ import MaterialPickerModal from "./components/MaterialPickerModal.jsx";
 import ProfilePage from "./components/ProfilePage.jsx";
 import Onboarding from "./components/Onboarding.jsx";
 import ExamHome from "./components/ExamHome.jsx";
+import ExamProfile from "./components/ExamProfile.jsx";
 import MembershipPage from "./components/MembershipPage.jsx";
 
 const CodeStudio = lazy(() => import("./components/CodeStudio.jsx"));
@@ -423,7 +424,7 @@ const VALID_PAGES = new Set([
   "adminUsageCenter", "adminCenter",
   "materials", "workspaceMaterials", "chat", "records", "history",
   "knowledgeLearning", "searchResults",
-  "profileEdit", "onboarding", "examHome",
+  "profileEdit", "onboarding", "examHome", "examProfile",
   "login", "adminLogin",
 ]);
 
@@ -3102,6 +3103,12 @@ function App() {
       <div className="onboarding-v2-page" style={{ alignItems: "flex-start", paddingTop: 32 }}>
         <ExamHome user={user} setPage={setPage} subject={subject} setSubject={setSubject} apiBase={API_BASE} onLogout={logout} />
       </div>
+    );
+  }
+
+  if (page === "examProfile") {
+    return (
+      <ExamProfile user={user} setPage={setPage} onLogout={logout} API_BASE={API_BASE} />
     );
   }
 

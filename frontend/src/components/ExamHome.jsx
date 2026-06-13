@@ -111,7 +111,7 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
           </p>
         </div>
         <div className="eh-hero-right">
-          <div className="eh-user-card">
+          <div className="eh-user-card" onClick={() => setPage && setPage("examProfile")} style={{ cursor: "pointer" }}>
             <span className="eh-user-avatar">{displayName.charAt(0)}</span>
             <div>
               <strong>{displayName}</strong>
