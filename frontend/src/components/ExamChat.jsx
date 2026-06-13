@@ -118,8 +118,10 @@ export default function ExamChat({
   const [librarySearchQuery, setLibrarySearchQuery] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [toolMenuOpen, setToolMenuOpen] = useState(false);
   const messagesEndRef = useRef(null);
   const uploadInputRef = useRef(null);
+  const toolMenuRef = useRef(null);
 
   const recommendations = useMemo(() => getRecommendations(subjectKey).slice(0, 5), [subjectKey]);
   const sessionStorageKey = `exam_chat_session_${subjectKey}`;
@@ -205,10 +207,27 @@ export default function ExamChat({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, loading]);
 
+  useEffect(() => {
+    if (!toolMenuOpen) return;
+    const handlePointerDown = (event) => {
+      if (!toolMenuRef.current?.contains(event.target)) {
+        setToolMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [toolMenuOpen]);
+
   const openMaterialPicker = async () => {
+    setToolMenuOpen(false);
     setPickerOpen(true);
     setLibrarySearchQuery("");
     await loadMaterials();
+  };
+
+  const openUploadPicker = () => {
+    setToolMenuOpen(false);
+    uploadInputRef.current?.click();
   };
 
   const startNewConversation = () => {
@@ -502,12 +521,29 @@ export default function ExamChat({
             </div>
           )}
           <div className="examchat-input-row">
-            <button type="button" className="examchat-tool-btn" onClick={openMaterialPicker}>
-              引用资料
-            </button>
-            <button type="button" className="examchat-tool-btn" onClick={() => uploadInputRef.current?.click()} disabled={uploading}>
-              {uploading ? "上传中..." : "上传资料"}
-            </button>
+            <div className="examchat-plus-wrap" ref={toolMenuRef}>
+              <button
+                type="button"
+                className={`examchat-plus-btn${toolMenuOpen ? " active" : ""}`}
+                onClick={() => setToolMenuOpen((open) => !open)}
+                aria-label="添加资料"
+                aria-expanded={toolMenuOpen}
+              >
+                +
+              </button>
+              {toolMenuOpen && (
+                <div className="examchat-plus-menu">
+                  <button type="button" onClick={openMaterialPicker}>
+                    <span>📎</span>
+                    引用资料
+                  </button>
+                  <button type="button" onClick={openUploadPicker} disabled={uploading}>
+                    <span>⬆</span>
+                    {uploading ? "上传中..." : "上传资料"}
+                  </button>
+                </div>
+              )}
+            </div>
             <textarea
               className="examchat-input"
               value={inputText}
@@ -523,7 +559,8 @@ export default function ExamChat({
               onClick={() => sendMessage()}
               disabled={loading || !inputText.trim()}
             >
-              {loading ? "思考中..." : "发送"}
+              <span className="examchat-send-icon">➤</span>
+              <span>{loading ? "思考中" : "发送"}</span>
             </button>
           </div>
           <input
