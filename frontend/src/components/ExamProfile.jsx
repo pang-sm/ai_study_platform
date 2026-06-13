@@ -99,7 +99,7 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
     { icon: "📊", label: "学习报告", value: perks[5]?.ok ? "已解锁" : "未解锁", unit: "", used: "", sub: perks[5]?.ok ? "进阶版可用" : "升级后可用" },
   ];
 
-  // Fetch real target school from tracks API on every mount
+  // Fetch real target school from tracks API on every mount — no deps so always fires
   const fetchTargetSchool = async () => {
     try {
       const res = await fetch(`${API_BASE}/me/tracks?username=${encodeURIComponent(user.username)}`);
@@ -108,10 +108,11 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
       const examT = tracks.find((t) => t.track_type === "exam_408");
       const detail = examT?.onboarding_detail || {};
       const school = detail?.target_school || "";
-      if (school) { setTargetSchool(school); setSchoolQuery(school); }
+      setTargetSchool(school);
+      setSchoolQuery(school);
     } catch { /* keep current value */ }
   };
-  useEffect(() => { fetchTargetSchool(); }, [user?.username]);
+  useEffect(() => { fetchTargetSchool(); }, []);
 
   const fetchSchools = async (q) => {
     const query = (q || "").trim();

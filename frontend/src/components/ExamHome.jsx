@@ -66,7 +66,7 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
     }
     // Then refresh from API for latest data
     fetchData();
-  }, [user?.username]);
+  }, []);
 
   const displayName = user?.nickname || user?.username || "小庞同学";
 

@@ -494,18 +494,19 @@ def update_target_school(req: dict, db: Session = Depends(get_db)):
     if school and school not in EXAM_408_SCHOOLS:
         raise HTTPException(status_code=400, detail="请选择 11408 院校库中的学校")
     track = get_user_track(db, user.id, "exam_408")
-    if track:
-        detail = {}
-        try:
-            if track.onboarding_detail_json:
-                detail = json.loads(track.onboarding_detail_json)
-        except (json.JSONDecodeError, TypeError):
-            pass
-        detail["target_school"] = school
-        track.onboarding_detail_json = json.dumps(detail, ensure_ascii=False)
-        db.commit()
-        db.refresh(track)
-    return {"target_school": school, "message": "目标院校已更新"}
+    if not track:
+        raise HTTPException(status_code=404, detail="尚未开通 11408 备考方向")
+    detail = {}
+    try:
+        if track.onboarding_detail_json:
+            detail = json.loads(track.onboarding_detail_json)
+    except (json.JSONDecodeError, TypeError):
+        pass
+    detail["target_school"] = school
+    track.onboarding_detail_json = json.dumps(detail, ensure_ascii=False)
+    db.commit()
+    db.refresh(track)
+    return {"target_school": school, "message": "目标院校已更新", "track": serialize_track(track)}
 
 
 def user_needs_onboarding(user: models.User) -> bool:
