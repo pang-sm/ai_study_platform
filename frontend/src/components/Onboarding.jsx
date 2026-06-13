@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import goalExamIllustration from "../assets/onboarding/goal-exam-illustration.png";
 import goalCourseIllustration from "../assets/onboarding/goal-course-illustration.png";
 import goalCodeIllustration from "../assets/onboarding/goal-code-illustration.png";
@@ -136,31 +136,80 @@ const EXAM_PACKAGES = [
 ];
 
 export default function Onboarding({ user, onComplete, API_BASE }) {
-  const [step, setStep] = useState(1);
-  const [goalType, setGoalType] = useState("university_course");
+  const uid = user?.username || user?.id || "";
+  const DRAFT_KEY = uid ? `onboarding_draft_${uid}` : "";
+
+  // ── Try to load saved draft ──
+  const loadDraft = () => {
+    if (!DRAFT_KEY) return null;
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return null;
+      const d = JSON.parse(raw);
+      if (!d || typeof d !== "object") return null;
+      return d;
+    } catch {
+      localStorage.removeItem(DRAFT_KEY);
+      return null;
+    }
+  };
+
+  const draft = loadDraft();
+
+  // Restore step — validate it matches goalType
+  const restoredStep = (() => {
+    if (!draft) return 1;
+    const s = Number(draft.currentStep) || 1;
+    const g = draft.goalType || "university_course";
+    // Step 3 is only valid for exam_408
+    if (s === 3 && g !== "exam_408") return 2;
+    return s >= 1 && s <= 3 ? s : 1;
+  })();
+
+  const restoredGoal = draft?.goalType || "university_course";
+
+  const [step, setStep] = useState(restoredStep);
+  const [goalType, setGoalType] = useState(restoredGoal);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   // ── Exam 408 form ──
-  const [examTime, setExamTime] = useState("暂不确定");
-  const [examStage, setExamStage] = useState("");
-  const [examWeak, setExamWeak] = useState("");
-  const [examDaily, setExamDaily] = useState("");
-  const [examMaterials, setExamMaterials] = useState([]);
+  const [examTime, setExamTime] = useState(draft?.examTime || "暂不确定");
+  const [examStage, setExamStage] = useState(draft?.examStage || "");
+  const [examWeak, setExamWeak] = useState(draft?.examWeak || "");
+  const [examDaily, setExamDaily] = useState(draft?.examDaily || "");
+  const [examMaterials, setExamMaterials] = useState((draft?.examMaterials && draft.examMaterials.length > 0) ? draft.examMaterials : []);
 
   // ── University course form ──
-  const [courseMajor, setCourseMajor] = useState("");
-  const [courseGrade, setCourseGrade] = useState("");
-  const [courseCourses, setCourseCourses] = useState([]);
-  const [courseMaterials, setCourseMaterials] = useState([]);
+  const [courseMajor, setCourseMajor] = useState(draft?.courseMajor || "");
+  const [courseGrade, setCourseGrade] = useState(draft?.courseGrade || "");
+  const [courseCourses, setCourseCourses] = useState((draft?.courseCourses && draft.courseCourses.length > 0) ? draft.courseCourses : []);
+  const [courseMaterials, setCourseMaterials] = useState((draft?.courseMaterials && draft.courseMaterials.length > 0) ? draft.courseMaterials : []);
 
   // ── Programming form ──
-  const [codeLang, setCodeLang] = useState("");
-  const [codeLevel, setCodeLevel] = useState("");
-  const [codeProblems, setCodeProblems] = useState([]);
+  const [codeLang, setCodeLang] = useState(draft?.codeLang || "");
+  const [codeLevel, setCodeLevel] = useState(draft?.codeLevel || "");
+  const [codeProblems, setCodeProblems] = useState((draft?.codeProblems && draft.codeProblems.length > 0) ? draft.codeProblems : []);
 
   // ── Exam package step ──
-  const [selectedPackage, setSelectedPackage] = useState("quarterly_boost");
+  const [selectedPackage, setSelectedPackage] = useState(draft?.selectedPackage || "quarterly_boost");
+
+  // ── Auto-save draft to localStorage ──
+  useEffect(() => {
+    if (!DRAFT_KEY) return;
+    const d = {
+      currentStep: step,
+      goalType,
+      examTime, examStage, examWeak, examDaily, examMaterials,
+      courseMajor, courseGrade, courseCourses, courseMaterials,
+      codeLang, codeLevel, codeProblems,
+      selectedPackage,
+    };
+    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(d)); } catch { /* quota exceeded */ }
+  }, [DRAFT_KEY, step, goalType,
+    examTime, examStage, examWeak, examDaily, examMaterials,
+    courseMajor, courseGrade, courseCourses, courseMaterials,
+    codeLang, codeLevel, codeProblems, selectedPackage]);
 
   const handleNext = () => {
     if (!goalType) {
@@ -226,6 +275,8 @@ export default function Onboarding({ user, onComplete, API_BASE }) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || "保存失败");
+      // Clear draft on success
+      if (DRAFT_KEY) { try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ } }
       onComplete(data.profile || data.user, goalType);
     } catch (err) {
       setError(err.message || "保存失败，请稍后重试");
