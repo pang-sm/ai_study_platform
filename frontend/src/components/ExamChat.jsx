@@ -120,6 +120,7 @@ export default function ExamChat({
   const [uploading, setUploading] = useState(false);
   const [toolMenuOpen, setToolMenuOpen] = useState(false);
   const messagesEndRef = useRef(null);
+  const currentSessionIdRef = useRef(null);
   const uploadInputRef = useRef(null);
   const toolMenuRef = useRef(null);
 
@@ -171,6 +172,18 @@ export default function ExamChat({
     }
   }, [courseName, user?.username]);
 
+  const updateCurrentSessionId = useCallback((sessionId) => {
+    const nextSessionId = sessionId === null || sessionId === undefined || sessionId === ""
+      ? null
+      : Number(sessionId);
+    const safeSessionId = Number.isNaN(nextSessionId) ? sessionId : nextSessionId;
+    currentSessionIdRef.current = safeSessionId;
+    setCurrentSessionId(safeSessionId);
+    if (safeSessionId) {
+      try { localStorage.setItem(sessionStorageKey, String(safeSessionId)); } catch { /* ignore */ }
+    }
+  }, [sessionStorageKey]);
+
   const loadSession = useCallback(async (sessionId) => {
     if (!user?.username || !sessionId) return;
     setError("");
@@ -178,8 +191,7 @@ export default function ExamChat({
       const res = await fetch(`${API_BASE}/chat/sessions/${sessionId}?username=${encodeURIComponent(user.username)}`);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || "加载历史对话失败");
-      setCurrentSessionId(Number(sessionId));
-      try { localStorage.setItem(sessionStorageKey, String(sessionId)); } catch { /* ignore */ }
+      updateCurrentSessionId(sessionId);
       setMessages((data.messages || []).map((message) => ({
         id: message.id,
         role: message.role,
@@ -190,7 +202,7 @@ export default function ExamChat({
     } catch (err) {
       setError(err.message || "加载历史对话失败");
     }
-  }, [sessionStorageKey, user?.username]);
+  }, [updateCurrentSessionId, user?.username]);
 
   useEffect(() => {
     loadHistory();
@@ -231,7 +243,7 @@ export default function ExamChat({
   };
 
   const startNewConversation = () => {
-    setCurrentSessionId(null);
+    updateCurrentSessionId(null);
     try { localStorage.removeItem(sessionStorageKey); } catch { /* ignore */ }
     setMessages([]);
     setInputText("");
@@ -246,7 +258,9 @@ export default function ExamChat({
       await fetch(`${API_BASE}/chat/sessions/${sessionId}?username=${encodeURIComponent(user.username)}`, {
         method: "DELETE",
       });
-      if (currentSessionId === sessionId) startNewConversation();
+      if (currentSessionIdRef.current === sessionId || Number(currentSessionIdRef.current) === Number(sessionId)) {
+        startNewConversation();
+      }
       loadHistory();
     } catch {
       setError("暂时无法删除该对话");
@@ -337,6 +351,7 @@ export default function ExamChat({
   const sendMessage = async (text) => {
     const msg = (text || inputText).trim();
     if (!msg || loading || !user?.username) return;
+    const activeSessionId = currentSessionIdRef.current;
 
     setInputText("");
     setError("");
@@ -353,7 +368,7 @@ export default function ExamChat({
       const body = {
         username: user.username,
         message: msg,
-        session_id: currentSessionId,
+        session_id: activeSessionId,
         subject: subjectTitle,
         course: courseName,
         material_ids: selectedMaterials.filter(canReferenceMaterial).map((material) => material.id),
@@ -370,9 +385,9 @@ export default function ExamChat({
         throw new Error(data.detail || "AI 服务调用失败");
       }
 
-      if (!currentSessionId && data.session?.id) {
-        setCurrentSessionId(data.session.id);
-        try { localStorage.setItem(sessionStorageKey, String(data.session.id)); } catch { /* ignore */ }
+      const nextSessionId = data.session?.id ?? data.session_id ?? activeSessionId;
+      if (nextSessionId) {
+        updateCurrentSessionId(nextSessionId);
       }
 
       setMessages((prev) => [...prev, {
