@@ -138,7 +138,6 @@ export default function ExamChat({
   const userInteractedRef = useRef(false);
 
   const recommendations = useMemo(() => getRecommendations(subjectKey).slice(0, 5), [subjectKey]);
-  const sessionStorageKey = `exam_chat_session_${subjectKey}`;
   const lastUserMessageId = useMemo(() => {
     for (let index = messages.length - 1; index >= 0; index -= 1) {
       if (messages[index]?.role === "user") return messages[index].id;
@@ -198,10 +197,7 @@ export default function ExamChat({
     const safeSessionId = Number.isNaN(nextSessionId) ? sessionId : nextSessionId;
     currentSessionIdRef.current = safeSessionId;
     setCurrentSessionId(safeSessionId);
-    if (safeSessionId) {
-      try { localStorage.setItem(sessionStorageKey, String(safeSessionId)); } catch { /* ignore */ }
-    }
-  }, [sessionStorageKey]);
+  }, []);
 
   const loadSession = useCallback(async (sessionId, options = {}) => {
     if (!user?.username || !sessionId) return;
@@ -221,15 +217,16 @@ export default function ExamChat({
   }, [updateCurrentSessionId, user?.username]);
 
   useEffect(() => {
+    userInteractedRef.current = false;
+    currentSessionIdRef.current = null;
+    setCurrentSessionId(null);
+    setMessages([]);
+    setInputText("");
+    setSelectedMaterials([]);
+    setError("");
+    setNotice("");
     loadHistory();
-  }, [loadHistory]);
-
-  useEffect(() => {
-    const savedSessionId = (() => {
-      try { return localStorage.getItem(sessionStorageKey); } catch { return null; }
-    })();
-    if (savedSessionId) loadSession(savedSessionId, { preserveCurrentMessages: true });
-  }, [loadSession, sessionStorageKey]);
+  }, [loadHistory, subjectKey]);
 
   useEffect(() => {
     if (lastUserMessageRef.current) {
@@ -265,7 +262,6 @@ export default function ExamChat({
   const startNewConversation = () => {
     userInteractedRef.current = true;
     updateCurrentSessionId(null);
-    try { localStorage.removeItem(sessionStorageKey); } catch { /* ignore */ }
     setMessages([]);
     setInputText("");
     setError("");

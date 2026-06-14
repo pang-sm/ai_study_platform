@@ -17090,10 +17090,13 @@ select.field:focus {
 
 /* Page wrapper — scrollable, no height lock */
 .ep-page-wrap {
+  height: 100vh;
   min-height: 100vh;
   background: linear-gradient(150deg, #f5f0ff 0%, #ede4ff 30%, #faf8ff 60%, #f5f3ff 100%);
   padding: 32px 32px 48px;
   box-sizing: border-box;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .ep-shell {
