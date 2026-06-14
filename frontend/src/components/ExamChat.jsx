@@ -497,7 +497,6 @@ export default function ExamChat({
         <div className="examchat-input-area">
           {selectedMaterials.length > 0 && (
             <div className="examchat-selected-bar">
-              <span>已引用：</span>
               {selectedMaterials.map((material) => (
                 <button key={material.id} type="button" onClick={() => removeSelectedMaterial(material.id)}>
                   {material.original_filename || material.file_name || "资料"} ×
@@ -519,11 +518,11 @@ export default function ExamChat({
               {toolMenuOpen && (
                 <div className="examchat-plus-menu">
                   <button type="button" onClick={openMaterialPicker}>
-                    <span>📎</span>
+                    <span aria-hidden="true">▣</span>
                     引用资料
                   </button>
                   <button type="button" onClick={openUploadPicker} disabled={uploading}>
-                    <span>⬆</span>
+                    <span aria-hidden="true">⇧</span>
                     {uploading ? "上传中..." : "上传资料"}
                   </button>
                 </div>
@@ -545,7 +544,7 @@ export default function ExamChat({
               disabled={loading || !inputText.trim()}
             >
               <span className="examchat-send-icon">➤</span>
-              <span>{loading ? "思考中" : "发送"}</span>
+              <span>{loading ? "发送中" : "发送"}</span>
             </button>
           </div>
           <input
