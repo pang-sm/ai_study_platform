@@ -98,6 +98,17 @@ function normalizeUploadedMaterial(data, file) {
   };
 }
 
+function normalizeChatMessage(message, index = 0) {
+  const role = message?.role === "user" ? "user" : "assistant";
+  return {
+    id: message?.id || `history-${role}-${index}`,
+    role,
+    content: message?.content || "",
+    references: Array.isArray(message?.references) ? message.references : [],
+    created_at: message?.created_at || new Date().toISOString(),
+  };
+}
+
 export default function ExamChat({
   user,
   subjectKey,
@@ -123,6 +134,7 @@ export default function ExamChat({
   const currentSessionIdRef = useRef(null);
   const uploadInputRef = useRef(null);
   const toolMenuRef = useRef(null);
+  const userInteractedRef = useRef(false);
 
   const recommendations = useMemo(() => getRecommendations(subjectKey).slice(0, 5), [subjectKey]);
   const sessionStorageKey = `exam_chat_session_${subjectKey}`;
@@ -184,21 +196,18 @@ export default function ExamChat({
     }
   }, [sessionStorageKey]);
 
-  const loadSession = useCallback(async (sessionId) => {
+  const loadSession = useCallback(async (sessionId, options = {}) => {
     if (!user?.username || !sessionId) return;
+    const preserveCurrentMessages = Boolean(options.preserveCurrentMessages);
     setError("");
     try {
       const res = await fetch(`${API_BASE}/chat/sessions/${sessionId}?username=${encodeURIComponent(user.username)}`);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || "加载历史对话失败");
+      if (preserveCurrentMessages && userInteractedRef.current) return;
+      if (!preserveCurrentMessages) userInteractedRef.current = true;
       updateCurrentSessionId(sessionId);
-      setMessages((data.messages || []).map((message) => ({
-        id: message.id,
-        role: message.role,
-        content: message.content || "",
-        references: message.references || [],
-        created_at: message.created_at,
-      })));
+      setMessages((Array.isArray(data.messages) ? data.messages : []).map(normalizeChatMessage));
     } catch (err) {
       setError(err.message || "加载历史对话失败");
     }
@@ -212,7 +221,7 @@ export default function ExamChat({
     const savedSessionId = (() => {
       try { return localStorage.getItem(sessionStorageKey); } catch { return null; }
     })();
-    if (savedSessionId) loadSession(savedSessionId);
+    if (savedSessionId) loadSession(savedSessionId, { preserveCurrentMessages: true });
   }, [loadSession, sessionStorageKey]);
 
   useEffect(() => {
@@ -243,6 +252,7 @@ export default function ExamChat({
   };
 
   const startNewConversation = () => {
+    userInteractedRef.current = true;
     updateCurrentSessionId(null);
     try { localStorage.removeItem(sessionStorageKey); } catch { /* ignore */ }
     setMessages([]);
@@ -351,12 +361,13 @@ export default function ExamChat({
   const sendMessage = async (text) => {
     const msg = (text || inputText).trim();
     if (!msg || loading || !user?.username) return;
+    userInteractedRef.current = true;
     const activeSessionId = currentSessionIdRef.current;
 
     setInputText("");
     setError("");
     const userMessage = {
-      id: `local-${Date.now()}`,
+      id: `local-user-${Date.now()}`,
       role: "user",
       content: msg,
       created_at: new Date().toISOString(),
@@ -391,7 +402,7 @@ export default function ExamChat({
       }
 
       setMessages((prev) => [...prev, {
-        id: data.assistant_message_id || `assistant-${Date.now()}`,
+        id: data.assistant_message_id || `local-assistant-${Date.now()}`,
         role: "assistant",
         content: data.answer || "",
         references: data.references || [],
