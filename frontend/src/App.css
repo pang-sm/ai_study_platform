@@ -18895,6 +18895,38 @@ select.field:focus {
   overflow: hidden;
 }
 
+.exam-subject-main.exam-subject-main--materials {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  box-sizing: border-box;
+  height: 100vh;
+  padding: 20px 16px 16px;
+  overflow: hidden;
+}
+
+.exam-subject-main--materials .cmp-shell {
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.exam-subject-main--materials .cmp-main-panel,
+.exam-subject-main--materials .cmp-detail-panel {
+  min-height: 0;
+}
+
+.exam-subject-main--materials .cmp-main-panel {
+  overflow-y: auto;
+}
+
+.exam-subject-main--materials .cmp-detail-panel {
+  position: static;
+  max-height: none;
+  height: 100%;
+}
+
 .exam-subject-main--chat .examchat-shell {
   width: 100%;
   height: 100%;

@@ -37,7 +37,9 @@ const SORT_OPTIONS = [
 function getCourseDisplay(subject, getSubjectLabel) {
   const raw = String(subject || "").trim();
   const withoutPrefix = raw.replace(/^11408\s*/, "").trim();
-  const label = getSubjectLabel?.(withoutPrefix) || withoutPrefix || getSubjectLabel?.(raw) || raw;
+  const label = raw.startsWith("11408 ")
+    ? withoutPrefix
+    : (getSubjectLabel?.(withoutPrefix) || withoutPrefix || getSubjectLabel?.(raw) || raw);
   return {
     title: label || "当前科目",
     course: raw.startsWith("11408 ") ? raw : `11408 ${label || raw}`,

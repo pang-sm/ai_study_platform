@@ -13,7 +13,7 @@ import Onboarding from "./components/Onboarding.jsx";
 import ExamHome from "./components/ExamHome.jsx";
 import ExamProfile from "./components/ExamProfile.jsx";
 import ExamPlan from "./components/ExamPlan.jsx";
-import ExamSubjectDashboard, { getExamCourseId } from "./components/ExamSubjectDashboard.jsx";
+import ExamSubjectDashboard, { EXAM_SUBJECTS, getExamCourseId } from "./components/ExamSubjectDashboard.jsx";
 import MembershipPage from "./components/MembershipPage.jsx";
 
 const CodeStudio = lazy(() => import("./components/CodeStudio.jsx"));
@@ -182,6 +182,12 @@ function getInitialSubject() {
   } catch {
     return DEFAULT_SUBJECT;
   }
+}
+
+function getExamSubjectKeyFromCourse(courseId) {
+  const normalizedCourse = normalizeSubject(courseId, "");
+  const entries = Object.keys(EXAM_SUBJECTS || {});
+  return entries.find((key) => normalizeSubject(getExamCourseId(key), "") === normalizedCourse) || "";
 }
 
 function getMaterialSortValue(material, key) {
@@ -473,6 +479,7 @@ function App() {
   const [authMode, setAuthMode] = useState("login");
   const [examSubjectKey, setExamSubjectKey] = useState(getInitialExamSubject);
   const [examSubjectPanelIntent, setExamSubjectPanelIntent] = useState(null);
+  const [examInitialMaterialReference, setExamInitialMaterialReference] = useState(null);
 
   const setPage = (nextPage, context = null) => {
     // Feature gating: intercept navigation to disabled features
@@ -1124,12 +1131,27 @@ function App() {
   const quoteMaterialFromLibrary = (material) => {
     if (!material?.id) return;
     const materialCourse = normalizeSubject(material.subject || subject);
+    const materialExamSubjectKey = getExamSubjectKeyFromCourse(materialCourse);
     setSubject(materialCourse);
     setMaterialSubjectFilter(materialCourse);
     setSelectedLibraryMaterials((prev) => {
       if (prev.some((item) => item.id === material.id)) return prev;
       return [...prev, material];
     });
+
+    if (materialExamSubjectKey) {
+      setExamInitialMaterialReference({ material, nonce: Date.now() });
+      setPage("examSubjectDashboard", {
+        subject: materialExamSubjectKey,
+        examCourseId: materialCourse,
+        courseId: materialCourse,
+        courseName: materialCourse,
+        examMode: true,
+        source: "exam_408",
+        forcePanel: "ai",
+      });
+      return;
+    }
 
     if (activeSessionId && activeSessionSubject !== materialCourse) {
       setMessages([]);
@@ -3139,7 +3161,7 @@ function App() {
     if (target === "materials") {
       setMaterialSubjectFilter(courseId);
       setMaterialCurrentPage(1);
-      setPage("workspaceMaterials", navContext);
+      setPage("examSubjectDashboard", { ...navContext, forcePanel: "materials" });
       loadMaterials(courseId);
       return;
     }
@@ -3168,6 +3190,54 @@ function App() {
       setPage("membership", navContext);
     }
   };
+
+  const activeExamMaterialsSubjectKey = getExamSubjectKeyFromCourse(subject) || examSubjectKey || "data_structure";
+  const isExamCourseMaterialsPage =
+    page === "workspaceMaterials" && Boolean(getExamSubjectKeyFromCourse(subject));
+  const courseMaterialsPage = (
+    <CourseMaterialsPage
+      user={user}
+      subject={subject}
+      courseOptions={COURSE_OPTIONS}
+      getSubjectLabel={getSubjectLabel}
+      materials={materials}
+      materialsLoading={materialsLoading}
+      reindexLoading={reindexLoading}
+      currentFilterItems={currentFilterItems}
+      paginatedFilterItems={paginatedFilterItems}
+      currentFilterTotalPages={currentFilterTotalPages}
+      safeCurrentPage={safeCurrentPage}
+      materialSearchQuery={materialSearchQuery}
+      handleMaterialSearchChange={handleMaterialSearchChange}
+      trimmedMaterialSearchQuery={trimmedMaterialSearchQuery}
+      materialSearchTriggered={materialSearchTriggered}
+      materialSearchLoading={materialSearchLoading}
+      materialSearchResults={materialSearchResults}
+      paginatedSearchResults={paginatedSearchResults}
+      materialSortMode={materialSortMode}
+      setMaterialSortMode={setMaterialSortMode}
+      safeSearchPage={safeSearchPage}
+      searchTotalPages={searchTotalPages}
+      materialCurrentPage={materialCurrentPage}
+      setMaterialCurrentPage={setMaterialCurrentPage}
+      selectedMaterialDetail={selectedMaterialDetail}
+      materialsFileInputRef={materialsFileInputRef}
+      materialSubjectFilter={materialSubjectFilter}
+      handleFileChange={(event) => handleFileChange(event, subject)}
+      loadMaterials={loadMaterials}
+      searchMaterials={searchMaterials}
+      reindexLibrary={reindexLibrary}
+      openMaterialDetail={openMaterialDetail}
+      previewMaterial={previewMaterial}
+      downloadMaterial={downloadMaterial}
+      deleteMaterial={deleteMaterial}
+      reparseMaterial={reparseMaterial}
+      setPage={setPage}
+      onQuoteMaterial={quoteMaterialFromLibrary}
+      searchNavigate={searchNavigate}
+      onClearSearchNavigate={() => setSearchNavigate(null)}
+    />
+  );
 
   if (page === "home") {
     const avatarObj = AVATARS.find((a) => a.id === (user?.avatar || "")) || AVATARS[0];
@@ -3221,6 +3291,9 @@ function App() {
         user={user}
         subjectKey={examSubjectKey}
         panelIntent={examSubjectPanelIntent}
+        materialsContent={courseMaterialsPage}
+        initialMaterialToReference={examInitialMaterialReference}
+        onInitialMaterialReferenced={() => setExamInitialMaterialReference(null)}
         onNavigate={openExamSubjectFeature}
         onBackHome={() => setPage("examHome")}
         onProfile={() => setPage("examProfile")}
@@ -3970,6 +4043,22 @@ function App() {
     );
   }
 
+  if (isExamCourseMaterialsPage) {
+    return (
+      <ExamSubjectDashboard
+        user={user}
+        subjectKey={activeExamMaterialsSubjectKey}
+        panelIntent={{ panel: "materials", nonce: 0 }}
+        materialsContent={courseMaterialsPage}
+        initialMaterialToReference={examInitialMaterialReference}
+        onInitialMaterialReferenced={() => setExamInitialMaterialReference(null)}
+        onNavigate={openExamSubjectFeature}
+        onBackHome={() => setPage("examHome")}
+        onProfile={() => setPage("examProfile")}
+      />
+    );
+  }
+
   return wrapPage(
     <div className="workspace-shell">
       <div className="workspace-topbar-wrapper">
@@ -4398,48 +4487,7 @@ function App() {
             </div>
           </section>
         ) : page === "workspaceMaterials" ? (
-          <CourseMaterialsPage
-            user={user}
-            subject={subject}
-            courseOptions={COURSE_OPTIONS}
-            getSubjectLabel={getSubjectLabel}
-            materials={materials}
-            materialsLoading={materialsLoading}
-            reindexLoading={reindexLoading}
-            currentFilterItems={currentFilterItems}
-            paginatedFilterItems={paginatedFilterItems}
-            currentFilterTotalPages={currentFilterTotalPages}
-            safeCurrentPage={safeCurrentPage}
-            materialSearchQuery={materialSearchQuery}
-            handleMaterialSearchChange={handleMaterialSearchChange}
-            trimmedMaterialSearchQuery={trimmedMaterialSearchQuery}
-            materialSearchTriggered={materialSearchTriggered}
-            materialSearchLoading={materialSearchLoading}
-            materialSearchResults={materialSearchResults}
-            paginatedSearchResults={paginatedSearchResults}
-            materialSortMode={materialSortMode}
-            setMaterialSortMode={setMaterialSortMode}
-            safeSearchPage={safeSearchPage}
-            searchTotalPages={searchTotalPages}
-            materialCurrentPage={materialCurrentPage}
-            setMaterialCurrentPage={setMaterialCurrentPage}
-            selectedMaterialDetail={selectedMaterialDetail}
-            materialsFileInputRef={materialsFileInputRef}
-            materialSubjectFilter={materialSubjectFilter}
-            handleFileChange={(event) => handleFileChange(event, subject)}
-            loadMaterials={loadMaterials}
-            searchMaterials={searchMaterials}
-            reindexLibrary={reindexLibrary}
-            openMaterialDetail={openMaterialDetail}
-            previewMaterial={previewMaterial}
-            downloadMaterial={downloadMaterial}
-            deleteMaterial={deleteMaterial}
-            reparseMaterial={reparseMaterial}
-            setPage={setPage}
-            onQuoteMaterial={quoteMaterialFromLibrary}
-            searchNavigate={searchNavigate}
-            onClearSearchNavigate={() => setSearchNavigate(null)}
-          />
+          courseMaterialsPage
         ) : (
           <div className="ai-qa-layout">
             <section className="chat-panel ai-qa-chat">

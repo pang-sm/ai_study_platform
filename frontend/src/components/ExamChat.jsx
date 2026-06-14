@@ -240,6 +240,8 @@ export default function ExamChat({
   subjectKey,
   subjectTitle,
   courseName,
+  initialMaterialToReference = null,
+  onInitialMaterialReferenced = null,
 }) {
   const subjectLabel = getSubjectLabel(subjectKey, subjectTitle);
   const [currentSessionId, setCurrentSessionId] = useState(null);
@@ -402,6 +404,17 @@ export default function ExamChat({
     loadHistory();
     scrollMessagesToTop();
   }, [loadHistory, scrollMessagesToTop, subjectKey]);
+
+  useEffect(() => {
+    const material = initialMaterialToReference?.material;
+    if (!material?.id) return;
+    setSelectedMaterials((prev) => {
+      if (prev.some((item) => item.id === material.id)) return prev;
+      return [...prev, material];
+    });
+    setNotice("已将资料加入本轮引用");
+    onInitialMaterialReferenced?.();
+  }, [initialMaterialToReference?.nonce, initialMaterialToReference?.material, onInitialMaterialReferenced]);
 
   useEffect(() => {
     if (!shouldScrollToLatestUserRef.current) return;

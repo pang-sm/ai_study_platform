@@ -70,12 +70,17 @@ export default function ExamSubjectDashboard({
   user,
   subjectKey = "data_structure",
   panelIntent = null,
+  materialsContent = null,
+  initialMaterialToReference = null,
+  onInitialMaterialReferenced = null,
   onNavigate,
   onBackHome,
   onProfile,
 }) {
   const panelStorageKey = `exam_subject_active_panel_${subjectKey}`;
-  const normalizePanel = (panel) => (panel === "ai" || panel === "home" ? panel : null);
+  const normalizePanel = (panel) => (
+    panel === "ai" || panel === "home" || panel === "materials" ? panel : null
+  );
   const getSavedPanel = () => {
     try {
       const raw = localStorage.getItem(panelStorageKey);
@@ -117,6 +122,11 @@ export default function ExamSubjectDashboard({
       setActiveSection("ai");
       return;
     }
+    if (target === "materials" && materialsContent) {
+      setActiveSection("materials");
+      onNavigate?.(target, { subject: subjectKey, courseId, title: config.title });
+      return;
+    }
     onNavigate?.(target, { subject: subjectKey, courseId, title: config.title });
   };
 
@@ -142,16 +152,20 @@ export default function ExamSubjectDashboard({
         </button>
       </aside>
 
-      <main className={`exam-subject-main${activeSection === "ai" ? " exam-subject-main--chat" : ""}`}>
+      <main className={`exam-subject-main${activeSection === "ai" ? " exam-subject-main--chat" : ""}${activeSection === "materials" ? " exam-subject-main--materials" : ""}`}>
         {activeSection === "ai" ? (
           <ExamChat
             user={user}
             subjectKey={subjectKey}
             subjectTitle={config.title}
             courseName={courseId}
+            initialMaterialToReference={initialMaterialToReference}
+            onInitialMaterialReferenced={onInitialMaterialReferenced}
             onBackDashboard={() => setActiveSection("home")}
             onOpenMaterials={() => navigate("materials")}
           />
+        ) : activeSection === "materials" && materialsContent ? (
+          materialsContent
         ) : (
           <>
             <header className="exam-subject-header">
