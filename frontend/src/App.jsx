@@ -1121,6 +1121,26 @@ function App() {
     });
   };
 
+  const quoteMaterialFromLibrary = (material) => {
+    if (!material?.id) return;
+    const materialCourse = normalizeSubject(material.subject || subject);
+    setSubject(materialCourse);
+    setMaterialSubjectFilter(materialCourse);
+    setSelectedLibraryMaterials((prev) => {
+      if (prev.some((item) => item.id === material.id)) return prev;
+      return [...prev, material];
+    });
+
+    if (activeSessionId && activeSessionSubject !== materialCourse) {
+      setMessages([]);
+      setActiveSessionId(null);
+      localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+    }
+
+    setActiveSessionSubject(materialCourse);
+    setPage("chat");
+  };
+
   const removeSelectedLibraryMaterial = (materialId) => {
     setSelectedLibraryMaterials((prev) => prev.filter((item) => item.id !== materialId));
   };
@@ -1318,8 +1338,8 @@ function App() {
     const normalizedCourse = normalizeSubject(targetCourse);
     setSubject(normalizedCourse);
     setMaterialSubjectFilter(normalizedCourse);
-    setPage("materials");
-    await loadMaterials("");
+    setPage("workspaceMaterials");
+    await loadMaterials(normalizedCourse);
   };
 
   const openChatPageForCourse = (targetCourse, forceNew = false) => {
@@ -1727,11 +1747,12 @@ function App() {
     }
   };
 
-  const reindexLibrary = async () => {
+  const reindexLibrary = async (targetSubject = materialSubjectFilter || subject) => {
     if (!user?.username) return;
 
     setReindexLoading(true);
     setTip("");
+    const normalizedSubject = normalizeSubject(targetSubject, "");
 
     try {
       const res = await fetch(`${API_BASE}/materials/reindex`, {
@@ -1739,7 +1760,7 @@ function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           username: user.username,
-          subject: materialSubjectFilter || null,
+          subject: normalizedSubject || null,
           force: false,
         }),
       });
@@ -4405,7 +4426,7 @@ function App() {
             selectedMaterialDetail={selectedMaterialDetail}
             materialsFileInputRef={materialsFileInputRef}
             materialSubjectFilter={materialSubjectFilter}
-            handleFileChange={(event) => handleFileChange(event, materialSubjectFilter)}
+            handleFileChange={(event) => handleFileChange(event, subject)}
             loadMaterials={loadMaterials}
             searchMaterials={searchMaterials}
             reindexLibrary={reindexLibrary}
@@ -4415,6 +4436,7 @@ function App() {
             deleteMaterial={deleteMaterial}
             reparseMaterial={reparseMaterial}
             setPage={setPage}
+            onQuoteMaterial={quoteMaterialFromLibrary}
             searchNavigate={searchNavigate}
             onClearSearchNavigate={() => setSearchNavigate(null)}
           />
