@@ -64,6 +64,10 @@ class ChatMessage(Base):
     extracted_text = Column(Text, nullable=True)
     material_id = Column(Integer, ForeignKey("study_materials.id"), nullable=True)
     reference_payload = Column(Text, nullable=True)
+    parent_message_id = Column(Integer, ForeignKey("chat_messages.id"), nullable=True)
+    root_message_id = Column(Integer, ForeignKey("chat_messages.id"), nullable=True)
+    branch_id = Column(String(64), nullable=True)
+    version_index = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime, default=utc_now)
 
 

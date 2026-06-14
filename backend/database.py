@@ -72,6 +72,10 @@ CHAT_MESSAGE_COLUMNS = {
     "extracted_text": "TEXT",
     "material_id": "INTEGER",
     "reference_payload": "TEXT",
+    "parent_message_id": "INTEGER",
+    "root_message_id": "INTEGER",
+    "branch_id": "VARCHAR(64)",
+    "version_index": "INTEGER NOT NULL DEFAULT 0",
 }
 
 STUDY_MATERIAL_COLUMNS = {

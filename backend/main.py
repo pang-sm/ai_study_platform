@@ -1863,6 +1863,10 @@ def serialize_message(message: models.ChatMessage):
         "extracted_text": message.extracted_text,
         "material_id": message.material_id,
         "references": references,
+        "parent_message_id": message.parent_message_id,
+        "root_message_id": message.root_message_id,
+        "branch_id": message.branch_id or "",
+        "version_index": message.version_index or 0,
         "created_at": message.created_at,
     }
 
@@ -5151,6 +5155,11 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
     subject = normalize_subject(req.subject, req.course)
     material_ids = sorted({int(item) for item in (req.material_ids or []) if int(item) > 0})
     selected_materials: list[models.StudyMaterial] = []
+    branch_id = (req.branch_id or "").strip()[:64]
+    edit_source_message: models.ChatMessage | None = None
+    root_message_id: int | None = None
+    parent_message_id: int | None = None
+    version_index = 0
 
     if material_ids:
         selected_materials = (
@@ -5192,6 +5201,9 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
             chat_session.subject = subject
         if not (chat_session.course or "").strip():
             chat_session.course = subject
+        session_subject = normalize_subject(chat_session.subject, chat_session.course)
+        if subject and session_subject and session_subject != subject:
+            raise HTTPException(status_code=400, detail="当前对话不属于该科目，请先新建本科目对话")
         db.commit()
         db.refresh(chat_session)
         subject = normalize_subject(chat_session.subject, chat_session.course)
@@ -5210,6 +5222,37 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(chat_session)
 
+    if req.edit_source_message_id is not None:
+        edit_source_message = (
+            db.query(models.ChatMessage)
+            .filter(
+                models.ChatMessage.id == req.edit_source_message_id,
+                models.ChatMessage.user_id == user.id,
+                models.ChatMessage.session_id == chat_session.id,
+                models.ChatMessage.role == "user",
+            )
+            .first()
+        )
+        if not edit_source_message:
+            raise HTTPException(status_code=404, detail="原问题不存在，无法创建分支")
+        root_message_id = edit_source_message.root_message_id or edit_source_message.id
+        parent_message_id = edit_source_message.id
+        max_version = (
+            db.query(func.max(models.ChatMessage.version_index))
+            .filter(
+                models.ChatMessage.user_id == user.id,
+                models.ChatMessage.session_id == chat_session.id,
+                models.ChatMessage.role == "user",
+                (
+                    (models.ChatMessage.id == root_message_id)
+                    | (models.ChatMessage.root_message_id == root_message_id)
+                ),
+            )
+            .scalar()
+        )
+        version_index = int(max_version or 0) + 1
+        branch_id = branch_id or f"msg-{root_message_id}-v{version_index}"
+
     primary_material = selected_materials[0] if selected_materials else None
     user_message = models.ChatMessage(
         user_id=user.id,
@@ -5219,6 +5262,10 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
         attachment_type=primary_material.file_type if primary_material else None,
         attachment_filename=primary_material.original_filename if primary_material else None,
         material_id=primary_material.id if primary_material else None,
+        parent_message_id=parent_message_id,
+        root_message_id=root_message_id,
+        branch_id=branch_id or None,
+        version_index=version_index,
     )
     db.add(user_message)
     db.commit()
@@ -5298,6 +5345,10 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
         role="assistant",
         content=answer,
         reference_payload=json.dumps(safe_references, ensure_ascii=False) if safe_references else None,
+        parent_message_id=user_message.id,
+        root_message_id=root_message_id,
+        branch_id=branch_id or None,
+        version_index=version_index,
     )
     db.add(assistant_message)
     db.commit()
@@ -5319,6 +5370,9 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
         "references": safe_references,
         "assistant_message_id": assistant_message.id,
         "user_message_id": user_message.id,
+        "branch_id": branch_id,
+        "root_message_id": root_message_id,
+        "version_index": version_index,
         "session": serialize_session(chat_session),
         "rag_sources": sorted({item["source_filename"] for item in rag_chunks}),
     }
@@ -6373,22 +6427,39 @@ def save_course_preference(req: schemas.CourseLearningPreferenceUpsert, db: Sess
 
 
 @app.get("/chat/history")
-def get_chat_history(username: str, db: Session = Depends(get_db)):
+def get_chat_history(
+    username: str,
+    subject: str = "",
+    course: str = "",
+    db: Session = Depends(get_db),
+):
     user = get_user_by_username(username, db)
+    normalized_subject = normalize_subject(subject, course, default="") if (subject or course) else ""
 
-    sessions = (
-        db.query(models.ChatSession)
-        .filter(models.ChatSession.user_id == user.id)
-        .order_by(models.ChatSession.created_at.desc())
-        .all()
-    )
+    query = db.query(models.ChatSession).filter(models.ChatSession.user_id == user.id)
+    if normalized_subject:
+        query = query.filter(
+            or_(
+                models.ChatSession.subject == normalized_subject,
+                models.ChatSession.course == normalized_subject,
+            )
+        )
+
+    sessions = query.order_by(models.ChatSession.created_at.desc()).all()
 
     return {"sessions": [serialize_session(session) for session in sessions]}
 
 
 @app.get("/chat/sessions/{session_id}")
-def get_chat_session_messages(session_id: int, username: str, db: Session = Depends(get_db)):
+def get_chat_session_messages(
+    session_id: int,
+    username: str,
+    subject: str = "",
+    course: str = "",
+    db: Session = Depends(get_db),
+):
     user = get_user_by_username(username, db)
+    normalized_subject = normalize_subject(subject, course, default="") if (subject or course) else ""
 
     chat_session = (
         db.query(models.ChatSession)
@@ -6400,6 +6471,10 @@ def get_chat_session_messages(session_id: int, username: str, db: Session = Depe
     )
     if not chat_session:
         raise HTTPException(status_code=404, detail="聊天记录不存在")
+
+    session_subject = normalize_subject(chat_session.subject, chat_session.course, default="")
+    if normalized_subject and session_subject and session_subject != normalized_subject:
+        raise HTTPException(status_code=404, detail="Chat session not found for this subject")
 
     messages = (
         db.query(models.ChatMessage)

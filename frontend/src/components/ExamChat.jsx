@@ -102,11 +102,133 @@ function normalizeChatMessage(message, index = 0) {
   const role = message?.role === "user" ? "user" : "assistant";
   return {
     id: message?.id || `history-${role}-${index}`,
+    clientId: message?.clientId || `history-${role}-${message?.id || index}`,
     role,
     content: message?.content || "",
     references: Array.isArray(message?.references) ? message.references : [],
+    parent_message_id: message?.parent_message_id ?? null,
+    root_message_id: message?.root_message_id ?? null,
+    branch_id: message?.branch_id || "",
+    version_index: Number(message?.version_index || 0),
+    versions: Array.isArray(message?.versions) ? message.versions : undefined,
+    currentVersionIndex: Number(message?.currentVersionIndex || 0),
+    edited: Boolean(message?.edited),
     created_at: message?.created_at || new Date().toISOString(),
   };
+}
+
+function getBranchRootId(message) {
+  return message?.root_message_id || message?.id || message?.clientId || null;
+}
+
+function buildConversationView(rawMessages) {
+  const normalized = (Array.isArray(rawMessages) ? rawMessages : []).map(normalizeChatMessage);
+  const usersByRoot = new Map();
+  const assistantsByParent = new Map();
+  const rawIndexById = new Map();
+
+  normalized.forEach((message, index) => {
+    rawIndexById.set(String(message.id), index);
+    if (message.role === "user") {
+      const rootId = getBranchRootId(message);
+      if (!rootId) return;
+      const key = String(rootId);
+      usersByRoot.set(key, [...(usersByRoot.get(key) || []), message]);
+    } else if (message.parent_message_id) {
+      const key = String(message.parent_message_id);
+      assistantsByParent.set(key, [...(assistantsByParent.get(key) || []), message]);
+    }
+  });
+
+  const branchGroups = new Map();
+  usersByRoot.forEach((users, rootKey) => {
+    const hasBranch = users.length > 1 || users.some((message) => message.root_message_id || message.version_index > 0);
+    if (!hasBranch) return;
+    const versions = [...users].sort((a, b) => {
+      const versionDiff = Number(a.version_index || 0) - Number(b.version_index || 0);
+      if (versionDiff !== 0) return versionDiff;
+      return (rawIndexById.get(String(a.id)) || 0) - (rawIndexById.get(String(b.id)) || 0);
+    });
+    const activeIndex = Math.max(0, versions.length - 1);
+    const activeVersion = versions[activeIndex];
+    const rootIndex = Math.min(...versions.map((message) => rawIndexById.get(String(message.id)) ?? Number.MAX_SAFE_INTEGER));
+    branchGroups.set(rootKey, {
+      versions,
+      activeIndex,
+      activeBranchId: activeVersion?.branch_id || "",
+      rootIndex,
+      userIds: new Set(versions.map((message) => String(message.id))),
+    });
+  });
+
+  if (branchGroups.size === 0) return normalized;
+
+  const branchUserIds = new Set();
+  branchGroups.forEach((group) => {
+    group.userIds.forEach((id) => branchUserIds.add(id));
+  });
+
+  const isAllowedInActivePath = (message, index) => {
+    for (const group of branchGroups.values()) {
+      if (index <= group.rootIndex) continue;
+      const branchId = message.branch_id || "";
+      if (branchId && branchId !== group.activeBranchId) return false;
+      if (!branchId && group.activeBranchId) return false;
+    }
+    return true;
+  };
+
+  const renderedRoots = new Set();
+  const renderedBranchAssistantParents = new Set();
+  const result = [];
+
+  normalized.forEach((message, index) => {
+    if (message.role === "user") {
+      const rootKey = String(getBranchRootId(message));
+      const group = branchGroups.get(rootKey);
+      if (group) {
+        if (renderedRoots.has(rootKey)) return;
+        renderedRoots.add(rootKey);
+        const activeMessage = group.versions[group.activeIndex];
+        const versions = group.versions.map((versionMessage) => {
+          const assistants = (assistantsByParent.get(String(versionMessage.id)) || [])
+            .map((assistant) => ({ ...assistant, animateTyping: false }));
+          renderedBranchAssistantParents.add(String(versionMessage.id));
+          return {
+            message_id: versionMessage.id,
+            userContent: versionMessage.content || "",
+            assistantMessages: assistants,
+            branch_id: versionMessage.branch_id || "",
+            root_message_id: versionMessage.root_message_id || versionMessage.id,
+            parent_message_id: versionMessage.parent_message_id ?? null,
+            version_index: Number(versionMessage.version_index || 0),
+            createdAt: versionMessage.created_at,
+          };
+        });
+        result.push({
+          ...activeMessage,
+          versions,
+          currentVersionIndex: group.activeIndex,
+          edited: versions.length > 1,
+        });
+        result.push(...(versions[group.activeIndex]?.assistantMessages || []));
+        return;
+      }
+    }
+
+    if (message.role === "assistant" && renderedBranchAssistantParents.has(String(message.parent_message_id))) {
+      return;
+    }
+    if (message.role === "user" && branchUserIds.has(String(message.id))) {
+      return;
+    }
+    if (!isAllowedInActivePath(message, index)) {
+      return;
+    }
+    result.push(message);
+  });
+
+  return result;
 }
 
 export default function ExamChat({
@@ -130,9 +252,12 @@ export default function ExamChat({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [toolMenuOpen, setToolMenuOpen] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState(null);
+  const [editingText, setEditingText] = useState("");
   const messagesEndRef = useRef(null);
   const lastUserMessageRef = useRef(null);
   const currentSessionIdRef = useRef(null);
+  const currentBranchIdRef = useRef("");
   const uploadInputRef = useRef(null);
   const toolMenuRef = useRef(null);
   const userInteractedRef = useRef(false);
@@ -163,13 +288,16 @@ export default function ExamChat({
   const loadHistory = useCallback(async () => {
     if (!user?.username) return;
     try {
-      const res = await fetch(`${API_BASE}/chat/history?username=${encodeURIComponent(user.username)}`);
+      const query = new URLSearchParams({ username: user.username });
+      if (subjectTitle) query.set("subject", subjectTitle);
+      if (courseName) query.set("course", courseName);
+      const res = await fetch(`${API_BASE}/chat/history?${query.toString()}`);
       const data = await res.json().catch(() => ({}));
       setHistorySessions(Array.isArray(data.sessions) ? data.sessions : []);
     } catch {
       setHistorySessions([]);
     }
-  }, [user?.username]);
+  }, [courseName, subjectTitle, user?.username]);
 
   const loadMaterials = useCallback(async () => {
     if (!user?.username) return [];
@@ -204,25 +332,34 @@ export default function ExamChat({
     const preserveCurrentMessages = Boolean(options.preserveCurrentMessages);
     setError("");
     try {
-      const res = await fetch(`${API_BASE}/chat/sessions/${sessionId}?username=${encodeURIComponent(user.username)}`);
+      const query = new URLSearchParams({ username: user.username });
+      if (subjectTitle) query.set("subject", subjectTitle);
+      if (courseName) query.set("course", courseName);
+      const res = await fetch(`${API_BASE}/chat/sessions/${sessionId}?${query.toString()}`);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || "加载历史对话失败");
       if (preserveCurrentMessages && userInteractedRef.current) return;
       if (!preserveCurrentMessages) userInteractedRef.current = true;
       updateCurrentSessionId(sessionId);
-      setMessages((Array.isArray(data.messages) ? data.messages : []).map(normalizeChatMessage));
+      const nextMessages = buildConversationView(data.messages);
+      const lastUser = [...nextMessages].reverse().find((message) => message.role === "user");
+      currentBranchIdRef.current = lastUser?.branch_id || "";
+      setMessages(nextMessages);
     } catch (err) {
       setError(err.message || "加载历史对话失败");
     }
-  }, [updateCurrentSessionId, user?.username]);
+  }, [courseName, subjectTitle, updateCurrentSessionId, user?.username]);
 
   useEffect(() => {
     userInteractedRef.current = false;
     currentSessionIdRef.current = null;
+    currentBranchIdRef.current = "";
     setCurrentSessionId(null);
     setMessages([]);
     setInputText("");
     setSelectedMaterials([]);
+    setEditingMessageId(null);
+    setEditingText("");
     setError("");
     setNotice("");
     loadHistory();
@@ -262,8 +399,11 @@ export default function ExamChat({
   const startNewConversation = () => {
     userInteractedRef.current = true;
     updateCurrentSessionId(null);
+    currentBranchIdRef.current = "";
     setMessages([]);
     setInputText("");
+    setEditingMessageId(null);
+    setEditingText("");
     setError("");
     setNotice("");
   };
@@ -365,6 +505,209 @@ export default function ExamChat({
     }
   };
 
+  const getMessageKey = (message) => String(message?.id ?? message?.clientId ?? "");
+
+  const collectFollowingAssistants = (items, startIndex) => {
+    const assistants = [];
+    for (let index = startIndex + 1; index < items.length && items[index]?.role === "assistant"; index += 1) {
+      assistants.push({ ...items[index], animateTyping: false });
+    }
+    return assistants;
+  };
+
+  const beginEditMessage = (message) => {
+    setEditingMessageId(getMessageKey(message));
+    setEditingText(message?.content || "");
+  };
+
+  const cancelEditMessage = () => {
+    setEditingMessageId(null);
+    setEditingText("");
+  };
+
+  const switchMessageVersion = (messageKey, nextVersionIndex) => {
+    setMessages((prev) => {
+      const userIndex = prev.findIndex((item) => getMessageKey(item) === String(messageKey));
+      if (userIndex === -1 || prev[userIndex]?.role !== "user") return prev;
+      const userMessage = prev[userIndex];
+      const versions = Array.isArray(userMessage.versions) ? [...userMessage.versions] : [];
+      if (versions.length <= 1 || nextVersionIndex < 0 || nextVersionIndex >= versions.length) return prev;
+
+      const currentVersionIndex = Number(userMessage.currentVersionIndex || 0);
+      const currentAssistants = collectFollowingAssistants(prev, userIndex);
+      if (versions[currentVersionIndex]) {
+        versions[currentVersionIndex] = {
+          ...versions[currentVersionIndex],
+          assistantMessages: currentAssistants,
+        };
+      }
+
+      const nextVersion = versions[nextVersionIndex];
+      currentBranchIdRef.current = nextVersion.branch_id || "";
+      const restoredAssistants = (Array.isArray(nextVersion.assistantMessages) ? nextVersion.assistantMessages : [])
+        .map((assistant) => ({ ...assistant, animateTyping: false }));
+
+      return [
+        ...prev.slice(0, userIndex),
+        {
+          ...userMessage,
+          id: nextVersion.message_id || userMessage.id,
+          clientId: nextVersion.clientId || userMessage.clientId,
+          content: nextVersion.userContent || nextVersion.content || userMessage.content,
+          branch_id: nextVersion.branch_id || "",
+          root_message_id: nextVersion.root_message_id ?? userMessage.root_message_id ?? null,
+          parent_message_id: nextVersion.parent_message_id ?? userMessage.parent_message_id ?? null,
+          version_index: nextVersion.version_index ?? nextVersionIndex,
+          versions,
+          currentVersionIndex: nextVersionIndex,
+          edited: versions.length > 1,
+        },
+        ...restoredAssistants,
+      ];
+    });
+  };
+
+  const submitEditedMessage = async (messageKey) => {
+    const nextContent = editingText.trim();
+    if (!nextContent || loading || !user?.username) return;
+
+    let sourceMessage = null;
+    let sourceIndex = -1;
+    let nextVersions = [];
+
+    setMessages((prev) => {
+      const index = prev.findIndex((item) => getMessageKey(item) === String(messageKey));
+      if (index === -1 || prev[index]?.role !== "user") return prev;
+      sourceMessage = prev[index];
+      sourceIndex = index;
+
+      const oldVersions = Array.isArray(sourceMessage.versions) && sourceMessage.versions.length > 0
+        ? [...sourceMessage.versions]
+        : [{
+            userContent: sourceMessage.content || "",
+            message_id: sourceMessage.id,
+            clientId: sourceMessage.clientId,
+            assistantMessages: collectFollowingAssistants(prev, index),
+            branch_id: sourceMessage.branch_id || "",
+            root_message_id: sourceMessage.root_message_id ?? sourceMessage.id ?? null,
+            parent_message_id: sourceMessage.parent_message_id ?? null,
+            version_index: sourceMessage.version_index || 0,
+            createdAt: sourceMessage.created_at || new Date().toISOString(),
+          }];
+      const currentVersionIndex = Number(sourceMessage.currentVersionIndex || 0);
+      if (oldVersions[currentVersionIndex]) {
+        oldVersions[currentVersionIndex] = {
+          ...oldVersions[currentVersionIndex],
+          assistantMessages: collectFollowingAssistants(prev, index),
+        };
+      }
+      nextVersions = [
+        ...oldVersions,
+        {
+          message_id: null,
+          userContent: nextContent,
+          assistantMessages: [],
+          branch_id: "",
+          root_message_id: sourceMessage.root_message_id ?? sourceMessage.id ?? null,
+          parent_message_id: sourceMessage.id ?? null,
+          version_index: oldVersions.length,
+          createdAt: new Date().toISOString(),
+        },
+      ];
+
+      return [
+        ...prev.slice(0, index),
+        {
+          ...sourceMessage,
+          content: nextContent,
+          versions: nextVersions,
+          currentVersionIndex: nextVersions.length - 1,
+          edited: true,
+        },
+      ];
+    });
+
+    if (!sourceMessage || sourceIndex === -1) return;
+
+    setEditingMessageId(null);
+    setEditingText("");
+    setError("");
+    setLoading(true);
+
+    try {
+      const res = await fetch(`${API_BASE}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: user.username,
+          message: nextContent,
+          session_id: currentSessionIdRef.current,
+          subject: subjectTitle,
+          course: courseName,
+          edit_source_message_id: Number(sourceMessage.id) || null,
+          material_ids: selectedMaterials.filter(canReferenceMaterial).map((material) => material.id),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "AI 鏈嶅姟璋冪敤澶辫触");
+
+      if (data.session?.id || data.session_id) updateCurrentSessionId(data.session?.id ?? data.session_id);
+      const branchId = data.branch_id || `local-${Date.now()}`;
+      currentBranchIdRef.current = branchId;
+      const assistantMessage = {
+        id: data.assistant_message_id || `local-assistant-${Date.now()}`,
+        clientId: `local-assistant-${Date.now()}`,
+        role: "assistant",
+        content: data.answer || "",
+        references: data.references || [],
+        branch_id: branchId,
+        root_message_id: data.root_message_id ?? Number(sourceMessage.id) ?? null,
+        parent_message_id: data.user_message_id ?? null,
+        version_index: Number(data.version_index || nextVersions.length - 1),
+        created_at: new Date().toISOString(),
+      };
+
+      setMessages((prev) => {
+        const index = prev.findIndex((item) => getMessageKey(item) === String(messageKey));
+        if (index === -1) return [...prev, assistantMessage];
+        const userMessage = prev[index];
+        const versions = Array.isArray(userMessage.versions) ? [...userMessage.versions] : nextVersions;
+        const currentVersionIndex = Number(userMessage.currentVersionIndex ?? versions.length - 1);
+        if (versions[currentVersionIndex]) {
+          versions[currentVersionIndex] = {
+            ...versions[currentVersionIndex],
+            message_id: data.user_message_id || versions[currentVersionIndex].message_id,
+            branch_id: branchId,
+            root_message_id: data.root_message_id ?? versions[currentVersionIndex].root_message_id ?? Number(sourceMessage.id) ?? null,
+            parent_message_id: Number(sourceMessage.id) || versions[currentVersionIndex].parent_message_id || null,
+            version_index: assistantMessage.version_index,
+            assistantMessages: [assistantMessage],
+          };
+        }
+        return [
+          ...prev.slice(0, index),
+          {
+            ...userMessage,
+            id: data.user_message_id || userMessage.id,
+            branch_id: branchId,
+            root_message_id: data.root_message_id ?? userMessage.root_message_id ?? Number(sourceMessage.id) ?? null,
+            parent_message_id: Number(sourceMessage.id) || userMessage.parent_message_id || null,
+            version_index: assistantMessage.version_index,
+            versions,
+            currentVersionIndex,
+            edited: true,
+          },
+          assistantMessage,
+        ];
+      });
+      loadHistory();
+    } catch (err) {
+      setError(err.message || "缂栬緫闂澶辫触");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const sendMessage = async (text) => {
     const msg = (text || inputText).trim();
     if (!msg || loading || !user?.username) return;
@@ -375,8 +718,10 @@ export default function ExamChat({
     setError("");
     const userMessage = {
       id: `local-user-${Date.now()}`,
+      clientId: `local-user-${Date.now()}`,
       role: "user",
       content: msg,
+      branch_id: currentBranchIdRef.current || "",
       created_at: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, userMessage]);
@@ -389,6 +734,7 @@ export default function ExamChat({
         session_id: activeSessionId,
         subject: subjectTitle,
         course: courseName,
+        branch_id: currentBranchIdRef.current || "",
         material_ids: selectedMaterials.filter(canReferenceMaterial).map((material) => material.id),
       };
 
@@ -407,14 +753,34 @@ export default function ExamChat({
       if (nextSessionId) {
         updateCurrentSessionId(nextSessionId);
       }
+      currentBranchIdRef.current = data.branch_id || currentBranchIdRef.current || "";
 
-      setMessages((prev) => [...prev, {
+      const assistantMessage = {
         id: data.assistant_message_id || `local-assistant-${Date.now()}`,
+        clientId: `local-assistant-${Date.now()}`,
         role: "assistant",
         content: data.answer || "",
         references: data.references || [],
+        branch_id: data.branch_id || currentBranchIdRef.current || "",
+        root_message_id: data.root_message_id ?? null,
+        parent_message_id: data.user_message_id ?? null,
+        version_index: Number(data.version_index || 0),
         created_at: new Date().toISOString(),
-      }]);
+      };
+      setMessages((prev) => [
+        ...prev.map((item) => (
+          item.clientId === userMessage.clientId
+            ? {
+                ...item,
+                id: data.user_message_id || item.id,
+                branch_id: data.branch_id || item.branch_id || "",
+                root_message_id: data.root_message_id ?? item.root_message_id ?? null,
+                version_index: Number(data.version_index || item.version_index || 0),
+              }
+            : item
+        )),
+        assistantMessage,
+      ]);
       loadHistory();
     } catch (err) {
       setError(err.message || "发送失败");
@@ -497,8 +863,63 @@ export default function ExamChat({
                 <div className="examchat-msg-content">
                   {message.role === "assistant" ? (
                     <MarkdownMessage content={message.content} />
+                  ) : editingMessageId === getMessageKey(message) ? (
+                    <div className="examchat-edit-box">
+                      <textarea
+                        value={editingText}
+                        onChange={(event) => setEditingText(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" && !event.shiftKey) {
+                            event.preventDefault();
+                            submitEditedMessage(getMessageKey(message));
+                          }
+                          if (event.key === "Escape") cancelEditMessage();
+                        }}
+                        rows={3}
+                        autoFocus
+                      />
+                      <div className="examchat-edit-actions">
+                        <span>Enter 鎻愪氦 路 Esc 鍙栨秷</span>
+                        <button type="button" onClick={cancelEditMessage}>鍙栨秷</button>
+                        <button type="button" onClick={() => submitEditedMessage(getMessageKey(message))} disabled={!editingText.trim() || loading}>
+                          鎻愪氦
+                        </button>
+                      </div>
+                    </div>
                   ) : (
                     <p>{message.content}</p>
+                  )}
+                  {message.role === "user" && editingMessageId !== getMessageKey(message) && (
+                    <div className="examchat-msg-tools">
+                      {Array.isArray(message.versions) && message.versions.length > 1 && (
+                        <div className="examchat-branch-switch">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const total = message.versions.length;
+                              const current = Number(message.currentVersionIndex || 0);
+                              switchMessageVersion(getMessageKey(message), (current - 1 + total) % total);
+                            }}
+                          >
+                            涓婁竴鍒嗘敮
+                          </button>
+                          <span>鍒嗘敮 {Number(message.currentVersionIndex || 0) + 1} / {message.versions.length}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const total = message.versions.length;
+                              const current = Number(message.currentVersionIndex || 0);
+                              switchMessageVersion(getMessageKey(message), (current + 1) % total);
+                            }}
+                          >
+                            涓嬩竴鍒嗘敮
+                          </button>
+                        </div>
+                      )}
+                      <button type="button" onClick={() => beginEditMessage(message)} disabled={loading}>
+                        缂栬緫闂
+                      </button>
+                    </div>
                   )}
                   {Array.isArray(message.references) && message.references.length > 0 && (
                     <div className="examchat-refs">

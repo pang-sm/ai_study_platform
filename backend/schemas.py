@@ -20,6 +20,8 @@ class ChatRequest(BaseModel):
     username: str | None = None
     session_id: int | None = None
     material_ids: list[int] = []
+    edit_source_message_id: int | None = None
+    branch_id: str = ""
     hidden_instruction: str = ""
     mastery_level: str = ""
     learning_goal: str = ""
