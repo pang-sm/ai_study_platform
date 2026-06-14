@@ -18887,7 +18887,7 @@ select.field:focus {
   max-width: none;
   margin: 0;
   box-sizing: border-box;
-  padding: 10px 16px 14px;
+  padding: 20px 16px 0;
   overflow: hidden;
 }
 
