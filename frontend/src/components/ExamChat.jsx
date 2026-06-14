@@ -131,6 +131,7 @@ export default function ExamChat({
   const [uploading, setUploading] = useState(false);
   const [toolMenuOpen, setToolMenuOpen] = useState(false);
   const messagesEndRef = useRef(null);
+  const lastUserMessageRef = useRef(null);
   const currentSessionIdRef = useRef(null);
   const uploadInputRef = useRef(null);
   const toolMenuRef = useRef(null);
@@ -138,6 +139,12 @@ export default function ExamChat({
 
   const recommendations = useMemo(() => getRecommendations(subjectKey).slice(0, 5), [subjectKey]);
   const sessionStorageKey = `exam_chat_session_${subjectKey}`;
+  const lastUserMessageId = useMemo(() => {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      if (messages[index]?.role === "user") return messages[index].id;
+    }
+    return null;
+  }, [messages]);
 
   const canReferenceMaterial = useCallback((material) => {
     const status = String(material?.parse_status || "").toLowerCase();
@@ -225,6 +232,10 @@ export default function ExamChat({
   }, [loadSession, sessionStorageKey]);
 
   useEffect(() => {
+    if (lastUserMessageRef.current) {
+      lastUserMessageRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, loading]);
 
@@ -482,7 +493,11 @@ export default function ExamChat({
             <div className="examchat-empty" />
           ) : (
             messages.map((message) => (
-              <div key={message.id} className={`examchat-msg${message.role === "user" ? " examchat-msg--user" : ""}`}>
+              <div
+                key={message.id}
+                ref={message.id === lastUserMessageId ? lastUserMessageRef : null}
+                className={`examchat-msg${message.role === "user" ? " examchat-msg--user" : ""}`}
+              >
                 <div className="examchat-msg-content">
                   {message.role === "assistant" ? (
                     <MarkdownMessage content={message.content} />

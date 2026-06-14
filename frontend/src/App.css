@@ -19179,6 +19179,7 @@ select.field:focus {
   display: flex;
   justify-content: flex-start;
   margin-bottom: 14px;
+  scroll-margin-top: 18px;
 }
 
 .examchat-msg--user {
