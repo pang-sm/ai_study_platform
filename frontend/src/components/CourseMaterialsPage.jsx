@@ -154,6 +154,27 @@ function getSummary(material) {
   return clean.length > 180 ? `${clean.slice(0, 180)}...` : clean;
 }
 
+function isReferenceMetadata(material) {
+  return material?.source_type === "reference_metadata" || material?.visibility === "system_public_metadata";
+}
+
+function getSourceMeta(material) {
+  if (isReferenceMetadata(material)) {
+    return {
+      label: "官方参考",
+      detail: "仅目录索引",
+      className: "reference",
+      notice: "官方参考资料仅包含目录、章节定位和知识点索引，不包含第三方资料正文，不提供原文下载。",
+    };
+  }
+  return {
+    label: "我的上传",
+    detail: "仅自己可见",
+    className: "private",
+    notice: "该资料由你上传，仅你可见。请确保你拥有该资料的合法使用权。系统仅用于个人学习、AI 问答和知识点整理。",
+  };
+}
+
 function sortMaterials(items, sortMode) {
   const sorted = [...items];
   sorted.sort((a, b) => {
@@ -423,6 +444,8 @@ export default function CourseMaterialsPage({
   const selected = selectedMaterialDetail;
   const selectedPages = selected?.page_count || selected?.pages || selected?.total_pages;
   const fullSummary = String(selected?.summary || selected?.content_summary || selected?.extracted_text || "").trim();
+  const selectedSourceMeta = selected ? getSourceMeta(selected) : null;
+  const selectedCanModify = selected ? !isReferenceMetadata(selected) : false;
 
   return (
     <div className="cmp-shell">
@@ -455,6 +478,10 @@ export default function CourseMaterialsPage({
             onChange={handleFileChange}
           />
         </header>
+        <div className="cmp-upload-notice">
+          <span>请上传你拥有合法使用权的学习资料。上传内容仅用于你的个人学习、AI 问答和知识点整理，不会公开给其他用户。</span>
+          <span>支持较大 PDF 上传；大文件会先完成上传，再在后台分批解析，扫描型 PDF 默认只进行有限页数 OCR。</span>
+        </div>
 
         <div className="cmp-stats-row">
           <StatCard icon="▣" value={stats.total} label="资料总数" />
@@ -497,6 +524,7 @@ export default function CourseMaterialsPage({
             <thead>
               <tr>
                 <th>文件名</th>
+                <th>来源</th>
                 <th>类型</th>
                 <th>大小</th>
                 <th>上传时间</th>
@@ -507,14 +535,15 @@ export default function CourseMaterialsPage({
             </thead>
             <tbody>
               {materialsLoading ? (
-                <tr><td colSpan="7"><div className="cmp-empty-inline">正在加载当前科目资料...</div></td></tr>
+                <tr><td colSpan="8"><div className="cmp-empty-inline">正在加载当前科目资料...</div></td></tr>
               ) : paginatedItems.length === 0 ? (
                 <tr>
-                  <td colSpan="7">
+                  <td colSpan="8">
                     <div className="cmp-empty-state">
                       <div className="cmp-empty-mark">▣</div>
                       <h3>{currentItems.length === 0 ? "当前科目还没有资料" : "没有符合条件的资料"}</h3>
                       <p>上传课程资料后，可用于 AI 问答引用、知识点生成和学习。</p>
+                      <p className="cmp-empty-note">请上传你拥有合法使用权的学习资料；较大 PDF 会先入库，再由后台分批解析。</p>
                       <button className="cmp-btn cmp-btn--primary" type="button" onClick={() => materialsFileInputRef.current?.click()}>
                         上传课程资料
                       </button>
@@ -522,7 +551,9 @@ export default function CourseMaterialsPage({
                   </td>
                 </tr>
               ) : (
-                paginatedItems.map((material) => (
+                paginatedItems.map((material) => {
+                  const sourceMeta = getSourceMeta(material);
+                  return (
                   <tr
                     key={material.id}
                     className={selected?.id === material.id ? "cmp-row-selected" : ""}
@@ -533,6 +564,12 @@ export default function CourseMaterialsPage({
                         <MaterialIcon material={material} />
                         <span title={filenameOf(material)}>{filenameOf(material)}</span>
                       </div>
+                    </td>
+                    <td>
+                      <span className={`cmp-source-badge cmp-source-badge--${sourceMeta.className}`}>
+                        <strong>{sourceMeta.label}</strong>
+                        <small>{sourceMeta.detail}</small>
+                      </span>
                     </td>
                     <td>{getFileTypeLabel(material.file_type)}</td>
                     <td>{formatFileSize(material.file_size)}</td>
@@ -547,7 +584,8 @@ export default function CourseMaterialsPage({
                       </div>
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -587,8 +625,11 @@ export default function CourseMaterialsPage({
               <div><dt>索引状态</dt><dd><span className={`cmp-status cmp-status--${getStatusKind(selected.parse_status)}`}>{getStatusLabel(selected.parse_status)}</span></dd></div>
               <div><dt>片段数量</dt><dd>{chunkCountOf(selected).toLocaleString("zh-CN")}</dd></div>
               {selectedPages ? <div><dt>文件页数</dt><dd>{selectedPages} 页</dd></div> : null}
-              <div><dt>来源</dt><dd>{selected.source || selected.upload_source || "手动上传"}</dd></div>
+              <div><dt>来源</dt><dd>{selectedSourceMeta?.label} · {selectedSourceMeta?.detail}</dd></div>
             </dl>
+            <div className={`cmp-permission-notice cmp-permission-notice--${selectedSourceMeta?.className}`}>
+              {selectedSourceMeta?.notice}
+            </div>
             <div className="cmp-summary-block">
               <div className="cmp-summary-title">
                 <strong>内容摘要</strong>
@@ -605,13 +646,13 @@ export default function CourseMaterialsPage({
               <button className="cmp-btn cmp-btn--primary cmp-btn--block" type="button" onClick={() => onQuoteMaterial?.(selected)}>
                 前往 AI 问答引用资料
               </button>
-              <button className="cmp-btn cmp-btn--ghost cmp-btn--block" type="button" onClick={() => previewMaterial?.(selected)} disabled={!selected.can_preview}>
+              <button className="cmp-btn cmp-btn--ghost cmp-btn--block" type="button" onClick={() => previewMaterial?.(selected)} disabled={!selected.can_preview || !selectedCanModify}>
                 查看原文
               </button>
-              <button className="cmp-btn cmp-btn--ghost cmp-btn--block" type="button" onClick={() => reparseMaterial?.(selected.id)}>
+              <button className="cmp-btn cmp-btn--ghost cmp-btn--block" type="button" onClick={() => reparseMaterial?.(selected.id)} disabled={!selectedCanModify}>
                 重新解析
               </button>
-              {selected.can_download && (
+              {selected.can_download && selectedCanModify && (
                 <button className="cmp-btn cmp-btn--ghost cmp-btn--block" type="button" onClick={() => downloadMaterial?.(selected)}>
                   下载原文
                 </button>

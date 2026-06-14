@@ -17,6 +17,24 @@ MAX_TOTAL_CONTEXT_LEN = 5000
 DEFAULT_TOP_K = 4
 MAX_TOP_K = 6
 
+PRIVATE_VISIBILITY = "private"
+SYSTEM_FULLTEXT_VISIBILITY = "system_public_fulltext"
+
+
+def accessible_chunk_filter(username: str):
+    return (
+        (
+            (models.StudyMaterial.username == username)
+            & (models.StudyMaterial.visibility == PRIVATE_VISIBILITY)
+            & (models.StudyMaterial.allow_private_rag.is_(True))
+            & (models.MaterialChunk.username == username)
+        )
+        | (
+            (models.StudyMaterial.visibility == SYSTEM_FULLTEXT_VISIBILITY)
+            & (models.StudyMaterial.allow_public_rag.is_(True))
+        )
+    )
+
 COURSE_HINTS = {
     "计算系统基础": ["二进制", "存储", "指令", "程序执行", "系统结构", "软硬件", "编码", "内存"],
     "C语言": ["指针", "数组", "结构体", "内存", "函数", "编译", "gcc", "字符串"],
@@ -172,6 +190,16 @@ def soft_delete_material_chunks(db: Session, material_id: int):
 def replace_material_chunks(db: Session, material: models.StudyMaterial):
     soft_delete_material_chunks(db, material.id)
 
+    visibility = (getattr(material, "visibility", None) or PRIVATE_VISIBILITY).strip()
+    allow_private = bool(getattr(material, "allow_private_rag", True))
+    allow_public = bool(getattr(material, "allow_public_rag", False))
+    if visibility == PRIVATE_VISIBILITY and not allow_private:
+        return 0
+    if visibility == SYSTEM_FULLTEXT_VISIBILITY and not allow_public:
+        return 0
+    if visibility not in {PRIVATE_VISIBILITY, SYSTEM_FULLTEXT_VISIBILITY}:
+        return 0
+
     records = build_chunk_records(material)
     if not records:
         return 0
@@ -285,9 +313,9 @@ def search_relevant_material_chunks(
             session.query(models.MaterialChunk, models.StudyMaterial)
             .join(models.StudyMaterial, models.StudyMaterial.id == models.MaterialChunk.material_id)
             .filter(
-                models.MaterialChunk.username == username,
                 models.MaterialChunk.is_deleted.is_(False),
                 models.StudyMaterial.is_deleted.is_(False),
+                accessible_chunk_filter(username),
             )
         )
         if subject:
@@ -314,9 +342,20 @@ def search_relevant_material_chunks(
                         JOIN material_chunks mc ON mc.id = fts.chunk_id
                         JOIN study_materials sm ON sm.id = mc.material_id
                         WHERE material_chunks_fts MATCH :fts_query
-                          AND mc.username = :username
                           AND mc.is_deleted = 0
                           AND sm.is_deleted = 0
+                          AND (
+                            (
+                              sm.username = :username
+                              AND COALESCE(sm.visibility, 'private') = 'private'
+                              AND COALESCE(sm.allow_private_rag, 1) = 1
+                              AND mc.username = :username
+                            )
+                            OR (
+                              COALESCE(sm.visibility, '') = 'system_public_fulltext'
+                              AND COALESCE(sm.allow_public_rag, 0) = 1
+                            )
+                          )
                           AND (:subject = '' OR mc.subject = :subject)
                         LIMIT 24
                         """
@@ -408,10 +447,10 @@ def retrieve_chunks_for_materials(
             session.query(models.MaterialChunk, models.StudyMaterial)
             .join(models.StudyMaterial, models.StudyMaterial.id == models.MaterialChunk.material_id)
             .filter(
-                models.MaterialChunk.username == username,
                 models.MaterialChunk.material_id.in_(safe_material_ids),
                 models.MaterialChunk.is_deleted.is_(False),
                 models.StudyMaterial.is_deleted.is_(False),
+                accessible_chunk_filter(username),
             )
             .order_by(models.MaterialChunk.created_at.desc(), models.MaterialChunk.chunk_index.asc())
             .limit(120)
@@ -450,6 +489,8 @@ def retrieve_chunks_for_materials(
 def reindex_materials(db: Session, username: str, subject: str | None = None, force: bool = False):
     query = db.query(models.StudyMaterial).filter(
         models.StudyMaterial.username == username,
+        models.StudyMaterial.visibility == PRIVATE_VISIBILITY,
+        models.StudyMaterial.allow_private_rag.is_(True),
         models.StudyMaterial.is_deleted.is_(False),
     )
     if subject:

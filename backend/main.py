@@ -166,6 +166,7 @@ DEFAULT_PDF_OCR_JPEG_QUALITY = 80
 DEFAULT_PDF_OCR_MAX_IMAGE_SIDE = 1600
 DEFAULT_PDF_OCR_CONCURRENCY = 2
 DEFAULT_PDF_OCR_PAGE_TIMEOUT_SECONDS = 45
+DEFAULT_SCANNED_PDF_OCR_MAX_PAGES = 20
 
 ALLOWED_UPLOAD_TYPES = {
     "application/pdf": "pdf",
@@ -1298,7 +1299,87 @@ def get_material_file_path(material: models.StudyMaterial) -> Path | None:
     return file_path
 
 
+PRIVATE_VISIBILITY = "private"
+SYSTEM_METADATA_VISIBILITY = "system_public_metadata"
+SYSTEM_FULLTEXT_VISIBILITY = "system_public_fulltext"
+USER_UPLOAD_SOURCE = "user_upload"
+REFERENCE_METADATA_SOURCE = "reference_metadata"
+
+
+def material_source_type(material: models.StudyMaterial) -> str:
+    return (getattr(material, "source_type", None) or USER_UPLOAD_SOURCE).strip() or USER_UPLOAD_SOURCE
+
+
+def material_visibility(material: models.StudyMaterial) -> str:
+    return (getattr(material, "visibility", None) or PRIVATE_VISIBILITY).strip() or PRIVATE_VISIBILITY
+
+
+def is_reference_metadata_material(material: models.StudyMaterial) -> bool:
+    return material_source_type(material) == REFERENCE_METADATA_SOURCE or material_visibility(material) == SYSTEM_METADATA_VISIBILITY
+
+
+def is_public_fulltext_material(material: models.StudyMaterial) -> bool:
+    return material_visibility(material) == SYSTEM_FULLTEXT_VISIBILITY and bool(getattr(material, "allow_public_rag", False))
+
+
+def is_user_private_material(material: models.StudyMaterial, username: str) -> bool:
+    return material.username == username and material_visibility(material) == PRIVATE_VISIBILITY
+
+
+def can_user_modify_material(material: models.StudyMaterial, username: str) -> bool:
+    return is_user_private_material(material, username) and material_source_type(material) == USER_UPLOAD_SOURCE
+
+
+def accessible_material_filter(username: str):
+    return or_(
+        (
+            (models.StudyMaterial.username == username)
+            & (models.StudyMaterial.visibility == PRIVATE_VISIBILITY)
+        ),
+        models.StudyMaterial.visibility == SYSTEM_METADATA_VISIBILITY,
+        (
+            (models.StudyMaterial.visibility == SYSTEM_FULLTEXT_VISIBILITY)
+            & (models.StudyMaterial.allow_public_rag.is_(True))
+        ),
+    )
+
+
+def query_accessible_materials(db: Session, username: str):
+    return db.query(models.StudyMaterial).filter(
+        models.StudyMaterial.is_deleted.is_(False),
+        accessible_material_filter(username),
+    )
+
+
+def get_accessible_material_or_404(db: Session, username: str, material_id: int):
+    material = query_accessible_materials(db, username).filter(models.StudyMaterial.id == material_id).first()
+    if not material:
+        raise HTTPException(status_code=404, detail="资料不存在或无权访问")
+    return material
+
+
+def build_reference_metadata_context(materials: list[models.StudyMaterial]) -> str:
+    reference_materials = [material for material in materials if is_reference_metadata_material(material)]
+    if not reference_materials:
+        return ""
+
+    lines = [
+        "系统参考资料说明：以下资料仅为目录级参考索引，不包含第三方资料正文，不可下载，也不代表已读取原书全文。",
+        "回答时只能基于这些目录/章节/知识点索引做学习路径和章节定位提示，不要声称依据原书正文。",
+    ]
+    for material in reference_materials:
+        title = material.original_filename or "系统参考资料"
+        summary = ((material.summary or material.extracted_text or "").strip())[:1000]
+        lines.append(f"- {title}：{summary}")
+    return "\n".join(lines)
+
+
 def get_material_download_metadata(material: models.StudyMaterial):
+    if not bool(getattr(material, "allow_download", True)) or is_reference_metadata_material(material):
+        return {
+            "can_download": False,
+            "download_url": None,
+        }
     file_path = get_material_file_path(material)
     return {
         "can_download": file_path is not None,
@@ -1310,6 +1391,11 @@ PREVIEWABLE_FILE_TYPES = frozenset({"pdf", "image", "txt", "text", "markdown", "
 
 
 def get_material_preview_metadata(material: models.StudyMaterial):
+    if is_reference_metadata_material(material):
+        return {
+            "can_preview": False,
+            "preview_url": None,
+        }
     file_path = get_material_file_path(material)
     file_type = (material.file_type or "").lower().strip()
     can_preview = file_path is not None and file_type in PREVIEWABLE_FILE_TYPES
@@ -1913,6 +1999,14 @@ def serialize_material_list_item(material: models.StudyMaterial):
         "created_at": serialize_datetime(material.created_at),
         "updated_at": serialize_datetime(material.updated_at),
         "source_message_id": material.source_message_id,
+        "source_type": material_source_type(material),
+        "visibility": material_visibility(material),
+        "copyright_status": getattr(material, "copyright_status", None) or "user_responsibility",
+        "allow_download": bool(getattr(material, "allow_download", True)),
+        "allow_public_rag": bool(getattr(material, "allow_public_rag", False)),
+        "allow_private_rag": bool(getattr(material, "allow_private_rag", True)),
+        "allow_generate_knowledge": bool(getattr(material, "allow_generate_knowledge", True)),
+        "is_default_reference": bool(getattr(material, "is_default_reference", False)),
         **download_metadata,
         **preview_metadata,
     }
@@ -1944,6 +2038,14 @@ def serialize_material_detail(material: models.StudyMaterial):
         "parse_started_at": serialize_datetime(material.parse_started_at),
         "parse_completed_at": serialize_datetime(material.parse_completed_at),
         "source_message_id": material.source_message_id,
+        "source_type": material_source_type(material),
+        "visibility": material_visibility(material),
+        "copyright_status": getattr(material, "copyright_status", None) or "user_responsibility",
+        "allow_download": bool(getattr(material, "allow_download", True)),
+        "allow_public_rag": bool(getattr(material, "allow_public_rag", False)),
+        "allow_private_rag": bool(getattr(material, "allow_private_rag", True)),
+        "allow_generate_knowledge": bool(getattr(material, "allow_generate_knowledge", True)),
+        "is_default_reference": bool(getattr(material, "is_default_reference", False)),
         "created_at": serialize_datetime(material.created_at),
         "updated_at": serialize_datetime(material.updated_at),
         **download_metadata,
@@ -1963,6 +2065,11 @@ def serialize_material_status(material: models.StudyMaterial):
         "parse_error": material.parse_error,
         "total_pages": material.total_pages or 0,
         "parsed_pages": material.parsed_pages or 0,
+        "source_type": material_source_type(material),
+        "visibility": material_visibility(material),
+        "allow_download": bool(getattr(material, "allow_download", True)),
+        "allow_private_rag": bool(getattr(material, "allow_private_rag", True)),
+        "allow_generate_knowledge": bool(getattr(material, "allow_generate_knowledge", True)),
         **get_material_download_metadata(material),
         **get_material_preview_metadata(material),
     }
@@ -2667,6 +2774,14 @@ def create_pending_material(
         extracted_text="",
         summary="资料已上传，等待后台解析。",
         source_message_id=source_message_id,
+        source_type=USER_UPLOAD_SOURCE,
+        visibility=PRIVATE_VISIBILITY,
+        copyright_status="user_responsibility",
+        allow_download=True,
+        allow_public_rag=False,
+        allow_private_rag=True,
+        allow_generate_knowledge=True,
+        is_default_reference=False,
         extract_method=None,
         parse_status="pending",
         parse_error=None,
@@ -2746,12 +2861,12 @@ def is_pdf_text_usable(extracted_text: str, total_pages: int) -> bool:
 
 
 def get_pdf_ocr_max_pages() -> int:
-    raw_value = (os.getenv("PDF_OCR_MAX_PAGES") or "0").strip()
+    raw_value = (os.getenv("PDF_OCR_MAX_PAGES") or str(DEFAULT_SCANNED_PDF_OCR_MAX_PAGES)).strip()
     try:
         value = int(raw_value)
-        return value if value > 0 else 0
+        return max(1, min(value, DEFAULT_SCANNED_PDF_OCR_MAX_PAGES))
     except (TypeError, ValueError):
-        return 0
+        return DEFAULT_SCANNED_PDF_OCR_MAX_PAGES
 
 
 def get_local_pdf_sync_max_pages() -> int:
@@ -3432,6 +3547,14 @@ def create_material_from_message(
         extracted_text=message.extracted_text or "",
         summary=summary,
         source_message_id=message.id,
+        source_type=USER_UPLOAD_SOURCE,
+        visibility=PRIVATE_VISIBILITY,
+        copyright_status="user_responsibility",
+        allow_download=True,
+        allow_public_rag=False,
+        allow_private_rag=True,
+        allow_generate_knowledge=True,
+        is_default_reference=False,
         extract_method=final_parse_metadata.get("extract_method"),
         parse_status=final_parse_metadata.get("parse_status"),
         parse_error=final_parse_metadata.get("parse_error"),
@@ -5179,15 +5302,12 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
     version_index = 0
 
     if material_ids:
-        selected_materials = (
-            db.query(models.StudyMaterial)
-            .filter(
-                models.StudyMaterial.id.in_(material_ids),
-                models.StudyMaterial.username == user.username,
-                models.StudyMaterial.is_deleted.is_(False),
-            )
-            .all()
+        selected_query = query_accessible_materials(db, user.username).filter(
+            models.StudyMaterial.id.in_(material_ids),
         )
+        if subject:
+            selected_query = selected_query.filter(models.StudyMaterial.subject == subject)
+        selected_materials = selected_query.all()
         material_map = {material.id: material for material in selected_materials}
         if len(material_map) != len(material_ids):
             raise HTTPException(status_code=404, detail="指定资料不存在或不属于当前用户")
@@ -5195,7 +5315,8 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
         blocked_materials = [
             material
             for material in selected_materials
-            if (material.parse_status or "success") != "success" or (material.chunk_count or 0) <= 0
+            if not is_reference_metadata_material(material)
+            and ((material.parse_status or "success") != "success" or (material.chunk_count or 0) <= 0)
         ]
         if blocked_materials:
             raise HTTPException(status_code=400, detail="资料仍在解析中，解析完成后才能提问。")
@@ -5310,6 +5431,9 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
         )
 
     knowledge_context = build_knowledge_context(user.username, subject, db)
+    reference_metadata_context = build_reference_metadata_context(selected_materials)
+    if reference_metadata_context:
+        knowledge_context = "\n\n".join([item for item in [knowledge_context, reference_metadata_context] if item])
     course_preference = get_course_preference_payload(db, user.username, subject)
     if not build_course_preference_prompt(course_preference, subject) and req.mastery_level and req.learning_goal:
         course_preference = {
@@ -5339,7 +5463,7 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
         user_content = f"{req.hidden_instruction}\n\n---\n学生问题：{req.message}"
     if material_ids and selected_materials:
         file_names = "、".join(m.original_filename for m in selected_materials)
-        user_content = f"【用户本轮上传文件：{file_names}】\n{user_content}"
+        user_content = f"【本轮引用资料：{file_names}】\n{user_content}"
 
     if is_exam_408_context(subject, req.course):
         check_exam_408_usage_limit(user, "chat", db)
@@ -5659,15 +5783,15 @@ async def upload_material(
             "filename": original_filename,
             "parse_status": "pending",
             "parse_progress": 0,
-            "message": "资料页数较多，正在后台解析，完成后可基于全文问答。",
+            "message": "文件已上传，系统正在后台分批解析。大文件可能需要较长时间，解析完成后可用于 AI 问答。",
             "material": serialize_material_detail(material),
         }
 
     background_tasks.add_task(parse_material_in_background, material.id)
     pending_message = (
-        "资料已上传，正在后台 OCR 解析。解析完成后可基于全文问答。"
+        "文件已上传，系统正在后台解析；扫描型 PDF 默认只进行有限页数 OCR，完成后会更新索引状态。"
         if file_type == "pdf"
-        else "资料已上传，正在后台解析。解析完成后可基于全文问答。"
+        else "文件已上传，系统正在后台解析，完成后会更新索引状态。"
     )
 
     return {
@@ -5734,14 +5858,9 @@ def reindex_user_materials(req: ReindexMaterialsRequest, db: Session = Depends(g
 def reparse_single_material(material_id: int, username: str, db: Session = Depends(get_db)):
     """Re-parse a single material from its source file: re-extract text, re-OCR if needed, re-chunk."""
     user = get_user_by_username(username, db)
-    material = db.query(models.StudyMaterial).filter(
-        models.StudyMaterial.id == material_id,
-        models.StudyMaterial.username == user.username,
-        models.StudyMaterial.is_deleted.is_(False),
-    ).first()
-
-    if not material:
-        raise HTTPException(status_code=404, detail="资料不存在")
+    material = get_accessible_material_or_404(db, user.username, material_id)
+    if not can_user_modify_material(material, user.username):
+        raise HTTPException(status_code=403, detail="只有本人上传的私有资料可以重新解析")
 
     file_path = resolve_stored_file_path(material.file_path)
     if not file_path.exists() or not file_path.is_file():
@@ -5941,35 +6060,21 @@ def search_materials(
 @app.get("/materials")
 def get_materials(username: str, subject: str | None = None, db: Session = Depends(get_db)):
     user = get_user_by_username(username, db)
-    query = db.query(models.StudyMaterial).filter(
-        models.StudyMaterial.username == user.username,
-        models.StudyMaterial.is_deleted.is_(False),
-    )
+    query = query_accessible_materials(db, user.username)
 
     normalized_subject = normalize_subject(subject, default="")
     if normalized_subject:
         query = query.filter(models.StudyMaterial.subject == normalized_subject)
 
-    materials = query.order_by(models.StudyMaterial.created_at.desc()).all()
+    materials = query.order_by(models.StudyMaterial.is_default_reference.desc(), models.StudyMaterial.created_at.desc()).all()
     return {"materials": [serialize_material_list_item(material) for material in materials]}
 
 
 @app.get("/materials/{material_id}/download")
 def download_material_file(material_id: int, username: str, db: Session = Depends(get_db)):
     user = get_user_by_username(username, db)
-    material = (
-        db.query(models.StudyMaterial)
-        .filter(
-            models.StudyMaterial.id == material_id,
-            models.StudyMaterial.is_deleted.is_(False),
-        )
-        .first()
-    )
-
-    if not material:
-        raise HTTPException(status_code=404, detail="资料不存在")
-
-    if material.username != user.username:
+    material = get_accessible_material_or_404(db, user.username, material_id)
+    if not can_user_modify_material(material, user.username) or not bool(getattr(material, "allow_download", True)):
         raise HTTPException(status_code=403, detail="没有权限下载该资料")
 
     file_path = get_material_file_path(material)
@@ -5995,20 +6100,9 @@ def download_material_file(material_id: int, username: str, db: Session = Depend
 @app.get("/materials/{material_id}/preview")
 def preview_material_file(material_id: int, username: str, db: Session = Depends(get_db)):
     user = get_user_by_username(username, db)
-    material = (
-        db.query(models.StudyMaterial)
-        .filter(
-            models.StudyMaterial.id == material_id,
-            models.StudyMaterial.is_deleted.is_(False),
-        )
-        .first()
-    )
-
-    if not material:
-        raise HTTPException(status_code=404, detail="资料不存在")
-
-    if material.username != user.username:
-        raise HTTPException(status_code=403, detail="没有权限查看该资料")
+    material = get_accessible_material_or_404(db, user.username, material_id)
+    if not can_user_modify_material(material, user.username):
+        raise HTTPException(status_code=403, detail="没有权限查看该资料原文")
 
     file_path = get_material_file_path(material)
     if not file_path:
@@ -6048,18 +6142,7 @@ def preview_material_file(material_id: int, username: str, db: Session = Depends
 @app.get("/materials/{material_id}/status")
 def get_material_status(material_id: int, username: str, db: Session = Depends(get_db)):
     user = get_user_by_username(username, db)
-    material = (
-        db.query(models.StudyMaterial)
-        .filter(
-            models.StudyMaterial.id == material_id,
-            models.StudyMaterial.username == user.username,
-            models.StudyMaterial.is_deleted.is_(False),
-        )
-        .first()
-    )
-
-    if not material:
-        raise HTTPException(status_code=404, detail="资料不存在")
+    material = get_accessible_material_or_404(db, user.username, material_id)
 
     return serialize_material_status(material)
 
@@ -6067,18 +6150,7 @@ def get_material_status(material_id: int, username: str, db: Session = Depends(g
 @app.get("/materials/{material_id}")
 def get_material_detail(material_id: int, username: str, db: Session = Depends(get_db)):
     user = get_user_by_username(username, db)
-    material = (
-        db.query(models.StudyMaterial)
-        .filter(
-            models.StudyMaterial.id == material_id,
-            models.StudyMaterial.username == user.username,
-            models.StudyMaterial.is_deleted.is_(False),
-        )
-        .first()
-    )
-
-    if not material:
-        raise HTTPException(status_code=404, detail="资料不存在")
+    material = get_accessible_material_or_404(db, user.username, material_id)
 
     return {"material": serialize_material_detail(material)}
 
@@ -6086,18 +6158,9 @@ def get_material_detail(material_id: int, username: str, db: Session = Depends(g
 @app.delete("/materials/{material_id}")
 def delete_material(material_id: int, username: str, db: Session = Depends(get_db)):
     user = get_user_by_username(username, db)
-    material = (
-        db.query(models.StudyMaterial)
-        .filter(
-            models.StudyMaterial.id == material_id,
-            models.StudyMaterial.username == user.username,
-            models.StudyMaterial.is_deleted.is_(False),
-        )
-        .first()
-    )
-
-    if not material:
-        raise HTTPException(status_code=404, detail="资料不存在")
+    material = get_accessible_material_or_404(db, user.username, material_id)
+    if not can_user_modify_material(material, user.username):
+        raise HTTPException(status_code=403, detail="只有本人上传的私有资料可以删除")
 
     material.is_deleted = True
     material.deleted_at = utc_now()
@@ -16826,16 +16889,11 @@ def analyze_knowledge_preview(req: schemas.MaterialAnalyzeKnowledgeRequest, db: 
         raise HTTPException(status_code=400, detail="请至少选择一份资料")
 
     # Validate and fetch materials
-    materials = (
-        db.query(models.StudyMaterial)
-        .filter(
-            models.StudyMaterial.id.in_(req.material_ids),
-            models.StudyMaterial.username == user.username,
-            models.StudyMaterial.subject == course_id,
-            models.StudyMaterial.is_deleted.is_(False),
-        )
-        .all()
-    )
+    materials = query_accessible_materials(db, user.username).filter(
+        models.StudyMaterial.id.in_(req.material_ids),
+        models.StudyMaterial.subject == course_id,
+        models.StudyMaterial.allow_generate_knowledge.is_(True),
+    ).all()
 
     if not materials:
         raise HTTPException(status_code=404, detail="所选资料不存在或不属于当前课程")
@@ -16850,11 +16908,25 @@ def analyze_knowledge_preview(req: schemas.MaterialAnalyzeKnowledgeRequest, db: 
     total_chars = 0
     for mat in materials:
         mat_chars = 0
+        if is_reference_metadata_material(mat):
+            ref_text = (mat.summary or mat.extracted_text or "").strip()
+            if ref_text:
+                content_parts.append(
+                    f"【目录级参考资料：{mat.original_filename}】\n{ref_text}\n"
+                    "提示：该资料仅可用于章节定位、知识点标题和层级关系，不包含第三方正文。"
+                )
+                total_chars += len(ref_text)
+                mat_chars += len(ref_text)
+            if mat_chars == 0:
+                content_parts.append(f"【目录级参考资料：{mat.original_filename}】\n（暂无目录级索引内容）")
+            continue
+
         # Try chunks first
         chunks = (
             db.query(models.MaterialChunk)
             .filter(
                 models.MaterialChunk.material_id == mat.id,
+                models.MaterialChunk.username == user.username,
                 models.MaterialChunk.is_deleted.is_(False),
             )
             .order_by(models.MaterialChunk.chunk_index)
@@ -17016,16 +17088,11 @@ def confirm_knowledge_tree(req: schemas.MaterialConfirmKnowledgeTreeRequest, db:
 
     # Validate material_ids belong to user and course
     if req.material_ids:
-        valid_materials = (
-            db.query(models.StudyMaterial)
-            .filter(
-                models.StudyMaterial.id.in_(req.material_ids),
-                models.StudyMaterial.username == user.username,
-                models.StudyMaterial.subject == course_id,
-                models.StudyMaterial.is_deleted.is_(False),
-            )
-            .count()
-        )
+        valid_materials = query_accessible_materials(db, user.username).filter(
+            models.StudyMaterial.id.in_(req.material_ids),
+            models.StudyMaterial.subject == course_id,
+            models.StudyMaterial.allow_generate_knowledge.is_(True),
+        ).count()
         # Non-fatal: just log, don't block the write
         _ = valid_materials
 

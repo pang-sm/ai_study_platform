@@ -85,6 +85,14 @@ STUDY_MATERIAL_COLUMNS = {
     "file_hash": "TEXT",
     "file_path": "TEXT",
     "source_message_id": "INTEGER",
+    "source_type": "VARCHAR(50) NOT NULL DEFAULT 'user_upload'",
+    "visibility": "VARCHAR(50) NOT NULL DEFAULT 'private'",
+    "copyright_status": "VARCHAR(50) NOT NULL DEFAULT 'user_responsibility'",
+    "allow_download": "BOOLEAN NOT NULL DEFAULT 1",
+    "allow_public_rag": "BOOLEAN NOT NULL DEFAULT 0",
+    "allow_private_rag": "BOOLEAN NOT NULL DEFAULT 1",
+    "allow_generate_knowledge": "BOOLEAN NOT NULL DEFAULT 1",
+    "is_default_reference": "BOOLEAN NOT NULL DEFAULT 0",
     "extract_method": "VARCHAR(20)",
     "parse_status": "VARCHAR(20)",
     "parse_error": "TEXT",
@@ -483,6 +491,130 @@ def ensure_admin_roles_schema(conn):
 
 def ensure_study_material_schema(conn):
     ensure_columns(conn, "study_materials", STUDY_MATERIAL_COLUMNS)
+    backfill_study_material_permissions(conn)
+    seed_default_reference_materials(conn)
+
+
+DEFAULT_REFERENCE_MATERIALS = [
+    {
+        "username": "system",
+        "subject": "11408 数据结构",
+        "file_type": "reference",
+        "original_filename": "2027 数据结构考研复习指导",
+        "mime_type": "application/x-reference-metadata",
+        "file_path": "reference_metadata://2027-data-structure",
+        "summary": (
+            "目录级参考索引：用于定位数据结构复习章节、知识点和题型，不包含第三方资料正文，"
+            "不提供原文下载。覆盖绪论、线性表、栈和队列、串、数组和广义表、树与二叉树、图、查找、排序等复习模块。"
+        ),
+        "extracted_text": (
+            "数据结构目录级索引：绪论；线性表；栈、队列和数组；串与模式匹配；树与二叉树；图；查找；排序。"
+            "本记录仅用于学习路径、章节定位、知识点索引和题型位置提示，不包含第三方书籍正文。"
+        ),
+    }
+]
+
+
+def backfill_study_material_permissions(conn):
+    conn.execute(
+        text(
+            """
+            UPDATE study_materials
+            SET
+              source_type = COALESCE(NULLIF(source_type, ''), 'user_upload'),
+              visibility = COALESCE(NULLIF(visibility, ''), 'private'),
+              copyright_status = COALESCE(NULLIF(copyright_status, ''), 'user_responsibility'),
+              allow_download = COALESCE(allow_download, 1),
+              allow_public_rag = COALESCE(allow_public_rag, 0),
+              allow_private_rag = COALESCE(allow_private_rag, 1),
+              allow_generate_knowledge = COALESCE(allow_generate_knowledge, 1),
+              is_default_reference = COALESCE(is_default_reference, 0)
+            """
+        )
+    )
+
+
+def seed_default_reference_materials(conn):
+    for item in DEFAULT_REFERENCE_MATERIALS:
+        existing = conn.execute(
+            text(
+                """
+                SELECT id
+                FROM study_materials
+                WHERE subject = :subject
+                  AND original_filename = :original_filename
+                  AND source_type = 'reference_metadata'
+                  AND COALESCE(is_default_reference, 0) = 1
+                  AND COALESCE(is_deleted, 0) = 0
+                LIMIT 1
+                """
+            ),
+            item,
+        ).first()
+        if existing:
+            conn.execute(
+                text(
+                    """
+                    UPDATE study_materials
+                    SET
+                      username = 'system',
+                      file_type = :file_type,
+                      mime_type = :mime_type,
+                      file_size = 0,
+                      file_path = :file_path,
+                      extracted_text = :extracted_text,
+                      summary = :summary,
+                      source_type = 'reference_metadata',
+                      visibility = 'system_public_metadata',
+                      copyright_status = 'restricted_reference_only',
+                      allow_download = 0,
+                      allow_public_rag = 0,
+                      allow_private_rag = 0,
+                      allow_generate_knowledge = 1,
+                      is_default_reference = 1,
+                      extract_method = 'metadata',
+                      parse_status = 'success',
+                      parse_error = NULL,
+                      qwen_used = 0,
+                      total_pages = 0,
+                      parsed_pages = 0,
+                      chunk_count = 0,
+                      ocr_required = 0,
+                      parse_progress = 100,
+                      updated_at = CURRENT_TIMESTAMP
+                    WHERE id = :id
+                    """
+                ),
+                {**item, "id": existing[0]},
+            )
+            continue
+
+        conn.execute(
+            text(
+                """
+                INSERT INTO study_materials (
+                    username, subject, file_type, original_filename, mime_type,
+                    file_size, file_hash, file_path, extracted_text, summary,
+                    source_message_id, source_type, visibility, copyright_status,
+                    allow_download, allow_public_rag, allow_private_rag,
+                    allow_generate_knowledge, is_default_reference, extract_method,
+                    parse_status, parse_error, qwen_used, parsed_at, total_pages,
+                    parsed_pages, chunk_count, ocr_required, parse_progress,
+                    parse_started_at, parse_completed_at, is_deleted, created_at, updated_at
+                ) VALUES (
+                    :username, :subject, :file_type, :original_filename, :mime_type,
+                    0, NULL, :file_path, :extracted_text, :summary,
+                    NULL, 'reference_metadata', 'system_public_metadata', 'restricted_reference_only',
+                    0, 0, 0,
+                    1, 1, 'metadata',
+                    'success', NULL, 0, CURRENT_TIMESTAMP, 0,
+                    0, 0, 0, 100,
+                    NULL, CURRENT_TIMESTAMP, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                )
+                """
+            ),
+            item,
+        )
 
 
 def ensure_material_chunks_schema(conn):
