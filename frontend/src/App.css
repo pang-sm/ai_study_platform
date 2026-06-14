@@ -19033,12 +19033,13 @@ select.field:focus {
 
 .examchat-main-panel {
   min-width: 0;
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
 }
 
 .examchat-main-panel .examchat-header {
+  flex-shrink: 0;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -19066,6 +19067,7 @@ select.field:focus {
 }
 
 .examchat-error {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -19080,6 +19082,7 @@ select.field:focus {
 }
 
 .examchat-notice {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -19116,6 +19119,7 @@ select.field:focus {
 }
 
 .examchat-main-panel .examchat-messages {
+  flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -19359,6 +19363,7 @@ select.field:focus {
 }
 
 .examchat-main-panel .examchat-input-area {
+  flex: 0 0 auto;
   display: grid;
   gap: 10px;
   border: none;
