@@ -372,12 +372,93 @@ TRACK_PERMISSIONS = {
     },
 }
 
-EXAM_PACKAGE_QUOTA = {
-    "free": {"ai_question_daily_limit": 50, "ai_generate_question_daily_limit": 5, "material_upload_limit_mb": 100, "learning_plan": False, "review": False, "report": False},
-    "monthly_sprint": {"ai_question_daily_limit": 300, "ai_generate_question_daily_limit": 30, "material_upload_limit_mb": 500, "learning_plan": True, "review": True, "report": True},
-    "quarterly_boost": {"ai_question_daily_limit": 300, "ai_generate_question_daily_limit": 30, "material_upload_limit_mb": 500, "learning_plan": True, "review": True, "report": True},
-    "full_exam": {"ai_question_daily_limit": 1000, "ai_generate_question_daily_limit": 100, "material_upload_limit_mb": 2048, "learning_plan": True, "review": True, "report": True},
+EXAM_PACKAGE_TIERS = ["free", "monthly_sprint", "quarterly_boost", "full_exam"]
+EXAM_PACKAGE_NAMES = {
+    "free": "免费模式",
+    "monthly_sprint": "月度冲刺包",
+    "quarterly_boost": "季度强化包",
+    "full_exam": "全程考包",
 }
+EXAM_PACKAGE_PLANS = {
+    "free": "free",
+    "monthly_sprint": "exam_monthly",
+    "quarterly_boost": "exam_quarterly",
+    "full_exam": "exam_yearly",
+}
+EXAM_PACKAGE_QUOTA = {
+    "free": {
+        "ai_chat_daily_limit": 50,
+        "ai_question_daily_limit": 5,
+        "material_upload_limit_mb": 100,
+        "learning_plan": False,
+        "mistake_review": False,
+        "learning_report": False,
+    },
+    "monthly_sprint": {
+        "ai_chat_daily_limit": 300,
+        "ai_question_daily_limit": 30,
+        "material_upload_limit_mb": 500,
+        "learning_plan": True,
+        "mistake_review": True,
+        "learning_report": True,
+    },
+    "quarterly_boost": {
+        "ai_chat_daily_limit": 500,
+        "ai_question_daily_limit": 50,
+        "material_upload_limit_mb": 1024,
+        "learning_plan": True,
+        "mistake_review": True,
+        "learning_report": True,
+    },
+    "full_exam": {
+        "ai_chat_daily_limit": 1000,
+        "ai_question_daily_limit": 100,
+        "material_upload_limit_mb": 2048,
+        "learning_plan": True,
+        "mistake_review": True,
+        "learning_report": True,
+    },
+}
+
+# Normalize legacy/Chinese package values to English enum.
+PACKAGE_NORMALIZE_MAP = {
+    "免费模式": "free", "free": "free",
+    "月度冲刺": "monthly_sprint", "月度冲刺包": "monthly_sprint", "exam_monthly": "monthly_sprint", "monthly_sprint": "monthly_sprint",
+    "季度强化包": "quarterly_boost", "quarterly": "quarterly_boost", "exam_quarterly": "quarterly_boost", "quarterly_boost": "quarterly_boost",
+    "全程考包": "full_exam", "全程备考包": "full_exam", "exam_yearly": "full_exam", "full_exam": "full_exam",
+}
+
+
+def normalize_exam_package(raw):
+    if not raw:
+        return "free"
+    val = str(raw).strip()
+    return PACKAGE_NORMALIZE_MAP.get(val, "free")
+
+
+def normalize_package_type(raw):
+    return normalize_exam_package(raw)
+
+
+def get_exam_package_permissions(package_type: str | None):
+    package = normalize_exam_package(package_type)
+    permissions = dict(TRACK_PERMISSIONS.get("exam_408", {}))
+    permissions.update(EXAM_PACKAGE_QUOTA.get(package, EXAM_PACKAGE_QUOTA["free"]))
+    # Legacy aliases for older frontend code. New code should use the canonical keys above.
+    permissions["review"] = permissions["mistake_review"]
+    permissions["report"] = permissions["learning_report"]
+    permissions["ai_generate_question_daily_limit"] = permissions["ai_question_daily_limit"]
+    return permissions
+
+
+def get_exam_package_quota(package_type: str | None):
+    package = normalize_exam_package(package_type)
+    return {
+        "package_type": package,
+        "package_display_name": EXAM_PACKAGE_NAMES[package],
+        "plan": EXAM_PACKAGE_PLANS[package],
+        **EXAM_PACKAGE_QUOTA[package],
+    }
 
 def get_user_tracks(db: Session, user_id: int):
     return db.query(models.UserLearningTrack).filter(
@@ -402,22 +483,26 @@ def require_track(db: Session, user_id: int, track_type: str):
 
 def upsert_user_track(db: Session, user_id: int, track_type: str, plan: str = "free",
                       package_type: str | None = None, onboarding_detail: dict | None = None):
+    normalized_package = normalize_exam_package(package_type) if track_type == "exam_408" else package_type
     track = get_user_track(db, user_id, track_type)
     if not track:
         track = models.UserLearningTrack(
             user_id=user_id,
             track_type=track_type,
             plan=plan,
-            package_type=package_type,
+            package_type=normalized_package,
         )
         db.add(track)
     else:
         track.plan = plan
-        track.package_type = normalize_package_type(package_type or track.package_type)
+        track.package_type = normalize_package_type(normalized_package or track.package_type)
     perms = dict(TRACK_PERMISSIONS.get(track_type, {}))
-    # Merge exam quota based on package
-    if track_type == "exam_408" and package_type and package_type in EXAM_PACKAGE_QUOTA:
-        perms.update(EXAM_PACKAGE_QUOTA[package_type])
+    if track_type == "exam_408":
+        package = normalize_exam_package(normalized_package or track.package_type)
+        track.package_type = package
+        track.plan = EXAM_PACKAGE_PLANS[package]
+        perms = get_exam_package_permissions(package)
+        track.quota_json = json.dumps(get_exam_package_quota(package), ensure_ascii=False)
     track.permissions_json = json.dumps(perms, ensure_ascii=False)
     if onboarding_detail:
         track.onboarding_detail_json = json.dumps(onboarding_detail, ensure_ascii=False)
@@ -427,9 +512,15 @@ def upsert_user_track(db: Session, user_id: int, track_type: str, plan: str = "f
 
 def serialize_track(track):
     perms = {}
+    quota = {}
     try:
         if track.permissions_json:
             perms = json.loads(track.permissions_json)
+    except (json.JSONDecodeError, TypeError):
+        pass
+    try:
+        if track.quota_json:
+            quota = json.loads(track.quota_json)
     except (json.JSONDecodeError, TypeError):
         pass
     onboarding = None
@@ -438,16 +529,27 @@ def serialize_track(track):
             onboarding = json.loads(track.onboarding_detail_json)
     except (json.JSONDecodeError, TypeError):
         pass
+    package = normalize_package_type(track.package_type)
+    if track.track_type == "exam_408":
+        default_perms = get_exam_package_permissions(package)
+        default_quota = get_exam_package_quota(package)
+        default_perms.update(perms or {})
+        perms = default_perms
+        default_quota.update(quota or {})
+        quota = default_quota
     return {
         "id": track.id,
         "track_type": track.track_type,
-        "plan": track.plan or "free",
-        "package_type": normalize_package_type(track.package_type),
+        "plan": quota.get("plan") or track.plan or "free",
+        "package_type": package,
+        "package_display_name": EXAM_PACKAGE_NAMES.get(package, package) if track.track_type == "exam_408" else "",
         "permissions": perms,
+        "quota": quota,
         "onboarding_detail": onboarding,
         "is_active": bool(track.is_active),
         "status": track.status or "active",
         "created_at": serialize_datetime(track.created_at),
+        "updated_at": serialize_datetime(track.updated_at),
     }
 
 
@@ -530,30 +632,6 @@ def update_exam_motto(req: dict, db: Session = Depends(get_db)):
     return {"welcome_motto": motto, "message": "已更新"}
 
 
-EXAM_PACKAGE_TIERS = ["free", "monthly_sprint", "quarterly_boost", "full_exam"]
-EXAM_PACKAGE_NAMES = {
-    "free": "免费模式",
-    "monthly_sprint": "月度冲刺包",
-    "quarterly_boost": "季度强化包",
-    "full_exam": "全程备考包",
-}
-
-# Normalize legacy/Chinese package values to English enum
-PACKAGE_NORMALIZE_MAP = {
-    "免费模式": "free", "free": "free",
-    "月度冲刺": "monthly_sprint", "月度冲刺包": "monthly_sprint", "exam_monthly": "monthly_sprint", "monthly_sprint": "monthly_sprint",
-    "季度强化包": "quarterly_boost", "quarterly": "quarterly_boost", "exam_quarterly": "quarterly_boost", "quarterly_boost": "quarterly_boost",
-    "全程考包": "full_exam", "全程备考包": "full_exam", "exam_yearly": "full_exam", "full_exam": "full_exam",
-}
-
-
-def normalize_package_type(raw):
-    if not raw:
-        return "free"
-    val = str(raw).strip()
-    return PACKAGE_NORMALIZE_MAP.get(val, "free")
-
-
 @app.put("/me/tracks/exam_408/package")
 def upgrade_exam_package(req: dict, db: Session = Depends(get_db)):
     username = str(req.get("username", "")).strip()
@@ -577,13 +655,11 @@ def upgrade_exam_package(req: dict, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="当前已是该套餐或更高等级，无需降级")
     if new_idx == old_idx:
         raise HTTPException(status_code=400, detail="当前已是该套餐或更高等级，无需升级")
-    # Upgrade
     track.package_type = new_pkg
-    track.plan = "free" if new_pkg == "free" else "pro"
-    perms = dict(TRACK_PERMISSIONS.get("exam_408", {}))
-    if new_pkg in EXAM_PACKAGE_QUOTA:
-        perms.update(EXAM_PACKAGE_QUOTA[new_pkg])
-    track.permissions_json = json.dumps(perms, ensure_ascii=False)
+    track.plan = EXAM_PACKAGE_PLANS[new_pkg]
+    track.permissions_json = json.dumps(get_exam_package_permissions(new_pkg), ensure_ascii=False)
+    track.quota_json = json.dumps(get_exam_package_quota(new_pkg), ensure_ascii=False)
+    track.updated_at = utc_now()
     db.commit()
     db.refresh(track)
     return {
@@ -596,6 +672,35 @@ def ensure_exam_408_track(db: Session, user: models.User):
     """Auto-create exam_408 track for old users who have 11408 data but no track record."""
     existing = get_user_track(db, user.id, "exam_408")
     if existing:
+        package = normalize_package_type(existing.package_type)
+        repaired = False
+        if existing.package_type != package:
+            existing.package_type = package
+            repaired = True
+        expected_plan = EXAM_PACKAGE_PLANS[package]
+        if existing.plan != expected_plan:
+            existing.plan = expected_plan
+            repaired = True
+        expected_permissions = get_exam_package_permissions(package)
+        expected_quota = get_exam_package_quota(package)
+        try:
+            current_permissions = json.loads(existing.permissions_json) if existing.permissions_json else {}
+        except (json.JSONDecodeError, TypeError):
+            current_permissions = {}
+        try:
+            current_quota = json.loads(existing.quota_json) if existing.quota_json else {}
+        except (json.JSONDecodeError, TypeError):
+            current_quota = {}
+        if any(current_permissions.get(k) != v for k, v in expected_permissions.items()):
+            existing.permissions_json = json.dumps(expected_permissions, ensure_ascii=False)
+            repaired = True
+        if any(current_quota.get(k) != v for k, v in expected_quota.items()):
+            existing.quota_json = json.dumps(expected_quota, ensure_ascii=False)
+            repaired = True
+        if repaired:
+            existing.updated_at = utc_now()
+            db.commit()
+            db.refresh(existing)
         return existing
     # Check if user is a 11408 user via legacy fields
     goal_type = _parse_onboarding_detail_type(user) or ""
@@ -612,10 +717,9 @@ def ensure_exam_408_track(db: Session, user: models.User):
     # Build detail from legacy fields
     old_detail = _parse_onboarding_detail(user) or {}
     # Determine package from legacy plan — normalize
-    legacy_plan = (getattr(user, "plan", "free") or "free").strip()
     raw_pkg = old_detail.get("exam_package_type", "free") if old_detail else "free"
     pkg = normalize_package_type(raw_pkg)
-    plan = legacy_plan if legacy_plan != "free" else ("pro" if pkg != "free" else "free")
+    plan = EXAM_PACKAGE_PLANS[pkg]
     # Create track
     track = models.UserLearningTrack(
         user_id=user.id,
@@ -623,10 +727,8 @@ def ensure_exam_408_track(db: Session, user: models.User):
         plan=plan,
         package_type=pkg,
     )
-    perms = dict(TRACK_PERMISSIONS.get("exam_408", {}))
-    if pkg in EXAM_PACKAGE_QUOTA:
-        perms.update(EXAM_PACKAGE_QUOTA[pkg])
-    track.permissions_json = json.dumps(perms, ensure_ascii=False)
+    track.permissions_json = json.dumps(get_exam_package_permissions(pkg), ensure_ascii=False)
+    track.quota_json = json.dumps(get_exam_package_quota(pkg), ensure_ascii=False)
     track.onboarding_detail_json = json.dumps(old_detail, ensure_ascii=False) if old_detail else None
     db.add(track)
     db.commit()
@@ -794,7 +896,7 @@ def sanitize_filename(filename: str) -> str:
     return cleaned[:120] or "material"
 
 
-def validate_upload(file: UploadFile, file_bytes: bytes):
+def validate_upload(file: UploadFile, file_bytes: bytes, max_size_mb: int | None = None):
     from document_parser import detect_material_type, MAX_NEW_TYPE_SIZE, LEGACY_EXTENSIONS
 
     suffix = Path(file.filename or "").suffix.lower()
@@ -814,6 +916,8 @@ def validate_upload(file: UploadFile, file_bytes: bytes):
         size_limit = MAX_NEW_TYPE_SIZE
     else:
         size_limit = MAX_UPLOAD_SIZE
+    if max_size_mb:
+        size_limit = max(size_limit, int(max_size_mb) * 1024 * 1024)
 
     if len(file_bytes) > size_limit:
         limit_mb = size_limit // (1024 * 1024)
@@ -1484,6 +1588,58 @@ def check_usage_limit(username: str, feature: str, db: Session):
         "limit": limit,
         "remaining": remaining,
         "plan": plan,
+    }
+
+
+EXAM_408_SUBJECT_KEYWORDS = ("11408", "数据结构", "计算机组成原理", "操作系统", "计算机网络")
+
+
+def is_exam_408_context(subject: str | None = "", course: str | None = "") -> bool:
+    text = f"{subject or ''} {course or ''}".strip()
+    if not text:
+        return False
+    return any(keyword in text for keyword in EXAM_408_SUBJECT_KEYWORDS)
+
+
+def get_exam_408_permissions_for_user(db: Session, user: models.User):
+    track = ensure_exam_408_track(db, user)
+    if not track:
+        return None
+    return serialize_track(track).get("permissions") or {}
+
+
+def get_exam_408_feature_limit(permissions: dict, feature: str):
+    if feature == "chat":
+        return int(permissions.get("ai_chat_daily_limit") or 0)
+    if feature == "question_generate":
+        return int(permissions.get("ai_question_daily_limit") or 0)
+    if feature == "learning_plan_generate":
+        return 999999 if permissions.get("learning_plan") else 0
+    if feature == "learning_report_generate":
+        return 999999 if permissions.get("learning_report") else 0
+    return None
+
+
+def check_exam_408_usage_limit(user: models.User, feature: str, db: Session):
+    permissions = get_exam_408_permissions_for_user(db, user)
+    if not permissions:
+        return check_usage_limit(user.username, feature, db)
+    limit = get_exam_408_feature_limit(permissions, feature)
+    if limit is None:
+        return check_usage_limit(user.username, feature, db)
+    used = get_today_usage(user.username, feature, db)
+    remaining = max(0, limit - used)
+    if used >= limit:
+        raise HTTPException(
+            status_code=429,
+            detail=f"今日 11408 套餐 {feature} 使用次数已达上限（{used}/{limit}），当前套餐限制为 {limit} 次/天。",
+        )
+    return {
+        "allowed": True,
+        "used": used,
+        "limit": limit,
+        "remaining": remaining,
+        "plan": "exam_408",
     }
 
 
@@ -4518,8 +4674,17 @@ def email_login(req: EmailLoginRequest, db: Session = Depends(get_db)):
 @app.get("/me/quota")
 def get_my_quota(username: str, db: Session = Depends(get_db)):
     user = get_user_by_username(username, db)
+    exam_track = ensure_exam_408_track(db, user)
     plan_info = get_user_plan(user.username, db)
     limits = get_plan_limits(plan_info["plan"])
+    exam_serialized = serialize_track(exam_track) if exam_track else None
+    exam_permissions = exam_serialized.get("permissions", {}) if exam_serialized else {}
+    if exam_permissions:
+        limits["chat"] = int(exam_permissions.get("ai_chat_daily_limit") or limits.get("chat", 0))
+        limits["question_generate"] = int(exam_permissions.get("ai_question_daily_limit") or limits.get("question_generate", 0))
+        limits["single_file_size_mb"] = int(exam_permissions.get("material_upload_limit_mb") or limits.get("single_file_size_mb", 20))
+        limits["learning_plan_generate"] = 999999 if exam_permissions.get("learning_plan") else 0
+        limits["learning_report_generate"] = 999999 if exam_permissions.get("learning_report") else 0
 
     usage = {}
     for feature in ALL_FEATURES:
@@ -4550,6 +4715,8 @@ def get_my_quota(username: str, db: Session = Depends(get_db)):
         "feature_limits": feature_limits,
         "upload_limits": upload_limits,
         "all_features": ALL_FEATURES,
+        "active_track_type": "exam_408" if exam_track else None,
+        "exam_408_track": exam_serialized,
     }
 
 
@@ -5106,7 +5273,10 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
         file_names = "、".join(m.original_filename for m in selected_materials)
         user_content = f"【用户本轮上传文件：{file_names}】\n{user_content}"
 
-    check_usage_limit(user.username, "chat", db)
+    if is_exam_408_context(subject, req.course):
+        check_exam_408_usage_limit(user, "chat", db)
+    else:
+        check_usage_limit(user.username, "chat", db)
 
     answer = call_deepseek(
         [
@@ -5205,12 +5375,18 @@ async def upload_material(
     ensure_feature_enabled(db, "feature_material_upload_enabled", "资料上传功能暂时维护中，请稍后再试")
 
     user = get_user_by_username(upload_username, db)
+    normalized_subject = normalize_subject(subject)
 
     # Upload quota checks
     plan_info = get_user_plan(user.username, db)
     plan_limits = get_plan_limits(plan_info["plan"])
     max_file_size_mb = plan_limits.get("single_file_size_mb", 20)
     max_material_count = plan_limits.get("material_upload_count", 30)
+    if is_exam_408_context(normalized_subject, subject):
+        exam_permissions = get_exam_408_permissions_for_user(db, user)
+        if exam_permissions:
+            max_file_size_mb = int(exam_permissions.get("material_upload_limit_mb") or max_file_size_mb)
+            max_material_count = 999999
 
     # Check file size before reading
     if file.size and file.size > max_file_size_mb * 1024 * 1024:
@@ -5234,9 +5410,8 @@ async def upload_material(
             detail=f"资料数量已达上限（{material_count}/{max_material_count}），请清理旧资料或升级会员。",
         )
 
-    normalized_subject = normalize_subject(subject)
     file_bytes = await file.read()
-    validate_upload(file, file_bytes)
+    validate_upload(file, file_bytes, max_size_mb=max_file_size_mb)
 
     original_filename = file.filename or "未命名文件"
     from document_parser import detect_material_type
@@ -12803,7 +12978,11 @@ def structure_practice_paper_text(
     paper_title = Path(original_filename).stem or "导入试卷"
     try:
         if username and db:
-            check_usage_limit(username, "question_generate", db)
+            user = get_user_by_username(username, db)
+            if is_exam_408_context(course_norm, ""):
+                check_exam_408_usage_limit(user, "question_generate", db)
+            else:
+                check_usage_limit(username, "question_generate", db)
         logger.info("%s deepseek start input_text_len=%d", log_prefix, len(extracted_text[:PRACTICE_PAPER_MAX_CHARS]))
         t_deepseek = time.perf_counter()
         raw = call_deepseek([
@@ -14294,7 +14473,10 @@ def generate_questions(req: schemas.GenerateQuestionRequest, db: Session = Depen
     if course_preference_context:
         user_prompt = f"{course_preference_context}\n\n{user_prompt}"
 
-    check_usage_limit(user.username, "question_generate", db)
+    if is_exam_408_context(course_id, course_name):
+        check_exam_408_usage_limit(user, "question_generate", db)
+    else:
+        check_usage_limit(user.username, "question_generate", db)
 
     raw_responses_preview = []
     all_candidates = []
@@ -14568,7 +14750,10 @@ def generate_task_question_preview(req: schemas.GenerateTaskQuestionPreviewReque
         }
     course_preference_context = build_course_preference_prompt(course_preference, course_id)
 
-    check_usage_limit(user.username, "question_generate", db)
+    if is_exam_408_context(course_id, ""):
+        check_exam_408_usage_limit(user, "question_generate", db)
+    else:
+        check_usage_limit(user.username, "question_generate", db)
 
     # Build prompt
     context_parts = [f"课程：{course_id}"]
@@ -15654,7 +15839,10 @@ def _generate_plan_preview_core(
         {"role": "user", "content": user_prompt},
     ]
 
-    check_usage_limit(user.username, "learning_plan_generate", db)
+    if is_exam_408_context(req.course_id, ""):
+        check_exam_408_usage_limit(user, "learning_plan_generate", db)
+    else:
+        check_usage_limit(user.username, "learning_plan_generate", db)
 
     ai_call_failed = False
     raw = ""
@@ -19091,7 +19279,10 @@ def _kp_title(kp_progress, db):
 def generate_report_preview(req: schemas.LearningReportGenerateRequest, db: Session = Depends(get_db)):
     user = get_user_by_username(req.username, db)
 
-    check_usage_limit(user.username, "learning_report_generate", db)
+    if is_exam_408_context(req.course_id, req.course_name):
+        check_exam_408_usage_limit(user, "learning_report_generate", db)
+    else:
+        check_usage_limit(user.username, "learning_report_generate", db)
 
     report_type = (req.report_type or "weekly").strip()
     if report_type not in REPORT_TYPE_LABELS:

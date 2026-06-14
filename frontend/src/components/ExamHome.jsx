@@ -35,6 +35,7 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
   const [motto, setMotto] = useState("保持节奏，每天进步一点点");
   const [editingMotto, setEditingMotto] = useState(false);
   const [mottoInput, setMottoInput] = useState("");
+  const [examPackageLabel, setExamPackageLabel] = useState("");
   const mottoInputRef = useRef(null);
 
   // Fetch real data from tracks API on mount
@@ -46,6 +47,7 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
         const tracks = data.tracks || [];
         const examTrack = tracks.find((t) => t.track_type === "exam_408");
         const detail = examTrack?.onboarding_detail || {};
+        if (examTrack?.package_display_name) setExamPackageLabel(examTrack.package_display_name);
         if (detail.exam_time) setDaysLeft(calcDaysUntil(detail.exam_time));
         if (detail.target_school) setTargetSchool(detail.target_school);
         if (detail.stage) setExamStage(detail.stage);
@@ -85,7 +87,7 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
         if (examTrack?.package_type) {
           const MAP = {
             free: "免费模式",
-            monthly_sprint: "月度冲刺",
+            monthly_sprint: "月度冲刺包",
             quarterly_boost: "季度强化包",
             full_exam: "全程考包",
           };
@@ -101,7 +103,7 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
       const pkg = d?.exam_package_type || "";
       const MAP = {
         free: "免费模式",
-        monthly_sprint: "月度冲刺",
+        monthly_sprint: "月度冲刺包",
         quarterly_boost: "季度强化包",
         full_exam: "全程考包",
       };
@@ -109,7 +111,7 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
     } catch { /* ignore */ }
     return "未选择套餐";
   };
-  const packageLabel = getPackageLabel();
+  const packageLabel = examPackageLabel || getPackageLabel();
 
   const togglePlanItem = (id) => {
     setPlanItems((prev) => prev.map((p) => (p.id === id ? { ...p, done: !p.done, status: !p.done ? "已完成" : "待完成" } : p)));

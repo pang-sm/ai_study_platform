@@ -10,44 +10,9 @@ const EXAM_408_SCHOOLS = [
 
 const PACKAGE_LABELS = {
   free: "免费模式",
-  monthly_sprint: "月度冲刺",
+  monthly_sprint: "月度冲刺包",
   quarterly_boost: "季度强化包",
   full_exam: "全程考包",
-};
-
-const PACKAGE_PERKS = {
-  free: [
-    { label: "AI 问答 50 次 / 每天", ok: true },
-    { label: "AI 出题 5 次 / 每天", ok: true },
-    { label: "资料上传限制 100MB", ok: true },
-    { label: "学习计划", ok: false },
-    { label: "错题复盘", ok: false },
-    { label: "学习报告", ok: false },
-  ],
-  monthly_sprint: [
-    { label: "AI 问答 300 次 / 每天", ok: true },
-    { label: "AI 出题 30 次 / 每天", ok: true },
-    { label: "资料上传限制 500MB", ok: true },
-    { label: "学习计划", ok: true },
-    { label: "错题复盘", ok: true },
-    { label: "学习报告", ok: true },
-  ],
-  quarterly_boost: [
-    { label: "AI 问答 300 次 / 每天", ok: true },
-    { label: "AI 出题 30 次 / 每天", ok: true },
-    { label: "资料上传限制 500MB", ok: true },
-    { label: "学习计划", ok: true },
-    { label: "错题复盘", ok: true },
-    { label: "学习报告", ok: true },
-  ],
-  full_exam: [
-    { label: "AI 问答 1000 次 / 每天", ok: true },
-    { label: "AI 出题 100 次 / 每天", ok: true },
-    { label: "资料上传限制 2GB", ok: true },
-    { label: "学习计划", ok: true },
-    { label: "错题复盘", ok: true },
-    { label: "学习报告", ok: true },
-  ],
 };
 
 function maskEmail(email) {
@@ -66,6 +31,8 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
   const [actionErr, setActionErr] = useState("");
   const [editing, setEditing] = useState(false);
   const [nickname, setNickname] = useState(user?.nickname || "");
+  const [examTrack, setExamTrack] = useState(() => (user?.tracks || []).find((t) => t.track_type === "exam_408") || null);
+  const [quotaData, setQuotaData] = useState(null);
   const avatarInputRef = useRef(null);
 
   // Target school search
@@ -75,9 +42,8 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
   const [schoolFocused, setSchoolFocused] = useState(false);
   const schoolRef = useRef(null);
 
-  // Resolve package data from tracks
-  const examTrack = (user?.tracks || []).find((t) => t.track_type === "exam_408");
-  const pkgType = examTrack?.package_type || "";
+  const pkgType = examTrack?.package_type || "free";
+  const permissions = examTrack?.permissions || {};
   const onboardingDetail = (() => {
     try {
       if (examTrack?.onboarding_detail) return examTrack.onboarding_detail;
@@ -87,32 +53,43 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
     } catch { return null; }
   })();
 
-  const displayPkg = PACKAGE_LABELS[pkgType] || "免费模式";
-  const perks = PACKAGE_PERKS[pkgType] || PACKAGE_PERKS.free;
+  const displayPkg = examTrack?.package_display_name || PACKAGE_LABELS[pkgType] || "免费模式";
+  const chatLimit = permissions.ai_chat_daily_limit ?? quotaData?.feature_limits?.chat?.limit ?? 50;
+  const questionLimit = permissions.ai_question_daily_limit ?? quotaData?.feature_limits?.question_generate?.limit ?? 5;
+  const uploadLimitMb = permissions.material_upload_limit_mb ?? quotaData?.upload_limits?.single_file_size_mb ?? 100;
+  const chatUsed = quotaData?.feature_limits?.chat?.used ?? 0;
+  const questionUsed = quotaData?.feature_limits?.question_generate?.used ?? 0;
+  const uploadUsed = quotaData?.upload_limits?.material_upload_count?.used ?? 0;
+  const formatUploadLimit = (mb) => Number(mb) >= 1024 ? `${Number(mb) / 1024}GB` : `${mb}MB`;
 
   const quotaItems = [
-    { icon: "💬", label: "AI 问答次数", value: perks.find((p) => p.label.includes("AI 问答"))?.label.split("AI 问答 ")[1]?.split(" ")[0] || "300", unit: "次 / 每天", used: "45", sub: "已使用 45 次" },
-    { icon: "📝", label: "AI 出题次数", value: perks.find((p) => p.label.includes("AI 出题"))?.label.split("AI 出题 ")[1]?.split(" ")[0] || "30", unit: "次 / 每天", used: "8", sub: "已使用 8 次" },
-    { icon: "📁", label: "资料上传限制", value: perks.find((p) => p.label.includes("资料上传"))?.label.split("限制 ")[1]?.replace("MB", "") || "500", unit: "MB", used: "120", sub: "已使用 120 MB" },
-    { icon: "📋", label: "学习计划", value: perks[3]?.ok ? "已解锁" : "未解锁", unit: "", used: "", sub: perks[3]?.ok ? "进阶版可用" : "升级后可用" },
-    { icon: "🔄", label: "错题复盘", value: perks[4]?.ok ? "已解锁" : "未解锁", unit: "", used: "", sub: perks[4]?.ok ? "进阶版可用" : "升级后可用" },
-    { icon: "📊", label: "学习报告", value: perks[5]?.ok ? "已解锁" : "未解锁", unit: "", used: "", sub: perks[5]?.ok ? "进阶版可用" : "升级后可用" },
+    { icon: "💬", label: "AI 问答次数", value: chatLimit, unit: "次 / 每天", sub: `已使用 ${chatUsed} 次` },
+    { icon: "📝", label: "AI 出题次数", value: questionLimit, unit: "次 / 每天", sub: `已使用 ${questionUsed} 次` },
+    { icon: "📁", label: "资料上传限制", value: formatUploadLimit(uploadLimitMb), unit: "", sub: `已上传 ${uploadUsed} 份资料` },
+    { icon: "📋", label: "学习计划", value: permissions.learning_plan ? "已解锁" : "未解锁", unit: "", sub: permissions.learning_plan ? "当前套餐可用" : "升级后可用" },
+    { icon: "🔄", label: "错题复盘", value: permissions.mistake_review ? "已解锁" : "未解锁", unit: "", sub: permissions.mistake_review ? "当前套餐可用" : "升级后可用" },
+    { icon: "📊", label: "学习报告", value: permissions.learning_report ? "已解锁" : "未解锁", unit: "", sub: permissions.learning_report ? "当前套餐可用" : "升级后可用" },
   ];
 
-  // Fetch real target school from tracks API on every mount — no deps so always fires
-  const fetchTargetSchool = async () => {
+  const fetchExamAccountData = async () => {
     try {
       const res = await fetch(`${API_BASE}/me/tracks?username=${encodeURIComponent(user.username)}`);
       const data = await res.json().catch(() => ({}));
       const tracks = data.tracks || [];
       const examT = tracks.find((t) => t.track_type === "exam_408");
+      if (examT) setExamTrack(examT);
       const detail = examT?.onboarding_detail || {};
       const school = detail?.target_school || "";
       setTargetSchool(school);
       setSchoolQuery(school);
     } catch { /* keep current value */ }
+    try {
+      const quotaRes = await fetch(`${API_BASE}/me/quota?username=${encodeURIComponent(user.username)}`);
+      const quota = await quotaRes.json().catch(() => ({}));
+      if (quotaRes.ok) setQuotaData(quota);
+    } catch { /* keep current quota */ }
   };
-  useEffect(() => { fetchTargetSchool(); }, []);
+  useEffect(() => { fetchExamAccountData(); }, []);
 
   const fetchSchools = async (q) => {
     const query = (q || "").trim();
@@ -150,14 +127,12 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || "保存失败");
-      // Re-fetch tracks to confirm persistence
-      await fetchTargetSchool();
+      await fetchExamAccountData();
       setActionMsg("目标院校已更新");
       setTimeout(() => setActionMsg(""), 2500);
     } catch (err) {
       setActionErr(err.message);
-      // Re-fetch on error too, in case the server saved but client didn't update
-      fetchTargetSchool();
+      fetchExamAccountData();
     }
   };
 
@@ -462,7 +437,14 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
             <div className="ep-package-perks">
               <span className="ep-package-section-label">套餐权益</span>
               <ul className="ep-perks-list">
-                {perks.map((p, i) => (
+                {[
+                  { label: `AI 问答 ${chatLimit} 次 / 每天`, ok: true },
+                  { label: `AI 出题 ${questionLimit} 次 / 每天`, ok: true },
+                  { label: `资料上传限制 ${formatUploadLimit(uploadLimitMb)}`, ok: true },
+                  { label: "学习计划", ok: Boolean(permissions.learning_plan) },
+                  { label: "错题复盘", ok: Boolean(permissions.mistake_review) },
+                  { label: "学习报告", ok: Boolean(permissions.learning_report) },
+                ].map((p, i) => (
                   <li key={i} className={p.ok ? "" : "ep-perk--off"}>
                     <span className="ep-perk-check">{p.ok ? "✓" : "✕"}</span> {p.label}
                   </li>

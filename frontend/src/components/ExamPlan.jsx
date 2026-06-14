@@ -1,44 +1,32 @@
 import { useEffect, useState } from "react";
 
 const PACKAGES = [
-  { key: "free", name: "免费模式", price: "0", period: "", desc: "基础体验", features: [
-    { label: "AI 问答 50 次 / 每天", ok: true },
-    { label: "AI 出题 5 次 / 每天", ok: true },
-    { label: "资料上传限制 100MB", ok: true },
-    { label: "学习计划", ok: false },
-    { label: "错题复盘", ok: false },
-    { label: "学习报告", ok: false },
-  ], btn: "当前套餐", icon: "🎓" },
-  { key: "monthly_sprint", name: "月度冲刺包", price: "29", period: "/ 月", desc: "短期提升", features: [
-    { label: "AI 问答 300 次 / 每天", ok: true },
-    { label: "AI 出题 30 次 / 每天", ok: true },
-    { label: "资料上传限制 500MB", ok: true },
-    { label: "学习计划", ok: true },
-    { label: "错题复盘", ok: true },
-    { label: "学习报告", ok: true },
-  ], btn: "立即升级", icon: "🚀" },
-  { key: "quarterly_boost", name: "季度强化包", price: "79", period: "/ 季度", desc: "学习更稳", features: [
-    { label: "AI 问答 500 次 / 每天", ok: true },
-    { label: "AI 出题 50 次 / 每天", ok: true },
-    { label: "资料上传限制 1GB", ok: true },
-    { label: "学习计划", ok: true },
-    { label: "错题复盘", ok: true },
-    { label: "学习报告", ok: true },
-  ], btn: "立即升级", icon: "⭐", recommended: true },
-  { key: "full_exam", name: "全程备考包", price: "149", period: "/ 年", desc: "长期备考", features: [
-    { label: "AI 问答 1000 次 / 每天", ok: true },
-    { label: "AI 出题 100 次 / 每天", ok: true },
-    { label: "资料上传限制 2GB", ok: true },
-    { label: "学习计划", ok: true },
-    { label: "错题复盘", ok: true },
-    { label: "学习报告", ok: true },
-  ], btn: "立即升级", icon: "🏆" },
+  { key: "free", name: "免费模式", price: "0", period: "", desc: "基础体验", icon: "🎓", permissions: { ai_chat_daily_limit: 50, ai_question_daily_limit: 5, material_upload_limit_mb: 100, learning_plan: false, mistake_review: false, learning_report: false } },
+  { key: "monthly_sprint", name: "月度冲刺包", price: "29", period: "/ 月", desc: "短期提升", icon: "🚀", permissions: { ai_chat_daily_limit: 300, ai_question_daily_limit: 30, material_upload_limit_mb: 500, learning_plan: true, mistake_review: true, learning_report: true } },
+  { key: "quarterly_boost", name: "季度强化包", price: "79", period: "/ 季度", desc: "学习更稳", icon: "⭐", recommended: true, permissions: { ai_chat_daily_limit: 500, ai_question_daily_limit: 50, material_upload_limit_mb: 1024, learning_plan: true, mistake_review: true, learning_report: true } },
+  { key: "full_exam", name: "全程考包", price: "149", period: "/ 年", desc: "长期备考", icon: "🏆", permissions: { ai_chat_daily_limit: 1000, ai_question_daily_limit: 100, material_upload_limit_mb: 2048, learning_plan: true, mistake_review: true, learning_report: true } },
 ];
 
 const TIER_ORDER = ["free", "monthly_sprint", "quarterly_boost", "full_exam"];
 
+function formatUploadLimit(mb) {
+  return Number(mb) >= 1024 ? `${Number(mb) / 1024}GB` : `${mb}MB`;
+}
+
+function featuresFromPermissions(permissions) {
+  return [
+    { label: `AI 问答 ${permissions.ai_chat_daily_limit} 次 / 每天`, ok: true },
+    { label: `AI 出题 ${permissions.ai_question_daily_limit} 次 / 每天`, ok: true },
+    { label: `资料上传限制 ${formatUploadLimit(permissions.material_upload_limit_mb)}`, ok: true },
+    { label: "学习计划", ok: Boolean(permissions.learning_plan) },
+    { label: "错题复盘", ok: Boolean(permissions.mistake_review) },
+    { label: "学习报告", ok: Boolean(permissions.learning_report) },
+  ];
+}
+
 export default function ExamPlan({ user, setPage, API_BASE }) {
   const [currentPkg, setCurrentPkg] = useState("free");
+  const [currentTrack, setCurrentTrack] = useState(null);
   const [loading, setLoading] = useState("");
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
@@ -50,7 +38,10 @@ export default function ExamPlan({ user, setPage, API_BASE }) {
       const data = await res.json().catch(() => ({}));
       const tracks = data.tracks || [];
       const examTrack = tracks.find((t) => t.track_type === "exam_408");
-      if (examTrack?.package_type) setCurrentPkg(examTrack.package_type);
+      if (examTrack) {
+        setCurrentTrack(examTrack);
+        if (examTrack.package_type) setCurrentPkg(examTrack.package_type);
+      }
     } catch { /* keep default */ }
   };
   useEffect(() => { fetchPackage(); }, []);
@@ -73,7 +64,9 @@ export default function ExamPlan({ user, setPage, API_BASE }) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || "升级失败");
-      setCurrentPkg(pkgKey);
+      const nextTrack = data.track || null;
+      setCurrentTrack(nextTrack);
+      setCurrentPkg(nextTrack?.package_type || pkgKey);
       setMsg(data.message || "套餐已更新");
       setTimeout(() => setMsg(""), 3000);
     } catch (e) {
@@ -118,7 +111,7 @@ export default function ExamPlan({ user, setPage, API_BASE }) {
                     {pkg.period && <span className="ob-package-period">{pkg.period}</span>}
                   </div>
                   <ul className="ob-package-features">
-                    {pkg.features.map((f, i) => (
+                    {featuresFromPermissions(pkg.key === currentPkg && currentTrack?.permissions ? currentTrack.permissions : pkg.permissions).map((f, i) => (
                       <li key={i} className={f.ok ? "ob-package-feature" : "ob-package-feature ob-package-feature--unavail"}>
                         <span className="ob-package-check">{f.ok ? "✓" : "✕"}</span> {f.label}
                       </li>
