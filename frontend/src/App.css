@@ -18886,7 +18886,8 @@ select.field:focus {
   width: 100%;
   max-width: none;
   margin: 0;
-  padding: 18px 20px;
+  box-sizing: border-box;
+  padding: 10px 16px 14px;
   overflow: hidden;
 }
 
@@ -18897,6 +18898,7 @@ select.field:focus {
   display: grid;
   grid-template-columns: 246px minmax(0, 1fr) 300px;
   grid-template-rows: minmax(0, 1fr);
+  align-items: stretch;
   gap: 16px;
 }
 
@@ -18919,7 +18921,7 @@ select.field:focus {
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
   gap: 14px;
-  padding: 16px;
+  padding: 12px;
   overflow: hidden;
 }
 
@@ -19042,7 +19044,7 @@ select.field:focus {
   border-radius: 0;
   background: transparent;
   box-shadow: none;
-  padding: 18px 20px 16px;
+  padding: 12px 18px 10px;
 }
 
 .examchat-title {
@@ -19116,7 +19118,7 @@ select.field:focus {
   border-radius: 0;
   background: transparent;
   box-shadow: none;
-  padding: 18px 20px;
+  padding: 12px 18px;
 }
 
 .examchat-main-panel .examchat-empty {
@@ -19275,7 +19277,7 @@ select.field:focus {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.92), #fff);
   box-shadow: 0 -14px 34px rgba(84, 54, 168, 0.05);
-  padding: 16px 20px 18px;
+  padding: 12px 18px 14px;
 }
 
 .examchat-selected-bar {
@@ -19498,7 +19500,7 @@ select.field:focus {
 }
 
 .examchat-side-card {
-  padding: 18px;
+  padding: 14px;
 }
 
 .examchat-side-title {
