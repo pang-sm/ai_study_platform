@@ -18890,7 +18890,8 @@ select.field:focus {
   max-width: none;
   margin: 0;
   box-sizing: border-box;
-  padding: 40px 16px 0;
+  height: 100vh;
+  padding: 32px 16px 16px;
   overflow: hidden;
 }
 
@@ -19117,11 +19118,13 @@ select.field:focus {
 .examchat-main-panel .examchat-messages {
   min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   border: none;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
-  padding: 12px 18px;
+  padding: 20px 18px 24px;
+  scroll-padding-top: 20px;
 }
 
 .examchat-main-panel .examchat-empty {

@@ -79,6 +79,7 @@ class ChatSession(Base):
     title = Column(String(255), nullable=False)
     course = Column(String(100), nullable=True)
     subject = Column(String(100), nullable=True)
+    exam_subject = Column(String(64), nullable=True)
     created_at = Column(DateTime, default=utc_now)
 
 

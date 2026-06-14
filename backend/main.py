@@ -1593,6 +1593,21 @@ def check_usage_limit(username: str, feature: str, db: Session):
 
 EXAM_408_SUBJECT_KEYWORDS = ("11408", "数据结构", "计算机组成原理", "操作系统", "计算机网络")
 
+EXAM_408_SUBJECT_KEYS = {
+    "data_structure",
+    "computer_organization",
+    "operating_system",
+    "computer_network",
+}
+
+
+def normalize_exam_subject_key(*values: str | None) -> str:
+    for value in values:
+        key = (value or "").strip().lower().replace("-", "_").replace(" ", "_")
+        if key in EXAM_408_SUBJECT_KEYS:
+            return key
+    return ""
+
 
 def is_exam_408_context(subject: str | None = "", course: str | None = "") -> bool:
     text = f"{subject or ''} {course or ''}".strip()
@@ -1841,6 +1856,7 @@ def serialize_session(chat_session: models.ChatSession):
         "title": chat_session.title,
         "course": chat_session.course or session_subject,
         "subject": session_subject,
+        "exam_subject": chat_session.exam_subject or "",
         "created_at": chat_session.created_at,
     }
 
@@ -5153,6 +5169,7 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
 
     user = get_user_by_username(req.username, db)
     subject = normalize_subject(req.subject, req.course)
+    exam_subject = normalize_exam_subject_key(req.exam_subject, req.subject_key)
     material_ids = sorted({int(item) for item in (req.material_ids or []) if int(item) > 0})
     selected_materials: list[models.StudyMaterial] = []
     branch_id = (req.branch_id or "").strip()[:64]
@@ -5201,8 +5218,11 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
             chat_session.subject = subject
         if not (chat_session.course or "").strip():
             chat_session.course = subject
+        session_exam_subject = normalize_exam_subject_key(chat_session.exam_subject)
+        if exam_subject and session_exam_subject != exam_subject:
+            raise HTTPException(status_code=400, detail="当前对话不属于该 11408 科目，请先新建本科目对话")
         session_subject = normalize_subject(chat_session.subject, chat_session.course)
-        if subject and session_subject and session_subject != subject:
+        if not exam_subject and subject and session_subject and session_subject != subject:
             raise HTTPException(status_code=400, detail="当前对话不属于该科目，请先新建本科目对话")
         db.commit()
         db.refresh(chat_session)
@@ -5217,6 +5237,7 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
             title=title,
             course=subject,
             subject=subject,
+            exam_subject=exam_subject or None,
         )
         db.add(chat_session)
         db.commit()
@@ -6431,13 +6452,18 @@ def get_chat_history(
     username: str,
     subject: str = "",
     course: str = "",
+    subject_key: str = "",
+    exam_subject: str = "",
     db: Session = Depends(get_db),
 ):
     user = get_user_by_username(username, db)
     normalized_subject = normalize_subject(subject, course, default="") if (subject or course) else ""
+    normalized_exam_subject = normalize_exam_subject_key(exam_subject, subject_key)
 
     query = db.query(models.ChatSession).filter(models.ChatSession.user_id == user.id)
-    if normalized_subject:
+    if normalized_exam_subject:
+        query = query.filter(models.ChatSession.exam_subject == normalized_exam_subject)
+    elif normalized_subject:
         query = query.filter(
             or_(
                 models.ChatSession.subject == normalized_subject,
@@ -6456,10 +6482,13 @@ def get_chat_session_messages(
     username: str,
     subject: str = "",
     course: str = "",
+    subject_key: str = "",
+    exam_subject: str = "",
     db: Session = Depends(get_db),
 ):
     user = get_user_by_username(username, db)
     normalized_subject = normalize_subject(subject, course, default="") if (subject or course) else ""
+    normalized_exam_subject = normalize_exam_subject_key(exam_subject, subject_key)
 
     chat_session = (
         db.query(models.ChatSession)
@@ -6472,8 +6501,11 @@ def get_chat_session_messages(
     if not chat_session:
         raise HTTPException(status_code=404, detail="聊天记录不存在")
 
+    session_exam_subject = normalize_exam_subject_key(chat_session.exam_subject)
+    if normalized_exam_subject and session_exam_subject != normalized_exam_subject:
+        raise HTTPException(status_code=404, detail="Chat session not found for this subject")
     session_subject = normalize_subject(chat_session.subject, chat_session.course, default="")
-    if normalized_subject and session_subject and session_subject != normalized_subject:
+    if not normalized_exam_subject and normalized_subject and session_subject and session_subject != normalized_subject:
         raise HTTPException(status_code=404, detail="Chat session not found for this subject")
 
     messages = (
@@ -6493,7 +6525,13 @@ def get_chat_session_messages(
 
 
 @app.delete("/chat/sessions/{session_id}")
-def delete_chat_session(session_id: int, username: str, db: Session = Depends(get_db)):
+def delete_chat_session(
+    session_id: int,
+    username: str,
+    subject_key: str = "",
+    exam_subject: str = "",
+    db: Session = Depends(get_db),
+):
     user = get_user_by_username(username, db)
 
     chat_session = (
@@ -6506,6 +6544,10 @@ def delete_chat_session(session_id: int, username: str, db: Session = Depends(ge
     )
     if not chat_session:
         raise HTTPException(status_code=404, detail="聊天记录不存在")
+
+    normalized_exam_subject = normalize_exam_subject_key(exam_subject, subject_key)
+    if normalized_exam_subject and normalize_exam_subject_key(chat_session.exam_subject) != normalized_exam_subject:
+        raise HTTPException(status_code=404, detail="Chat session not found for this subject")
 
     db.query(models.ChatMessage).filter(
         models.ChatMessage.session_id == session_id,
@@ -9627,6 +9669,8 @@ def rename_conversation(
     conversation_id: int,
     req: RenameConversationRequest,
     username: str,
+    subject_key: str = "",
+    exam_subject: str = "",
     db: Session = Depends(get_db),
 ):
     user = get_user_by_username(username, db)
@@ -9636,6 +9680,19 @@ def rename_conversation(
         raise HTTPException(status_code=400, detail="标题不能为空")
     if len(title) > 50:
         title = title[:50]
+
+    normalized_exam_subject = normalize_exam_subject_key(exam_subject, subject_key)
+    if normalized_exam_subject:
+        existing_conversation = (
+            db.query(models.ChatSession)
+            .filter(
+                models.ChatSession.id == conversation_id,
+                models.ChatSession.user_id == user.id,
+            )
+            .first()
+        )
+        if not existing_conversation or normalize_exam_subject_key(existing_conversation.exam_subject) != normalized_exam_subject:
+            raise HTTPException(status_code=404, detail="Chat session not found for this subject")
 
     conversation = update_conversation_title(
         db=db,

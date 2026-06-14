@@ -4,7 +4,7 @@ import ExamChat from "./ExamChat.jsx";
 const SUBJECT_CONFIG = {
   data_structure: {
     title: "数据结构",
-    icon: "▦",
+    icon: "DS",
     hero: "开始今天的数据结构学习",
     subtitle: "线性表、栈与队列、树和图，是 11408 高频得分区。",
     tags: ["线性表", "栈与队列", "树", "图"],
@@ -14,7 +14,7 @@ const SUBJECT_CONFIG = {
   },
   computer_organization: {
     title: "计算机组成原理",
-    icon: "▣",
+    icon: "CO",
     hero: "开始今天的计算机组成原理学习",
     subtitle: "围绕数据表示、CPU、存储系统和指令系统建立硬件视角。",
     tags: ["数据表示", "CPU", "存储系统", "指令系统"],
@@ -24,7 +24,7 @@ const SUBJECT_CONFIG = {
   },
   operating_system: {
     title: "操作系统",
-    icon: "◈",
+    icon: "OS",
     hero: "开始今天的操作系统学习",
     subtitle: "从进程、内存、文件系统到 I/O，建立系统运行的整体模型。",
     tags: ["进程管理", "内存管理", "文件系统", "I/O"],
@@ -34,7 +34,7 @@ const SUBJECT_CONFIG = {
   },
   computer_network: {
     title: "计算机网络",
-    icon: "◎",
+    icon: "CN",
     hero: "开始今天的计算机网络学习",
     subtitle: "按网络体系结构逐层复盘，把协议、报文和计算题串起来。",
     tags: ["网络体系结构", "传输层", "网络层", "应用层"],
@@ -45,13 +45,13 @@ const SUBJECT_CONFIG = {
 };
 
 const NAV_ITEMS = [
-  { key: "home", label: "首页", icon: "⌂" },
-  { key: "ai", label: "AI 问答", icon: "◌" },
-  { key: "materials", label: "资料库", icon: "▤" },
-  { key: "knowledge", label: "知识脉络", icon: "⌘" },
-  { key: "plan", label: "学习计划", icon: "◫" },
-  { key: "practice", label: "练习中心", icon: "✎" },
-  { key: "report", label: "学习报告", icon: "▧" },
+  { key: "home", label: "首页", icon: "首" },
+  { key: "ai", label: "AI 问答", icon: "问" },
+  { key: "materials", label: "资料库", icon: "资" },
+  { key: "knowledge", label: "知识脉络", icon: "知" },
+  { key: "plan", label: "学习计划", icon: "计" },
+  { key: "practice", label: "练习中心", icon: "练" },
+  { key: "report", label: "学习报告", icon: "报" },
 ];
 
 const MATERIAL_LABELS = ["课件讲义", "习题集", "参考资料", "代码示例"];
@@ -74,19 +74,21 @@ export default function ExamSubjectDashboard({
   onBackHome,
   onProfile,
 }) {
-  // Persist activeSection per subject to survive refresh
-  const PANEL_KEY = `exam_subject_active_panel_${subjectKey}`;
+  const panelStorageKey = `exam_subject_active_panel_${subjectKey}`;
   const normalizePanel = (panel) => (panel === "ai" || panel === "home" ? panel : null);
   const getSavedPanel = () => {
     try {
-      const raw = localStorage.getItem(PANEL_KEY);
+      const raw = localStorage.getItem(panelStorageKey);
       if (raw) {
-        const d = JSON.parse(raw);
-        return normalizePanel(d?.activePanel) || "home";
+        const data = JSON.parse(raw);
+        return normalizePanel(data?.activePanel) || "home";
       }
-    } catch { /* ignore */ }
+    } catch {
+      // Ignore corrupt local UI state.
+    }
     return "home";
   };
+
   const [activeSection, setActiveSection] = useState(() => normalizePanel(panelIntent?.panel) || getSavedPanel());
   const config = getExamSubjectConfig(subjectKey);
   const courseId = getExamCourseId(subjectKey);
@@ -96,12 +98,15 @@ export default function ExamSubjectDashboard({
     if (!panelIntent?.panel) return;
     const nextPanel = normalizePanel(panelIntent.panel);
     if (nextPanel) setActiveSection(nextPanel);
-  }, [panelIntent?.nonce]);
+  }, [panelIntent?.nonce, panelIntent?.panel]);
 
-  // Persist on change
   useEffect(() => {
-    try { localStorage.setItem(PANEL_KEY, JSON.stringify({ activePanel: activeSection, ts: Date.now() })); } catch { /* ignore */ }
-  }, [PANEL_KEY, activeSection]);
+    try {
+      localStorage.setItem(panelStorageKey, JSON.stringify({ activePanel: activeSection, ts: Date.now() }));
+    } catch {
+      // Ignore private-mode storage failures.
+    }
+  }, [panelStorageKey, activeSection]);
 
   const navigate = (target) => {
     if (target === "home") {
@@ -133,7 +138,7 @@ export default function ExamSubjectDashboard({
         </nav>
 
         <button type="button" className="exam-subject-back" onClick={onBackHome}>
-          ← 返回主页
+          返回主页
         </button>
       </aside>
 
@@ -149,96 +154,95 @@ export default function ExamSubjectDashboard({
           />
         ) : (
           <>
-        <header className="exam-subject-header">
-          <div>
-            <div className="exam-subject-title-row">
-              <span className="exam-subject-logo">{config.icon}</span>
+            <header className="exam-subject-header">
               <div>
-                <h1>{config.title}</h1>
-                <p>课程学习 / 当前科目</p>
-              </div>
-            </div>
-          </div>
-          <button type="button" className="exam-subject-profile" onClick={onProfile}>
-            <span>{displayName.charAt(0)}</span>
-            个人资料
-            <b>⌄</b>
-          </button>
-        </header>
-
-        <section className="exam-subject-top-grid">
-          <div className="exam-subject-hero">
-            <div>
-              <h2>{config.hero}</h2>
-              <p>{config.subtitle}</p>
-              <div className="exam-subject-tags">
-                {config.tags.map((tag) => <span key={tag}>{tag}</span>)}
-              </div>
-            </div>
-            <div className="exam-subject-hero-art" aria-hidden="true">
-              <span>{config.icon}</span>
-            </div>
-          </div>
-
-          <div className="exam-subject-card exam-subject-overview">
-            <h3>课程概览</h3>
-            <div className="exam-subject-overview-grid">
-              <Metric label="总章节" value={`${config.overview.chapters} 个`} />
-              <Metric label="知识点" value={`${config.overview.knowledge} 个`} />
-              <Metric label="已学习" value={`${config.overview.learned}%`} />
-              <Metric label="学习时长" value={`${config.overview.hours} 小时`} />
-            </div>
-          </div>
-        </section>
-
-        <section className="exam-subject-content-grid">
-          <div className="exam-subject-card">
-            <h3>今日学习计划</h3>
-            <div className="exam-subject-plan-list">
-              {config.plan.map((item, index) => (
-                <div key={item} className="exam-subject-plan-item">
-                  <span>{index === 0 ? "✓" : index + 1}</span>
+                <div className="exam-subject-title-row">
+                  <span className="exam-subject-logo">{config.icon}</span>
                   <div>
-                    <strong>{item}</strong>
-                    <p>第 {Math.max(1, index + 1)} 章 · {config.title}</p>
+                    <h1>{config.title}</h1>
+                    <p>课程学习 / 当前科目</p>
                   </div>
-                  <button type="button" onClick={() => navigate("plan")}>
-                    {index === 0 ? "继续学习" : "去学习"}
-                  </button>
                 </div>
-              ))}
-            </div>
-          </div>
+              </div>
+              <button type="button" className="exam-subject-profile" onClick={onProfile}>
+                <span>{displayName.charAt(0)}</span>
+                个人资料
+              </button>
+            </header>
 
-          <div className="exam-subject-card">
-            <h3>资料库概览</h3>
-            <div className="exam-subject-material-grid">
-              {MATERIAL_LABELS.map((label, index) => (
-                <button key={label} type="button" onClick={() => navigate("materials")}>
-                  <span>{label}</span>
-                  <strong>{config.materials[index]} 份</strong>
-                </button>
-              ))}
-            </div>
-          </div>
+            <section className="exam-subject-top-grid">
+              <div className="exam-subject-hero">
+                <div>
+                  <h2>{config.hero}</h2>
+                  <p>{config.subtitle}</p>
+                  <div className="exam-subject-tags">
+                    {config.tags.map((tag) => <span key={tag}>{tag}</span>)}
+                  </div>
+                </div>
+                <div className="exam-subject-hero-art" aria-hidden="true">
+                  <span>{config.icon}</span>
+                </div>
+              </div>
 
-          <div className="exam-subject-card exam-subject-knowledge-card">
-            <h3>知识脉络</h3>
-            <div className="exam-subject-knowledge-map">
-              <strong>{config.title}</strong>
-              {config.tags.map((tag) => <span key={tag}>{tag}</span>)}
-            </div>
-          </div>
+              <div className="exam-subject-card exam-subject-overview">
+                <h3>课程概览</h3>
+                <div className="exam-subject-overview-grid">
+                  <Metric label="总章节" value={`${config.overview.chapters} 个`} />
+                  <Metric label="知识点" value={`${config.overview.knowledge} 个`} />
+                  <Metric label="已学习" value={`${config.overview.learned}%`} />
+                  <Metric label="学习时长" value={`${config.overview.hours} 小时`} />
+                </div>
+              </div>
+            </section>
 
-          <div className="exam-subject-card">
-            <h3>额度剩余</h3>
-            <div className="exam-subject-quota-list">
-              <Quota label="AI 问答剩余" value="42 / 50" percent={84} />
-              <Quota label="AI 出题剩余" value="8 / 10" percent={80} />
-              <Quota label="资料上传剩余" value="6 / 10" percent={60} />
-            </div>
-          </div>
-        </section>
+            <section className="exam-subject-content-grid">
+              <div className="exam-subject-card">
+                <h3>今日学习计划</h3>
+                <div className="exam-subject-plan-list">
+                  {config.plan.map((item, index) => (
+                    <div key={item} className="exam-subject-plan-item">
+                      <span>{index + 1}</span>
+                      <div>
+                        <strong>{item}</strong>
+                        <p>第 {Math.max(1, index + 1)} 章 · {config.title}</p>
+                      </div>
+                      <button type="button" onClick={() => navigate("plan")}>
+                        {index === 0 ? "继续学习" : "去学习"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="exam-subject-card">
+                <h3>资料库概览</h3>
+                <div className="exam-subject-material-grid">
+                  {MATERIAL_LABELS.map((label, index) => (
+                    <button key={label} type="button" onClick={() => navigate("materials")}>
+                      <span>{label}</span>
+                      <strong>{config.materials[index]} 份</strong>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="exam-subject-card exam-subject-knowledge-card">
+                <h3>知识脉络</h3>
+                <div className="exam-subject-knowledge-map">
+                  <strong>{config.title}</strong>
+                  {config.tags.map((tag) => <span key={tag}>{tag}</span>)}
+                </div>
+              </div>
+
+              <div className="exam-subject-card">
+                <h3>额度剩余</h3>
+                <div className="exam-subject-quota-list">
+                  <Quota label="AI 问答剩余" value="42 / 50" percent={84} />
+                  <Quota label="AI 出题剩余" value="8 / 10" percent={80} />
+                  <Quota label="资料上传剩余" value="6 / 10" percent={60} />
+                </div>
+              </div>
+            </section>
           </>
         )}
       </main>

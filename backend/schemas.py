@@ -15,6 +15,8 @@ class ChatRequest(BaseModel):
     message: str
     subject: str = ""
     course: str = ""
+    subject_key: str = ""
+    exam_subject: str = ""
     grade: str = ""
     major: str = ""
     username: str | None = None

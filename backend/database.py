@@ -63,6 +63,7 @@ PROFILE_COLUMNS = {
 CHAT_SESSION_COLUMNS = {
     "course": "VARCHAR(100)",
     "subject": "VARCHAR(100)",
+    "exam_subject": "VARCHAR(64)",
 }
 
 CHAT_MESSAGE_COLUMNS = {

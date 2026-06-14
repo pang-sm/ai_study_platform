@@ -5,6 +5,13 @@ import MaterialPickerModal from "./MaterialPickerModal.jsx";
 const API_BASE = "/api";
 const ALLOWED_UPLOAD_EXTENSIONS = ".pdf,.png,.jpg,.jpeg,.webp,.docx,.pptx,.txt,.md,.markdown,.py,.java,.c,.cpp,.h,.hpp,.js,.jsx,.ts,.tsx,.html,.htm,.css,.json,.xml,.yaml,.yml,.sql,.sh,.bash,.go,.rs,.php,.rb";
 
+const SUBJECT_LABELS = {
+  data_structure: "数据结构",
+  computer_organization: "计算机组成原理",
+  operating_system: "操作系统",
+  computer_network: "计算机网络",
+};
+
 const SUBJECT_RECOMMENDATIONS = {
   data_structure: [
     "线性表和链表有什么区别？",
@@ -35,6 +42,10 @@ const SUBJECT_RECOMMENDATIONS = {
     "网络层和传输层各自负责什么？",
   ],
 };
+
+function getSubjectLabel(subjectKey, fallback = "") {
+  return SUBJECT_LABELS[subjectKey] || fallback || "11408";
+}
 
 function formatTime(value) {
   if (!value) return "";
@@ -164,9 +175,7 @@ function buildConversationView(rawMessages) {
   if (branchGroups.size === 0) return normalized;
 
   const branchUserIds = new Set();
-  branchGroups.forEach((group) => {
-    group.userIds.forEach((id) => branchUserIds.add(id));
-  });
+  branchGroups.forEach((group) => group.userIds.forEach((id) => branchUserIds.add(id)));
 
   const isAllowedInActivePath = (message, index) => {
     for (const group of branchGroups.values()) {
@@ -196,6 +205,7 @@ function buildConversationView(rawMessages) {
           renderedBranchAssistantParents.add(String(versionMessage.id));
           return {
             message_id: versionMessage.id,
+            clientId: versionMessage.clientId,
             userContent: versionMessage.content || "",
             assistantMessages: assistants,
             branch_id: versionMessage.branch_id || "",
@@ -216,15 +226,9 @@ function buildConversationView(rawMessages) {
       }
     }
 
-    if (message.role === "assistant" && renderedBranchAssistantParents.has(String(message.parent_message_id))) {
-      return;
-    }
-    if (message.role === "user" && branchUserIds.has(String(message.id))) {
-      return;
-    }
-    if (!isAllowedInActivePath(message, index)) {
-      return;
-    }
+    if (message.role === "assistant" && renderedBranchAssistantParents.has(String(message.parent_message_id))) return;
+    if (message.role === "user" && branchUserIds.has(String(message.id))) return;
+    if (!isAllowedInActivePath(message, index)) return;
     result.push(message);
   });
 
@@ -236,8 +240,8 @@ export default function ExamChat({
   subjectKey,
   subjectTitle,
   courseName,
-  onBackDashboard,
 }) {
+  const subjectLabel = getSubjectLabel(subjectKey, subjectTitle);
   const [currentSessionId, setCurrentSessionId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [historySessions, setHistorySessions] = useState([]);
@@ -254,13 +258,14 @@ export default function ExamChat({
   const [toolMenuOpen, setToolMenuOpen] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [editingText, setEditingText] = useState("");
-  const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
   const lastUserMessageRef = useRef(null);
   const currentSessionIdRef = useRef(null);
   const currentBranchIdRef = useRef("");
   const uploadInputRef = useRef(null);
   const toolMenuRef = useRef(null);
   const userInteractedRef = useRef(false);
+  const shouldScrollToLatestUserRef = useRef(false);
 
   const recommendations = useMemo(() => getRecommendations(subjectKey).slice(0, 5), [subjectKey]);
   const lastUserMessageId = useMemo(() => {
@@ -269,6 +274,28 @@ export default function ExamChat({
     }
     return null;
   }, [messages]);
+
+  const buildScopeParams = useCallback((includeUser = true) => {
+    const query = new URLSearchParams();
+    if (includeUser && user?.username) query.set("username", user.username);
+    if (subjectKey) {
+      query.set("subject_key", subjectKey);
+      query.set("exam_subject", subjectKey);
+    }
+    if (subjectLabel) query.set("subject", subjectLabel);
+    if (courseName) query.set("course", courseName);
+    return query;
+  }, [courseName, subjectKey, subjectLabel, user?.username]);
+
+  const buildChatPayload = useCallback((message, extra = {}) => ({
+    username: user.username,
+    message,
+    subject: subjectLabel,
+    course: courseName,
+    subject_key: subjectKey,
+    exam_subject: subjectKey,
+    ...extra,
+  }), [courseName, subjectKey, subjectLabel, user?.username]);
 
   const canReferenceMaterial = useCallback((material) => {
     const status = String(material?.parse_status || "").toLowerCase();
@@ -279,25 +306,20 @@ export default function ExamChat({
     const status = String(material?.parse_status || "").toLowerCase();
     if (status === "pending" || status === "parsing") return "资料正在解析，完成后可引用";
     if (status === "failed") return "资料解析失败，不能用于问答";
-    if ((status === "success" || status === "partial") && Number(material?.chunk_count || 0) <= 0) {
-      return "尚未生成知识片段";
-    }
+    if ((status === "success" || status === "partial") && Number(material?.chunk_count || 0) <= 0) return "尚未生成知识片段";
     return "暂不可引用";
   }, []);
 
   const loadHistory = useCallback(async () => {
     if (!user?.username) return;
     try {
-      const query = new URLSearchParams({ username: user.username });
-      if (subjectTitle) query.set("subject", subjectTitle);
-      if (courseName) query.set("course", courseName);
-      const res = await fetch(`${API_BASE}/chat/history?${query.toString()}`);
+      const res = await fetch(`${API_BASE}/chat/history?${buildScopeParams().toString()}`);
       const data = await res.json().catch(() => ({}));
       setHistorySessions(Array.isArray(data.sessions) ? data.sessions : []);
     } catch {
       setHistorySessions([]);
     }
-  }, [courseName, subjectTitle, user?.username]);
+  }, [buildScopeParams, user?.username]);
 
   const loadMaterials = useCallback(async () => {
     if (!user?.username) return [];
@@ -319,12 +341,27 @@ export default function ExamChat({
   }, [courseName, user?.username]);
 
   const updateCurrentSessionId = useCallback((sessionId) => {
-    const nextSessionId = sessionId === null || sessionId === undefined || sessionId === ""
-      ? null
-      : Number(sessionId);
+    const nextSessionId = sessionId === null || sessionId === undefined || sessionId === "" ? null : Number(sessionId);
     const safeSessionId = Number.isNaN(nextSessionId) ? sessionId : nextSessionId;
     currentSessionIdRef.current = safeSessionId;
     setCurrentSessionId(safeSessionId);
+  }, []);
+
+  const scrollMessagesToTop = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      const container = messagesContainerRef.current;
+      if (container) container.scrollTop = 0;
+    });
+  }, []);
+
+  const scrollToLatestUser = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      const container = messagesContainerRef.current;
+      const target = lastUserMessageRef.current;
+      if (!container || !target) return;
+      const top = target.offsetTop - container.offsetTop - 12;
+      container.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+    });
   }, []);
 
   const loadSession = useCallback(async (sessionId, options = {}) => {
@@ -332,10 +369,7 @@ export default function ExamChat({
     const preserveCurrentMessages = Boolean(options.preserveCurrentMessages);
     setError("");
     try {
-      const query = new URLSearchParams({ username: user.username });
-      if (subjectTitle) query.set("subject", subjectTitle);
-      if (courseName) query.set("course", courseName);
-      const res = await fetch(`${API_BASE}/chat/sessions/${sessionId}?${query.toString()}`);
+      const res = await fetch(`${API_BASE}/chat/sessions/${sessionId}?${buildScopeParams().toString()}`);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || "加载历史对话失败");
       if (preserveCurrentMessages && userInteractedRef.current) return;
@@ -344,16 +378,19 @@ export default function ExamChat({
       const nextMessages = buildConversationView(data.messages);
       const lastUser = [...nextMessages].reverse().find((message) => message.role === "user");
       currentBranchIdRef.current = lastUser?.branch_id || "";
+      shouldScrollToLatestUserRef.current = false;
       setMessages(nextMessages);
+      scrollMessagesToTop();
     } catch (err) {
       setError(err.message || "加载历史对话失败");
     }
-  }, [courseName, subjectTitle, updateCurrentSessionId, user?.username]);
+  }, [buildScopeParams, scrollMessagesToTop, updateCurrentSessionId, user?.username]);
 
   useEffect(() => {
     userInteractedRef.current = false;
     currentSessionIdRef.current = null;
     currentBranchIdRef.current = "";
+    shouldScrollToLatestUserRef.current = false;
     setCurrentSessionId(null);
     setMessages([]);
     setInputText("");
@@ -363,22 +400,18 @@ export default function ExamChat({
     setError("");
     setNotice("");
     loadHistory();
-  }, [loadHistory, subjectKey]);
+    scrollMessagesToTop();
+  }, [loadHistory, scrollMessagesToTop, subjectKey]);
 
   useEffect(() => {
-    if (lastUserMessageRef.current) {
-      lastUserMessageRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-      return;
-    }
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages, loading]);
+    if (!shouldScrollToLatestUserRef.current) return;
+    scrollToLatestUser();
+  }, [messages, loading, scrollToLatestUser]);
 
   useEffect(() => {
-    if (!toolMenuOpen) return;
+    if (!toolMenuOpen) return undefined;
     const handlePointerDown = (event) => {
-      if (!toolMenuRef.current?.contains(event.target)) {
-        setToolMenuOpen(false);
-      }
+      if (!toolMenuRef.current?.contains(event.target)) setToolMenuOpen(false);
     };
     document.addEventListener("mousedown", handlePointerDown);
     return () => document.removeEventListener("mousedown", handlePointerDown);
@@ -400,24 +433,23 @@ export default function ExamChat({
     userInteractedRef.current = true;
     updateCurrentSessionId(null);
     currentBranchIdRef.current = "";
+    shouldScrollToLatestUserRef.current = false;
     setMessages([]);
     setInputText("");
     setEditingMessageId(null);
     setEditingText("");
     setError("");
     setNotice("");
+    scrollMessagesToTop();
   };
 
   const deleteSession = async (sessionId, event) => {
     event.stopPropagation();
     if (!user?.username) return;
     try {
-      await fetch(`${API_BASE}/chat/sessions/${sessionId}?username=${encodeURIComponent(user.username)}`, {
-        method: "DELETE",
-      });
-      if (currentSessionIdRef.current === sessionId || Number(currentSessionIdRef.current) === Number(sessionId)) {
-        startNewConversation();
-      }
+      const query = buildScopeParams();
+      await fetch(`${API_BASE}/chat/sessions/${sessionId}?${query.toString()}`, { method: "DELETE" });
+      if (currentSessionIdRef.current === sessionId || Number(currentSessionIdRef.current) === Number(sessionId)) startNewConversation();
       loadHistory();
     } catch {
       setError("暂时无法删除该对话");
@@ -432,16 +464,15 @@ export default function ExamChat({
     const title = inputTitle.trim();
     if (!title) return;
     try {
-      const res = await fetch(`${API_BASE}/conversations/${session.id}?username=${encodeURIComponent(user.username)}`, {
+      const query = buildScopeParams();
+      const res = await fetch(`${API_BASE}/conversations/${session.id}?${query.toString()}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || "重命名失败");
-      setHistorySessions((prev) => prev.map((item) => (
-        item.id === session.id ? { ...item, title: data.title || title } : item
-      )));
+      setHistorySessions((prev) => prev.map((item) => (item.id === session.id ? { ...item, title: data.title || title } : item)));
     } catch (err) {
       setError(err.message || "暂时无法重命名该对话");
     }
@@ -472,7 +503,7 @@ export default function ExamChat({
         const formData = new FormData();
         formData.append("file", file);
         formData.append("username", user.username);
-        formData.append("subject", courseName || subjectTitle);
+        formData.append("subject", courseName || subjectLabel);
         formData.append("save_to_materials", "true");
         const res = await fetch(`${API_BASE}/materials/upload`, {
           method: "POST",
@@ -486,9 +517,7 @@ export default function ExamChat({
       }
       const latestMaterials = await loadMaterials();
       const byId = new Map(latestMaterials.map((material) => [material.id, material]));
-      const readyUploads = uploadedMaterials
-        .map((material) => byId.get(material.id) || material)
-        .filter(canReferenceMaterial);
+      const readyUploads = uploadedMaterials.map((material) => byId.get(material.id) || material).filter(canReferenceMaterial);
       if (readyUploads.length > 0) {
         setSelectedMaterials((prev) => {
           const existing = new Set(prev.map((item) => item.id));
@@ -505,7 +534,7 @@ export default function ExamChat({
     }
   };
 
-  const getMessageKey = (message) => String(message?.id ?? message?.clientId ?? "");
+  const getMessageKey = (message) => String(message?.clientId ?? message?.id ?? "");
 
   const collectFollowingAssistants = (items, startIndex) => {
     const assistants = [];
@@ -544,6 +573,7 @@ export default function ExamChat({
 
       const nextVersion = versions[nextVersionIndex];
       currentBranchIdRef.current = nextVersion.branch_id || "";
+      shouldScrollToLatestUserRef.current = true;
       const restoredAssistants = (Array.isArray(nextVersion.assistantMessages) ? nextVersion.assistantMessages : [])
         .map((assistant) => ({ ...assistant, animateTyping: false }));
 
@@ -571,61 +601,54 @@ export default function ExamChat({
     const nextContent = editingText.trim();
     if (!nextContent || loading || !user?.username) return;
 
-    let sourceMessage = null;
-    let sourceIndex = -1;
-    let nextVersions = [];
-
-    setMessages((prev) => {
-      const index = prev.findIndex((item) => getMessageKey(item) === String(messageKey));
-      if (index === -1 || prev[index]?.role !== "user") return prev;
-      sourceMessage = prev[index];
-      sourceIndex = index;
-
-      const oldVersions = Array.isArray(sourceMessage.versions) && sourceMessage.versions.length > 0
-        ? [...sourceMessage.versions]
-        : [{
-            userContent: sourceMessage.content || "",
-            message_id: sourceMessage.id,
-            clientId: sourceMessage.clientId,
-            assistantMessages: collectFollowingAssistants(prev, index),
-            branch_id: sourceMessage.branch_id || "",
-            root_message_id: sourceMessage.root_message_id ?? sourceMessage.id ?? null,
-            parent_message_id: sourceMessage.parent_message_id ?? null,
-            version_index: sourceMessage.version_index || 0,
-            createdAt: sourceMessage.created_at || new Date().toISOString(),
-          }];
-      const currentVersionIndex = Number(sourceMessage.currentVersionIndex || 0);
-      if (oldVersions[currentVersionIndex]) {
-        oldVersions[currentVersionIndex] = {
-          ...oldVersions[currentVersionIndex],
-          assistantMessages: collectFollowingAssistants(prev, index),
-        };
-      }
-      nextVersions = [
-        ...oldVersions,
-        {
-          message_id: null,
-          userContent: nextContent,
-          assistantMessages: [],
-          branch_id: "",
+    const sourceIndex = messages.findIndex((item) => getMessageKey(item) === String(messageKey));
+    if (sourceIndex === -1 || messages[sourceIndex]?.role !== "user") return;
+    const sourceMessage = messages[sourceIndex];
+    const oldVersions = Array.isArray(sourceMessage.versions) && sourceMessage.versions.length > 0
+      ? [...sourceMessage.versions]
+      : [{
+          message_id: sourceMessage.id,
+          clientId: sourceMessage.clientId,
+          userContent: sourceMessage.content || "",
+          assistantMessages: collectFollowingAssistants(messages, sourceIndex),
+          branch_id: sourceMessage.branch_id || "",
           root_message_id: sourceMessage.root_message_id ?? sourceMessage.id ?? null,
-          parent_message_id: sourceMessage.id ?? null,
-          version_index: oldVersions.length,
-          createdAt: new Date().toISOString(),
-        },
-      ];
+          parent_message_id: sourceMessage.parent_message_id ?? null,
+          version_index: sourceMessage.version_index || 0,
+          createdAt: sourceMessage.created_at || new Date().toISOString(),
+        }];
+    const currentVersionIndex = Number(sourceMessage.currentVersionIndex || 0);
+    if (oldVersions[currentVersionIndex]) {
+      oldVersions[currentVersionIndex] = {
+        ...oldVersions[currentVersionIndex],
+        assistantMessages: collectFollowingAssistants(messages, sourceIndex),
+      };
+    }
+    const nextVersions = [
+      ...oldVersions,
+      {
+        message_id: null,
+        userContent: nextContent,
+        assistantMessages: [],
+        branch_id: "",
+        root_message_id: sourceMessage.root_message_id ?? sourceMessage.id ?? null,
+        parent_message_id: sourceMessage.id ?? null,
+        version_index: oldVersions.length,
+        createdAt: new Date().toISOString(),
+      },
+    ];
 
-      return [
-        ...prev.slice(0, index),
-        {
-          ...sourceMessage,
-          content: nextContent,
-          versions: nextVersions,
-          currentVersionIndex: nextVersions.length - 1,
-          edited: true,
-        },
-      ];
-    });
+    shouldScrollToLatestUserRef.current = true;
+    setMessages((prev) => [
+      ...prev.slice(0, sourceIndex),
+      {
+        ...sourceMessage,
+        content: nextContent,
+        versions: nextVersions,
+        currentVersionIndex: nextVersions.length - 1,
+        edited: true,
+      },
+    ]);
 
     if (!sourceMessage || sourceIndex === -1) return;
 
@@ -638,18 +661,14 @@ export default function ExamChat({
       const res = await fetch(`${API_BASE}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: user.username,
-          message: nextContent,
+        body: JSON.stringify(buildChatPayload(nextContent, {
           session_id: currentSessionIdRef.current,
-          subject: subjectTitle,
-          course: courseName,
           edit_source_message_id: Number(sourceMessage.id) || null,
           material_ids: selectedMaterials.filter(canReferenceMaterial).map((material) => material.id),
-        }),
+        })),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.detail || "AI 鏈嶅姟璋冪敤澶辫触");
+      if (!res.ok) throw new Error(data.detail || "AI 回复失败");
 
       if (data.session?.id || data.session_id) updateCurrentSessionId(data.session?.id ?? data.session_id);
       const branchId = data.branch_id || `local-${Date.now()}`;
@@ -702,7 +721,7 @@ export default function ExamChat({
       });
       loadHistory();
     } catch (err) {
-      setError(err.message || "缂栬緫闂澶辫触");
+      setError(err.message || "编辑问题失败");
     } finally {
       setLoading(false);
     }
@@ -712,6 +731,7 @@ export default function ExamChat({
     const msg = (text || inputText).trim();
     if (!msg || loading || !user?.username) return;
     userInteractedRef.current = true;
+    shouldScrollToLatestUserRef.current = true;
     const activeSessionId = currentSessionIdRef.current;
 
     setInputText("");
@@ -728,20 +748,14 @@ export default function ExamChat({
     setLoading(true);
 
     try {
-      const body = {
-        username: user.username,
-        message: msg,
-        session_id: activeSessionId,
-        subject: subjectTitle,
-        course: courseName,
-        branch_id: currentBranchIdRef.current || "",
-        material_ids: selectedMaterials.filter(canReferenceMaterial).map((material) => material.id),
-      };
-
       const res = await fetch(`${API_BASE}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify(buildChatPayload(msg, {
+          session_id: activeSessionId,
+          branch_id: currentBranchIdRef.current || "",
+          material_ids: selectedMaterials.filter(canReferenceMaterial).map((material) => material.id),
+        })),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -750,9 +764,7 @@ export default function ExamChat({
       }
 
       const nextSessionId = data.session?.id ?? data.session_id ?? activeSessionId;
-      if (nextSessionId) {
-        updateCurrentSessionId(nextSessionId);
-      }
+      if (nextSessionId) updateCurrentSessionId(nextSessionId);
       currentBranchIdRef.current = data.branch_id || currentBranchIdRef.current || "";
 
       const assistantMessage = {
@@ -818,7 +830,7 @@ export default function ExamChat({
                 onClick={() => loadSession(session.id)}
               >
                 <span>{session.title || "未命名对话"}</span>
-                <small>{session.subject || subjectTitle} · {formatTime(session.created_at)}</small>
+                <small>{getSubjectLabel(session.exam_subject, subjectLabel)} · {formatTime(session.created_at)}</small>
                 <i>
                   <b onClick={(event) => renameSession(session, event)}>重命名</b>
                   <b onClick={(event) => deleteSession(session.id, event)}>删除</b>
@@ -832,7 +844,7 @@ export default function ExamChat({
       <section className="examchat-main-panel">
         <header className="examchat-header">
           <div>
-            <h2 className="examchat-title">AI 问答 · {subjectTitle}</h2>
+            <h2 className="examchat-title">AI 问答 · {subjectLabel}</h2>
             <p className="examchat-subtitle">当前上下文：{courseName}</p>
           </div>
         </header>
@@ -850,13 +862,13 @@ export default function ExamChat({
           </div>
         )}
 
-        <div className="examchat-messages">
+        <div className="examchat-messages" ref={messagesContainerRef}>
           {messages.length === 0 && !loading ? (
             <div className="examchat-empty" />
           ) : (
             messages.map((message) => (
               <div
-                key={message.id}
+                key={`${message.role}-${message.id}-${message.clientId || ""}`}
                 ref={message.id === lastUserMessageId ? lastUserMessageRef : null}
                 className={`examchat-msg${message.role === "user" ? " examchat-msg--user" : ""}`}
               >
@@ -879,10 +891,10 @@ export default function ExamChat({
                         autoFocus
                       />
                       <div className="examchat-edit-actions">
-                        <span>Enter 鎻愪氦 路 Esc 鍙栨秷</span>
-                        <button type="button" onClick={cancelEditMessage}>鍙栨秷</button>
+                        <span>Enter 提交 · Esc 取消</span>
+                        <button type="button" onClick={cancelEditMessage}>取消</button>
                         <button type="button" onClick={() => submitEditedMessage(getMessageKey(message))} disabled={!editingText.trim() || loading}>
-                          鎻愪氦
+                          提交
                         </button>
                       </div>
                     </div>
@@ -901,9 +913,9 @@ export default function ExamChat({
                               switchMessageVersion(getMessageKey(message), (current - 1 + total) % total);
                             }}
                           >
-                            涓婁竴鍒嗘敮
+                            上一分支
                           </button>
-                          <span>鍒嗘敮 {Number(message.currentVersionIndex || 0) + 1} / {message.versions.length}</span>
+                          <span>分支 {Number(message.currentVersionIndex || 0) + 1} / {message.versions.length}</span>
                           <button
                             type="button"
                             onClick={() => {
@@ -912,12 +924,12 @@ export default function ExamChat({
                               switchMessageVersion(getMessageKey(message), (current + 1) % total);
                             }}
                           >
-                            涓嬩竴鍒嗘敮
+                            下一分支
                           </button>
                         </div>
                       )}
                       <button type="button" onClick={() => beginEditMessage(message)} disabled={loading}>
-                        缂栬緫闂
+                        编辑问题
                       </button>
                     </div>
                   )}
@@ -949,7 +961,6 @@ export default function ExamChat({
               </div>
             </div>
           )}
-          <div ref={messagesEndRef} />
         </div>
 
         <div className="examchat-input-area">
@@ -976,11 +987,11 @@ export default function ExamChat({
               {toolMenuOpen && (
                 <div className="examchat-plus-menu">
                   <button type="button" onClick={openMaterialPicker}>
-                    <span aria-hidden="true">▣</span>
+                    <span aria-hidden="true">引</span>
                     引用资料
                   </button>
                   <button type="button" onClick={openUploadPicker} disabled={uploading}>
-                    <span aria-hidden="true">⇧</span>
+                    <span aria-hidden="true">↑</span>
                     {uploading ? "上传中..." : "上传资料"}
                   </button>
                 </div>
@@ -991,7 +1002,7 @@ export default function ExamChat({
               value={inputText}
               onChange={(event) => setInputText(event.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={`向 AI 提问 ${subjectTitle} 相关问题...`}
+              placeholder={`向 AI 提问 ${subjectLabel} 相关问题...`}
               rows={2}
               disabled={loading}
             />
@@ -1057,7 +1068,7 @@ export default function ExamChat({
       <MaterialPickerModal
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
-        subjectLabel={courseName || subjectTitle}
+        subjectLabel={courseName || subjectLabel}
         materials={libraryMaterials}
         loading={libraryLoading}
         searchQuery={librarySearchQuery}
