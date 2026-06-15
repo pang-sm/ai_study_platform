@@ -12060,14 +12060,7 @@ def debug_ocr_cache():
     import exam_paper_parser as ep
     sk = "data_structure"
     year = 2024
-    cf = ep._ocr_cache_path(sk, year)
-    return {
-        "cache_file": str(cf),
-        "exists": cf.exists(),
-        "size": cf.stat().st_size if cf.exists() else 0,
-        "cache_dir_exists": cf.parent.exists(),
-        "cache_dir_files": [f.name for f in cf.parent.iterdir()] if cf.parent.exists() else [],
-    }
+    return ep.get_year_questions(sk, year)  # Direct call to test
 
 
 @app.get("/exam/11408/{subject_key}/past-paper-questions")
