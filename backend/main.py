@@ -168,6 +168,11 @@ DEFAULT_PDF_OCR_CONCURRENCY = 2
 DEFAULT_PDF_OCR_PAGE_TIMEOUT_SECONDS = 45
 DEFAULT_SCANNED_PDF_OCR_MAX_PAGES = 20
 
+# ── Per‑plan OCR page limits (only scanned pages count, not text pages) ──
+DEFAULT_OCR_LIMIT = 20
+FULL_EXAM_OCR_LIMIT = int(os.getenv("PDF_OCR_MAX_PAGES_FULL_PACKAGE", "500"))
+ADMIN_OCR_LIMIT = int(os.getenv("PDF_OCR_MAX_PAGES_ADMIN", "1000"))
+
 ALLOWED_UPLOAD_TYPES = {
     "application/pdf": "pdf",
     "image/png": "image",
@@ -1413,7 +1418,7 @@ MODEL_CONFIG_DEFAULTS = {
     "ai_vision_model_provider": "qwen",
     "ai_vision_enabled": "true",
     "ai_pdf_scan_parse_enabled": "true",
-    "ai_pdf_scan_max_pages": "10",
+    "ai_pdf_scan_max_pages": "1000",
     "ai_chat_enabled_model_config": "true",
     "ai_report_enabled_model_config": "true",
     "ai_question_generation_enabled_model_config": "true",
@@ -1513,7 +1518,10 @@ def get_vision_runtime_config(db: Session | None = None) -> dict:
         "provider": provider,
         "vision_enabled": get_bool_setting(db, "ai_vision_enabled", True),
         "pdf_scan_parse_enabled": get_bool_setting(db, "ai_pdf_scan_parse_enabled", True),
-        "pdf_scan_max_pages": get_int_setting(db, "ai_pdf_scan_max_pages", get_qwen_parse_max_pages(), 1, 20),
+        # Default to ADMIN_OCR_LIMIT so the system ceiling never
+        # accidentally reduces a user's plan-based OCR limit below
+        # what their package promises.
+        "pdf_scan_max_pages": get_int_setting(db, "ai_pdf_scan_max_pages", ADMIN_OCR_LIMIT, 1, ADMIN_OCR_LIMIT),
     }
 
 
@@ -1992,6 +2000,9 @@ def serialize_material_list_item(material: models.StudyMaterial):
         "parse_progress": material.parse_progress or 0,
         "total_pages": material.total_pages or 0,
         "parsed_pages": material.parsed_pages or 0,
+        "ocr_page_limit": getattr(material, "ocr_page_limit", 0) or 0,
+        "is_partial_index": (material.parse_status == "partial"),
+        "ocr_required": getattr(material, "ocr_required", 0) or 0,
         "chunk_count": material.chunk_count or 0,
         "parsed_at": serialize_datetime(material.parsed_at),
         "parse_started_at": serialize_datetime(material.parse_started_at),
@@ -2033,6 +2044,9 @@ def serialize_material_detail(material: models.StudyMaterial):
         "parse_progress": material.parse_progress or 0,
         "total_pages": material.total_pages or 0,
         "parsed_pages": material.parsed_pages or 0,
+        "ocr_page_limit": getattr(material, "ocr_page_limit", 0) or 0,
+        "is_partial_index": (material.parse_status == "partial"),
+        "ocr_required": getattr(material, "ocr_required", 0) or 0,
         "chunk_count": material.chunk_count or 0,
         "parsed_at": serialize_datetime(material.parsed_at),
         "parse_started_at": serialize_datetime(material.parse_started_at),
@@ -2065,6 +2079,10 @@ def serialize_material_status(material: models.StudyMaterial):
         "parse_error": material.parse_error,
         "total_pages": material.total_pages or 0,
         "parsed_pages": material.parsed_pages or 0,
+        "ocr_page_limit": getattr(material, "ocr_page_limit", 0) or 0,
+        "is_partial_index": (material.parse_status == "partial"),
+        "partial_index_reason": (material.parse_error or "") if material.parse_status == "partial" else "",
+        "ocr_required": getattr(material, "ocr_required", 0) or 0,
         "source_type": material_source_type(material),
         "visibility": material_visibility(material),
         "allow_download": bool(getattr(material, "allow_download", True)),
@@ -2819,6 +2837,7 @@ def update_material_parse_state(db: Session, material_id: int, **updates):
         "parsed_pages",
         "chunk_count",
         "ocr_required",
+        "ocr_page_limit",
         "parse_error",
         "qwen_used",
         "extract_method",
@@ -2867,6 +2886,47 @@ def get_pdf_ocr_max_pages() -> int:
         return max(1, min(value, DEFAULT_SCANNED_PDF_OCR_MAX_PAGES))
     except (TypeError, ValueError):
         return DEFAULT_SCANNED_PDF_OCR_MAX_PAGES
+
+
+def get_pdf_ocr_page_limit_for_user(username: str, db: Session) -> int:
+    """Return the scanned-page OCR limit for a specific user.
+
+    Text-type PDF pages are NOT counted toward this limit; only pages
+    that actually need vision-model OCR are constrained.
+
+    * developer / admin accounts  → ADMIN_OCR_LIMIT
+    * full_exam exam package      → FULL_EXAM_OCR_LIMIT
+    * all other plans / packages  → DEFAULT_OCR_LIMIT (20)
+    """
+    from membership import is_admin_account, is_developer_account
+
+    if is_developer_account(username) or is_admin_account(username):
+        return ADMIN_OCR_LIMIT
+
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if not user:
+        return DEFAULT_OCR_LIMIT
+
+    # Full-exam-package users detected via user-track (exam_408 track)
+    try:
+        track = get_user_track(db, user.id, "exam_408")
+        if track:
+            norm_pkg = normalize_exam_package(track.package_type)
+            if norm_pkg == "full_exam":
+                return FULL_EXAM_OCR_LIMIT
+    except Exception:
+        pass
+
+    # Fallback: check onboarding_detail for legacy exam_package_type
+    if user.onboarding_detail:
+        try:
+            detail = json.loads(user.onboarding_detail) if isinstance(user.onboarding_detail, str) else user.onboarding_detail
+            if isinstance(detail, dict) and normalize_exam_package(detail.get("exam_package_type", "")) == "full_exam":
+                return FULL_EXAM_OCR_LIMIT
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    return DEFAULT_OCR_LIMIT
 
 
 def get_local_pdf_sync_max_pages() -> int:
@@ -3122,7 +3182,24 @@ def parse_scanned_pdf_in_background(
     failed_pages: list[int] = []
     errors: list[str] = []
     vision_config = get_vision_runtime_config(db)
-    max_pages = vision_config["pdf_scan_max_pages"]
+
+    # Per-user OCR limit — determined solely by the user's plan / exam package.
+    # The system setting 'ai_pdf_scan_max_pages' is an admin-controlled global
+    # ceiling for server protection and must NOT reduce a user's plan-level OCR
+    # limit below what their package promises.
+    username = (material.username or "").strip()
+    user_ocr_limit = get_pdf_ocr_page_limit_for_user(username, db) if username else DEFAULT_OCR_LIMIT
+    if user_ocr_limit <= 0:
+        user_ocr_limit = DEFAULT_OCR_LIMIT
+
+    # Global ceiling: only applied when the admin has explicitly set a value
+    # LOWER than the plan limit (e.g. to protect server resources).  By
+    # default the ceiling is high enough to never interfere.
+    system_ceiling = vision_config.get("pdf_scan_max_pages", 0)
+    if system_ceiling > 0:
+        max_pages = min(user_ocr_limit, system_ceiling)
+    else:
+        max_pages = user_ocr_limit
 
     # Fail fast if Qwen OCR is not available — save the local text if any exists
     if not vision_config["vision_enabled"] or not vision_config["pdf_scan_parse_enabled"] or not is_qwen_enabled():
@@ -3191,6 +3268,7 @@ def parse_scanned_pdf_in_background(
             parsed_pages=0,
             chunk_count=0,
             ocr_required=1,
+            ocr_page_limit=max_pages,
             qwen_used=True,
             extract_method="qwen" if not (local_pdf_text or "").strip() else "mixed",
         )
@@ -3328,6 +3406,22 @@ def parse_scanned_pdf_in_background(
         parse_error = build_pdf_ocr_parse_error(failed_pages, total_pages, ocr_page_count, max_pages)
         reached_page_limit = max_pages > 0 and total_pages > ocr_page_count
         parse_status = "partial" if failed_pages or reached_page_limit else "success"
+
+        # Build human-readable partial-index reason for frontend display
+        partial_index_reason = ""
+        if reached_page_limit:
+            partial_index_reason = (
+                f"该 PDF 包含扫描页。当前套餐最多 OCR {max_pages} 页，"
+                f"系统已完成前 {ocr_page_count} 页扫描内容解析，"
+                f"其余 {total_pages - ocr_page_count} 个扫描页暂未识别。"
+                f"升级至全程考包可支持更大规模 OCR。"
+            )
+        elif failed_pages:
+            partial_index_reason = (
+                f"部分页面（第 {', '.join(str(p) for p in failed_pages[:5])} 页等）OCR 识别失败，"
+                f"已完成 {ocr_page_count - len(failed_pages)}/{ocr_page_count} 页解析。"
+            )
+
         update_material_parse_state(
             db,
             material.id,
@@ -3335,8 +3429,9 @@ def parse_scanned_pdf_in_background(
             parse_progress=100,
             total_pages=total_pages,
             parsed_pages=ocr_page_count if reached_page_limit else total_pages,
+            ocr_page_limit=max_pages,
             chunk_count=chunk_count,
-            parse_error=parse_error,
+            parse_error=parse_error or partial_index_reason or None,
             ocr_required=1,
             qwen_used=True,
             extract_method="qwen" if not (local_pdf_text or "").strip() else "mixed",
@@ -5788,11 +5883,23 @@ async def upload_material(
         }
 
     background_tasks.add_task(parse_material_in_background, material.id)
-    pending_message = (
-        "文件已上传，系统正在后台解析；扫描型 PDF 默认只进行有限页数 OCR，完成后会更新索引状态。"
-        if file_type == "pdf"
-        else "文件已上传，系统正在后台解析，完成后会更新索引状态。"
-    )
+    user_ocr_limit = get_pdf_ocr_page_limit_for_user(user.username, db) if file_type == "pdf" else 0
+    if file_type == "pdf":
+        if user_ocr_limit > DEFAULT_OCR_LIMIT:
+            pending_message = (
+                f"文件已上传，系统正在后台解析。"
+                f"当前套餐支持扫描型 PDF 最多 OCR {user_ocr_limit} 页，"
+                f"文本页面不受此限制。大文件可能需要较长时间。"
+            )
+        else:
+            pending_message = (
+                "文件已上传，系统正在后台解析。"
+                "文本型 PDF 会尽量全文解析；扫描型 PDF 按套餐控制，"
+                "普通套餐默认最多 OCR 20 页，全程考包支持更大规模 OCR。"
+                "完成后会更新索引状态。"
+            )
+    else:
+        pending_message = "文件已上传，系统正在后台解析，完成后会更新索引状态。"
 
     return {
         "success": True,
@@ -17765,8 +17872,8 @@ def validate_model_config_updates(req: dict) -> dict:
             value = int(updates["ai_pdf_scan_max_pages"])
         except (TypeError, ValueError):
             raise HTTPException(status_code=400, detail="扫描 PDF 最大页数必须是整数")
-        if value < 1 or value > 20:
-            raise HTTPException(status_code=400, detail="扫描 PDF 最大页数范围必须在 1 - 20")
+        if value < 1 or value > ADMIN_OCR_LIMIT:
+            raise HTTPException(status_code=400, detail=f"扫描 PDF 最大页数范围必须在 1 - {ADMIN_OCR_LIMIT}")
         updates["ai_pdf_scan_max_pages"] = str(value)
 
     bool_keys = {
@@ -19114,8 +19221,8 @@ def validate_model_config_updates(req: dict) -> dict:
         if key == "ai_pdf_scan_max_pages":
             try:
                 v = int(value)
-                if v < 1 or v > 20:
-                    raise HTTPException(status_code=400, detail="ai_pdf_scan_max_pages 取值范围为 1 ~ 20")
+                if v < 1 or v > ADMIN_OCR_LIMIT:
+                    raise HTTPException(status_code=400, detail=f"ai_pdf_scan_max_pages 取值范围为 1 ~ {ADMIN_OCR_LIMIT}")
                 validated[key] = str(v)
             except (TypeError, ValueError):
                 raise HTTPException(status_code=400, detail="ai_pdf_scan_max_pages 必须为整数")

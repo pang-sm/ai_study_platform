@@ -100,6 +100,7 @@ STUDY_MATERIAL_COLUMNS = {
     "parsed_at": "DATETIME",
     "total_pages": "INTEGER DEFAULT 0",
     "parsed_pages": "INTEGER DEFAULT 0",
+    "ocr_page_limit": "INTEGER DEFAULT 0",
     "chunk_count": "INTEGER DEFAULT 0",
     "ocr_required": "INTEGER DEFAULT 0",
     "parse_progress": "REAL DEFAULT 0",

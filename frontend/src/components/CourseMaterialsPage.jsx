@@ -480,7 +480,7 @@ export default function CourseMaterialsPage({
         </header>
         <div className="cmp-upload-notice">
           <span>请上传你拥有合法使用权的学习资料。上传内容仅用于你的个人学习、AI 问答和知识点整理，不会公开给其他用户。</span>
-          <span>支持较大 PDF 上传；大文件会先完成上传，再在后台分批解析，扫描型 PDF 默认只进行有限页数 OCR。</span>
+          <span>支持较大 PDF 上传；文本型 PDF 会尽量全文解析，扫描型 PDF 的 OCR 页数按套餐控制，普通套餐默认最多识别 20 页，全程考包支持更大规模 OCR。</span>
         </div>
 
         <div className="cmp-stats-row">
@@ -625,11 +625,19 @@ export default function CourseMaterialsPage({
               <div><dt>索引状态</dt><dd><span className={`cmp-status cmp-status--${getStatusKind(selected.parse_status)}`}>{getStatusLabel(selected.parse_status)}</span></dd></div>
               <div><dt>片段数量</dt><dd>{chunkCountOf(selected).toLocaleString("zh-CN")}</dd></div>
               {selectedPages ? <div><dt>文件页数</dt><dd>{selectedPages} 页</dd></div> : null}
+              {selected.ocr_required ? <div><dt>OCR 页数上限</dt><dd>{selected.ocr_page_limit || 20} 页</dd></div> : null}
+              {selected.parsed_pages > 0 ? <div><dt>已解析页</dt><dd>{selected.parsed_pages} 页{selected.ocr_required ? "（含 OCR）" : ""}</dd></div> : null}
+              {selected.is_partial_index ? <div><dt>解析状态</dt><dd><span className="cmp-status cmp-status--partial">已部分索引</span></dd></div> : null}
               <div><dt>来源</dt><dd>{selectedSourceMeta?.label} · {selectedSourceMeta?.detail}</dd></div>
             </dl>
             <div className={`cmp-permission-notice cmp-permission-notice--${selectedSourceMeta?.className}`}>
               {selectedSourceMeta?.notice}
             </div>
+            {selected.is_partial_index && (
+              <div className="cmp-permission-notice cmp-permission-notice--partial">
+                {selected.partial_index_reason || "该资料的扫描页因 OCR 页数限制暂未全部识别，文本部分已正常解析。"}
+              </div>
+            )}
             <div className="cmp-summary-block">
               <div className="cmp-summary-title">
                 <strong>内容摘要</strong>

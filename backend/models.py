@@ -113,6 +113,7 @@ class StudyMaterial(Base):
     parsed_at = Column(DateTime, nullable=True)
     total_pages = Column(Integer, nullable=False, default=0)
     parsed_pages = Column(Integer, nullable=False, default=0)
+    ocr_page_limit = Column(Integer, nullable=False, default=0)
     chunk_count = Column(Integer, nullable=False, default=0)
     ocr_required = Column(Integer, nullable=False, default=0)
     parse_progress = Column(Float, nullable=False, default=0)
