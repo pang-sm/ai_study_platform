@@ -366,6 +366,22 @@ def _ocr_year_questions(subject_key: str, year: int, force: bool = False) -> lis
 
 def get_year_questions(subject_key: str, year: int) -> dict:
     subject_name = EXAM_SUBJECTS.get(subject_key, subject_key)
+    # Fast path: read OCR cache directly
+    cache_file = _ocr_cache_path(subject_key, year)
+    if cache_file.exists():
+        try:
+            cached = json.loads(cache_file.read_text(encoding="utf-8"))
+            qs = cached.get("questions", [])
+            if len(qs) > 0:
+                return {
+                    "subject_key": subject_key,
+                    "subject_name": subject_name,
+                    "year": year,
+                    "questions": qs,
+                }
+        except Exception:
+            pass
+    # Slow path: parse + OCR (shouldn't happen on server with cache)
     questions = _ocr_year_questions(subject_key, year)
     return {
         "subject_key": subject_key,
