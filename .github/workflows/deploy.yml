@@ -208,5 +208,12 @@ jobs:
           sudo systemctl restart ai-backend
           sudo systemctl is-active --quiet ai-backend
 
+          echo "=== 执行数据库知识点重映射 ==="
+          cd backend
+          if [ -x ".venv/bin/python" ]; then
+            .venv/bin/python scripts/remap_data_structure_chapter_question_kps.py --apply-batch-auto --strategy batch || echo "[deploy] remap failed - continuing"
+          fi
+          cd ..
+
           curl -fsS http://127.0.0.1 >/dev/null
           DEPLOYEOF
