@@ -12876,12 +12876,27 @@ def db_query_chapter_questions(subject_key):
     finally: db.close()
 
 @app.get("/exam/11408/{subject_key}/chapter-practice/questions")
-def get_chapter_practice_questions(subject_key: str, knowledge_point_id: str = ""):
+def get_chapter_practice_questions(subject_key: str, knowledge_point_id: str = "",
+                                     knowledge_point_path: str = "", include_children: bool = False):
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
     items = db_query_chapter_questions(subject_key)
-    if knowledge_point_id:
-        items = [i for i in items if i.knowledge_point_id == knowledge_point_id]
+    kp_id = (knowledge_point_id or "").strip()
+    kp_path = (knowledge_point_path or "").strip()
+    if kp_id:
+        # Try exact ID match
+        matched = [i for i in items if (i.knowledge_point_id or "") == kp_id]
+        if not matched and kp_path:
+            # Try path match
+            matched = [i for i in items if (i.knowledge_point_path or "").startswith(kp_path)]
+        if include_children and kp_id:
+            # Include children: ID prefix match like "8." matches "8.1", "8.2" etc.
+            child_matched = [i for i in items if ((i.knowledge_point_id or "").startswith(kp_id + "."))]
+            seen = {i.id for i in matched}
+            for i in child_matched:
+                if i.id not in seen:
+                    matched.append(i)
+        items = matched
     return {"items": [_serialize_question_bank(i) for i in items], "total": len(items)}
 
 @app.get("/exam/11408/{subject_key}/chapter/analytics")
