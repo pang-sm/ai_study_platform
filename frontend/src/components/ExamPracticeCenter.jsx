@@ -193,21 +193,25 @@ function ChapterPracticePage({ subjectInfo, user, onBack }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState(null);
+  const [analytics, setAnalytics] = useState(null);
 
   useEffect(() => {
     const params = new URLSearchParams({ course_id: subjectInfo.courseId });
     if (user?.username) params.set("username", user.username);
     setLoading(true);
-    safeJsonFetch(`${API_BASE}/knowledge-map?${params.toString()}`)
-      .then((payload) => {
-        setMapData(payload);
-        setSelected(payload.chapters?.[0] || null);
-      })
-      .catch((err) => setError(err.message || "知识点大纲加载失败"))
-      .finally(() => setLoading(false));
+    Promise.all([
+      safeJsonFetch(`${API_BASE}/knowledge-map?${params.toString()}`).catch(() => ({ chapters: [] })),
+      safeJsonFetch(`${API_BASE}/exam/11408/${subjectInfo.key}/chapter/analytics?username=${user?.username||""}`).catch(() => null),
+    ]).then(([mapPayload, analyticsPayload]) => {
+      setMapData(mapPayload);
+      setAnalytics(analyticsPayload);
+      setSelected(mapPayload.chapters?.[0] || null);
+    }).catch(e => setError(e.message || "加载失败")).finally(() => setLoading(false));
   }, [subjectInfo.courseId, user?.username]);
 
   const chapters = mapData?.chapters || [];
+  const weakKPs = analytics?.weak_points || [];
+  const emptyKPs = analytics?.empty_points || [];
 
   return (
     <div className="exam-practice-subpage">
@@ -225,6 +229,34 @@ function ChapterPracticePage({ subjectInfo, user, onBack }) {
               <h3>{selected?.title || selected?.name || "请选择知识点"}</h3>
               {selected?.code && <span>{selected.code}</span>}
             </div>
+            {analytics && (
+              <div className="chapter-analytics-panel">
+                <div className="chapter-analytics-row">
+                  <span>题库总量：<strong>{analytics.total_questions}</strong> 题</span>
+                  <span>基础：{analytics.difficulty_distribution?.basic||0}</span>
+                  <span>中等：{analytics.difficulty_distribution?.medium||0}</span>
+                  <span>困难：{analytics.difficulty_distribution?.hard||0}</span>
+                </div>
+                {weakKPs.length > 0 && (
+                  <div className="chapter-analytics-section">
+                    <h4>薄弱知识点 TOP{Math.min(5, weakKPs.length)}</h4>
+                    {weakKPs.slice(0,5).map(w => (
+                      <div key={w.kp} className="chapter-analytics-item">
+                        <span>{w.kp}</span>
+                        <span className="chapter-analytics-badge chapter-analytics-badge--weak">{w.accuracy}%</span>
+                        <span>{w.total}题 · {w.attempts}次</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {emptyKPs.length > 0 && (
+                  <div className="chapter-analytics-section">
+                    <h4>未录入题目的知识点 ({emptyKPs.length})</h4>
+                    <p style={{fontSize:"0.78rem",color:"#94a3b8"}}>{emptyKPs.slice(0,8).join("、")}{emptyKPs.length>8?" 等":""}</p>
+                  </div>
+                )}
+              </div>
+            )}
             <div className="exam-practice-empty-state">
               <strong>当前知识点暂未录入练习题</strong>
               <p>后续可在题库中补充。</p>

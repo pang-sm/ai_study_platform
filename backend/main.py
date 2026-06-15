@@ -12884,6 +12884,65 @@ def get_chapter_practice_questions(subject_key: str, knowledge_point_id: str = "
         items = [i for i in items if i.knowledge_point_id == knowledge_point_id]
     return {"items": [_serialize_question_bank(i) for i in items], "total": len(items)}
 
+@app.get("/exam/11408/{subject_key}/chapter/analytics")
+def get_chapter_analytics(subject_key: str, username: str = "", db: Session = Depends(get_db)):
+    if subject_key not in EXAM_SUBJECT_DIRS:
+        raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
+    # Stats per knowledge point
+    items = db.query(models.ExamQuestionBank).filter(
+        models.ExamQuestionBank.subject_key == subject_key,
+        models.ExamQuestionBank.source_type == "chapter",
+        models.ExamQuestionBank.is_active == True).all()
+    kp_stats = {}
+    for i in items:
+        kp = (i.knowledge_point_name or "未知")
+        if kp not in kp_stats:
+            kp_stats[kp] = {"total": 0, "basic": 0, "medium": 0, "hard": 0}
+        kp_stats[kp]["total"] += 1
+        d = (i.difficulty or "基础")
+        if "基础" in d: kp_stats[kp]["basic"] += 1
+        elif "中" in d: kp_stats[kp]["medium"] += 1
+        else: kp_stats[kp]["hard"] += 1
+
+    # Right/wrong per KP from attempts
+    u = (username or "").strip()
+    kp_accuracy = {}
+    if u:
+        attempts = db.query(models.ExamPracticeAttempt).filter(
+            models.ExamPracticeAttempt.username == u,
+            models.ExamPracticeAttempt.subject_key == subject_key,
+            models.ExamPracticeAttempt.status == "submitted").all()
+        for a in attempts:
+            kp = (a.knowledge_point_name or "综合")
+            if a.total_questions > 0 and a.correct_count is not None:
+                rate = round(a.correct_count / a.total_questions * 100, 1)
+                if kp not in kp_accuracy:
+                    kp_accuracy[kp] = {"total": 0, "correct": 0, "attempts": 0}
+                kp_accuracy[kp]["total"] += a.total_questions
+                kp_accuracy[kp]["correct"] += (a.correct_count or 0)
+                kp_accuracy[kp]["attempts"] += 1
+
+    # Weak points (bottom 10 by accuracy)
+    weak = sorted(
+        [{"kp": k, "accuracy": round(v["correct"]/v["total"]*100,1) if v["total"]>0 else 0, "total": v["total"], "attempts": v["attempts"]}
+         for k, v in kp_accuracy.items() if v["total"] >= 3],
+        key=lambda x: x["accuracy"])[:10]
+
+    strong = sorted(
+        [{"kp": k, "accuracy": round(v["correct"]/v["total"]*100,1) if v["total"]>0 else 0, "total": v["total"]}
+         for k, v in kp_accuracy.items() if v["total"] >= 3],
+        key=lambda x: -x["accuracy"])[:5]
+
+    empty = [k for k, v in kp_stats.items() if v["total"] == 0]
+
+    dist = {"basic": sum(v["basic"] for v in kp_stats.values()),
+            "medium": sum(v["medium"] for v in kp_stats.values()),
+            "hard": sum(v["hard"] for v in kp_stats.values())}
+
+    return {"knowledge_point_stats": kp_stats, "weak_points": weak, "strong_points": strong,
+            "empty_points": empty, "difficulty_distribution": dist, "total_questions": len(items)}
+
+
 @app.post("/exam/11408/{subject_key}/chapter-practice/attempts")
 def create_chapter_practice_attempt(subject_key: str, req: dict, db: Session = Depends(get_db)):
     if subject_key not in EXAM_SUBJECT_DIRS:

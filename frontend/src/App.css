@@ -20984,6 +20984,14 @@ select.field:focus {
   margin-bottom: 12px;
 }
 
+.chapter-analytics-panel { margin-bottom: 14px; }
+.chapter-analytics-row { display: flex; gap: 14px; flex-wrap: wrap; padding: 10px 14px; background: #faf8ff; border: 1px solid #e6daff; border-radius: 10px; font-size: 0.8rem; color: #5b21b6; margin-bottom: 10px; }
+.chapter-analytics-section { margin-bottom: 10px; }
+.chapter-analytics-section h4 { margin: 0 0 6px; font-size: 0.84rem; color: #111827; }
+.chapter-analytics-item { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-bottom: 1px solid #f0eaf5; font-size: 0.78rem; }
+.chapter-analytics-badge { padding: 2px 8px; border-radius: 8px; font-weight: 700; font-size: 0.72rem; }
+.chapter-analytics-badge--weak { background: #fee2e2; color: #dc2626; }
+
 .past-paper-q-images {
   margin-bottom: 10px;
 }
