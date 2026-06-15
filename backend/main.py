@@ -12055,6 +12055,21 @@ def get_exam_past_papers(subject_key: str):
     return exam_paper_parser.get_subject_past_papers(subject_key)
 
 
+@app.get("/exam/11408/debug-cache")
+def debug_ocr_cache():
+    import exam_paper_parser as ep
+    sk = "data_structure"
+    year = 2024
+    cf = ep._ocr_cache_path(sk, year)
+    return {
+        "cache_file": str(cf),
+        "exists": cf.exists(),
+        "size": cf.stat().st_size if cf.exists() else 0,
+        "cache_dir_exists": cf.parent.exists(),
+        "cache_dir_files": [f.name for f in cf.parent.iterdir()] if cf.parent.exists() else [],
+    }
+
+
 @app.get("/exam/11408/{subject_key}/past-paper-questions")
 def get_past_paper_questions(subject_key: str, year: int = 0):
     if subject_key not in EXAM_SUBJECT_DIRS:
