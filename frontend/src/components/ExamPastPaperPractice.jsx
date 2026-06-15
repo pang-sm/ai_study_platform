@@ -18,6 +18,18 @@ function saveState(state) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch {}
 }
 
+async function safeFetch(url, options = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), options.timeout || 15000);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    const text = await res.text();
+    if (!res.ok) throw new Error(`接口 ${url} 返回 HTTP ${res.status}: ${text.slice(0, 200)}`);
+    try { return JSON.parse(text); }
+    catch { throw new Error(`接口 ${url} 返回的不是 JSON，前200字符: ${text.slice(0, 200)}`); }
+  } finally { clearTimeout(timeout); }
+}
+
 export default function ExamPastPaperPractice({
   subjectKey = "data_structure",
   subjectName = "11408 数据结构",
@@ -39,21 +51,21 @@ export default function ExamPastPaperPractice({
   const subjectLabel = EXAM_SUBJECTS[subjectKey] || "数据结构";
 
   useEffect(() => {
-    fetch(`${API_BASE}/exam/11408/${subjectKey}/past-papers`)
-      .then(r => r.json()).then(d => { setPastPapers(d); setLoading(false); })
-      .catch(() => setPastPapers({ available: false, years: [] }));
+    safeFetch(`${API_BASE}/exam/11408/${subjectKey}/past-papers`)
+      .then(d => { setPastPapers(d); setLoading(false); })
+      .catch(e => { setError(e.message); setPastPapers({ available: false, years: [] }); setLoading(false); });
   }, [subjectKey]);
 
   // Restore attempt if we have one
   useEffect(() => {
     if (!attemptId || !selectedYear) return;
     setLoading(true);
-    fetch(`${API_BASE}/exam/11408/${subjectKey}/past-paper-attempts/${attemptId}`)
-      .then(r => r.json()).then(d => {
+    safeFetch(`${API_BASE}/exam/11408/${subjectKey}/past-paper-attempts/${attemptId}`)
+      .then(d => {
         setQuestions(d.questions || []);
         if (d.saved_answers) setAnswers(d.saved_answers);
         setLoading(false);
-      }).catch(() => setLoading(false));
+      }).catch(e => { setError(e.message); setLoading(false); });
   }, [attemptId]);
 
   // Persist state
@@ -83,25 +95,24 @@ export default function ExamPastPaperPractice({
     setStartLoading(true);
     setError("");
 
-    // Pre-open window to avoid popup blocking after async fetch
     const newWindow = window.open("", "_blank");
+    const url = `${API_BASE}/exam/11408/${subjectKey}/past-paper-attempts`;
 
     try {
-      const res = await fetch(`${API_BASE}/exam/11408/${subjectKey}/past-paper-attempts`, {
+      const data = await safeFetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: user.username, year: selectedYear }),
+        timeout: 15000,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || `创建练习失败 (HTTP ${res.status})`);
       const aid = data.attempt_id || data.id;
-      if (!aid) throw new Error("后端未返回 attempt_id");
+      if (!aid) { if (newWindow) newWindow.close(); setError("后端未返回 attempt_id"); return; }
 
-      const targetUrl = `/exam/11408/${subjectKey}/past-paper/attempt/${aid}`;
+      const targetUrl = `${window.location.origin}/exam/11408/${subjectKey}/past-paper/attempt/${aid}`;
       if (newWindow) {
         newWindow.location.href = targetUrl;
       } else {
-        window.location.href = targetUrl;
+        window.open(targetUrl, "_blank");
       }
     } catch (e) {
       if (newWindow) newWindow.close();
@@ -113,11 +124,8 @@ export default function ExamPastPaperPractice({
 
   const saveDraft = async () => {
     if (!attemptId) return;
-    await fetch(`${API_BASE}/exam/11408/${subjectKey}/past-paper-attempts/${attemptId}/answers`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ answers }),
-    });
+    try { await safeFetch(`${API_BASE}/exam/11408/${subjectKey}/past-paper-attempts/${attemptId}/answers`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ answers }), timeout: 10000 }); }
+    catch {} // silently ignore draft save failures
   };
 
   const handleAnswer = (qid, val) => {
@@ -153,13 +161,9 @@ export default function ExamPastPaperPractice({
           user_answer: String(answers[q.id] || "").trim(),
         })),
       };
-      const res = await fetch(`${API_BASE}/exam/11408/${subjectKey}/past-paper-attempts/${attemptId}/submit`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+      const data = await safeFetch(`${API_BASE}/exam/11408/${subjectKey}/past-paper-attempts/${attemptId}/submit`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload), timeout: 30000,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "提交失败");
       setResult(data);
       setSubmitted(true);
     } catch (e) { setError(e.message); }

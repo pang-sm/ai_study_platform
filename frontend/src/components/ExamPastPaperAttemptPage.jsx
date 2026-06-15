@@ -2,6 +2,18 @@ import { useEffect, useState, useCallback } from "react";
 
 const API_BASE = "/api";
 
+async function safeFetch(url, options = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), options.timeout || 15000);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    const text = await res.text();
+    if (!res.ok) throw new Error(`接口 ${url} 返回 HTTP ${res.status}: ${text.slice(0, 200)}`);
+    try { return JSON.parse(text); }
+    catch { throw new Error(`接口 ${url} 返回的不是 JSON，前200字符: ${text.slice(0, 200)}`); }
+  } finally { clearTimeout(timeout); }
+}
+
 const EXAM_SUBJECTS = {
   data_structure: "数据结构",
   computer_organization: "计算机组成原理",
@@ -24,8 +36,7 @@ export default function ExamPastPaperAttemptPage({ subjectKey, attemptId, onNavi
   useEffect(() => {
     if (!subjectKey || !attemptId) return;
     setLoading(true);
-    fetch(`${API_BASE}/exam/11408/${subjectKey}/past-paper-attempts/${attemptId}`)
-      .then(r => r.json())
+    safeFetch(`${API_BASE}/exam/11408/${subjectKey}/past-paper-attempts/${attemptId}`)
       .then(d => {
         if (d.attempt) { setAttempt(d.attempt); setQuestions(d.questions || []); }
         if (d.saved_answers) setAnswers(d.saved_answers);
@@ -37,11 +48,8 @@ export default function ExamPastPaperAttemptPage({ subjectKey, attemptId, onNavi
 
   const saveDraft = useCallback(async () => {
     if (!attemptId) return;
-    await fetch(`${API_BASE}/exam/11408/${subjectKey}/past-paper-attempts/${attemptId}/answers`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ answers }),
-    });
+    try { await safeFetch(`${API_BASE}/exam/11408/${subjectKey}/past-paper-attempts/${attemptId}/answers`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ answers }), timeout: 10000 }); }
+    catch {} // silently ignore
   }, [attemptId, answers, subjectKey]);
 
   useEffect(() => {
@@ -70,12 +78,10 @@ export default function ExamPastPaperAttemptPage({ subjectKey, attemptId, onNavi
           user_answer: String(answers[q.id] || "").trim(),
         })),
       };
-      const res = await fetch(
+      const data = await safeFetch(
         `${API_BASE}/exam/11408/${subjectKey}/past-paper-attempts/${attemptId}/submit`,
-        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload), timeout: 30000 }
       );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "提交失败");
       setResult(data);
       setSubmitted(true);
     } catch (e) { setError(e.message); }
