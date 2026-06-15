@@ -12072,8 +12072,17 @@ def create_past_paper_attempt(subject_key: str, req: dict, db: Session = Depends
     year = int(req.get("year", 0))
     if not username or year <= 0:
         raise HTTPException(status_code=400, detail="username and year required")
-    questions_data = exam_paper_parser.get_year_questions(subject_key, year)
-    total = len(questions_data.get("questions", []))
+    # Fast path: read OCR cache directly to avoid docx parsing
+    ocr_cache = exam_paper_parser._ocr_cache_path(subject_key, year)
+    total = 0
+    if ocr_cache.exists():
+        try:
+            cached = json.loads(ocr_cache.read_text(encoding="utf-8"))
+            total = len(cached.get("questions", []))
+        except Exception:
+            pass
+    if total == 0:
+        total = len(exam_paper_parser.get_year_questions(subject_key, year).get("questions", []))
     last = db.query(models.PastPaperAttempt).filter(
         models.PastPaperAttempt.username == username,
         models.PastPaperAttempt.subject_key == subject_key,

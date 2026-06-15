@@ -307,8 +307,9 @@ def _ocr_year_questions(subject_key: str, year: int, force: bool = False) -> lis
     if not force and cache_file.exists():
         try:
             cached = json.loads(cache_file.read_text(encoding="utf-8"))
-            if cached.get("docx_mtime") == docx_mtime:
-                return cached.get("questions", [])
+            qs = cached.get("questions", [])
+            if len(qs) > 0:
+                return qs  # Cache hit — avoid re-parsing on deploy where mtime differs
         except Exception:
             pass
 
