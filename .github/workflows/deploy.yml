@@ -208,9 +208,13 @@ jobs:
           sudo systemctl restart ai-backend
           sudo systemctl is-active --quiet ai-backend
 
-          echo "=== 执行数据库知识点重映射 ==="
+          echo "=== 导入章节题库 + 知识点重映射 ==="
           cd backend
           if [ -x ".venv/bin/python" ]; then
+            echo "[deploy] 导入章节题..."
+            .venv/bin/python scripts/precheck_data_structure_chapter_questions_txt.py || echo "[deploy] precheck failed - continuing"
+            .venv/bin/python scripts/import_data_structure_chapter_questions_txt.py --all --skip 0 --batch-id deploy_auto || echo "[deploy] import failed - continuing"
+            echo "[deploy] 知识点重映射..."
             .venv/bin/python scripts/remap_data_structure_chapter_question_kps.py --apply-batch-auto --strategy batch || echo "[deploy] remap failed - continuing"
           fi
           cd ..
