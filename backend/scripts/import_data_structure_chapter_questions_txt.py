@@ -70,6 +70,8 @@ def main():
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--all", action="store_true")
+    parser.add_argument("--batch-id", type=str, default="")
+    parser.add_argument("--skip", type=int, default=0, help="Skip first N ready questions")
     args = parser.parse_args()
 
     data = json.loads(PREVIEW_PATH.read_text(encoding="utf-8"))
@@ -137,9 +139,12 @@ def main():
     import models
     db = SessionLocal()
     limit = args.limit if args.limit > 0 else (len(ready) if args.all else 50)
-    to_import = ready[:limit]
+    batch_id = (args.batch_id or "").strip() or f"batch_{limit}"
+    offset = max(0, args.skip)
+    to_import = ready[offset:offset + limit] if (offset > 0 or args.skip) else ready[:limit]
     inserted = 0
     skipped = 0
+    errors = 0
     now = datetime.now(timezone.utc)
     for q in to_import:
         ns = norm_stem(q["stem"])
@@ -153,23 +158,28 @@ def main():
         if dup_match:
             skipped += 1
             continue
-        opts = q.get("options") or {}
-        item = models.ExamQuestionBank(
-            subject_key="data_structure", subject_name="数据结构",
-            source_type="chapter", visibility="public",
-            knowledge_point_id=kp_id,
-            knowledge_point_name=q.get("knowledge_point_name", ""),
-            knowledge_point_path=q.get("knowledge_point_path", ""),
-            question_type="choice" if q["question_type"] in ("choice","选择题") else "big",
-            stem=q["stem"], options_json=json.dumps(opts, ensure_ascii=False),
-            standard_answer=q.get("standard_answer",""), analysis=q.get("analysis",""),
-            difficulty=q.get("difficulty","基础"),
-            source_ref=f"chapter_import:data_structure:txt:raw_index:{q.get('raw_index','')}",
-        )
-        db.add(item)
-        inserted += 1
+        try:
+            opts = q.get("options") or {}
+            item = models.ExamQuestionBank(
+                subject_key="data_structure", subject_name="数据结构",
+                source_type="chapter", visibility="public",
+                knowledge_point_id=kp_id,
+                knowledge_point_name=q.get("knowledge_point_name", ""),
+                knowledge_point_path=q.get("knowledge_point_path", ""),
+                question_type="choice" if q["question_type"] in ("choice","选择题") else "big",
+                stem=q["stem"], options_json=json.dumps(opts, ensure_ascii=False),
+                standard_answer=q.get("standard_answer",""), analysis=q.get("analysis",""),
+                difficulty=q.get("difficulty","基础"),
+                source_ref=f"chapter_import:{batch_id}:raw_index:{q.get('raw_index','')}",
+            )
+            db.add(item)
+            inserted += 1
+        except Exception as e:
+            errors += 1
+            print(f"Error on raw_index={q.get('raw_index')}: {e}")
     db.commit()
     db.close()
+    print(f"Batch: {batch_id}  inserted={inserted}  skipped={skipped}  errors={errors}")
     print(f"Imported: {inserted} inserted, {skipped} skipped")
 
     # Verify
