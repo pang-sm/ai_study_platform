@@ -12989,6 +12989,46 @@ def get_ai_question_raw_response(subject_key: str, question_id: int, username: s
     }
 
 
+@app.post("/exam/11408/{subject_key}/question-analysis")
+def generate_question_analysis(subject_key: str, req: dict):
+    """Generate on-demand AI analysis for a question. Not persisted."""
+    stem = (req.get("stem") or "").strip()
+    opts = req.get("options") or {}
+    sa = (req.get("standard_answer") or "").strip()
+    ua = (req.get("user_answer") or "").strip()
+    qtype = (req.get("question_type") or "选择题").strip()
+    ctx = (req.get("context") or "错题复盘").strip()
+    subject_name = EXAM_SUBJECT_DIRS.get(subject_key, subject_key)
+
+    if not stem:
+        raise HTTPException(status_code=400, detail="stem is required")
+
+    api_key = (os.getenv("DEEPSEEK_API_KEY") or "").strip()
+    if not api_key:
+        raise HTTPException(status_code=503, detail="AI 解析服务暂不可用（未配置 DEEPSEEK_API_KEY）")
+
+    is_wrong = ua and sa and ua.upper() != sa.upper()
+    opts_text = "\n".join([f"{k}. {v}" for k, v in (opts or {}).items()]) if opts else "无选项"
+    prompt = f"""你是11408考研辅导老师。请为以下错题生成解析。
+
+科目：{subject_name}
+题型：{qtype}
+题干：{stem}
+选项：{opts_text}
+标准答案：{sa}
+用户答案：{ua}{'（用户答错）' if is_wrong else ''}
+
+要求：1)指出本题考点 2)说明正确答案为什么正确 3)说明其他选项错误原因 4)给11408复习建议。300字以内。"""
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
+        resp = client.chat.completions.create(model="deepseek-chat", messages=[{"role":"user","content":prompt}], temperature=0.4, max_tokens=500)
+        analysis = resp.choices[0].message.content.strip()
+        return {"analysis": analysis, "generated_at": serialize_datetime(utc_now())}
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"AI 解析生成失败：{str(e)[:200]}")
+
+
 @app.delete("/exam/11408/{subject_key}/ai-questions/{question_id}")
 def delete_exam_ai_question(subject_key: str, question_id: int, username: str, db: Session = Depends(get_db)):
     username = (username or "").strip()

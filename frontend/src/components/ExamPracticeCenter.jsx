@@ -236,11 +236,29 @@ function ChapterPracticePage({ subjectInfo, user, onBack }) {
   );
 }
 
+function parseItemOptions(item) {
+  if (item.options_json) { try { return JSON.parse(item.options_json); } catch {} }
+  if (item.options) { return item.options; }
+  return {};
+}
+function AnalysisBlock({ itemKey, analysisMap }) {
+  const ad = analysisMap[itemKey] || {};
+  if (ad.text) return <div className="past-paper-q-feedback"><strong>AI 解析</strong><p>{ad.text}</p></div>;
+  if (ad.error) return <div className="km-inline-message km-inline-message--error">{ad.error}</div>;
+  return null;
+}
+function QuestionOptions({ item }) {
+  const opts = parseItemOptions(item);
+  if (Object.keys(opts).length === 0) return null;
+  return <div className="ai-question-options">{Object.entries(opts).map(([k, v]) => <div key={k}><strong>{k}.</strong> {v}</div>)}</div>;
+}
+
 function WrongPracticePage({ subjectKey, subjectInfo, user, onBack }) {
   const [items, setItems] = useState([]);
   const [filter, setFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [analysisMap, setAnalysisMap] = useState({});
 
   const loadItems = () => {
     if (!user?.username) {
@@ -305,14 +323,15 @@ function WrongPracticePage({ subjectKey, subjectInfo, user, onBack }) {
                 <span className="past-paper-q-number">{item.question_type}</span>
                 {item.mastered && <span className="past-paper-q-result-tag past-paper-q-result-tag--correct">已掌握</span>}
               </div>
-              <div className="past-paper-q-content">{item.stem || "题干暂缺"}</div>
-              <div className="past-paper-q-answer-row"><span className="past-paper-q-label">你的答案：</span><span className="text-wrong">{item.user_answer || "未作答"}</span></div>
-              <div className="past-paper-q-answer-row"><span className="past-paper-q-label">标准答案：</span><span>{item.standard_answer || "暂无"}</span></div>
-              {item.feedback && <div className="past-paper-q-feedback"><p>{item.feedback}</p></div>}
+              <div className="past-paper-q-content">{item.stem||"题干暂缺"}</div>
+              <QuestionOptions item={item} />
+              <div className="past-paper-q-answer-row"><span className="past-paper-q-label">你的答案：</span><span className="text-wrong">{item.user_answer||"未作答"}</span></div>
+              <div className="past-paper-q-answer-row"><span className="past-paper-q-label">标准答案：</span><span>{item.standard_answer||"暂无"}</span></div>
+              <AnalysisBlock itemKey={`${item.source}-${item.id}`} analysisMap={analysisMap} />
               <div className="exam-practice-action-row">
-                <button type="button" className="ghost-button compact">AI 解析</button>
-                <button type="button" className="ghost-button compact" onClick={() => removeWrong(item)}>移出错题本</button>
-                <button type="button" className="primary-button compact" onClick={() => markMastered(item)}>标记已掌握</button>
+                <button className="ghost-button compact" disabled={!!(analysisMap[`${item.source}-${item.id}`]||{}).loading} onClick={async()=>{const ak=`${item.source}-${item.id}`;setAnalysisMap(p=>({...p,[ak]:{loading:true,text:"",error:""}}));try{let o={};if(item.options_json)try{o=JSON.parse(item.options_json)}catch{}else if(item.options)o=item.options;const d=await safeJsonFetch(`${API_BASE}/exam/11408/${subjectKey}/question-analysis`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({source:item.source,question_type:item.question_type,stem:item.stem,options:o,standard_answer:item.standard_answer,user_answer:item.user_answer,context:"错题复盘"})});setAnalysisMap(p=>({...p,[ak]:{loading:false,text:d.analysis,error:""}}))}catch(e){setAnalysisMap(p=>({...p,[ak]:{loading:false,text:"",error:e.message}}))}}}>{(analysisMap[`${item.source}-${item.id}`]||{}).loading?"AI 解析中...":"AI 解析"}</button>
+                <button className="ghost-button compact" onClick={()=>removeWrong(item)}>移出错题本</button>
+                <button className="wrong-mastered-btn" onClick={()=>markMastered(item)}>标记已掌握</button>
               </div>
             </article>
           ))}
@@ -326,29 +345,31 @@ function FavoritePracticePage({ subjectKey, subjectInfo, user, onBack }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [analysisMap, setFavAnalysis] = useState({});
 
   const loadItems = () => {
-    if (!user?.username) {
-      setError("请先登录后查看收藏练习。");
-      setLoading(false);
-      return;
-    }
+    if (!user?.username) { setError("请先登录后查看收藏练习。"); setLoading(false); return; }
     const params = new URLSearchParams({ username: user.username });
     setLoading(true);
     safeJsonFetch(`${API_BASE}/exam/11408/${subjectKey}/favorites?${params.toString()}`)
-      .then((payload) => {
-        setItems(payload.items || []);
-        setError("");
-      })
-      .catch((err) => setError(err.message || "收藏加载失败"))
-      .finally(() => setLoading(false));
+      .then(p => { setItems(p.items||[]); setError(""); })
+      .catch(e => setError(e.message||"收藏加载失败")).finally(()=>setLoading(false));
   };
-
   useEffect(loadItems, [subjectKey, user?.username]);
+  useEffect(() => () => setFavAnalysis({}), [subjectKey]);
 
   const removeFavorite = async (item) => {
     await safeJsonFetch(`${API_BASE}/exam/11408/${subjectKey}/favorites/${item.id}?username=${encodeURIComponent(user.username)}`, { method: "DELETE" });
     loadItems();
+  };
+  const requestFavAnalysis = async (item) => {
+    const ak = `fav-${item.id}`;
+    setFavAnalysis(p => ({...p, [ak]: {loading:true,text:"",error:""}}));
+    try {
+      let o = {}; if(item.options_json) try{o=JSON.parse(item.options_json)}catch{} else if(item.options) o=item.options;
+      const d = await safeJsonFetch(`${API_BASE}/exam/11408/${subjectKey}/question-analysis`, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({source:item.source||"favorite",question_type:item.question_type,stem:item.stem,options:o,standard_answer:item.standard_answer,user_answer:item.user_answer,context:"收藏复盘"})});
+      setFavAnalysis(p => ({...p, [ak]: {loading:false, text:d.analysis, error:""}}));
+    } catch(e) { setFavAnalysis(p => ({...p, [ak]: {loading:false, text:"", error:e.message}})); }
   };
 
   return (
@@ -365,17 +386,14 @@ function FavoritePracticePage({ subjectKey, subjectInfo, user, onBack }) {
         <div className="exam-practice-list">
           {items.map((item) => (
             <article key={item.id} className="exam-practice-question-item">
-              <div className="past-paper-question-meta">
-                <span className="past-paper-q-type">{SOURCE_LABELS[item.source] || item.source}</span>
-                {item.year && <span className="past-paper-q-year">{item.year} 年 第 {item.number} 题</span>}
-                <span className="past-paper-q-number">{item.question_type}</span>
-              </div>
-              <div className="past-paper-q-content">{item.stem || "题干暂缺"}</div>
-              <div className="past-paper-q-answer-row"><span className="past-paper-q-label">标准答案：</span><span>{item.standard_answer || "暂无"}</span></div>
+              <div className="past-paper-question-meta"><span className="past-paper-q-type">{SOURCE_LABELS[item.source]||item.source}</span>{item.year&&<span className="past-paper-q-year">{item.year} 年 第 {item.number} 题</span>}<span className="past-paper-q-number">{item.question_type}</span></div>
+              <div className="past-paper-q-content">{item.stem||"题干暂缺"}</div>
+              {(()=>{let o={};if(item.options_json)try{o=JSON.parse(item.options_json)}catch{}else if(item.options)o=item.options;return Object.keys(o).length>0?<div className="ai-question-options">{Object.entries(o).map(([k,v])=><div key={k}><strong>{k}.</strong> {v}</div>)}</div>:null})()}
+              <div className="past-paper-q-answer-row"><span className="past-paper-q-label">标准答案：</span><span>{item.standard_answer||"暂无"}</span></div>
+              {(()=>{const ak=`fav-${item.id}`;const ad=analysisMap[ak]||{};return(<>{ad.text&&<div className="past-paper-q-feedback"><strong>AI 解析</strong><p>{ad.text}</p></div>}{ad.error&&<div className="km-inline-message km-inline-message--error">{ad.error}</div>}</>);})()}
               <div className="exam-practice-action-row">
-                <button type="button" className="ghost-button compact">开始练习</button>
-                <button type="button" className="ghost-button compact">AI 解析</button>
-                <button type="button" className="primary-button compact" onClick={() => removeFavorite(item)}>取消收藏</button>
+                <button className="ghost-button compact" disabled={(analysisMap[`fav-${item.id}`]||{}).loading} onClick={()=>requestFavAnalysis(item)}>{(analysisMap[`fav-${item.id}`]||{}).loading?"AI 正在解析...":"AI 解析"}</button>
+                <button className="fav-remove-btn" onClick={()=>removeFavorite(item)}>取消收藏</button>
               </div>
             </article>
           ))}
