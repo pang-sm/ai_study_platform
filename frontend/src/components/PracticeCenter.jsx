@@ -2340,7 +2340,7 @@ export default function PracticeCenter({
                 <div className="practice-type-icon">🤖</div>
                 <div className="practice-type-info">
                   <strong>AI 出题</strong>
-                  <p>根据知识点智能生成练习题</p>
+                  <p>根据当前科目知识脉络，严格参考 11408 真题生成练习题</p>
                   <span className="practice-type-count">自定义生成</span>
                 </div>
                 <span className="practice-type-arrow">›</span>
@@ -4285,32 +4285,18 @@ export default function PracticeCenter({
         <div className="modal-overlay" onClick={() => setShowGenerateModal(false)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>AI 生成题目</h3>
+              <h3>AI 出题</h3>
               <button className="modal-close" onClick={() => setShowGenerateModal(false)}>
                 &times;
               </button>
             </div>
             <div className="task-modal-body">
-              <label className="field-label">课程</label>
-              <select
-                className="field"
-                value={genCourse}
-                onChange={(e) => {
-                  setGenCourse(e.target.value);
-                  setGenModuleId("");
-                  setGenKpId("");
-                }}
-              >
-                <option value="">不绑定课程</option>
-                {courseOptions.map((item) => (
-                  <option key={item} value={item}>
-                    {getSubjectLabel(item)}
-                  </option>
-                ))}
-              </select>
+              <div className="practice-generate-course-badge">
+                当前科目：{getSubjectLabel(courseFilter || subject) || "11408 数据结构"}
+              </div>
 
               <div className="practice-kp-picker">
-                <label className="field-label">知识点模块（可选）</label>
+                <label className="field-label">知识点选择</label>
                 {knowledgePointModules.length === 0 ? (
                   <p className="practice-kp-empty">
                     当前课程暂无知识点路线，可先在知识点学习中生成路线，或不绑定知识点。
@@ -4353,56 +4339,17 @@ export default function PracticeCenter({
                 )}
               </div>
 
-              <label className="field-label">题型</label>
+              <label className="field-label">题型选择</label>
               <select
                 className="field"
                 value={genType}
                 onChange={(e) => setGenType(e.target.value)}
               >
-                {TYPE_OPTIONS.filter((item) => item.value).map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
+                <option value="choice">选择题</option>
+                <option value="short_answer">大题</option>
               </select>
 
-              {genType === "programming" && (
-                <div className="practice-code-guide">
-                  <strong>编程题请前往编程助手生成。</strong>
-                  <p>编程题需要测试用例、代码运行和反馈流程，建议在编程助手中完成。</p>
-                  <button className="primary-button compact" type="button" onClick={goCodeStudio}>
-                    前往编程助手
-                  </button>
-                </div>
-              )}
-
-              <label className="field-label">难度</label>
-              <select
-                className="field"
-                value={genDifficulty}
-                onChange={(e) => setGenDifficulty(e.target.value)}
-              >
-                {DIFFICULTY_OPTIONS.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-
-              <label className="field-label">题型风格</label>
-              <select
-                className="field"
-                value={genSourceStyle}
-                onChange={(e) => setGenSourceStyle(e.target.value)}
-              >
-                {STYLE_OPTIONS.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-
-              <label className="field-label">生成数量</label>
+              <label className="field-label">题目数量</label>
               <input
                 type="number"
                 className="field"
@@ -4415,26 +4362,8 @@ export default function PracticeCenter({
               />
 
               <div className="practice-generate-note">
-                AI 会参考经典计算机学习题型风格生成原创题，不会直接复制网站原题。
+                生成内容将严格参考 11408 真题风格，并结合当前科目知识脉络进行出题。
               </div>
-
-              <label className="practice-toggle-row">
-                <input
-                  type="checkbox"
-                  checked={genRequireReasoning}
-                  onChange={(e) => setGenRequireReasoning(e.target.checked)}
-                />
-                <span>生成综合题 / 多步推理题</span>
-              </label>
-
-              <label className="practice-toggle-row">
-                <input
-                  type="checkbox"
-                  checked={genAvoidTooSimple}
-                  onChange={(e) => setGenAvoidTooSimple(e.target.checked)}
-                />
-                <span>避免简单概念题</span>
-              </label>
 
               {genError && (
                 <div className="practice-import-error" style={{ marginTop: 12 }}>

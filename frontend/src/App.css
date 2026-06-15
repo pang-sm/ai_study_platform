@@ -20051,6 +20051,22 @@ select.field:focus {
   flex-shrink: 0;
 }
 
+.practice-generate-course-badge {
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  background: #f5f0ff;
+  border: 1px solid #d4c4ff;
+  border-radius: 10px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #6d28d9;
+}
+
+.practice-generate-modal .task-modal-body {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
 @media (max-width: 900px) {
   .practice-stats-grid {
     grid-template-columns: repeat(2, 1fr);
