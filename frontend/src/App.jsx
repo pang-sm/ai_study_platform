@@ -3206,6 +3206,8 @@ function App() {
   const activeExamMaterialsSubjectKey = getExamSubjectKeyFromCourse(subject) || examSubjectKey || "data_structure";
   const isExamCourseMaterialsPage =
     page === "workspaceMaterials" && Boolean(getExamSubjectKeyFromCourse(subject));
+  const activeExamKnowledgeSubjectKey = getExamSubjectKeyFromCourse(subject) || examSubjectKey || "data_structure";
+  const isExamCourseKnowledgePage = page === "knowledgeLearning";
   const courseMaterialsPage = (
     <CourseMaterialsPage
       user={user}
@@ -3247,6 +3249,26 @@ function App() {
       reparseMaterial={reparseMaterial}
       setPage={setPage}
       onQuoteMaterial={quoteMaterialFromLibrary}
+      searchNavigate={searchNavigate}
+      onClearSearchNavigate={() => setSearchNavigate(null)}
+    />
+  );
+  const knowledgeLearningPage = (
+    <KnowledgeLearningPage
+      user={user}
+      course={subject}
+      courseOptions={COURSE_OPTIONS}
+      getSubjectLabel={getSubjectLabel}
+      setPage={setPage}
+      onNavigateToAI={(ctx) => {
+        openChatPageForCourse(subject, true);
+        setSelectedLibraryMaterials([]);
+        setPendingAIContext(ctx);
+      }}
+      materials={materials}
+      materialsLoading={materialsLoading}
+      loadMaterials={(target) => loadMaterials(normalizeSubject(target || subject))}
+      goalConfig={goalConfig}
       searchNavigate={searchNavigate}
       onClearSearchNavigate={() => setSearchNavigate(null)}
     />
@@ -4063,6 +4085,23 @@ function App() {
         subjectKey={activeExamMaterialsSubjectKey}
         panelIntent={{ panel: "materials", nonce: 0 }}
         materialsContent={courseMaterialsPage}
+        initialMaterialToReference={examInitialMaterialReference}
+        onInitialMaterialReferenced={() => setExamInitialMaterialReference(null)}
+        onNavigate={openExamSubjectFeature}
+        onBackHome={() => setPage("examHome")}
+        onProfile={() => setPage("examProfile")}
+      />
+    );
+  }
+
+  if (isExamCourseKnowledgePage) {
+    return (
+      <ExamSubjectDashboard
+        user={user}
+        subjectKey={activeExamKnowledgeSubjectKey}
+        panelIntent={{ panel: "knowledge", nonce: 0 }}
+        materialsContent={courseMaterialsPage}
+        knowledgeContent={knowledgeLearningPage}
         initialMaterialToReference={examInitialMaterialReference}
         onInitialMaterialReferenced={() => setExamInitialMaterialReference(null)}
         onNavigate={openExamSubjectFeature}
