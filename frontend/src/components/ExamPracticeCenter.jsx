@@ -216,6 +216,12 @@ function ChapterPracticePage({ subjectInfo, user, onBack }) {
     }).catch(e => setError(e.message || "加载失败")).finally(() => setLoading(false));
   }, [subjectInfo.courseId, user?.username]);
 
+  function normalizeChapterQuestionsResponse(data) {
+    if (Array.isArray(data)) return { items: data, total: data.length };
+    const items = data?.items || data?.questions || data?.results || data?.data || [];
+    return { items: Array.isArray(items) ? items : [], total: data?.total ?? (Array.isArray(items) ? items.length : 0), debug_info: data?.debug_info };
+  }
+
   useEffect(() => {
     if (!selected) return;
     setKpLoading(true); setKpQuestions(null);
@@ -223,7 +229,8 @@ function ChapterPracticePage({ subjectInfo, user, onBack }) {
     const kpPath = normId ? `${normId} ${selected.title||""}`.trim() : (selected.title || selected.name || "");
     const params = new URLSearchParams({ knowledge_point_id: normId, knowledge_point_path: kpPath, include_children: "true" });
     safeJsonFetch(`${API_BASE}/exam/11408/${subjectInfo.key}/chapter-practice/questions?${params.toString()}`)
-      .then(p => setKpQuestions(p)).catch(() => setKpQuestions({ items: [], total: 0, debug_info: {error:"request failed"} }))
+      .then(p => setKpQuestions(normalizeChapterQuestionsResponse(p)))
+      .catch(() => setKpQuestions({ items: [], total: 0 }))
       .finally(() => setKpLoading(false));
   }, [selected, subjectInfo.key]);
 
