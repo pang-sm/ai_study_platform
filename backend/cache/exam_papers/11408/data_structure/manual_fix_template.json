@@ -1,0 +1,490 @@
+{
+  "subject_key": "data_structure",
+  "subject_name": "数据结构",
+  "items": [
+    {
+      "year": 2022,
+      "number": 1,
+      "type": "选择题",
+      "image_urls": [
+        "/static/exam_papers/11408/data_structure/2022/img_0.jpg"
+      ],
+      "current_stem": "第 1 题",
+      "current_options": {
+        "A": "O(log n)",
+        "B": "B. O(n)",
+        "C": "C. O(nlogn)",
+        "D": "D. O(n²)"
+      },
+      "answer": "B",
+      "fix_fields": {
+        "stem": "下列程序段的时间复杂度是（ ）。\n\nint sum=0;\n\nfor(int i = 1; i <= n; i *= 2)\n    for(int j = 1; j < i; j++)\n        sum++;",
+        "options": {
+          "A": "O(log n)",
+          "B": "O(n)",
+          "C": "O(nlogn)",
+          "D": "O(n^2)"
+        },
+        "answer": "B"
+      },
+      "notes": "人工根据图片 2022_1_1.jpg 补录。"
+    },
+    {
+      "year": 2022,
+      "number": 4,
+      "type": "选择题",
+      "image_urls": [
+        "/static/exam_papers/11408/data_structure/2022/img_3.jpg"
+      ],
+      "current_stem": "4.若三叉树T中有244个结点(叶结点高度为1)，则T的高度至少是()",
+      "current_options": {},
+      "answer": "C",
+      "fix_fields": {
+        "stem": "若三叉树 T 中有 244 个结点（叶结点高度为 1），则 T 的高度至少是（ ）。",
+        "options": {
+          "A": "8",
+          "B": "7",
+          "C": "6",
+          "D": "5"
+        },
+        "answer": "C"
+      },
+      "notes": "人工根据异常图补录。"
+    },
+    {
+      "year": 2022,
+      "number": 8,
+      "type": "选择题",
+      "image_urls": [
+        "/static/exam_papers/11408/data_structure/2022/img_7.jpg"
+      ],
+      "current_stem": "第 8 题",
+      "current_options": {
+        "A": "A.60，90，280",
+        "B": "B.60，90，350",
+        "C": "C.60，85，110，350",
+        "D": "D.60，90，110，350"
+      },
+      "answer": "D",
+      "fix_fields": {
+        "stem": "在下图所示的 5 阶 B 树 T 中，删除关键字 260 之后需要进行必要的调整，得到新的 B 树 T1。下列选项中，不可能是 T1 根结点中关键字序列的是（ ）。",
+        "options": {
+          "A": "60，90，280",
+          "B": "60，90，350",
+          "C": "60，85，110，350",
+          "D": "60，90，110，350"
+        },
+        "answer": "D"
+      },
+      "notes": "人工根据图片补录；题目依赖原图中的 B 树结构，image_urls 必须保留。"
+    },
+    {
+      "year": 2022,
+      "number": 9,
+      "type": "选择题",
+      "image_urls": [
+        "/static/exam_papers/11408/data_structure/2022/img_8.jpg"
+      ],
+      "current_stem": "第 9 题",
+      "current_options": {
+        "A": "仅 I、II",
+        "B": "仅 I、III",
+        "C": "仅 II、III",
+        "D": "I、II、III"
+      },
+      "answer": "D",
+      "fix_fields": {
+        "stem": "下列因素中，影响散列（哈希）方法平均查找长度的是（ ）。\n\nI、装填因子\nII、散列函数\nIII、冲突解决方法",
+        "options": {
+          "A": "仅 I、II",
+          "B": "仅 I、III",
+          "C": "仅 II、III",
+          "D": "I、II、III"
+        },
+        "answer": "D"
+      },
+      "notes": "人工根据图片 2022_9_1.jpg 补录。"
+    },
+    {
+      "year": 2022,
+      "number": 41,
+      "type": "大题",
+      "image_urls": [
+        "/static/exam_papers/11408/data_structure/2022/img_11.jpg",
+        "/static/exam_papers/11408/data_structure/2022/img_12.jpg"
+      ],
+      "current_stem": "第 41 题",
+      "current_options": {
+        "A": "",
+        "B": "",
+        "C": "",
+        "D": ""
+      },
+      "answer": "待补充（本次上传的该年份 PDF 未检测到综合应用题参考答案）",
+      "fix_fields": {
+        "stem": "已知非空二叉树 T 的结点值均为正整数，采用顺序存储方式保存，数据结构定义如下：\n\ntypedef struct {\n    int SqBiTNode[MAX_SIZE];\n    int ElemNum;\n} SqBiTree;\n\nT 中不存在的结点在数组 SqBiTNode 中用 -1 来表示。对于下图所示的两棵非空二叉树 T1 和 T2，T1 的存储结果如下：\nT1.SqBiTNode = [40, 25, 60, -1, 30, -1, 80, -1, -1, 27]\nT1.ElemNum = 10\n\nT2 的存储结果如下：\nT2.SqBiTNode = [40, 50, 60, -1, 30, -1, -1, -1, -1, -1, 35]\nT2.ElemNum = 11\n\n请设计一个尽可能高效的算法，判定一棵采用这种方式存储的二叉树是否为二叉搜索树，若是，则返回 true，否则返回 false。\n\n要求：\n（1）给出算法的基本设计思想。\n（2）根据设计思想，采用 C 或 C++ 语言描述算法，关键之处给出注释。",
+        "options": {
+          "A": "",
+          "B": "",
+          "C": "",
+          "D": ""
+        }
+      },
+      "notes": "人工根据 2022 第41题两张图片补录。"
+    },
+    {
+      "year": 2023,
+      "number": 5,
+      "type": "选择题",
+      "image_urls": [
+        "/static/exam_papers/11408/data_structure/2023/img_18.jpg",
+        "/static/exam_papers/11408/data_structure/2023/img_19.jpg"
+      ],
+      "current_stem": "5. 已知一棵二叉树的树型如下图所示，若其后序遍历序列为 f, d, b, e, c, a，则其先（前）序遍历序列为（）",
+      "current_options": {
+        "A": "",
+        "B": "",
+        "C": "",
+        "D": ""
+      },
+      "answer": "A",
+      "fix_fields": {
+        "stem": "已知一棵二叉树的树型如下图所示，若其后序遍历序列为 f，d，b，e，c，a，则其先（前）序遍历序列是（ ）。",
+        "options": {
+          "A": "a，e，d，f，b，c",
+          "B": "a，c，e，b，d，f",
+          "C": "c，a，b，e，f，d",
+          "D": "d，f，e，b，a，c"
+        },
+        "answer": "A"
+      },
+      "notes": "题目依赖原图中的二叉树结构，image_urls 必须保留。"
+    },
+    {
+      "year": 2023,
+      "number": 41,
+      "type": "大题",
+      "image_urls": [
+        "/static/exam_papers/11408/data_structure/2023/img_26.jpg",
+        "/static/exam_papers/11408/data_structure/2023/img_27.jpg"
+      ],
+      "current_stem": "第 41 题",
+      "current_options": {},
+      "answer": "待补充（本次上传的该年份 PDF 未检测到综合应用题参考答案）",
+      "fix_fields": {
+        "stem": "已知有向图 G 采用邻接矩阵存储，类型定义如下：\n\ntypedef struct {\n    int numVertices, numEdges;\n    char VerticesList[MAXV];\n    int Edge[MAXV][MAXV];\n} MGraph;\n\n将图中出度大于入度的顶点称为 K 顶点，例如题 41 图中，顶点 a 和 b 为 K 顶点。\n\n请设计算法：int printVertices(MGraph G)，对给定的任意非空有向图 G，输出 G 中所有的 K 顶点，并返回 K 顶点的个数。\n\n（1）给出算法的基本设计思想。\n（2）根据设计思想，采用 C 或 C++ 语言描述算法，关键之处给出注释。",
+        "options": {
+          "A": "",
+          "B": "",
+          "C": "",
+          "D": ""
+        }
+      },
+      "notes": "人工根据 2023 第41题两张图片补录。"
+    },
+    {
+      "year": 2024,
+      "number": 5,
+      "type": "选择题",
+      "image_urls": [
+        "/static/exam_papers/11408/data_structure/2024/img_33.jpg",
+        "/static/exam_papers/11408/data_structure/2024/img_34.jpg"
+      ],
+      "current_stem": "下列数据结构中，不适合直接使用折半查找的是",
+      "current_options": {
+        "A": "",
+        "B": "",
+        "C": "",
+        "D": ""
+      },
+      "answer": "D",
+      "fix_fields": {
+        "stem": "下列数据结构中，不适合直接使用折半查找的是（ ）。\n\nI. 有序链表\nII. 无序数组\nIII. 有序静态链表\nIV. 无序静态链表",
+        "options": {
+          "A": "仅 I、III",
+          "B": "仅 II、IV",
+          "C": "仅 II、III、IV",
+          "D": "I、II、III、IV"
+        },
+        "answer": "D"
+      },
+      "notes": "人工根据两张异常图补录。"
+    },
+    {
+      "year": 2024,
+      "number": 6,
+      "type": "选择题",
+      "image_urls": [
+        "/static/exam_papers/11408/data_structure/2024/img_35.jpg"
+      ],
+      "current_stem": "6. KMP 算法使用修正后的 next 数组进行模式匹配，模式串 S=aabab，当主串中某字符与 S 中某字符失配时，S 将向右滑动的最长距离是",
+      "current_options": {},
+      "answer": "A",
+      "fix_fields": {
+        "stem": "给定 7 个不同的关键字，能够构造的不同 4 阶 B 树的个数最多是（ ）。",
+        "options": {
+          "A": "7",
+          "B": "8",
+          "C": "9",
+          "D": "10"
+        },
+        "answer": "A"
+      },
+      "notes": "人工根据异常图补录。"
+    },
+    {
+      "year": 2024,
+      "number": 10,
+      "type": "选择题",
+      "image_urls": [
+        "/static/exam_papers/11408/data_structure/2024/img_39.jpg"
+      ],
+      "current_stem": "现有由关键字组成的3个有序序列(3,5)、(7,9)和(6)，若按从左至右的次序选择有序序列进行二路归并排序，则关键字之间的总比较次数是",
+      "current_options": {},
+      "answer": "C",
+      "fix_fields": {
+        "stem": "现有由关键字组成的 3 个有序序列（3，5）、（7，9）和（6），若按从左至右的次序选择有序序列进行二路归并排序，则关键字之间的总比较次数是（ ）。",
+        "options": {
+          "A": "3",
+          "B": "4",
+          "C": "5",
+          "D": "6"
+        },
+        "answer": "C"
+      },
+      "notes": "人工根据异常图补录。"
+    },
+    {
+      "year": 2024,
+      "number": 41,
+      "type": "大题",
+      "image_urls": [
+        "/static/exam_papers/11408/data_structure/2024/img_41.jpg",
+        "/static/exam_papers/11408/data_structure/2024/img_42.jpg"
+      ],
+      "current_stem": "第 41 题",
+      "current_options": {
+        "A": "",
+        "B": "",
+        "C": "",
+        "D": ""
+      },
+      "answer": "待补充（本次上传的该年份 PDF 未检测到综合应用题参考答案）",
+      "fix_fields": {
+        "stem": "2023 年 10 月 26 日，神舟十七号载人飞船发射取得圆满成功，再次彰显了中国航天事业的辉煌成就。载人航天工程是包含众多子工程的复杂系统工程，为了保证工程的有序开展，需要明确各子工程的前导工程，以协调各子工程的实施。该问题可以简化、抽象为有向图的拓扑序列问题。已知有向图 G 采用邻接矩阵存储，类型定义如下：\n\ntypedef struct {\n    int numVertices, numEdges;\n    char VerticesList[MAXV];\n    int Edge[MAXV][MAXV];\n} MGraph;\n\n请设计算法：int uniquely(MGraph G)，判定 G 是否存在唯一的拓扑序列，若是则返回 1，否则返回 0。\n\n要求：\n（1）给出算法的基本设计思想（4 分）。\n（2）根据设计思想，采用 C 或 C++ 语言描述算法，关键之处给出注释（9 分）。",
+        "options": {
+          "A": "",
+          "B": "",
+          "C": "",
+          "D": ""
+        }
+      },
+      "notes": "人工根据 2024 第41题两张图片补录。"
+    },
+    {
+      "year": 2025,
+      "number": 1,
+      "type": "选择题",
+      "image_urls": [
+        "/static/exam_papers/11408/data_structure/2025/img_44.jpg"
+      ],
+      "current_stem": "第 1 题",
+      "current_options": {
+        "A": "O(logn)",
+        "B": "O(n)",
+        "C": "O(nlogn)",
+        "D": "O(n²)"
+      },
+      "answer": "B",
+      "fix_fields": {
+        "stem": "下列程序段的时间复杂度是：\n\nint count=0, j;\nfor(i=1; i*i<=n; i++)\n    for(j=1; j<=i; j++)\n        count++;",
+        "options": {
+          "A": "O(log n)",
+          "B": "O(n)",
+          "C": "O(nlogn)",
+          "D": "O(n^2)"
+        },
+        "answer": "B"
+      },
+      "notes": "人工根据图片 2025_1_1.jpg 补录。"
+    },
+    {
+      "year": 2025,
+      "number": 4,
+      "type": "选择题",
+      "image_urls": [
+        "/static/exam_papers/11408/data_structure/2025/img_47.jpg"
+      ],
+      "current_stem": "第 4 题",
+      "current_options": {
+        "A": "完全二叉树中不存在度为1的结点",
+        "B": "任意一个森林都可以转换为一棵二叉树",
+        "C": "二叉树的分支结点个数比叶结点个数少",
+        "D": "表达式树的根中保存的是最先计算的运算符"
+      },
+      "answer": "B",
+      "fix_fields": {
+        "stem": "下列关于二叉树及森林的叙述中，正确的是（ ）。",
+        "options": {
+          "A": "完全二叉树中不存在度为 1 的结点",
+          "B": "任意一个森林都可以转换为一棵二叉树",
+          "C": "二叉树的分支结点个数比叶结点个数少",
+          "D": "表达式树的根中保存的是最先计算的运算符"
+        },
+        "answer": "B"
+      },
+      "notes": "人工根据图片 2025_4_1.jpg 补录。"
+    },
+    {
+      "year": 2025,
+      "number": 8,
+      "type": "选择题",
+      "image_urls": [
+        "/static/exam_papers/11408/data_structure/2025/img_51.jpg"
+      ],
+      "current_stem": "8. 给定 7 个不同的关键字，能够构造的不同 4 阶 B 树的个数最多是:",
+      "current_options": {},
+      "answer": "C",
+      "fix_fields": {
+        "stem": "在高度为 4 的平衡二叉树中，根的左、右子树结点数相差最多的是（ ）。",
+        "options": {
+          "A": "1",
+          "B": "2",
+          "C": "3",
+          "D": "5"
+        },
+        "answer": "C"
+      },
+      "notes": "人工根据两张异常图补录。"
+    },
+    {
+      "year": 2025,
+      "number": 41,
+      "type": "大题",
+      "image_urls": [
+        "/static/exam_papers/11408/data_structure/2025/img_55.jpg"
+      ],
+      "current_stem": "第 41 题",
+      "current_options": {
+        "A": "设有两个长度均为 n 的一维整型数组 A 和 res，对数组 A 中的每个元素 A[i]，计算 A[i] 与 A[j] (0 ≤ i ≤ j ≤ n-1) 乘积的最大值，并将其保存到 res[i] 中。例如，若 A[] = {1, 4, -9, 6}，则得到 res[] = {6, 24, 81, 36}。现给定数组 A，请设计一个时间和空间上尽可能高效的算法 calMulMax，求 res 中各元素的值。函数原型为：void calMulMax(int A[], int res[], int n)。要求如下。",
+        "B": ""
+      },
+      "answer": "（1）此算法的核心思想是：对于每个位置i，找到一个在[i, n-1]区间内的值，使得A[i] * X 的",
+      "fix_fields": {
+        "stem": "设有两个长度均为 n 的一维整型数组 A 和 res，对数组 A 中的每个元素 A[i]，计算 A[i] 与 A[j]（0≤i≤j≤n-1）乘积的最大值，并将其保存到 res[i] 中。例如，若 A[] = {1, 4, -9, 6}，则得到 res[] = {6, 24, 81, 36}。现给定数组 A，请设计一个时间和空间上尽可能高效的算法 calMulMax，求 res 中各元素的值。函数原型为：void calMulMax(int A[], int res[], int n)。要求如下：\n\n（1）给出算法的基本设计思想。（4 分）\n（2）根据设计思想，采用 C 或 C++ 语言描述算法，关键之处给出注释。（7 分）\n（3）说明你所设计算法的时间复杂度和空间复杂度。（2 分）",
+        "options": {
+          "A": "",
+          "B": "",
+          "C": "",
+          "D": ""
+        }
+      },
+      "notes": "人工根据 2025 第41题图片补录。"
+    },
+    {
+      "year": 2026,
+      "number": 2,
+      "type": "选择题",
+      "image_urls": [
+        "/static/exam_papers/11408/data_structure/2026/img_59.jpg",
+        "/static/exam_papers/11408/data_structure/2026/img_60.jpg"
+      ],
+      "current_stem": "2. 设有一个双向链表 L，结构为 [p2, p1]，头结点为 head。初始时 head = cu。现要将每个结点的 p2 指向 p1 指向结点的直接后继，应该进行的操作是（）。",
+      "current_options": {
+        "A": "A. while(cu!=NULL) {cu->p2=cu->p1->p1;cu=cu->p1;};",
+        "B": "B. while(cu!=NULL && cu->p2!=NULL) {cu->p2=cu->p1->p1;cu= cu->p1;};",
+        "C": "C. while(cu!=NULL) {if(cu->p1!=NULL) {cu->p2=cu->p1->p1;cu=cu->p1;};}",
+        "D": ""
+      },
+      "answer": "D",
+      "fix_fields": {
+        "stem": "设有一个双向链表 L，结构为 [p2, p1]，头结点为 head。初始时 head = cu。现要将每个结点的 p2 指向 p1 指向结点的直接后继，应进行的操作是（ ）。",
+        "options": {
+          "A": "while(cu!=NULL){cu->p2=cu->p1->p1; cu=cu->p1;}",
+          "B": "while(cu!=NULL && cu->p2!=NULL){cu->p2=cu->p1->p1; cu=cu->p1;}",
+          "C": "while(cu!=NULL){if(cu->p1!=NULL){cu->p2=cu->p1->p1; cu=cu->p1;}}",
+          "D": "while(cu!=NULL){if(cu->p1!=NULL){cu->p2=cu->p1->p1;} else {cu->p2=NULL; cu=cu->p1;}}"
+        },
+        "answer": "D"
+      },
+      "notes": "本题原异常报告显示仅 D 缺失，但这里一并给出完整四个选项文本，便于统一修正。"
+    },
+    {
+      "year": 2026,
+      "number": 5,
+      "type": "选择题",
+      "image_urls": [
+        "/static/exam_papers/11408/data_structure/2026/img_63.jpg",
+        "/static/exam_papers/11408/data_structure/2026/img_64.jpg"
+      ],
+      "current_stem": "5. 已知字符 abcdefg 对应权值为 1、2、4、5、8、10、12，使得带权路径长度最小，与 e 同层的结点有（）。",
+      "current_options": {
+        "A": "d",
+        "B": "",
+        "C": "",
+        "D": ""
+      },
+      "answer": "D",
+      "fix_fields": {
+        "stem": "已知字符 abcdefg 对应权值为 1、2、4、5、8、10、12，使得带权路径长度最小，与 e 同层的结点有（ ）。",
+        "options": {
+          "A": "d",
+          "B": "g",
+          "C": "d 和 f",
+          "D": "f 和 g"
+        },
+        "answer": "D"
+      },
+      "notes": "人工根据两张异常图补录。"
+    },
+    {
+      "year": 2026,
+      "number": 8,
+      "type": "选择题",
+      "image_urls": [
+        "/static/exam_papers/11408/data_structure/2026/img_67.jpg",
+        "/static/exam_papers/11408/data_structure/2026/img_68.jpg"
+      ],
+      "current_stem": "8. 在高度为 4 的平衡二叉树中，根的左、右子树结点数相差最多的是（）。",
+      "current_options": {},
+      "answer": "D",
+      "fix_fields": {
+        "stem": "在高度为 4 的平衡二叉树中，根的左、右子树结点数相差最多的是（ ）。",
+        "options": {
+          "A": "1",
+          "B": "2",
+          "C": "3",
+          "D": "5"
+        },
+        "answer": "D"
+      },
+      "notes": "人工根据最后一张 2026 第8题截图补录。"
+    },
+    {
+      "year": 2026,
+      "number": 41,
+      "type": "大题",
+      "image_urls": [
+        "/static/exam_papers/11408/data_structure/2026/img_72.jpg"
+      ],
+      "current_stem": "第 41 题",
+      "current_options": {
+        "A": "",
+        "B": "",
+        "C": "",
+        "D": ""
+      },
+      "answer": "（1）",
+      "fix_fields": {
+        "stem": "假定二叉搜索树使用二叉链表存储，存储结构如下：\n\ntypedef struct BSTNode {\n    int data;\n    struct BSTNode *left, *right;\n} BSTNode;\n\ntypedef BSTNode BTNode;\n\n给一棵二叉搜索树 T 和整数 K，查找树中关键字与 K 之差的绝对值最小的所有结点，并输出该绝对值与结点中的关键字。\n\n（1）给出算法的基本思想。（4 分）\n（2）使用 C/C++ 描述算法思想。（8 分）",
+        "options": {
+          "A": "",
+          "B": "",
+          "C": "",
+          "D": ""
+        }
+      },
+      "notes": "人工根据 2026 第41题图片补录。"
+    }
+  ]
+}

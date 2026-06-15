@@ -374,12 +374,17 @@ def get_year_questions(subject_key: str, year: int) -> dict:
             cached = json.loads(raw)
             qs = cached.get("questions", [])
             if len(qs) > 0:
+                # Strip image_urls from API response to reduce payload size
+                slim_qs = []
+                for q in qs:
+                    sq = {k: v for k, v in q.items() if k != "image_urls"}
+                    slim_qs.append(sq)
                 logger.info("[exam_parser] Cache hit for %s year=%s: %d questions", subject_key, year, len(qs))
                 return {
                     "subject_key": subject_key,
                     "subject_name": subject_name,
                     "year": year,
-                    "questions": qs,
+                    "questions": slim_qs,
                 }
         except Exception as e:
             logger.warning("[exam_parser] Cache read failed for %s year=%s: %s", subject_key, year, str(e)[:200])

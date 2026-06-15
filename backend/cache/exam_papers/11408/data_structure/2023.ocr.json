@@ -1,1 +1,264 @@
-{"subject_key": "data_structure", "subject_name": "数据结构", "year": 2023, "docx_mtime": 1781481024.0, "questions": [{"id": "data_structure_2023_1", "year": 2023, "number": 1, "type": "选择题", "content": "第 1 题", "image_urls": ["/static/exam_papers/11408/data_structure/2023/img_14.jpg"], "options": {"A": "查找包含指定值元素的算法", "B": "插入包含指定值元素的算法", "C": "删除第 i (1≤i≤n)个元素的算法", "D": "获取第 i (1≤i≤n)个元素的算法"}, "answer": "D", "stem": "1.下列对顺序存储的有序表(长度为n)实现给定操作的算法中，平均时间复杂度为O(1)的是（）", "ocr_quality": "high", "need_manual_check": false}, {"id": "data_structure_2023_2", "year": 2023, "number": 2, "type": "选择题", "content": "第 2 题", "image_urls": ["/static/exam_papers/11408/data_structure/2023/img_15.jpg"], "options": {"A": "A. s->next->prev=p; s->prev=p;", "B": "B. p->next->prev=s; s->prev=p;", "C": "C. s-> prev =s->next->prev; s->next ->prev=s;", "D": "D. p->next->prev=s->prev; s->next->prev=p;"}, "answer": "C", "stem": "2. 现有非空双向链表 L，其结点结构为：prer data next\nprer 是指向前直接前驱结点的指针，next 是指向直接后继结点的指针。若要在 L 中指针 p 所指向的结点（非尾结点）之后插入指针 s 指向的新结点，则在执行了语句序列：“s->next=p->next; p->next=s”后，下列语句序列中还需要执行的是（）", "ocr_quality": "high", "need_manual_check": false}, {"id": "data_structure_2023_3", "year": 2023, "number": 3, "type": "选择题", "content": "第 3 题", "image_urls": ["/static/exam_papers/11408/data_structure/2023/img_16.jpg"], "options": {"A": "Ⅰ、Ⅲ", "B": "Ⅰ、Ⅳ", "C": "Ⅱ、Ⅳ", "D": "Ⅰ、Ⅱ、Ⅲ、Ⅳ"}, "answer": "A", "stem": "3.若采用三元组表存储结构存储稀疏矩阵M，则除三元组表外，下列数据中还需要保存的是（）", "ocr_quality": "high", "need_manual_check": false}, {"id": "data_structure_2023_4", "year": 2023, "number": 4, "type": "选择题", "content": "第 4 题", "image_urls": ["/static/exam_papers/11408/data_structure/2023/img_17.jpg"], "options": {"A": "2.4", "B": "2.5", "C": "2.67", "D": "2.75"}, "answer": "B", "stem": "在由6个字符组成的字符集S中，各字符出现的频次分别为3，4，5，6，8，10，为S构造的哈夫曼编码的加权平均长度为（）", "ocr_quality": "high", "need_manual_check": false}, {"id": "data_structure_2023_5", "year": 2023, "number": 5, "type": "选择题", "content": "第 5 题", "image_urls": ["/static/exam_papers/11408/data_structure/2023/img_18.jpg", "/static/exam_papers/11408/data_structure/2023/img_19.jpg"], "options": {"A": "", "B": "", "C": "", "D": ""}, "answer": "A", "stem": "5. 已知一棵二叉树的树型如下图所示，若其后序遍历序列为 f, d, b, e, c, a，则其先（前）序遍历序列为（）", "ocr_quality": "high", "need_manual_check": false}, {"id": "data_structure_2023_6", "year": 2023, "number": 6, "type": "选择题", "content": "第 6 题", "image_urls": ["/static/exam_papers/11408/data_structure/2023/img_20.jpg"], "options": {"A": "仅 I", "B": "仅 III", "C": "I、II", "D": "I、II、III"}, "answer": "B", "stem": "已知无向连通图 G 中各边的权值均为 1。下列算法中，一定能够求出图 G 中从某顶点到其余各个顶点最短路径的是（）", "ocr_quality": "high", "need_manual_check": false}, {"id": "data_structure_2023_7", "year": 2023, "number": 7, "type": "选择题", "content": "第 7 题", "image_urls": ["/static/exam_papers/11408/data_structure/2023/img_21.jpg"], "options": {"A": "仅 I", "B": "I、II", "C": "III、IV", "D": "I、II、IV"}, "answer": "B", "stem": "7. 下面关于非空 B 树的叙述中，正确的是（）", "ocr_quality": "high", "need_manual_check": false}, {"id": "data_structure_2023_8", "year": 2023, "number": 8, "type": "选择题", "content": "第 8 题", "image_urls": ["/static/exam_papers/11408/data_structure/2023/img_22.jpg"], "options": {"A": "A. 9", "B": "B. 10", "C": "C. 30", "D": "D. 300"}, "answer": "B", "stem": "对含600个元素的有序顺序表进行折半查找，关键字间的比较次数最多是（）", "ocr_quality": "high", "need_manual_check": false}, {"id": "data_structure_2023_9", "year": 2023, "number": 9, "type": "选择题", "content": "第 9 题", "image_urls": ["/static/exam_papers/11408/data_structure/2023/img_23.jpg"], "options": {"A": "A. 1", "B": "B. 1.6", "C": "C. 1.8", "D": "D. 2.2"}, "answer": "C", "stem": "现有长度为5、初始为空的散列表，散列函数 $H(k) = (k+4) \\% 5$，用线性探查再散列法解决冲突。若将关键字序列 2022, 12, 25 依次插入 HT 中，然后删除关键字 25，则 HT 中查找失败的平均查找长度为（）", "ocr_quality": "high", "need_manual_check": false}, {"id": "data_structure_2023_10", "year": 2023, "number": 10, "type": "选择题", "content": "第 10 题", "image_urls": ["/static/exam_papers/11408/data_structure/2023/img_24.jpg"], "options": {"A": "Ⅰ、Ⅱ", "B": "Ⅱ、Ⅴ", "C": "Ⅰ、Ⅲ、Ⅳ", "D": "Ⅲ、Ⅳ、Ⅴ"}, "answer": "C", "stem": "下列排序算法中，不稳定的是（）", "ocr_quality": "high", "need_manual_check": false}, {"id": "data_structure_2023_11", "year": 2023, "number": 11, "type": "选择题", "content": "第 11 题", "image_urls": ["/static/exam_papers/11408/data_structure/2023/img_25.jpg"], "options": {"A": "11", "B": "70", "C": "80", "D": "81"}, "answer": "D", "stem": "使用快速排序算法对数据进行升序排序，若经过一次划分后得到的数据序列是 68, 11, 70, 23, 80, 77, 48, 81, 93, 88，则该次划分的枢轴是（）", "ocr_quality": "high", "need_manual_check": false}, {"id": "data_structure_2023_41", "year": 2023, "number": 41, "type": "大题", "content": "第 41 题", "image_urls": ["/static/exam_papers/11408/data_structure/2023/img_26.jpg", "/static/exam_papers/11408/data_structure/2023/img_27.jpg"], "options": {}, "answer": "待补充（本次上传的该年份 PDF 未检测到综合应用题参考答案）", "stem": "第 41 题", "ocr_quality": "medium", "need_manual_check": true}, {"id": "data_structure_2023_42", "year": 2023, "number": 42, "type": "大题", "content": "第 42 题", "image_urls": ["/static/exam_papers/11408/data_structure/2023/img_28.jpg"], "options": {}, "answer": "待补充（本次上传的该年份 PDF 未检测到综合应用题参考答案）", "stem": "42.（10分）对含有n(n>0)个记录的文件进行外部排序，采用置换-选择排序生成初始归并段时需要使用一个工作区，工作区中能保存m个记录。请回答下列问题。", "ocr_quality": "medium", "need_manual_check": true}]}
+{
+  "subject_key": "data_structure",
+  "subject_name": "数据结构",
+  "year": 2023,
+  "docx_mtime": 1781481024.0,
+  "questions": [
+    {
+      "id": "data_structure_2023_1",
+      "year": 2023,
+      "number": 1,
+      "type": "选择题",
+      "content": "第 1 题",
+      "image_urls": [
+        "/static/exam_papers/11408/data_structure/2023/img_14.jpg"
+      ],
+      "options": {
+        "A": "查找包含指定值元素的算法",
+        "B": "插入包含指定值元素的算法",
+        "C": "删除第 i (1≤i≤n)个元素的算法",
+        "D": "获取第 i (1≤i≤n)个元素的算法"
+      },
+      "answer": "D",
+      "stem": "1.下列对顺序存储的有序表(长度为n)实现给定操作的算法中，平均时间复杂度为O(1)的是（）",
+      "ocr_quality": "high",
+      "need_manual_check": false
+    },
+    {
+      "id": "data_structure_2023_2",
+      "year": 2023,
+      "number": 2,
+      "type": "选择题",
+      "content": "第 2 题",
+      "image_urls": [
+        "/static/exam_papers/11408/data_structure/2023/img_15.jpg"
+      ],
+      "options": {
+        "A": "A. s->next->prev=p; s->prev=p;",
+        "B": "B. p->next->prev=s; s->prev=p;",
+        "C": "C. s-> prev =s->next->prev; s->next ->prev=s;",
+        "D": "D. p->next->prev=s->prev; s->next->prev=p;"
+      },
+      "answer": "C",
+      "stem": "2. 现有非空双向链表 L，其结点结构为：prer data next\nprer 是指向前直接前驱结点的指针，next 是指向直接后继结点的指针。若要在 L 中指针 p 所指向的结点（非尾结点）之后插入指针 s 指向的新结点，则在执行了语句序列：“s->next=p->next; p->next=s”后，下列语句序列中还需要执行的是（）",
+      "ocr_quality": "high",
+      "need_manual_check": false
+    },
+    {
+      "id": "data_structure_2023_3",
+      "year": 2023,
+      "number": 3,
+      "type": "选择题",
+      "content": "第 3 题",
+      "image_urls": [
+        "/static/exam_papers/11408/data_structure/2023/img_16.jpg"
+      ],
+      "options": {
+        "A": "Ⅰ、Ⅲ",
+        "B": "Ⅰ、Ⅳ",
+        "C": "Ⅱ、Ⅳ",
+        "D": "Ⅰ、Ⅱ、Ⅲ、Ⅳ"
+      },
+      "answer": "A",
+      "stem": "3.若采用三元组表存储结构存储稀疏矩阵M，则除三元组表外，下列数据中还需要保存的是（）",
+      "ocr_quality": "high",
+      "need_manual_check": false
+    },
+    {
+      "id": "data_structure_2023_4",
+      "year": 2023,
+      "number": 4,
+      "type": "选择题",
+      "content": "第 4 题",
+      "image_urls": [
+        "/static/exam_papers/11408/data_structure/2023/img_17.jpg"
+      ],
+      "options": {
+        "A": "2.4",
+        "B": "2.5",
+        "C": "2.67",
+        "D": "2.75"
+      },
+      "answer": "B",
+      "stem": "在由6个字符组成的字符集S中，各字符出现的频次分别为3，4，5，6，8，10，为S构造的哈夫曼编码的加权平均长度为（）",
+      "ocr_quality": "high",
+      "need_manual_check": false
+    },
+    {
+      "id": "data_structure_2023_5",
+      "year": 2023,
+      "number": 5,
+      "type": "选择题",
+      "content": "第 5 题",
+      "image_urls": [
+        "/static/exam_papers/11408/data_structure/2023/img_18.jpg",
+        "/static/exam_papers/11408/data_structure/2023/img_19.jpg"
+      ],
+      "options": {
+        "A": "a，e，d，f，b，c",
+        "B": "a，c，e，b，d，f",
+        "C": "c，a，b，e，f，d",
+        "D": "d，f，e，b，a，c"
+      },
+      "answer": "A",
+      "stem": "已知一棵二叉树的树型如下图所示，若其后序遍历序列为 f，d，b，e，c，a，则其先（前）序遍历序列是（ ）。",
+      "ocr_quality": "manual",
+      "need_manual_check": false,
+      "manual_fixed": true,
+      "fix_notes": "题目依赖原图中的二叉树结构，image_urls 必须保留。"
+    },
+    {
+      "id": "data_structure_2023_6",
+      "year": 2023,
+      "number": 6,
+      "type": "选择题",
+      "content": "第 6 题",
+      "image_urls": [
+        "/static/exam_papers/11408/data_structure/2023/img_20.jpg"
+      ],
+      "options": {
+        "A": "仅 I",
+        "B": "仅 III",
+        "C": "I、II",
+        "D": "I、II、III"
+      },
+      "answer": "B",
+      "stem": "已知无向连通图 G 中各边的权值均为 1。下列算法中，一定能够求出图 G 中从某顶点到其余各个顶点最短路径的是（）",
+      "ocr_quality": "high",
+      "need_manual_check": false
+    },
+    {
+      "id": "data_structure_2023_7",
+      "year": 2023,
+      "number": 7,
+      "type": "选择题",
+      "content": "第 7 题",
+      "image_urls": [
+        "/static/exam_papers/11408/data_structure/2023/img_21.jpg"
+      ],
+      "options": {
+        "A": "仅 I",
+        "B": "I、II",
+        "C": "III、IV",
+        "D": "I、II、IV"
+      },
+      "answer": "B",
+      "stem": "7. 下面关于非空 B 树的叙述中，正确的是（）",
+      "ocr_quality": "high",
+      "need_manual_check": false
+    },
+    {
+      "id": "data_structure_2023_8",
+      "year": 2023,
+      "number": 8,
+      "type": "选择题",
+      "content": "第 8 题",
+      "image_urls": [
+        "/static/exam_papers/11408/data_structure/2023/img_22.jpg"
+      ],
+      "options": {
+        "A": "A. 9",
+        "B": "B. 10",
+        "C": "C. 30",
+        "D": "D. 300"
+      },
+      "answer": "B",
+      "stem": "对含600个元素的有序顺序表进行折半查找，关键字间的比较次数最多是（）",
+      "ocr_quality": "high",
+      "need_manual_check": false
+    },
+    {
+      "id": "data_structure_2023_9",
+      "year": 2023,
+      "number": 9,
+      "type": "选择题",
+      "content": "第 9 题",
+      "image_urls": [
+        "/static/exam_papers/11408/data_structure/2023/img_23.jpg"
+      ],
+      "options": {
+        "A": "A. 1",
+        "B": "B. 1.6",
+        "C": "C. 1.8",
+        "D": "D. 2.2"
+      },
+      "answer": "C",
+      "stem": "现有长度为5、初始为空的散列表，散列函数 $H(k) = (k+4) \\% 5$，用线性探查再散列法解决冲突。若将关键字序列 2022, 12, 25 依次插入 HT 中，然后删除关键字 25，则 HT 中查找失败的平均查找长度为（）",
+      "ocr_quality": "high",
+      "need_manual_check": false
+    },
+    {
+      "id": "data_structure_2023_10",
+      "year": 2023,
+      "number": 10,
+      "type": "选择题",
+      "content": "第 10 题",
+      "image_urls": [
+        "/static/exam_papers/11408/data_structure/2023/img_24.jpg"
+      ],
+      "options": {
+        "A": "Ⅰ、Ⅱ",
+        "B": "Ⅱ、Ⅴ",
+        "C": "Ⅰ、Ⅲ、Ⅳ",
+        "D": "Ⅲ、Ⅳ、Ⅴ"
+      },
+      "answer": "C",
+      "stem": "下列排序算法中，不稳定的是（）",
+      "ocr_quality": "high",
+      "need_manual_check": false
+    },
+    {
+      "id": "data_structure_2023_11",
+      "year": 2023,
+      "number": 11,
+      "type": "选择题",
+      "content": "第 11 题",
+      "image_urls": [
+        "/static/exam_papers/11408/data_structure/2023/img_25.jpg"
+      ],
+      "options": {
+        "A": "11",
+        "B": "70",
+        "C": "80",
+        "D": "81"
+      },
+      "answer": "D",
+      "stem": "使用快速排序算法对数据进行升序排序，若经过一次划分后得到的数据序列是 68, 11, 70, 23, 80, 77, 48, 81, 93, 88，则该次划分的枢轴是（）",
+      "ocr_quality": "high",
+      "need_manual_check": false
+    },
+    {
+      "id": "data_structure_2023_41",
+      "year": 2023,
+      "number": 41,
+      "type": "大题",
+      "content": "第 41 题",
+      "image_urls": [
+        "/static/exam_papers/11408/data_structure/2023/img_26.jpg",
+        "/static/exam_papers/11408/data_structure/2023/img_27.jpg"
+      ],
+      "options": {},
+      "answer": "待补充（本次上传的该年份 PDF 未检测到综合应用题参考答案）",
+      "stem": "已知有向图 G 采用邻接矩阵存储，类型定义如下：\n\ntypedef struct {\n    int numVertices, numEdges;\n    char VerticesList[MAXV];\n    int Edge[MAXV][MAXV];\n} MGraph;\n\n将图中出度大于入度的顶点称为 K 顶点，例如题 41 图中，顶点 a 和 b 为 K 顶点。\n\n请设计算法：int printVertices(MGraph G)，对给定的任意非空有向图 G，输出 G 中所有的 K 顶点，并返回 K 顶点的个数。\n\n（1）给出算法的基本设计思想。\n（2）根据设计思想，采用 C 或 C++ 语言描述算法，关键之处给出注释。",
+      "ocr_quality": "manual",
+      "need_manual_check": false,
+      "manual_fixed": true,
+      "fix_notes": "人工根据 2023 第41题两张图片补录。"
+    },
+    {
+      "id": "data_structure_2023_42",
+      "year": 2023,
+      "number": 42,
+      "type": "大题",
+      "content": "第 42 题",
+      "image_urls": [
+        "/static/exam_papers/11408/data_structure/2023/img_28.jpg"
+      ],
+      "options": {},
+      "answer": "待补充（本次上传的该年份 PDF 未检测到综合应用题参考答案）",
+      "stem": "42.（10分）对含有n(n>0)个记录的文件进行外部排序，采用置换-选择排序生成初始归并段时需要使用一个工作区，工作区中能保存m个记录。请回答下列问题。",
+      "ocr_quality": "medium",
+      "need_manual_check": true
+    }
+  ]
+}

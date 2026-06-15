@@ -12055,14 +12055,6 @@ def get_exam_past_papers(subject_key: str):
     return exam_paper_parser.get_subject_past_papers(subject_key)
 
 
-@app.get("/exam/11408/debug-cache")
-def debug_ocr_cache():
-    import exam_paper_parser as ep
-    sk = "data_structure"
-    year = 2024
-    return ep.get_year_questions(sk, year)  # Direct call to test
-
-
 @app.get("/exam/11408/{subject_key}/past-paper-questions")
 def get_past_paper_questions(subject_key: str, year: int = 0):
     if subject_key not in EXAM_SUBJECT_DIRS:

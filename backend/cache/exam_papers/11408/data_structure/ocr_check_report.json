@@ -1,0 +1,1454 @@
+{
+  "subject_key": "data_structure",
+  "subject_name": "数据结构",
+  "years": {
+    "2022": {
+      "total": 13,
+      "choice_count": 11,
+      "big_count": 2,
+      "complete_count": 9,
+      "problem_count": 4,
+      "questions": [
+        {
+          "number": 1,
+          "type": "选择题",
+          "stem_length": 5,
+          "options_complete": true,
+          "answer": "B",
+          "has_images": true,
+          "ocr_quality": "medium",
+          "need_manual_check": true,
+          "status": "error",
+          "issues": [
+            "stem为空",
+            "需人工检查"
+          ],
+          "stem_preview": "第 1 题",
+          "options_preview": {
+            "A": "O(log n)",
+            "B": "B. O(n)",
+            "C": "C. O(nlogn)",
+            "D": "D. O(n²)"
+          }
+        },
+        {
+          "number": 2,
+          "type": "选择题",
+          "stem_length": 50,
+          "options_complete": true,
+          "answer": "D",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "2.有限符号集S,in,out均为S中所有元素的任意排列。对于初始为空的栈ST，下列叙述正确的是（）",
+          "options_preview": {
+            "A": "若 in 是 ST 的入栈序列，则不能判断 out 是否为其可能的出栈序列",
+            "B": "若 out 是 ST 的出栈序列，则不能判断 in 是否为其可能的入栈序列",
+            "C": "若 in 是 ST 的入栈序列，out 是对应 in 的出栈序列，则 in 与 out 一定不同",
+            "D": "若 in 是 ST 的入栈序列，out 是对应 in 的出栈序列，则 in 与 out 可能互为倒序"
+          }
+        },
+        {
+          "number": 3,
+          "type": "选择题",
+          "stem_length": 49,
+          "options_complete": true,
+          "answer": "B",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "3.若结点p与q在二叉树T中的中序遍历序列中相邻，且p在q之前，则下列p与q的关系中，不可能是()",
+          "options_preview": {
+            "A": "仅I",
+            "B": "仅III",
+            "C": "仅Ⅱ、Ⅲ",
+            "D": "仅Ⅱ、IV"
+          }
+        },
+        {
+          "number": 4,
+          "type": "选择题",
+          "stem_length": 35,
+          "options_complete": false,
+          "answer": "C",
+          "has_images": true,
+          "ocr_quality": "medium",
+          "need_manual_check": true,
+          "status": "ok",
+          "issues": [
+            "选项缺失: A,B,C,D",
+            "需人工检查"
+          ],
+          "stem_preview": "4.若三叉树T中有244个结点(叶结点高度为1)，则T的高度至少是()",
+          "options_preview": {}
+        },
+        {
+          "number": 5,
+          "type": "选择题",
+          "stem_length": 70,
+          "options_complete": true,
+          "answer": "D",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "5.对任意给定的含n(n>2)个字符的有限集S，用二叉树表示S的哈夫曼编码集和定长编码集，分别得到二叉树T1,T2。下列叙述中，正确的是（）",
+          "options_preview": {
+            "A": "A. T1 与 T2 的结点数相同",
+            "B": "B. T1 的高度大于 T2 的高度",
+            "C": "C. 出现频次不同的字符在 T1 中处于不同层",
+            "D": "D. 出现频次不同的字符在 T2 中处于相同的层"
+          }
+        },
+        {
+          "number": 6,
+          "type": "选择题",
+          "stem_length": 28,
+          "options_complete": true,
+          "answer": "D",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "6.对于无向图 G=<V,E>，下列选项中，正确的是（）",
+          "options_preview": {
+            "A": "当|V|>E时，G一定是连通的",
+            "B": "当|V|<E时，G一定是连通的",
+            "C": "当|V|=E-1时，G一定是不连通的",
+            "D": "当|V|>E+1时，G一定是不连通的"
+          }
+        },
+        {
+          "number": 7,
+          "type": "选择题",
+          "stem_length": 33,
+          "options_complete": true,
+          "answer": "B",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "7.下图是一个有 10 个活动的AOE网，时间余量最大的活动是（）",
+          "options_preview": {
+            "A": "A.e",
+            "B": "B.g",
+            "C": "C.h",
+            "D": "D.j"
+          }
+        },
+        {
+          "number": 8,
+          "type": "选择题",
+          "stem_length": 5,
+          "options_complete": true,
+          "answer": "D",
+          "has_images": true,
+          "ocr_quality": "medium",
+          "need_manual_check": true,
+          "status": "error",
+          "issues": [
+            "stem为空",
+            "需人工检查"
+          ],
+          "stem_preview": "第 8 题",
+          "options_preview": {
+            "A": "A.60，90，280",
+            "B": "B.60，90，350",
+            "C": "C.60，85，110，350",
+            "D": "D.60，90，110，350"
+          }
+        },
+        {
+          "number": 9,
+          "type": "选择题",
+          "stem_length": 5,
+          "options_complete": true,
+          "answer": "D",
+          "has_images": true,
+          "ocr_quality": "medium",
+          "need_manual_check": true,
+          "status": "error",
+          "issues": [
+            "stem为空",
+            "需人工检查"
+          ],
+          "stem_preview": "第 9 题",
+          "options_preview": {
+            "A": "仅 I、II",
+            "B": "仅 I、III",
+            "C": "仅 II、III",
+            "D": "I、II、III"
+          }
+        },
+        {
+          "number": 10,
+          "type": "选择题",
+          "stem_length": 41,
+          "options_complete": true,
+          "answer": "A",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "使用二路归并排序对含 n 个元素的数组 M 进行排序时,对二路归并操作的功能是()",
+          "options_preview": {
+            "A": "将两个有序表合并为一个新的有序表",
+            "B": "将 M 划分为两部分，两部分的元素个数大致相等",
+            "C": "将 M 划分为 n 个部分，每个部分中仅含所有一个元素",
+            "D": "将 M 划分为两部分，一部分元素的值均小于另一部分元素的值"
+          }
+        },
+        {
+          "number": 11,
+          "type": "选择题",
+          "stem_length": 36,
+          "options_complete": true,
+          "answer": "D",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "对数据进行排序时，若采用直接插入排序而不采用快速排序，则可能的原因是（）",
+          "options_preview": {
+            "A": "仅I、II",
+            "B": "仅 II、IV",
+            "C": "仅I、II、IV",
+            "D": "I、II、III、IV"
+          }
+        },
+        {
+          "number": 41,
+          "type": "大题",
+          "stem_length": 6,
+          "options_complete": true,
+          "answer": "待补充（本次上传的该年份 PDF 未检测到综合应用题参考答案）",
+          "has_images": true,
+          "ocr_quality": "medium",
+          "need_manual_check": true,
+          "status": "error",
+          "issues": [
+            "stem为空",
+            "需人工检查"
+          ],
+          "stem_preview": "第 41 题",
+          "options_preview": {
+            "A": "",
+            "B": "",
+            "C": "",
+            "D": ""
+          }
+        },
+        {
+          "number": 42,
+          "type": "大题",
+          "stem_length": 47,
+          "options_complete": true,
+          "answer": "待补充（本次上传的该年份 PDF 未检测到综合应用题参考答案）",
+          "has_images": true,
+          "ocr_quality": "medium",
+          "need_manual_check": true,
+          "status": "ok",
+          "issues": [
+            "需人工检查"
+          ],
+          "stem_preview": "现有n(n>100000)个数保存在一维数组M中，需要查找M中最小的10个数。请回答下列问题。",
+          "options_preview": {}
+        }
+      ]
+    },
+    "2023": {
+      "total": 13,
+      "choice_count": 11,
+      "big_count": 2,
+      "complete_count": 12,
+      "problem_count": 1,
+      "questions": [
+        {
+          "number": 1,
+          "type": "选择题",
+          "stem_length": 46,
+          "options_complete": true,
+          "answer": "D",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "1.下列对顺序存储的有序表(长度为n)实现给定操作的算法中，平均时间复杂度为O(1)的是（）",
+          "options_preview": {
+            "A": "查找包含指定值元素的算法",
+            "B": "插入包含指定值元素的算法",
+            "C": "删除第 i (1≤i≤n)个元素的算法",
+            "D": "获取第 i (1≤i≤n)个元素的算法"
+          }
+        },
+        {
+          "number": 2,
+          "type": "选择题",
+          "stem_length": 169,
+          "options_complete": true,
+          "answer": "C",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "2. 现有非空双向链表 L，其结点结构为：prer data next\nprer 是指向前直接前驱结点的指针，next 是指向直接后继结点的指针。若要在 L 中指针 p 所指向的结点（非尾结点）之后插入指针 s 指向的新结点，则在执行了语句序列：“s->next=p->next; p->next=s”后，下列语句序列中还需要执行的是（）",
+          "options_preview": {
+            "A": "A. s->next->prev=p; s->prev=p;",
+            "B": "B. p->next->prev=s; s->prev=p;",
+            "C": "C. s-> prev =s->next->prev; s->next ->prev=s;",
+            "D": "D. p->next->prev=s->prev; s->next->prev=p;"
+          }
+        },
+        {
+          "number": 3,
+          "type": "选择题",
+          "stem_length": 43,
+          "options_complete": true,
+          "answer": "A",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "3.若采用三元组表存储结构存储稀疏矩阵M，则除三元组表外，下列数据中还需要保存的是（）",
+          "options_preview": {
+            "A": "Ⅰ、Ⅲ",
+            "B": "Ⅰ、Ⅳ",
+            "C": "Ⅱ、Ⅳ",
+            "D": "Ⅰ、Ⅱ、Ⅲ、Ⅳ"
+          }
+        },
+        {
+          "number": 4,
+          "type": "选择题",
+          "stem_length": 59,
+          "options_complete": true,
+          "answer": "B",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "在由6个字符组成的字符集S中，各字符出现的频次分别为3，4，5，6，8，10，为S构造的哈夫曼编码的加权平均长度为（）",
+          "options_preview": {
+            "A": "2.4",
+            "B": "2.5",
+            "C": "2.67",
+            "D": "2.75"
+          }
+        },
+        {
+          "number": 5,
+          "type": "选择题",
+          "stem_length": 60,
+          "options_complete": false,
+          "answer": "A",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [
+            "选项缺失: A,B,C,D"
+          ],
+          "stem_preview": "5. 已知一棵二叉树的树型如下图所示，若其后序遍历序列为 f, d, b, e, c, a，则其先（前）序遍历序列为（）",
+          "options_preview": {
+            "A": "",
+            "B": "",
+            "C": "",
+            "D": ""
+          }
+        },
+        {
+          "number": 6,
+          "type": "选择题",
+          "stem_length": 57,
+          "options_complete": true,
+          "answer": "B",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "已知无向连通图 G 中各边的权值均为 1。下列算法中，一定能够求出图 G 中从某顶点到其余各个顶点最短路径的是（）",
+          "options_preview": {
+            "A": "仅 I",
+            "B": "仅 III",
+            "C": "I、II",
+            "D": "I、II、III"
+          }
+        },
+        {
+          "number": 7,
+          "type": "选择题",
+          "stem_length": 24,
+          "options_complete": true,
+          "answer": "B",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "7. 下面关于非空 B 树的叙述中，正确的是（）",
+          "options_preview": {
+            "A": "仅 I",
+            "B": "I、II",
+            "C": "III、IV",
+            "D": "I、II、IV"
+          }
+        },
+        {
+          "number": 8,
+          "type": "选择题",
+          "stem_length": 35,
+          "options_complete": true,
+          "answer": "B",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "对含600个元素的有序顺序表进行折半查找，关键字间的比较次数最多是（）",
+          "options_preview": {
+            "A": "A. 9",
+            "B": "B. 10",
+            "C": "C. 30",
+            "D": "D. 300"
+          }
+        },
+        {
+          "number": 9,
+          "type": "选择题",
+          "stem_length": 117,
+          "options_complete": true,
+          "answer": "C",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "现有长度为5、初始为空的散列表，散列函数 $H(k) = (k+4) \\% 5$，用线性探查再散列法解决冲突。若将关键字序列 2022, 12, 25 依次插入 HT 中，然后删除关键字 25，则 HT 中查找失败的平均查找长度为（）",
+          "options_preview": {
+            "A": "A. 1",
+            "B": "B. 1.6",
+            "C": "C. 1.8",
+            "D": "D. 2.2"
+          }
+        },
+        {
+          "number": 10,
+          "type": "选择题",
+          "stem_length": 15,
+          "options_complete": true,
+          "answer": "C",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "下列排序算法中，不稳定的是（）",
+          "options_preview": {
+            "A": "Ⅰ、Ⅱ",
+            "B": "Ⅱ、Ⅴ",
+            "C": "Ⅰ、Ⅲ、Ⅳ",
+            "D": "Ⅲ、Ⅳ、Ⅴ"
+          }
+        },
+        {
+          "number": 11,
+          "type": "选择题",
+          "stem_length": 85,
+          "options_complete": true,
+          "answer": "D",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "使用快速排序算法对数据进行升序排序，若经过一次划分后得到的数据序列是 68, 11, 70, 23, 80, 77, 48, 81, 93, 88，则该次划分的枢轴是（）",
+          "options_preview": {
+            "A": "11",
+            "B": "70",
+            "C": "80",
+            "D": "81"
+          }
+        },
+        {
+          "number": 41,
+          "type": "大题",
+          "stem_length": 6,
+          "options_complete": true,
+          "answer": "待补充（本次上传的该年份 PDF 未检测到综合应用题参考答案）",
+          "has_images": true,
+          "ocr_quality": "medium",
+          "need_manual_check": true,
+          "status": "error",
+          "issues": [
+            "stem为空",
+            "需人工检查"
+          ],
+          "stem_preview": "第 41 题",
+          "options_preview": {}
+        },
+        {
+          "number": 42,
+          "type": "大题",
+          "stem_length": 77,
+          "options_complete": true,
+          "answer": "待补充（本次上传的该年份 PDF 未检测到综合应用题参考答案）",
+          "has_images": true,
+          "ocr_quality": "medium",
+          "need_manual_check": true,
+          "status": "ok",
+          "issues": [
+            "需人工检查"
+          ],
+          "stem_preview": "42.（10分）对含有n(n>0)个记录的文件进行外部排序，采用置换-选择排序生成初始归并段时需要使用一个工作区，工作区中能保存m个记录。请回答下列问题。",
+          "options_preview": {}
+        }
+      ]
+    },
+    "2024": {
+      "total": 13,
+      "choice_count": 11,
+      "big_count": 2,
+      "complete_count": 12,
+      "problem_count": 1,
+      "questions": [
+        {
+          "number": 1,
+          "type": "选择题",
+          "stem_length": 166,
+          "options_complete": true,
+          "answer": "D",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "1.已知带头结点的非空单链表L的头指针为h，结点结构 data next 为，其中 next 是指向直接后继结点的指针。现有指针 p 和 q，若 p 指向 L 中非首且非尾的任意一个结点，则执行语句序列“q=p->next; p->next=q->next; q->next = h->next; h->next = q”的结果是：",
+          "options_preview": {
+            "A": "把 p 所指结点后插入 q 所指结点",
+            "B": "把 q 所指结点后插入 p 所指结点",
+            "C": "将 p 所指结点移动到 L 的头结点之后",
+            "D": "将 q 所指结点移动到 L 的头结点之后"
+          }
+        },
+        {
+          "number": 2,
+          "type": "选择题",
+          "stem_length": 26,
+          "options_complete": true,
+          "answer": "A",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "2.与表达式x+y*(z-u)/v等价的后缀表达式是",
+          "options_preview": {
+            "A": "A. xyzu-*v/+",
+            "B": "B. xyzu-v/*+",
+            "C": "C. +x/*y-zuv",
+            "D": "D. +x*y/-zuv"
+          }
+        },
+        {
+          "number": 3,
+          "type": "选择题",
+          "stem_length": 68,
+          "options_complete": true,
+          "answer": "A",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "3、p、q 和 v 均为二叉树 T 中的结点，v 有两个孩子结点，T 的中序遍历序列形如：“…，p，v，q，…”，则下列叙述中，正确的是",
+          "options_preview": {
+            "A": "p 没有右孩子，q 没有左孩子",
+            "B": "p 没有右孩子，q 有左孩子",
+            "C": "p 有右孩子，q 没有左孩子",
+            "D": "p 有右孩子，q 有左孩子"
+          }
+        },
+        {
+          "number": 4,
+          "type": "选择题",
+          "stem_length": 47,
+          "options_complete": true,
+          "answer": "B",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "4. 无向图 G=(V, E) 的邻接多重表如下图所示，则 G 中顶点 b 与 d 的度分别是",
+          "options_preview": {
+            "A": "0, 2",
+            "B": "2, 4",
+            "C": "2, 5",
+            "D": "3, 4"
+          }
+        },
+        {
+          "number": 5,
+          "type": "选择题",
+          "stem_length": 21,
+          "options_complete": false,
+          "answer": "D",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [
+            "选项缺失: A,B,C,D"
+          ],
+          "stem_preview": "下列数据结构中，不适合直接使用折半查找的是",
+          "options_preview": {
+            "A": "",
+            "B": "",
+            "C": "",
+            "D": ""
+          }
+        },
+        {
+          "number": 6,
+          "type": "选择题",
+          "stem_length": 74,
+          "options_complete": false,
+          "answer": "A",
+          "has_images": true,
+          "ocr_quality": "medium",
+          "need_manual_check": true,
+          "status": "ok",
+          "issues": [
+            "选项缺失: A,B,C,D",
+            "需人工检查"
+          ],
+          "stem_preview": "6. KMP 算法使用修正后的 next 数组进行模式匹配，模式串 S=aabab，当主串中某字符与 S 中某字符失配时，S 将向右滑动的最长距离是",
+          "options_preview": {}
+        },
+        {
+          "number": 7,
+          "type": "选择题",
+          "stem_length": 63,
+          "options_complete": true,
+          "answer": "D",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "一棵二叉搜索树如图 7 所示，k1、k2、k3 分别是对应结点中保存的关键字。子树 T 的任一结点中保存的关键字 x 满足的是",
+          "options_preview": {
+            "A": "x<k1",
+            "B": "x>k2",
+            "C": "k1<x<k3",
+            "D": "k3<x<k2"
+          }
+        },
+        {
+          "number": 8,
+          "type": "选择题",
+          "stem_length": 78,
+          "options_complete": true,
+          "answer": "A",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "8.使用快速排序算法对含n(n≥3)个元素的数组M进行排序，若第一趟排序将M中除枢轴外的n-1个元素划分为均不为空的P和Q两块，则下列叙述中，正确的是()。",
+          "options_preview": {
+            "A": "P与Q块间有序",
+            "B": "P与Q均块内有序",
+            "C": "P和Q的元素个数大致相等",
+            "D": "P中和Q中均不存在相等的元素"
+          }
+        },
+        {
+          "number": 9,
+          "type": "选择题",
+          "stem_length": 66,
+          "options_complete": true,
+          "answer": "B",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "已知关键字序列 28, 22, 20, 19, 8, 12, 15, 5 是大根堆（最大堆），对该堆进行两次删除操作后，得到的新堆是",
+          "options_preview": {
+            "A": "A. 20, 19, 15, 12, 8, 5",
+            "B": "B. 20, 19, 15, 5, 8, 12",
+            "C": "C. 20, 19, 12, 15, 8, 5",
+            "D": "D. 20, 19, 8, 12, 15, 5"
+          }
+        },
+        {
+          "number": 10,
+          "type": "选择题",
+          "stem_length": 68,
+          "options_complete": false,
+          "answer": "C",
+          "has_images": true,
+          "ocr_quality": "medium",
+          "need_manual_check": true,
+          "status": "ok",
+          "issues": [
+            "选项缺失: A,B,C,D",
+            "需人工检查"
+          ],
+          "stem_preview": "现有由关键字组成的3个有序序列(3,5)、(7,9)和(6)，若按从左至右的次序选择有序序列进行二路归并排序，则关键字之间的总比较次数是",
+          "options_preview": {}
+        },
+        {
+          "number": 11,
+          "type": "选择题",
+          "stem_length": 45,
+          "options_complete": true,
+          "answer": "D",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "在外排序中，利用败者树对初始为升序的归并段进行多路归并，败者树中记录“冠军”的结点保存的是",
+          "options_preview": {
+            "A": "A、最大关键字",
+            "B": "B、最小关键字",
+            "C": "C、最大关键字所在的归并段号",
+            "D": "D、最小关键字所在的归并段号"
+          }
+        },
+        {
+          "number": 41,
+          "type": "大题",
+          "stem_length": 6,
+          "options_complete": true,
+          "answer": "待补充（本次上传的该年份 PDF 未检测到综合应用题参考答案）",
+          "has_images": true,
+          "ocr_quality": "medium",
+          "need_manual_check": true,
+          "status": "error",
+          "issues": [
+            "stem为空",
+            "需人工检查"
+          ],
+          "stem_preview": "第 41 题",
+          "options_preview": {
+            "A": "",
+            "B": "",
+            "C": "",
+            "D": ""
+          }
+        },
+        {
+          "number": 42,
+          "type": "大题",
+          "stem_length": 151,
+          "options_complete": true,
+          "answer": "待补充（本次上传的该年份 PDF 未检测到综合应用题参考答案）",
+          "has_images": true,
+          "ocr_quality": "medium",
+          "need_manual_check": true,
+          "status": "ok",
+          "issues": [
+            "需人工检查"
+          ],
+          "stem_preview": "42（本题10分）将关键字序列20，3，11，18，9，14，7依次存储到初始值为空、长度为11的散列表HT中，散列函数H(key)= (key×3) %11。H(key) 计算机出初始散列地址为H0，发生冲突时探查地址序列是H1，H2，H3，…，其中，Hk=(H0+k²)%11，k=1，2，3，…。",
+          "options_preview": {}
+        }
+      ]
+    },
+    "2025": {
+      "total": 13,
+      "choice_count": 11,
+      "big_count": 2,
+      "complete_count": 10,
+      "problem_count": 3,
+      "questions": [
+        {
+          "number": 1,
+          "type": "选择题",
+          "stem_length": 5,
+          "options_complete": true,
+          "answer": "B",
+          "has_images": true,
+          "ocr_quality": "medium",
+          "need_manual_check": true,
+          "status": "error",
+          "issues": [
+            "stem为空",
+            "需人工检查"
+          ],
+          "stem_preview": "第 1 题",
+          "options_preview": {
+            "A": "O(logn)",
+            "B": "O(n)",
+            "C": "O(nlogn)",
+            "D": "O(n²)"
+          }
+        },
+        {
+          "number": 2,
+          "type": "选择题",
+          "stem_length": 68,
+          "options_complete": true,
+          "answer": "D",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "2.已知算法A用于检查字符串中各类括号是否匹配，A执行过程中使用初始为空的栈保存遇到的括号，若栈的容量是3，则下列选项中，A不能处理的事",
+          "options_preview": {
+            "A": "A、(a+[b+(c+d)/(e+f)]+g-h)",
+            "B": "B、[a*((b+c)/(d-e)+f/g)-h]",
+            "C": "C、$\\sqrt{a}*(b-(c-d)*c/(f+g)-h)$",
+            "D": "D、[a-(b+[c*(d+e)-f]+g+h)]"
+          }
+        },
+        {
+          "number": 3,
+          "type": "选择题",
+          "stem_length": 59,
+          "options_complete": true,
+          "answer": "D",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "若二叉树的结点值均为正数，采用顺序存储方式保存在数组R中，用-1表示结点不存在，则下列数组中，不能表示一棵二叉树的是：",
+          "options_preview": {
+            "A": "R[ ] = {20, 15, 40, -1, -1, 35}",
+            "B": "R[ ] = {15, 40, 10, 18, 35, -1, -1}",
+            "C": "R[ ] = {15, 40, 10, -1, -1, -1, 12}",
+            "D": "R[ ] = {17, 20, 35, -1, 18, 45, -1, -1, 19, 27}"
+          }
+        },
+        {
+          "number": 4,
+          "type": "选择题",
+          "stem_length": 5,
+          "options_complete": true,
+          "answer": "B",
+          "has_images": true,
+          "ocr_quality": "medium",
+          "need_manual_check": true,
+          "status": "error",
+          "issues": [
+            "stem为空",
+            "需人工检查"
+          ],
+          "stem_preview": "第 4 题",
+          "options_preview": {
+            "A": "完全二叉树中不存在度为1的结点",
+            "B": "任意一个森林都可以转换为一棵二叉树",
+            "C": "二叉树的分支结点个数比叶结点个数少",
+            "D": "表达式树的根中保存的是最先计算的运算符"
+          }
+        },
+        {
+          "number": 5,
+          "type": "选择题",
+          "stem_length": 89,
+          "options_complete": true,
+          "answer": "D",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "5. 设字符集 S 包含 7 个字符、各字符出现的频次分别为 2, 3, 4, 6, 8, 10, 11。现为 S 中的各字符构造哈夫曼编码，编码长度不小于 3 的字符个数是（）",
+          "options_preview": {
+            "A": "A.2",
+            "B": "B.3",
+            "C": "C.4",
+            "D": "D.5"
+          }
+        },
+        {
+          "number": 6,
+          "type": "选择题",
+          "stem_length": 18,
+          "options_complete": true,
+          "answer": "C",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "6.下列关于图的叙述中，正确的是（）",
+          "options_preview": {
+            "A": "有向图必存在入度为0的顶点",
+            "B": "有向无环图的拓扑有序序列存在且唯一",
+            "C": "各顶点的度均大于等于2的无向图必有回路",
+            "D": "可用 BFS 算法求出带权图中每一对顶点的最短路径"
+          }
+        },
+        {
+          "number": 7,
+          "type": "选择题",
+          "stem_length": 92,
+          "options_complete": true,
+          "answer": "C",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "7. 已知查找表中有 400 个元素，查找每个元素的概率相同，采用分块查找法进行查找，且均匀分布。若采用顺序查找法确定元素所在的块，且块内也采用顺序查找法，则查找成功时平均比较次数为：",
+          "options_preview": {
+            "A": "A. 8",
+            "B": "B. 10",
+            "C": "C. 20",
+            "D": "D. 25"
+          }
+        },
+        {
+          "number": 8,
+          "type": "选择题",
+          "stem_length": 38,
+          "options_complete": false,
+          "answer": "C",
+          "has_images": true,
+          "ocr_quality": "medium",
+          "need_manual_check": true,
+          "status": "ok",
+          "issues": [
+            "选项缺失: A,B,C,D",
+            "需人工检查"
+          ],
+          "stem_preview": "8. 给定 7 个不同的关键字，能够构造的不同 4 阶 B 树的个数最多是:",
+          "options_preview": {}
+        },
+        {
+          "number": 9,
+          "type": "选择题",
+          "stem_length": 22,
+          "options_complete": true,
+          "answer": "A",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "下列关于散列方法处理冲突的叙述中，正确的是：",
+          "options_preview": {
+            "A": "只要散列表不满，线性探查再散列一定能找到一个空闲位置。",
+            "B": "只要散列表不满，二次探查再散列一定能找到一个空闲位置。",
+            "C": "线性探查再散列处理的冲突，一定是发生在同义词之间的冲突。",
+            "D": "二次探查再散列处理的冲突，一定是发生在非同义词之间的冲突。"
+          }
+        },
+        {
+          "number": 10,
+          "type": "选择题",
+          "stem_length": 24,
+          "options_complete": true,
+          "answer": "D",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "下列排序算法中，最坏情况下元素移动次数最少的是:",
+          "options_preview": {
+            "A": "起泡排序",
+            "B": "直接插入排序",
+            "C": "快速排序",
+            "D": "简单选择排序"
+          }
+        },
+        {
+          "number": 11,
+          "type": "选择题",
+          "stem_length": 51,
+          "options_complete": true,
+          "answer": "A",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "11. 对含 9 个关键字的初始序列进行排序，若序列的变化情况如下表所示，则下列排序算法中，采用的是：",
+          "options_preview": {
+            "A": "希尔排序",
+            "B": "基数排序",
+            "C": "归并排序",
+            "D": "折半插入排序"
+          }
+        },
+        {
+          "number": 41,
+          "type": "大题",
+          "stem_length": 6,
+          "options_complete": true,
+          "answer": "（1）此算法的核心思想是：对于每个位置i，找到一个在[i, n-1]区间内的值，使得A[i] * X 的",
+          "has_images": true,
+          "ocr_quality": "medium",
+          "need_manual_check": true,
+          "status": "error",
+          "issues": [
+            "stem为空",
+            "需人工检查"
+          ],
+          "stem_preview": "第 41 题",
+          "options_preview": {
+            "A": "设有两个长度均为 n 的一维整型数组 A 和 res，对数组 A 中的每个元素 A[i]，计算 A[i] 与 A[j] (0 ≤ i ≤ j ≤ n-1) 乘积",
+            "B": ""
+          }
+        },
+        {
+          "number": 42,
+          "type": "大题",
+          "stem_length": 44,
+          "options_complete": true,
+          "answer": "完成该工程的最短时间是12。关键活动是a，e，m，n。",
+          "has_images": true,
+          "ocr_quality": "medium",
+          "need_manual_check": true,
+          "status": "ok",
+          "issues": [
+            "需人工检查"
+          ],
+          "stem_preview": "某工程包含12个活动，使用题42图所示的AOE网描述，图中各边上标注了活动及其持续时间。",
+          "options_preview": {}
+        }
+      ]
+    },
+    "2026": {
+      "total": 13,
+      "choice_count": 11,
+      "big_count": 2,
+      "complete_count": 12,
+      "problem_count": 1,
+      "questions": [
+        {
+          "number": 1,
+          "type": "选择题",
+          "stem_length": 54,
+          "options_complete": true,
+          "answer": "A",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "当存储空间有足够的空闲空间时，在保持表内元素顺序，相对不变的情况下，下列哪些操作会必然导致产生移动次数（）。",
+          "options_preview": {
+            "A": "表头插入一个元素",
+            "B": "表头删除一个元素",
+            "C": "表尾插入一个元素",
+            "D": "表尾删除一个元素"
+          }
+        },
+        {
+          "number": 2,
+          "type": "选择题",
+          "stem_length": 90,
+          "options_complete": false,
+          "answer": "D",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [
+            "选项缺失: D"
+          ],
+          "stem_preview": "2. 设有一个双向链表 L，结构为 [p2, p1]，头结点为 head。初始时 head = cu。现要将每个结点的 p2 指向 p1 指向结点的直接后继，应该进行的操作是（）。",
+          "options_preview": {
+            "A": "A. while(cu!=NULL) {cu->p2=cu->p1->p1;cu=cu->p1;};",
+            "B": "B. while(cu!=NULL && cu->p2!=NULL) {cu->p2=cu->p1->p1;cu= cu->p1;};",
+            "C": "C. while(cu!=NULL) {if(cu->p1!=NULL) {cu->p2=cu->p1->p1;cu=cu->p1;};}",
+            "D": ""
+          }
+        },
+        {
+          "number": 3,
+          "type": "选择题",
+          "stem_length": 78,
+          "options_complete": true,
+          "answer": "C",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "已知二叉树 T 的中序序列为 (b, e, d, f, c, a, g)，层次遍历序列为 (a, b, g, c, d, e, f)，则后序遍历序列为（）。",
+          "options_preview": {
+            "A": "cedfbga",
+            "B": "cefd bga",
+            "C": "efdcbga",
+            "D": "efdbcga"
+          }
+        },
+        {
+          "number": 4,
+          "type": "选择题",
+          "stem_length": 51,
+          "options_complete": true,
+          "answer": "B",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "森林中有5棵树，其结点个数分别为2、3、4、5、7，森林中树的次序可以任意，问二叉树的最小高度为()。",
+          "options_preview": {
+            "A": "5",
+            "B": "6",
+            "C": "8",
+            "D": "10"
+          }
+        },
+        {
+          "number": 5,
+          "type": "选择题",
+          "stem_length": 62,
+          "options_complete": false,
+          "answer": "D",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [
+            "选项缺失: B,C,D"
+          ],
+          "stem_preview": "5. 已知字符 abcdefg 对应权值为 1、2、4、5、8、10、12，使得带权路径长度最小，与 e 同层的结点有（）。",
+          "options_preview": {
+            "A": "d",
+            "B": "",
+            "C": "",
+            "D": ""
+          }
+        },
+        {
+          "number": 6,
+          "type": "选择题",
+          "stem_length": 34,
+          "options_complete": true,
+          "answer": "D",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "采用邻接表存储有向图 G，求图 G 一个顶点入度的时间复杂度为（）。",
+          "options_preview": {
+            "A": "O(|V|)",
+            "B": "O(min(|V|, |E|))",
+            "C": "O(|E|)",
+            "D": "O(max(|V|, |E|))"
+          }
+        },
+        {
+          "number": 7,
+          "type": "选择题",
+          "stem_length": 75,
+          "options_complete": true,
+          "answer": "B",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "设有向图顶点数为 n，只有一个初始顶点 S，有多个标记顶点 T，图中每条边有一个字符，S 到 T 的所有字符串构成集合 S，则以下说法中错误的是（）。",
+          "options_preview": {
+            "A": "若 G 无环，S 为有穷集合",
+            "B": "若 G 无环，S 有长度等于 n 的串",
+            "C": "若 G 有环，S 有长度大于 n 的串",
+            "D": "若 G 有环，S 有小于 2n 的串"
+          }
+        },
+        {
+          "number": 8,
+          "type": "选择题",
+          "stem_length": 37,
+          "options_complete": false,
+          "answer": "D",
+          "has_images": true,
+          "ocr_quality": "medium",
+          "need_manual_check": true,
+          "status": "ok",
+          "issues": [
+            "选项缺失: A,B,C,D",
+            "需人工检查"
+          ],
+          "stem_preview": "8. 在高度为 4 的平衡二叉树中，根的左、右子树结点数相差最多的是（）。",
+          "options_preview": {}
+        },
+        {
+          "number": 9,
+          "type": "选择题",
+          "stem_length": 31,
+          "options_complete": true,
+          "answer": "B",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "使用直接插入排序对序列进行升序排序，以下比较次数最少的是（）。",
+          "options_preview": {
+            "A": "A. 30, 27, 56, 41, 80, 95, 69",
+            "B": "B. 31, 43, 26, 55, 63, 99, 77",
+            "C": "C. 61, 84, 51, 23, 34, 91, 40",
+            "D": "D. 93, 32, 48, 81, 50, 21, 72"
+          }
+        },
+        {
+          "number": 10,
+          "type": "选择题",
+          "stem_length": 111,
+          "options_complete": true,
+          "answer": "A",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "有两门科目，成绩分别为C1、C2，由成绩C1、C2和总成绩保存在数组M中。排名是按照总成绩由高到低，总成绩相同的按照C1的乘积由高到低，C1相同的按照原始次序排名。对数组M先按照C1，再按照总成绩排序，这种排序算法是()。",
+          "options_preview": {
+            "A": "基数排序",
+            "B": "快速排序",
+            "C": "希尔排序",
+            "D": "选择排序"
+          }
+        },
+        {
+          "number": 11,
+          "type": "选择题",
+          "stem_length": 40,
+          "options_complete": true,
+          "answer": "C",
+          "has_images": true,
+          "ocr_quality": "high",
+          "need_manual_check": false,
+          "status": "ok",
+          "issues": [],
+          "stem_preview": "使用 k 路归并对外存中的数据进行排序，归并趟数为 d。以下说法正确的是（ ）。",
+          "options_preview": {
+            "A": "增大 k 可以减少 d 的值",
+            "B": "并归趟数 d 不受初始归并段影响",
+            "C": "可用内存的大小限制初始归并段的长度",
+            "D": "Ⅱ、Ⅲ"
+          }
+        },
+        {
+          "number": 41,
+          "type": "大题",
+          "stem_length": 6,
+          "options_complete": true,
+          "answer": "（1）",
+          "has_images": true,
+          "ocr_quality": "medium",
+          "need_manual_check": true,
+          "status": "error",
+          "issues": [
+            "stem为空",
+            "需人工检查"
+          ],
+          "stem_preview": "第 41 题",
+          "options_preview": {
+            "A": "",
+            "B": "",
+            "C": "",
+            "D": ""
+          }
+        },
+        {
+          "number": 42,
+          "type": "大题",
+          "stem_length": 41,
+          "options_complete": true,
+          "answer": "（1）不能",
+          "has_images": true,
+          "ocr_quality": "medium",
+          "need_manual_check": true,
+          "status": "ok",
+          "issues": [
+            "需人工检查"
+          ],
+          "stem_preview": "栈的基本操作有入栈和出栈。将序列 1,2,3,...,n 依次入栈，回答下列问题:",
+          "options_preview": {}
+        }
+      ]
+    }
+  },
+  "problems": [
+    {
+      "year": 2022,
+      "number": 1,
+      "type": "选择题",
+      "stem_length": 5,
+      "options_complete": true,
+      "answer": "B",
+      "has_images": true,
+      "ocr_quality": "medium",
+      "need_manual_check": true,
+      "status": "error",
+      "issues": [
+        "stem为空",
+        "需人工检查"
+      ]
+    },
+    {
+      "year": 2022,
+      "number": 8,
+      "type": "选择题",
+      "stem_length": 5,
+      "options_complete": true,
+      "answer": "D",
+      "has_images": true,
+      "ocr_quality": "medium",
+      "need_manual_check": true,
+      "status": "error",
+      "issues": [
+        "stem为空",
+        "需人工检查"
+      ]
+    },
+    {
+      "year": 2022,
+      "number": 9,
+      "type": "选择题",
+      "stem_length": 5,
+      "options_complete": true,
+      "answer": "D",
+      "has_images": true,
+      "ocr_quality": "medium",
+      "need_manual_check": true,
+      "status": "error",
+      "issues": [
+        "stem为空",
+        "需人工检查"
+      ]
+    },
+    {
+      "year": 2022,
+      "number": 41,
+      "type": "大题",
+      "stem_length": 6,
+      "options_complete": true,
+      "answer": "待补充（本次上传的该年份 PDF 未检测到综合应用题参考答案）",
+      "has_images": true,
+      "ocr_quality": "medium",
+      "need_manual_check": true,
+      "status": "error",
+      "issues": [
+        "stem为空",
+        "需人工检查"
+      ]
+    },
+    {
+      "year": 2023,
+      "number": 41,
+      "type": "大题",
+      "stem_length": 6,
+      "options_complete": true,
+      "answer": "待补充（本次上传的该年份 PDF 未检测到综合应用题参考答案）",
+      "has_images": true,
+      "ocr_quality": "medium",
+      "need_manual_check": true,
+      "status": "error",
+      "issues": [
+        "stem为空",
+        "需人工检查"
+      ]
+    },
+    {
+      "year": 2024,
+      "number": 41,
+      "type": "大题",
+      "stem_length": 6,
+      "options_complete": true,
+      "answer": "待补充（本次上传的该年份 PDF 未检测到综合应用题参考答案）",
+      "has_images": true,
+      "ocr_quality": "medium",
+      "need_manual_check": true,
+      "status": "error",
+      "issues": [
+        "stem为空",
+        "需人工检查"
+      ]
+    },
+    {
+      "year": 2025,
+      "number": 1,
+      "type": "选择题",
+      "stem_length": 5,
+      "options_complete": true,
+      "answer": "B",
+      "has_images": true,
+      "ocr_quality": "medium",
+      "need_manual_check": true,
+      "status": "error",
+      "issues": [
+        "stem为空",
+        "需人工检查"
+      ]
+    },
+    {
+      "year": 2025,
+      "number": 4,
+      "type": "选择题",
+      "stem_length": 5,
+      "options_complete": true,
+      "answer": "B",
+      "has_images": true,
+      "ocr_quality": "medium",
+      "need_manual_check": true,
+      "status": "error",
+      "issues": [
+        "stem为空",
+        "需人工检查"
+      ]
+    },
+    {
+      "year": 2025,
+      "number": 41,
+      "type": "大题",
+      "stem_length": 6,
+      "options_complete": true,
+      "answer": "（1）此算法的核心思想是：对于每个位置i，找到一个在[i, n-1]区间内的值，使得A[i] * X 的",
+      "has_images": true,
+      "ocr_quality": "medium",
+      "need_manual_check": true,
+      "status": "error",
+      "issues": [
+        "stem为空",
+        "需人工检查"
+      ]
+    },
+    {
+      "year": 2026,
+      "number": 41,
+      "type": "大题",
+      "stem_length": 6,
+      "options_complete": true,
+      "answer": "（1）",
+      "has_images": true,
+      "ocr_quality": "medium",
+      "need_manual_check": true,
+      "status": "error",
+      "issues": [
+        "stem为空",
+        "需人工检查"
+      ]
+    }
+  ]
+}
