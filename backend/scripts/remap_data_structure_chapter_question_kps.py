@@ -156,13 +156,79 @@ def classify_sequence(items_list, outline_order):
         results.append((best_kp, conf, best_score))
     return results
 
+
+BATCH_CHAPTER_MAP = {"第1章":["1.1.1"],"2.1-2.2":["2.1","2.2"],"2.3":["2.3"],"3.1":["3.1"],"3.2":["3.2"],"3.3":["3.3"],"3.4":["3.4"],"3章":["3.1","3.2","3.3","3.4"],"第4章":["4.1","4.2"],"5.1":["5.1"],"5.2":["5.2"],"第5章":["5.1","5.2","5.3","5.4","5.5"],"第6章":["6.1","6.2","6.3","6.4"],"第7章":["7.1","7.2","7.3","7.4","7.5"],"第8章":["8.1","8.2","8.3","8.4","8.5","8.6","8.7"],"排序":["8.1","8.2","8.3","8.4","8.5","8.6","8.7"]}
+RAW_DIR = BASE / "exam_resources/11408/data_structure/chapter_questions/raw"
+
+def scan_batch_files():
+    batches=[]
+    for f in sorted(RAW_DIR.glob("*.txt")):
+        n=f.name
+        if "原创配套习题" not in n or n=="data_structure_chapter_questions.txt": continue
+        m=re.search(r'第(\d+)批',n); bn=int(m.group(1)) if m else 999
+        kps=[]
+        for lbl,ks in BATCH_CHAPTER_MAP.items():
+            if lbl in n: kps.extend(ks)
+        batches.append({"batch_no":bn,"filename":n,"path":str(f),"chapter_kps":kps,"qcount":0,"matched":0})
+    return sorted(batches,key=lambda b:b["batch_no"])
+
+def parse_txt_stems(filepath):
+    txt=Path(filepath).read_text(encoding="utf-8")
+    stems=[]
+    for line in txt.split('\n'):
+        line=line.strip()
+        m=re.match(r'^\d{2,3}\.\s(.+)',line)
+        if m: stems.append(m.group(1)[:120]); continue
+        m=re.match(r'^综合\d{1,2}[.．]\s*(.+)',line)
+        if m: stems.append(m.group(1)[:120])
+    return stems
+
+def norm(s): return re.sub(r'\s+','',str(s or '')).lower()[:80]
+
+def classify_batch(items_sorted):
+    batches=scan_batch_files()
+    for b in batches: b["qcount"]=len(parse_txt_stems(b["path"]))
+    # Build stem->batch index
+    batch_stems={}
+    for b in batches:
+        for stem in parse_txt_stems(b["path"]): batch_stems[norm(stem)]=b["batch_no"]
+    results=[]
+    matched=0
+    for item in items_sorted:
+        ns=norm(item.stem); bn=batch_stems.get(ns,0)
+        if bn>0:
+            for b in batches:
+                if b["batch_no"]==bn: b["matched"]+=1; break
+            matched+=1
+            allowed=set()
+            for b in batches:
+                if b["batch_no"]==bn: allowed=set(b["chapter_kps"]); break
+            best=""; bs=0
+            text=f"{item.stem or ''} {item.analysis or ''} {item.options_json or ''}".lower()
+            for kpid in allowed:
+                if kpid not in OUTLINE_ORDER: continue
+                s=0
+                for kw,tg,cf,pr in RULES:
+                    if tg!=kpid: continue
+                    s+=sum(1 for kw in kw if kw.lower() in text)*(pr+2)
+                if s>bs: bs=s; best=kpid
+            conf="high" if bs>=10 else ("medium" if bs>=5 else "low")
+            if best and best!=(item.knowledge_point_id or ""):
+                results.append((item.id,item.knowledge_point_id or "",best,conf,bn))
+            else: results.append((item.id,item.knowledge_point_id or "","","skipped",bn))
+        else:
+            kp,cf,_=classify_question(item.stem or "",item.analysis or "",item.options_json or "")
+            if kp and kp!=(item.knowledge_point_id or ""): results.append((item.id,item.knowledge_point_id or "",kp,cf,0))
+            else: results.append((item.id,item.knowledge_point_id or "","","skipped",0))
+    return results,batches,matched
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--apply-high", action="store_true")
     parser.add_argument("--apply-medium", action="store_true")
     parser.add_argument("--limit", type=int, default=0)
-    parser.add_argument("--strategy", type=str, default="keyword", choices=["keyword","sequence"])
+    parser.add_argument("--strategy", type=str, default="keyword", choices=["keyword","sequence","batch"])
     args = parser.parse_args()
 
     db = SessionLocal()
@@ -191,8 +257,22 @@ def main():
                 remap[conf] += 1
                 if old in new_kp_counts: new_kp_counts[old] -= 1
                 new_kp_counts[kp_id] = new_kp_counts.get(kp_id, 0) + 1
-            else:
-                remap["skipped"] += 1
+            else: remap["skipped"] += 1
+    elif args.strategy == "batch":
+        batch_results, batches_info, matched_db = classify_batch(items_sorted)
+        for item_id, old_kp, new_kp, conf, batch_no in batch_results:
+            if new_kp and new_kp != old_kp:
+                suggestions.append({"id": item_id, "stem": "", "old_kp": old_kp, "new_kp": new_kp, "confidence": conf, "batch": batch_no})
+                remap[conf] = remap.get(conf, 0) + 1
+                if old_kp in new_kp_counts: new_kp_counts[old_kp] -= 1
+                new_kp_counts[new_kp] = new_kp_counts.get(new_kp, 0) + 1
+            else: remap["skipped"] += 1
+        # Save batch info to report
+        batch_report = {"batches": [{"batch_no": b["batch_no"], "filename": b["filename"],
+                        "qcount": b["qcount"], "matched_db": b["matched"],
+                        "chapter_kps": b["chapter_kps"]} for b in batches_info],
+                        "matched_db_total": matched_db}
+        (REPORT_DIR / "kp_remap_batch_info.json").write_text(json.dumps(batch_report, ensure_ascii=False, indent=2), encoding="utf-8")
     else:
         for item in items_sorted:
             if args.limit > 0 and len(suggestions) >= args.limit: break
