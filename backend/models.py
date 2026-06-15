@@ -694,6 +694,7 @@ class AIGeneratedQuestion(Base):
     difficulty = Column(String(30), nullable=True)
     requirement = Column(Text, nullable=True)
     generation_prompt = Column(Text, nullable=True)
+    raw_ai_response = Column(Text, nullable=True)
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 

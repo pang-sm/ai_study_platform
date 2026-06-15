@@ -256,6 +256,7 @@ AI_GENERATED_QUESTIONS_COLUMNS = {
     "difficulty": "VARCHAR(30)",
     "requirement": "TEXT",
     "generation_prompt": "TEXT",
+    "raw_ai_response": "TEXT",
     "created_at": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
     "updated_at": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
 }
@@ -1140,6 +1141,7 @@ def ensure_ai_generated_questions_schema(conn):
                 difficulty VARCHAR(30),
                 requirement TEXT,
                 generation_prompt TEXT,
+                raw_ai_response TEXT,
                 created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
             )

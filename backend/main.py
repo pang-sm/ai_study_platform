@@ -12436,6 +12436,172 @@ def _build_mock_ai_question(subject_name: str, kp_name: str, kp_path: str, quest
     }
 
 
+def _build_exam_ai_choice_prompt(subject_name: str, kp_name: str, kp_path: str, count: int, difficulty: str, requirement: str) -> str:
+    scope = kp_path or kp_name or f"{subject_name}综合"
+    extra_requirement = requirement or "无"
+    return f"""你是 11408 考研《{subject_name}》命题助手。请严格围绕当前科目和知识点范围生成选择题。
+
+科目：{subject_name}
+知识点范围：{scope}
+题目数量：{count}
+难度：{difficulty}
+补充要求：{extra_requirement}
+
+命题要求：
+1. 只生成 11408《{subject_name}》真题风格的单项选择题，不要生成大题、判断题、多选题。
+2. 每题必须有 A/B/C/D 四个选项，且只有一个正确答案。
+3. 题干要贴合考研数据结构考查方式，可考查概念辨析、算法过程、复杂度、存储结构、边界条件等。
+4. 不要生成与当前科目无关的内容。
+5. 不要输出 Markdown，不要解释，不要代码块，只输出严格 JSON 对象。
+
+输出 JSON 格式必须完全符合：
+{{
+  "questions": [
+    {{
+      "question_type": "选择题",
+      "stem": "...",
+      "options": {{
+        "A": "...",
+        "B": "...",
+        "C": "...",
+        "D": "..."
+      }},
+      "standard_answer": "A",
+      "analysis": "...",
+      "knowledge_point_name": "...",
+      "difficulty": "{difficulty}"
+    }}
+  ]
+}}"""
+
+
+def _normalize_ai_choice_options(raw_options) -> dict:
+    if not isinstance(raw_options, dict):
+        return {}
+    normalized = {}
+    for label in ("A", "B", "C", "D"):
+        value = raw_options.get(label) or raw_options.get(label.lower())
+        normalized[label] = str(value or "").strip()
+    return normalized
+
+
+def _is_ai_choice_subject_related(subject_key: str, stem: str, analysis: str) -> bool:
+    if subject_key != "data_structure":
+        return True
+    text_value = f"{stem}\n{analysis}"
+    data_structure_terms = [
+        "数据结构", "线性表", "顺序表", "链表", "栈", "队列", "串", "数组", "树", "二叉树",
+        "森林", "图", "邻接矩阵", "邻接表", "查找", "排序", "堆", "散列", "哈希", "算法",
+        "时间复杂度", "空间复杂度", "遍历", "递归", "插入", "删除",
+    ]
+    unrelated_terms = [
+        "操作系统", "进程调度", "页表", "虚拟内存", "计算机网络", "TCP", "UDP", "IP 地址",
+        "路由", "计算机组成", "指令流水线", "Cache", "编译原理", "数据库", "SQL",
+    ]
+    has_data_structure_signal = any(term in text_value for term in data_structure_terms)
+    has_unrelated_signal = any(term in text_value for term in unrelated_terms)
+    return has_data_structure_signal or not has_unrelated_signal
+
+
+def _validate_exam_ai_choice_payload(payload: dict, subject_key: str, expected_count: int) -> list[dict]:
+    if not isinstance(payload, dict) or not isinstance(payload.get("questions"), list):
+        raise HTTPException(status_code=422, detail="AI 返回格式错误：必须是包含 questions 数组的 JSON 对象")
+    questions = payload["questions"]
+    if len(questions) != expected_count:
+        raise HTTPException(status_code=422, detail=f"AI 返回题目数量不符合要求：请求 {expected_count} 道，实际返回 {len(questions)} 道")
+
+    validated = []
+    for index, question in enumerate(questions, start=1):
+        if not isinstance(question, dict):
+            raise HTTPException(status_code=422, detail=f"AI 返回格式错误：第 {index} 题不是 JSON 对象")
+        qtype = str(question.get("question_type") or "").strip()
+        if qtype and qtype != "选择题":
+            raise HTTPException(status_code=422, detail=f"AI 返回格式错误：第 {index} 题不是选择题")
+        stem = str(question.get("stem") or "").strip()
+        analysis = str(question.get("analysis") or "").strip()
+        options = _normalize_ai_choice_options(question.get("options"))
+        standard_answer = str(question.get("standard_answer") or "").strip().upper()
+        if not stem:
+            raise HTTPException(status_code=422, detail=f"AI 返回格式错误：第 {index} 题题干为空")
+        if any(not options[label] for label in ("A", "B", "C", "D")):
+            raise HTTPException(status_code=422, detail=f"AI 返回格式错误：第 {index} 题 A/B/C/D 选项必须全部非空")
+        if len({options[label] for label in ("A", "B", "C", "D")}) != 4:
+            raise HTTPException(status_code=422, detail=f"AI 返回格式错误：第 {index} 题 A/B/C/D 选项不能重复")
+        if standard_answer not in {"A", "B", "C", "D"}:
+            raise HTTPException(status_code=422, detail=f"AI 返回格式错误：第 {index} 题标准答案必须是 A/B/C/D")
+        if not analysis:
+            raise HTTPException(status_code=422, detail=f"AI 返回格式错误：第 {index} 题解析为空")
+        if not _is_ai_choice_subject_related(subject_key, stem, analysis):
+            raise HTTPException(status_code=422, detail=f"AI 返回内容错误：第 {index} 题与当前科目不相关")
+        validated.append({
+            "question_type": "选择题",
+            "stem": stem,
+            "options": options,
+            "standard_answer": standard_answer,
+            "analysis": analysis,
+            "knowledge_point_name": str(question.get("knowledge_point_name") or "").strip(),
+            "difficulty": _normalize_ai_difficulty(str(question.get("difficulty") or "")),
+        })
+    return validated
+
+
+def _create_mock_exam_ai_questions(
+    db: Session,
+    *,
+    username: str,
+    subject_key: str,
+    subject_name: str,
+    kp_id: str,
+    kp_name: str,
+    kp_path: str,
+    question_type: str,
+    count: int,
+    difficulty: str,
+    requirement: str,
+    fallback_reason: str = "",
+):
+    now = utc_now()
+    created_items = []
+    prompt_payload = {
+        "mock": True,
+        "subject_key": subject_key,
+        "knowledge_point_path": kp_path,
+        "question_type": question_type,
+        "count": count,
+        "difficulty": difficulty,
+        "requirement": requirement,
+        "fallback_reason": fallback_reason,
+    }
+    raw_fallback = json.dumps({"fallback": True, "reason": fallback_reason or "mock generation"}, ensure_ascii=False)
+    for index in range(1, count + 1):
+        mock = _build_mock_ai_question(subject_name, kp_name, kp_path, question_type, difficulty, index)
+        item = models.AIGeneratedQuestion(
+            username=username,
+            subject_key=subject_key,
+            subject_name=subject_name,
+            knowledge_point_id=kp_id,
+            knowledge_point_name=kp_name,
+            knowledge_point_path=kp_path,
+            question_type=question_type,
+            stem=mock["stem"],
+            options_json=json.dumps(mock["options"], ensure_ascii=False),
+            standard_answer=mock["standard_answer"],
+            analysis=mock["analysis"],
+            difficulty=difficulty,
+            requirement=requirement,
+            generation_prompt=json.dumps(prompt_payload, ensure_ascii=False),
+            raw_ai_response=raw_fallback,
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(item)
+        created_items.append(item)
+    db.commit()
+    for item in created_items:
+        db.refresh(item)
+    return created_items
+
+
 @app.get("/exam/11408/{subject_key}/ai-questions")
 def get_exam_ai_questions(subject_key: str, username: str, db: Session = Depends(get_db)):
     if subject_key not in EXAM_SUBJECT_DIRS:
@@ -12471,44 +12637,144 @@ def generate_exam_ai_questions(subject_key: str, req: dict, db: Session = Depend
     question_type = _normalize_ai_question_type(str(req.get("question_type") or ""))
     difficulty = _normalize_ai_difficulty(str(req.get("difficulty") or ""))
     requirement = str(req.get("requirement") or "").strip()
+
+    if question_type != "选择题":
+        created_items = _create_mock_exam_ai_questions(
+            db,
+            username=username,
+            subject_key=subject_key,
+            subject_name=subject_name,
+            kp_id=kp_id,
+            kp_name=kp_name,
+            kp_path=kp_path,
+            question_type=question_type,
+            count=count,
+            difficulty=difficulty,
+            requirement=requirement,
+        )
+        return {
+            "success": True,
+            "generation_mode": "mock",
+            "fallback_used": False,
+            "requested_count": count,
+            "generated_count": len(created_items),
+            "items": [_serialize_ai_generated_question(item) for item in created_items],
+        }
+
+    prompt = _build_exam_ai_choice_prompt(subject_name, kp_name, kp_path, count, difficulty, requirement)
+    prompt_payload = {
+        "mock": False,
+        "provider": "deepseek",
+        "subject_key": subject_key,
+        "subject_name": subject_name,
+        "knowledge_point_id": kp_id,
+        "knowledge_point_name": kp_name,
+        "knowledge_point_path": kp_path,
+        "question_type": question_type,
+        "count": count,
+        "difficulty": difficulty,
+        "requirement": requirement,
+        "prompt": prompt,
+    }
+    api_key = (os.getenv("DEEPSEEK_API_KEY") or "").strip()
+    if not api_key:
+        created_items = _create_mock_exam_ai_questions(
+            db,
+            username=username,
+            subject_key=subject_key,
+            subject_name=subject_name,
+            kp_id=kp_id,
+            kp_name=kp_name,
+            kp_path=kp_path,
+            question_type=question_type,
+            count=count,
+            difficulty=difficulty,
+            requirement=requirement,
+            fallback_reason="DEEPSEEK_API_KEY 未配置，已使用 mock fallback",
+        )
+        return {
+            "success": True,
+            "generation_mode": "mock_fallback",
+            "fallback_used": True,
+            "message": "DeepSeek 未配置，已使用 mock fallback 生成选择题。",
+            "requested_count": count,
+            "generated_count": len(created_items),
+            "items": [_serialize_ai_generated_question(item) for item in created_items],
+        }
+
+    try:
+        raw_ai_response = call_deepseek(
+            [
+                {"role": "system", "content": "你是严谨的 11408 考研数据结构命题助手，只输出严格 JSON。"},
+                {"role": "user", "content": prompt},
+            ],
+            timeout_seconds=90,
+            temperature=0.35,
+            max_tokens=max(1600, min(6000, count * 900)),
+        )
+    except HTTPException as exc:
+        created_items = _create_mock_exam_ai_questions(
+            db,
+            username=username,
+            subject_key=subject_key,
+            subject_name=subject_name,
+            kp_id=kp_id,
+            kp_name=kp_name,
+            kp_path=kp_path,
+            question_type=question_type,
+            count=count,
+            difficulty=difficulty,
+            requirement=requirement,
+            fallback_reason=f"DeepSeek 调用失败：{exc.detail}",
+        )
+        return {
+            "success": True,
+            "generation_mode": "mock_fallback",
+            "fallback_used": True,
+            "message": "DeepSeek 调用失败，已使用 mock fallback 生成选择题。",
+            "requested_count": count,
+            "generated_count": len(created_items),
+            "items": [_serialize_ai_generated_question(item) for item in created_items],
+        }
+
+    parsed_payload = extract_json_object(raw_ai_response)
+    validated_questions = _validate_exam_ai_choice_payload(parsed_payload, subject_key, count)
+
     now = utc_now()
     created_items = []
-
-    for index in range(1, count + 1):
-        mock = _build_mock_ai_question(subject_name, kp_name, kp_path, question_type, difficulty, index)
+    for question in validated_questions:
         item = models.AIGeneratedQuestion(
             username=username,
             subject_key=subject_key,
             subject_name=subject_name,
             knowledge_point_id=kp_id,
-            knowledge_point_name=kp_name,
+            knowledge_point_name=kp_name or question["knowledge_point_name"],
             knowledge_point_path=kp_path,
-            question_type=question_type,
-            stem=mock["stem"],
-            options_json=json.dumps(mock["options"], ensure_ascii=False),
-            standard_answer=mock["standard_answer"],
-            analysis=mock["analysis"],
-            difficulty=difficulty,
+            question_type="选择题",
+            stem=question["stem"],
+            options_json=json.dumps(question["options"], ensure_ascii=False),
+            standard_answer=question["standard_answer"],
+            analysis=question["analysis"],
+            difficulty=question["difficulty"] or difficulty,
             requirement=requirement,
-            generation_prompt=json.dumps({
-                "mock": True,
-                "subject_key": subject_key,
-                "knowledge_point_path": kp_path,
-                "question_type": question_type,
-                "count": count,
-                "difficulty": difficulty,
-                "requirement": requirement,
-            }, ensure_ascii=False),
+            generation_prompt=json.dumps(prompt_payload, ensure_ascii=False),
+            raw_ai_response=raw_ai_response,
             created_at=now,
             updated_at=now,
         )
         db.add(item)
         created_items.append(item)
-
     db.commit()
     for item in created_items:
         db.refresh(item)
-    return {"success": True, "items": [_serialize_ai_generated_question(item) for item in created_items]}
+    return {
+        "success": True,
+        "generation_mode": "deepseek",
+        "fallback_used": False,
+        "requested_count": count,
+        "generated_count": len(created_items),
+        "items": [_serialize_ai_generated_question(item) for item in created_items],
+    }
 
 
 @app.patch("/exam/11408/{subject_key}/ai-questions/{question_id}")

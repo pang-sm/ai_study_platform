@@ -461,7 +461,8 @@ function AIQuestionPracticePage({ subjectInfo, user, onBack }) {
         body: JSON.stringify(payload),
       });
       setAiQuestions((prev) => [...(result.items || []), ...prev]);
-      setAiMessage(`已生成 ${result.items?.length || 0} 道 mock 题。`);
+      const modeText = result.fallback_used ? "mock fallback 题" : "AI 题";
+      setAiMessage(`已生成 ${result.items?.length || 0} 道${modeText}。`);
     } catch (err) {
       setAiError(`生成失败：${err.message || "服务器错误"}`);
     } finally {
