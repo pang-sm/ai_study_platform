@@ -562,6 +562,9 @@ export default function PracticeCenter({
   const [mixedSuggestionDismissed, setMixedSuggestionDismissed] = useState(false);
   const [mixedSupplementQuestions, setMixedSupplementQuestions] = useState([]);
 
+  // Dashboard view mode
+  const [showDashboard, setShowDashboard] = useState(true);
+
   // Mixed practice mode
   const [mixedPracticeMode, setMixedPracticeMode] = useState(false);
   const [mixedPracticeQuestions, setMixedPracticeQuestions] = useState([]);
@@ -2244,8 +2247,168 @@ export default function PracticeCenter({
   const importJobLongRunning = ["pending", "processing"].includes(importJobStatus)
     && Number(importJobElapsedSeconds || 0) >= IMPORT_JOB_LONG_RUNNING_SECONDS;
 
+  const isSpecialMode = batchPracticeMode || aiTempMode || mixedPracticeMode || !!paperDetail || !!detailQuestion;
+
   return (
     <section className="chat-panel chat-panel--wide practice-panel">
+      {showDashboard && !isSpecialMode && (
+        <div className="practice-dashboard">
+          <div className="practice-dashboard-header">
+            <div>
+              <h2>练习中心</h2>
+              <p>巩固知识，提升能力</p>
+            </div>
+            <button type="button" className="primary-button ai-generate-btn-main" onClick={openGenerateModal}>
+              <span>✨</span> AI 出题
+            </button>
+          </div>
+
+          <div className="practice-stats-section">
+            <h3>练习数据</h3>
+            <div className="practice-stats-grid">
+              <div className="practice-stat-card--dashboard">
+                <div className="practice-stat-card-icon practice-stat-card-icon--docs">📄</div>
+                <div className="practice-stat-card-body">
+                  <div className="practice-stat-card-value">128</div>
+                  <div className="practice-stat-card-label">总练习数</div>
+                </div>
+              </div>
+              <div className="practice-stat-card--dashboard">
+                <div className="practice-stat-card-icon practice-stat-card-icon--done">✓</div>
+                <div className="practice-stat-card-body">
+                  <div className="practice-stat-card-value">96</div>
+                  <div className="practice-stat-card-label">已完成</div>
+                </div>
+              </div>
+              <div className="practice-stat-card--dashboard">
+                <div className="practice-stat-card-icon practice-stat-card-icon--accuracy">★</div>
+                <div className="practice-stat-card-body">
+                  <div className="practice-stat-card-value">75%</div>
+                  <div className="practice-stat-card-label">正确率</div>
+                </div>
+              </div>
+              <div className="practice-stat-card--dashboard">
+                <div className="practice-stat-card-icon practice-stat-card-icon--time">⏱</div>
+                <div className="practice-stat-card-body">
+                  <div className="practice-stat-card-value">32h</div>
+                  <div className="practice-stat-card-label">累计练习时长</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="practice-type-section">
+            <h3>练习类型</h3>
+            <div className="practice-type-grid">
+              <button type="button" className="practice-type-card" onClick={() => setShowDashboard(false)}>
+                <div className="practice-type-icon">📋</div>
+                <div className="practice-type-info">
+                  <strong>章节练习</strong>
+                  <p>按章节知识点进行针对性练习</p>
+                  <span className="practice-type-count">共 86 题</span>
+                </div>
+                <span className="practice-type-arrow">›</span>
+              </button>
+              <button type="button" className="practice-type-card" onClick={() => setShowDashboard(false)}>
+                <div className="practice-type-icon">❌</div>
+                <div className="practice-type-info">
+                  <strong>错题练习</strong>
+                  <p>针对错题强化练习</p>
+                  <span className="practice-type-count">共 24 题</span>
+                </div>
+                <span className="practice-type-arrow">›</span>
+              </button>
+              <button type="button" className="practice-type-card" onClick={() => setShowDashboard(false)}>
+                <div className="practice-type-icon">📝</div>
+                <div className="practice-type-info">
+                  <strong>模拟考试</strong>
+                  <p>模拟真实考试环境</p>
+                  <span className="practice-type-count">共 12 套</span>
+                </div>
+                <span className="practice-type-arrow">›</span>
+              </button>
+              <button type="button" className="practice-type-card" onClick={() => setShowDashboard(false)}>
+                <div className="practice-type-icon">⭐</div>
+                <div className="practice-type-info">
+                  <strong>收藏练习</strong>
+                  <p>收藏的题目练习</p>
+                  <span className="practice-type-count">共 18 题</span>
+                </div>
+                <span className="practice-type-arrow">›</span>
+              </button>
+              <button type="button" className="practice-type-card practice-type-card--ai" onClick={openGenerateModal}>
+                <div className="practice-type-icon">🤖</div>
+                <div className="practice-type-info">
+                  <strong>AI 出题</strong>
+                  <p>根据知识点智能生成练习题</p>
+                  <span className="practice-type-count">自定义生成</span>
+                </div>
+                <span className="practice-type-arrow">›</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="practice-recent-section">
+            <div className="practice-recent-header">
+              <h3>最近练习</h3>
+              <button type="button" className="ghost-button compact" onClick={() => setShowDashboard(false)}>查看全部</button>
+            </div>
+            <div className="practice-recent-list">
+              <div className="practice-recent-item">
+                <div>
+                  <strong>第一章 计算机基础知识</strong>
+                  <span className="practice-recent-type">章节练习</span>
+                </div>
+                <div className="practice-recent-meta">
+                  <span>正确率 80%</span>
+                  <span>2024-05-20 15:30</span>
+                </div>
+              </div>
+              <div className="practice-recent-item">
+                <div>
+                  <strong>数据结构与算法基础</strong>
+                  <span className="practice-recent-type">章节练习</span>
+                </div>
+                <div className="practice-recent-meta">
+                  <span>正确率 65%</span>
+                  <span>2024-05-19 10:15</span>
+                </div>
+              </div>
+              <div className="practice-recent-item">
+                <div>
+                  <strong>模拟考试（一）</strong>
+                  <span className="practice-recent-type">模拟考试</span>
+                </div>
+                <div className="practice-recent-meta">
+                  <span>正确率 72%</span>
+                  <span>2024-05-18 09:00</span>
+                </div>
+              </div>
+              <div className="practice-recent-item">
+                <div>
+                  <strong>操作系统基础</strong>
+                  <span className="practice-recent-type">错题练习</span>
+                </div>
+                <div className="practice-recent-meta">
+                  <span>正确率 90%</span>
+                  <span>2024-05-17 16:45</span>
+                </div>
+              </div>
+              <div className="practice-recent-item">
+                <div>
+                  <strong>计算机网络基础</strong>
+                  <span className="practice-recent-type">章节练习</span>
+                </div>
+                <div className="practice-recent-meta">
+                  <span>正确率 78%</span>
+                  <span>2024-05-16 14:20</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {batchPracticeMode && (
         <div className="batch-practice-panel">
           <div className="batch-practice-header">
@@ -2881,6 +3044,17 @@ export default function PracticeCenter({
                 {warning}
               </div>
             ))}
+          </div>
+        )}
+
+        {!showDashboard && (
+          <div className="practice-back-bar">
+            <button type="button" className="ghost-button compact" onClick={() => setShowDashboard(true)}>
+              ← 返回练习中心
+            </button>
+            <button type="button" className="primary-button compact ai-generate-btn-inline" onClick={openGenerateModal}>
+              ✨ AI 出题
+            </button>
           </div>
         )}
 
