@@ -268,12 +268,16 @@ export default function ExamPastPaperPractice({
                   )}
                   {q.type === "选择题" ? (
                     <div className="past-paper-options">
-                      {["A", "B", "C", "D"].map(opt => (
+                      {["A", "B", "C", "D"].map(opt => {
+                        const optText = q.options?.[opt] || '';
+                        return (
                         <label key={opt} className={`past-paper-option ${answers[q.id] === opt ? "past-paper-option--selected" : ""}`}>
                           <input type="radio" name={`q_${q.id}`} value={opt} checked={answers[q.id] === opt} onChange={() => handleAnswer(q.id, opt)} />
-                          <span>{opt}</span>
+                          <span className="past-paper-opt-label">{opt}</span>
+                          <span className="past-paper-opt-text">{optText || `选项 ${opt} 文本缺失`}</span>
                         </label>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="past-paper-big-answer">
