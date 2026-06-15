@@ -20473,6 +20473,20 @@ select.field:focus {
   line-height: 1.5;
 }
 
+.past-paper-q-images {
+  margin-bottom: 10px;
+}
+
+.past-paper-q-img {
+  max-width: 100%;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.past-paper-practice-body {
+  margin-top: 8px;
+}
+
 @media (max-width: 900px) {
   .practice-stats-grid {
     grid-template-columns: repeat(2, 1fr);

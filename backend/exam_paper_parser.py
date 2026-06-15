@@ -1,27 +1,23 @@
 """
-11408 exam paper parser.
-
-Reads docx files from backend/exam_resources/11408/{subject_key}/ and
-extracts structured question data.  Most questions are embedded as images
-inside the docx, so we also export images and attempt OCR when available.
+11408 exam paper parser — extracts questions from docx with image export.
 """
 import json
 import logging
 import os
 import re
+import shutil
 from pathlib import Path
 
 from docx import Document
-from docx.opc.constants import RELATIONSHIP_TYPE as RT
 
 logger = logging.getLogger("exam_parser")
 
 BASE_DIR = Path(__file__).resolve().parent
 EXAM_RESOURCES_DIR = BASE_DIR / "exam_resources" / "11408"
-CACHE_DIR = BASE_DIR / "cache" / "exam_parser"
+CACHE_DIR = BASE_DIR / "cache" / "exam_papers"
+STATIC_DIR = BASE_DIR / "static" / "exam_papers" / "11408"
 
-# Subject key → directory name mapping (same as main.py)
-EXAM_SUBJECT_DIRS = {
+EXAM_SUBJECTS = {
     "data_structure": "数据结构",
     "computer_organization": "计算机组成原理",
     "operating_system": "操作系统",
@@ -29,8 +25,18 @@ EXAM_SUBJECT_DIRS = {
 }
 
 
-def _subject_dir(subject_key: str) -> Path:
-    return EXAM_RESOURCES_DIR / subject_key
+def _subject_docx(subject_key: str) -> Path | None:
+    sd = EXAM_RESOURCES_DIR / subject_key
+    if not sd.exists():
+        return None
+    docx_files = sorted(sd.glob("*.docx"))
+    return docx_files[0] if docx_files else None
+
+
+def _static_image_dir(subject_key: str, year: int) -> Path:
+    d = STATIC_DIR / subject_key / str(year)
+    d.mkdir(parents=True, exist_ok=True)
+    return d
 
 
 def _cache_path(subject_key: str) -> Path:
@@ -39,152 +45,137 @@ def _cache_path(subject_key: str) -> Path:
     return p
 
 
-def _find_docx(subject_key: str) -> Path | None:
-    """Return the first .docx file in the subject directory, or None."""
-    sd = _subject_dir(subject_key)
-    if not sd.exists():
-        return None
-    docx_files = sorted(sd.glob("*.docx"))
-    return docx_files[0] if docx_files else None
+def parse_docx_questions(subject_key: str, force: bool = False) -> dict:
+    """Parse docx into year→questions, exporting images to static/."""
+    docx_path = _subject_docx(subject_key)
+    if not docx_path:
+        return {}
 
+    cache_json = _cache_path(subject_key) / "parsed.json"
+    mtime = docx_path.stat().st_mtime
+    if not force and cache_json.exists():
+        try:
+            cached = json.loads(cache_json.read_text(encoding="utf-8"))
+            if cached.get("_mtime") == mtime:
+                return {k: v for k, v in cached.items() if not k.startswith("_")}
+        except Exception:
+            pass
 
-def _export_images(doc: Document, subject_key: str) -> dict[str, str]:
-    """Export all images embedded in the document.
-
-    Returns a mapping from paragraph index → saved image path.
-    """
-    image_map: dict[str, str] = {}
-    cache = _cache_path(subject_key)
-    for i, rel in enumerate(doc.part.rels.values()):
-        if "image" not in rel.reltype:
-            continue
-        image = rel.target_part
-        ext = os.path.splitext(image.partname)[1] or ".png"
-        fname = f"img_{i}{ext}"
-        fpath = cache / fname
-        if not fpath.exists():
-            fpath.write_bytes(image.blob)
-        image_map[f"rel_{i}"] = str(fpath)
-    # Also map by paragraph index by scanning runs
-    para_image_map: dict[str, str] = {}
-    img_idx = 0
-    for pi, para in enumerate(doc.paragraphs):
-        for run in para.runs:
-            for elem in run._element:
-                tag = elem.tag.split("}")[-1] if "}" in elem.tag else elem.tag
-                if tag in ("drawing", "pict"):
-                    fname = f"img_{img_idx}.png"
-                    fpath = cache / fname
-                    if fpath.exists():
-                        para_image_map[str(pi)] = str(fpath)
-                    img_idx += 1
-    return para_image_map
-
-
-def _try_ocr_image(image_path: str) -> str | None:
-    """Try OCR on a single image using available OCR tools.
-
-    Returns extracted text or None if OCR is unavailable."""
-    try:
-        from qwen_parser import parse_image_with_qwen
-        result = parse_image_with_qwen(image_path)
-        if result.get("success"):
-            return result.get("extracted_text", "").strip()
-    except Exception as exc:
-        logger.warning("OCR failed for %s: %s", image_path, str(exc)[:120])
-    return None
-
-
-def _normalize_answer(raw: str) -> str:
-    """Normalize answer text from docx AnswerLine."""
-    cleaned = raw.strip()
-    # Remove prefix like "答案：" or "答案:"
-    cleaned = re.sub(r"^答案[：:]\s*", "", cleaned)
-    return cleaned.strip()
-
-
-def _parse_docx(doc: Document, subject_key: str, use_ocr: bool = True) -> dict:
-    """Parse a docx into structured year→questions data."""
-    para_images = _export_images(doc, subject_key)
+    doc = Document(str(docx_path))
     years_data: dict[str, list[dict]] = {}
     current_year = None
     current_questions: list[dict] = []
-
     paragraphs = list(doc.paragraphs)
+
+    # Build paragraph→image mapping and export images
+    para_images: dict[int, list[str]] = {}
+    image_index = 0
+    for pi, para in enumerate(paragraphs):
+        imgs = []
+        for run in para.runs:
+            for elem in run._element:
+                tag = elem.tag.split("}")[-1] if "}" in elem.tag else elem.tag
+                if tag not in ("drawing", "pict"):
+                    continue
+                for desc in elem.iter():
+                    dtag = desc.tag.split("}")[-1] if "}" in desc.tag else desc.tag
+                    if dtag == "blip":
+                        embed = desc.get(
+                            "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed"
+                        )
+                        if embed and embed in doc.part.rels:
+                            rel = doc.part.rels[embed]
+                            img_blob = rel.target_part.blob
+                            ext = os.path.splitext(rel.target_part.partname)[1] or ".jpg"
+                            # Export to static dir
+                            static_dir = _static_image_dir(subject_key, 0)
+                            fname = f"img_{image_index}{ext}"
+                            fpath = static_dir / fname
+                            if not fpath.exists():
+                                fpath.write_bytes(img_blob)
+                            imgs.append(f"/static/exam_papers/11408/{subject_key}/0/{fname}")
+                            image_index += 1
+        if imgs:
+            para_images[pi] = imgs
+
+    # Parse year by year
     i = 0
     while i < len(paragraphs):
-        p = paragraphs[i]
-        text = p.text.strip()
-        style = p.style.name if p.style else ""
+        text = paragraphs[i].text.strip()
 
-        # Year heading
-        if style == "Heading 1" and text:
+        # Detect year: "2022 年", "2023年", etc.
+        year_match = re.match(r"^(\d{4})\s*年", text)
+        if year_match:
             if current_year and current_questions:
                 years_data[current_year] = current_questions
                 current_questions = []
-            current_year = text.replace(" 年", "").strip()
+            current_year = year_match.group(1)
             i += 1
             continue
 
-        # Question heading
-        if style == "Heading 2" and current_year:
-            q_number_match = re.search(r"第\s*(\d+)\s*题", text)
-            q_number = int(q_number_match.group(1)) if q_number_match else len(current_questions) + 1
-
-            # Look for content in this and following paragraphs (until next heading)
-            content_parts = []
-            options = {}
+        # Detect question number: "第 1 题", "第1题", "第 41 题" etc.
+        q_match = re.match(r"^第\s*(\d+)\s*题", text)
+        if q_match and current_year:
+            q_number = int(q_match.group(1))
             answer = ""
-            q_type = "选择题"
-            has_image = False
+            question_images: list[str] = []
+            content_parts = []
 
+            # Collect question content: following paragraphs until next heading or answer
             j = i + 1
             while j < len(paragraphs):
-                np = paragraphs[j]
-                nstyle = np.style.name if np.style else ""
-                if nstyle in ("Heading 1", "Heading 2"):
+                nt = paragraphs[j].text.strip()
+                nstyle = paragraphs[j].style.name if paragraphs[j].style else ""
+
+                # Stop at next year or next question
+                if re.match(r"^(\d{4})\s*年", nt) or re.match(r"^第\s*(\d+)\s*题", nt):
                     break
-                ntext = np.text.strip()
 
-                if "AnswerLine" in nstyle:
-                    answer = _normalize_answer(ntext)
-                elif ntext:
-                    content_parts.append(ntext)
-                    # Check if this looks like an option
-                    opt_match = re.match(r"^([A-D])[\.\、\)]\s*(.+)", ntext)
-                    if opt_match:
-                        options[opt_match.group(1)] = opt_match.group(2)
+                # Detect answer line
+                ans_match = re.match(r"^答案[：:]\s*(.+)", nt)
+                if ans_match:
+                    answer = ans_match.group(1).strip()
+                    j += 1
+                    continue
 
-                # Check for image
-                if str(j) in para_images:
-                    has_image = True
-                    img_path = para_images[str(j)]
-                    if use_ocr:
-                        ocr_text = _try_ocr_image(img_path)
-                        if ocr_text:
-                            content_parts.append(ocr_text)
+                if nt:
+                    content_parts.append(nt)
+
+                # Collect images from this paragraph
+                if j in para_images:
+                    question_images.extend(para_images[j])
 
                 j += 1
 
             content = "\n".join(content_parts).strip()
 
             # Determine question type
-            if len(answer) == 1 and answer.upper() in "ABCD":
-                q_type = "选择题"
-            elif answer and len(answer) > 1:
+            q_type = "选择题"
+            if q_number >= 40 or (answer and len(answer) > 10):
                 q_type = "大题"
 
+            # Generate stable ID
             qid = f"{subject_key}_{current_year}_{q_number}"
+
+            # Move images to year-specific directory
+            final_images = []
+            static_year_dir = _static_image_dir(subject_key, int(current_year))
+            for img_url in question_images:
+                old_path = STATIC_DIR / subject_key / "0" / os.path.basename(img_url)
+                new_path = static_year_dir / os.path.basename(img_url)
+                if old_path.exists() and not new_path.exists():
+                    shutil.move(str(old_path), str(new_path))
+                final_images.append(f"/static/exam_papers/11408/{subject_key}/{current_year}/{os.path.basename(img_url)}")
+
             current_questions.append({
                 "id": qid,
                 "year": int(current_year),
                 "number": q_number,
                 "type": q_type,
-                "content": content or f"（图片题，请查看原题图片）",
-                "options": options,
+                "content": content or f"第 {q_number} 题",
+                "image_urls": final_images,
+                "options": {"A": "", "B": "", "C": "", "D": ""} if q_type == "选择题" else {},
                 "answer": answer,
-                "has_image": has_image,
-                "image_path": para_images.get(str(j-1), para_images.get(str(i+1), "")),
             })
             i = j
             continue
@@ -194,100 +185,55 @@ def _parse_docx(doc: Document, subject_key: str, use_ocr: bool = True) -> dict:
     if current_year and current_questions:
         years_data[current_year] = current_questions
 
-    return years_data
+    # Cache
+    years_data["_mtime"] = mtime
+    cache_json.write_text(json.dumps(years_data, ensure_ascii=False), encoding="utf-8")
+
+    # Log stats
+    for y, qs in years_data.items():
+        if y.startswith("_"): continue
+        logger.info(
+            "[exam_parser] %s year=%s questions=%d with_images=%d",
+            subject_key, y, len(qs),
+            sum(1 for q in qs if q.get("image_urls"))
+        )
+
+    return {k: v for k, v in years_data.items() if not k.startswith("_")}
 
 
 def get_subject_past_papers(subject_key: str) -> dict:
-    """Public API: get past-paper metadata for a subject."""
-    subject_name = EXAM_SUBJECT_DIRS.get(subject_key, subject_key)
-    docx_path = _find_docx(subject_key)
-    if not docx_path:
-        return {
-            "subject_key": subject_key,
-            "subject_name": subject_name,
-            "available": False,
-            "years": [],
-            "resource_files": [],
-        }
-
-    # Try cached parse to get years quickly
-    cache_file = _cache_path(subject_key) / "metadata.json"
-    years_list = []
-    if cache_file.exists():
-        try:
-            cached = json.loads(cache_file.read_text(encoding="utf-8"))
-            years_list = cached.get("years", [])
-        except Exception:
-            pass
-
-    if not years_list:
-        doc = Document(str(docx_path))
-        parsed = _parse_docx(doc, subject_key, use_ocr=False)
-        years_list = sorted([int(y) for y in parsed.keys()])
-        cache_file.write_text(
-            json.dumps({"years": years_list, "source": docx_path.name}, ensure_ascii=False),
-            encoding="utf-8",
-        )
-
+    subject_name = EXAM_SUBJECTS.get(subject_key, subject_key)
+    parsed = parse_docx_questions(subject_key)
+    years_list = sorted([int(y) for y in parsed.keys()])
+    docx_path = _subject_docx(subject_key)
     return {
         "subject_key": subject_key,
         "subject_name": subject_name,
-        "available": True,
+        "available": len(years_list) > 0,
         "years": years_list,
-        "resource_files": [{"filename": docx_path.name, "years": years_list, "description": f"11408 近五年真题拆分：{subject_name}"}],
+        "files": [{"filename": docx_path.name}] if docx_path else [],
     }
 
 
-def get_year_questions(subject_key: str, year: int, use_ocr: bool = True) -> dict:
-    """Public API: get all questions for a specific year."""
-    subject_name = EXAM_SUBJECT_DIRS.get(subject_key, subject_key)
-    docx_path = _find_docx(subject_key)
-    if not docx_path:
-        return {"subject_key": subject_key, "subject_name": subject_name, "year": year, "questions": []}
-
-    # Check cache first
-    cache_file = _cache_path(subject_key) / f"year_{year}.json"
-    if cache_file.exists():
-        try:
-            return json.loads(cache_file.read_text(encoding="utf-8"))
-        except Exception:
-            pass
-
-    doc = Document(str(docx_path))
-    parsed = _parse_docx(doc, subject_key, use_ocr=use_ocr)
+def get_year_questions(subject_key: str, year: int) -> dict:
+    subject_name = EXAM_SUBJECTS.get(subject_key, subject_key)
+    parsed = parse_docx_questions(subject_key)
     year_str = str(year)
     questions = parsed.get(year_str, [])
-
-    # Strip large image_path for API response
-    safe_questions = []
-    for q in questions:
-        sq = dict(q)
-        if sq.get("image_path"):
-            # Convert to relative/accessible path
-            sq["image_url"] = f"/api/exam/11408/{subject_key}/question-image/{year}/{q['number']}"
-            del sq["image_path"]
-        safe_questions.append(sq)
-
-    result = {
+    return {
         "subject_key": subject_key,
         "subject_name": subject_name,
         "year": year,
-        "questions": safe_questions,
+        "questions": questions,
     }
-
-    cache_file.write_text(json.dumps(result, ensure_ascii=False), encoding="utf-8")
-    return result
 
 
 def grade_submission(subject_key: str, year: int, answers: list[dict]) -> dict:
-    """Grade a submission for a year's worth of questions."""
-    parsed = get_year_questions(subject_key, year, use_ocr=False)
+    parsed = get_year_questions(subject_key, year)
     questions = parsed.get("questions", [])
     qmap = {q["id"]: q for q in questions}
-
-    results = []
-    wrong_questions = []
-    correct_count = 0
+    results, wrong = [], []
+    correct = 0
     total_score = 0
     max_score = 0
 
@@ -297,124 +243,88 @@ def grade_submission(subject_key: str, year: int, answers: list[dict]) -> dict:
         q = qmap.get(qid)
         if not q:
             continue
-
         qtype = q.get("type", "选择题")
         standard = (q.get("answer") or "").strip()
 
         if qtype == "选择题":
             is_correct = user_answer.upper() == standard.upper()
             if is_correct:
-                correct_count += 1
-                total_score += 2  # 2 points per choice question
+                correct += 1
+                total_score += 2
             else:
-                wrong_questions.append({
-                    "mode": "11408", "source": "past_paper",
-                    "subject_key": subject_key, "subject_name": parsed.get("subject_name", ""),
-                    "year": year, "question_id": qid, "number": q.get("number"),
-                    "type": qtype, "content": q.get("content", ""),
-                    "options": q.get("options", {}),
+                wrong.append({
+                    "question_id": qid, "number": q.get("number"), "type": qtype,
+                    "content": q.get("content", ""), "options": q.get("options", {}),
                     "standard_answer": standard, "user_answer": user_answer,
                     "score": 0, "wrong_reason": "答案不匹配",
                 })
             max_score += 2
+            results.append({
+                "question_id": qid, "number": q.get("number"), "type": qtype,
+                "correct": is_correct, "score": 2 if is_correct else 0,
+                "full_score": 2, "standard_answer": standard, "user_answer": user_answer,
+            })
         else:
-            # Big question — use AI grading
-            ai_result = _grade_big_question_with_ai(q, user_answer, standard)
-            score = ai_result.get("score", 0)
+            score, feedback = _grade_big_question(q, user_answer, standard, subject_key)
             total_score += score
             max_score += 10
             if score < 7:
-                wrong_questions.append({
-                    "mode": "11408", "source": "past_paper",
-                    "subject_key": subject_key, "subject_name": parsed.get("subject_name", ""),
-                    "year": year, "question_id": qid, "number": q.get("number"),
-                    "type": qtype, "content": q.get("content", ""),
-                    "options": q.get("options", {}),
-                    "standard_answer": standard, "user_answer": user_answer,
-                    "score": score, "wrong_reason": ai_result.get("feedback", ""),
+                wrong.append({
+                    "question_id": qid, "number": q.get("number"), "type": qtype,
+                    "content": q.get("content", ""), "standard_answer": standard,
+                    "user_answer": user_answer, "score": score, "wrong_reason": feedback,
                 })
+            results.append({
+                "question_id": qid, "number": q.get("number"), "type": qtype,
+                "score": score, "full_score": 10,
+                "standard_answer": standard, "user_answer": user_answer,
+                "feedback": feedback,
+            })
 
-        results.append({
-            "question_id": qid, "number": q.get("number"), "type": qtype,
-            "correct": is_correct if qtype == "选择题" else None,
-            "score": score if qtype != "选择题" else (2 if is_correct else 0),
-            "full_score": 2 if qtype == "选择题" else 10,
-            "standard_answer": standard,
-            "user_answer": user_answer,
-            "feedback": ai_result.get("feedback", "") if qtype != "选择题" else "",
-        })
-
+    big_qs = [q for q in questions if q.get("type") == "大题"]
     return {
-        "subject_key": subject_key,
-        "subject_name": parsed.get("subject_name", ""),
+        "subject_key": subject_key, "subject_name": parsed.get("subject_name", ""),
         "year": year,
         "results": results,
         "total_questions": len(questions),
-        "choice_correct": correct_count,
-        "choice_total": sum(1 for q in questions if q.get("type") == "选择题"),
-        "big_question_avg_score": round(total_score / max(1, sum(1 for q in questions if q.get("type") == "大题")), 1) if any(q.get("type") == "大题" for q in questions) else None,
-        "total_score": total_score,
-        "max_score": max_score,
-        "wrong_questions": wrong_questions,
+        "choice_correct": correct,
+        "choice_total": len([q for q in questions if q.get("type") == "选择题"]),
+        "big_avg_score": round(total_score / max(1, len(big_qs)), 1) if big_qs else None,
+        "total_score": total_score, "max_score": max_score,
+        "wrong_questions": wrong,
     }
 
 
-def _grade_big_question_with_ai(question: dict, user_answer: str, standard_answer: str) -> dict:
-    """Grade a big question using AI (DeepSeek)."""
+def _grade_big_question(q: dict, user_answer: str, standard: str, subject_key: str) -> tuple[int, str]:
     if not user_answer.strip():
-        return {"score": 0, "feedback": "未作答"}
-
+        return 0, "未作答"
     try:
         from openai import OpenAI
-        import os
         client = OpenAI(
             api_key=os.getenv("DEEPSEEK_API_KEY", ""),
             base_url="https://api.deepseek.com",
         )
-        prompt = f"""你是 11408 考研真题阅卷老师。请根据以下信息给用户的大题答案评分。
+        prompt = f"""你是11408考研阅卷老师。请评分(满分10分,按参考答案符合度)。
 
-当前科目：{question.get('subject_name', '')}
-年份：{question.get('year', '')}
-题号：第 {question.get('number', '')} 题
-题目内容：{question.get('content', '')}
+科目:{EXAM_SUBJECTS.get(subject_key,'')} 题号:第{q.get('number','')}题
+题目:{q.get('content','')[:300]}
+参考答案:{standard[:500]}
+用户答案:{user_answer[:500]}
 
-参考答案：{standard_answer}
-
-用户答案：{user_answer}
-
-评分要求：
-- 满分 10 分
-- 按与参考答案的符合程度评分
-- 如果用户答案基本正确、覆盖关键点，给 8-10 分
-- 如果部分正确，给 5-7 分
-- 如果偏差较大，给 1-4 分
-- 如果完全不对或为空，给 0 分
-
-请严格返回 JSON 格式（不要 markdown 代码块）：
-{{"score": 8, "feedback": "评分说明，指出得分点和缺失内容", "missing_points": ["缺失点1", "缺失点2"]}}"""
-
-        response = client.chat.completions.create(
-            model="deepseek-chat",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
-            max_tokens=500,
+严格返回JSON(不要markdown):{{"score":8,"feedback":"评语"}}"""
+        resp = client.chat.completions.create(
+            model="deepseek-chat", messages=[{"role":"user","content":prompt}],
+            temperature=0.3, max_tokens=300,
         )
-        content = response.choices[0].message.content.strip()
-        # Extract JSON
+        content = resp.choices[0].message.content.strip()
         if "```" in content:
             content = content.split("```")[1]
-            if content.startswith("json"):
-                content = content[4:]
-        return json.loads(content)
+            if content.startswith("json"): content = content[4:]
+        result = json.loads(content)
+        return int(result.get("score", 0)), result.get("feedback", "")
     except Exception as e:
         logger.warning("AI grading failed: %s", str(e)[:120])
-        # Fallback: simple keyword matching
-        score = 0
         if user_answer.strip():
-            # Very basic: count common words
-            user_words = set(user_answer.lower().split())
-            std_words = set(standard_answer.lower().split())
-            if std_words:
-                overlap = len(user_words & std_words) / len(std_words)
-                score = max(1, min(9, round(overlap * 10)))
-        return {"score": score, "feedback": "AI 评分暂不可用，使用基础匹配评分", "missing_points": []}
+            score = min(9, max(1, len(set(user_answer.lower().split()) & set(standard.lower().split())) * 10 // max(1, len(set(standard.lower().split())))))
+            return score, "AI暂不可用,基础评分"
+        return 0, "AI评分不可用"

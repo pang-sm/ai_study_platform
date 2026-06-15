@@ -12040,6 +12040,13 @@ EXAM_SUBJECT_DIRS = {
     "computer_network": "计算机网络",
 }
 
+# Mount static exam paper images
+from fastapi.staticfiles import StaticFiles
+import exam_paper_parser as _ep
+_exam_static = _ep.STATIC_DIR
+if _exam_static.exists():
+    app.mount("/static/exam_papers", StaticFiles(directory=str(_exam_static)), name="exam_static")
+
 
 @app.get("/api/exam/11408/{subject_key}/past-papers")
 def get_exam_past_papers(subject_key: str):
@@ -12057,24 +12064,99 @@ def get_past_paper_questions(subject_key: str, year: int = 0):
     return exam_paper_parser.get_year_questions(subject_key, year)
 
 
-@app.post("/api/exam/11408/{subject_key}/past-paper-submit")
-def submit_past_paper_answers(subject_key: str, req: dict, db: Session = Depends(get_db)):
+@app.post("/api/exam/11408/{subject_key}/past-paper-attempts")
+def create_past_paper_attempt(subject_key: str, req: dict, db: Session = Depends(get_db)):
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
+    username = (req.get("username") or "").strip()
     year = int(req.get("year", 0))
-    answers = req.get("answers", [])
-    if year <= 0 or not answers:
-        raise HTTPException(status_code=400, detail="year and answers are required")
-    result = exam_paper_parser.grade_submission(subject_key, year, answers)
-    # Save wrong questions to DB
+    if not username or year <= 0:
+        raise HTTPException(status_code=400, detail="username and year required")
+    questions_data = exam_paper_parser.get_year_questions(subject_key, year)
+    total = len(questions_data.get("questions", []))
+    last = db.query(models.PastPaperAttempt).filter(
+        models.PastPaperAttempt.username == username,
+        models.PastPaperAttempt.subject_key == subject_key,
+        models.PastPaperAttempt.year == year,
+    ).order_by(models.PastPaperAttempt.attempt_no.desc()).first()
+    attempt_no = (last.attempt_no + 1) if last else 1
+    now = utc_now()
+    attempt = models.PastPaperAttempt(
+        username=username, mode="11408", subject_key=subject_key,
+        subject_name=EXAM_SUBJECT_DIRS.get(subject_key, subject_key),
+        year=year, attempt_no=attempt_no, status="in_progress",
+        total_questions=total, started_at=now,
+    )
+    db.add(attempt)
+    db.commit()
+    db.refresh(attempt)
+    return {"attempt_id": attempt.id, "attempt_no": attempt_no, "subject_key": subject_key,
+            "year": year, "status": "in_progress", "total_questions": total}
+
+
+@app.get("/api/exam/11408/{subject_key}/past-paper-attempts/{attempt_id}")
+def get_past_paper_attempt(subject_key: str, attempt_id: int, db: Session = Depends(get_db)):
+    attempt = db.query(models.PastPaperAttempt).filter(models.PastPaperAttempt.id == attempt_id).first()
+    if not attempt:
+        raise HTTPException(status_code=404, detail="Attempt not found")
+    questions_data = exam_paper_parser.get_year_questions(subject_key, attempt.year)
+    saved_answers = {}
+    if attempt.answers_json:
+        try:
+            saved_answers = json.loads(attempt.answers_json)
+        except Exception:
+            pass
+    return {
+        "attempt": {
+            "id": attempt.id, "attempt_no": attempt.attempt_no, "year": attempt.year,
+            "status": attempt.status, "total_questions": attempt.total_questions,
+            "started_at": serialize_datetime(attempt.started_at),
+        },
+        "questions": questions_data.get("questions", []),
+        "saved_answers": saved_answers,
+    }
+
+
+@app.post("/api/exam/11408/{subject_key}/past-paper-attempts/{attempt_id}/answers")
+def save_attempt_answers(subject_key: str, attempt_id: int, req: dict, db: Session = Depends(get_db)):
+    attempt = db.query(models.PastPaperAttempt).filter(models.PastPaperAttempt.id == attempt_id).first()
+    if not attempt:
+        raise HTTPException(status_code=404, detail="Attempt not found")
+    if attempt.status != "in_progress":
+        raise HTTPException(status_code=400, detail="Attempt already submitted")
+    attempt.answers_json = json.dumps(req.get("answers", {}), ensure_ascii=False)
+    db.commit()
+    return {"success": True, "attempt_id": attempt_id}
+
+
+@app.post("/api/exam/11408/{subject_key}/past-paper-attempts/{attempt_id}/submit")
+def submit_attempt(subject_key: str, attempt_id: int, req: dict, db: Session = Depends(get_db)):
+    attempt = db.query(models.PastPaperAttempt).filter(models.PastPaperAttempt.id == attempt_id).first()
+    if not attempt:
+        raise HTTPException(status_code=404, detail="Attempt not found")
+    if attempt.status != "in_progress":
+        raise HTTPException(status_code=400, detail="Attempt already submitted")
+    answers_list = req.get("answers", [])
+    if not answers_list:
+        raise HTTPException(status_code=400, detail="No answers provided")
+    result = exam_paper_parser.grade_submission(subject_key, attempt.year, answers_list)
+    now = utc_now()
+    attempt.status = "submitted"
+    attempt.submitted_at = now
+    attempt.choice_correct = result.get("choice_correct", 0)
+    attempt.big_avg_score = result.get("big_avg_score")
+    attempt.total_score = result.get("total_score", 0)
+    attempt.max_score = result.get("max_score", 0)
+    attempt.wrong_count = len(result.get("wrong_questions", []))
+    attempt.result_json = json.dumps(result, ensure_ascii=False)
+    db.commit()
+    # Save wrong questions
     username = (req.get("username") or "").strip()
     if username and result.get("wrong_questions"):
-        now = utc_now()
         for wq in result["wrong_questions"]:
             db.add(models.PastPaperWrongQuestion(
-                username=username,
-                subject_key=subject_key,
-                year=year,
+                username=username, subject_key=subject_key, year=attempt.year,
+                attempt_id=attempt.id,
                 question_id=wq.get("question_id", ""),
                 question_number=wq.get("number", 0),
                 question_type=wq.get("type", ""),
@@ -12082,25 +12164,11 @@ def submit_past_paper_answers(subject_key: str, req: dict, db: Session = Depends
                 options=json.dumps(wq.get("options", {}), ensure_ascii=False),
                 standard_answer=wq.get("standard_answer", ""),
                 user_answer=wq.get("user_answer", ""),
-                score=wq.get("score"),
-                wrong_reason=wq.get("wrong_reason", "")[:500],
+                score=wq.get("score"), wrong_reason=wq.get("wrong_reason", "")[:500],
                 created_at=now,
             ))
         db.commit()
-    return result
-
-
-@app.get("/api/exam/11408/{subject_key}/question-image/{year}/{number}")
-def get_past_paper_question_image(subject_key: str, year: int, number: int):
-    """Serve an extracted question image from the docx cache."""
-    if subject_key not in EXAM_SUBJECT_DIRS:
-        raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
-    cache_dir = exam_paper_parser.CACHE_DIR / subject_key
-    # Find image matching the question
-    for f in sorted(cache_dir.glob("img_*.png")):
-        # Images are numbered sequentially; we map by question order
-        pass
-    raise HTTPException(status_code=404, detail="Question image not available")
+    return {**result, "attempt_id": attempt.id, "attempt_no": attempt.attempt_no}
 
 
 @app.put("/knowledge-points/{point_id}/progress")

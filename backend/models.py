@@ -637,6 +637,7 @@ class PastPaperWrongQuestion(Base):
     username = Column(String(50), index=True, nullable=False)
     subject_key = Column(String(50), index=True, nullable=False)
     year = Column(Integer, nullable=False)
+    attempt_id = Column(Integer, nullable=True, default=0)
     question_id = Column(String(100), nullable=False)
     question_number = Column(Integer, nullable=False, default=0)
     question_type = Column(String(20), nullable=False)
@@ -646,4 +647,28 @@ class PastPaperWrongQuestion(Base):
     user_answer = Column(Text, nullable=True)
     score = Column(Integer, nullable=True)
     wrong_reason = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+
+
+class PastPaperAttempt(Base):
+    __tablename__ = "past_paper_attempts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), index=True, nullable=False)
+    mode = Column(String(20), nullable=False, default="11408")
+    subject_key = Column(String(50), nullable=False)
+    subject_name = Column(String(50), nullable=False)
+    year = Column(Integer, nullable=False)
+    attempt_no = Column(Integer, nullable=False, default=1)
+    status = Column(String(20), nullable=False, default="in_progress")
+    total_questions = Column(Integer, nullable=False, default=0)
+    choice_correct = Column(Integer, nullable=True)
+    big_avg_score = Column(Float, nullable=True)
+    total_score = Column(Integer, nullable=True)
+    max_score = Column(Integer, nullable=True)
+    wrong_count = Column(Integer, nullable=True)
+    answers_json = Column(Text, nullable=True)
+    result_json = Column(Text, nullable=True)
+    started_at = Column(DateTime, default=utc_now)
+    submitted_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=utc_now)
