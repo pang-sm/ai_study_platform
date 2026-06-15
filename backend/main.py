@@ -12393,6 +12393,10 @@ def _serialize_ai_generated_question(item: models.AIGeneratedQuestion):
         "analysis": item.analysis or "",
         "difficulty": item.difficulty or "",
         "requirement": item.requirement or "",
+        "generation_mode": getattr(item, "generation_mode", None) or "deepseek",
+        "quality_status": getattr(item, "quality_status", None) or "unchecked",
+        "has_raw_response": bool(getattr(item, "raw_ai_response", None)),
+        "has_generation_prompt": bool(getattr(item, "generation_prompt", None)),
         "created_at": serialize_datetime(item.created_at),
         "updated_at": serialize_datetime(item.updated_at),
     }
@@ -12414,7 +12418,7 @@ def _normalize_ai_difficulty(raw: str) -> str:
     return "中等"
 
 
-def _build_mock_ai_question(subject_name: str, kp_name: str, kp_path: str, question_type: str, difficulty: str, index: int):
+def _build_mock_ai_question(subject_name: str, kp_name: str, kp_path: str, question_type: str, difficulty: str, index: int, generation_mode: str = "mock"):
     scope = kp_name or kp_path or subject_name or "当前科目"
     if question_type == "大题":
         return {
@@ -12574,7 +12578,7 @@ def _create_mock_exam_ai_questions(
     }
     raw_fallback = json.dumps({"fallback": True, "reason": fallback_reason or "mock generation"}, ensure_ascii=False)
     for index in range(1, count + 1):
-        mock = _build_mock_ai_question(subject_name, kp_name, kp_path, question_type, difficulty, index)
+        mock = _build_mock_ai_question(subject_name, kp_name, kp_path, question_type, difficulty, index, generation_mode=generation_mode or "mock")
         item = models.AIGeneratedQuestion(
             username=username,
             subject_key=subject_key,
@@ -12591,6 +12595,7 @@ def _create_mock_exam_ai_questions(
             requirement=requirement,
             generation_prompt=json.dumps(prompt_payload, ensure_ascii=False),
             raw_ai_response=raw_fallback,
+            generation_mode="mock",
             created_at=now,
             updated_at=now,
         )
@@ -12691,6 +12696,7 @@ def generate_exam_ai_questions(subject_key: str, req: dict, db: Session = Depend
             difficulty=difficulty,
             requirement=requirement,
             fallback_reason="DEEPSEEK_API_KEY 未配置，已使用 mock fallback",
+            generation_mode="mock_fallback",
         )
         return {
             "success": True,
@@ -12726,6 +12732,7 @@ def generate_exam_ai_questions(subject_key: str, req: dict, db: Session = Depend
             difficulty=difficulty,
             requirement=requirement,
             fallback_reason=f"DeepSeek 调用失败：{exc.detail}",
+            generation_mode="mock_fallback",
         )
         return {
             "success": True,
@@ -12759,6 +12766,7 @@ def generate_exam_ai_questions(subject_key: str, req: dict, db: Session = Depend
             requirement=requirement,
             generation_prompt=json.dumps(prompt_payload, ensure_ascii=False),
             raw_ai_response=raw_ai_response,
+            generation_mode="deepseek",
             created_at=now,
             updated_at=now,
         )
@@ -12798,10 +12806,30 @@ def update_exam_ai_question(subject_key: str, question_id: int, req: dict, db: S
         item.analysis = str(req.get("analysis") or "")
     if "difficulty" in req:
         item.difficulty = _normalize_ai_difficulty(str(req.get("difficulty") or ""))
+    if "quality_status" in req:
+        val = str(req.get("quality_status") or "").strip().lower()
+        if val in ("unchecked", "usable", "needs_edit", "discarded"):
+            item.quality_status = val
     item.updated_at = utc_now()
     db.commit()
     db.refresh(item)
     return {"success": True, "item": _serialize_ai_generated_question(item)}
+
+
+@app.get("/exam/11408/{subject_key}/ai-questions/{question_id}/raw-response")
+def get_ai_question_raw_response(subject_key: str, question_id: int, username: str, db: Session = Depends(get_db)):
+    username = (username or "").strip()
+    item = db.query(models.AIGeneratedQuestion).filter(
+        models.AIGeneratedQuestion.id == question_id,
+        models.AIGeneratedQuestion.username == username,
+        models.AIGeneratedQuestion.subject_key == subject_key,
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="AI question not found")
+    return {
+        "generation_prompt": (item.generation_prompt or "")[:5000],
+        "raw_ai_response": (item.raw_ai_response or "")[:10000],
+    }
 
 
 @app.delete("/exam/11408/{subject_key}/ai-questions/{question_id}")

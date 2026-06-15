@@ -695,6 +695,8 @@ class AIGeneratedQuestion(Base):
     requirement = Column(Text, nullable=True)
     generation_prompt = Column(Text, nullable=True)
     raw_ai_response = Column(Text, nullable=True)
+    generation_mode = Column(String(30), nullable=True, default="deepseek")
+    quality_status = Column(String(20), nullable=True, default="unchecked")
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 

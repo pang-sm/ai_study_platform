@@ -257,6 +257,8 @@ AI_GENERATED_QUESTIONS_COLUMNS = {
     "requirement": "TEXT",
     "generation_prompt": "TEXT",
     "raw_ai_response": "TEXT",
+    "generation_mode": "VARCHAR(30) DEFAULT 'deepseek'",
+    "quality_status": "VARCHAR(20) DEFAULT 'unchecked'",
     "created_at": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
     "updated_at": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
 }
