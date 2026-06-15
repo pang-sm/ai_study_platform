@@ -370,18 +370,20 @@ def get_year_questions(subject_key: str, year: int) -> dict:
     cache_file = _ocr_cache_path(subject_key, year)
     if cache_file.exists():
         try:
-            cached = json.loads(cache_file.read_text(encoding="utf-8"))
+            raw = cache_file.read_text(encoding="utf-8")
+            cached = json.loads(raw)
             qs = cached.get("questions", [])
             if len(qs) > 0:
+                logger.info("[exam_parser] Cache hit for %s year=%s: %d questions", subject_key, year, len(qs))
                 return {
                     "subject_key": subject_key,
                     "subject_name": subject_name,
                     "year": year,
                     "questions": qs,
                 }
-        except Exception:
-            pass
-    # Slow path: parse + OCR (shouldn't happen on server with cache)
+        except Exception as e:
+            logger.warning("[exam_parser] Cache read failed for %s year=%s: %s", subject_key, year, str(e)[:200])
+    logger.warning("[exam_parser] Cache miss for %s year=%s, falling back to slow path", subject_key, year)
     questions = _ocr_year_questions(subject_key, year)
     return {
         "subject_key": subject_key,
