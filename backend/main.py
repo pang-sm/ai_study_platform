@@ -12165,7 +12165,7 @@ def submit_attempt(subject_key: str, attempt_id: int, req: dict, db: Session = D
     if username and result.get("wrong_questions"):
         for wq in result["wrong_questions"]:
             db.add(models.PastPaperWrongQuestion(
-                username=username, subject_key=subject_key, year=attempt.year,
+                username=username, subject_key=subject_key, source="past_paper", year=attempt.year,
                 attempt_id=attempt.id,
                 question_id=wq.get("question_id", ""),
                 question_number=wq.get("number", 0),
@@ -12175,7 +12175,7 @@ def submit_attempt(subject_key: str, attempt_id: int, req: dict, db: Session = D
                 standard_answer=wq.get("standard_answer", ""),
                 user_answer=wq.get("user_answer", ""),
                 score=wq.get("score"), wrong_reason=wq.get("wrong_reason", "")[:500],
-                created_at=now,
+                status="active", created_at=now, updated_at=now,
             ))
         db.commit()
     return {**result, "attempt_id": attempt.id, "attempt_no": attempt.attempt_no}
@@ -12290,7 +12290,7 @@ def _serialize_past_paper_wrong_question(item: models.PastPaperWrongQuestion):
         "username": item.username,
         "subject_key": item.subject_key,
         "subject_name": EXAM_SUBJECT_DIRS.get(item.subject_key, item.subject_key),
-        "source": "past_paper",
+        "source": getattr(item, "source", None) or "past_paper",
         "year": item.year,
         "question_id": item.question_id,
         "number": item.question_number,
@@ -12303,8 +12303,11 @@ def _serialize_past_paper_wrong_question(item: models.PastPaperWrongQuestion):
         "feedback": item.wrong_reason,
         "wrong_reason": item.wrong_reason,
         "attempt_id": item.attempt_id,
+        "status": getattr(item, "status", None) or ("mastered" if getattr(item, "mastered", False) else "active"),
         "mastered": bool(getattr(item, "mastered", False)),
+        "resolved_at": serialize_datetime(getattr(item, "resolved_at", None)),
         "created_at": serialize_datetime(item.created_at),
+        "updated_at": serialize_datetime(getattr(item, "updated_at", None)),
     }
 
 
@@ -12350,7 +12353,10 @@ def mark_exam_wrong_question_mastered(subject_key: str, wrong_id: int, req: dict
     if not item:
         raise HTTPException(status_code=404, detail="wrong question not found")
     item.mastered = True
+    item.status = "mastered"
+    item.resolved_at = utc_now()
     item.reviewed_at = utc_now()
+    item.updated_at = utc_now()
     db.commit()
     return {"success": True, "item": _serialize_past_paper_wrong_question(item)}
 

@@ -636,6 +636,7 @@ class PastPaperWrongQuestion(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(50), index=True, nullable=False)
     subject_key = Column(String(50), index=True, nullable=False)
+    source = Column(String(50), index=True, nullable=False, default="past_paper")
     year = Column(Integer, nullable=False)
     attempt_id = Column(Integer, nullable=True, default=0)
     question_id = Column(String(100), nullable=False)
@@ -647,9 +648,12 @@ class PastPaperWrongQuestion(Base):
     user_answer = Column(Text, nullable=True)
     score = Column(Integer, nullable=True)
     wrong_reason = Column(Text, nullable=True)
+    status = Column(String(20), nullable=False, default="active")
     mastered = Column(Boolean, nullable=False, default=False)
+    resolved_at = Column(DateTime, nullable=True)
     reviewed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
 
 class ExamFavoriteQuestion(Base):

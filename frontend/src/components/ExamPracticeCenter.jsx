@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import ExamPastPaperPractice from "./ExamPastPaperPractice.jsx";
 
 const API_BASE = "/api";
@@ -21,19 +21,6 @@ async function safeJsonFetch(url, options = {}) {
   const payload = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(payload.detail || "请求失败");
   return payload;
-}
-
-function flattenKnowledge(nodes = []) {
-  const items = [];
-  const walk = (list, path = []) => {
-    list.forEach((node) => {
-      const currentPath = [...path, node.title || node.name || node.code || ""].filter(Boolean);
-      items.push({ ...node, path: currentPath.join(" / ") });
-      if (node.children?.length) walk(node.children, currentPath);
-    });
-  };
-  walk(nodes);
-  return items;
 }
 
 function KnowledgeTree({ nodes = [], selectedCode, onSelect }) {
@@ -87,6 +74,98 @@ function KnowledgeTree({ nodes = [], selectedCode, onSelect }) {
   };
 
   return <div className="exam-knowledge-tree">{nodes.map((node) => renderNode(node))}</div>;
+}
+
+function getKnowledgeNodeKey(node, fallback = "") {
+  return String(node?.code || node?.id || node?.title || node?.name || fallback);
+}
+
+function getKnowledgeNodeTitle(node) {
+  return node?.title || node?.name || node?.code || "未命名知识点";
+}
+
+function KnowledgePointSelector({ nodes = [], selectedPoint, onSelect, onClear }) {
+  const [expanded, setExpanded] = useState(() => new Set(nodes.map((node, index) => getKnowledgeNodeKey(node, `root-${index}`))));
+
+  useEffect(() => {
+    setExpanded(new Set(nodes.map((node, index) => getKnowledgeNodeKey(node, `root-${index}`))));
+  }, [nodes]);
+
+  const selectedKey = selectedPoint ? getKnowledgeNodeKey(selectedPoint.node, selectedPoint.path) : "";
+
+  const renderNode = (node, depth = 0, parentPath = []) => {
+    const key = getKnowledgeNodeKey(node, `${parentPath.join("/")}-${depth}`);
+    const title = getKnowledgeNodeTitle(node);
+    const path = [...parentPath, title].filter(Boolean);
+    const hasChildren = Boolean(node.children?.length);
+    const isExpanded = expanded.has(key);
+    const isSelected = selectedKey === key;
+
+    return (
+      <div key={key} className="ai-kp-tree-node">
+        <div
+          className={`ai-kp-tree-row${isSelected ? " ai-kp-tree-row--selected" : ""}`}
+          style={{ paddingLeft: 10 + depth * 18 }}
+        >
+          {hasChildren ? (
+            <button
+              type="button"
+              className="ai-kp-tree-toggle"
+              onClick={() => {
+                setExpanded((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(key)) next.delete(key);
+                  else next.add(key);
+                  return next;
+                });
+              }}
+              aria-label={isExpanded ? "收起知识点" : "展开知识点"}
+            >
+              {isExpanded ? "▾" : "▸"}
+            </button>
+          ) : (
+            <span className="ai-kp-tree-toggle-placeholder" />
+          )}
+          <button
+            type="button"
+            className="ai-kp-tree-select"
+            onClick={() => onSelect({ key, node, path: path.join(" / ") })}
+          >
+            <span className="ai-kp-tree-code">{node.code || ""}</span>
+            <span className="ai-kp-tree-title">{title}</span>
+          </button>
+        </div>
+        {hasChildren && isExpanded && (
+          <div className="ai-kp-tree-children">
+            {node.children.map((child) => renderNode(child, depth + 1, path))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="ai-kp-selector">
+      <div className="ai-kp-selected-summary">
+        {selectedPoint ? (
+          <>
+            <span>已选范围</span>
+            <strong>{selectedPoint.path}</strong>
+            <button type="button" onClick={onClear}>清除</button>
+          </>
+        ) : (
+          <span>可不选，按当前科目综合出题；也可选择任意父级或子级知识点范围。</span>
+        )}
+      </div>
+      <div className="ai-kp-tree-panel">
+        {nodes.length === 0 ? (
+          <div className="ai-kp-tree-empty">知识点加载中...</div>
+        ) : (
+          nodes.map((node, index) => renderNode(node, 0, []))
+        )}
+      </div>
+    </div>
+  );
 }
 
 function PracticeSubPageHeader({ title, subtitle, subjectInfo, onBack }) {
@@ -301,7 +380,7 @@ function FavoritePracticePage({ subjectKey, subjectInfo, user, onBack }) {
 
 function AIQuestionPracticePage({ subjectInfo, user, onBack }) {
   const [mapData, setMapData] = useState(null);
-  const [selectedPoint, setSelectedPoint] = useState("");
+  const [selectedPoint, setSelectedPoint] = useState(null);
   const [questionType, setQuestionType] = useState("choice");
   const [count, setCount] = useState(5);
   const [difficulty, setDifficulty] = useState("medium");
@@ -314,23 +393,21 @@ function AIQuestionPracticePage({ subjectInfo, user, onBack }) {
       .catch(() => setMapData({ chapters: [] }));
   }, [subjectInfo.courseId, user?.username]);
 
-  const points = useMemo(() => flattenKnowledge(mapData?.chapters || []), [mapData]);
-
   return (
     <div className="exam-practice-subpage">
       <PracticeSubPageHeader title="AI 出题" subtitle="根据当前科目知识点，生成贴合 11408 真题风格的练习题" subjectInfo={subjectInfo} onBack={onBack} />
       <div className="exam-practice-split exam-practice-split--ai">
         <section className="exam-practice-panel">
           <h3>出题表单</h3>
-          <label className="form-field">
-            <span>知识点</span>
-            <select className="field" value={selectedPoint} onChange={(event) => setSelectedPoint(event.target.value)}>
-              <option value="">请选择知识点</option>
-              {points.map((point) => (
-                <option key={point.code || point.id || point.path} value={point.code || point.id || point.title}>{point.path}</option>
-              ))}
-            </select>
-          </label>
+          <div className="form-field">
+            <span>知识点范围</span>
+            <KnowledgePointSelector
+              nodes={mapData?.chapters || []}
+              selectedPoint={selectedPoint}
+              onSelect={setSelectedPoint}
+              onClear={() => setSelectedPoint(null)}
+            />
+          </div>
           <label className="form-field">
             <span>题型</span>
             <select className="field" value={questionType} onChange={(event) => setQuestionType(event.target.value)}>
@@ -354,12 +431,11 @@ function AIQuestionPracticePage({ subjectInfo, user, onBack }) {
             <span>生成要求</span>
             <textarea className="field" rows={4} placeholder="例如：贴近 11408 真题，考查核心概念，不要偏题" />
           </label>
-          <button type="button" className="primary-button" disabled>生成题目（后续开放）</button>
+          <button type="button" className="ai-generate-submit-btn" disabled>生成题目</button>
         </section>
         <section className="exam-practice-panel">
           <div className="exam-practice-panel-title">
             <h3>AI 题库</h3>
-            <span>个人题库</span>
           </div>
           <div className="exam-practice-empty-state">
             <strong>暂无 AI 生成题目</strong>
@@ -434,7 +510,7 @@ export default function ExamPracticeCenter({
     { key: "wrong", icon: "❌", title: "错题练习", desc: "查看批改后自动收集的个人错题", count: "个人错题本" },
     { key: "favorite", icon: "⭐", title: "收藏练习", desc: "练习自己收藏的题目", count: "个人收藏" },
     { key: "pastPaper", icon: "📜", title: "真题练习", desc: "基于历年 11408 真题进行专项训练", count: "近五年真题", className: "practice-type-card--past" },
-    { key: "ai", icon: "🤖", title: "AI 出题", desc: "按知识点生成 11408 风格练习题", count: "个人题库", className: "practice-type-card--ai" },
+    { key: "ai", icon: "🤖", title: "AI 出题", desc: "按知识点生成 11408 风格练习题", count: "自定义生成", className: "practice-type-card--ai" },
   ];
 
   const openCard = (key) => {

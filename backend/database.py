@@ -205,8 +205,23 @@ CODE_SESSIONS_COLUMNS = {
 }
 
 PAST_PAPER_WRONG_QUESTIONS_COLUMNS = {
+    "source": "VARCHAR(50) NOT NULL DEFAULT 'past_paper'",
+    "year": "INTEGER NOT NULL DEFAULT 0",
+    "attempt_id": "INTEGER DEFAULT 0",
+    "question_id": "VARCHAR(100) NOT NULL DEFAULT ''",
+    "question_number": "INTEGER NOT NULL DEFAULT 0",
+    "question_type": "VARCHAR(20) NOT NULL DEFAULT ''",
+    "content": "TEXT",
+    "options": "TEXT",
+    "standard_answer": "TEXT",
+    "user_answer": "TEXT",
+    "score": "INTEGER",
+    "wrong_reason": "TEXT",
+    "status": "VARCHAR(20) NOT NULL DEFAULT 'active'",
     "mastered": "BOOLEAN NOT NULL DEFAULT 0",
+    "resolved_at": "DATETIME",
     "reviewed_at": "DATETIME",
+    "updated_at": "DATETIME",
 }
 
 EXAM_FAVORITE_QUESTIONS_COLUMNS = {
