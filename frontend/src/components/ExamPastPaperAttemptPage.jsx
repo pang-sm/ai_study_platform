@@ -30,6 +30,7 @@ export default function ExamPastPaperAttemptPage({ subjectKey, attemptId, onNavi
     return () => document.body.classList.remove("exam-attempt-body");
   }, []);
   const [error, setError] = useState("");
+  const [closeHint, setCloseHint] = useState("");
   const [attempt, setAttempt] = useState(null);
   const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState({});
@@ -101,8 +102,11 @@ export default function ExamPastPaperAttemptPage({ subjectKey, attemptId, onNavi
     <div className="attempt-page">
       <header className="attempt-page-header">
         <div className="attempt-page-header-left">
-          <button type="button" className="ghost-button compact" onClick={onNavigateBack}>
-            ← 返回练习中心
+          <button type="button" className="ghost-button compact" onClick={() => {
+            window.close();
+            setTimeout(() => { if (!window.closed) setCloseHint("浏览器限制自动关闭，请手动关闭当前标签页。"); }, 300);
+          }}>
+            ← 关闭答题页
           </button>
           <div>
             <h2>11408 真题练习</h2>
@@ -188,14 +192,15 @@ export default function ExamPastPaperAttemptPage({ subjectKey, attemptId, onNavi
             </div>
           )}
 
-          {questions.length > 0 && (
+          {questions.length > 0 && (<>
+            {closeHint && <div className="km-inline-message" style={{ marginBottom: 8 }}>{closeHint}</div>}
             <div className="past-paper-submit-bar">
-              <span>{unansweredCount === 0 ? "所有题目已作答" : `还有 ${unansweredCount} 题未答`}</span>
-              <button type="button" className="primary-button" disabled={submitting || questions.length === 0} onClick={handleSubmit}>
+              <span className="past-paper-unanswered">{unansweredCount === 0 ? "所有题目已作答" : `还有 ${unansweredCount} 题未答`}</span>
+              <button type="button" className="exam-past-paper-submit-btn" disabled={submitting || questions.length === 0} onClick={handleSubmit}>
                 {submitting ? "提交中..." : "已答完"}
               </button>
             </div>
-          )}
+          </>)}
         </div>
       )}
     </div>
