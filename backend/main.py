@@ -12040,12 +12040,12 @@ EXAM_SUBJECT_DIRS = {
     "computer_network": "计算机网络",
 }
 
-# Mount static exam paper images
-from fastapi.staticfiles import StaticFiles
-import exam_paper_parser as _ep
-_exam_static = _ep.STATIC_DIR
-if _exam_static.exists():
-    app.mount("/static/exam_papers", StaticFiles(directory=str(_exam_static)), name="exam_static")
+# Static exam paper images — served via nginx, not FastAPI mount
+# (Mount conflicts with route matching on some configurations)
+# import exam_paper_parser as _ep
+# _exam_static = _ep.STATIC_DIR
+# if _exam_static.exists():
+#     app.mount("/static/exam_papers", StaticFiles(directory=str(_exam_static)), name="exam_static")
 
 
 @app.get("/exam/11408/{subject_key}/past-papers")
