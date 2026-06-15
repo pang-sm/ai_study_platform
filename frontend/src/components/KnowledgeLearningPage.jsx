@@ -39,6 +39,23 @@ function chapterLabel(chapter) {
   return `第${chapter.chapter_no}章 ${chapter.title}`;
 }
 
+function isInternalCode(code) {
+  return !code || String(code).startsWith("_leaf:");
+}
+
+function getDisplayCode(node) {
+  const code = node?.code;
+  if (!code || String(code).startsWith("_leaf:")) return "";
+  return code;
+}
+
+function getNodeCodeLabel(node) {
+  // What to show in the tree node's "code" column
+  const code = node?.code;
+  if (!code || String(code).startsWith("_leaf:")) return "条目";
+  return code;
+}
+
 function isLeaf(node) {
   // Backend sets is_leaf; fallback: check children length
   if (typeof node?.is_leaf === "boolean") return node.is_leaf;
@@ -215,7 +232,7 @@ function KnowledgeTreeNode({ node, depth = 1, selectedId, expandedIds, keyword, 
           <span className="km-node-toggle km-node-toggle--leaf" aria-hidden="true" />
         )}
         <span className="km-node-code">
-          <HighlightedText text={node.code || "条目"} keyword={keyword} />
+          <HighlightedText text={getNodeCodeLabel(node)} keyword={isInternalCode(node.code) ? "" : keyword} />
         </span>
         <span className="km-node-title">
           <HighlightedText text={nodeLabel(node)} keyword={keyword} />
@@ -643,7 +660,7 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
             </div>
             <div>
               <dt>编号</dt>
-              <dd>{detailNode?.code || "无编号"}</dd>
+              <dd>{getDisplayCode(detailNode) || "无编号"}</dd>
             </div>
             <div>
               <dt>所属章节</dt>
