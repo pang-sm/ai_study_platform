@@ -12851,6 +12851,131 @@ def create_question_bank_question(subject_key: str, req: dict, db: Session = Dep
     return {"success": True, "id": item.id, "item": _serialize_question_bank(item)}
 
 
+# ── Chapter Practice ──
+
+@app.get("/exam/11408/{subject_key}/chapter-practice/outline")
+def get_chapter_practice_outline(subject_key: str):
+    if subject_key not in EXAM_SUBJECT_DIRS:
+        raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
+    questions = {}  # kp_id -> count
+    items = db_query_chapter_questions(subject_key)
+    for item in items:
+        kp = item.knowledge_point_id or ""
+        questions[kp] = questions.get(kp, 0) + 1
+    return {"subject_key": subject_key, "knowledge_points": questions, "total": sum(questions.values())}
+
+def db_query_chapter_questions(subject_key):
+    from database import SessionLocal
+    db = SessionLocal()
+    try:
+        return db.query(models.ExamQuestionBank).filter(
+            models.ExamQuestionBank.subject_key == subject_key,
+            models.ExamQuestionBank.source_type == "chapter",
+            models.ExamQuestionBank.is_active == True,
+        ).all()
+    finally: db.close()
+
+@app.get("/exam/11408/{subject_key}/chapter-practice/questions")
+def get_chapter_practice_questions(subject_key: str, knowledge_point_id: str = ""):
+    if subject_key not in EXAM_SUBJECT_DIRS:
+        raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
+    items = db_query_chapter_questions(subject_key)
+    if knowledge_point_id:
+        items = [i for i in items if i.knowledge_point_id == knowledge_point_id]
+    return {"items": [_serialize_question_bank(i) for i in items], "total": len(items)}
+
+@app.post("/exam/11408/{subject_key}/chapter-practice/attempts")
+def create_chapter_practice_attempt(subject_key: str, req: dict, db: Session = Depends(get_db)):
+    if subject_key not in EXAM_SUBJECT_DIRS:
+        raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
+    username = (req.get("username") or "").strip()
+    if not username: raise HTTPException(status_code=400, detail="username required")
+    qids = req.get("question_ids") or []
+    if not qids: raise HTTPException(status_code=400, detail="question_ids required")
+    items = db.query(models.ExamQuestionBank).filter(
+        models.ExamQuestionBank.id.in_(qids), models.ExamQuestionBank.is_active == True).all()
+    if not items: raise HTTPException(status_code=400, detail="no valid questions found")
+    now = utc_now()
+    a = models.ExamPracticeAttempt(
+        username=username, subject_key=subject_key, practice_type="chapter",
+        source_type="chapter", status="in_progress",
+        knowledge_point_id=(req.get("knowledge_point_id") or "").strip() or None,
+        knowledge_point_name=(req.get("knowledge_point_name") or "").strip() or None,
+        knowledge_point_path=(req.get("knowledge_point_path") or "").strip() or None,
+        question_ids_json=json.dumps([i.id for i in items]), total_questions=len(items),
+    )
+    db.add(a); db.commit(); db.refresh(a)
+    return {"attempt_id": a.id, "status": "in_progress", "total_questions": len(items)}
+
+@app.get("/exam/11408/{subject_key}/chapter-practice/attempts/{attempt_id}")
+def get_chapter_practice_attempt(subject_key: str, attempt_id: int, username: str = "", db: Session = Depends(get_db)):
+    a = db.query(models.ExamPracticeAttempt).filter(
+        models.ExamPracticeAttempt.id == attempt_id,
+        models.ExamPracticeAttempt.username == (username or "").strip()).first()
+    if not a: raise HTTPException(status_code=404, detail="Attempt not found")
+    qids = json.loads(a.question_ids_json or "[]")
+    items = db.query(models.ExamQuestionBank).filter(models.ExamQuestionBank.id.in_(qids)).all()
+    saved = {};
+    if a.answers_json:
+        try: saved = json.loads(a.answers_json)
+        except: pass
+    questions = []
+    for item in items:
+        q = _serialize_question_bank(item)
+        if a.status != "submitted": q.pop("standard_answer", None); q.pop("analysis", None)
+        questions.append(q)
+    return {"attempt": {"id": a.id, "status": a.status, "total_questions": a.total_questions,
+            "knowledge_point_path": a.knowledge_point_path, "started_at": serialize_datetime(a.started_at)},
+            "questions": questions, "saved_answers": saved}
+
+@app.post("/exam/11408/{subject_key}/chapter-practice/attempts/{attempt_id}/answers")
+def save_chapter_attempt_answers(subject_key: str, attempt_id: int, req: dict, db: Session = Depends(get_db)):
+    a = db.query(models.ExamPracticeAttempt).filter(models.ExamPracticeAttempt.id == attempt_id).first()
+    if not a or a.status != "in_progress": raise HTTPException(status_code=404, detail="Attempt not found")
+    a.answers_json = json.dumps(req.get("answers", {}), ensure_ascii=False)
+    db.commit()
+    return {"success": True}
+
+@app.post("/exam/11408/{subject_key}/chapter-practice/attempts/{attempt_id}/submit")
+def submit_chapter_attempt(subject_key: str, attempt_id: int, req: dict, db: Session = Depends(get_db)):
+    a = db.query(models.ExamPracticeAttempt).filter(models.ExamPracticeAttempt.id == attempt_id).first()
+    if not a or a.status != "in_progress": raise HTTPException(status_code=404, detail="Attempt not found")
+    answers = req.get("answers", {})
+    qids = json.loads(a.question_ids_json or "[]")
+    items = {i.id: i for i in db.query(models.ExamQuestionBank).filter(models.ExamQuestionBank.id.in_(qids)).all()}
+    results, correct = [], 0; now = utc_now(); username = (req.get("username") or "").strip()
+    for qid in qids:
+        item = items.get(qid)
+        if not item: continue
+        ua = str(answers.get(str(qid), "")).strip().upper()
+        sa = (item.standard_answer or "").strip().upper()
+        is_c = ua == sa
+        if is_c: correct += 1
+        opts = {};
+        if item.options_json:
+            try: opts = json.loads(item.options_json)
+            except: pass
+        results.append({"question_id": qid, "correct": is_c, "standard_answer": sa, "user_answer": ua,
+                        "stem": item.stem, "options": opts, "analysis": item.analysis or "",
+                        "question_type": item.question_type})
+        if not is_c and username:
+            db.add(models.ExamWrongQuestion(
+                username=username, subject_key=subject_key, question_bank_id=item.id,
+                practice_attempt_id=attempt_id, source_type="chapter", practice_type="chapter",
+                knowledge_point_id=a.knowledge_point_id, knowledge_point_name=a.knowledge_point_name,
+                knowledge_point_path=a.knowledge_point_path, question_type=item.question_type,
+                stem_snapshot=item.stem, options_snapshot_json=item.options_json,
+                standard_answer_snapshot=sa, analysis_snapshot=item.analysis or "",
+                user_answer=ua, score=0, wrong_reason="章节练习答错",
+            ))
+    total = len(qids)
+    a.status = "submitted"; a.submitted_at = now; a.correct_count = correct
+    a.wrong_count = total - correct; a.accuracy = round(correct/total*100,1) if total>0 else 0
+    a.result_json = json.dumps({"correct": correct, "total": total, "results": results}, ensure_ascii=False)
+    db.commit()
+    return {"total_questions": total, "correct_count": correct, "wrong_count": total-correct, "accuracy": a.accuracy, "results": results}
+
+
 @app.post("/exam/11408/{subject_key}/ai-questions/generate")
 def generate_exam_ai_questions(subject_key: str, req: dict, db: Session = Depends(get_db)):
     if subject_key not in EXAM_SUBJECT_DIRS:
