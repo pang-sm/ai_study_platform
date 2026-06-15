@@ -227,6 +227,7 @@ def main():
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--apply-high", action="store_true")
     parser.add_argument("--apply-medium", action="store_true")
+    parser.add_argument("--apply-batch-auto", action="store_true")
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--strategy", type=str, default="keyword", choices=["keyword","sequence","batch"])
     args = parser.parse_args()
@@ -352,6 +353,48 @@ def main():
                     applied += 1
         db.commit()
         print(f"Applied {applied} remaps")
+
+    if args.apply_batch_auto and args.strategy == "batch":
+        # Filter only high confidence batch suggestions
+        candidates = [s for s in suggestions if s["confidence"] == "high"]
+        print(f"Candidates: {len(candidates)}  high={len(candidates)}")
+        # Backup
+        backup = []
+        for s in candidates:
+            item = db.query(models.ExamQuestionBank).filter(models.ExamQuestionBank.id == s["id"]).first()
+            if item:
+                backup.append({"id": item.id, "old_kp": item.knowledge_point_id, "old_name": item.knowledge_point_name,
+                               "old_path": item.knowledge_point_path, "new_kp": s["new_kp"], "new_name": OUTLINE.get(s["new_kp"],""),
+                               "new_path": OUTLINE.get(s["new_kp"],""), "confidence": s["confidence"]})
+        (REPORT_DIR / "kp_remap_batch_before_apply_backup.json").write_text(
+            json.dumps({"candidate_count": len(candidates), "items": backup}, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"Backup saved: {len(backup)} items")
+
+        # Apply
+        applied = 0; skipped = 0; errors = 0
+        for s in candidates:
+            try:
+                item = db.query(models.ExamQuestionBank).filter(models.ExamQuestionBank.id == s["id"]).first()
+                if item:
+                    item.knowledge_point_id = s["new_kp"]
+                    item.knowledge_point_name = OUTLINE.get(s["new_kp"], "")
+                    item.knowledge_point_path = OUTLINE.get(s["new_kp"], "")
+                    item.updated_at = models.utc_now()
+                    applied += 1
+                else: skipped += 1
+            except Exception as e: errors += 1
+        db.commit()
+        print(f"Applied: {applied}  skipped: {skipped}  errors: {errors}")
+
+        # Apply report
+        ar = {"attempted": len(candidates), "applied": applied, "skipped": skipped, "errors": errors,
+              "old_counts": dict(old_kp_counts), "new_counts_after": dict(new_kp_counts)}
+        (REPORT_DIR / "kp_remap_batch_apply_report.json").write_text(json.dumps(ar, ensure_ascii=False, indent=2), encoding="utf-8")
+        armd = [f"# batch apply report\n", f"- attempted: {len(candidates)}", f"- applied: {applied}",
+                f"- skipped: {skipped}", f"- errors: {errors}", f"- 8.7 before: {old_kp_counts.get('8.7',0)}",
+                f"- 8.7 after: {new_kp_counts.get('8.7',0)}"]
+        (REPORT_DIR / "kp_remap_batch_apply_report.md").write_text("\n".join(armd), encoding="utf-8")
+
     db.close()
 
 if __name__ == "__main__":

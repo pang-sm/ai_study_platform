@@ -1,0 +1,7205 @@
+{
+  "candidate_count": 720,
+  "items": [
+    {
+      "id": 90,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.1",
+      "new_name": "2.1 线性表的定义和基本操作",
+      "new_path": "2.1 线性表的定义和基本操作",
+      "confidence": "high"
+    },
+    {
+      "id": 95,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.1",
+      "new_name": "2.1 线性表的定义和基本操作",
+      "new_path": "2.1 线性表的定义和基本操作",
+      "confidence": "high"
+    },
+    {
+      "id": 96,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.1",
+      "new_name": "2.1 线性表的定义和基本操作",
+      "new_path": "2.1 线性表的定义和基本操作",
+      "confidence": "high"
+    },
+    {
+      "id": 97,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.1",
+      "new_name": "2.1 线性表的定义和基本操作",
+      "new_path": "2.1 线性表的定义和基本操作",
+      "confidence": "high"
+    },
+    {
+      "id": 98,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.2",
+      "new_name": "2.2 线性表的顺序表示",
+      "new_path": "2.2 线性表的顺序表示",
+      "confidence": "high"
+    },
+    {
+      "id": 99,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.2",
+      "new_name": "2.2 线性表的顺序表示",
+      "new_path": "2.2 线性表的顺序表示",
+      "confidence": "high"
+    },
+    {
+      "id": 100,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.2",
+      "new_name": "2.2 线性表的顺序表示",
+      "new_path": "2.2 线性表的顺序表示",
+      "confidence": "high"
+    },
+    {
+      "id": 101,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.2",
+      "new_name": "2.2 线性表的顺序表示",
+      "new_path": "2.2 线性表的顺序表示",
+      "confidence": "high"
+    },
+    {
+      "id": 102,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.2",
+      "new_name": "2.2 线性表的顺序表示",
+      "new_path": "2.2 线性表的顺序表示",
+      "confidence": "high"
+    },
+    {
+      "id": 103,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.2",
+      "new_name": "2.2 线性表的顺序表示",
+      "new_path": "2.2 线性表的顺序表示",
+      "confidence": "high"
+    },
+    {
+      "id": 104,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.2",
+      "new_name": "2.2 线性表的顺序表示",
+      "new_path": "2.2 线性表的顺序表示",
+      "confidence": "high"
+    },
+    {
+      "id": 105,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.2",
+      "new_name": "2.2 线性表的顺序表示",
+      "new_path": "2.2 线性表的顺序表示",
+      "confidence": "high"
+    },
+    {
+      "id": 106,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.2",
+      "new_name": "2.2 线性表的顺序表示",
+      "new_path": "2.2 线性表的顺序表示",
+      "confidence": "high"
+    },
+    {
+      "id": 107,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.2",
+      "new_name": "2.2 线性表的顺序表示",
+      "new_path": "2.2 线性表的顺序表示",
+      "confidence": "high"
+    },
+    {
+      "id": 108,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.2",
+      "new_name": "2.2 线性表的顺序表示",
+      "new_path": "2.2 线性表的顺序表示",
+      "confidence": "high"
+    },
+    {
+      "id": 109,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.2",
+      "new_name": "2.2 线性表的顺序表示",
+      "new_path": "2.2 线性表的顺序表示",
+      "confidence": "high"
+    },
+    {
+      "id": 110,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.2",
+      "new_name": "2.2 线性表的顺序表示",
+      "new_path": "2.2 线性表的顺序表示",
+      "confidence": "high"
+    },
+    {
+      "id": 111,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.2",
+      "new_name": "2.2 线性表的顺序表示",
+      "new_path": "2.2 线性表的顺序表示",
+      "confidence": "high"
+    },
+    {
+      "id": 112,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.2",
+      "new_name": "2.2 线性表的顺序表示",
+      "new_path": "2.2 线性表的顺序表示",
+      "confidence": "high"
+    },
+    {
+      "id": 113,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.2",
+      "new_name": "2.2 线性表的顺序表示",
+      "new_path": "2.2 线性表的顺序表示",
+      "confidence": "high"
+    },
+    {
+      "id": 114,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.2",
+      "new_name": "2.2 线性表的顺序表示",
+      "new_path": "2.2 线性表的顺序表示",
+      "confidence": "high"
+    },
+    {
+      "id": 115,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.2",
+      "new_name": "2.2 线性表的顺序表示",
+      "new_path": "2.2 线性表的顺序表示",
+      "confidence": "high"
+    },
+    {
+      "id": 116,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.2",
+      "new_name": "2.2 线性表的顺序表示",
+      "new_path": "2.2 线性表的顺序表示",
+      "confidence": "high"
+    },
+    {
+      "id": 117,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.2",
+      "new_name": "2.2 线性表的顺序表示",
+      "new_path": "2.2 线性表的顺序表示",
+      "confidence": "high"
+    },
+    {
+      "id": 118,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 119,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 120,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 121,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 122,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 123,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 124,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 125,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 126,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 127,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 128,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 129,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 130,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 131,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 132,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 133,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 134,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 135,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 136,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 137,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 138,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 139,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 140,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 141,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 142,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 143,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 144,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 145,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 146,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 147,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 148,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 149,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 150,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 151,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 152,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 153,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 154,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 155,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 156,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 157,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 158,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 159,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 160,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 161,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 162,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 163,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 164,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 165,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 166,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 167,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 168,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 169,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 170,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 171,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 172,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 173,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 174,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 175,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 176,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 177,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 178,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 179,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 180,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 181,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 182,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 183,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 184,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 185,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 186,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 187,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 188,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 189,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 190,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 191,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 192,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 194,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 195,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 196,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 197,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 198,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 199,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 200,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 201,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "2.3",
+      "new_name": "2.3 线性表的链式表示",
+      "new_path": "2.3 线性表的链式表示",
+      "confidence": "high"
+    },
+    {
+      "id": 202,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.1",
+      "new_name": "3.1 栈",
+      "new_path": "3.1 栈",
+      "confidence": "high"
+    },
+    {
+      "id": 203,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 204,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.1",
+      "new_name": "3.1 栈",
+      "new_path": "3.1 栈",
+      "confidence": "high"
+    },
+    {
+      "id": 205,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.1",
+      "new_name": "3.1 栈",
+      "new_path": "3.1 栈",
+      "confidence": "high"
+    },
+    {
+      "id": 206,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.1",
+      "new_name": "3.1 栈",
+      "new_path": "3.1 栈",
+      "confidence": "high"
+    },
+    {
+      "id": 207,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.1",
+      "new_name": "3.1 栈",
+      "new_path": "3.1 栈",
+      "confidence": "high"
+    },
+    {
+      "id": 208,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.1",
+      "new_name": "3.1 栈",
+      "new_path": "3.1 栈",
+      "confidence": "high"
+    },
+    {
+      "id": 209,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.1",
+      "new_name": "3.1 栈",
+      "new_path": "3.1 栈",
+      "confidence": "high"
+    },
+    {
+      "id": 210,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.1",
+      "new_name": "3.1 栈",
+      "new_path": "3.1 栈",
+      "confidence": "high"
+    },
+    {
+      "id": 211,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.1",
+      "new_name": "3.1 栈",
+      "new_path": "3.1 栈",
+      "confidence": "high"
+    },
+    {
+      "id": 212,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.1",
+      "new_name": "3.1 栈",
+      "new_path": "3.1 栈",
+      "confidence": "high"
+    },
+    {
+      "id": 213,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.1",
+      "new_name": "3.1 栈",
+      "new_path": "3.1 栈",
+      "confidence": "high"
+    },
+    {
+      "id": 214,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.1",
+      "new_name": "3.1 栈",
+      "new_path": "3.1 栈",
+      "confidence": "high"
+    },
+    {
+      "id": 215,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.1",
+      "new_name": "3.1 栈",
+      "new_path": "3.1 栈",
+      "confidence": "high"
+    },
+    {
+      "id": 216,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.1",
+      "new_name": "3.1 栈",
+      "new_path": "3.1 栈",
+      "confidence": "high"
+    },
+    {
+      "id": 217,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.1",
+      "new_name": "3.1 栈",
+      "new_path": "3.1 栈",
+      "confidence": "high"
+    },
+    {
+      "id": 218,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.1",
+      "new_name": "3.1 栈",
+      "new_path": "3.1 栈",
+      "confidence": "high"
+    },
+    {
+      "id": 219,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.1",
+      "new_name": "3.1 栈",
+      "new_path": "3.1 栈",
+      "confidence": "high"
+    },
+    {
+      "id": 220,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.1",
+      "new_name": "3.1 栈",
+      "new_path": "3.1 栈",
+      "confidence": "high"
+    },
+    {
+      "id": 221,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.1",
+      "new_name": "3.1 栈",
+      "new_path": "3.1 栈",
+      "confidence": "high"
+    },
+    {
+      "id": 222,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.1",
+      "new_name": "3.1 栈",
+      "new_path": "3.1 栈",
+      "confidence": "high"
+    },
+    {
+      "id": 223,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.1",
+      "new_name": "3.1 栈",
+      "new_path": "3.1 栈",
+      "confidence": "high"
+    },
+    {
+      "id": 224,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.1",
+      "new_name": "3.1 栈",
+      "new_path": "3.1 栈",
+      "confidence": "high"
+    },
+    {
+      "id": 225,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.1",
+      "new_name": "3.1 栈",
+      "new_path": "3.1 栈",
+      "confidence": "high"
+    },
+    {
+      "id": 226,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 227,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 228,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 229,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 230,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 231,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 232,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 233,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 234,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 235,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 236,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 237,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 238,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 239,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 240,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 241,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 242,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 243,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 244,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 245,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 246,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 247,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 248,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 249,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 250,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 251,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 252,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 253,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 254,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 255,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 256,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 257,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 258,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.1",
+      "new_name": "3.1 栈",
+      "new_path": "3.1 栈",
+      "confidence": "high"
+    },
+    {
+      "id": 259,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.1",
+      "new_name": "3.1 栈",
+      "new_path": "3.1 栈",
+      "confidence": "high"
+    },
+    {
+      "id": 260,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.1",
+      "new_name": "3.1 栈",
+      "new_path": "3.1 栈",
+      "confidence": "high"
+    },
+    {
+      "id": 261,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.1",
+      "new_name": "3.1 栈",
+      "new_path": "3.1 栈",
+      "confidence": "high"
+    },
+    {
+      "id": 265,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.3",
+      "new_name": "3.3 栈和队列的应用",
+      "new_path": "3.3 栈和队列的应用",
+      "confidence": "high"
+    },
+    {
+      "id": 266,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.3",
+      "new_name": "3.3 栈和队列的应用",
+      "new_path": "3.3 栈和队列的应用",
+      "confidence": "high"
+    },
+    {
+      "id": 267,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.3",
+      "new_name": "3.3 栈和队列的应用",
+      "new_path": "3.3 栈和队列的应用",
+      "confidence": "high"
+    },
+    {
+      "id": 268,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.3",
+      "new_name": "3.3 栈和队列的应用",
+      "new_path": "3.3 栈和队列的应用",
+      "confidence": "high"
+    },
+    {
+      "id": 269,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.3",
+      "new_name": "3.3 栈和队列的应用",
+      "new_path": "3.3 栈和队列的应用",
+      "confidence": "high"
+    },
+    {
+      "id": 270,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.3",
+      "new_name": "3.3 栈和队列的应用",
+      "new_path": "3.3 栈和队列的应用",
+      "confidence": "high"
+    },
+    {
+      "id": 271,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.3",
+      "new_name": "3.3 栈和队列的应用",
+      "new_path": "3.3 栈和队列的应用",
+      "confidence": "high"
+    },
+    {
+      "id": 272,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 273,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.1",
+      "new_name": "3.1 栈",
+      "new_path": "3.1 栈",
+      "confidence": "high"
+    },
+    {
+      "id": 274,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.1",
+      "new_name": "3.1 栈",
+      "new_path": "3.1 栈",
+      "confidence": "high"
+    },
+    {
+      "id": 275,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 278,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 279,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 281,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 282,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 283,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 284,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 285,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.2",
+      "new_name": "3.2 队列",
+      "new_path": "3.2 队列",
+      "confidence": "high"
+    },
+    {
+      "id": 286,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.4",
+      "new_name": "3.4 数组和特殊矩阵",
+      "new_path": "3.4 数组和特殊矩阵",
+      "confidence": "high"
+    },
+    {
+      "id": 287,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.4",
+      "new_name": "3.4 数组和特殊矩阵",
+      "new_path": "3.4 数组和特殊矩阵",
+      "confidence": "high"
+    },
+    {
+      "id": 288,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.4",
+      "new_name": "3.4 数组和特殊矩阵",
+      "new_path": "3.4 数组和特殊矩阵",
+      "confidence": "high"
+    },
+    {
+      "id": 289,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.4",
+      "new_name": "3.4 数组和特殊矩阵",
+      "new_path": "3.4 数组和特殊矩阵",
+      "confidence": "high"
+    },
+    {
+      "id": 290,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.4",
+      "new_name": "3.4 数组和特殊矩阵",
+      "new_path": "3.4 数组和特殊矩阵",
+      "confidence": "high"
+    },
+    {
+      "id": 291,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.4",
+      "new_name": "3.4 数组和特殊矩阵",
+      "new_path": "3.4 数组和特殊矩阵",
+      "confidence": "high"
+    },
+    {
+      "id": 292,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.4",
+      "new_name": "3.4 数组和特殊矩阵",
+      "new_path": "3.4 数组和特殊矩阵",
+      "confidence": "high"
+    },
+    {
+      "id": 293,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.4",
+      "new_name": "3.4 数组和特殊矩阵",
+      "new_path": "3.4 数组和特殊矩阵",
+      "confidence": "high"
+    },
+    {
+      "id": 294,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.4",
+      "new_name": "3.4 数组和特殊矩阵",
+      "new_path": "3.4 数组和特殊矩阵",
+      "confidence": "high"
+    },
+    {
+      "id": 295,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.4",
+      "new_name": "3.4 数组和特殊矩阵",
+      "new_path": "3.4 数组和特殊矩阵",
+      "confidence": "high"
+    },
+    {
+      "id": 296,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.4",
+      "new_name": "3.4 数组和特殊矩阵",
+      "new_path": "3.4 数组和特殊矩阵",
+      "confidence": "high"
+    },
+    {
+      "id": 297,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.4",
+      "new_name": "3.4 数组和特殊矩阵",
+      "new_path": "3.4 数组和特殊矩阵",
+      "confidence": "high"
+    },
+    {
+      "id": 298,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.4",
+      "new_name": "3.4 数组和特殊矩阵",
+      "new_path": "3.4 数组和特殊矩阵",
+      "confidence": "high"
+    },
+    {
+      "id": 299,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.4",
+      "new_name": "3.4 数组和特殊矩阵",
+      "new_path": "3.4 数组和特殊矩阵",
+      "confidence": "high"
+    },
+    {
+      "id": 300,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.4",
+      "new_name": "3.4 数组和特殊矩阵",
+      "new_path": "3.4 数组和特殊矩阵",
+      "confidence": "high"
+    },
+    {
+      "id": 301,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.4",
+      "new_name": "3.4 数组和特殊矩阵",
+      "new_path": "3.4 数组和特殊矩阵",
+      "confidence": "high"
+    },
+    {
+      "id": 302,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.4",
+      "new_name": "3.4 数组和特殊矩阵",
+      "new_path": "3.4 数组和特殊矩阵",
+      "confidence": "high"
+    },
+    {
+      "id": 303,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.4",
+      "new_name": "3.4 数组和特殊矩阵",
+      "new_path": "3.4 数组和特殊矩阵",
+      "confidence": "high"
+    },
+    {
+      "id": 304,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.4",
+      "new_name": "3.4 数组和特殊矩阵",
+      "new_path": "3.4 数组和特殊矩阵",
+      "confidence": "high"
+    },
+    {
+      "id": 305,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.4",
+      "new_name": "3.4 数组和特殊矩阵",
+      "new_path": "3.4 数组和特殊矩阵",
+      "confidence": "high"
+    },
+    {
+      "id": 306,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.4",
+      "new_name": "3.4 数组和特殊矩阵",
+      "new_path": "3.4 数组和特殊矩阵",
+      "confidence": "high"
+    },
+    {
+      "id": 307,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.4",
+      "new_name": "3.4 数组和特殊矩阵",
+      "new_path": "3.4 数组和特殊矩阵",
+      "confidence": "high"
+    },
+    {
+      "id": 308,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.4",
+      "new_name": "3.4 数组和特殊矩阵",
+      "new_path": "3.4 数组和特殊矩阵",
+      "confidence": "high"
+    },
+    {
+      "id": 309,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "3.4",
+      "new_name": "3.4 数组和特殊矩阵",
+      "new_path": "3.4 数组和特殊矩阵",
+      "confidence": "high"
+    },
+    {
+      "id": 312,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "4.1",
+      "new_name": "4.1 串的定义和实现",
+      "new_path": "4.1 串的定义和实现",
+      "confidence": "high"
+    },
+    {
+      "id": 314,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "4.1",
+      "new_name": "4.1 串的定义和实现",
+      "new_path": "4.1 串的定义和实现",
+      "confidence": "high"
+    },
+    {
+      "id": 315,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "4.1",
+      "new_name": "4.1 串的定义和实现",
+      "new_path": "4.1 串的定义和实现",
+      "confidence": "high"
+    },
+    {
+      "id": 319,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "4.1",
+      "new_name": "4.1 串的定义和实现",
+      "new_path": "4.1 串的定义和实现",
+      "confidence": "high"
+    },
+    {
+      "id": 322,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "4.1",
+      "new_name": "4.1 串的定义和实现",
+      "new_path": "4.1 串的定义和实现",
+      "confidence": "high"
+    },
+    {
+      "id": 325,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "4.1",
+      "new_name": "4.1 串的定义和实现",
+      "new_path": "4.1 串的定义和实现",
+      "confidence": "high"
+    },
+    {
+      "id": 332,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "4.1",
+      "new_name": "4.1 串的定义和实现",
+      "new_path": "4.1 串的定义和实现",
+      "confidence": "high"
+    },
+    {
+      "id": 334,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "4.1",
+      "new_name": "4.1 串的定义和实现",
+      "new_path": "4.1 串的定义和实现",
+      "confidence": "high"
+    },
+    {
+      "id": 335,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "4.1",
+      "new_name": "4.1 串的定义和实现",
+      "new_path": "4.1 串的定义和实现",
+      "confidence": "high"
+    },
+    {
+      "id": 336,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "4.2",
+      "new_name": "4.2 串的模式匹配",
+      "new_path": "4.2 串的模式匹配",
+      "confidence": "high"
+    },
+    {
+      "id": 337,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "4.1",
+      "new_name": "4.1 串的定义和实现",
+      "new_path": "4.1 串的定义和实现",
+      "confidence": "high"
+    },
+    {
+      "id": 338,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "4.1",
+      "new_name": "4.1 串的定义和实现",
+      "new_path": "4.1 串的定义和实现",
+      "confidence": "high"
+    },
+    {
+      "id": 339,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "4.1",
+      "new_name": "4.1 串的定义和实现",
+      "new_path": "4.1 串的定义和实现",
+      "confidence": "high"
+    },
+    {
+      "id": 340,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "4.2",
+      "new_name": "4.2 串的模式匹配",
+      "new_path": "4.2 串的模式匹配",
+      "confidence": "high"
+    },
+    {
+      "id": 341,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "4.1",
+      "new_name": "4.1 串的定义和实现",
+      "new_path": "4.1 串的定义和实现",
+      "confidence": "high"
+    },
+    {
+      "id": 347,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "4.1",
+      "new_name": "4.1 串的定义和实现",
+      "new_path": "4.1 串的定义和实现",
+      "confidence": "high"
+    },
+    {
+      "id": 348,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "4.1",
+      "new_name": "4.1 串的定义和实现",
+      "new_path": "4.1 串的定义和实现",
+      "confidence": "high"
+    },
+    {
+      "id": 350,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "4.2",
+      "new_name": "4.2 串的模式匹配",
+      "new_path": "4.2 串的模式匹配",
+      "confidence": "high"
+    },
+    {
+      "id": 351,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "4.1",
+      "new_name": "4.1 串的定义和实现",
+      "new_path": "4.1 串的定义和实现",
+      "confidence": "high"
+    },
+    {
+      "id": 352,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "4.1",
+      "new_name": "4.1 串的定义和实现",
+      "new_path": "4.1 串的定义和实现",
+      "confidence": "high"
+    },
+    {
+      "id": 353,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "4.1",
+      "new_name": "4.1 串的定义和实现",
+      "new_path": "4.1 串的定义和实现",
+      "confidence": "high"
+    },
+    {
+      "id": 354,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "4.2",
+      "new_name": "4.2 串的模式匹配",
+      "new_path": "4.2 串的模式匹配",
+      "confidence": "high"
+    },
+    {
+      "id": 355,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "4.1",
+      "new_name": "4.1 串的定义和实现",
+      "new_path": "4.1 串的定义和实现",
+      "confidence": "high"
+    },
+    {
+      "id": 356,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "4.2",
+      "new_name": "4.2 串的模式匹配",
+      "new_path": "4.2 串的模式匹配",
+      "confidence": "high"
+    },
+    {
+      "id": 357,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "4.2",
+      "new_name": "4.2 串的模式匹配",
+      "new_path": "4.2 串的模式匹配",
+      "confidence": "high"
+    },
+    {
+      "id": 358,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 359,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 360,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 361,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 362,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 363,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 364,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 365,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 366,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 367,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 368,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 369,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 370,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 371,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 372,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 373,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 374,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 375,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.2",
+      "new_name": "5.2 二叉树的概念",
+      "new_path": "5.2 二叉树的概念",
+      "confidence": "high"
+    },
+    {
+      "id": 376,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.2",
+      "new_name": "5.2 二叉树的概念",
+      "new_path": "5.2 二叉树的概念",
+      "confidence": "high"
+    },
+    {
+      "id": 377,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.2",
+      "new_name": "5.2 二叉树的概念",
+      "new_path": "5.2 二叉树的概念",
+      "confidence": "high"
+    },
+    {
+      "id": 378,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 380,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 381,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 382,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.2",
+      "new_name": "5.2 二叉树的概念",
+      "new_path": "5.2 二叉树的概念",
+      "confidence": "high"
+    },
+    {
+      "id": 383,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 384,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 385,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.2",
+      "new_name": "5.2 二叉树的概念",
+      "new_path": "5.2 二叉树的概念",
+      "confidence": "high"
+    },
+    {
+      "id": 386,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 387,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.2",
+      "new_name": "5.2 二叉树的概念",
+      "new_path": "5.2 二叉树的概念",
+      "confidence": "high"
+    },
+    {
+      "id": 388,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 389,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.2",
+      "new_name": "5.2 二叉树的概念",
+      "new_path": "5.2 二叉树的概念",
+      "confidence": "high"
+    },
+    {
+      "id": 390,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 391,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 392,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 393,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 394,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 395,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 396,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 397,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 398,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 399,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.3",
+      "new_name": "5.3 二叉树的遍历和线索二叉树",
+      "new_path": "5.3 二叉树的遍历和线索二叉树",
+      "confidence": "high"
+    },
+    {
+      "id": 400,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 401,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 402,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 403,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 404,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 405,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 406,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.3",
+      "new_name": "5.3 二叉树的遍历和线索二叉树",
+      "new_path": "5.3 二叉树的遍历和线索二叉树",
+      "confidence": "high"
+    },
+    {
+      "id": 407,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 408,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.3",
+      "new_name": "5.3 二叉树的遍历和线索二叉树",
+      "new_path": "5.3 二叉树的遍历和线索二叉树",
+      "confidence": "high"
+    },
+    {
+      "id": 409,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.3",
+      "new_name": "5.3 二叉树的遍历和线索二叉树",
+      "new_path": "5.3 二叉树的遍历和线索二叉树",
+      "confidence": "high"
+    },
+    {
+      "id": 410,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 411,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 412,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 413,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 414,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.3",
+      "new_name": "5.3 二叉树的遍历和线索二叉树",
+      "new_path": "5.3 二叉树的遍历和线索二叉树",
+      "confidence": "high"
+    },
+    {
+      "id": 415,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 416,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 417,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 418,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.3",
+      "new_name": "5.3 二叉树的遍历和线索二叉树",
+      "new_path": "5.3 二叉树的遍历和线索二叉树",
+      "confidence": "high"
+    },
+    {
+      "id": 419,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.3",
+      "new_name": "5.3 二叉树的遍历和线索二叉树",
+      "new_path": "5.3 二叉树的遍历和线索二叉树",
+      "confidence": "high"
+    },
+    {
+      "id": 420,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.3",
+      "new_name": "5.3 二叉树的遍历和线索二叉树",
+      "new_path": "5.3 二叉树的遍历和线索二叉树",
+      "confidence": "high"
+    },
+    {
+      "id": 421,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.3",
+      "new_name": "5.3 二叉树的遍历和线索二叉树",
+      "new_path": "5.3 二叉树的遍历和线索二叉树",
+      "confidence": "high"
+    },
+    {
+      "id": 422,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.3",
+      "new_name": "5.3 二叉树的遍历和线索二叉树",
+      "new_path": "5.3 二叉树的遍历和线索二叉树",
+      "confidence": "high"
+    },
+    {
+      "id": 423,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.3",
+      "new_name": "5.3 二叉树的遍历和线索二叉树",
+      "new_path": "5.3 二叉树的遍历和线索二叉树",
+      "confidence": "high"
+    },
+    {
+      "id": 424,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.3",
+      "new_name": "5.3 二叉树的遍历和线索二叉树",
+      "new_path": "5.3 二叉树的遍历和线索二叉树",
+      "confidence": "high"
+    },
+    {
+      "id": 425,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.3",
+      "new_name": "5.3 二叉树的遍历和线索二叉树",
+      "new_path": "5.3 二叉树的遍历和线索二叉树",
+      "confidence": "high"
+    },
+    {
+      "id": 426,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 427,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 428,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 429,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 430,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 431,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 432,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 433,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 434,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 435,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 436,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 437,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 438,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 439,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 440,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 441,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 442,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 443,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 444,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 445,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 446,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 447,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 448,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 449,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 450,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 451,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 452,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 453,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 454,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.3",
+      "new_name": "5.3 二叉树的遍历和线索二叉树",
+      "new_path": "5.3 二叉树的遍历和线索二叉树",
+      "confidence": "high"
+    },
+    {
+      "id": 455,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 456,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 457,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 458,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.5",
+      "new_name": "5.5 树与二叉树的应用",
+      "new_path": "5.5 树与二叉树的应用",
+      "confidence": "high"
+    },
+    {
+      "id": 459,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.5",
+      "new_name": "5.5 树与二叉树的应用",
+      "new_path": "5.5 树与二叉树的应用",
+      "confidence": "high"
+    },
+    {
+      "id": 460,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 461,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.5",
+      "new_name": "5.5 树与二叉树的应用",
+      "new_path": "5.5 树与二叉树的应用",
+      "confidence": "high"
+    },
+    {
+      "id": 462,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 463,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 464,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 465,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 466,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.5",
+      "new_name": "5.5 树与二叉树的应用",
+      "new_path": "5.5 树与二叉树的应用",
+      "confidence": "high"
+    },
+    {
+      "id": 467,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 468,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 469,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 470,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 471,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 472,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 473,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 474,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 475,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 476,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 477,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 478,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 479,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 480,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 481,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 482,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 483,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 484,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 485,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "5.1",
+      "new_name": "5.1 树的基本概念",
+      "new_path": "5.1 树的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 486,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 487,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 488,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 489,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 490,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 491,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 492,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 493,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 494,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 495,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 496,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 497,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 498,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 499,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 500,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 501,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 502,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 503,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 504,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 505,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 506,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 507,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 508,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 509,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 510,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 511,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 512,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 513,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 514,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 515,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 516,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 517,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 518,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 519,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 520,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 521,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 522,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 523,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 524,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 525,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 526,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 527,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 528,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 529,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 530,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 531,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 532,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 533,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 534,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 535,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 536,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 537,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 538,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 539,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 540,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 541,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 542,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 543,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 544,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 545,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 546,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 547,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 548,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 549,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 550,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 551,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 552,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 553,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 554,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 555,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 556,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 557,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 558,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 559,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 560,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 561,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 562,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 563,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 564,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 565,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 566,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 567,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 568,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 569,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 570,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 571,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 572,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 573,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 574,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 575,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 576,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 577,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 578,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 579,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 580,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 581,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 582,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 583,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 584,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 585,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 586,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 587,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 588,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 589,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 590,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 591,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 592,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 593,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 594,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 595,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 596,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 597,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 598,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 599,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 600,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 601,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 602,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 603,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 604,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 605,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 606,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 607,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 608,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 609,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 610,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 611,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 612,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 613,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 614,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 615,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 616,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 617,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 618,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 619,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 620,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 621,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 622,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 623,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 624,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 625,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 626,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 627,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 628,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 629,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 630,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 631,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 632,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 633,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 634,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 635,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 636,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 637,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 638,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 639,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 640,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 641,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 642,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 643,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 644,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 645,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 646,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 647,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 648,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 649,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 650,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 651,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 652,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 653,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "6.1",
+      "new_name": "6.1 图的基本概念",
+      "new_path": "6.1 图的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 656,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.2",
+      "new_name": "7.2 线性表的查找",
+      "new_path": "7.2 线性表的查找",
+      "confidence": "high"
+    },
+    {
+      "id": 657,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.5",
+      "new_name": "7.5 散列表",
+      "new_path": "7.5 散列表",
+      "confidence": "high"
+    },
+    {
+      "id": 658,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.2",
+      "new_name": "7.2 线性表的查找",
+      "new_path": "7.2 线性表的查找",
+      "confidence": "high"
+    },
+    {
+      "id": 659,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.2",
+      "new_name": "7.2 线性表的查找",
+      "new_path": "7.2 线性表的查找",
+      "confidence": "high"
+    },
+    {
+      "id": 660,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.2",
+      "new_name": "7.2 线性表的查找",
+      "new_path": "7.2 线性表的查找",
+      "confidence": "high"
+    },
+    {
+      "id": 662,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.2",
+      "new_name": "7.2 线性表的查找",
+      "new_path": "7.2 线性表的查找",
+      "confidence": "high"
+    },
+    {
+      "id": 663,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.2",
+      "new_name": "7.2 线性表的查找",
+      "new_path": "7.2 线性表的查找",
+      "confidence": "high"
+    },
+    {
+      "id": 664,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.2",
+      "new_name": "7.2 线性表的查找",
+      "new_path": "7.2 线性表的查找",
+      "confidence": "high"
+    },
+    {
+      "id": 665,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.2",
+      "new_name": "7.2 线性表的查找",
+      "new_path": "7.2 线性表的查找",
+      "confidence": "high"
+    },
+    {
+      "id": 666,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.2",
+      "new_name": "7.2 线性表的查找",
+      "new_path": "7.2 线性表的查找",
+      "confidence": "high"
+    },
+    {
+      "id": 667,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.2",
+      "new_name": "7.2 线性表的查找",
+      "new_path": "7.2 线性表的查找",
+      "confidence": "high"
+    },
+    {
+      "id": 668,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.2",
+      "new_name": "7.2 线性表的查找",
+      "new_path": "7.2 线性表的查找",
+      "confidence": "high"
+    },
+    {
+      "id": 669,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.2",
+      "new_name": "7.2 线性表的查找",
+      "new_path": "7.2 线性表的查找",
+      "confidence": "high"
+    },
+    {
+      "id": 670,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.2",
+      "new_name": "7.2 线性表的查找",
+      "new_path": "7.2 线性表的查找",
+      "confidence": "high"
+    },
+    {
+      "id": 671,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.2",
+      "new_name": "7.2 线性表的查找",
+      "new_path": "7.2 线性表的查找",
+      "confidence": "high"
+    },
+    {
+      "id": 672,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.2",
+      "new_name": "7.2 线性表的查找",
+      "new_path": "7.2 线性表的查找",
+      "confidence": "high"
+    },
+    {
+      "id": 673,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.2",
+      "new_name": "7.2 线性表的查找",
+      "new_path": "7.2 线性表的查找",
+      "confidence": "high"
+    },
+    {
+      "id": 674,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.1",
+      "new_name": "8.1 排序的基本概念",
+      "new_path": "8.1 排序的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 675,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.3",
+      "new_name": "7.3 树形查找",
+      "new_path": "7.3 树形查找",
+      "confidence": "high"
+    },
+    {
+      "id": 676,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.1",
+      "new_name": "8.1 排序的基本概念",
+      "new_path": "8.1 排序的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 677,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.1",
+      "new_name": "8.1 排序的基本概念",
+      "new_path": "8.1 排序的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 678,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.1",
+      "new_name": "8.1 排序的基本概念",
+      "new_path": "8.1 排序的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 679,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.3",
+      "new_name": "7.3 树形查找",
+      "new_path": "7.3 树形查找",
+      "confidence": "high"
+    },
+    {
+      "id": 680,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.3",
+      "new_name": "7.3 树形查找",
+      "new_path": "7.3 树形查找",
+      "confidence": "high"
+    },
+    {
+      "id": 681,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.3",
+      "new_name": "7.3 树形查找",
+      "new_path": "7.3 树形查找",
+      "confidence": "high"
+    },
+    {
+      "id": 682,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.1",
+      "new_name": "8.1 排序的基本概念",
+      "new_path": "8.1 排序的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 683,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.1",
+      "new_name": "8.1 排序的基本概念",
+      "new_path": "8.1 排序的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 684,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.3",
+      "new_name": "7.3 树形查找",
+      "new_path": "7.3 树形查找",
+      "confidence": "high"
+    },
+    {
+      "id": 685,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.1",
+      "new_name": "8.1 排序的基本概念",
+      "new_path": "8.1 排序的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 686,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.1",
+      "new_name": "8.1 排序的基本概念",
+      "new_path": "8.1 排序的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 687,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.1",
+      "new_name": "8.1 排序的基本概念",
+      "new_path": "8.1 排序的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 688,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.3",
+      "new_name": "7.3 树形查找",
+      "new_path": "7.3 树形查找",
+      "confidence": "high"
+    },
+    {
+      "id": 689,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.1",
+      "new_name": "8.1 排序的基本概念",
+      "new_path": "8.1 排序的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 690,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.1",
+      "new_name": "8.1 排序的基本概念",
+      "new_path": "8.1 排序的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 691,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.1",
+      "new_name": "8.1 排序的基本概念",
+      "new_path": "8.1 排序的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 692,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.3",
+      "new_name": "7.3 树形查找",
+      "new_path": "7.3 树形查找",
+      "confidence": "high"
+    },
+    {
+      "id": 693,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.3",
+      "new_name": "7.3 树形查找",
+      "new_path": "7.3 树形查找",
+      "confidence": "high"
+    },
+    {
+      "id": 694,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.1",
+      "new_name": "8.1 排序的基本概念",
+      "new_path": "8.1 排序的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 695,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.3",
+      "new_name": "7.3 树形查找",
+      "new_path": "7.3 树形查找",
+      "confidence": "high"
+    },
+    {
+      "id": 696,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.3",
+      "new_name": "7.3 树形查找",
+      "new_path": "7.3 树形查找",
+      "confidence": "high"
+    },
+    {
+      "id": 697,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.3",
+      "new_name": "7.3 树形查找",
+      "new_path": "7.3 树形查找",
+      "confidence": "high"
+    },
+    {
+      "id": 698,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.3",
+      "new_name": "7.3 树形查找",
+      "new_path": "7.3 树形查找",
+      "confidence": "high"
+    },
+    {
+      "id": 700,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.3",
+      "new_name": "7.3 树形查找",
+      "new_path": "7.3 树形查找",
+      "confidence": "high"
+    },
+    {
+      "id": 701,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.3",
+      "new_name": "7.3 树形查找",
+      "new_path": "7.3 树形查找",
+      "confidence": "high"
+    },
+    {
+      "id": 702,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.3",
+      "new_name": "7.3 树形查找",
+      "new_path": "7.3 树形查找",
+      "confidence": "high"
+    },
+    {
+      "id": 703,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.3",
+      "new_name": "7.3 树形查找",
+      "new_path": "7.3 树形查找",
+      "confidence": "high"
+    },
+    {
+      "id": 704,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.3",
+      "new_name": "7.3 树形查找",
+      "new_path": "7.3 树形查找",
+      "confidence": "high"
+    },
+    {
+      "id": 705,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.3",
+      "new_name": "7.3 树形查找",
+      "new_path": "7.3 树形查找",
+      "confidence": "high"
+    },
+    {
+      "id": 706,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.3",
+      "new_name": "7.3 树形查找",
+      "new_path": "7.3 树形查找",
+      "confidence": "high"
+    },
+    {
+      "id": 707,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.3",
+      "new_name": "7.3 树形查找",
+      "new_path": "7.3 树形查找",
+      "confidence": "high"
+    },
+    {
+      "id": 708,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.3",
+      "new_name": "7.3 树形查找",
+      "new_path": "7.3 树形查找",
+      "confidence": "high"
+    },
+    {
+      "id": 709,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.3",
+      "new_name": "7.3 树形查找",
+      "new_path": "7.3 树形查找",
+      "confidence": "high"
+    },
+    {
+      "id": 710,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.3",
+      "new_name": "7.3 树形查找",
+      "new_path": "7.3 树形查找",
+      "confidence": "high"
+    },
+    {
+      "id": 711,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.3",
+      "new_name": "7.3 树形查找",
+      "new_path": "7.3 树形查找",
+      "confidence": "high"
+    },
+    {
+      "id": 712,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.3",
+      "new_name": "7.3 树形查找",
+      "new_path": "7.3 树形查找",
+      "confidence": "high"
+    },
+    {
+      "id": 713,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.3",
+      "new_name": "7.3 树形查找",
+      "new_path": "7.3 树形查找",
+      "confidence": "high"
+    },
+    {
+      "id": 714,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.3",
+      "new_name": "7.3 树形查找",
+      "new_path": "7.3 树形查找",
+      "confidence": "high"
+    },
+    {
+      "id": 715,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.3",
+      "new_name": "7.3 树形查找",
+      "new_path": "7.3 树形查找",
+      "confidence": "high"
+    },
+    {
+      "id": 716,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.3",
+      "new_name": "7.3 树形查找",
+      "new_path": "7.3 树形查找",
+      "confidence": "high"
+    },
+    {
+      "id": 718,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.3",
+      "new_name": "7.3 树形查找",
+      "new_path": "7.3 树形查找",
+      "confidence": "high"
+    },
+    {
+      "id": 719,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.3",
+      "new_name": "7.3 树形查找",
+      "new_path": "7.3 树形查找",
+      "confidence": "high"
+    },
+    {
+      "id": 720,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.3",
+      "new_name": "7.3 树形查找",
+      "new_path": "7.3 树形查找",
+      "confidence": "high"
+    },
+    {
+      "id": 721,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.3",
+      "new_name": "7.3 树形查找",
+      "new_path": "7.3 树形查找",
+      "confidence": "high"
+    },
+    {
+      "id": 722,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.3",
+      "new_name": "7.3 树形查找",
+      "new_path": "7.3 树形查找",
+      "confidence": "high"
+    },
+    {
+      "id": 723,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.3",
+      "new_name": "7.3 树形查找",
+      "new_path": "7.3 树形查找",
+      "confidence": "high"
+    },
+    {
+      "id": 724,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.3",
+      "new_name": "7.3 树形查找",
+      "new_path": "7.3 树形查找",
+      "confidence": "high"
+    },
+    {
+      "id": 725,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.3",
+      "new_name": "7.3 树形查找",
+      "new_path": "7.3 树形查找",
+      "confidence": "high"
+    },
+    {
+      "id": 726,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.3",
+      "new_name": "8.3 交换排序",
+      "new_path": "8.3 交换排序",
+      "confidence": "high"
+    },
+    {
+      "id": 727,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.5",
+      "new_name": "7.5 散列表",
+      "new_path": "7.5 散列表",
+      "confidence": "high"
+    },
+    {
+      "id": 731,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.1",
+      "new_name": "8.1 排序的基本概念",
+      "new_path": "8.1 排序的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 733,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.1",
+      "new_name": "8.1 排序的基本概念",
+      "new_path": "8.1 排序的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 738,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.5",
+      "new_name": "7.5 散列表",
+      "new_path": "7.5 散列表",
+      "confidence": "high"
+    },
+    {
+      "id": 739,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.1",
+      "new_name": "8.1 排序的基本概念",
+      "new_path": "8.1 排序的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 740,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.5",
+      "new_name": "7.5 散列表",
+      "new_path": "7.5 散列表",
+      "confidence": "high"
+    },
+    {
+      "id": 743,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.4",
+      "new_name": "8.4 选择排序",
+      "new_path": "8.4 选择排序",
+      "confidence": "high"
+    },
+    {
+      "id": 746,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.1",
+      "new_name": "8.1 排序的基本概念",
+      "new_path": "8.1 排序的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 747,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.5",
+      "new_name": "7.5 散列表",
+      "new_path": "7.5 散列表",
+      "confidence": "high"
+    },
+    {
+      "id": 748,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.5",
+      "new_name": "7.5 散列表",
+      "new_path": "7.5 散列表",
+      "confidence": "high"
+    },
+    {
+      "id": 749,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.5",
+      "new_name": "7.5 散列表",
+      "new_path": "7.5 散列表",
+      "confidence": "high"
+    },
+    {
+      "id": 751,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.1",
+      "new_name": "8.1 排序的基本概念",
+      "new_path": "8.1 排序的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 752,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.1",
+      "new_name": "8.1 排序的基本概念",
+      "new_path": "8.1 排序的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 756,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.5",
+      "new_name": "7.5 散列表",
+      "new_path": "7.5 散列表",
+      "confidence": "high"
+    },
+    {
+      "id": 757,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.5",
+      "new_name": "7.5 散列表",
+      "new_path": "7.5 散列表",
+      "confidence": "high"
+    },
+    {
+      "id": 760,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.5",
+      "new_name": "7.5 散列表",
+      "new_path": "7.5 散列表",
+      "confidence": "high"
+    },
+    {
+      "id": 761,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.5",
+      "new_name": "7.5 散列表",
+      "new_path": "7.5 散列表",
+      "confidence": "high"
+    },
+    {
+      "id": 762,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.1",
+      "new_name": "8.1 排序的基本概念",
+      "new_path": "8.1 排序的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 763,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.1",
+      "new_name": "8.1 排序的基本概念",
+      "new_path": "8.1 排序的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 764,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.1",
+      "new_name": "8.1 排序的基本概念",
+      "new_path": "8.1 排序的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 765,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.5",
+      "new_name": "7.5 散列表",
+      "new_path": "7.5 散列表",
+      "confidence": "high"
+    },
+    {
+      "id": 766,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.5",
+      "new_name": "7.5 散列表",
+      "new_path": "7.5 散列表",
+      "confidence": "high"
+    },
+    {
+      "id": 767,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.5",
+      "new_name": "7.5 散列表",
+      "new_path": "7.5 散列表",
+      "confidence": "high"
+    },
+    {
+      "id": 768,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.1",
+      "new_name": "8.1 排序的基本概念",
+      "new_path": "8.1 排序的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 770,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.7",
+      "new_name": "8.7 外部排序",
+      "new_path": "8.7 外部排序",
+      "confidence": "high"
+    },
+    {
+      "id": 771,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.5",
+      "new_name": "7.5 散列表",
+      "new_path": "7.5 散列表",
+      "confidence": "high"
+    },
+    {
+      "id": 772,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.5",
+      "new_name": "7.5 散列表",
+      "new_path": "7.5 散列表",
+      "confidence": "high"
+    },
+    {
+      "id": 773,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.7",
+      "new_name": "8.7 外部排序",
+      "new_path": "8.7 外部排序",
+      "confidence": "high"
+    },
+    {
+      "id": 774,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.5",
+      "new_name": "7.5 散列表",
+      "new_path": "7.5 散列表",
+      "confidence": "high"
+    },
+    {
+      "id": 775,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.5",
+      "new_name": "7.5 散列表",
+      "new_path": "7.5 散列表",
+      "confidence": "high"
+    },
+    {
+      "id": 776,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.5",
+      "new_name": "7.5 散列表",
+      "new_path": "7.5 散列表",
+      "confidence": "high"
+    },
+    {
+      "id": 777,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.5",
+      "new_name": "7.5 散列表",
+      "new_path": "7.5 散列表",
+      "confidence": "high"
+    },
+    {
+      "id": 778,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.1",
+      "new_name": "8.1 排序的基本概念",
+      "new_path": "8.1 排序的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 779,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.1",
+      "new_name": "8.1 排序的基本概念",
+      "new_path": "8.1 排序的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 780,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.7",
+      "new_name": "8.7 外部排序",
+      "new_path": "8.7 外部排序",
+      "confidence": "high"
+    },
+    {
+      "id": 781,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.5",
+      "new_name": "7.5 散列表",
+      "new_path": "7.5 散列表",
+      "confidence": "high"
+    },
+    {
+      "id": 782,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.2",
+      "new_name": "8.2 插入排序",
+      "new_path": "8.2 插入排序",
+      "confidence": "high"
+    },
+    {
+      "id": 783,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.2",
+      "new_name": "8.2 插入排序",
+      "new_path": "8.2 插入排序",
+      "confidence": "high"
+    },
+    {
+      "id": 784,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.2",
+      "new_name": "8.2 插入排序",
+      "new_path": "8.2 插入排序",
+      "confidence": "high"
+    },
+    {
+      "id": 785,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.2",
+      "new_name": "8.2 插入排序",
+      "new_path": "8.2 插入排序",
+      "confidence": "high"
+    },
+    {
+      "id": 786,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.2",
+      "new_name": "8.2 插入排序",
+      "new_path": "8.2 插入排序",
+      "confidence": "high"
+    },
+    {
+      "id": 787,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.2",
+      "new_name": "8.2 插入排序",
+      "new_path": "8.2 插入排序",
+      "confidence": "high"
+    },
+    {
+      "id": 788,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.2",
+      "new_name": "8.2 插入排序",
+      "new_path": "8.2 插入排序",
+      "confidence": "high"
+    },
+    {
+      "id": 789,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.2",
+      "new_name": "8.2 插入排序",
+      "new_path": "8.2 插入排序",
+      "confidence": "high"
+    },
+    {
+      "id": 790,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.7",
+      "new_name": "8.7 外部排序",
+      "new_path": "8.7 外部排序",
+      "confidence": "high"
+    },
+    {
+      "id": 791,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.2",
+      "new_name": "8.2 插入排序",
+      "new_path": "8.2 插入排序",
+      "confidence": "high"
+    },
+    {
+      "id": 792,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.1",
+      "new_name": "8.1 排序的基本概念",
+      "new_path": "8.1 排序的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 793,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.2",
+      "new_name": "8.2 插入排序",
+      "new_path": "8.2 插入排序",
+      "confidence": "high"
+    },
+    {
+      "id": 794,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "7.5",
+      "new_name": "7.5 散列表",
+      "new_path": "7.5 散列表",
+      "confidence": "high"
+    },
+    {
+      "id": 795,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.1",
+      "new_name": "8.1 排序的基本概念",
+      "new_path": "8.1 排序的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 796,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.1",
+      "new_name": "8.1 排序的基本概念",
+      "new_path": "8.1 排序的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 797,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.3",
+      "new_name": "8.3 交换排序",
+      "new_path": "8.3 交换排序",
+      "confidence": "high"
+    },
+    {
+      "id": 798,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.3",
+      "new_name": "8.3 交换排序",
+      "new_path": "8.3 交换排序",
+      "confidence": "high"
+    },
+    {
+      "id": 799,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.3",
+      "new_name": "8.3 交换排序",
+      "new_path": "8.3 交换排序",
+      "confidence": "high"
+    },
+    {
+      "id": 800,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.1",
+      "new_name": "8.1 排序的基本概念",
+      "new_path": "8.1 排序的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 801,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.3",
+      "new_name": "8.3 交换排序",
+      "new_path": "8.3 交换排序",
+      "confidence": "high"
+    },
+    {
+      "id": 802,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.4",
+      "new_name": "8.4 选择排序",
+      "new_path": "8.4 选择排序",
+      "confidence": "high"
+    },
+    {
+      "id": 803,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.4",
+      "new_name": "8.4 选择排序",
+      "new_path": "8.4 选择排序",
+      "confidence": "high"
+    },
+    {
+      "id": 804,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.1",
+      "new_name": "8.1 排序的基本概念",
+      "new_path": "8.1 排序的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 805,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.4",
+      "new_name": "8.4 选择排序",
+      "new_path": "8.4 选择排序",
+      "confidence": "high"
+    },
+    {
+      "id": 806,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.4",
+      "new_name": "8.4 选择排序",
+      "new_path": "8.4 选择排序",
+      "confidence": "high"
+    },
+    {
+      "id": 807,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.4",
+      "new_name": "8.4 选择排序",
+      "new_path": "8.4 选择排序",
+      "confidence": "high"
+    },
+    {
+      "id": 808,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.4",
+      "new_name": "8.4 选择排序",
+      "new_path": "8.4 选择排序",
+      "confidence": "high"
+    },
+    {
+      "id": 809,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.4",
+      "new_name": "8.4 选择排序",
+      "new_path": "8.4 选择排序",
+      "confidence": "high"
+    },
+    {
+      "id": 810,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.5",
+      "new_name": "8.5 归并排序、基数排序和计数排序",
+      "new_path": "8.5 归并排序、基数排序和计数排序",
+      "confidence": "high"
+    },
+    {
+      "id": 811,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.5",
+      "new_name": "8.5 归并排序、基数排序和计数排序",
+      "new_path": "8.5 归并排序、基数排序和计数排序",
+      "confidence": "high"
+    },
+    {
+      "id": 812,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.5",
+      "new_name": "8.5 归并排序、基数排序和计数排序",
+      "new_path": "8.5 归并排序、基数排序和计数排序",
+      "confidence": "high"
+    },
+    {
+      "id": 813,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.5",
+      "new_name": "8.5 归并排序、基数排序和计数排序",
+      "new_path": "8.5 归并排序、基数排序和计数排序",
+      "confidence": "high"
+    },
+    {
+      "id": 814,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.4",
+      "new_name": "8.4 选择排序",
+      "new_path": "8.4 选择排序",
+      "confidence": "high"
+    },
+    {
+      "id": 815,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.5",
+      "new_name": "8.5 归并排序、基数排序和计数排序",
+      "new_path": "8.5 归并排序、基数排序和计数排序",
+      "confidence": "high"
+    },
+    {
+      "id": 816,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.5",
+      "new_name": "8.5 归并排序、基数排序和计数排序",
+      "new_path": "8.5 归并排序、基数排序和计数排序",
+      "confidence": "high"
+    },
+    {
+      "id": 817,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.1",
+      "new_name": "8.1 排序的基本概念",
+      "new_path": "8.1 排序的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 818,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.1",
+      "new_name": "8.1 排序的基本概念",
+      "new_path": "8.1 排序的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 819,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.5",
+      "new_name": "8.5 归并排序、基数排序和计数排序",
+      "new_path": "8.5 归并排序、基数排序和计数排序",
+      "confidence": "high"
+    },
+    {
+      "id": 820,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.1",
+      "new_name": "8.1 排序的基本概念",
+      "new_path": "8.1 排序的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 821,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.4",
+      "new_name": "8.4 选择排序",
+      "new_path": "8.4 选择排序",
+      "confidence": "high"
+    },
+    {
+      "id": 822,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.2",
+      "new_name": "8.2 插入排序",
+      "new_path": "8.2 插入排序",
+      "confidence": "high"
+    },
+    {
+      "id": 823,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.5",
+      "new_name": "8.5 归并排序、基数排序和计数排序",
+      "new_path": "8.5 归并排序、基数排序和计数排序",
+      "confidence": "high"
+    },
+    {
+      "id": 824,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.5",
+      "new_name": "8.5 归并排序、基数排序和计数排序",
+      "new_path": "8.5 归并排序、基数排序和计数排序",
+      "confidence": "high"
+    },
+    {
+      "id": 825,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.2",
+      "new_name": "8.2 插入排序",
+      "new_path": "8.2 插入排序",
+      "confidence": "high"
+    },
+    {
+      "id": 826,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.1",
+      "new_name": "8.1 排序的基本概念",
+      "new_path": "8.1 排序的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 827,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.5",
+      "new_name": "8.5 归并排序、基数排序和计数排序",
+      "new_path": "8.5 归并排序、基数排序和计数排序",
+      "confidence": "high"
+    },
+    {
+      "id": 828,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.4",
+      "new_name": "8.4 选择排序",
+      "new_path": "8.4 选择排序",
+      "confidence": "high"
+    },
+    {
+      "id": 829,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.5",
+      "new_name": "8.5 归并排序、基数排序和计数排序",
+      "new_path": "8.5 归并排序、基数排序和计数排序",
+      "confidence": "high"
+    },
+    {
+      "id": 830,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.2",
+      "new_name": "8.2 插入排序",
+      "new_path": "8.2 插入排序",
+      "confidence": "high"
+    },
+    {
+      "id": 831,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.3",
+      "new_name": "8.3 交换排序",
+      "new_path": "8.3 交换排序",
+      "confidence": "high"
+    },
+    {
+      "id": 832,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.7",
+      "new_name": "8.7 外部排序",
+      "new_path": "8.7 外部排序",
+      "confidence": "high"
+    },
+    {
+      "id": 833,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.4",
+      "new_name": "8.4 选择排序",
+      "new_path": "8.4 选择排序",
+      "confidence": "high"
+    },
+    {
+      "id": 834,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.7",
+      "new_name": "8.7 外部排序",
+      "new_path": "8.7 外部排序",
+      "confidence": "high"
+    },
+    {
+      "id": 835,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.7",
+      "new_name": "8.7 外部排序",
+      "new_path": "8.7 外部排序",
+      "confidence": "high"
+    },
+    {
+      "id": 836,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.7",
+      "new_name": "8.7 外部排序",
+      "new_path": "8.7 外部排序",
+      "confidence": "high"
+    },
+    {
+      "id": 837,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.7",
+      "new_name": "8.7 外部排序",
+      "new_path": "8.7 外部排序",
+      "confidence": "high"
+    },
+    {
+      "id": 838,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.5",
+      "new_name": "8.5 归并排序、基数排序和计数排序",
+      "new_path": "8.5 归并排序、基数排序和计数排序",
+      "confidence": "high"
+    },
+    {
+      "id": 839,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.7",
+      "new_name": "8.7 外部排序",
+      "new_path": "8.7 外部排序",
+      "confidence": "high"
+    },
+    {
+      "id": 840,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.7",
+      "new_name": "8.7 外部排序",
+      "new_path": "8.7 外部排序",
+      "confidence": "high"
+    },
+    {
+      "id": 841,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.5",
+      "new_name": "8.5 归并排序、基数排序和计数排序",
+      "new_path": "8.5 归并排序、基数排序和计数排序",
+      "confidence": "high"
+    },
+    {
+      "id": 842,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.7",
+      "new_name": "8.7 外部排序",
+      "new_path": "8.7 外部排序",
+      "confidence": "high"
+    },
+    {
+      "id": 843,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.7",
+      "new_name": "8.7 外部排序",
+      "new_path": "8.7 外部排序",
+      "confidence": "high"
+    },
+    {
+      "id": 844,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.7",
+      "new_name": "8.7 外部排序",
+      "new_path": "8.7 外部排序",
+      "confidence": "high"
+    },
+    {
+      "id": 845,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.1",
+      "new_name": "8.1 排序的基本概念",
+      "new_path": "8.1 排序的基本概念",
+      "confidence": "high"
+    },
+    {
+      "id": 846,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.7",
+      "new_name": "8.7 外部排序",
+      "new_path": "8.7 外部排序",
+      "confidence": "high"
+    },
+    {
+      "id": 847,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.4",
+      "new_name": "8.4 选择排序",
+      "new_path": "8.4 选择排序",
+      "confidence": "high"
+    },
+    {
+      "id": 848,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.7",
+      "new_name": "8.7 外部排序",
+      "new_path": "8.7 外部排序",
+      "confidence": "high"
+    },
+    {
+      "id": 849,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.7",
+      "new_name": "8.7 外部排序",
+      "new_path": "8.7 外部排序",
+      "confidence": "high"
+    },
+    {
+      "id": 850,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.7",
+      "new_name": "8.7 外部排序",
+      "new_path": "8.7 外部排序",
+      "confidence": "high"
+    },
+    {
+      "id": 851,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.7",
+      "new_name": "8.7 外部排序",
+      "new_path": "8.7 外部排序",
+      "confidence": "high"
+    },
+    {
+      "id": 852,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.7",
+      "new_name": "8.7 外部排序",
+      "new_path": "8.7 外部排序",
+      "confidence": "high"
+    },
+    {
+      "id": 853,
+      "old_kp": "1.1.1",
+      "old_name": "基本概念和术语",
+      "old_path": "1.1.1 基本概念和术语",
+      "new_kp": "8.7",
+      "new_name": "8.7 外部排序",
+      "new_path": "8.7 外部排序",
+      "confidence": "high"
+    },
+    {
+      "id": 3,
+      "old_kp": "1.1",
+      "old_name": "数据结构的基本概念",
+      "old_path": "1.1 数据结构的基本概念",
+      "new_kp": "3.1",
+      "new_name": "3.1 栈",
+      "new_path": "3.1 栈",
+      "confidence": "high"
+    },
+    {
+      "id": 8,
+      "old_kp": "2.1",
+      "old_name": "线性表的定义和基本操作",
+      "old_path": "2.1 线性表的定义和基本操作",
+      "new_kp": "2.2",
+      "new_name": "2.2 线性表的顺序表示",
+      "new_path": "2.2 线性表的顺序表示",
+      "confidence": "high"
+    },
+    {
+      "id": 9,
+      "old_kp": "2.1",
+      "old_name": "线性表的定义和基本操作",
+      "old_path": "2.1 线性表的定义和基本操作",
+      "new_kp": "2.2",
+      "new_name": "2.2 线性表的顺序表示",
+      "new_path": "2.2 线性表的顺序表示",
+      "confidence": "high"
+    },
+    {
+      "id": 12,
+      "old_kp": "2.2",
+      "old_name": "线性表的顺序表示",
+      "old_path": "2.2 线性表的顺序表示",
+      "new_kp": "8.5",
+      "new_name": "8.5 归并排序、基数排序和计数排序",
+      "new_path": "8.5 归并排序、基数排序和计数排序",
+      "confidence": "high"
+    },
+    {
+      "id": 22,
+      "old_kp": "4.1",
+      "old_name": "树的基本概念",
+      "old_path": "4.1 树的基本概念",
+      "new_kp": "5.2",
+      "new_name": "5.2 二叉树的概念",
+      "new_path": "5.2 二叉树的概念",
+      "confidence": "high"
+    },
+    {
+      "id": 26,
+      "old_kp": "5.1",
+      "old_name": "图的基本概念",
+      "old_path": "5.1 图的基本概念",
+      "new_kp": "6.4",
+      "new_name": "6.4 图的应用",
+      "new_path": "6.4 图的应用",
+      "confidence": "high"
+    },
+    {
+      "id": 27,
+      "old_kp": "5.1",
+      "old_name": "图的基本概念",
+      "old_path": "5.1 图的基本概念",
+      "new_kp": "6.4",
+      "new_name": "6.4 图的应用",
+      "new_path": "6.4 图的应用",
+      "confidence": "high"
+    },
+    {
+      "id": 28,
+      "old_kp": "7.1",
+      "old_name": "查找的基本概念",
+      "old_path": "7.1 查找的基本概念",
+      "new_kp": "7.2",
+      "new_name": "7.2 线性表的查找",
+      "new_path": "7.2 线性表的查找",
+      "confidence": "high"
+    },
+    {
+      "id": 29,
+      "old_kp": "7.1",
+      "old_name": "查找的基本概念",
+      "old_path": "7.1 查找的基本概念",
+      "new_kp": "7.2",
+      "new_name": "7.2 线性表的查找",
+      "new_path": "7.2 线性表的查找",
+      "confidence": "high"
+    },
+    {
+      "id": 30,
+      "old_kp": "7.1",
+      "old_name": "查找的基本概念",
+      "old_path": "7.1 查找的基本概念",
+      "new_kp": "7.5",
+      "new_name": "7.5 散列表",
+      "new_path": "7.5 散列表",
+      "confidence": "high"
+    },
+    {
+      "id": 31,
+      "old_kp": "7.1",
+      "old_name": "查找的基本概念",
+      "old_path": "7.1 查找的基本概念",
+      "new_kp": "7.5",
+      "new_name": "7.5 散列表",
+      "new_path": "7.5 散列表",
+      "confidence": "high"
+    },
+    {
+      "id": 32,
+      "old_kp": "8.1",
+      "old_name": "排序的基本概念",
+      "old_path": "8.1 排序的基本概念",
+      "new_kp": "8.2",
+      "new_name": "8.2 插入排序",
+      "new_path": "8.2 插入排序",
+      "confidence": "high"
+    },
+    {
+      "id": 33,
+      "old_kp": "8.1",
+      "old_name": "排序的基本概念",
+      "old_path": "8.1 排序的基本概念",
+      "new_kp": "8.3",
+      "new_name": "8.3 交换排序",
+      "new_path": "8.3 交换排序",
+      "confidence": "high"
+    },
+    {
+      "id": 34,
+      "old_kp": "8.1",
+      "old_name": "排序的基本概念",
+      "old_path": "8.1 排序的基本概念",
+      "new_kp": "8.5",
+      "new_name": "8.5 归并排序、基数排序和计数排序",
+      "new_path": "8.5 归并排序、基数排序和计数排序",
+      "confidence": "high"
+    },
+    {
+      "id": 35,
+      "old_kp": "8.1",
+      "old_name": "排序的基本概念",
+      "old_path": "8.1 排序的基本概念",
+      "new_kp": "8.3",
+      "new_name": "8.3 交换排序",
+      "new_path": "8.3 交换排序",
+      "confidence": "high"
+    }
+  ]
+}
