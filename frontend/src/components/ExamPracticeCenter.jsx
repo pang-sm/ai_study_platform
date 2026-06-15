@@ -64,9 +64,6 @@ export default function ExamPracticeCenter({
   const [practiceView, setPracticeView] = useState("dashboard");
   const [pastPaperConfig, setPastPaperConfig] = useState(null);
   const [pastPapers, setPastPapers] = useState(null);
-  const [showPastPaperModal, setShowPastPaperModal] = useState(false);
-  const [pastPaperYears, setPastPaperYears] = useState([]);
-  const [pastPaperType, setPastPaperType] = useState("all");
   const [genType, setGenType] = useState("choice");
   const [genCount, setGenCount] = useState(3);
 
@@ -86,17 +83,6 @@ export default function ExamPracticeCenter({
     }
     availableYears.sort((a, b) => b - a);
   }
-
-  const handlePastPaperPractice = () => {
-    setPastPaperConfig({
-      subjectKey,
-      subjectName,
-      years: pastPaperYears.length > 0 ? pastPaperYears : availableYears,
-      questionType: pastPaperType || "all",
-    });
-    setShowPastPaperModal(false);
-    setPracticeView("pastPaper");
-  };
 
   // Render past paper practice view
   if (practiceView === "pastPaper" && pastPaperConfig) {
@@ -199,7 +185,15 @@ export default function ExamPracticeCenter({
           <button
             type="button"
             className="practice-type-card practice-type-card--past"
-            onClick={() => setShowPastPaperModal(true)}
+            onClick={() => {
+              setPastPaperConfig({
+                subjectKey,
+                subjectName,
+                years: availableYears,
+                questionType: "all",
+              });
+              setPracticeView("pastPaper");
+            }}
           >
             <div className="practice-type-icon">📜</div>
             <div className="practice-type-info">
@@ -246,73 +240,6 @@ export default function ExamPracticeCenter({
         </div>
       </div>
 
-      {/* Past Paper Modal */}
-      {showPastPaperModal && (
-        <div className="modal-overlay" onClick={() => setShowPastPaperModal(false)}>
-          <div className="modal-card practice-generate-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>真题练习</h3>
-              <button className="modal-close" onClick={() => setShowPastPaperModal(false)}>&times;</button>
-            </div>
-            <div className="task-modal-body">
-              <div className="practice-generate-course-badge">
-                当前科目：{subjectName}
-              </div>
-
-              {pastPapers && !pastPapers.available && (
-                <p className="practice-kp-empty">
-                  当前科目暂无真题资源。真题文档请放入 backend/exam_resources/11408/{subjectKey}/ 目录。
-                </p>
-              )}
-
-              {availableYears.length > 0 && (
-                <>
-                  <label className="field-label">真题年份</label>
-                  <div className="practice-chip-group">
-                    {availableYears.map((y) => (
-                      <label key={y} className="practice-check-label">
-                        <input
-                          type="checkbox"
-                          checked={pastPaperYears.includes(y)}
-                          onChange={() => {
-                            setPastPaperYears((prev) =>
-                              prev.includes(y) ? prev.filter((v) => v !== y) : [...prev, y]
-                            );
-                          }}
-                        />
-                        <span>{y} 年</span>
-                      </label>
-                    ))}
-                  </div>
-                </>
-              )}
-
-              <label className="field-label">题型</label>
-              <select
-                className="field"
-                value={pastPaperType}
-                onChange={(e) => setPastPaperType(e.target.value)}
-              >
-                <option value="all">全部</option>
-                <option value="choice">选择题</option>
-                <option value="short_answer">大题</option>
-              </select>
-
-              <div className="practice-generate-note">
-                真题来源于 11408 历年考试题目，将按年份和题型进行专项训练。
-              </div>
-            </div>
-            <div className="task-form-actions">
-              <button className="ghost-button compact" onClick={() => setShowPastPaperModal(false)}>
-                取消
-              </button>
-              <button className="primary-button compact" onClick={handlePastPaperPractice}>
-                开始练习
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

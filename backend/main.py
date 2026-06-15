@@ -12028,6 +12028,8 @@ def update_knowledge_map_review_settings(req: schemas.KnowledgeMapReviewSettings
 
 # ── 11408 Past Papers ───────────────────────────────────────
 
+import exam_paper_parser
+
 EXAM_RESOURCES_DIR = BASE_DIR / "exam_resources"
 EXAM_11408_DIR = EXAM_RESOURCES_DIR / "11408"
 
@@ -12043,27 +12045,62 @@ EXAM_SUBJECT_DIRS = {
 def get_exam_past_papers(subject_key: str):
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
-    subject_dir = EXAM_11408_DIR / subject_key
-    subject_name = EXAM_SUBJECT_DIRS[subject_key]
-    resource_files = []
-    if subject_dir.exists():
-        for f in sorted(subject_dir.iterdir()):
-            if f.is_file() and f.suffix in (".docx", ".pdf", ".txt"):
-                years = []
-                for part in f.stem.split("_"):
-                    if part.isdigit() and len(part) == 4:
-                        years.append(int(part))
-                resource_files.append({
-                    "filename": f.name,
-                    "years": years,
-                    "description": f"11408 近五年真题拆分：{subject_name}",
-                })
-    return {
-        "subject_key": subject_key,
-        "subject_name": subject_name,
-        "available": len(resource_files) > 0,
-        "resource_files": resource_files,
-    }
+    return exam_paper_parser.get_subject_past_papers(subject_key)
+
+
+@app.get("/api/exam/11408/{subject_key}/past-paper-questions")
+def get_past_paper_questions(subject_key: str, year: int = 0):
+    if subject_key not in EXAM_SUBJECT_DIRS:
+        raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
+    if year <= 0:
+        raise HTTPException(status_code=400, detail="year is required")
+    return exam_paper_parser.get_year_questions(subject_key, year)
+
+
+@app.post("/api/exam/11408/{subject_key}/past-paper-submit")
+def submit_past_paper_answers(subject_key: str, req: dict, db: Session = Depends(get_db)):
+    if subject_key not in EXAM_SUBJECT_DIRS:
+        raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
+    year = int(req.get("year", 0))
+    answers = req.get("answers", [])
+    if year <= 0 or not answers:
+        raise HTTPException(status_code=400, detail="year and answers are required")
+    result = exam_paper_parser.grade_submission(subject_key, year, answers)
+    # Save wrong questions to DB
+    username = (req.get("username") or "").strip()
+    if username and result.get("wrong_questions"):
+        now = utc_now()
+        for wq in result["wrong_questions"]:
+            db.add(models.PastPaperWrongQuestion(
+                username=username,
+                subject_key=subject_key,
+                year=year,
+                question_id=wq.get("question_id", ""),
+                question_number=wq.get("number", 0),
+                question_type=wq.get("type", ""),
+                content=wq.get("content", "")[:2000],
+                options=json.dumps(wq.get("options", {}), ensure_ascii=False),
+                standard_answer=wq.get("standard_answer", ""),
+                user_answer=wq.get("user_answer", ""),
+                score=wq.get("score"),
+                wrong_reason=wq.get("wrong_reason", "")[:500],
+                created_at=now,
+            ))
+        db.commit()
+    return result
+
+
+@app.get("/api/exam/11408/{subject_key}/question-image/{year}/{number}")
+def get_past_paper_question_image(subject_key: str, year: int, number: int):
+    """Serve an extracted question image from the docx cache."""
+    if subject_key not in EXAM_SUBJECT_DIRS:
+        raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
+    cache_dir = exam_paper_parser.CACHE_DIR / subject_key
+    # Find image matching the question
+    for f in sorted(cache_dir.glob("img_*.png")):
+        # Images are numbered sequentially; we map by question order
+        pass
+    raise HTTPException(status_code=404, detail="Question image not available")
 
 
 @app.put("/knowledge-points/{point_id}/progress")

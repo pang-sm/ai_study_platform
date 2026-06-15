@@ -14,58 +14,106 @@ export default function ExamPastPaperPractice({
   subjectName = "11408 数据结构",
   years: initialYears = [],
   questionType: initialType = "all",
+  user,
   onBack,
 }) {
-  const [pastPapers, setPastPapers] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [selectedYears, setSelectedYears] = useState(initialYears.length > 0 ? initialYears : []);
-  const [selectedType, setSelectedType] = useState(initialType || "all");
+  const [pastPapers, setPastPapers] = useState(null);
+  const [selectedYear, setSelectedYear] = useState(null);
   const [questions, setQuestions] = useState([]);
+  const [answers, setAnswers] = useState({});
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState("");
 
   const subjectLabel = EXAM_SUBJECTS[subjectKey] || "数据结构";
 
   useEffect(() => {
-    setLoading(true);
     fetch(`${API_BASE}/api/exam/11408/${subjectKey}/past-papers`)
       .then((r) => r.json())
       .then((data) => {
         setPastPapers(data);
-        // Try to load questions if a backend endpoint exists
-        const params = new URLSearchParams();
-        if (selectedYears.length > 0) {
-          selectedYears.forEach((y) => params.append("year", y));
+        if (data.years && data.years.length > 0) {
+          setSelectedYear(data.years[0]);
         }
-        if (selectedType) params.set("type", selectedType);
-        return fetch(
-          `${API_BASE}/api/exam/11408/${subjectKey}/past-paper-questions?${params.toString()}`
-        ).then((r) => r.json());
       })
-      .then((data) => {
-        if (data?.questions) setQuestions(data.questions);
-      })
-      .catch(() => setQuestions([]))
+      .catch(() => setPastPapers({ available: false, years: [] }))
       .finally(() => setLoading(false));
-  }, [subjectKey, selectedYears, selectedType]);
+  }, [subjectKey]);
 
-  const allYears = [];
-  let resourceFilenames = [];
-  if (pastPapers?.resource_files) {
-    for (const f of pastPapers.resource_files) {
-      resourceFilenames.push(f.filename);
-      for (const y of f.years || []) {
-        if (!allYears.includes(y)) allYears.push(y);
-      }
-    }
-    allYears.sort((a, b) => b - a);
-  }
+  useEffect(() => {
+    if (!selectedYear) return;
+    setLoading(true);
+    setQuestions([]);
+    setAnswers({});
+    setSubmitted(false);
+    setResult(null);
+    setError("");
+    fetch(`${API_BASE}/api/exam/11408/${subjectKey}/past-paper-questions?year=${selectedYear}`)
+      .then((r) => r.json())
+      .then((data) => {
+        setQuestions(data.questions || []);
+      })
+      .catch(() => setError("题目加载失败"))
+      .finally(() => setLoading(false));
+  }, [subjectKey, selectedYear]);
 
-  const toggleYear = (year) => {
-    setSelectedYears((prev) =>
-      prev.includes(year) ? prev.filter((v) => v !== year) : [...prev, year]
-    );
+  const yearsList = pastPapers?.years || [];
+
+  const handleAnswer = (qid, value) => {
+    setAnswers((prev) => ({ ...prev, [qid]: value }));
   };
 
-  const displayYears = selectedYears.length > 0 ? selectedYears : allYears;
+  const allAnswered = questions.length > 0 && questions.every((q) => {
+    const a = answers[q.id];
+    return a !== undefined && a !== null && String(a).trim() !== "";
+  });
+
+  const handleSubmit = async () => {
+    if (!allAnswered) {
+      if (!window.confirm(`还有 ${questions.filter((q) => !answers[q.id] || !String(answers[q.id]).trim()).length} 道题未作答，确定提交吗？`)) {
+        return;
+      }
+    }
+    if (!user?.username) {
+      setError("请先登录");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const payload = {
+        username: user.username,
+        year: selectedYear,
+        answers: questions.map((q) => ({
+          question_id: q.id,
+          user_answer: String(answers[q.id] || "").trim(),
+        })),
+      };
+      const res = await fetch(`${API_BASE}/api/exam/11408/${subjectKey}/past-paper-submit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "提交失败");
+      setResult(data);
+      setSubmitted(true);
+    } catch (e) {
+      setError(e.message || "提交失败，请稍后重试");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const resetPractice = () => {
+    setAnswers({});
+    setSubmitted(false);
+    setResult(null);
+  };
+
+  const choiceCount = questions.filter((q) => q.type === "选择题").length;
+  const bigCount = questions.filter((q) => q.type === "大题").length;
 
   return (
     <div className="exam-past-paper-practice">
@@ -86,21 +134,13 @@ export default function ExamPastPaperPractice({
         </div>
         <div className="past-paper-info-row">
           <span className="past-paper-info-label">真题范围</span>
-          <span className="past-paper-info-value">
-            {displayYears.length > 0 ? displayYears.map((y) => `${y}年`).join("、") : "近五年真题"}
-          </span>
+          <span className="past-paper-info-value">近五年真题</span>
         </div>
-        <div className="past-paper-info-row">
-          <span className="past-paper-info-label">题型</span>
-          <span className="past-paper-info-value">
-            {selectedType === "all" ? "全部" : selectedType === "choice" ? "选择题" : "大题"}
-          </span>
-        </div>
-        {resourceFilenames.length > 0 && (
+        {pastPapers?.resource_files?.[0] && (
           <div className="past-paper-info-row">
             <span className="past-paper-info-label">来源文件</span>
             <span className="past-paper-info-value past-paper-info-files">
-              {resourceFilenames.join("、")}
+              {pastPapers.resource_files[0].filename}
             </span>
           </div>
         )}
@@ -110,101 +150,180 @@ export default function ExamPastPaperPractice({
         <div className="past-paper-filter-group">
           <span className="past-paper-filter-label">年份选择</span>
           <div className="past-paper-chip-row">
-            <button
-              type="button"
-              className={`past-paper-chip${selectedYears.length === 0 ? " past-paper-chip--active" : ""}`}
-              onClick={() => setSelectedYears([])}
-            >
-              全部
-            </button>
-            {allYears.map((y) => (
+            {yearsList.map((y) => (
               <button
                 key={y}
                 type="button"
-                className={`past-paper-chip${selectedYears.includes(y) ? " past-paper-chip--active" : ""}`}
-                onClick={() => toggleYear(y)}
+                className={`past-paper-chip${selectedYear === y ? " past-paper-chip--active" : ""}`}
+                onClick={() => setSelectedYear(y)}
               >
                 {y}
               </button>
             ))}
           </div>
         </div>
-
-        <div className="past-paper-filter-group">
-          <span className="past-paper-filter-label">题型选择</span>
-          <div className="past-paper-chip-row">
-            {[
-              { value: "all", label: "全部" },
-              { value: "choice", label: "选择题" },
-              { value: "short_answer", label: "大题" },
-            ].map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                className={`past-paper-chip${selectedType === opt.value ? " past-paper-chip--active" : ""}`}
-                onClick={() => setSelectedType(opt.value)}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
 
-      <div className="past-paper-questions">
-        {loading ? (
-          <div className="past-paper-loading">正在加载真题资料...</div>
-        ) : questions.length > 0 ? (
+      {error && (
+        <div className="km-inline-message km-inline-message--error" style={{ marginBottom: 12 }}>
+          {error}
+        </div>
+      )}
+
+      {(() => {
+        if (loading) return <div className="past-paper-loading">正在加载 {selectedYear} 年真题...</div>;
+        if (submitted && result) return (
+        <div className="past-paper-result">
+          <div className="past-paper-result-header">
+            <h3>{selectedYear} 年真题练习结果</h3>
+          </div>
+          <div className="practice-stats-grid" style={{ marginBottom: 16 }}>
+            <div className="practice-stat-card--dashboard">
+              <div className="practice-stat-card-icon practice-stat-card-icon--docs">📄</div>
+              <div className="practice-stat-card-body">
+                <div className="practice-stat-card-value">{result.total_questions}</div>
+                <div className="practice-stat-card-label">总题数</div>
+              </div>
+            </div>
+            <div className="practice-stat-card--dashboard">
+              <div className="practice-stat-card-icon practice-stat-card-icon--done">✓</div>
+              <div className="practice-stat-card-body">
+                <div className="practice-stat-card-value">{result.choice_correct}/{result.choice_total}</div>
+                <div className="practice-stat-card-label">选择题正确</div>
+              </div>
+            </div>
+            <div className="practice-stat-card--dashboard">
+              <div className="practice-stat-card-icon practice-stat-card-icon--accuracy">★</div>
+              <div className="practice-stat-card-body">
+                <div className="practice-stat-card-value">
+                  {result.total_score}/{result.max_score}
+                </div>
+                <div className="practice-stat-card-label">总分</div>
+              </div>
+            </div>
+            <div className="practice-stat-card--dashboard">
+              <div className="practice-stat-card-icon practice-stat-card-icon--time">❌</div>
+              <div className="practice-stat-card-body">
+                <div className="practice-stat-card-value">{result.wrong_questions?.length || 0}</div>
+                <div className="practice-stat-card-label">错题数</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="past-paper-result-actions">
+            <button type="button" className="primary-button compact" onClick={resetPractice}>
+              重新练习
+            </button>
+            <button type="button" className="ghost-button compact" onClick={onBack}>
+              返回练习中心
+            </button>
+          </div>
+
+          {result.results && (
+            <div className="past-paper-question-list" style={{ marginTop: 16 }}>
+              {result.results.map((r) => {
+                const q = questions.find((q) => q.id === r.question_id);
+                const isCorrect = r.correct === true;
+                const isBig = r.type === "大题";
+                return (
+                  <div key={r.question_id} className={`past-paper-question-card ${isCorrect ? "past-paper-q-correct" : "past-paper-q-wrong"}`}>
+                    <div className="past-paper-question-meta">
+                      <span className="past-paper-q-year">{selectedYear} 年</span>
+                      <span className="past-paper-q-number">第 {r.number} 题</span>
+                      <span className="past-paper-q-type">{r.type}</span>
+                      {!isBig && (
+                        <span className={`past-paper-q-result-tag ${isCorrect ? "past-paper-q-result-tag--correct" : "past-paper-q-result-tag--wrong"}`}>
+                          {isCorrect ? "正确" : "错误"}
+                        </span>
+                      )}
+                    </div>
+                    {q?.content && (
+                      <div className="past-paper-q-content">{q.content}</div>
+                    )}
+                    <div className="past-paper-q-answer-row">
+                      <span className="past-paper-q-label">你的答案：</span>
+                      <span className={isCorrect ? "text-correct" : "text-wrong"}>{r.user_answer || "未作答"}</span>
+                    </div>
+                    <div className="past-paper-q-answer-row">
+                      <span className="past-paper-q-label">标准答案：</span>
+                      <span>{r.standard_answer}</span>
+                    </div>
+                    {isBig && r.feedback && (
+                      <div className="past-paper-q-feedback">
+                        <strong>评分：{r.score}/{r.full_score} 分</strong>
+                        <p>{r.feedback}</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      );
+      if (questions.length === 0) return (
+        <div className="past-paper-empty">
+          <div className="past-paper-empty-icon">📋</div>
+          <h3>{selectedYear} 年真题</h3>
+          <p>
+            当前科目：<strong>{subjectLabel}</strong>，共有 {choiceCount} 道选择题、{bigCount} 道大题。
+            真题题目为图片格式，目前显示题目图片。后续版本将接入 OCR 自动识别题目文本。
+          </p>
           <div className="past-paper-question-list">
-            {questions.map((q, idx) => (
-              <div key={idx} className="past-paper-question-card">
+            {questions.map((q) => (
+              <div key={q.id} className="past-paper-question-card">
                 <div className="past-paper-question-meta">
                   <span className="past-paper-q-year">{q.year} 年</span>
                   <span className="past-paper-q-number">第 {q.number} 题</span>
                   <span className="past-paper-q-type">{q.type}</span>
                 </div>
                 <div className="past-paper-q-content">{q.content}</div>
-                {q.options && q.options.length > 0 && (
-                  <div className="past-paper-q-options">
-                    {q.options.map((opt, oi) => (
-                      <div key={oi} className="past-paper-q-option">
-                        {opt}
-                      </div>
+                {q.type === "选择题" ? (
+                  <div className="past-paper-options">
+                    {["A", "B", "C", "D"].map((opt) => (
+                      <label key={opt} className={`past-paper-option ${answers[q.id] === opt ? "past-paper-option--selected" : ""}`}>
+                        <input
+                          type="radio"
+                          name={`q_${q.id}`}
+                          value={opt}
+                          checked={answers[q.id] === opt}
+                          onChange={() => handleAnswer(q.id, opt)}
+                        />
+                        <span>{opt}</span>
+                      </label>
                     ))}
                   </div>
+                ) : (
+                  <div className="past-paper-big-answer">
+                    <textarea
+                      className="field"
+                      rows={4}
+                      placeholder="请输入你的答案..."
+                      value={answers[q.id] || ""}
+                      onChange={(e) => handleAnswer(q.id, e.target.value)}
+                    />
+                  </div>
                 )}
-                <details className="past-paper-q-answer">
-                  <summary>查看答案</summary>
-                  <span className="past-paper-q-answer-text">答案：{q.answer}</span>
-                </details>
               </div>
             ))}
           </div>
-        ) : (
-          <div className="past-paper-empty">
-            <div className="past-paper-empty-icon">📋</div>
-            <h3>真题文件已接入，题目解析功能正在完善</h3>
-            <p>
-              当前科目：<strong>{subjectLabel}</strong> 的真题文档已上传至系统。
-              你可以先确认年份和题型，题目解析功能将在后续版本中正式开放，
-              届时你将可以在这里直接刷真题。
-            </p>
-            <div className="past-paper-empty-files">
-              {resourceFilenames.length > 0 ? (
-                resourceFilenames.map((fn, i) => (
-                  <div key={i} className="past-paper-file-item">
-                    📄 {fn}
-                  </div>
-                ))
-              ) : (
-                <div className="past-paper-file-item">
-                  暂无真题文件。请将真题文档放入 backend/exam_resources/11408/{subjectKey}/ 目录。
-                </div>
-              )}
-            </div>
+          <div className="past-paper-submit-bar">
+            <span>
+              {allAnswered ? "所有题目已作答" : `还有 ${questions.filter((q) => !answers[q.id] || !String(answers[q.id]).trim()).length} 题未答`}
+            </span>
+            <button
+              type="button"
+              className="primary-button"
+              disabled={submitting || questions.length === 0}
+              onClick={handleSubmit}
+            >
+              {submitting ? "提交中..." : "已答完"}
+            </button>
           </div>
-        )}
-      </div>
+        </div>
+      );
+      return null;
+      })()}
     </div>
   );
 }

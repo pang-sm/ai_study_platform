@@ -628,3 +628,22 @@ class VerificationCode(Base):
     used = Column(Boolean, nullable=False, default=False)
     attempts = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime, default=utc_now)
+
+
+class PastPaperWrongQuestion(Base):
+    __tablename__ = "past_paper_wrong_questions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), index=True, nullable=False)
+    subject_key = Column(String(50), index=True, nullable=False)
+    year = Column(Integer, nullable=False)
+    question_id = Column(String(100), nullable=False)
+    question_number = Column(Integer, nullable=False, default=0)
+    question_type = Column(String(20), nullable=False)
+    content = Column(Text, nullable=True)
+    options = Column(Text, nullable=True)
+    standard_answer = Column(Text, nullable=True)
+    user_answer = Column(Text, nullable=True)
+    score = Column(Integer, nullable=True)
+    wrong_reason = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=utc_now)
