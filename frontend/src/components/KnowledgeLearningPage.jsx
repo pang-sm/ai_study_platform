@@ -578,12 +578,6 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
             </button>
           </div>
 
-          <span className="km-filter-sep" />
-
-          <span className="km-filter-label">排序</span>
-          <select className="km-sort-select" value="chapter" disabled>
-            <option value="chapter">按章节顺序</option>
-          </select>
         </div>
       </section>
 

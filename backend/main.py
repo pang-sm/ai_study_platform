@@ -11696,6 +11696,25 @@ def _build_knowledge_map_index(nodes: list[dict], index: dict[str, dict] | None 
     return index
 
 
+def _build_enriched_map_index(nodes: list[dict]) -> dict[str, dict]:
+    """Build a flat code→node index that also includes auto-generated
+    codes for leaf nodes that have no explicit code in the seed data."""
+    index: dict[str, dict] = {}
+
+    def walk(items: list[dict], path_prefix: str = ""):
+        for i, node in enumerate(items or [], start=1):
+            node_path = f"{path_prefix}.{i}" if path_prefix else str(i)
+            code = str(node.get("code") or "").strip()
+            if not code and not (node.get("children") or []):
+                code = f"_leaf:{node_path}"
+            if code:
+                index[code] = node
+            walk(node.get("children") or [], node_path)
+
+    walk(nodes)
+    return index
+
+
 def _display_map_progress_status(progress: models.UserKnowledgeProgress | None, now: datetime | None = None) -> str:
     if not progress:
         return "not_started"
@@ -11735,8 +11754,20 @@ def _attach_knowledge_map_status(nodes: list[dict], progress_by_code: dict[str, 
     for index, node in enumerate(nodes, start=1):
         item = dict(node)
         node_path = f"{path_prefix}.{index}" if path_prefix else str(index)
-        code = str(item.get("code") or "").strip()
         item["id"] = item.get("id") or f"seed:{node_path}"
+        code = str(item.get("code") or "").strip()
+
+        # Recursively process children first
+        children = _attach_knowledge_map_status(item.get("children") or [], progress_by_code, node_path)
+        item["children"] = children
+        item["is_leaf"] = len(children) == 0
+
+        # Leaf nodes without a code get a stable derived code so the PATCH
+        # endpoint can identify them and persist user progress.
+        if not code and item["is_leaf"]:
+            code = f"_leaf:{node_path}"
+            item["code"] = code
+
         progress = progress_by_code.get(code)
         display_status = _display_map_progress_status(progress, now)
         item["status"] = display_status
@@ -11746,11 +11777,6 @@ def _attach_knowledge_map_status(nodes: list[dict], progress_by_code: dict[str, 
             item["learned_at"] = item["progress"].get("learned_at")
             item["review_due_at"] = item["progress"].get("review_due_at")
             item["review_interval_days"] = item["progress"].get("review_interval_days")
-
-        # Recursively process children first
-        children = _attach_knowledge_map_status(item.get("children") or [], progress_by_code, node_path)
-        item["children"] = children
-        item["is_leaf"] = len(children) == 0
 
         # For parent nodes: compute aggregate status from descendant leaves
         if not item["is_leaf"]:
@@ -11881,7 +11907,8 @@ def update_knowledge_map_progress(req: schemas.KnowledgeMapProgressUpdate, db: S
     if not seed_path.exists():
         raise HTTPException(status_code=404, detail="knowledge map not found")
     payload = json.loads(seed_path.read_text(encoding="utf-8"))
-    node_index = _build_knowledge_map_index(payload.get("chapters") or [])
+    # Build index that includes auto-generated codes for leaf nodes without codes
+    node_index = _build_enriched_map_index(payload.get("chapters") or [])
     node = node_index.get(code)
     if not node:
         raise HTTPException(status_code=404, detail="knowledge point is not in this course map")
