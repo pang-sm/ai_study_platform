@@ -23,6 +23,12 @@ const EXAM_SUBJECTS = {
 
 export default function ExamPastPaperAttemptPage({ subjectKey, attemptId, onNavigateBack }) {
   const [loading, setLoading] = useState(true);
+
+  // Unlock body scrolling for this standalone attempt page
+  useEffect(() => {
+    document.body.classList.add("exam-attempt-body");
+    return () => document.body.classList.remove("exam-attempt-body");
+  }, []);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(null);
   const [questions, setQuestions] = useState([]);

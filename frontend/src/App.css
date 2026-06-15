@@ -20514,12 +20514,23 @@ select.field:focus {
 }
 
 /* ── Attempt Page ── */
+/* ── Independent attempt page: override body overflow:hidden ── */
+body.exam-attempt-body {
+  overflow-y: auto !important;
+  overflow-x: hidden;
+  height: auto !important;
+}
+body.exam-attempt-body #root {
+  min-height: 100vh;
+  height: auto !important;
+  overflow: visible !important;
+}
+
 .attempt-page {
   max-width: 960px;
   margin: 0 auto;
-  padding: 24px 32px;
+  padding: 24px 32px 96px 32px;
   min-height: 100vh;
-  overflow-y: visible;
 }
 
 .past-paper-opt-label {
