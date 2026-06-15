@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import "./CourseMaterialsPage.css";
 
@@ -252,6 +252,7 @@ export default function CourseMaterialsPage({
   reparseMaterial,
   setPage,
   onQuoteMaterial,
+  initialSearchQuery = "",
 }) {
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -266,6 +267,7 @@ export default function CourseMaterialsPage({
   const [confirmError, setConfirmError] = useState("");
   const [confirmResult, setConfirmResult] = useState(null);
   const [expandedModules, setExpandedModules] = useState(new Set());
+  const appliedInitialSearchRef = useRef("");
 
   const course = getCourseDisplay(subject, getSubjectLabel);
   const currentItems = Array.isArray(materials) ? materials : [];
@@ -318,6 +320,16 @@ export default function CourseMaterialsPage({
   useEffect(() => {
     setMaterialCurrentPage(1);
   }, [subject, query, typeFilter, statusFilter, materialSortMode, setMaterialCurrentPage]);
+
+  useEffect(() => {
+    const nextQuery = String(initialSearchQuery || "").trim();
+    if (!nextQuery) return;
+    if (appliedInitialSearchRef.current === `${subject}:${nextQuery}`) return;
+    appliedInitialSearchRef.current = `${subject}:${nextQuery}`;
+    setQuery(nextQuery);
+    setMaterialCurrentPage(1);
+    searchMaterials?.(nextQuery, subject);
+  }, [initialSearchQuery, searchMaterials, setMaterialCurrentPage, subject]);
 
   useEffect(() => {
     setShowSummary(false);

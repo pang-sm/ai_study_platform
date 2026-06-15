@@ -11619,6 +11619,111 @@ def normalize_knowledge_status(status: str | None) -> str:
     return "not_started"
 
 
+KNOWLEDGE_MAP_SEED_DIR = BASE_DIR / "seed_data" / "knowledge_maps"
+
+
+def _knowledge_map_seed_path(course_id: str) -> Path:
+    safe_course_id = re.sub(r"[^a-zA-Z0-9_-]", "", course_id or "")
+    return KNOWLEDGE_MAP_SEED_DIR / f"{safe_course_id}.json"
+
+
+def _count_knowledge_map_points(nodes: list[dict], include_chapters: bool = False) -> int:
+    total = 0
+    for node in nodes:
+        if include_chapters or "chapter_no" not in node:
+            total += 1
+        total += _count_knowledge_map_points(node.get("children") or [], include_chapters=True)
+    return total
+
+
+def _normalize_map_node_status(status: str | None) -> str:
+    normalized = normalize_knowledge_status(status)
+    return normalized if normalized in {"mastered", "learning", "not_started"} else "not_started"
+
+
+def _attach_knowledge_map_status(nodes: list[dict], progress_by_title: dict[str, str], path_prefix: str = "") -> list[dict]:
+    result = []
+    for index, node in enumerate(nodes, start=1):
+        item = dict(node)
+        node_path = f"{path_prefix}.{index}" if path_prefix else str(index)
+        title = str(item.get("title") or "").strip()
+        item["id"] = item.get("id") or f"seed:{node_path}"
+        item["status"] = _normalize_map_node_status(progress_by_title.get(title))
+        item["children"] = _attach_knowledge_map_status(item.get("children") or [], progress_by_title, node_path)
+        result.append(item)
+    return result
+
+
+@app.get("/knowledge-map")
+def get_knowledge_map(course_id: str, username: str = "", db: Session = Depends(get_db)):
+    normalized_course = (course_id or "").strip()
+    if not normalized_course:
+        raise HTTPException(status_code=400, detail="course_id 不能为空")
+
+    seed_path = _knowledge_map_seed_path(normalized_course)
+    if not seed_path.exists():
+        raise HTTPException(status_code=404, detail="知识脉络数据不存在")
+
+    try:
+        payload = json.loads(seed_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail="知识脉络数据格式错误")
+
+    progress_by_title: dict[str, str] = {}
+    if username:
+        user = get_user_by_username(username, db)
+        rows = (
+            db.query(models.KnowledgePoint, models.UserKnowledgeProgress)
+            .join(
+                models.UserKnowledgeProgress,
+                models.UserKnowledgeProgress.knowledge_point_id == models.KnowledgePoint.id,
+            )
+            .filter(
+                models.KnowledgePoint.username == user.username,
+                models.KnowledgePoint.course_id == normalized_course,
+                models.UserKnowledgeProgress.username == user.username,
+                models.UserKnowledgeProgress.course_id == normalized_course,
+            )
+            .all()
+        )
+        progress_by_title = {
+            point.title: _normalize_map_node_status(progress.status)
+            for point, progress in rows
+            if point.title
+        }
+
+    chapters = _attach_knowledge_map_status(payload.get("chapters") or [], progress_by_title)
+    total = _count_knowledge_map_points(chapters)
+    mastered = 0
+    learning = 0
+
+    def tally(nodes: list[dict], include_self: bool = True):
+        nonlocal mastered, learning
+        for node in nodes:
+            if include_self:
+                if node.get("status") == "mastered":
+                    mastered += 1
+                elif node.get("status") == "learning":
+                    learning += 1
+            tally(node.get("children") or [], True)
+
+    for chapter in chapters:
+        tally(chapter.get("children") or [], True)
+
+    return {
+        "course_id": payload.get("course_id") or normalized_course,
+        "course_name": payload.get("course_name") or "11408 数据结构",
+        "source": payload.get("source") or "",
+        "stats": {
+            "total": total,
+            "mastered": mastered,
+            "learning": learning,
+            "not_started": max(total - mastered - learning, 0),
+        },
+        "chapters": chapters,
+    }
+
+
 @app.put("/knowledge-points/{point_id}/progress")
 def update_knowledge_point_progress(
     point_id: int,

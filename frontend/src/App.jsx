@@ -518,6 +518,17 @@ function App() {
     } else if (context?.courseId) {
       setSubject(normalizeSubject(context.courseId));
     }
+    if (nextPage === "workspaceMaterials") {
+      const nextMaterialSubject = normalizeSubject(context?.courseId || context?.examCourseId || subject);
+      setMaterialSubjectFilter(nextMaterialSubject);
+      setMaterialCurrentPage(1);
+      if (context?.materialKeyword) {
+        setMaterialInitialSearchQuery(String(context.materialKeyword));
+      } else {
+        setMaterialInitialSearchQuery("");
+      }
+      loadMaterials(nextMaterialSubject);
+    }
     if (nextPage === "practiceCenter" && context) {
       setPracticeContext(context);
     } else {
@@ -628,6 +639,7 @@ function App() {
   const [materials, setMaterials] = useState([]);
   const [materialSubjectFilter, setMaterialSubjectFilter] = useState("");
   const [materialSearchQuery, setMaterialSearchQuery] = useState("");
+  const [materialInitialSearchQuery, setMaterialInitialSearchQuery] = useState("");
   const [materialSearchLoading, setMaterialSearchLoading] = useState(false);
   const [materialSearchTriggered, setMaterialSearchTriggered] = useState(false);
   const [materialSearchResults, setMaterialSearchResults] = useState([]);
@@ -3208,6 +3220,7 @@ function App() {
       currentFilterTotalPages={currentFilterTotalPages}
       safeCurrentPage={safeCurrentPage}
       materialSearchQuery={materialSearchQuery}
+      initialSearchQuery={materialInitialSearchQuery}
       handleMaterialSearchChange={handleMaterialSearchChange}
       trimmedMaterialSearchQuery={trimmedMaterialSearchQuery}
       materialSearchTriggered={materialSearchTriggered}

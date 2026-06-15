@@ -8,7 +8,7 @@ export const APP_PAGES = {
   home:              { key: "home",              icon: "🏠",  label: "首页",             group: "core" },
   dashboard:         { key: "dashboard",         icon: "📋",  label: "课程工作台",       group: "core" },
   chat:              { key: "chat",              icon: "💬",  label: "AI 问答",          group: "core" },
-  knowledgeLearning: { key: "knowledgeLearning", icon: "🎯",  label: "知识点学习",       group: "core" },
+  knowledgeLearning: { key: "knowledgeLearning", icon: "🔗",  label: "知识脉络",         group: "core" },
   taskCenter:        { key: "taskCenter",        icon: "✅",  label: "任务中心",         group: "core" },
   practiceCenter:    { key: "practiceCenter",    icon: "📝",  label: "练习中心",         group: "core" },
   codeStudio:        { key: "codeStudio",        icon: "</>", label: "编程学习助手",     group: "core" },
@@ -109,8 +109,8 @@ export const HOME_CORE_FEATURES = [
   {
     id: APP_PAGES.knowledgeLearning.key,
     icon: APP_PAGES.knowledgeLearning.icon,
-    title: "知识点学习",
-    desc: "按知识点体系逐步学习，支持资料路线和平台推荐路线",
+    title: "知识脉络",
+    desc: "按章节查看课程知识结构，快速定位讲义、练习和 AI 问答",
     color: "#0f766e",
   },
 ];
