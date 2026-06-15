@@ -12779,6 +12779,78 @@ def submit_ai_question_attempt(subject_key: str, attempt_id: int, req: dict, db:
     return {"total_questions": total, "correct_count": correct, "wrong_count": total - correct, "accuracy": attempt.accuracy, "results": detailed_results}
 
 
+# ── v2 Unified Question Bank ──
+
+def _serialize_question_bank(item):
+    opts = {}
+    if item.options_json:
+        try: opts = json.loads(item.options_json)
+        except: pass
+    return {"id": item.id, "subject_key": item.subject_key, "source_type": item.source_type,
+            "visibility": item.visibility, "knowledge_point_id": item.knowledge_point_id,
+            "knowledge_point_name": item.knowledge_point_name, "knowledge_point_path": item.knowledge_point_path,
+            "year": item.year, "question_number": item.question_number, "question_type": item.question_type,
+            "stem": item.stem, "options": opts, "standard_answer": item.standard_answer,
+            "analysis": item.analysis, "difficulty": item.difficulty, "quality_status": item.quality_status,
+            "created_at": serialize_datetime(item.created_at)}
+
+
+@app.get("/exam/11408/{subject_key}/question-bank/stats")
+def get_question_bank_stats(subject_key: str, db: Session = Depends(get_db)):
+    if subject_key not in EXAM_SUBJECT_DIRS:
+        raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
+    items = db.query(models.ExamQuestionBank).filter(
+        models.ExamQuestionBank.subject_key == subject_key, models.ExamQuestionBank.is_active == True).all()
+    return {
+        "subject_key": subject_key, "total": len(items),
+        "chapter": sum(1 for i in items if i.source_type == "chapter"),
+        "past_paper": sum(1 for i in items if i.source_type == "past_paper"),
+        "ai_generated": sum(1 for i in items if i.source_type == "ai_generated"),
+        "public": sum(1 for i in items if i.visibility == "public"),
+        "private": sum(1 for i in items if i.visibility == "private"),
+    }
+
+
+@app.get("/exam/11408/{subject_key}/question-bank/questions")
+def get_question_bank_questions(subject_key: str, source_type: str = "", knowledge_point_id: str = "",
+                                 username: str = "", db: Session = Depends(get_db)):
+    if subject_key not in EXAM_SUBJECT_DIRS:
+        raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
+    q = db.query(models.ExamQuestionBank).filter(
+        models.ExamQuestionBank.subject_key == subject_key, models.ExamQuestionBank.is_active == True)
+    if source_type: q = q.filter(models.ExamQuestionBank.source_type == source_type)
+    if knowledge_point_id: q = q.filter(models.ExamQuestionBank.knowledge_point_id == knowledge_point_id)
+    if username: q = q.filter((models.ExamQuestionBank.visibility == "public") |
+                               (models.ExamQuestionBank.owner_username == username.strip()))
+    items = q.order_by(models.ExamQuestionBank.created_at.desc()).all()
+    return {"items": [_serialize_question_bank(i) for i in items], "total": len(items)}
+
+
+@app.post("/exam/11408/{subject_key}/question-bank/questions")
+def create_question_bank_question(subject_key: str, req: dict, db: Session = Depends(get_db)):
+    if subject_key not in EXAM_SUBJECT_DIRS:
+        raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
+    stem = (req.get("stem") or "").strip()
+    if not stem: raise HTTPException(status_code=400, detail="stem is required")
+    qtype = (req.get("question_type") or "choice").strip()
+    item = models.ExamQuestionBank(
+        subject_key=subject_key, subject_name=EXAM_SUBJECT_DIRS.get(subject_key, subject_key),
+        source_type=(req.get("source_type") or "chapter").strip(),
+        visibility=(req.get("visibility") or "public").strip(),
+        owner_username=(req.get("owner_username") or "").strip() or None,
+        knowledge_point_id=(req.get("knowledge_point_id") or "").strip() or None,
+        knowledge_point_name=(req.get("knowledge_point_name") or "").strip() or None,
+        knowledge_point_path=(req.get("knowledge_point_path") or "").strip() or None,
+        question_type=qtype, stem=stem,
+        options_json=json.dumps(req.get("options") or {}, ensure_ascii=False),
+        standard_answer=(req.get("standard_answer") or "").strip() or None,
+        analysis=(req.get("analysis") or "").strip() or None,
+        difficulty=(req.get("difficulty") or "").strip() or None,
+    )
+    db.add(item); db.commit(); db.refresh(item)
+    return {"success": True, "id": item.id, "item": _serialize_question_bank(item)}
+
+
 @app.post("/exam/11408/{subject_key}/ai-questions/generate")
 def generate_exam_ai_questions(subject_key: str, req: dict, db: Session = Depends(get_db)):
     if subject_key not in EXAM_SUBJECT_DIRS:

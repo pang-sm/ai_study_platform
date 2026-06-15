@@ -725,6 +725,111 @@ class AIQuestionAttempt(Base):
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
 
+# ── v2 Unified Models ──
+
+class ExamQuestionBank(Base):
+    __tablename__ = "exam_question_bank"
+    id = Column(Integer, primary_key=True, index=True)
+    subject_key = Column(String(50), index=True, nullable=False)
+    subject_name = Column(String(50), nullable=True)
+    source_type = Column(String(30), index=True, nullable=False, default="chapter")
+    visibility = Column(String(20), nullable=False, default="public")
+    owner_username = Column(String(50), nullable=True)
+    knowledge_point_id = Column(String(100), nullable=True)
+    knowledge_point_name = Column(String(255), nullable=True)
+    knowledge_point_path = Column(Text, nullable=True)
+    year = Column(Integer, nullable=True)
+    question_number = Column(Integer, nullable=True)
+    question_type = Column(String(30), nullable=False, default="choice")
+    stem = Column(Text, nullable=False)
+    options_json = Column(Text, nullable=True)
+    standard_answer = Column(Text, nullable=True)
+    analysis = Column(Text, nullable=True)
+    difficulty = Column(String(30), nullable=True)
+    source_ref = Column(Text, nullable=True)
+    generation_mode = Column(String(30), nullable=True)
+    quality_status = Column(String(20), nullable=True, default="unchecked")
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+
+class ExamPracticeAttempt(Base):
+    __tablename__ = "exam_practice_attempts"
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), index=True, nullable=False)
+    subject_key = Column(String(50), nullable=False)
+    practice_type = Column(String(30), nullable=False, default="chapter")
+    source_type = Column(String(30), nullable=True)
+    status = Column(String(20), nullable=False, default="in_progress")
+    title = Column(String(255), nullable=True)
+    knowledge_point_id = Column(String(100), nullable=True)
+    knowledge_point_name = Column(String(255), nullable=True)
+    knowledge_point_path = Column(Text, nullable=True)
+    year = Column(Integer, nullable=True)
+    question_ids_json = Column(Text, nullable=True)
+    answers_json = Column(Text, nullable=True)
+    result_json = Column(Text, nullable=True)
+    total_questions = Column(Integer, nullable=False, default=0)
+    correct_count = Column(Integer, nullable=True)
+    wrong_count = Column(Integer, nullable=True)
+    accuracy = Column(Float, nullable=True)
+    started_at = Column(DateTime, default=utc_now)
+    submitted_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+
+class ExamWrongQuestion(Base):
+    __tablename__ = "exam_wrong_questions"
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), index=True, nullable=False)
+    subject_key = Column(String(50), index=True, nullable=False)
+    question_bank_id = Column(Integer, nullable=True)
+    practice_attempt_id = Column(Integer, nullable=True)
+    source_type = Column(String(30), nullable=True)
+    practice_type = Column(String(30), nullable=True)
+    knowledge_point_id = Column(String(100), nullable=True)
+    knowledge_point_name = Column(String(255), nullable=True)
+    knowledge_point_path = Column(Text, nullable=True)
+    year = Column(Integer, nullable=True)
+    question_number = Column(Integer, nullable=True)
+    question_type = Column(String(30), nullable=True)
+    stem_snapshot = Column(Text, nullable=True)
+    options_snapshot_json = Column(Text, nullable=True)
+    standard_answer_snapshot = Column(Text, nullable=True)
+    analysis_snapshot = Column(Text, nullable=True)
+    user_answer = Column(Text, nullable=True)
+    score = Column(Integer, nullable=True)
+    wrong_reason = Column(Text, nullable=True)
+    status = Column(String(20), nullable=False, default="active")
+    mastered = Column(Boolean, nullable=False, default=False)
+    review_count = Column(Integer, nullable=False, default=0)
+    resolved_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+
+class ExamFavoriteQuestionV2(Base):
+    __tablename__ = "exam_favorite_questions_v2"
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), index=True, nullable=False)
+    subject_key = Column(String(50), index=True, nullable=False)
+    question_bank_id = Column(Integer, nullable=True)
+    source_type = Column(String(30), nullable=True)
+    knowledge_point_id = Column(String(100), nullable=True)
+    knowledge_point_name = Column(String(255), nullable=True)
+    knowledge_point_path = Column(Text, nullable=True)
+    year = Column(Integer, nullable=True)
+    question_number = Column(Integer, nullable=True)
+    question_type = Column(String(30), nullable=True)
+    stem_snapshot = Column(Text, nullable=True)
+    options_snapshot_json = Column(Text, nullable=True)
+    standard_answer_snapshot = Column(Text, nullable=True)
+    analysis_snapshot = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+
+
 class PastPaperAttempt(Base):
     __tablename__ = "past_paper_attempts"
 
