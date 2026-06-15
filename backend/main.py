@@ -12048,14 +12048,14 @@ if _exam_static.exists():
     app.mount("/static/exam_papers", StaticFiles(directory=str(_exam_static)), name="exam_static")
 
 
-@app.get("/api/exam/11408/{subject_key}/past-papers")
+@app.get("/exam/11408/{subject_key}/past-papers")
 def get_exam_past_papers(subject_key: str):
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
     return exam_paper_parser.get_subject_past_papers(subject_key)
 
 
-@app.get("/api/exam/11408/{subject_key}/past-paper-questions")
+@app.get("/exam/11408/{subject_key}/past-paper-questions")
 def get_past_paper_questions(subject_key: str, year: int = 0):
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
@@ -12064,7 +12064,7 @@ def get_past_paper_questions(subject_key: str, year: int = 0):
     return exam_paper_parser.get_year_questions(subject_key, year)
 
 
-@app.post("/api/exam/11408/{subject_key}/past-paper-attempts")
+@app.post("/exam/11408/{subject_key}/past-paper-attempts")
 def create_past_paper_attempt(subject_key: str, req: dict, db: Session = Depends(get_db)):
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
@@ -12094,7 +12094,7 @@ def create_past_paper_attempt(subject_key: str, req: dict, db: Session = Depends
             "year": year, "status": "in_progress", "total_questions": total}
 
 
-@app.get("/api/exam/11408/{subject_key}/past-paper-attempts/{attempt_id}")
+@app.get("/exam/11408/{subject_key}/past-paper-attempts/{attempt_id}")
 def get_past_paper_attempt(subject_key: str, attempt_id: int, db: Session = Depends(get_db)):
     attempt = db.query(models.PastPaperAttempt).filter(models.PastPaperAttempt.id == attempt_id).first()
     if not attempt:
@@ -12117,7 +12117,7 @@ def get_past_paper_attempt(subject_key: str, attempt_id: int, db: Session = Depe
     }
 
 
-@app.post("/api/exam/11408/{subject_key}/past-paper-attempts/{attempt_id}/answers")
+@app.post("/exam/11408/{subject_key}/past-paper-attempts/{attempt_id}/answers")
 def save_attempt_answers(subject_key: str, attempt_id: int, req: dict, db: Session = Depends(get_db)):
     attempt = db.query(models.PastPaperAttempt).filter(models.PastPaperAttempt.id == attempt_id).first()
     if not attempt:
@@ -12129,7 +12129,7 @@ def save_attempt_answers(subject_key: str, attempt_id: int, req: dict, db: Sessi
     return {"success": True, "attempt_id": attempt_id}
 
 
-@app.post("/api/exam/11408/{subject_key}/past-paper-attempts/{attempt_id}/submit")
+@app.post("/exam/11408/{subject_key}/past-paper-attempts/{attempt_id}/submit")
 def submit_attempt(subject_key: str, attempt_id: int, req: dict, db: Session = Depends(get_db)):
     attempt = db.query(models.PastPaperAttempt).filter(models.PastPaperAttempt.id == attempt_id).first()
     if not attempt:
