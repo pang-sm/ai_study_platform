@@ -12761,7 +12761,21 @@ def submit_ai_question_attempt(subject_key: str, attempt_id: int, req: dict, db:
     attempt.correct_count = correct; attempt.accuracy = round(correct / total * 100, 1) if total > 0 else 0
     attempt.result_json = json.dumps({"correct": correct, "total": total, "results": results}, ensure_ascii=False)
     db.commit()
-    return {"total_questions": total, "correct": correct, "accuracy": attempt.accuracy, "results": results}
+    detailed_results = []
+    for r in results:
+        item = items.get(r["question_id"])
+        dr = dict(r)
+        if item:
+            dr["stem"] = item.stem or ""
+            opts = {}
+            if item.options_json:
+                try: opts = json.loads(item.options_json)
+                except: pass
+            dr["options"] = opts
+            dr["analysis"] = item.analysis or ""
+            dr["question_type"] = item.question_type
+        detailed_results.append(dr)
+    return {"total_questions": total, "correct_count": correct, "wrong_count": total - correct, "accuracy": attempt.accuracy, "results": detailed_results}
 
 
 @app.post("/exam/11408/{subject_key}/ai-questions/generate")

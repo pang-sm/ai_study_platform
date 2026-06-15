@@ -619,7 +619,7 @@ function AIQuestionPracticePage({ subjectInfo, user, onBack }) {
                       if(qids.length===0){setAiError("该分组无可练习题目");return}
                       try{const r=await safeJsonFetch(`${API_BASE}/exam/11408/${subjectInfo.key}/ai-questions/attempts`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:user.username,knowledge_point_id:g.knowledge_point_id,knowledge_point_path:g.knowledge_point_path,question_ids:qids})});
                       window.open(`/exam/11408/${subjectInfo.key}/ai-questions/attempt/${r.attempt_id}`,"_blank");}catch(err){setAiError(err.message)}
-                    }}>开始练习</button>
+                    }} className="ai-group-start-btn">开始练习</button>
                     <button className="ghost-button compact" onClick={()=>setAiManageGroupKey(g.group_key)}>管理题目</button>
                   </div>
                 </div>
