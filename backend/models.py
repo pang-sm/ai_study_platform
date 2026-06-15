@@ -676,6 +676,28 @@ class ExamFavoriteQuestion(Base):
     created_at = Column(DateTime, default=utc_now)
 
 
+class AIGeneratedQuestion(Base):
+    __tablename__ = "ai_generated_questions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), index=True, nullable=False)
+    subject_key = Column(String(50), index=True, nullable=False)
+    subject_name = Column(String(50), nullable=True)
+    knowledge_point_id = Column(String(100), nullable=True)
+    knowledge_point_name = Column(String(255), nullable=True)
+    knowledge_point_path = Column(Text, nullable=True)
+    question_type = Column(String(30), nullable=False)
+    stem = Column(Text, nullable=False)
+    options_json = Column(Text, nullable=True)
+    standard_answer = Column(Text, nullable=True)
+    analysis = Column(Text, nullable=True)
+    difficulty = Column(String(30), nullable=True)
+    requirement = Column(Text, nullable=True)
+    generation_prompt = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+
 class PastPaperAttempt(Base):
     __tablename__ = "past_paper_attempts"
 

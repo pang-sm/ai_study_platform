@@ -12055,6 +12055,99 @@ def get_exam_past_papers(subject_key: str):
     return exam_paper_parser.get_subject_past_papers(subject_key)
 
 
+def _minutes_between(start, end) -> int:
+    if not start or not end:
+        return 0
+    try:
+        seconds = max(0, (end - start).total_seconds())
+        return int(round(seconds / 60))
+    except Exception:
+        return 0
+
+
+@app.get("/exam/11408/{subject_key}/practice/stats")
+def get_exam_practice_stats(subject_key: str, username: str, db: Session = Depends(get_db)):
+    if subject_key not in EXAM_SUBJECT_DIRS:
+        raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
+    username = (username or "").strip()
+    if not username:
+        raise HTTPException(status_code=400, detail="username is required")
+
+    breakdown = {
+        "past_paper": {"total": 0, "completed": 0},
+        "chapter": {"total": 0, "completed": 0},
+        "ai_generated": {"total": 0, "completed": 0},
+        "wrong": {"total": 0, "completed": 0},
+        "favorite": {"total": 0, "completed": 0},
+    }
+
+    attempts = db.query(models.PastPaperAttempt).filter(
+        models.PastPaperAttempt.username == username,
+        models.PastPaperAttempt.subject_key == subject_key,
+    ).all()
+    breakdown["past_paper"]["total"] = len(attempts)
+    completed_attempts = [a for a in attempts if (a.status or "").lower() in {"submitted", "completed"}]
+    breakdown["past_paper"]["completed"] = len(completed_attempts)
+
+    ai_questions = db.query(models.AIGeneratedQuestion).filter(
+        models.AIGeneratedQuestion.username == username,
+        models.AIGeneratedQuestion.subject_key == subject_key,
+    ).count()
+    breakdown["ai_generated"]["total"] = ai_questions
+    breakdown["ai_generated"]["completed"] = 0
+
+    wrong_questions = db.query(models.PastPaperWrongQuestion).filter(
+        models.PastPaperWrongQuestion.username == username,
+        models.PastPaperWrongQuestion.subject_key == subject_key,
+    ).count()
+    breakdown["wrong"]["total"] = wrong_questions
+    breakdown["wrong"]["completed"] = 0
+
+    favorite_questions = db.query(models.ExamFavoriteQuestion).filter(
+        models.ExamFavoriteQuestion.username == username,
+        models.ExamFavoriteQuestion.subject_key == subject_key,
+    ).count()
+    breakdown["favorite"]["total"] = favorite_questions
+    breakdown["favorite"]["completed"] = 0
+
+    total_score = 0.0
+    max_score = 0.0
+    correct_choices = 0
+    total_choices = 0
+    for attempt in completed_attempts:
+        if attempt.total_score is not None and attempt.max_score:
+            total_score += float(attempt.total_score or 0)
+            max_score += float(attempt.max_score or 0)
+        elif attempt.result_json:
+            try:
+                result = json.loads(attempt.result_json)
+                correct_choices += int(result.get("choice_correct") or 0)
+                total_choices += int(result.get("choice_total") or 0)
+            except Exception:
+                pass
+
+    if max_score > 0:
+        accuracy = round(total_score / max_score * 100)
+    elif total_choices > 0:
+        accuracy = round(correct_choices / total_choices * 100)
+    else:
+        accuracy = 0  # TODO: include chapter/wrong/favorite practice accuracy once those attempts exist.
+
+    duration_minutes = sum(_minutes_between(a.started_at, a.submitted_at) for a in completed_attempts)
+    total_practices = sum(item["total"] for item in breakdown.values())
+    completed_practices = breakdown["past_paper"]["completed"]
+
+    return {
+        "subject_key": subject_key,
+        "subject_name": EXAM_SUBJECT_DIRS.get(subject_key, subject_key),
+        "total_practices": total_practices,
+        "completed_practices": completed_practices,
+        "accuracy": accuracy,
+        "total_duration_minutes": duration_minutes,
+        "source_breakdown": breakdown,
+    }
+
+
 @app.get("/exam/11408/{subject_key}/past-paper-questions")
 def get_past_paper_questions(subject_key: str, year: int = 0):
     if subject_key not in EXAM_SUBJECT_DIRS:
@@ -12273,6 +12366,188 @@ def delete_exam_favorite(subject_key: str, favorite_id: int, username: str, db: 
     ).first()
     if not item:
         raise HTTPException(status_code=404, detail="favorite not found")
+    db.delete(item)
+    db.commit()
+    return {"success": True}
+
+
+def _serialize_ai_generated_question(item: models.AIGeneratedQuestion):
+    options = {}
+    if item.options_json:
+        try:
+            options = json.loads(item.options_json)
+        except Exception:
+            options = {}
+    return {
+        "id": item.id,
+        "username": item.username,
+        "subject_key": item.subject_key,
+        "subject_name": item.subject_name or EXAM_SUBJECT_DIRS.get(item.subject_key, item.subject_key),
+        "knowledge_point_id": item.knowledge_point_id or "",
+        "knowledge_point_name": item.knowledge_point_name or "",
+        "knowledge_point_path": item.knowledge_point_path or "",
+        "question_type": item.question_type,
+        "stem": item.stem,
+        "options": options,
+        "standard_answer": item.standard_answer or "",
+        "analysis": item.analysis or "",
+        "difficulty": item.difficulty or "",
+        "requirement": item.requirement or "",
+        "created_at": serialize_datetime(item.created_at),
+        "updated_at": serialize_datetime(item.updated_at),
+    }
+
+
+def _normalize_ai_question_type(raw: str) -> str:
+    value = (raw or "").strip().lower()
+    if value in {"big", "大题", "subjective"}:
+        return "大题"
+    return "选择题"
+
+
+def _normalize_ai_difficulty(raw: str) -> str:
+    value = (raw or "").strip().lower()
+    if value in {"basic", "基础"}:
+        return "基础"
+    if value in {"advanced", "提高"}:
+        return "提高"
+    return "中等"
+
+
+def _build_mock_ai_question(subject_name: str, kp_name: str, kp_path: str, question_type: str, difficulty: str, index: int):
+    scope = kp_name or kp_path or subject_name or "当前科目"
+    if question_type == "大题":
+        return {
+            "stem": f"【模拟生成】围绕“{scope}”，设计一个符合 11408 风格的算法题，并说明核心思路与复杂度分析。（第 {index} 题）",
+            "options": {},
+            "standard_answer": "参考答案：明确数据结构定义，给出算法步骤，说明关键边界条件，并分析时间复杂度和空间复杂度。",
+            "analysis": f"本题为 {difficulty} 难度 mock 题，考查范围为：{kp_path or scope}。答题时应先说明问题建模，再给出算法流程和复杂度。",
+        }
+    return {
+        "stem": f"【模拟生成】关于“{scope}”的说法，下列正确的是（  ）。（第 {index} 题）",
+        "options": {
+            "A": "相关数据元素之间一定不存在逻辑关系",
+            "B": "应结合逻辑结构、存储结构和基本运算综合理解",
+            "C": "只能采用顺序存储结构实现",
+            "D": "在 11408 考查中不会涉及复杂度分析",
+        },
+        "standard_answer": "B",
+        "analysis": f"本题为 {difficulty} 难度 mock 选择题。数据结构知识点通常需要从逻辑结构、存储结构和运算三个层面综合判断，因此 B 更符合考查要求。",
+    }
+
+
+@app.get("/exam/11408/{subject_key}/ai-questions")
+def get_exam_ai_questions(subject_key: str, username: str, db: Session = Depends(get_db)):
+    if subject_key not in EXAM_SUBJECT_DIRS:
+        raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
+    username = (username or "").strip()
+    if not username:
+        raise HTTPException(status_code=400, detail="username is required")
+    items = db.query(models.AIGeneratedQuestion).filter(
+        models.AIGeneratedQuestion.username == username,
+        models.AIGeneratedQuestion.subject_key == subject_key,
+    ).order_by(models.AIGeneratedQuestion.created_at.desc(), models.AIGeneratedQuestion.id.desc()).all()
+    return {"items": [_serialize_ai_generated_question(item) for item in items], "total": len(items)}
+
+
+@app.post("/exam/11408/{subject_key}/ai-questions/generate")
+def generate_exam_ai_questions(subject_key: str, req: dict, db: Session = Depends(get_db)):
+    if subject_key not in EXAM_SUBJECT_DIRS:
+        raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
+    username = (req.get("username") or "").strip()
+    if not username:
+        raise HTTPException(status_code=400, detail="请先登录")
+    try:
+        count = int(req.get("count") or 0)
+    except Exception:
+        count = 0
+    if count < 1 or count > 10:
+        raise HTTPException(status_code=400, detail="count must be between 1 and 10")
+
+    subject_name = EXAM_SUBJECT_DIRS.get(subject_key, subject_key)
+    kp_id = str(req.get("knowledge_point_id") or "").strip()
+    kp_name = str(req.get("knowledge_point_name") or "").strip()
+    kp_path = str(req.get("knowledge_point_path") or "").strip()
+    question_type = _normalize_ai_question_type(str(req.get("question_type") or ""))
+    difficulty = _normalize_ai_difficulty(str(req.get("difficulty") or ""))
+    requirement = str(req.get("requirement") or "").strip()
+    now = utc_now()
+    created_items = []
+
+    for index in range(1, count + 1):
+        mock = _build_mock_ai_question(subject_name, kp_name, kp_path, question_type, difficulty, index)
+        item = models.AIGeneratedQuestion(
+            username=username,
+            subject_key=subject_key,
+            subject_name=subject_name,
+            knowledge_point_id=kp_id,
+            knowledge_point_name=kp_name,
+            knowledge_point_path=kp_path,
+            question_type=question_type,
+            stem=mock["stem"],
+            options_json=json.dumps(mock["options"], ensure_ascii=False),
+            standard_answer=mock["standard_answer"],
+            analysis=mock["analysis"],
+            difficulty=difficulty,
+            requirement=requirement,
+            generation_prompt=json.dumps({
+                "mock": True,
+                "subject_key": subject_key,
+                "knowledge_point_path": kp_path,
+                "question_type": question_type,
+                "count": count,
+                "difficulty": difficulty,
+                "requirement": requirement,
+            }, ensure_ascii=False),
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(item)
+        created_items.append(item)
+
+    db.commit()
+    for item in created_items:
+        db.refresh(item)
+    return {"success": True, "items": [_serialize_ai_generated_question(item) for item in created_items]}
+
+
+@app.patch("/exam/11408/{subject_key}/ai-questions/{question_id}")
+def update_exam_ai_question(subject_key: str, question_id: int, req: dict, db: Session = Depends(get_db)):
+    username = (req.get("username") or "").strip()
+    item = db.query(models.AIGeneratedQuestion).filter(
+        models.AIGeneratedQuestion.id == question_id,
+        models.AIGeneratedQuestion.username == username,
+        models.AIGeneratedQuestion.subject_key == subject_key,
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="AI question not found")
+
+    if "stem" in req:
+        item.stem = str(req.get("stem") or "")
+    if "options" in req:
+        item.options_json = json.dumps(req.get("options") or {}, ensure_ascii=False)
+    if "standard_answer" in req:
+        item.standard_answer = str(req.get("standard_answer") or "")
+    if "analysis" in req:
+        item.analysis = str(req.get("analysis") or "")
+    if "difficulty" in req:
+        item.difficulty = _normalize_ai_difficulty(str(req.get("difficulty") or ""))
+    item.updated_at = utc_now()
+    db.commit()
+    db.refresh(item)
+    return {"success": True, "item": _serialize_ai_generated_question(item)}
+
+
+@app.delete("/exam/11408/{subject_key}/ai-questions/{question_id}")
+def delete_exam_ai_question(subject_key: str, question_id: int, username: str, db: Session = Depends(get_db)):
+    username = (username or "").strip()
+    item = db.query(models.AIGeneratedQuestion).filter(
+        models.AIGeneratedQuestion.id == question_id,
+        models.AIGeneratedQuestion.username == username,
+        models.AIGeneratedQuestion.subject_key == subject_key,
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="AI question not found")
     db.delete(item)
     db.commit()
     return {"success": True}

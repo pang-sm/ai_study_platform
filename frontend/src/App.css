@@ -19870,6 +19870,13 @@ select.field:focus {
   margin-bottom: 20px;
 }
 
+.practice-stats-note {
+  margin: -4px 0 10px;
+  color: #7c3aed;
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
 .practice-stats-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -20452,6 +20459,47 @@ select.field:focus {
   color: rgba(255, 255, 255, 0.9);
   box-shadow: none;
   opacity: 0.72;
+}
+
+.ai-question-bank-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 620px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.ai-question-bank-item {
+  border: 1px solid #e8e0f0;
+  border-radius: 12px;
+  padding: 14px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.04);
+}
+
+.ai-question-options {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0;
+  padding: 10px;
+  border-radius: 10px;
+  background: #faf8ff;
+  color: #344054;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.ai-question-bank-meta {
+  margin: 8px 0 10px;
+  color: #94a3b8;
+  font-size: 0.74rem;
+}
+
+.ai-question-edit-form {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0;
 }
 
 .past-paper-favorite-btn {

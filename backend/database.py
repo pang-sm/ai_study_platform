@@ -241,6 +241,25 @@ EXAM_FAVORITE_QUESTIONS_COLUMNS = {
     "created_at": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
 }
 
+AI_GENERATED_QUESTIONS_COLUMNS = {
+    "username": "VARCHAR(50) NOT NULL",
+    "subject_key": "VARCHAR(50) NOT NULL",
+    "subject_name": "VARCHAR(50)",
+    "knowledge_point_id": "VARCHAR(100)",
+    "knowledge_point_name": "VARCHAR(255)",
+    "knowledge_point_path": "TEXT",
+    "question_type": "VARCHAR(30) NOT NULL",
+    "stem": "TEXT NOT NULL DEFAULT ''",
+    "options_json": "TEXT",
+    "standard_answer": "TEXT",
+    "analysis": "TEXT",
+    "difficulty": "VARCHAR(30)",
+    "requirement": "TEXT",
+    "generation_prompt": "TEXT",
+    "created_at": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+    "updated_at": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+}
+
 LEARNING_TASKS_COLUMNS = {
     "username": "VARCHAR(50) NOT NULL",
     "course_id": "VARCHAR(100)",
@@ -1101,6 +1120,35 @@ def ensure_exam_favorite_questions_schema(conn):
     ensure_columns(conn, "exam_favorite_questions", EXAM_FAVORITE_QUESTIONS_COLUMNS)
 
 
+def ensure_ai_generated_questions_schema(conn):
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS ai_generated_questions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username VARCHAR(50) NOT NULL,
+                subject_key VARCHAR(50) NOT NULL,
+                subject_name VARCHAR(50),
+                knowledge_point_id VARCHAR(100),
+                knowledge_point_name VARCHAR(255),
+                knowledge_point_path TEXT,
+                question_type VARCHAR(30) NOT NULL,
+                stem TEXT NOT NULL DEFAULT '',
+                options_json TEXT,
+                standard_answer TEXT,
+                analysis TEXT,
+                difficulty VARCHAR(30),
+                requirement TEXT,
+                generation_prompt TEXT,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+    )
+    ensure_columns(conn, "ai_generated_questions", AI_GENERATED_QUESTIONS_COLUMNS)
+
+
 def ensure_knowledge_points_schema(conn):
     conn.execute(
         text(
@@ -1537,6 +1585,7 @@ def init_user_profile_schema():
         ensure_question_attempts_schema(conn)
         ensure_past_paper_wrong_questions_schema(conn)
         ensure_exam_favorite_questions_schema(conn)
+        ensure_ai_generated_questions_schema(conn)
         ensure_practice_import_jobs_schema(conn)
         ensure_knowledge_points_schema(conn)
         ensure_user_knowledge_progress_schema(conn)

@@ -4,10 +4,10 @@ import ExamPastPaperPractice from "./ExamPastPaperPractice.jsx";
 const API_BASE = "/api";
 
 const EXAM_SUBJECTS = {
-  data_structure: { label: "数据结构", shortLabel: "数据结构", courseId: "data_structure_11408" },
-  computer_organization: { label: "计算机组成原理", shortLabel: "计组", courseId: "computer_organization_11408" },
-  operating_system: { label: "操作系统", shortLabel: "操作系统", courseId: "operating_system_11408" },
-  computer_network: { label: "计算机网络", shortLabel: "计网", courseId: "computer_network_11408" },
+  data_structure: { key: "data_structure", label: "数据结构", shortLabel: "数据结构", courseId: "data_structure_11408" },
+  computer_organization: { key: "computer_organization", label: "计算机组成原理", shortLabel: "计组", courseId: "computer_organization_11408" },
+  operating_system: { key: "operating_system", label: "操作系统", shortLabel: "操作系统", courseId: "operating_system_11408" },
+  computer_network: { key: "computer_network", label: "计算机网络", shortLabel: "计网", courseId: "computer_network_11408" },
 };
 
 const SOURCE_LABELS = {
@@ -179,6 +179,13 @@ function PracticeSubPageHeader({ title, subtitle, subjectInfo, onBack }) {
       </div>
     </div>
   );
+}
+
+function formatPracticeDuration(minutes = 0) {
+  const safeMinutes = Number.isFinite(Number(minutes)) ? Math.max(0, Number(minutes)) : 0;
+  if (safeMinutes < 60) return `${Math.round(safeMinutes)}m`;
+  const hours = safeMinutes / 60;
+  return `${Number.isInteger(hours) ? hours : hours.toFixed(1)}h`;
 }
 
 function ChapterPracticePage({ subjectInfo, user, onBack }) {
@@ -384,6 +391,14 @@ function AIQuestionPracticePage({ subjectInfo, user, onBack }) {
   const [questionType, setQuestionType] = useState("choice");
   const [count, setCount] = useState(5);
   const [difficulty, setDifficulty] = useState("medium");
+  const [requirement, setRequirement] = useState("");
+  const [aiQuestions, setAiQuestions] = useState([]);
+  const [aiLoading, setAiLoading] = useState(true);
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiMessage, setAiMessage] = useState("");
+  const [aiError, setAiError] = useState("");
+  const [editingQuestionId, setEditingQuestionId] = useState(null);
+  const [editDraft, setEditDraft] = useState({ stem: "", standard_answer: "", analysis: "" });
 
   useEffect(() => {
     const params = new URLSearchParams({ course_id: subjectInfo.courseId });
@@ -392,6 +407,113 @@ function AIQuestionPracticePage({ subjectInfo, user, onBack }) {
       .then((payload) => setMapData(payload))
       .catch(() => setMapData({ chapters: [] }));
   }, [subjectInfo.courseId, user?.username]);
+
+  const loadAiQuestions = () => {
+    if (!user?.username) {
+      setAiQuestions([]);
+      setAiLoading(false);
+      return;
+    }
+    setAiLoading(true);
+    const params = new URLSearchParams({ username: user.username });
+    safeJsonFetch(`${API_BASE}/exam/11408/${subjectInfo.key || "data_structure"}/ai-questions?${params.toString()}`)
+      .then((payload) => {
+        setAiQuestions(payload.items || []);
+        setAiError("");
+      })
+      .catch((err) => setAiError(`加载 AI 题库失败：${err.message || "服务器错误"}`))
+      .finally(() => setAiLoading(false));
+  };
+
+  useEffect(() => {
+    loadAiQuestions();
+  }, [subjectInfo.key, user?.username]);
+
+  const parsedCount = Number(count);
+  const countInvalid = !Number.isInteger(parsedCount) || parsedCount < 1 || parsedCount > 10;
+
+  const handleGenerateAIQuestions = async () => {
+    setAiError("");
+    setAiMessage("");
+    if (!user?.username) {
+      setAiError("生成失败：请先登录。");
+      return;
+    }
+    if (countInvalid) {
+      setAiError("生成失败：题目数量必须是 1-10 的整数。");
+      return;
+    }
+    setAiGenerating(true);
+    try {
+      const payload = {
+        username: user.username,
+        knowledge_point_id: selectedPoint?.node?.code || selectedPoint?.node?.id || "",
+        knowledge_point_name: selectedPoint?.node?.title || selectedPoint?.node?.name || "",
+        knowledge_point_path: selectedPoint?.path || "",
+        question_type: questionType === "big" ? "大题" : "选择题",
+        count: parsedCount,
+        difficulty,
+        requirement,
+      };
+      const result = await safeJsonFetch(`${API_BASE}/exam/11408/${subjectInfo.key || "data_structure"}/ai-questions/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      setAiQuestions((prev) => [...(result.items || []), ...prev]);
+      setAiMessage(`已生成 ${result.items?.length || 0} 道 mock 题。`);
+    } catch (err) {
+      setAiError(`生成失败：${err.message || "服务器错误"}`);
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
+  const startEditQuestion = (item) => {
+    setEditingQuestionId(item.id);
+    setEditDraft({
+      stem: item.stem || "",
+      standard_answer: item.standard_answer || "",
+      analysis: item.analysis || "",
+    });
+  };
+
+  const saveEditQuestion = async (item) => {
+    if (!user?.username) {
+      setAiError("保存失败：请先登录。");
+      return;
+    }
+    try {
+      const result = await safeJsonFetch(`${API_BASE}/exam/11408/${subjectInfo.key || "data_structure"}/ai-questions/${item.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: user.username, ...editDraft }),
+      });
+      setAiQuestions((prev) => prev.map((q) => (q.id === item.id ? result.item : q)));
+      setEditingQuestionId(null);
+      setAiMessage("题目已保存。");
+      setAiError("");
+    } catch (err) {
+      setAiError(`保存失败：${err.message || "服务器错误"}`);
+    }
+  };
+
+  const deleteAiQuestion = async (item) => {
+    if (!user?.username) {
+      setAiError("删除失败：请先登录。");
+      return;
+    }
+    try {
+      await safeJsonFetch(`${API_BASE}/exam/11408/${subjectInfo.key || "data_structure"}/ai-questions/${item.id}?username=${encodeURIComponent(user.username)}`, {
+        method: "DELETE",
+      });
+      setAiQuestions((prev) => prev.filter((q) => q.id !== item.id));
+      setAiMessage("题目已删除。");
+      setAiError("");
+    } catch (err) {
+      setAiError(`删除失败：${err.message || "服务器错误"}`);
+    }
+  };
 
   return (
     <div className="exam-practice-subpage">
@@ -419,6 +541,7 @@ function AIQuestionPracticePage({ subjectInfo, user, onBack }) {
             <span>题目数量</span>
             <input className="field" type="number" min="1" max="10" value={count} onChange={(event) => setCount(event.target.value)} />
           </label>
+          {countInvalid && <div className="km-inline-message km-inline-message--error">题目数量必须是 1-10 的整数。</div>}
           <label className="form-field">
             <span>难度</span>
             <select className="field" value={difficulty} onChange={(event) => setDifficulty(event.target.value)}>
@@ -429,23 +552,76 @@ function AIQuestionPracticePage({ subjectInfo, user, onBack }) {
           </label>
           <label className="form-field">
             <span>生成要求</span>
-            <textarea className="field" rows={4} placeholder="例如：贴近 11408 真题，考查核心概念，不要偏题" />
+            <textarea className="field" rows={4} placeholder="例如：贴近 11408 真题，考查核心概念，不要偏题" value={requirement} onChange={(event) => setRequirement(event.target.value)} />
           </label>
-          <button type="button" className="ai-generate-submit-btn" disabled>生成题目</button>
+          {aiError && <div className="km-inline-message km-inline-message--error">{aiError}</div>}
+          {aiMessage && <div className="km-inline-message">{aiMessage}</div>}
+          <button type="button" className="ai-generate-submit-btn" disabled={aiGenerating || countInvalid} onClick={handleGenerateAIQuestions}>
+            {aiGenerating ? "生成中..." : "生成题目"}
+          </button>
         </section>
         <section className="exam-practice-panel">
           <div className="exam-practice-panel-title">
             <h3>AI 题库</h3>
           </div>
-          <div className="exam-practice-empty-state">
-            <strong>暂无 AI 生成题目</strong>
-            <p>题库列表已预留编辑、删除和开始练习入口。</p>
-          </div>
-          <div className="exam-practice-action-row">
-            <button type="button" className="ghost-button compact" disabled>编辑</button>
-            <button type="button" className="ghost-button compact" disabled>删除</button>
-            <button type="button" className="ghost-button compact" disabled>开始练习</button>
-          </div>
+          {aiLoading ? (
+            <div className="past-paper-loading">正在加载 AI 题库...</div>
+          ) : aiQuestions.length === 0 ? (
+            <div className="exam-practice-empty-state">
+              <strong>暂无 AI 生成题目</strong>
+              <p>点击左侧“生成题目”后，mock 题会保存到当前用户的私有列表。</p>
+            </div>
+          ) : (
+            <div className="ai-question-bank-list">
+              {aiQuestions.map((item) => {
+                const editing = editingQuestionId === item.id;
+                return (
+                  <article key={item.id} className="ai-question-bank-item">
+                    <div className="past-paper-question-meta">
+                      <span className="past-paper-q-type">{item.question_type}</span>
+                      <span className="past-paper-q-number">{item.difficulty || "中等"}</span>
+                      {item.knowledge_point_path && <span className="past-paper-q-year">{item.knowledge_point_path}</span>}
+                    </div>
+                    {editing ? (
+                      <div className="ai-question-edit-form">
+                        <textarea className="field" rows={4} value={editDraft.stem} onChange={(event) => setEditDraft((prev) => ({ ...prev, stem: event.target.value }))} />
+                        <input className="field" value={editDraft.standard_answer} onChange={(event) => setEditDraft((prev) => ({ ...prev, standard_answer: event.target.value }))} />
+                        <textarea className="field" rows={3} value={editDraft.analysis} onChange={(event) => setEditDraft((prev) => ({ ...prev, analysis: event.target.value }))} />
+                      </div>
+                    ) : (
+                      <>
+                        <div className="past-paper-q-content">{item.stem}</div>
+                        {item.options && Object.keys(item.options).length > 0 && (
+                          <div className="ai-question-options">
+                            {Object.entries(item.options).map(([key, value]) => (
+                              <div key={key}><strong>{key}.</strong> {value}</div>
+                            ))}
+                          </div>
+                        )}
+                        <div className="past-paper-q-answer-row"><span className="past-paper-q-label">标准答案：</span><span>{item.standard_answer}</span></div>
+                        {item.analysis && <div className="past-paper-q-feedback"><p>{item.analysis}</p></div>}
+                      </>
+                    )}
+                    <div className="ai-question-bank-meta">创建时间：{item.created_at || "未知"}</div>
+                    <div className="exam-practice-action-row">
+                      {editing ? (
+                        <>
+                          <button type="button" className="primary-button compact" onClick={() => saveEditQuestion(item)}>保存</button>
+                          <button type="button" className="ghost-button compact" onClick={() => setEditingQuestionId(null)}>取消</button>
+                        </>
+                      ) : (
+                        <>
+                          <button type="button" className="ghost-button compact" onClick={() => startEditQuestion(item)}>编辑</button>
+                          <button type="button" className="ghost-button compact" onClick={() => deleteAiQuestion(item)}>删除</button>
+                          <button type="button" className="ghost-button compact" disabled>开始练习</button>
+                        </>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
         </section>
       </div>
     </div>
@@ -461,6 +637,14 @@ export default function ExamPracticeCenter({
   const [practiceView, setPracticeView] = useState("dashboard");
   const [pastPaperConfig, setPastPaperConfig] = useState(null);
   const [pastPapers, setPastPapers] = useState(null);
+  const [practiceStats, setPracticeStats] = useState({
+    total_practices: 0,
+    completed_practices: 0,
+    accuracy: 0,
+    total_duration_minutes: 0,
+  });
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [statsError, setStatsError] = useState("");
 
   useEffect(() => {
     fetch(`${API_BASE}/exam/11408/${subjectKey}/past-papers`)
@@ -468,6 +652,25 @@ export default function ExamPracticeCenter({
       .then((data) => setPastPapers(data))
       .catch(() => setPastPapers({ available: false, resource_files: [] }));
   }, [subjectKey]);
+
+  useEffect(() => {
+    if (!user?.username) {
+      setPracticeStats({ total_practices: 0, completed_practices: 0, accuracy: 0, total_duration_minutes: 0 });
+      setStatsLoading(false);
+      setStatsError("登录后显示个人练习数据。");
+      return;
+    }
+    setStatsLoading(true);
+    setStatsError("");
+    const params = new URLSearchParams({ username: user.username });
+    safeJsonFetch(`${API_BASE}/exam/11408/${subjectKey}/practice/stats?${params.toString()}`)
+      .then((payload) => setPracticeStats(payload))
+      .catch((err) => {
+        setPracticeStats({ total_practices: 0, completed_practices: 0, accuracy: 0, total_duration_minutes: 0 });
+        setStatsError(`练习数据加载失败：${err.message || "服务器错误"}`);
+      })
+      .finally(() => setStatsLoading(false));
+  }, [subjectKey, user?.username]);
 
   const availableYears = [];
   if (pastPapers?.resource_files) {
@@ -533,11 +736,12 @@ export default function ExamPracticeCenter({
 
       <div className="practice-stats-section">
         <h3>练习数据</h3>
+        {statsError && <div className="practice-stats-note">{statsError}</div>}
         <div className="practice-stats-grid">
-          <div className="practice-stat-card--dashboard"><div className="practice-stat-card-icon practice-stat-card-icon--docs">📄</div><div className="practice-stat-card-body"><div className="practice-stat-card-value">128</div><div className="practice-stat-card-label">总练习数</div></div></div>
-          <div className="practice-stat-card--dashboard"><div className="practice-stat-card-icon practice-stat-card-icon--done">✓</div><div className="practice-stat-card-body"><div className="practice-stat-card-value">96</div><div className="practice-stat-card-label">已完成</div></div></div>
-          <div className="practice-stat-card--dashboard"><div className="practice-stat-card-icon practice-stat-card-icon--accuracy">★</div><div className="practice-stat-card-body"><div className="practice-stat-card-value">75%</div><div className="practice-stat-card-label">正确率</div></div></div>
-          <div className="practice-stat-card--dashboard"><div className="practice-stat-card-icon practice-stat-card-icon--time">⏱</div><div className="practice-stat-card-body"><div className="practice-stat-card-value">32h</div><div className="practice-stat-card-label">累计练习时长</div></div></div>
+          <div className="practice-stat-card--dashboard"><div className="practice-stat-card-icon practice-stat-card-icon--docs">📄</div><div className="practice-stat-card-body"><div className="practice-stat-card-value">{statsLoading ? "..." : practiceStats.total_practices || 0}</div><div className="practice-stat-card-label">总练习数</div></div></div>
+          <div className="practice-stat-card--dashboard"><div className="practice-stat-card-icon practice-stat-card-icon--done">✓</div><div className="practice-stat-card-body"><div className="practice-stat-card-value">{statsLoading ? "..." : practiceStats.completed_practices || 0}</div><div className="practice-stat-card-label">已完成</div></div></div>
+          <div className="practice-stat-card--dashboard"><div className="practice-stat-card-icon practice-stat-card-icon--accuracy">★</div><div className="practice-stat-card-body"><div className="practice-stat-card-value">{statsLoading ? "..." : `${practiceStats.accuracy || 0}%`}</div><div className="practice-stat-card-label">正确率</div></div></div>
+          <div className="practice-stat-card--dashboard"><div className="practice-stat-card-icon practice-stat-card-icon--time">⏱</div><div className="practice-stat-card-body"><div className="practice-stat-card-value">{statsLoading ? "..." : formatPracticeDuration(practiceStats.total_duration_minutes || 0)}</div><div className="practice-stat-card-label">累计练习时长</div></div></div>
         </div>
       </div>
 
