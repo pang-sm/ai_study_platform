@@ -374,18 +374,16 @@ def get_year_questions(subject_key: str, year: int) -> dict:
             cached = json.loads(raw)
             qs = cached.get("questions", [])
             if len(qs) > 0:
-                # Strip image_urls from API response to reduce payload size
-                slim_qs = []
+                # Return questions without image_urls (lighter payload)
+                slim = []
                 for q in qs:
-                    sq = {k: v for k, v in q.items() if k != "image_urls"}
-                    slim_qs.append(sq)
-                logger.info("[exam_parser] Cache hit for %s year=%s: %d questions", subject_key, year, len(qs))
-                return {
-                    "subject_key": subject_key,
-                    "subject_name": subject_name,
-                    "year": year,
-                    "questions": slim_qs,
-                }
+                    sq = {k: v for k, v in q.items() if k not in ("image_urls",)}
+                    # Truncate long stems/options to reduce payload
+                    if sq.get("stem") and len(sq["stem"]) > 500:
+                        sq["stem"] = sq["stem"][:500]
+                    slim.append(sq)
+                logger.info("[exam_parser] Cache hit %s/%s: %d qs", subject_key, year, len(qs))
+                return {"subject_key": subject_key, "subject_name": subject_name, "year": year, "questions": slim}
         except Exception as e:
             logger.warning("[exam_parser] Cache read failed for %s year=%s: %s", subject_key, year, str(e)[:200])
     logger.warning("[exam_parser] Cache miss for %s year=%s, falling back to slow path", subject_key, year)
