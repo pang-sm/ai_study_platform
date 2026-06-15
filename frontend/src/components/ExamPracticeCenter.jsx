@@ -68,7 +68,7 @@ export default function ExamPracticeCenter({
   const [genCount, setGenCount] = useState(3);
 
   useEffect(() => {
-    fetch(`${API_BASE}/api/exam/11408/${subjectKey}/past-papers`)
+    fetch(`${API_BASE}/exam/11408/${subjectKey}/past-papers`)
       .then((r) => r.json())
       .then((data) => setPastPapers(data))
       .catch(() => setPastPapers({ available: false, resource_files: [] }));

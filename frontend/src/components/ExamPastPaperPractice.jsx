@@ -39,7 +39,7 @@ export default function ExamPastPaperPractice({
   const subjectLabel = EXAM_SUBJECTS[subjectKey] || "数据结构";
 
   useEffect(() => {
-    fetch(`${API_BASE}/api/exam/11408/${subjectKey}/past-papers`)
+    fetch(`${API_BASE}/exam/11408/${subjectKey}/past-papers`)
       .then(r => r.json()).then(d => { setPastPapers(d); setLoading(false); })
       .catch(() => setPastPapers({ available: false, years: [] }));
   }, [subjectKey]);
@@ -48,7 +48,7 @@ export default function ExamPastPaperPractice({
   useEffect(() => {
     if (!attemptId || !selectedYear) return;
     setLoading(true);
-    fetch(`${API_BASE}/api/exam/11408/${subjectKey}/past-paper-attempts/${attemptId}`)
+    fetch(`${API_BASE}/exam/11408/${subjectKey}/past-paper-attempts/${attemptId}`)
       .then(r => r.json()).then(d => {
         setQuestions(d.questions || []);
         if (d.saved_answers) setAnswers(d.saved_answers);
@@ -61,7 +61,7 @@ export default function ExamPastPaperPractice({
     saveState({ year: selectedYear, attemptId, answers, submitted, result });
   }, [selectedYear, attemptId, answers, submitted, result]);
 
-  const yearsList = pastPapers?.years || [];
+  const yearsList = (pastPapers?.years && pastPapers.years.length > 0) ? pastPapers.years : [2022, 2023, 2024, 2025, 2026];
 
   const selectYear = async (year) => {
     setSelectedYear(year);
@@ -77,7 +77,7 @@ export default function ExamPastPaperPractice({
     if (!user?.username || !selectedYear) return;
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/exam/11408/${subjectKey}/past-paper-attempts`, {
+      const res = await fetch(`${API_BASE}/exam/11408/${subjectKey}/past-paper-attempts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: user.username, year: selectedYear }),
@@ -86,7 +86,7 @@ export default function ExamPastPaperPractice({
       if (!res.ok) throw new Error(data.detail || "创建练习失败");
       setAttemptId(data.attempt_id);
       // Load questions for this year
-      const qRes = await fetch(`${API_BASE}/api/exam/11408/${subjectKey}/past-paper-questions?year=${selectedYear}`);
+      const qRes = await fetch(`${API_BASE}/exam/11408/${subjectKey}/past-paper-questions?year=${selectedYear}`);
       const qData = await qRes.json();
       setQuestions(qData.questions || []);
       setAnswers({});
@@ -98,7 +98,7 @@ export default function ExamPastPaperPractice({
 
   const saveDraft = async () => {
     if (!attemptId) return;
-    await fetch(`${API_BASE}/api/exam/11408/${subjectKey}/past-paper-attempts/${attemptId}/answers`, {
+    await fetch(`${API_BASE}/exam/11408/${subjectKey}/past-paper-attempts/${attemptId}/answers`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ answers }),
@@ -138,7 +138,7 @@ export default function ExamPastPaperPractice({
           user_answer: String(answers[q.id] || "").trim(),
         })),
       };
-      const res = await fetch(`${API_BASE}/api/exam/11408/${subjectKey}/past-paper-attempts/${attemptId}/submit`, {
+      const res = await fetch(`${API_BASE}/exam/11408/${subjectKey}/past-paper-attempts/${attemptId}/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
