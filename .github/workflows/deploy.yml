@@ -176,29 +176,22 @@ jobs:
           # ── Persistent database outside git worktree ──
           sudo mkdir -p /var/lib/ai_study_platform
           DATA_DB=/var/lib/ai_study_platform/app.db
-          if [ ! -f "$DATA_DB" ] && [ -f backend/app.db ]; then
+          if [ -f backend/app.db ] && [ ! -f "$DATA_DB" ]; then
             echo "[deploy] 首次部署：迁移本地 app.db 到持久目录"
-            sudo cp backend/app.db "$DATA_DB"
+            cp backend/app.db "$DATA_DB"
           fi
-          sudo chown -R $(whoami):$(whoami) /var/lib/ai_study_platform
-          sudo chmod 755 /var/lib/ai_study_platform
-
-          echo "=== 章节题库部署(持久DB) ==="
-          cd backend
-          PYTHON_BIN=".venv/bin/python"
-          DATABASE_URL="sqlite:///$DATA_DB" $PYTHON_BIN scripts/import_data_structure_chapter_questions_txt.py --all --skip 0 --batch-id deploy_auto && \
-          DATABASE_URL="sqlite:///$DATA_DB" $PYTHON_BIN scripts/remap_data_structure_chapter_question_kps.py --apply-batch-auto --strategy batch && \
-          echo "[deploy] DB import + remap complete" || echo "[deploy] WARNING: import/remap failed"
-          cd ..
+          sudo chown -R $(whoami):$(whoami) /var/lib/ai_study_platform 2>/dev/null || true
+          sudo chmod 755 /var/lib/ai_study_platform 2>/dev/null || true
+          echo "[deploy] Persistent DB at $DATA_DB"
 
           # ── Configure persistent database for systemd service ──
-          sudo mkdir -p /var/lib/ai_study_platform
           sudo mkdir -p /etc/systemd/system/ai-backend.service.d
           sudo tee /etc/systemd/system/ai-backend.service.d/database.conf > /dev/null <<INNEREOF
           [Service]
           Environment="DATABASE_URL=sqlite:////var/lib/ai_study_platform/app.db"
           INNEREOF
-          echo "[deploy] DATABASE_URL configured via systemd drop-in"
+          sudo systemctl daemon-reload
+          echo "[deploy] DATABASE_URL configured"
 
           # ── Configure ADMIN_LOGIN_CODE for systemd service ──
           if [ -n "${ADMIN_LOGIN_CODE:-}" ]; then
@@ -233,5 +226,13 @@ jobs:
           sudo systemctl daemon-reload
           sudo systemctl restart ai-backend
           sudo systemctl is-active --quiet ai-backend
+
+          echo "=== 章节题库导入(持久DB, 不阻塞服务) ==="
+          cd backend
+          DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python scripts/import_data_structure_chapter_questions_txt.py --all --skip 0 --batch-id deploy_auto || echo "[deploy] WARN: import failed"
+          DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python scripts/remap_data_structure_chapter_question_kps.py --apply-batch-auto --strategy batch || echo "[deploy] WARN: remap failed"
+          cd ..
+          sudo systemctl restart ai-backend
+
           curl -fsS http://127.0.0.1 >/dev/null
           DEPLOYEOF
