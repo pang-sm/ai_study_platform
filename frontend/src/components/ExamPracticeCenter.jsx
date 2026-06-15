@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import ExamPastPaperPractice from "./ExamPastPaperPractice.jsx";
 
 const API_BASE = "/api";
 
@@ -60,6 +61,8 @@ export default function ExamPracticeCenter({
   const subjectInfo = EXAM_SUBJECTS[subjectKey] || EXAM_SUBJECTS.data_structure;
   const recentRecords = SUBJECT_RECENT_RECORDS[subjectKey] || SUBJECT_RECENT_RECORDS.data_structure;
 
+  const [practiceView, setPracticeView] = useState("dashboard");
+  const [pastPaperConfig, setPastPaperConfig] = useState(null);
   const [pastPapers, setPastPapers] = useState(null);
   const [showPastPaperModal, setShowPastPaperModal] = useState(false);
   const [pastPaperYears, setPastPaperYears] = useState([]);
@@ -85,17 +88,28 @@ export default function ExamPracticeCenter({
   }
 
   const handlePastPaperPractice = () => {
-    // TODO: integrate with backend past-paper question extraction
-    console.log("[ExamPracticeCenter] past paper practice", {
-      mode: "11408",
+    setPastPaperConfig({
       subjectKey,
       subjectName,
-      source: "past_papers",
       years: pastPaperYears.length > 0 ? pastPaperYears : availableYears,
-      questionType: pastPaperType,
+      questionType: pastPaperType || "all",
     });
     setShowPastPaperModal(false);
+    setPracticeView("pastPaper");
   };
+
+  // Render past paper practice view
+  if (practiceView === "pastPaper" && pastPaperConfig) {
+    return (
+      <ExamPastPaperPractice
+        subjectKey={pastPaperConfig.subjectKey}
+        subjectName={pastPaperConfig.subjectName}
+        years={pastPaperConfig.years}
+        questionType={pastPaperConfig.questionType}
+        onBack={() => setPracticeView("dashboard")}
+      />
+    );
+  }
 
   return (
     <div className="exam-practice-dashboard">
