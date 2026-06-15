@@ -6,16 +6,24 @@ const COURSE_ID = "data_structure_11408";
 const COURSE_NAME = "11408 数据结构";
 
 const STATUS_CONFIG = {
-  mastered: { label: "已掌握", shortLabel: "已掌握", color: "#16a34a", bg: "#dcfce7" },
-  learning: { label: "学习中", shortLabel: "学习中", color: "#7c3aed", bg: "#ede9fe" },
   not_started: { label: "未学习", shortLabel: "未学习", color: "#64748b", bg: "#f1f5f9" },
+  learning: { label: "学习中", shortLabel: "学习中", color: "#7c3aed", bg: "#ede9fe" },
+  mastered: { label: "已学习", shortLabel: "已学习", color: "#16a34a", bg: "#dcfce7" },
+  review_due: { label: "待复习", shortLabel: "待复习", color: "#dc2626", bg: "#fee2e2" },
 };
 
 const STATUS_OPTIONS = [
   { value: "all", label: "全部" },
-  { value: "mastered", label: "已掌握" },
-  { value: "learning", label: "学习中" },
   { value: "not_started", label: "未学习" },
+  { value: "learning", label: "学习中" },
+  { value: "mastered", label: "已学习" },
+  { value: "review_due", label: "待复习" },
+];
+
+const MANUAL_STATUS_OPTIONS = [
+  { value: "not_started", label: "未学习" },
+  { value: "learning", label: "学习中" },
+  { value: "mastered", label: "已学习" },
 ];
 
 const VIEW_OPTIONS = [
@@ -54,6 +62,30 @@ function flattenNodes(nodes, chapter = null) {
   return result;
 }
 
+function updateNodeInTree(nodes, code, patch) {
+  return (nodes || []).map((node) => {
+    const next = node.code === code ? { ...node, ...patch } : { ...node };
+    next.children = updateNodeInTree(next.children || [], code, patch);
+    return next;
+  });
+}
+
+function recalcStats(chapters) {
+  const stats = { total: 0, mastered: 0, learning: 0, review_due: 0, not_started: 0 };
+  const walk = (nodes, includeSelf = true) => {
+    (nodes || []).forEach((node) => {
+      if (includeSelf && !node.chapter_no) {
+        stats.total += 1;
+        const status = normalizeStatus(node.status);
+        stats[status] = (stats[status] || 0) + 1;
+      }
+      walk(node.children || [], true);
+    });
+  };
+  walk(chapters || [], false);
+  return stats;
+}
+
 function filterTree(nodes, keyword, status) {
   const normalizedKeyword = keyword.trim().toLowerCase();
   return (nodes || [])
@@ -61,7 +93,8 @@ function filterTree(nodes, keyword, status) {
       const children = filterTree(node.children || [], keyword, status);
       const text = [node.title, node.code].filter(Boolean).join(" ").toLowerCase();
       const keywordMatch = !normalizedKeyword || text.includes(normalizedKeyword);
-      const statusMatch = status === "all" || normalizeStatus(node.status) === status;
+      const nodeStatus = normalizeStatus(node.status);
+      const statusMatch = status === "all" || nodeStatus === status;
       if ((keywordMatch && statusMatch) || children.length > 0) {
         return { ...node, children };
       }
@@ -92,8 +125,22 @@ function collectAllExpandableIds(nodes, result = new Set()) {
 
 function findFirstMatchingChapter(chapters, keyword, status) {
   const query = keyword.trim();
-  if (!query) return null;
+  if (!query && status === "all") return null;
   return (chapters || []).find((chapter) => filterTree(chapter.children || [], query, status).length > 0) || null;
+}
+
+function formatDateTime(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
 }
 
 function StatusBadge({ status }) {
@@ -132,15 +179,7 @@ function HighlightedText({ text, keyword }) {
   );
 }
 
-function KnowledgeTreeNode({
-  node,
-  depth = 1,
-  selectedId,
-  expandedIds,
-  keyword,
-  onSelect,
-  onToggle,
-}) {
+function KnowledgeTreeNode({ node, depth = 1, selectedId, expandedIds, keyword, onSelect, onToggle }) {
   const children = node.children || [];
   const hasChildren = children.length > 0;
   const expanded = hasChildren && expandedIds.has(node.id);
@@ -183,6 +222,7 @@ function KnowledgeTreeNode({
         <span className="km-node-title">
           <HighlightedText text={nodeLabel(node)} keyword={keyword} />
         </span>
+        <StatusBadge status={node.status} />
         {node.optional && <span className="km-node-optional">选学</span>}
       </button>
       {expanded && children.length > 0 && (
@@ -209,6 +249,7 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [activeChapterCode, setActiveChapterCode] = useState("");
   const [selectedNode, setSelectedNode] = useState(null);
   const [searchInput, setSearchInput] = useState("");
@@ -216,34 +257,62 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
   const [statusFilter, setStatusFilter] = useState("all");
   const [viewMode, setViewMode] = useState("tree");
   const [expandedIds, setExpandedIds] = useState(() => new Set());
+  const [savingStatus, setSavingStatus] = useState("");
+  const [reviewIntervalDays, setReviewIntervalDays] = useState(7);
+  const [reviewInput, setReviewInput] = useState("7");
+  const [reviewSaving, setReviewSaving] = useState(false);
+
+  const loadMap = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const params = new URLSearchParams({ course_id: COURSE_ID });
+      if (user?.username) params.set("username", user.username);
+      const res = await fetch(`${API_BASE}/knowledge-map?${params.toString()}`);
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload.detail || "知识脉络加载失败");
+      setData(payload);
+      const firstChapter = payload.chapters?.[0] || null;
+      setActiveChapterCode((prev) => prev || firstChapter?.code || "");
+      setSelectedNode((prev) => prev || firstChapter || null);
+      setReviewIntervalDays(payload.review_interval_days || 7);
+      setReviewInput(String(payload.review_interval_days || 7));
+      setExpandedIds((prev) => (prev.size > 0 ? prev : collectExpandableIds(firstChapter?.children || [], 1)));
+    } catch (err) {
+      setError(err.message || "知识脉络加载失败");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     let alive = true;
-    const loadMap = async () => {
-      setLoading(true);
-      setError("");
-      try {
-        const params = new URLSearchParams({ course_id: COURSE_ID });
-        if (user?.username) params.set("username", user.username);
-        const res = await fetch(`${API_BASE}/knowledge-map?${params.toString()}`);
-        const payload = await res.json();
-        if (!res.ok) throw new Error(payload.detail || "知识脉络加载失败");
-        if (!alive) return;
-        setData(payload);
-        const firstChapter = payload.chapters?.[0] || null;
-        setActiveChapterCode(firstChapter?.code || "");
-        setSelectedNode(firstChapter || null);
-        setExpandedIds(collectExpandableIds(firstChapter?.children || [], 1));
-      } catch (err) {
-        if (alive) setError(err.message || "知识脉络加载失败");
-      } finally {
-        if (alive) setLoading(false);
-      }
+    const run = async () => {
+      if (!alive) return;
+      await loadMap();
     };
-    loadMap();
+    run();
     return () => {
       alive = false;
     };
+  }, [user?.username]);
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      if (!user?.username) return;
+      try {
+        const params = new URLSearchParams({ course_id: COURSE_ID, username: user.username });
+        const res = await fetch(`${API_BASE}/knowledge-map/review-settings?${params.toString()}`);
+        const payload = await res.json().catch(() => ({}));
+        if (res.ok) {
+          setReviewIntervalDays(payload.review_interval_days || 7);
+          setReviewInput(String(payload.review_interval_days || 7));
+        }
+      } catch {
+        // Keep the default interval.
+      }
+    };
+    loadSettings();
   }, [user?.username]);
 
   const chapters = data?.chapters || [];
@@ -256,11 +325,13 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
     () => flattenNodes(activeChapter?.children || [], activeChapter),
     [activeChapter]
   );
+  const stats = data?.stats || recalcStats(chapters);
 
   useEffect(() => {
-    if (!query.trim()) return;
-    setExpandedIds(collectAllExpandableIds(filteredChildren));
-  }, [filteredChildren, query]);
+    if (query.trim() || statusFilter !== "all") {
+      setExpandedIds(collectAllExpandableIds(filteredChildren));
+    }
+  }, [filteredChildren, query, statusFilter]);
 
   const handleChapterClick = (chapter) => {
     setActiveChapterCode(chapter.code);
@@ -271,7 +342,7 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
   const handleSearch = () => {
     const nextQuery = searchInput.trim();
     setQuery(nextQuery);
-    if (!nextQuery) {
+    if (!nextQuery && statusFilter === "all") {
       setExpandedIds(collectExpandableIds(activeChapter?.children || [], 1));
       return;
     }
@@ -285,13 +356,11 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
 
   const handleStatusFilter = (nextStatus) => {
     setStatusFilter(nextStatus);
-    if (query.trim()) {
-      const matchingChapter = findFirstMatchingChapter(chapters, query, nextStatus);
-      if (matchingChapter) {
-        setActiveChapterCode(matchingChapter.code);
-        setSelectedNode(matchingChapter);
-        setExpandedIds(collectAllExpandableIds(filterTree(matchingChapter.children || [], query, nextStatus)));
-      }
+    const matchingChapter = findFirstMatchingChapter(chapters, query, nextStatus);
+    if (matchingChapter && matchingChapter.code !== activeChapterCode) {
+      setActiveChapterCode(matchingChapter.code);
+      setSelectedNode(matchingChapter);
+      setExpandedIds(collectAllExpandableIds(filterTree(matchingChapter.children || [], query, nextStatus)));
     }
   };
 
@@ -308,9 +377,87 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
     });
   };
 
+  const applyNodePatch = (code, patch) => {
+    setData((prev) => {
+      if (!prev) return prev;
+      const chaptersNext = updateNodeInTree(prev.chapters || [], code, patch);
+      return { ...prev, chapters: chaptersNext, stats: recalcStats(chaptersNext) };
+    });
+    setSelectedNode((prev) => (prev?.code === code ? { ...prev, ...patch } : prev));
+  };
+
   const selectedChapterName = chapterLabel(activeChapter);
   const detailNode = selectedNode || activeChapter;
   const detailStatus = normalizeStatus(detailNode?.status);
+  const selectedManualStatus = detailStatus === "review_due" ? "" : detailStatus;
+
+  const saveStatus = async (nextStatus) => {
+    if (!detailNode?.code || !user?.username) return;
+    setSavingStatus(nextStatus);
+    setError("");
+    setNotice("");
+    try {
+      const res = await fetch(`${API_BASE}/knowledge-map/progress`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: user.username,
+          course_id: COURSE_ID,
+          knowledge_point_code: detailNode.code,
+          knowledge_point_title: nodeLabel(detailNode),
+          status: nextStatus,
+        }),
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(payload.detail || "状态保存失败");
+      const patch = {
+        status: payload.node?.status || nextStatus,
+        stored_status: payload.node?.stored_status || nextStatus,
+        learned_at: payload.node?.learned_at || null,
+        review_due_at: payload.node?.review_due_at || null,
+        review_interval_days: payload.node?.review_interval_days || reviewIntervalDays,
+        progress: payload.progress || {},
+      };
+      applyNodePatch(detailNode.code, patch);
+      setNotice("状态已保存");
+    } catch (err) {
+      setError(err.message || "状态保存失败");
+    } finally {
+      setSavingStatus("");
+    }
+  };
+
+  const saveReviewSettings = async () => {
+    const value = Number(reviewInput);
+    setError("");
+    setNotice("");
+    if (!Number.isInteger(value) || value < 1 || value > 365) {
+      setError("复习间隔必须是 1 到 365 之间的整数");
+      return;
+    }
+    if (!user?.username) return;
+    setReviewSaving(true);
+    try {
+      const res = await fetch(`${API_BASE}/knowledge-map/review-settings`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: user.username,
+          course_id: COURSE_ID,
+          review_interval_days: value,
+        }),
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(payload.detail || "复习间隔保存失败");
+      setReviewIntervalDays(payload.review_interval_days || value);
+      setReviewInput(String(payload.review_interval_days || value));
+      setNotice("复习间隔已保存");
+    } catch (err) {
+      setError(err.message || "复习间隔保存失败");
+    } finally {
+      setReviewSaving(false);
+    }
+  };
 
   const openAI = () => {
     if (!detailNode) return;
@@ -320,15 +467,20 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
       courseId: COURSE_NAME,
       course_name: COURSE_NAME,
       courseName: COURSE_NAME,
+      exam: "11408",
+      subject: "数据结构",
+      subject_key: "data_structure",
+      source_page: "knowledge_map",
       chapter: selectedChapterName,
+      chapterTitle: selectedChapterName,
       knowledge_point_code: detailNode.code || "",
+      knowledgePointCode: detailNode.code || "",
       knowledge_point_title: nodeLabel(detailNode),
-      knowledgePointId: detailNode.id,
       knowledgePointTitle: nodeLabel(detailNode),
       knowledgePointStatus: detailNode.status || "not_started",
       nodeKey: detailNode.id,
       title: nodeLabel(detailNode),
-      aiPromptContext: `当前学习知识点：${nodeLabel(detailNode)}；编号：${detailNode.code || "无"}；所属章节：${selectedChapterName}。`,
+      aiPromptContext: `当前围绕知识点「${detailNode.code || ""} ${nodeLabel(detailNode)}」进行提问；所属章节：${selectedChapterName}。`,
     });
   };
 
@@ -340,7 +492,7 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
     );
   }
 
-  if (error) {
+  if (!data && error) {
     return (
       <div className="km-page">
         <div className="km-error-card">{error}</div>
@@ -358,10 +510,10 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
       </section>
 
       <section className="km-stats-row">
-        <StatCard icon="◎" value={data?.stats?.total} label="知识点总数" />
-        <StatCard icon="✓" value={data?.stats?.mastered} label="已掌握" />
-        <StatCard icon="◐" value={data?.stats?.learning} label="学习中" />
-        <StatCard icon="○" value={data?.stats?.not_started} label="待学习" />
+        <StatCard icon="◎" value={stats.total} label="知识点总数" />
+        <StatCard icon="✓" value={stats.mastered} label="已学习" />
+        <StatCard icon="◐" value={stats.learning} label="学习中" />
+        <StatCard icon="!" value={stats.review_due} label="待复习" />
       </section>
 
       <section className="km-filter-card">
@@ -375,7 +527,7 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
                 setSearchInput(nextValue);
                 if (!nextValue.trim()) {
                   setQuery("");
-                  setExpandedIds(collectExpandableIds(activeChapter?.children || [], 1));
+                  if (statusFilter === "all") setExpandedIds(collectExpandableIds(activeChapter?.children || [], 1));
                 }
               }}
               onKeyDown={(event) => {
@@ -403,6 +555,25 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
           </div>
         </div>
 
+        <div className="km-filter-line km-review-setting-row">
+          <span className="km-filter-label">复习规则</span>
+          <div className="km-review-setting">
+            <span>已学习后</span>
+            <input
+              type="number"
+              min="1"
+              max="365"
+              value={reviewInput}
+              onChange={(event) => setReviewInput(event.target.value)}
+            />
+            <span>天自动转为待复习</span>
+            <button type="button" className="km-secondary-button" onClick={saveReviewSettings} disabled={reviewSaving}>
+              {reviewSaving ? "保存中..." : "保存"}
+            </button>
+            <small>当前：{reviewIntervalDays} 天</small>
+          </div>
+        </div>
+
         <div className="km-filter-line">
           <span className="km-filter-label">视图</span>
           <div className="km-chip-group">
@@ -426,6 +597,12 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
           </select>
         </div>
       </section>
+
+      {(error || notice) && (
+        <div className={`km-inline-message${error ? " km-inline-message--error" : ""}`}>
+          {error || notice}
+        </div>
+      )}
 
       <section className="km-map-card">
         <aside className="km-chapter-list">
@@ -453,9 +630,7 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
           </div>
 
           {viewMode === "graph" ? (
-            <div className="km-graph-placeholder">
-              关系图视图后续开放
-            </div>
+            <div className="km-graph-placeholder">关系图视图后续开放</div>
           ) : filteredChildren.length === 0 ? (
             <div className="km-empty-state">没有匹配的知识点，请调整搜索或筛选条件。</div>
           ) : (
@@ -494,7 +669,7 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
               <dd>{selectedChapterName || "未选择章节"}</dd>
             </div>
             <div>
-              <dt>状态</dt>
+              <dt>当前状态</dt>
               <dd>{STATUS_CONFIG[detailStatus].shortLabel}</dd>
             </div>
             <div>
@@ -502,6 +677,35 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
               <dd>{(detailNode?.children || []).length}</dd>
             </div>
           </dl>
+
+          <div className="km-status-manager">
+            <h3>状态管理</h3>
+            <div className="km-status-actions">
+              {MANUAL_STATUS_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  className={`km-status-button${selectedManualStatus === option.value ? " km-status-button--active" : ""}`}
+                  onClick={() => saveStatus(option.value)}
+                  disabled={savingStatus !== "" || !detailNode?.code}
+                >
+                  {savingStatus === option.value ? "保存中..." : option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="km-review-hint">
+            <h3>复习提示</h3>
+            {detailStatus === "review_due" ? (
+              <p>该知识点已到复习时间，复习完成后请点击“已学习”开启下一轮复习。</p>
+            ) : detailStatus === "mastered" ? (
+              <p>{detailNode?.review_due_at ? `下次复习时间：${formatDateTime(detailNode.review_due_at)}` : `已学习后 ${reviewIntervalDays} 天进入待复习。`}</p>
+            ) : (
+              <p>设置为“已学习”后，系统会根据复习间隔自动生成下次复习时间。</p>
+            )}
+          </div>
+
           <div className="km-actions">
             <button type="button" onClick={openAI}>AI问答</button>
           </div>

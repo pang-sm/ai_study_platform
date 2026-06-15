@@ -383,6 +383,20 @@ class KnowledgeProgressUpdate(BaseModel):
     status: str | None = None
 
 
+class KnowledgeMapProgressUpdate(BaseModel):
+    username: str
+    course_id: str
+    knowledge_point_code: str
+    knowledge_point_title: str = ""
+    status: str
+
+
+class KnowledgeMapReviewSettingsUpdate(BaseModel):
+    username: str
+    course_id: str
+    review_interval_days: int
+
+
 class KnowledgeProgressOut(BaseModel):
     id: int
     username: str

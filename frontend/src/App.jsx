@@ -480,6 +480,7 @@ function App() {
   const [examSubjectKey, setExamSubjectKey] = useState(getInitialExamSubject);
   const [examSubjectPanelIntent, setExamSubjectPanelIntent] = useState(null);
   const [examInitialMaterialReference, setExamInitialMaterialReference] = useState(null);
+  const [examKnowledgeContext, setExamKnowledgeContext] = useState(null);
 
   const setPage = (nextPage, context = null) => {
     // Feature gating: intercept navigation to disabled features
@@ -3261,9 +3262,15 @@ function App() {
       getSubjectLabel={getSubjectLabel}
       setPage={setPage}
       onNavigateToAI={(ctx) => {
-        openChatPageForCourse(subject, true);
+        setExamKnowledgeContext(ctx);
         setSelectedLibraryMaterials([]);
         setPendingAIContext(ctx);
+        setPage("examSubjectDashboard", {
+          subject: "data_structure",
+          examCourseId: "11408 数据结构",
+          courseId: "11408 数据结构",
+          forcePanel: "ai",
+        });
       }}
       materials={materials}
       materialsLoading={materialsLoading}
@@ -3327,6 +3334,7 @@ function App() {
         subjectKey={examSubjectKey}
         panelIntent={examSubjectPanelIntent}
         materialsContent={courseMaterialsPage}
+        knowledgeContext={examKnowledgeContext}
         initialMaterialToReference={examInitialMaterialReference}
         onInitialMaterialReferenced={() => setExamInitialMaterialReference(null)}
         onNavigate={openExamSubjectFeature}
@@ -4102,6 +4110,7 @@ function App() {
         panelIntent={{ panel: "knowledge", nonce: 0 }}
         materialsContent={courseMaterialsPage}
         knowledgeContent={knowledgeLearningPage}
+        knowledgeContext={examKnowledgeContext}
         initialMaterialToReference={examInitialMaterialReference}
         onInitialMaterialReferenced={() => setExamInitialMaterialReference(null)}
         onNavigate={openExamSubjectFeature}

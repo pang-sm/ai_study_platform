@@ -388,13 +388,26 @@ USER_KNOWLEDGE_PROGRESS_COLUMNS = {
     "username": "VARCHAR(50) NOT NULL",
     "course_id": "VARCHAR(100) NOT NULL",
     "knowledge_point_id": "INTEGER NOT NULL",
+    "knowledge_point_code": "VARCHAR(100)",
+    "knowledge_point_title": "VARCHAR(255)",
     "mastery_score": "INTEGER",
     "status": "VARCHAR(30)",
     "practice_count": "INTEGER",
     "task_count": "INTEGER",
     "last_studied_at": "DATETIME",
+    "learned_at": "DATETIME",
+    "review_due_at": "DATETIME",
+    "review_interval_days": "INTEGER",
     "created_at": "DATETIME NOT NULL",
     "updated_at": "DATETIME NOT NULL",
+}
+
+USER_KNOWLEDGE_REVIEW_SETTINGS_COLUMNS = {
+    "username": "VARCHAR(50) NOT NULL",
+    "course_id": "VARCHAR(100) NOT NULL",
+    "review_interval_days": "INTEGER NOT NULL DEFAULT 7",
+    "created_at": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+    "updated_at": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
 }
 
 USER_LEARNING_PATHS_COLUMNS = {
@@ -1071,6 +1084,40 @@ def ensure_user_knowledge_progress_schema(conn):
         )
     )
     ensure_columns(conn, "user_knowledge_progress", USER_KNOWLEDGE_PROGRESS_COLUMNS)
+    conn.execute(
+        text(
+            """
+            CREATE INDEX IF NOT EXISTS idx_user_knowledge_progress_user_course_code
+            ON user_knowledge_progress (username, course_id, knowledge_point_code)
+            """
+        )
+    )
+
+
+def ensure_user_knowledge_review_settings_schema(conn):
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS user_knowledge_review_settings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username VARCHAR(50) NOT NULL,
+                course_id VARCHAR(100) NOT NULL,
+                review_interval_days INTEGER NOT NULL DEFAULT 7,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+    )
+    ensure_columns(conn, "user_knowledge_review_settings", USER_KNOWLEDGE_REVIEW_SETTINGS_COLUMNS)
+    conn.execute(
+        text(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_user_knowledge_review_settings_user_course
+            ON user_knowledge_review_settings (username, course_id)
+            """
+        )
+    )
 
 
 def ensure_user_learning_paths_schema(conn):
@@ -1423,6 +1470,7 @@ def init_user_profile_schema():
         ensure_practice_import_jobs_schema(conn)
         ensure_knowledge_points_schema(conn)
         ensure_user_knowledge_progress_schema(conn)
+        ensure_user_knowledge_review_settings_schema(conn)
         ensure_user_learning_paths_schema(conn)
         ensure_knowledge_progress_events_schema(conn)
         ensure_material_knowledge_links_schema(conn)

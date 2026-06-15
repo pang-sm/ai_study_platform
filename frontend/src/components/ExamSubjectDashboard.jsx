@@ -72,6 +72,7 @@ export default function ExamSubjectDashboard({
   panelIntent = null,
   materialsContent = null,
   knowledgeContent = null,
+  knowledgeContext = null,
   initialMaterialToReference = null,
   onInitialMaterialReferenced = null,
   onNavigate,
@@ -165,6 +166,7 @@ export default function ExamSubjectDashboard({
             subjectKey={subjectKey}
             subjectTitle={config.title}
             courseName={courseId}
+            knowledgeContext={knowledgeContext}
             initialMaterialToReference={initialMaterialToReference}
             onInitialMaterialReferenced={onInitialMaterialReferenced}
             onBackDashboard={() => setActiveSection("home")}

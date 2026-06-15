@@ -508,6 +508,119 @@
   background: #f1eaff;
 }
 
+.km-secondary-button {
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid #c4b5fd;
+  border-radius: 10px;
+  background: #fff;
+  color: #6d28d9;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.km-secondary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.km-review-setting {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: #344054;
+  font-size: 0.86rem;
+}
+
+.km-review-setting input {
+  width: 72px;
+  min-height: 34px;
+  border: 1px solid #ded3f8;
+  border-radius: 10px;
+  padding: 0 10px;
+  color: #111827;
+  font: inherit;
+}
+
+.km-review-setting small {
+  color: #667085;
+}
+
+.km-node-pill .km-status-badge {
+  min-height: 22px;
+  padding: 0 8px;
+  font-size: 0.7rem;
+}
+
+.km-status-manager,
+.km-review-hint {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid #efe7ff;
+}
+
+.km-status-manager h3,
+.km-review-hint h3 {
+  margin: 0 0 10px;
+  color: #111827;
+  font-size: 0.9rem;
+}
+
+.km-status-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.km-status-button {
+  min-height: 38px;
+  border: 1px solid #ded3f8;
+  border-radius: 12px;
+  background: #fff;
+  color: #4b5563;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.km-status-button--active {
+  border-color: #7c3aed;
+  background: #7c3aed;
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(124, 58, 237, 0.2);
+}
+
+.km-status-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.km-review-hint p {
+  margin: 0;
+  color: #4b5563;
+  font-size: 0.84rem;
+  line-height: 1.6;
+}
+
+.km-inline-message {
+  margin: -6px 0 14px;
+  padding: 10px 14px;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  background: #f0fdf4;
+  color: #166534;
+  font-weight: 700;
+  font-size: 0.86rem;
+}
+
+.km-inline-message--error {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #b42318;
+}
+
 .km-loading-card,
 .km-error-card,
 .km-empty-state {

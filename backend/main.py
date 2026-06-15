@@ -11638,20 +11638,97 @@ def _count_knowledge_map_points(nodes: list[dict], include_chapters: bool = Fals
 
 def _normalize_map_node_status(status: str | None) -> str:
     normalized = normalize_knowledge_status(status)
-    return normalized if normalized in {"mastered", "learning", "not_started"} else "not_started"
+    if normalized in {"mastered", "learning", "not_started"}:
+        return normalized
+    if str(status or "").strip() == "review_due":
+        return "review_due"
+    return "not_started"
 
 
-def _attach_knowledge_map_status(nodes: list[dict], progress_by_title: dict[str, str], path_prefix: str = "") -> list[dict]:
+def _build_knowledge_map_index(nodes: list[dict], index: dict[str, dict] | None = None) -> dict[str, dict]:
+    index = index or {}
+    for node in nodes or []:
+        code = str(node.get("code") or "").strip()
+        if code:
+            index[code] = node
+        _build_knowledge_map_index(node.get("children") or [], index)
+    return index
+
+
+def _display_map_progress_status(progress: models.UserKnowledgeProgress | None, now: datetime | None = None) -> str:
+    if not progress:
+        return "not_started"
+    status = _normalize_map_node_status(progress.status)
+    due_at = getattr(progress, "review_due_at", None)
+    if status == "mastered" and due_at:
+        now = now or utc_now()
+        if now.tzinfo is not None:
+            now = now.astimezone(timezone.utc).replace(tzinfo=None)
+        if due_at.tzinfo is not None:
+            due_at = due_at.astimezone(timezone.utc).replace(tzinfo=None)
+        if now >= due_at:
+            return "review_due"
+    return status
+
+
+def _serialize_map_progress(progress: models.UserKnowledgeProgress | None, display_status: str | None = None) -> dict:
+    if not progress:
+        return {}
+    return {
+        "id": progress.id,
+        "course_id": progress.course_id,
+        "knowledge_point_code": getattr(progress, "knowledge_point_code", "") or "",
+        "knowledge_point_title": getattr(progress, "knowledge_point_title", "") or "",
+        "status": display_status or _display_map_progress_status(progress),
+        "stored_status": progress.status or "not_started",
+        "learned_at": serialize_datetime(getattr(progress, "learned_at", None)) if getattr(progress, "learned_at", None) else None,
+        "review_due_at": serialize_datetime(getattr(progress, "review_due_at", None)) if getattr(progress, "review_due_at", None) else None,
+        "review_interval_days": getattr(progress, "review_interval_days", None) or 7,
+        "updated_at": serialize_datetime(progress.updated_at) if progress.updated_at else None,
+    }
+
+
+def _attach_knowledge_map_status(nodes: list[dict], progress_by_code: dict[str, models.UserKnowledgeProgress], path_prefix: str = "") -> list[dict]:
     result = []
+    now = utc_now()
     for index, node in enumerate(nodes, start=1):
         item = dict(node)
         node_path = f"{path_prefix}.{index}" if path_prefix else str(index)
-        title = str(item.get("title") or "").strip()
+        code = str(item.get("code") or "").strip()
         item["id"] = item.get("id") or f"seed:{node_path}"
-        item["status"] = _normalize_map_node_status(progress_by_title.get(title))
-        item["children"] = _attach_knowledge_map_status(item.get("children") or [], progress_by_title, node_path)
+        progress = progress_by_code.get(code)
+        display_status = _display_map_progress_status(progress, now)
+        item["status"] = display_status
+        item["stored_status"] = progress.status if progress else "not_started"
+        if progress:
+            item["progress"] = _serialize_map_progress(progress, display_status)
+            item["learned_at"] = item["progress"].get("learned_at")
+            item["review_due_at"] = item["progress"].get("review_due_at")
+            item["review_interval_days"] = item["progress"].get("review_interval_days")
+        item["children"] = _attach_knowledge_map_status(item.get("children") or [], progress_by_code, node_path)
         result.append(item)
     return result
+
+
+def _get_review_setting(db: Session, username: str, course_id: str) -> models.UserKnowledgeReviewSetting | None:
+    return (
+        db.query(models.UserKnowledgeReviewSetting)
+        .filter(
+            models.UserKnowledgeReviewSetting.username == username,
+            models.UserKnowledgeReviewSetting.course_id == course_id,
+        )
+        .first()
+    )
+
+
+def _get_review_interval_days(db: Session, username: str, course_id: str) -> int:
+    setting = _get_review_setting(db, username, course_id)
+    value = setting.review_interval_days if setting else 7
+    try:
+        value = int(value)
+    except (TypeError, ValueError):
+        value = 7
+    return min(max(value, 1), 365)
 
 
 @app.get("/knowledge-map")
@@ -11669,42 +11746,44 @@ def get_knowledge_map(course_id: str, username: str = "", db: Session = Depends(
     except json.JSONDecodeError:
         raise HTTPException(status_code=500, detail="知识脉络数据格式错误")
 
-    progress_by_title: dict[str, str] = {}
+    progress_by_code: dict[str, models.UserKnowledgeProgress] = {}
+    review_interval_days = 7
     if username:
         user = get_user_by_username(username, db)
-        rows = (
-            db.query(models.KnowledgePoint, models.UserKnowledgeProgress)
-            .join(
-                models.UserKnowledgeProgress,
-                models.UserKnowledgeProgress.knowledge_point_id == models.KnowledgePoint.id,
-            )
+        review_interval_days = _get_review_interval_days(db, user.username, normalized_course)
+        progress_rows = (
+            db.query(models.UserKnowledgeProgress)
             .filter(
-                models.KnowledgePoint.username == user.username,
-                models.KnowledgePoint.course_id == normalized_course,
                 models.UserKnowledgeProgress.username == user.username,
                 models.UserKnowledgeProgress.course_id == normalized_course,
             )
             .all()
         )
-        progress_by_title = {
-            point.title: _normalize_map_node_status(progress.status)
-            for point, progress in rows
-            if point.title
+        progress_by_code = {
+            str(getattr(progress, "knowledge_point_code", "") or "").strip(): progress
+            for progress in progress_rows
+            if str(getattr(progress, "knowledge_point_code", "") or "").strip()
         }
 
-    chapters = _attach_knowledge_map_status(payload.get("chapters") or [], progress_by_title)
+    chapters = _attach_knowledge_map_status(payload.get("chapters") or [], progress_by_code)
     total = _count_knowledge_map_points(chapters)
     mastered = 0
     learning = 0
+    review_due = 0
+    not_started = 0
 
     def tally(nodes: list[dict], include_self: bool = True):
-        nonlocal mastered, learning
+        nonlocal mastered, learning, review_due, not_started
         for node in nodes:
             if include_self:
                 if node.get("status") == "mastered":
                     mastered += 1
                 elif node.get("status") == "learning":
                     learning += 1
+                elif node.get("status") == "review_due":
+                    review_due += 1
+                elif node.get("status") == "not_started":
+                    not_started += 1
             tally(node.get("children") or [], True)
 
     for chapter in chapters:
@@ -11718,10 +11797,145 @@ def get_knowledge_map(course_id: str, username: str = "", db: Session = Depends(
             "total": total,
             "mastered": mastered,
             "learning": learning,
-            "not_started": max(total - mastered - learning, 0),
+            "review_due": review_due,
+            "not_started": not_started,
         },
+        "review_interval_days": review_interval_days,
         "chapters": chapters,
     }
+
+
+@app.patch("/knowledge-map/progress")
+def update_knowledge_map_progress(req: schemas.KnowledgeMapProgressUpdate, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+    course_id = (req.course_id or "").strip()
+    code = (req.knowledge_point_code or "").strip()
+    title = (req.knowledge_point_title or "").strip()
+    next_status = (req.status or "").strip()
+    if not course_id:
+        raise HTTPException(status_code=400, detail="course_id is required")
+    if next_status == "review_due":
+        raise HTTPException(status_code=400, detail="review_due is system-generated and cannot be set manually")
+    if next_status not in {"not_started", "learning", "mastered"}:
+        raise HTTPException(status_code=400, detail="invalid status")
+
+    seed_path = _knowledge_map_seed_path(course_id)
+    if not seed_path.exists():
+        raise HTTPException(status_code=404, detail="knowledge map not found")
+    payload = json.loads(seed_path.read_text(encoding="utf-8"))
+    node_index = _build_knowledge_map_index(payload.get("chapters") or [])
+    node = node_index.get(code)
+    if not node:
+        raise HTTPException(status_code=404, detail="knowledge point is not in this course map")
+    canonical_title = str(node.get("title") or title or "").strip()
+
+    progress = (
+        db.query(models.UserKnowledgeProgress)
+        .filter(
+            models.UserKnowledgeProgress.username == user.username,
+            models.UserKnowledgeProgress.course_id == course_id,
+            models.UserKnowledgeProgress.knowledge_point_code == code,
+        )
+        .first()
+    )
+    now = utc_now()
+    if not progress:
+        progress = models.UserKnowledgeProgress(
+            username=user.username,
+            course_id=course_id,
+            knowledge_point_id=0,
+            knowledge_point_code=code,
+            knowledge_point_title=canonical_title,
+            mastery_score=0,
+            status="not_started",
+            practice_count=0,
+            task_count=0,
+            created_at=now,
+        )
+        db.add(progress)
+
+    progress.knowledge_point_code = code
+    progress.knowledge_point_title = canonical_title
+    progress.status = next_status
+    progress.updated_at = now
+    progress.last_studied_at = now
+
+    if next_status == "not_started":
+        progress.mastery_score = 0
+        progress.learned_at = None
+        progress.review_due_at = None
+        progress.review_interval_days = None
+    elif next_status == "learning":
+        progress.mastery_score = progress.mastery_score if progress.mastery_score is not None else 30
+        progress.learned_at = None
+        progress.review_due_at = None
+        progress.review_interval_days = None
+    elif next_status == "mastered":
+        interval_days = _get_review_interval_days(db, user.username, course_id)
+        progress.mastery_score = 100
+        progress.learned_at = now
+        progress.review_interval_days = interval_days
+        progress.review_due_at = now + timedelta(days=interval_days)
+
+    db.commit()
+    db.refresh(progress)
+    display_status = _display_map_progress_status(progress)
+    return {
+        "success": True,
+        "progress": _serialize_map_progress(progress, display_status),
+        "node": {
+            "code": code,
+            "title": canonical_title,
+            "status": display_status,
+            "stored_status": progress.status,
+            "learned_at": serialize_datetime(progress.learned_at) if progress.learned_at else None,
+            "review_due_at": serialize_datetime(progress.review_due_at) if progress.review_due_at else None,
+            "review_interval_days": progress.review_interval_days or _get_review_interval_days(db, user.username, course_id),
+        },
+    }
+
+
+@app.get("/knowledge-map/review-settings")
+def get_knowledge_map_review_settings(course_id: str, username: str = "", db: Session = Depends(get_db)):
+    course_id = (course_id or "").strip()
+    if not course_id:
+        raise HTTPException(status_code=400, detail="course_id is required")
+    if not _knowledge_map_seed_path(course_id).exists():
+        raise HTTPException(status_code=404, detail="knowledge map not found")
+    user = get_user_by_username(username, db) if username else None
+    interval = _get_review_interval_days(db, user.username, course_id) if user else 7
+    return {"course_id": course_id, "review_interval_days": interval}
+
+
+@app.patch("/knowledge-map/review-settings")
+def update_knowledge_map_review_settings(req: schemas.KnowledgeMapReviewSettingsUpdate, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+    course_id = (req.course_id or "").strip()
+    if not course_id:
+        raise HTTPException(status_code=400, detail="course_id is required")
+    if not _knowledge_map_seed_path(course_id).exists():
+        raise HTTPException(status_code=404, detail="knowledge map not found")
+    try:
+        interval = int(req.review_interval_days)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="review_interval_days must be an integer")
+    if interval < 1 or interval > 365:
+        raise HTTPException(status_code=400, detail="review_interval_days must be between 1 and 365")
+
+    now = utc_now()
+    setting = _get_review_setting(db, user.username, course_id)
+    if not setting:
+        setting = models.UserKnowledgeReviewSetting(
+            username=user.username,
+            course_id=course_id,
+            review_interval_days=interval,
+            created_at=now,
+        )
+        db.add(setting)
+    setting.review_interval_days = interval
+    setting.updated_at = now
+    db.commit()
+    return {"success": True, "course_id": course_id, "review_interval_days": interval}
 
 
 @app.put("/knowledge-points/{point_id}/progress")

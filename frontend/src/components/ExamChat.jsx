@@ -240,6 +240,7 @@ export default function ExamChat({
   subjectKey,
   subjectTitle,
   courseName,
+  knowledgeContext = null,
   initialMaterialToReference = null,
   onInitialMaterialReferenced = null,
 }) {
@@ -296,8 +297,9 @@ export default function ExamChat({
     course: courseName,
     subject_key: subjectKey,
     exam_subject: subjectKey,
+    knowledge_context: knowledgeContext || undefined,
     ...extra,
-  }), [courseName, subjectKey, subjectLabel, user?.username]);
+  }), [courseName, knowledgeContext, subjectKey, subjectLabel, user?.username]);
 
   const canReferenceMaterial = useCallback((material) => {
     const status = String(material?.parse_status || "").toLowerCase();
@@ -415,6 +417,12 @@ export default function ExamChat({
     setNotice("已将资料加入本轮引用");
     onInitialMaterialReferenced?.();
   }, [initialMaterialToReference?.nonce, initialMaterialToReference?.material, onInitialMaterialReferenced]);
+
+  useEffect(() => {
+    const title = knowledgeContext?.knowledgePointTitle || knowledgeContext?.knowledge_point_title || knowledgeContext?.title || "";
+    if (!title) return;
+    setInputText((prev) => prev || `请围绕「${title}」帮我梳理考研重点。`);
+  }, [knowledgeContext?.knowledgePointTitle, knowledgeContext?.knowledge_point_title, knowledgeContext?.title]);
 
   useEffect(() => {
     if (!shouldScrollToLatestUserRef.current) return;

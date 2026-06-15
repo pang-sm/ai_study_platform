@@ -325,11 +325,27 @@ class UserKnowledgeProgress(Base):
     username = Column(String(50), index=True, nullable=False)
     course_id = Column(String(100), index=True, nullable=False)
     knowledge_point_id = Column(Integer, index=True, nullable=False)
+    knowledge_point_code = Column(String(100), index=True, nullable=True)
+    knowledge_point_title = Column(String(255), nullable=True)
     mastery_score = Column(Integer, nullable=True)
     status = Column(String(30), nullable=True)
     practice_count = Column(Integer, nullable=True)
     task_count = Column(Integer, nullable=True)
     last_studied_at = Column(DateTime, nullable=True)
+    learned_at = Column(DateTime, nullable=True)
+    review_due_at = Column(DateTime, nullable=True)
+    review_interval_days = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+
+class UserKnowledgeReviewSetting(Base):
+    __tablename__ = "user_knowledge_review_settings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), index=True, nullable=False)
+    course_id = Column(String(100), index=True, nullable=False)
+    review_interval_days = Column(Integer, nullable=False, default=7)
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
