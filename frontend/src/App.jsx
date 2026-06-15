@@ -3209,6 +3209,33 @@ function App() {
     page === "workspaceMaterials" && Boolean(getExamSubjectKeyFromCourse(subject));
   const activeExamKnowledgeSubjectKey = getExamSubjectKeyFromCourse(subject) || examSubjectKey || "data_structure";
   const isExamCourseKnowledgePage = page === "knowledgeLearning";
+
+  // Practice center for 11408 exam subjects — gets the correct exam context
+  const examPracticeSubject = practiceContext?.examMode
+    ? (practiceContext?.examCourseId || "11408 数据结构")
+    : subject;
+  const examPracticeSubjectLabel = practiceContext?.examMode
+    ? (practiceContext?.examCourseId || "11408 数据结构")
+    : getSubjectLabel(subject);
+  const coursePracticePage = (
+    <PracticeCenter
+      user={user}
+      subject={examPracticeSubject}
+      subjectKey={practiceContext?.subject || activeExamMaterialsSubjectKey}
+      examMode={practiceContext?.examMode || false}
+      courseOptions={COURSE_OPTIONS}
+      getSubjectLabel={getSubjectLabel}
+      normalizeSubject={normalizeSubject}
+      formatDate={formatDate}
+      setPage={setPage}
+      practiceContext={practiceContext}
+      onClearPracticeContext={() => setPracticeContext(null)}
+      coursePreference={coursePreference}
+      searchNavigate={searchNavigate}
+      onClearSearchNavigate={() => setSearchNavigate(null)}
+    />
+  );
+
   const courseMaterialsPage = (
     <CourseMaterialsPage
       user={user}
@@ -3334,6 +3361,7 @@ function App() {
         subjectKey={examSubjectKey}
         panelIntent={examSubjectPanelIntent}
         materialsContent={courseMaterialsPage}
+        practiceContent={coursePracticePage}
         knowledgeContext={examKnowledgeContext}
         initialMaterialToReference={examInitialMaterialReference}
         onInitialMaterialReferenced={() => setExamInitialMaterialReference(null)}
@@ -4093,6 +4121,7 @@ function App() {
         subjectKey={activeExamMaterialsSubjectKey}
         panelIntent={{ panel: "materials", nonce: 0 }}
         materialsContent={courseMaterialsPage}
+        practiceContent={coursePracticePage}
         initialMaterialToReference={examInitialMaterialReference}
         onInitialMaterialReferenced={() => setExamInitialMaterialReference(null)}
         onNavigate={openExamSubjectFeature}

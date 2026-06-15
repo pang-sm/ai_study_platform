@@ -441,6 +441,8 @@ const RESULT_LABELS = {
 export default function PracticeCenter({
   user,
   subject,
+  subjectKey = null,
+  examMode = false,
   courseOptions,
   getSubjectLabel,
   normalizeSubject,
@@ -1339,6 +1341,13 @@ export default function PracticeCenter({
     const normalizedCourse = normalizeSubject(courseFilter, "");
     loadKnowledgePoints(normalizedCourse);
   }, [user?.username, courseFilter]);
+
+  // When in exam mode, default the course filter to the exam subject
+  useEffect(() => {
+    if ((examMode || practiceContext?.examMode) && subject && !courseFilter) {
+      setCourseFilter(subject);
+    }
+  }, [examMode, practiceContext?.examMode, subject]);
 
   useEffect(() => {
     loadQuestions();
@@ -4292,7 +4301,7 @@ export default function PracticeCenter({
             </div>
             <div className="task-modal-body">
               <div className="practice-generate-course-badge">
-                当前科目：{getSubjectLabel(courseFilter || subject) || "11408 数据结构"}
+                当前科目：{examMode || practiceContext?.examMode ? subject : (getSubjectLabel(courseFilter || subject) || subject)}
               </div>
 
               <div className="practice-kp-picker">

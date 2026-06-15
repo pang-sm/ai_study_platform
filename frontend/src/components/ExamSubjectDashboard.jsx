@@ -72,6 +72,7 @@ export default function ExamSubjectDashboard({
   panelIntent = null,
   materialsContent = null,
   knowledgeContent = null,
+  practiceContent = null,
   knowledgeContext = null,
   initialMaterialToReference = null,
   onInitialMaterialReferenced = null,
@@ -81,7 +82,7 @@ export default function ExamSubjectDashboard({
 }) {
   const panelStorageKey = `exam_subject_active_panel_${subjectKey}`;
   const normalizePanel = (panel) => (
-    panel === "ai" || panel === "home" || panel === "materials" || panel === "knowledge" ? panel : null
+    panel === "ai" || panel === "home" || panel === "materials" || panel === "knowledge" || panel === "practice" ? panel : null
   );
   const getSavedPanel = () => {
     try {
@@ -134,6 +135,10 @@ export default function ExamSubjectDashboard({
       onNavigate?.(target, { subject: subjectKey, courseId, title: config.title });
       return;
     }
+    if (target === "practice" && practiceContent) {
+      setActiveSection("practice");
+      return;
+    }
     onNavigate?.(target, { subject: subjectKey, courseId, title: config.title });
   };
 
@@ -159,7 +164,7 @@ export default function ExamSubjectDashboard({
         </button>
       </aside>
 
-      <main className={`exam-subject-main${activeSection === "ai" ? " exam-subject-main--chat" : ""}${activeSection === "materials" ? " exam-subject-main--materials" : ""}${activeSection === "knowledge" ? " exam-subject-main--knowledge" : ""}`}>
+      <main className={`exam-subject-main${activeSection === "ai" ? " exam-subject-main--chat" : ""}${activeSection === "materials" ? " exam-subject-main--materials" : ""}${activeSection === "knowledge" ? " exam-subject-main--knowledge" : ""}${activeSection === "practice" ? " exam-subject-main--practice" : ""}`}>
         {activeSection === "ai" ? (
           <ExamChat
             user={user}
@@ -176,6 +181,8 @@ export default function ExamSubjectDashboard({
           materialsContent
         ) : activeSection === "knowledge" && knowledgeContent ? (
           knowledgeContent
+        ) : activeSection === "practice" && practiceContent ? (
+          practiceContent
         ) : (
           <>
             <header className="exam-subject-header">
