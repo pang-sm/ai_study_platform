@@ -359,7 +359,7 @@ function FavoritePracticePage({ subjectKey, subjectInfo, user, onBack }) {
       ) : items.length === 0 ? (
         <div className="exam-practice-empty-state">
           <strong>暂无收藏题目</strong>
-          <p>在真题答题页点击“☆ 收藏”后，会出现在这里。</p>
+          <p>在真题答题页点击"☆ 收藏"后，会出现在这里。</p>
         </div>
       ) : (
         <div className="exam-practice-list">
@@ -393,12 +393,15 @@ function AIQuestionPracticePage({ subjectInfo, user, onBack }) {
   const [difficulty, setDifficulty] = useState("medium");
   const [requirement, setRequirement] = useState("");
   const [aiQuestions, setAiQuestions] = useState([]);
+  const [aiGroups, setAiGroups] = useState([]);
+  const [aiGroupTotal, setAiGroupTotal] = useState(0);
   const [aiLoading, setAiLoading] = useState(true);
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiMessage, setAiMessage] = useState("");
   const [aiError, setAiError] = useState("");
   const [editingQuestionId, setEditingQuestionId] = useState(null);
   const [editDraft, setEditDraft] = useState({ stem: "", standard_answer: "", analysis: "" });
+  const [aiManageGroupKey, setAiManageGroupKey] = useState(null);  // null = groups view, string = manage view
 
   useEffect(() => {
     const params = new URLSearchParams({ course_id: subjectInfo.courseId });
@@ -409,19 +412,19 @@ function AIQuestionPracticePage({ subjectInfo, user, onBack }) {
   }, [subjectInfo.courseId, user?.username]);
 
   const loadAiQuestions = () => {
-    if (!user?.username) {
-      setAiQuestions([]);
-      setAiLoading(false);
-      return;
-    }
+    if (!user?.username) { setAiQuestions([]); setAiGroups([]); setAiLoading(false); return; }
     setAiLoading(true);
     const params = new URLSearchParams({ username: user.username });
-    safeJsonFetch(`${API_BASE}/exam/11408/${subjectInfo.key || "data_structure"}/ai-questions?${params.toString()}`)
-      .then((payload) => {
-        setAiQuestions(payload.items || []);
-        setAiError("");
-      })
-      .catch((err) => setAiError(`加载 AI 题库失败：${err.message || "服务器错误"}`))
+    const key = subjectInfo.key || "data_structure";
+    Promise.all([
+      safeJsonFetch(`${API_BASE}/exam/11408/${key}/ai-questions?${params.toString()}`).catch(() => ({ items: [] })),
+      safeJsonFetch(`${API_BASE}/exam/11408/${key}/ai-questions/groups?${params.toString()}`).catch(() => ({ groups: [], total_questions: 0 })),
+    ]).then(([allQ, groupsQ]) => {
+      setAiQuestions(allQ.items || []);
+      setAiGroups(groupsQ.groups || []);
+      setAiGroupTotal(groupsQ.total_questions || 0);
+      setAiError("");
+    }).catch((err) => setAiError(`加载 AI 题库失败：${err.message || "服务器错误"}`))
       .finally(() => setAiLoading(false));
   };
 
@@ -562,65 +565,65 @@ function AIQuestionPracticePage({ subjectInfo, user, onBack }) {
           </button>
         </section>
         <section className="exam-practice-panel">
-          <div className="exam-practice-panel-title">
-            <h3>AI 题库</h3>
-          </div>
+          <div className="exam-practice-panel-title"><h3>AI 题库</h3></div>
           {aiLoading ? (
             <div className="past-paper-loading">正在加载 AI 题库...</div>
-          ) : aiQuestions.length === 0 ? (
-            <div className="exam-practice-empty-state">
-              <strong>暂无 AI 生成题目</strong>
-              <p>点击左侧“生成题目”后，mock 题会保存到当前用户的私有列表。</p>
+          ) : aiManageGroupKey ? (
+            /* ── Management view for one knowledge-point group ── */
+            <div className="ai-group-manage">
+              <button className="ghost-button compact" onClick={() => setAiManageGroupKey(null)}>← 返回分组</button>
+              <div className="ai-question-bank-list" style={{ marginTop: 8 }}>
+                {aiQuestions.filter(q => {
+                  const kp = (q.knowledge_point_id || "").trim();
+                  if (aiManageGroupKey === "_general") return !kp;
+                  return kp === aiManageGroupKey;
+                }).map(item => {
+                  const editing = editingQuestionId === item.id;
+                  return (<article key={item.id} className="ai-question-bank-item">
+                    <div className="past-paper-question-meta"><span className="past-paper-q-type">{item.question_type}</span><span className="past-paper-q-number">{item.difficulty || "中等"}</span>{item.knowledge_point_path && <span className="past-paper-q-year">{item.knowledge_point_path}</span>}{item.generation_mode && <span className="past-paper-q-year" style={{ background: item.generation_mode==="deepseek"?"#dcfce7":"#fef3c7" }}>{item.generation_mode==="deepseek"?"DeepSeek":"Mock"}</span>}</div>
+                    {editing ? (<div className="ai-question-edit-form"><textarea className="field" rows={4} value={editDraft.stem} onChange={e=>setEditDraft(p=>({...p,stem:e.target.value}))}/><input className="field" value={editDraft.standard_answer} onChange={e=>setEditDraft(p=>({...p,standard_answer:e.target.value}))}/><textarea className="field" rows={3} value={editDraft.analysis} onChange={e=>setEditDraft(p=>({...p,analysis:e.target.value}))}/></div>)
+                    : (<><div className="past-paper-q-content">{item.stem}</div>{item.options&&Object.keys(item.options).length>0&&<div className="ai-question-options">{Object.entries(item.options).map(([k,v])=><div key={k}><strong>{k}.</strong> {v}</div>)}</div>}<div className="past-paper-q-answer-row"><span className="past-paper-q-label">答案：</span><span>{item.standard_answer}</span></div>{item.analysis&&<div className="past-paper-q-feedback"><p>{item.analysis}</p></div>}</>)}
+                    <div className="past-paper-q-answer-row" style={{marginTop:4}}><span className="past-paper-q-label">质量：</span><span>{item.quality_status||"unchecked"}</span></div>
+                    {item.has_raw_response && <button className="ghost-button compact" style={{marginTop:4}} onClick={async()=>{try{const d=await safeJsonFetch(`${API_BASE}/exam/11408/${subjectInfo.key}/ai-questions/${item.id}/raw-response?username=${user.username}`); alert("Prompt:\n"+(d.generation_prompt||"").slice(0,2000)+"\n\nRaw:\n"+(d.raw_ai_response||"").slice(0,2000));}catch(e){alert("查看失败")}}}>查看原始AI响应</button>}
+                    <div className="exam-practice-action-row">{editing?(<><button className="primary-button compact" onClick={()=>saveEditQuestion(item)}>保存</button><button className="ghost-button compact" onClick={()=>setEditingQuestionId(null)}>取消</button></>):(<><button className="ghost-button compact" onClick={()=>startEditQuestion(item)}>编辑</button><button className="ghost-button compact" onClick={()=>deleteAiQuestion(item)}>删除</button>{item.quality_status&&<select className="field" style={{width:100}} value={item.quality_status||"unchecked"} onChange={async(e)=>{const v=e.target.value; try{const r=await safeJsonFetch(`${API_BASE}/exam/11408/${subjectInfo.key}/ai-questions/${item.id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:user.username,quality_status:v})}); setAiQuestions(p=>p.map(q=>q.id===item.id?r.item:q));}catch(err){setAiError(err.message)}}}><option value="unchecked">未检查</option><option value="usable">可用</option><option value="needs_edit">需修改</option><option value="discarded">废弃</option></select>}</>)}</div>
+                  </article>);
+                })}
+              </div>
             </div>
+          ) : aiGroups.length === 0 ? (
+            <div className="exam-practice-empty-state"><strong>暂无 AI 生成题目</strong><p>点击左侧"生成题目"后，AI 题会保存到当前用户的私有列表。共 {aiGroupTotal} 题。</p></div>
           ) : (
-            <div className="ai-question-bank-list">
-              {aiQuestions.map((item) => {
-                const editing = editingQuestionId === item.id;
-                return (
-                  <article key={item.id} className="ai-question-bank-item">
-                    <div className="past-paper-question-meta">
-                      <span className="past-paper-q-type">{item.question_type}</span>
-                      <span className="past-paper-q-number">{item.difficulty || "中等"}</span>
-                      {item.knowledge_point_path && <span className="past-paper-q-year">{item.knowledge_point_path}</span>}
-                    </div>
-                    {editing ? (
-                      <div className="ai-question-edit-form">
-                        <textarea className="field" rows={4} value={editDraft.stem} onChange={(event) => setEditDraft((prev) => ({ ...prev, stem: event.target.value }))} />
-                        <input className="field" value={editDraft.standard_answer} onChange={(event) => setEditDraft((prev) => ({ ...prev, standard_answer: event.target.value }))} />
-                        <textarea className="field" rows={3} value={editDraft.analysis} onChange={(event) => setEditDraft((prev) => ({ ...prev, analysis: event.target.value }))} />
-                      </div>
-                    ) : (
-                      <>
-                        <div className="past-paper-q-content">{item.stem}</div>
-                        {item.options && Object.keys(item.options).length > 0 && (
-                          <div className="ai-question-options">
-                            {Object.entries(item.options).map(([key, value]) => (
-                              <div key={key}><strong>{key}.</strong> {value}</div>
-                            ))}
-                          </div>
-                        )}
-                        <div className="past-paper-q-answer-row"><span className="past-paper-q-label">标准答案：</span><span>{item.standard_answer}</span></div>
-                        {item.analysis && <div className="past-paper-q-feedback"><p>{item.analysis}</p></div>}
-                      </>
-                    )}
-                    <div className="ai-question-bank-meta">创建时间：{item.created_at || "未知"}</div>
-                    <div className="exam-practice-action-row">
-                      {editing ? (
-                        <>
-                          <button type="button" className="primary-button compact" onClick={() => saveEditQuestion(item)}>保存</button>
-                          <button type="button" className="ghost-button compact" onClick={() => setEditingQuestionId(null)}>取消</button>
-                        </>
-                      ) : (
-                        <>
-                          <button type="button" className="ghost-button compact" onClick={() => startEditQuestion(item)}>编辑</button>
-                          <button type="button" className="ghost-button compact" onClick={() => deleteAiQuestion(item)}>删除</button>
-                          <button type="button" className="ghost-button compact" disabled>开始练习</button>
-                        </>
-                      )}
-                    </div>
-                  </article>
-                );
-              })}
+            /* ── Grouped view ── */
+            <div className="ai-group-list">
+              {aiGroups.map(g => (
+                <div key={g.group_key} className="ai-group-card">
+                  <div className="ai-group-header">
+                    <strong>{g.knowledge_point_path || "综合出题"}</strong>
+                    <span>{g.total} 题</span>
+                  </div>
+                  <div className="ai-group-stats">
+                    <span>选择题 {g.choice_count}</span>
+                    <span>大题 {g.big_count}</span>
+                    <span style={{color:"#16a34a"}}>DeepSeek {g.deepseek_count}</span>
+                    <span style={{color:"#d97706"}}>Mock {g.mock_count}</span>
+                  </div>
+                  <div className="ai-group-quality">
+                    <span>可用 {g.quality_summary?.usable||0}</span>
+                    <span>需修改 {g.quality_summary?.needs_edit||0}</span>
+                    <span>未检查 {g.quality_summary?.unchecked||0}</span>
+                    {g.quality_summary?.discarded>0&&<span>废弃 {g.quality_summary.discarded}</span>}
+                  </div>
+                  <div className="exam-practice-action-row">
+                    <button className="primary-button compact" onClick={async()=>{
+                      const qids=aiQuestions.filter(q=>{const kp=(q.knowledge_point_id||"").trim();return g.group_key==="_general"?!kp:kp===g.group_key;}).filter(q=>q.quality_status!=="discarded").map(q=>q.id);
+                      if(qids.length===0){setAiError("该分组无可练习题目");return}
+                      try{const r=await safeJsonFetch(`${API_BASE}/exam/11408/${subjectInfo.key}/ai-questions/attempts`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:user.username,knowledge_point_id:g.knowledge_point_id,knowledge_point_path:g.knowledge_point_path,question_ids:qids})});
+                      window.open(`/exam/11408/${subjectInfo.key}/ai-questions/attempt/${r.attempt_id}`,"_blank");}catch(err){setAiError(err.message)}
+                    }}>开始练习</button>
+                    <button className="ghost-button compact" onClick={()=>setAiManageGroupKey(g.group_key)}>管理题目</button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </section>

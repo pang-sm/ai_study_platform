@@ -20502,6 +20502,15 @@ select.field:focus {
   margin: 10px 0;
 }
 
+.ai-group-list { display: flex; flex-direction: column; gap: 12px; }
+.ai-group-card { background: #fff; border: 1px solid #e8e0f0; border-radius: 12px; padding: 14px 16px; box-shadow: 0 2px 8px rgba(124,58,237,0.04); }
+.ai-group-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.ai-group-header strong { font-size: 0.88rem; color: #111827; }
+.ai-group-header span { font-size: 0.82rem; font-weight: 700; color: #7c3aed; }
+.ai-group-stats { display: flex; gap: 12px; font-size: 0.76rem; color: #64748b; margin-bottom: 4px; flex-wrap: wrap; }
+.ai-group-quality { display: flex; gap: 10px; font-size: 0.74rem; color: #94a3b8; margin-bottom: 6px; flex-wrap: wrap; }
+.ai-group-manage { padding: 0; }
+
 .past-paper-favorite-btn {
   margin-left: auto;
   display: inline-flex;
