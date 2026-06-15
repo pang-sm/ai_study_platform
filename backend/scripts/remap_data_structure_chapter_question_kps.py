@@ -229,7 +229,7 @@ def main():
     parser.add_argument("--apply-medium", action="store_true")
     parser.add_argument("--apply-batch-auto", action="store_true")
     parser.add_argument("--limit", type=int, default=0)
-    parser.add_argument("--strategy", type=str, default="keyword", choices=["keyword","sequence","batch"])
+    parser.add_argument("--strategy", type=str, default="keyword", choices=["keyword","sequence","batch","batch-balanced"])
     args = parser.parse_args()
 
     db = SessionLocal()
@@ -259,6 +259,59 @@ def main():
                 if old in new_kp_counts: new_kp_counts[old] -= 1
                 new_kp_counts[kp_id] = new_kp_counts.get(kp_id, 0) + 1
             else: remap["skipped"] += 1
+    elif args.strategy == "batch-balanced":
+        bresults, batches_info, matched_db = classify_batch(items_sorted)
+        caps = {}  # KP -> current assigned count
+        for r in bresults:
+            if r[2]: caps[r[2]] = caps.get(r[2], 0) + 1
+        SOFT_CAP = 8
+        auto_apply = 0; manual_rev = 0; keep_orig = 0
+        very_high = 0; high_c = 0; med_c = 0; low_c = 0
+        batch_balanced_suggestions = []
+        for item_id, old_kp, new_kp, conf, bn in bresults:
+            if not new_kp or new_kp == old_kp:
+                keep_orig += 1; continue
+            if conf == "high":
+                if caps.get(new_kp, 0) > SOFT_CAP:
+                    decision = "manual_review"
+                    manual_rev += 1
+                else:
+                    caps[new_kp] = caps.get(new_kp, 0) + 1
+                    decision = "auto_apply"
+                    auto_apply += 1
+                    remap["high"] = remap.get("high", 0) + 1
+                    if old_kp in new_kp_counts: new_kp_counts[old_kp] -= 1
+                    new_kp_counts[new_kp] = new_kp_counts.get(new_kp, 0) + 1
+                    batch_balanced_suggestions.append({"id": item_id, "stem": "", "old_kp": old_kp, "new_kp": new_kp, "confidence": conf, "decision": decision, "batch": bn, "over_cap": False})
+                if conf == "very_high": very_high += 1
+                elif conf == "high": high_c += 1
+            elif conf == "medium":
+                med_c += 1; manual_rev += 1; keep_orig += 1
+            else:
+                low_c += 1; keep_orig += 1
+        # Build detailed report
+        bal_report = {
+            "strategy": "batch-balanced", "soft_cap": SOFT_CAP,
+            "auto_apply": auto_apply, "manual_review": manual_rev, "keep_original": keep_orig,
+            "very_high": very_high, "high": high_c, "medium": med_c, "low": low_c,
+            "over_cap_kps": {k: v for k, v in caps.items() if v > SOFT_CAP},
+            "details": [{"id": s["id"], "old_kp": s["old_kp"], "new_kp": s["new_kp"],
+                         "confidence": s["confidence"], "decision": s["decision"],
+                         "batch": s["batch"], "over_cap": s.get("over_cap", False)}
+                        for s in batch_balanced_suggestions[:300]],
+        }
+        (REPORT_DIR / "kp_remap_batch_balanced_dry_run_report.json").write_text(
+            json.dumps(bal_report, ensure_ascii=False, indent=2), encoding="utf-8")
+        new_cov2 = sum(1 for k in OUTLINE if new_kp_counts.get(k, 0) > 0)
+        bal_md = [f"# batch-balanced dry-run\n",
+                  f"- coverage: {new_cov2}/{len(OUTLINE)} ({round(new_cov2/len(OUTLINE)*100,1)}%)",
+                  f"- auto_apply: {auto_apply}  manual_review: {manual_rev}  keep: {keep_orig}",
+                  f"- very_high: {very_high}  high: {high_c}  medium: {med_c}  low: {low_c}",
+                  f"- over_cap KPs: {len(bal_report['over_cap_kps'])} (cap={SOFT_CAP})",
+                  f"- 8.7 projected: {new_kp_counts.get('8.7',0)}"]
+        (REPORT_DIR / "kp_remap_batch_balanced_dry_run_report.md").write_text("\n".join(bal_md), encoding="utf-8")
+        print(f"Batch-balanced: auto={auto_apply} manual={manual_rev} keep={keep_orig} over_cap={len(bal_report['over_cap_kps'])}")
+
     elif args.strategy == "batch":
         batch_results, batches_info, matched_db = classify_batch(items_sorted)
         for item_id, old_kp, new_kp, conf, batch_no in batch_results:
