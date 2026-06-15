@@ -3,6 +3,7 @@ import "./KnowledgeLearningPage.css";
 
 const API_BASE = "/api";
 const COURSE_ID = "data_structure_11408";
+const COURSE_NAME = "11408 数据结构";
 
 const STATUS_CONFIG = {
   mastered: { label: "已掌握", shortLabel: "已掌握", color: "#16a34a", bg: "#dcfce7" },
@@ -31,15 +32,20 @@ function nodeLabel(node) {
   return node?.title || "未命名知识点";
 }
 
+function chapterLabel(chapter) {
+  if (!chapter) return "";
+  return `第${chapter.chapter_no}章 ${chapter.title}`;
+}
+
 function countDescendants(node) {
   return (node?.children || []).reduce((sum, child) => sum + 1 + countDescendants(child), 0);
 }
 
-function flattenNodes(nodes, chapterTitle = "") {
+function flattenNodes(nodes, chapter = null) {
   const result = [];
   const walk = (items, parent = null, depth = 1) => {
     (items || []).forEach((item) => {
-      const enriched = { ...item, parent, depth, chapterTitle };
+      const enriched = { ...item, parent, depth, chapter };
       result.push(enriched);
       walk(item.children || [], enriched, depth + 1);
     });
@@ -64,6 +70,32 @@ function filterTree(nodes, keyword, status) {
     .filter(Boolean);
 }
 
+function collectExpandableIds(nodes, maxDepth = 1, depth = 1, result = new Set()) {
+  (nodes || []).forEach((node) => {
+    if ((node.children || []).length > 0 && depth <= maxDepth) {
+      result.add(node.id);
+    }
+    collectExpandableIds(node.children || [], maxDepth, depth + 1, result);
+  });
+  return result;
+}
+
+function collectAllExpandableIds(nodes, result = new Set()) {
+  (nodes || []).forEach((node) => {
+    if ((node.children || []).length > 0) {
+      result.add(node.id);
+      collectAllExpandableIds(node.children || [], result);
+    }
+  });
+  return result;
+}
+
+function findFirstMatchingChapter(chapters, keyword, status) {
+  const query = keyword.trim();
+  if (!query) return null;
+  return (chapters || []).find((chapter) => filterTree(chapter.children || [], query, status).length > 0) || null;
+}
+
 function StatusBadge({ status }) {
   const cfg = STATUS_CONFIG[normalizeStatus(status)];
   return (
@@ -85,54 +117,86 @@ function StatCard({ icon, value, label }) {
   );
 }
 
-function TreeNode({ node, onSelect, selectedId, depth = 1 }) {
-  const selected = selectedId === node.id;
+function HighlightedText({ text, keyword }) {
+  const value = String(text || "");
+  const query = keyword.trim();
+  if (!query) return value;
+  const index = value.toLowerCase().indexOf(query.toLowerCase());
+  if (index < 0) return value;
   return (
-    <div className="km-tree-node">
-      <button
-        type="button"
-        className={`km-node-pill${selected ? " km-node-pill--selected" : ""}`}
-        style={{ marginLeft: `${Math.min(depth - 1, 4) * 18}px` }}
-        onClick={() => onSelect(node)}
-      >
-        <span className="km-node-code">{node.code || "条目"}</span>
-        <span className="km-node-title">{nodeLabel(node)}</span>
-        {node.optional && <span className="km-node-optional">选学</span>}
-      </button>
-      {(node.children || []).map((child) => (
-        <TreeNode
-          key={child.id}
-          node={child}
-          onSelect={onSelect}
-          selectedId={selectedId}
-          depth={depth + 1}
-        />
-      ))}
-    </div>
+    <>
+      {value.slice(0, index)}
+      <mark className="km-highlight">{value.slice(index, index + query.length)}</mark>
+      {value.slice(index + query.length)}
+    </>
   );
 }
 
-function GraphBranch({ node, onSelect, selectedId, depth = 1 }) {
+function KnowledgeTreeNode({
+  node,
+  depth = 1,
+  selectedId,
+  expandedIds,
+  keyword,
+  onSelect,
+  onToggle,
+}) {
+  const children = node.children || [];
+  const hasChildren = children.length > 0;
+  const expanded = hasChildren && expandedIds.has(node.id);
   const selected = selectedId === node.id;
+
   return (
-    <div className={`km-graph-branch km-graph-branch--depth-${Math.min(depth, 3)}`}>
+    <div className={`km-tree-node km-tree-node--depth-${Math.min(depth, 4)}`}>
       <button
         type="button"
-        className={`km-graph-node${selected ? " km-graph-node--selected" : ""}`}
+        className={`km-node-pill${selected ? " km-node-pill--selected" : ""}${hasChildren ? " km-node-pill--parent" : ""}`}
+        style={{ "--km-depth": Math.min(depth - 1, 5) }}
         onClick={() => onSelect(node)}
       >
-        <span>{nodeLabel(node)}</span>
-        {(node.children || []).length > 0 && <small>{node.children.length} 个子项</small>}
+        {hasChildren ? (
+          <span
+            role="button"
+            tabIndex={0}
+            className="km-node-toggle"
+            aria-label={expanded ? "收起" : "展开"}
+            onClick={(event) => {
+              event.stopPropagation();
+              onToggle(node.id);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                event.stopPropagation();
+                onToggle(node.id);
+              }
+            }}
+          >
+            {expanded ? "▼" : "▶"}
+          </span>
+        ) : (
+          <span className="km-node-toggle km-node-toggle--leaf" aria-hidden="true" />
+        )}
+        <span className="km-node-code">
+          <HighlightedText text={node.code || "条目"} keyword={keyword} />
+        </span>
+        <span className="km-node-title">
+          <HighlightedText text={nodeLabel(node)} keyword={keyword} />
+        </span>
+        {node.optional && <span className="km-node-optional">选学</span>}
       </button>
-      {(node.children || []).length > 0 && (
-        <div className="km-graph-children">
-          {node.children.map((child) => (
-            <GraphBranch
+      {expanded && children.length > 0 && (
+        <div className="km-tree-children">
+          {children.map((child) => (
+            <KnowledgeTreeNode
               key={child.id}
               node={child}
-              onSelect={onSelect}
-              selectedId={selectedId}
               depth={depth + 1}
+              selectedId={selectedId}
+              expandedIds={expandedIds}
+              keyword={keyword}
+              onSelect={onSelect}
+              onToggle={onToggle}
             />
           ))}
         </div>
@@ -141,11 +205,7 @@ function GraphBranch({ node, onSelect, selectedId, depth = 1 }) {
   );
 }
 
-export default function KnowledgeLearningPage({
-  user,
-  setPage,
-  onNavigateToAI,
-}) {
+export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -154,7 +214,8 @@ export default function KnowledgeLearningPage({
   const [searchInput, setSearchInput] = useState("");
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [viewMode, setViewMode] = useState("graph");
+  const [viewMode, setViewMode] = useState("tree");
+  const [expandedIds, setExpandedIds] = useState(() => new Set());
 
   useEffect(() => {
     let alive = true;
@@ -172,6 +233,7 @@ export default function KnowledgeLearningPage({
         const firstChapter = payload.chapters?.[0] || null;
         setActiveChapterCode(firstChapter?.code || "");
         setSelectedNode(firstChapter || null);
+        setExpandedIds(collectExpandableIds(firstChapter?.children || [], 1));
       } catch (err) {
         if (alive) setError(err.message || "知识脉络加载失败");
       } finally {
@@ -191,57 +253,82 @@ export default function KnowledgeLearningPage({
     [activeChapter, query, statusFilter]
   );
   const flatActiveNodes = useMemo(
-    () => flattenNodes(activeChapter?.children || [], activeChapter?.title || ""),
+    () => flattenNodes(activeChapter?.children || [], activeChapter),
     [activeChapter]
   );
+
+  useEffect(() => {
+    if (!query.trim()) return;
+    setExpandedIds(collectAllExpandableIds(filteredChildren));
+  }, [filteredChildren, query]);
 
   const handleChapterClick = (chapter) => {
     setActiveChapterCode(chapter.code);
     setSelectedNode(chapter);
+    setExpandedIds(collectExpandableIds(chapter.children || [], 1));
   };
 
   const handleSearch = () => {
-    setQuery(searchInput);
+    const nextQuery = searchInput.trim();
+    setQuery(nextQuery);
+    if (!nextQuery) {
+      setExpandedIds(collectExpandableIds(activeChapter?.children || [], 1));
+      return;
+    }
+    const matchingChapter = findFirstMatchingChapter(chapters, nextQuery, statusFilter);
+    if (matchingChapter && matchingChapter.code !== activeChapterCode) {
+      setActiveChapterCode(matchingChapter.code);
+      setSelectedNode(matchingChapter);
+      setExpandedIds(collectAllExpandableIds(filterTree(matchingChapter.children || [], nextQuery, statusFilter)));
+    }
+  };
+
+  const handleStatusFilter = (nextStatus) => {
+    setStatusFilter(nextStatus);
+    if (query.trim()) {
+      const matchingChapter = findFirstMatchingChapter(chapters, query, nextStatus);
+      if (matchingChapter) {
+        setActiveChapterCode(matchingChapter.code);
+        setSelectedNode(matchingChapter);
+        setExpandedIds(collectAllExpandableIds(filterTree(matchingChapter.children || [], query, nextStatus)));
+      }
+    }
   };
 
   const selectNode = (node) => {
     setSelectedNode(node);
   };
 
-  const selectedChapterName = activeChapter ? `第${activeChapter.chapter_no}章 ${activeChapter.title}` : "";
+  const toggleNode = (nodeId) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(nodeId)) next.delete(nodeId);
+      else next.add(nodeId);
+      return next;
+    });
+  };
+
+  const selectedChapterName = chapterLabel(activeChapter);
   const detailNode = selectedNode || activeChapter;
   const detailStatus = normalizeStatus(detailNode?.status);
-
-  const openMaterials = () => {
-    if (!detailNode) return;
-    setPage?.("workspaceMaterials", {
-      courseId: "11408 数据结构",
-      materialKeyword: nodeLabel(detailNode),
-    });
-  };
-
-  const openPractice = () => {
-    if (!detailNode) return;
-    setPage?.("practiceCenter", {
-      courseId: "11408 数据结构",
-      courseName: "11408 数据结构",
-      knowledgePointTitle: nodeLabel(detailNode),
-      knowledgePointText: nodeLabel(detailNode),
-    });
-  };
 
   const openAI = () => {
     if (!detailNode) return;
     onNavigateToAI?.({
       type: "knowledge_point",
-      courseId: "11408 数据结构",
-      courseName: "11408 数据结构",
+      course_id: COURSE_ID,
+      courseId: COURSE_NAME,
+      course_name: COURSE_NAME,
+      courseName: COURSE_NAME,
+      chapter: selectedChapterName,
+      knowledge_point_code: detailNode.code || "",
+      knowledge_point_title: nodeLabel(detailNode),
       knowledgePointId: detailNode.id,
       knowledgePointTitle: nodeLabel(detailNode),
       knowledgePointStatus: detailNode.status || "not_started",
       nodeKey: detailNode.id,
       title: nodeLabel(detailNode),
-      aiPromptContext: `当前学习知识点：${nodeLabel(detailNode)}，所属章节：${selectedChapterName}。`,
+      aiPromptContext: `当前学习知识点：${nodeLabel(detailNode)}；编号：${detailNode.code || "无"}；所属章节：${selectedChapterName}。`,
     });
   };
 
@@ -266,16 +353,15 @@ export default function KnowledgeLearningPage({
       <section className="km-hero-card">
         <div>
           <h1>知识脉络 · 数据结构</h1>
-          <p>当前课程：{data?.course_name || "11408 数据结构"}</p>
+          <p>当前课程：{data?.course_name || COURSE_NAME}</p>
         </div>
-        <button type="button" className="km-import-button">导入知识点</button>
       </section>
 
       <section className="km-stats-row">
-        <StatCard icon="▣" value={data?.stats?.total} label="知识点总数" />
+        <StatCard icon="◎" value={data?.stats?.total} label="知识点总数" />
         <StatCard icon="✓" value={data?.stats?.mastered} label="已掌握" />
-        <StatCard icon="◴" value={data?.stats?.learning} label="学习中" />
-        <StatCard icon="▤" value={data?.stats?.not_started} label="待学习" />
+        <StatCard icon="◐" value={data?.stats?.learning} label="学习中" />
+        <StatCard icon="○" value={data?.stats?.not_started} label="待学习" />
       </section>
 
       <section className="km-filter-card">
@@ -284,11 +370,18 @@ export default function KnowledgeLearningPage({
             <span>⌕</span>
             <input
               value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
+              onChange={(event) => {
+                const nextValue = event.target.value;
+                setSearchInput(nextValue);
+                if (!nextValue.trim()) {
+                  setQuery("");
+                  setExpandedIds(collectExpandableIds(activeChapter?.children || [], 1));
+                }
+              }}
               onKeyDown={(event) => {
                 if (event.key === "Enter") handleSearch();
               }}
-              placeholder="在当前科目中搜索知识点、章节或关系..."
+              placeholder="在当前课程中搜索知识点、章节或编号..."
             />
           </div>
           <button type="button" className="km-primary-button" onClick={handleSearch}>搜索</button>
@@ -302,7 +395,7 @@ export default function KnowledgeLearningPage({
                 key={option.value}
                 type="button"
                 className={`km-chip${statusFilter === option.value ? " km-chip--active" : ""}`}
-                onClick={() => setStatusFilter(option.value)}
+                onClick={() => handleStatusFilter(option.value)}
               >
                 {option.label}
               </button>
@@ -329,7 +422,7 @@ export default function KnowledgeLearningPage({
         <div className="km-filter-line">
           <span className="km-filter-label">排序</span>
           <select className="km-sort-select" value="chapter" disabled>
-            <option value="chapter">按章节</option>
+            <option value="chapter">按章节顺序</option>
           </select>
         </div>
       </section>
@@ -345,7 +438,7 @@ export default function KnowledgeLearningPage({
               onClick={() => handleChapterClick(chapter)}
             >
               <span>{chapter.chapter_no}</span>
-              <strong>第{chapter.chapter_no}章 {chapter.title}</strong>
+              <strong>{chapterLabel(chapter)}</strong>
             </button>
           ))}
         </aside>
@@ -359,44 +452,25 @@ export default function KnowledgeLearningPage({
             <StatusBadge status={activeChapter?.status} />
           </div>
 
-          {filteredChildren.length === 0 ? (
+          {viewMode === "graph" ? (
+            <div className="km-graph-placeholder">
+              关系图视图后续开放
+            </div>
+          ) : filteredChildren.length === 0 ? (
             <div className="km-empty-state">没有匹配的知识点，请调整搜索或筛选条件。</div>
-          ) : viewMode === "tree" ? (
+          ) : (
             <div className="km-tree-view">
               {filteredChildren.map((node) => (
-                <TreeNode key={node.id} node={node} onSelect={selectNode} selectedId={detailNode?.id} />
-              ))}
-            </div>
-          ) : viewMode === "chapter" ? (
-            <div className="km-chapter-view">
-              {filteredChildren.map((node) => (
-                <button
+                <KnowledgeTreeNode
                   key={node.id}
-                  type="button"
-                  className={`km-section-card${detailNode?.id === node.id ? " km-section-card--selected" : ""}`}
-                  onClick={() => selectNode(node)}
-                >
-                  <span>{node.code || "小节"}</span>
-                  <strong>{nodeLabel(node)}</strong>
-                  <small>{countDescendants(node)} 个下级知识点</small>
-                </button>
+                  node={node}
+                  selectedId={detailNode?.id}
+                  expandedIds={expandedIds}
+                  keyword={query}
+                  onSelect={selectNode}
+                  onToggle={toggleNode}
+                />
               ))}
-            </div>
-          ) : (
-            <div className="km-graph-view">
-              <button
-                type="button"
-                className={`km-center-node${detailNode?.id === activeChapter?.id ? " km-center-node--selected" : ""}`}
-                onClick={() => selectNode(activeChapter)}
-              >
-                <strong>第{activeChapter?.chapter_no}章</strong>
-                <span>{activeChapter?.title}</span>
-              </button>
-              <div className="km-graph-grid">
-                {filteredChildren.map((node) => (
-                  <GraphBranch key={node.id} node={node} onSelect={selectNode} selectedId={detailNode?.id} />
-                ))}
-              </div>
             </div>
           )}
         </div>
@@ -429,8 +503,6 @@ export default function KnowledgeLearningPage({
             </div>
           </dl>
           <div className="km-actions">
-            <button type="button" onClick={openMaterials}>查看讲义</button>
-            <button type="button" onClick={openPractice}>做练习</button>
             <button type="button" onClick={openAI}>AI问答</button>
           </div>
         </aside>

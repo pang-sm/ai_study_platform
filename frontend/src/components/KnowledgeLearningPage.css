@@ -195,9 +195,10 @@
 
 .km-map-card {
   display: grid;
-  grid-template-columns: 236px minmax(0, 1fr) 280px;
+  grid-template-columns: 236px minmax(360px, 1fr) 280px;
   gap: 0;
   min-height: 520px;
+  max-width: 100%;
   overflow: hidden;
 }
 
@@ -254,6 +255,7 @@
 .km-visual-area {
   min-width: 0;
   padding: 22px;
+  overflow: hidden;
 }
 
 .km-visual-header {
@@ -286,118 +288,48 @@
   white-space: nowrap;
 }
 
-.km-graph-view {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  align-items: center;
-  min-height: 420px;
-}
-
-.km-center-node {
-  width: min(220px, 100%);
-  min-height: 74px;
-  border: none;
-  border-radius: 16px;
-  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
-  color: #fff;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  font: inherit;
-  cursor: pointer;
-  box-shadow: 0 16px 34px rgba(109, 40, 217, 0.28);
-}
-
-.km-center-node span {
-  font-size: 1.05rem;
-  font-weight: 800;
-}
-
-.km-graph-grid {
-  width: 100%;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap: 14px;
-  align-items: start;
-}
-
-.km-graph-branch {
-  min-width: 0;
-}
-
-.km-graph-node {
-  width: 100%;
-  min-height: 54px;
-  padding: 10px 12px;
-  border: 1.5px solid #c4b5fd;
-  border-radius: 14px;
-  background: #fbf9ff;
-  color: #3b2b5f;
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-  text-align: left;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.km-graph-node small {
-  color: #8a7ca7;
-  font-weight: 600;
-  font-size: 0.72rem;
-}
-
-.km-graph-node--selected,
 .km-node-pill--selected,
 .km-section-card--selected {
   border-color: #6d28d9 !important;
-  background: #7c3aed !important;
-  color: #fff !important;
+  background: #f1eaff !important;
+  color: #5b21b6 !important;
   box-shadow: 0 10px 22px rgba(109, 40, 217, 0.22);
-}
-
-.km-graph-node--selected small {
-  color: #f5f3ff;
-}
-
-.km-graph-children {
-  margin: 10px 0 0 12px;
-  padding-left: 12px;
-  border-left: 1px dashed #c4b5fd;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.km-graph-branch--depth-3 .km-graph-children {
-  display: none;
 }
 
 .km-tree-view {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   max-height: 620px;
   overflow: auto;
-  padding-right: 6px;
+  padding: 2px 8px 2px 2px;
 }
 
 .km-tree-node {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
+}
+
+.km-tree-view > .km-tree-node {
+  padding: 12px;
+  border: 1px solid #ded3f8;
+  border-radius: 14px;
+  background: #fbf9ff;
+}
+
+.km-tree-children {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .km-node-pill {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 42px;
-  padding: 8px 12px;
+  min-height: 38px;
+  padding: 8px 12px 8px calc(12px + var(--km-depth, 0) * 18px);
   border: 1px solid #ded3f8;
   border-radius: 12px;
   background: #fff;
@@ -405,6 +337,16 @@
   font: inherit;
   cursor: pointer;
   text-align: left;
+  width: 100%;
+  border-left: 3px solid transparent;
+}
+
+.km-node-pill--parent {
+  font-weight: 700;
+}
+
+.km-node-pill--selected {
+  border-left-color: #6d28d9 !important;
 }
 
 .km-node-code {
@@ -412,6 +354,26 @@
   color: #7c3aed;
   font-weight: 800;
   font-size: 0.76rem;
+}
+
+.km-node-toggle {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 8px;
+  color: #7c3aed;
+  font-size: 0.78rem;
+  line-height: 1;
+}
+
+.km-node-toggle:hover {
+  background: #ede9fe;
+}
+
+.km-node-toggle--leaf:hover {
+  background: transparent;
 }
 
 .km-node-title {
@@ -427,6 +389,24 @@
   color: #92400e;
   font-size: 0.7rem;
   font-weight: 700;
+}
+
+.km-highlight {
+  padding: 0 2px;
+  border-radius: 4px;
+  background: #fef08a;
+  color: #713f12;
+}
+
+.km-graph-placeholder {
+  display: grid;
+  place-items: center;
+  min-height: 360px;
+  border: 1px dashed #c4b5fd;
+  border-radius: 16px;
+  background: #fbf9ff;
+  color: #6d28d9;
+  font-weight: 800;
 }
 
 .km-chapter-view {
