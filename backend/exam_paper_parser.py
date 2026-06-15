@@ -14,7 +14,7 @@ logger = logging.getLogger("exam_parser")
 
 BASE_DIR = Path(__file__).resolve().parent
 EXAM_RESOURCES_DIR = BASE_DIR / "exam_resources" / "11408"
-CACHE_DIR = BASE_DIR / "cache" / "exam_papers"
+CACHE_DIR = BASE_DIR / "cache" / "exam_papers" / "11408"
 STATIC_DIR = BASE_DIR / "static" / "exam_papers" / "11408"
 
 EXAM_SUBJECTS = {
