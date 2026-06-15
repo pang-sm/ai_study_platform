@@ -12026,6 +12026,46 @@ def update_knowledge_map_review_settings(req: schemas.KnowledgeMapReviewSettings
     return {"success": True, "course_id": course_id, "review_interval_days": interval}
 
 
+# ── 11408 Past Papers ───────────────────────────────────────
+
+EXAM_RESOURCES_DIR = BASE_DIR / "exam_resources"
+EXAM_11408_DIR = EXAM_RESOURCES_DIR / "11408"
+
+EXAM_SUBJECT_DIRS = {
+    "data_structure": "数据结构",
+    "computer_organization": "计算机组成原理",
+    "operating_system": "操作系统",
+    "computer_network": "计算机网络",
+}
+
+
+@app.get("/api/exam/11408/{subject_key}/past-papers")
+def get_exam_past_papers(subject_key: str):
+    if subject_key not in EXAM_SUBJECT_DIRS:
+        raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
+    subject_dir = EXAM_11408_DIR / subject_key
+    subject_name = EXAM_SUBJECT_DIRS[subject_key]
+    resource_files = []
+    if subject_dir.exists():
+        for f in sorted(subject_dir.iterdir()):
+            if f.is_file() and f.suffix in (".docx", ".pdf", ".txt"):
+                years = []
+                for part in f.stem.split("_"):
+                    if part.isdigit() and len(part) == 4:
+                        years.append(int(part))
+                resource_files.append({
+                    "filename": f.name,
+                    "years": years,
+                    "description": f"11408 近五年真题拆分：{subject_name}",
+                })
+    return {
+        "subject_key": subject_key,
+        "subject_name": subject_name,
+        "available": len(resource_files) > 0,
+        "resource_files": resource_files,
+    }
+
+
 @app.put("/knowledge-points/{point_id}/progress")
 def update_knowledge_point_progress(
     point_id: int,

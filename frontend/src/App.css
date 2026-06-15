@@ -20067,6 +20067,51 @@ select.field:focus {
   overflow-y: auto;
 }
 
+.practice-type-card--past {
+  border-color: #fcd34d;
+  background: linear-gradient(135deg, #fffbeb, #fef3c7);
+}
+
+.practice-type-card--past:hover {
+  border-color: #f59e0b;
+}
+
+.practice-chip-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.practice-check-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 1px solid #d4c4ff;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  background: #fff;
+}
+
+.practice-check-label input:checked + span {
+  color: #7c3aed;
+  font-weight: 700;
+}
+
+.practice-recent-subject {
+  font-size: 0.72rem;
+  color: #7c3aed;
+  background: #f5f0ff;
+  padding: 2px 8px;
+  border-radius: 8px;
+}
+
+.exam-practice-dashboard {
+  padding: 0;
+}
+
 @media (max-width: 900px) {
   .practice-stats-grid {
     grid-template-columns: repeat(2, 1fr);

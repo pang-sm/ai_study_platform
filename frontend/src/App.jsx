@@ -19,6 +19,7 @@ import MembershipPage from "./components/MembershipPage.jsx";
 const CodeStudio = lazy(() => import("./components/CodeStudio.jsx"));
 const TaskCenter = lazy(() => import("./components/TaskCenter.jsx"));
 const PracticeCenter = lazy(() => import("./components/PracticeCenter.jsx"));
+const ExamPracticeCenter = lazy(() => import("./components/ExamPracticeCenter.jsx"));
 const LearningDataCenter = lazy(() => import("./components/LearningDataCenter.jsx"));
 const ReviewCenter = lazy(() => import("./components/ReviewCenter.jsx"));
 import FeatureUnavailable from "./components/FeatureUnavailable.jsx";
@@ -3190,7 +3191,8 @@ function App() {
     }
 
     if (target === "practice") {
-      setPage("practiceCenter", navContext);
+      // Navigate to 11408 exam subject dashboard with practice panel open
+      setPage("examSubjectDashboard", { ...navContext, forcePanel: "practice" });
       return;
     }
 
@@ -3210,30 +3212,32 @@ function App() {
   const activeExamKnowledgeSubjectKey = getExamSubjectKeyFromCourse(subject) || examSubjectKey || "data_structure";
   const isExamCourseKnowledgePage = page === "knowledgeLearning";
 
-  // Practice center for 11408 exam subjects — gets the correct exam context
-  const examPracticeSubject = practiceContext?.examMode
-    ? (practiceContext?.examCourseId || "11408 数据结构")
-    : subject;
-  const examPracticeSubjectLabel = practiceContext?.examMode
-    ? (practiceContext?.examCourseId || "11408 数据结构")
-    : getSubjectLabel(subject);
+  // 11408 exam practice center — uses dedicated ExamPracticeCenter component
+  const getExamSubjectName = (key) => {
+    const config = EXAM_SUBJECTS[key];
+    return config ? `11408 ${config.title}` : "11408 数据结构";
+  };
+  const examPracticeSubjectKey = practiceContext?.subject || activeExamMaterialsSubjectKey || "data_structure";
+  const examPracticeSubjectName = getExamSubjectName(examPracticeSubjectKey);
+
   const coursePracticePage = (
-    <PracticeCenter
-      user={user}
-      subject={examPracticeSubject}
-      subjectKey={practiceContext?.subject || activeExamMaterialsSubjectKey}
-      examMode={practiceContext?.examMode || false}
-      courseOptions={COURSE_OPTIONS}
-      getSubjectLabel={getSubjectLabel}
-      normalizeSubject={normalizeSubject}
-      formatDate={formatDate}
-      setPage={setPage}
-      practiceContext={practiceContext}
-      onClearPracticeContext={() => setPracticeContext(null)}
-      coursePreference={coursePreference}
-      searchNavigate={searchNavigate}
-      onClearSearchNavigate={() => setSearchNavigate(null)}
-    />
+    <Suspense fallback={<div className="empty-state">练习中心加载中...</div>}>
+      <ExamPracticeCenter
+        subjectKey={examPracticeSubjectKey}
+        subjectName={examPracticeSubjectName}
+        user={user}
+        courseOptions={COURSE_OPTIONS}
+        getSubjectLabel={getSubjectLabel}
+        normalizeSubject={normalizeSubject}
+        formatDate={formatDate}
+        setPage={setPage}
+        practiceContext={practiceContext}
+        onClearPracticeContext={() => setPracticeContext(null)}
+        coursePreference={coursePreference}
+        searchNavigate={searchNavigate}
+        onClearSearchNavigate={() => setSearchNavigate(null)}
+      />
+    </Suspense>
   );
 
   const courseMaterialsPage = (
