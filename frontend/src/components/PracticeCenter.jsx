@@ -2984,7 +2984,7 @@ export default function PracticeCenter({
         </div>
       )}
 
-      {!mixedPracticeMode && !aiTempMode && (
+      {!showDashboard && !mixedPracticeMode && !aiTempMode && (
       <div className="practice-workbench">
         {taskContextActive && (
           <div className="practice-task-banner">
