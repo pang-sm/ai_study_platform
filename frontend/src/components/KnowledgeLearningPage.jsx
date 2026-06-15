@@ -49,11 +49,9 @@ function getDisplayCode(node) {
   return code;
 }
 
-function getNodeCodeLabel(node) {
-  // What to show in the tree node's "code" column
-  const code = node?.code;
-  if (!code || String(code).startsWith("_leaf:")) return "条目";
-  return code;
+function normalizeTitle(title) {
+  if (!title) return "未命名知识点";
+  return String(title).replace(/^(\d+)[．、]\s*/, "$1. ").trim();
 }
 
 function isLeaf(node) {
@@ -231,11 +229,13 @@ function KnowledgeTreeNode({ node, depth = 1, selectedId, expandedIds, keyword, 
         ) : (
           <span className="km-node-toggle km-node-toggle--leaf" aria-hidden="true" />
         )}
-        <span className="km-node-code">
-          <HighlightedText text={getNodeCodeLabel(node)} keyword={isInternalCode(node.code) ? "" : keyword} />
-        </span>
+        {getDisplayCode(node) ? (
+          <span className="km-node-code">
+            <HighlightedText text={getDisplayCode(node)} keyword={keyword} />
+          </span>
+        ) : null}
         <span className="km-node-title">
-          <HighlightedText text={nodeLabel(node)} keyword={keyword} />
+          <HighlightedText text={normalizeTitle(nodeLabel(node))} keyword={keyword} />
         </span>
         <StatusBadge status={node.status} />
         {!leaf && hasChildren && <span className="km-node-summary-tag">汇总</span>}
@@ -502,7 +502,7 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
       knowledgePointStatus: detailNode.status || "not_started",
       nodeKey: detailNode.id,
       title: nodeLabel(detailNode),
-      aiPromptContext: `当前围绕知识点「${detailNode.code || ""} ${nodeLabel(detailNode)}」进行提问；所属章节：${selectedChapterName}。`,
+      aiPromptContext: `当前围绕知识点「${getDisplayCode(detailNode) || ""} ${normalizeTitle(nodeLabel(detailNode))}」进行提问；所属章节：${selectedChapterName}。`,
     });
   };
 
@@ -656,7 +656,7 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
           <dl className="km-detail-list">
             <div>
               <dt>名称</dt>
-              <dd>{nodeLabel(detailNode)}</dd>
+              <dd>{normalizeTitle(nodeLabel(detailNode))}</dd>
             </div>
             <div>
               <dt>编号</dt>
