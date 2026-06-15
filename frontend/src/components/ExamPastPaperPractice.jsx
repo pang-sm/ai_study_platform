@@ -73,9 +73,12 @@ export default function ExamPastPaperPractice({
     setError("");
   };
 
+  const [startLoading, setStartLoading] = useState(false);
+
   const startPractice = async () => {
     if (!user?.username || !selectedYear) return;
-    setLoading(true);
+    setStartLoading(true);
+    setError("");
     try {
       const res = await fetch(`${API_BASE}/exam/11408/${subjectKey}/past-paper-attempts`, {
         method: "POST",
@@ -84,16 +87,12 @@ export default function ExamPastPaperPractice({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "创建练习失败");
-      setAttemptId(data.attempt_id);
-      // Load questions for this year
-      const qRes = await fetch(`${API_BASE}/exam/11408/${subjectKey}/past-paper-questions?year=${selectedYear}`);
-      const qData = await qRes.json();
-      setQuestions(qData.questions || []);
-      setAnswers({});
-      setSubmitted(false);
-      setResult(null);
+      const aid = data.attempt_id || data.id;
+      if (!aid) throw new Error("创建练习失败");
+      const url = `/exam/11408/${subjectKey}/past-paper/attempt/${aid}`;
+      window.open(url, "_blank", "noopener,noreferrer");
     } catch (e) { setError(e.message); }
-    finally { setLoading(false); }
+    finally { setStartLoading(false); }
   };
 
   const saveDraft = async () => {
@@ -280,8 +279,8 @@ export default function ExamPastPaperPractice({
           <h3>{selectedYear ? `${selectedYear} 年真题` : "选择年份开始练习"}</h3>
           <p>选择上方年份后，点击下方按钮开始该年真题练习。每次练习会创建独立记录，可多次作答。</p>
           {selectedYear && (
-            <button type="button" className="primary-button" onClick={startPractice} disabled={loading}>
-              {loading ? "加载中..." : `开始 ${selectedYear} 年练习`}
+            <button type="button" className="exam-past-paper-start-btn" onClick={startPractice} disabled={startLoading}>
+              {startLoading ? "创建练习中..." : `开始 ${selectedYear} 年练习`}
             </button>
           )}
         </div>

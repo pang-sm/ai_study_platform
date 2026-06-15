@@ -20487,6 +20487,85 @@ select.field:focus {
   margin-top: 8px;
 }
 
+.exam-past-paper-start-btn {
+  display: inline-block;
+  width: 200px;
+  height: 44px;
+  padding: 0 24px;
+  margin-top: 12px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+  color: #fff;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(109, 40, 217, 0.25);
+}
+
+.exam-past-paper-start-btn:hover {
+  background: linear-gradient(135deg, #7c3aed, #5b21b6);
+}
+
+.exam-past-paper-start-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ── Attempt Page ── */
+.attempt-page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 32px;
+}
+
+.attempt-page-loading,
+.attempt-page-error {
+  text-align: center;
+  padding: 60px 20px;
+  font-size: 1rem;
+  color: #64748b;
+}
+
+.attempt-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 16px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #e8e0f0;
+}
+
+.attempt-page-header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.attempt-page-header h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #111827;
+}
+
+.attempt-page-header p {
+  margin: 2px 0 0;
+  font-size: 0.8rem;
+  color: #667085;
+}
+
+.attempt-page-body {
+  padding-bottom: 40px;
+}
+
+.attempt-page-result h3 {
+  margin: 0 0 12px;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
 @media (max-width: 900px) {
   .practice-stats-grid {
     grid-template-columns: repeat(2, 1fr);

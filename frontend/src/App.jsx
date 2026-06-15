@@ -20,6 +20,7 @@ const CodeStudio = lazy(() => import("./components/CodeStudio.jsx"));
 const TaskCenter = lazy(() => import("./components/TaskCenter.jsx"));
 const PracticeCenter = lazy(() => import("./components/PracticeCenter.jsx"));
 const ExamPracticeCenter = lazy(() => import("./components/ExamPracticeCenter.jsx"));
+const ExamPastPaperAttemptPage = lazy(() => import("./components/ExamPastPaperAttemptPage.jsx"));
 const LearningDataCenter = lazy(() => import("./components/LearningDataCenter.jsx"));
 const ReviewCenter = lazy(() => import("./components/ReviewCenter.jsx"));
 import FeatureUnavailable from "./components/FeatureUnavailable.jsx";
@@ -3311,6 +3312,24 @@ function App() {
       onClearSearchNavigate={() => setSearchNavigate(null)}
     />
   );
+
+  // ── Independent 11408 past-paper attempt page ──
+  const attemptMatch = window.location.pathname.match(/^\/exam\/11408\/([a-z_]+)\/past-paper\/attempt\/(\d+)/);
+  if (attemptMatch) {
+    const attemptSubjectKey = attemptMatch[1];
+    const attemptId = parseInt(attemptMatch[2], 10);
+    return (
+      <div className="app-shell">
+        <Suspense fallback={<div className="empty-state">加载中...</div>}>
+          <ExamPastPaperAttemptPage
+            subjectKey={attemptSubjectKey}
+            attemptId={attemptId}
+            onNavigateBack={() => { window.location.href = "/"; }}
+          />
+        </Suspense>
+      </div>
+    );
+  }
 
   if (page === "home") {
     const avatarObj = AVATARS.find((a) => a.id === (user?.avatar || "")) || AVATARS[0];
