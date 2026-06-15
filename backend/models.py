@@ -701,6 +701,30 @@ class AIGeneratedQuestion(Base):
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
 
+class AIQuestionAttempt(Base):
+    __tablename__ = "ai_question_attempts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), index=True, nullable=False)
+    mode = Column(String(20), nullable=False, default="11408")
+    subject_key = Column(String(50), nullable=False)
+    subject_name = Column(String(50), nullable=False)
+    knowledge_point_id = Column(String(100), nullable=True)
+    knowledge_point_name = Column(String(255), nullable=True)
+    knowledge_point_path = Column(Text, nullable=True)
+    question_ids_json = Column(Text, nullable=True)
+    status = Column(String(20), nullable=False, default="in_progress")
+    total_questions = Column(Integer, nullable=False, default=0)
+    correct_count = Column(Integer, nullable=True)
+    accuracy = Column(Float, nullable=True)
+    answers_json = Column(Text, nullable=True)
+    result_json = Column(Text, nullable=True)
+    started_at = Column(DateTime, default=utc_now)
+    submitted_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+
 class PastPaperAttempt(Base):
     __tablename__ = "past_paper_attempts"
 

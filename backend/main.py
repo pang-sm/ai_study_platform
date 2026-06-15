@@ -12621,6 +12621,149 @@ def get_exam_ai_questions(subject_key: str, username: str, db: Session = Depends
     return {"items": [_serialize_ai_generated_question(item) for item in items], "total": len(items)}
 
 
+@app.get("/exam/11408/{subject_key}/ai-questions/groups")
+def get_exam_ai_question_groups(subject_key: str, username: str, db: Session = Depends(get_db)):
+    if subject_key not in EXAM_SUBJECT_DIRS:
+        raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
+    username = (username or "").strip()
+    if not username:
+        raise HTTPException(status_code=400, detail="username is required")
+    items = db.query(models.AIGeneratedQuestion).filter(
+        models.AIGeneratedQuestion.username == username,
+        models.AIGeneratedQuestion.subject_key == subject_key,
+    ).order_by(models.AIGeneratedQuestion.created_at.desc()).all()
+
+    groups = {}
+    for item in items:
+        kp_id = (item.knowledge_point_id or "").strip()
+        kp_name = (item.knowledge_point_name or "").strip() or "综合出题"
+        kp_path = (item.knowledge_point_path or "").strip() or "综合出题"
+        gkey = kp_id or "_general"
+        if gkey not in groups:
+            groups[gkey] = {
+                "group_key": gkey, "knowledge_point_id": kp_id,
+                "knowledge_point_name": kp_name, "knowledge_point_path": kp_path,
+                "total": 0, "choice_count": 0, "big_count": 0,
+                "deepseek_count": 0, "mock_count": 0,
+                "quality_summary": {"unchecked": 0, "usable": 0, "needs_edit": 0, "discarded": 0},
+            }
+        g = groups[gkey]
+        g["total"] += 1
+        if item.question_type == "选择题": g["choice_count"] += 1
+        else: g["big_count"] += 1
+        gm = (getattr(item, "generation_mode", None) or "deepseek")
+        if gm == "deepseek": g["deepseek_count"] += 1
+        else: g["mock_count"] += 1
+        qs = (getattr(item, "quality_status", None) or "unchecked")
+        if qs in g["quality_summary"]: g["quality_summary"][qs] += 1
+    return {"groups": list(groups.values()), "total_questions": len(items)}
+
+
+@app.post("/exam/11408/{subject_key}/ai-questions/attempts")
+def create_ai_question_attempt(subject_key: str, req: dict, db: Session = Depends(get_db)):
+    if subject_key not in EXAM_SUBJECT_DIRS:
+        raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
+    username = (req.get("username") or "").strip()
+    if not username:
+        raise HTTPException(status_code=400, detail="username is required")
+    qids = req.get("question_ids") or []
+    items = db.query(models.AIGeneratedQuestion).filter(
+        models.AIGeneratedQuestion.id.in_(qids),
+        models.AIGeneratedQuestion.username == username,
+        models.AIGeneratedQuestion.quality_status != "discarded",
+    ).all()
+    if not items:
+        raise HTTPException(status_code=400, detail="no valid questions found")
+    now = utc_now()
+    attempt = models.AIQuestionAttempt(
+        username=username, mode="11408", subject_key=subject_key,
+        subject_name=EXAM_SUBJECT_DIRS.get(subject_key, subject_key),
+        knowledge_point_id=(req.get("knowledge_point_id") or "").strip() or None,
+        knowledge_point_name=(req.get("knowledge_point_path") or "").strip() or None,
+        knowledge_point_path=(req.get("knowledge_point_path") or "").strip() or None,
+        question_ids_json=json.dumps([i.id for i in items]),
+        total_questions=len(items), status="in_progress",
+    )
+    db.add(attempt); db.commit(); db.refresh(attempt)
+    return {
+        "attempt_id": attempt.id, "status": "in_progress",
+        "total_questions": len(items),
+    }
+
+
+@app.get("/exam/11408/{subject_key}/ai-questions/attempts/{attempt_id}")
+def get_ai_question_attempt(subject_key: str, attempt_id: int, username: str, db: Session = Depends(get_db)):
+    attempt = db.query(models.AIQuestionAttempt).filter(
+        models.AIQuestionAttempt.id == attempt_id,
+        models.AIQuestionAttempt.username == (username or "").strip(),
+    ).first()
+    if not attempt:
+        raise HTTPException(status_code=404, detail="Attempt not found")
+    qids = json.loads(attempt.question_ids_json or "[]")
+    items = db.query(models.AIGeneratedQuestion).filter(models.AIGeneratedQuestion.id.in_(qids)).all()
+    saved = {}
+    if attempt.answers_json:
+        try: saved = json.loads(attempt.answers_json)
+        except: pass
+    questions = []
+    for item in items:
+        q = _serialize_ai_generated_question(item)
+        if attempt.status != "submitted":
+            q.pop("standard_answer", None); q.pop("analysis", None)
+        questions.append(q)
+    return {"attempt": {"id": attempt.id, "status": attempt.status, "total_questions": attempt.total_questions,
+            "knowledge_point_path": attempt.knowledge_point_path, "started_at": serialize_datetime(attempt.started_at)},
+            "questions": questions, "saved_answers": saved}
+
+
+@app.post("/exam/11408/{subject_key}/ai-questions/attempts/{attempt_id}/answers")
+def save_ai_question_answers(subject_key: str, attempt_id: int, req: dict, db: Session = Depends(get_db)):
+    attempt = db.query(models.AIQuestionAttempt).filter(models.AIQuestionAttempt.id == attempt_id).first()
+    if not attempt or attempt.status != "in_progress":
+        raise HTTPException(status_code=404, detail="Attempt not found or already submitted")
+    attempt.answers_json = json.dumps(req.get("answers", {}), ensure_ascii=False)
+    db.commit()
+    return {"success": True}
+
+
+@app.post("/exam/11408/{subject_key}/ai-questions/attempts/{attempt_id}/submit")
+def submit_ai_question_attempt(subject_key: str, attempt_id: int, req: dict, db: Session = Depends(get_db)):
+    attempt = db.query(models.AIQuestionAttempt).filter(models.AIQuestionAttempt.id == attempt_id).first()
+    if not attempt or attempt.status != "in_progress":
+        raise HTTPException(status_code=404, detail="Attempt not found or already submitted")
+    answers = req.get("answers", {})
+    qids = json.loads(attempt.question_ids_json or "[]")
+    items = {i.id: i for i in db.query(models.AIGeneratedQuestion).filter(models.AIGeneratedQuestion.id.in_(qids)).all()}
+    results, correct = [], 0
+    username = (req.get("username") or "").strip()
+    now = utc_now()
+    for qid in qids:
+        item = items.get(qid)
+        if not item: continue
+        ua = str(answers.get(str(qid), "")).strip().upper()
+        sa = (item.standard_answer or "").strip().upper()
+        is_correct = ua == sa
+        if is_correct: correct += 1
+        results.append({"question_id": qid, "correct": is_correct, "standard_answer": sa, "user_answer": ua})
+        if not is_correct and username:
+            db.add(models.ExamFavoriteQuestion(
+                username=username, source="ai_generated", source_question_id=qid,
+                subject_key=subject_key, knowledge_point_id=attempt.knowledge_point_id,
+                knowledge_point_name=attempt.knowledge_point_name,
+                knowledge_point_path=attempt.knowledge_point_path,
+                question_type=item.question_type, stem=item.stem,
+                options_json=item.options_json, standard_answer=sa, user_answer=ua,
+                wrong_reason="AI题库练习答错", attempt_id=attempt_id,
+                created_at=now,
+            ))
+    total = len(qids)
+    attempt.status = "submitted"; attempt.submitted_at = now
+    attempt.correct_count = correct; attempt.accuracy = round(correct / total * 100, 1) if total > 0 else 0
+    attempt.result_json = json.dumps({"correct": correct, "total": total, "results": results}, ensure_ascii=False)
+    db.commit()
+    return {"total_questions": total, "correct": correct, "accuracy": attempt.accuracy, "results": results}
+
+
 @app.post("/exam/11408/{subject_key}/ai-questions/generate")
 def generate_exam_ai_questions(subject_key: str, req: dict, db: Session = Depends(get_db)):
     if subject_key not in EXAM_SUBJECT_DIRS:

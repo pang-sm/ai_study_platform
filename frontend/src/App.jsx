@@ -21,6 +21,7 @@ const TaskCenter = lazy(() => import("./components/TaskCenter.jsx"));
 const PracticeCenter = lazy(() => import("./components/PracticeCenter.jsx"));
 const ExamPracticeCenter = lazy(() => import("./components/ExamPracticeCenter.jsx"));
 const ExamPastPaperAttemptPage = lazy(() => import("./components/ExamPastPaperAttemptPage.jsx"));
+const ExamAIQuestionAttemptPage = lazy(() => import("./components/ExamAIQuestionAttemptPage.jsx"));
 const LearningDataCenter = lazy(() => import("./components/LearningDataCenter.jsx"));
 const ReviewCenter = lazy(() => import("./components/ReviewCenter.jsx"));
 import FeatureUnavailable from "./components/FeatureUnavailable.jsx";
@@ -3326,6 +3327,25 @@ function App() {
             attemptId={attemptId}
             user={user}
             onNavigateBack={() => { window.location.href = "/"; }}
+          />
+        </Suspense>
+      </div>
+    );
+  }
+
+  // ── Independent 11408 AI question attempt page ──
+  const aiAttemptMatch = window.location.pathname.match(/^\/exam\/11408\/([a-z_]+)\/ai-questions\/attempt\/(\d+)/);
+  if (aiAttemptMatch) {
+    const aiSubjectKey = aiAttemptMatch[1];
+    const aiAttemptId = parseInt(aiAttemptMatch[2], 10);
+    return (
+      <div className="app-shell">
+        <Suspense fallback={<div className="empty-state">加载中...</div>}>
+          <ExamAIQuestionAttemptPage
+            subjectKey={aiSubjectKey}
+            attemptId={aiAttemptId}
+            user={user}
+            onBack={() => { window.location.href = "/"; }}
           />
         </Suspense>
       </div>
