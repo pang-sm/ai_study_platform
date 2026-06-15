@@ -26,12 +26,6 @@ const MANUAL_STATUS_OPTIONS = [
   { value: "mastered", label: "已学习" },
 ];
 
-const VIEW_OPTIONS = [
-  { value: "graph", label: "关系图" },
-  { value: "tree", label: "树状图" },
-  { value: "chapter", label: "章节视图" },
-];
-
 function normalizeStatus(status) {
   return STATUS_CONFIG[status] ? status : "not_started";
 }
@@ -45,8 +39,10 @@ function chapterLabel(chapter) {
   return `第${chapter.chapter_no}章 ${chapter.title}`;
 }
 
-function countDescendants(node) {
-  return (node?.children || []).reduce((sum, child) => sum + 1 + countDescendants(child), 0);
+function isLeaf(node) {
+  // Backend sets is_leaf; fallback: check children length
+  if (typeof node?.is_leaf === "boolean") return node.is_leaf;
+  return !(node?.children || []).length;
 }
 
 function flattenNodes(nodes, chapter = null) {
@@ -72,17 +68,18 @@ function updateNodeInTree(nodes, code, patch) {
 
 function recalcStats(chapters) {
   const stats = { total: 0, mastered: 0, learning: 0, review_due: 0, not_started: 0 };
-  const walk = (nodes, includeSelf = true) => {
+  const walk = (nodes) => {
     (nodes || []).forEach((node) => {
-      if (includeSelf && !node.chapter_no) {
+      if ((node.children || []).length > 0) {
+        walk(node.children);
+      } else {
         stats.total += 1;
         const status = normalizeStatus(node.status);
         stats[status] = (stats[status] || 0) + 1;
       }
-      walk(node.children || [], true);
     });
   };
-  walk(chapters || [], false);
+  (chapters || []).forEach((ch) => walk(ch.children || []));
   return stats;
 }
 
@@ -103,7 +100,7 @@ function filterTree(nodes, keyword, status) {
     .filter(Boolean);
 }
 
-function collectExpandableIds(nodes, maxDepth = 1, depth = 1, result = new Set()) {
+function collectExpandableIds(nodes, maxDepth = 2, depth = 1, result = new Set()) {
   (nodes || []).forEach((node) => {
     if ((node.children || []).length > 0 && depth <= maxDepth) {
       result.add(node.id);
@@ -184,12 +181,13 @@ function KnowledgeTreeNode({ node, depth = 1, selectedId, expandedIds, keyword, 
   const hasChildren = children.length > 0;
   const expanded = hasChildren && expandedIds.has(node.id);
   const selected = selectedId === node.id;
+  const leaf = isLeaf(node);
 
   return (
     <div className={`km-tree-node km-tree-node--depth-${Math.min(depth, 4)}`}>
       <button
         type="button"
-        className={`km-node-pill${selected ? " km-node-pill--selected" : ""}${hasChildren ? " km-node-pill--parent" : ""}`}
+        className={`km-node-pill${selected ? " km-node-pill--selected" : ""}${hasChildren ? " km-node-pill--parent" : ""}${leaf ? " km-node-pill--leaf" : ""}`}
         style={{ "--km-depth": Math.min(depth - 1, 5) }}
         onClick={() => onSelect(node)}
       >
@@ -223,6 +221,7 @@ function KnowledgeTreeNode({ node, depth = 1, selectedId, expandedIds, keyword, 
           <HighlightedText text={nodeLabel(node)} keyword={keyword} />
         </span>
         <StatusBadge status={node.status} />
+        {!leaf && hasChildren && <span className="km-node-summary-tag">汇总</span>}
         {node.optional && <span className="km-node-optional">选学</span>}
       </button>
       {expanded && children.length > 0 && (
@@ -255,7 +254,6 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
   const [searchInput, setSearchInput] = useState("");
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [viewMode, setViewMode] = useState("tree");
   const [expandedIds, setExpandedIds] = useState(() => new Set());
   const [savingStatus, setSavingStatus] = useState("");
   const [reviewIntervalDays, setReviewIntervalDays] = useState(7);
@@ -277,7 +275,7 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
       setSelectedNode((prev) => prev || firstChapter || null);
       setReviewIntervalDays(payload.review_interval_days || 7);
       setReviewInput(String(payload.review_interval_days || 7));
-      setExpandedIds((prev) => (prev.size > 0 ? prev : collectExpandableIds(firstChapter?.children || [], 1)));
+      setExpandedIds((prev) => (prev.size > 0 ? prev : collectExpandableIds(firstChapter?.children || [], 2)));
     } catch (err) {
       setError(err.message || "知识脉络加载失败");
     } finally {
@@ -325,7 +323,8 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
     () => flattenNodes(activeChapter?.children || [], activeChapter),
     [activeChapter]
   );
-  const stats = data?.stats || recalcStats(chapters);
+  // Use backend stats (leaf-only) when available; fall back to local recalculation
+  const stats = data?.stats && data.stats.total > 0 ? data.stats : recalcStats(chapters);
 
   useEffect(() => {
     if (query.trim() || statusFilter !== "all") {
@@ -336,14 +335,14 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
   const handleChapterClick = (chapter) => {
     setActiveChapterCode(chapter.code);
     setSelectedNode(chapter);
-    setExpandedIds(collectExpandableIds(chapter.children || [], 1));
+    setExpandedIds(collectExpandableIds(chapter.children || [], 2));
   };
 
   const handleSearch = () => {
     const nextQuery = searchInput.trim();
     setQuery(nextQuery);
     if (!nextQuery && statusFilter === "all") {
-      setExpandedIds(collectExpandableIds(activeChapter?.children || [], 1));
+      setExpandedIds(collectExpandableIds(activeChapter?.children || [], 2));
       return;
     }
     const matchingChapter = findFirstMatchingChapter(chapters, nextQuery, statusFilter);
@@ -388,11 +387,16 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
 
   const selectedChapterName = chapterLabel(activeChapter);
   const detailNode = selectedNode || activeChapter;
+  const detailIsLeaf = isLeaf(detailNode);
   const detailStatus = normalizeStatus(detailNode?.status);
-  const selectedManualStatus = detailStatus === "review_due" ? "" : detailStatus;
+  const statusCounts = detailNode?.status_counts || {};
 
   const saveStatus = async (nextStatus) => {
     if (!detailNode?.code || !user?.username) return;
+    if (!detailIsLeaf) {
+      setError("Only leaf knowledge points can be manually updated");
+      return;
+    }
     setSavingStatus(nextStatus);
     setError("");
     setNotice("");
@@ -477,6 +481,7 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
       knowledgePointCode: detailNode.code || "",
       knowledge_point_title: nodeLabel(detailNode),
       knowledgePointTitle: nodeLabel(detailNode),
+      is_leaf: detailIsLeaf,
       knowledgePointStatus: detailNode.status || "not_started",
       nodeKey: detailNode.id,
       title: nodeLabel(detailNode),
@@ -517,7 +522,7 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
       </section>
 
       <section className="km-filter-card">
-        <div className="km-search-row">
+        <div className="km-filter-row">
           <div className="km-search-box">
             <span>⌕</span>
             <input
@@ -527,7 +532,7 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
                 setSearchInput(nextValue);
                 if (!nextValue.trim()) {
                   setQuery("");
-                  if (statusFilter === "all") setExpandedIds(collectExpandableIds(activeChapter?.children || [], 1));
+                  if (statusFilter === "all") setExpandedIds(collectExpandableIds(activeChapter?.children || [], 2));
                 }
               }}
               onKeyDown={(event) => {
@@ -539,7 +544,7 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
           <button type="button" className="km-primary-button" onClick={handleSearch}>搜索</button>
         </div>
 
-        <div className="km-filter-line">
+        <div className="km-filter-row km-filter-row--inline">
           <span className="km-filter-label">掌握状态</span>
           <div className="km-chip-group">
             {STATUS_OPTIONS.map((option) => (
@@ -553,9 +558,9 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
               </button>
             ))}
           </div>
-        </div>
 
-        <div className="km-filter-line km-review-setting-row">
+          <span className="km-filter-sep" />
+
           <span className="km-filter-label">复习规则</span>
           <div className="km-review-setting">
             <span>已学习后</span>
@@ -565,32 +570,16 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
               max="365"
               value={reviewInput}
               onChange={(event) => setReviewInput(event.target.value)}
+              className="km-review-input"
             />
-            <span>天自动转为待复习</span>
+            <span>天转为待复习</span>
             <button type="button" className="km-secondary-button" onClick={saveReviewSettings} disabled={reviewSaving}>
               {reviewSaving ? "保存中..." : "保存"}
             </button>
-            <small>当前：{reviewIntervalDays} 天</small>
           </div>
-        </div>
 
-        <div className="km-filter-line">
-          <span className="km-filter-label">视图</span>
-          <div className="km-chip-group">
-            {VIEW_OPTIONS.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                className={`km-chip${viewMode === option.value ? " km-chip--active" : ""}`}
-                onClick={() => setViewMode(option.value)}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-        </div>
+          <span className="km-filter-sep" />
 
-        <div className="km-filter-line">
           <span className="km-filter-label">排序</span>
           <select className="km-sort-select" value="chapter" disabled>
             <option value="chapter">按章节顺序</option>
@@ -629,9 +618,7 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
             <StatusBadge status={activeChapter?.status} />
           </div>
 
-          {viewMode === "graph" ? (
-            <div className="km-graph-placeholder">关系图视图后续开放</div>
-          ) : filteredChildren.length === 0 ? (
+          {filteredChildren.length === 0 ? (
             <div className="km-empty-state">没有匹配的知识点，请调整搜索或筛选条件。</div>
           ) : (
             <div className="km-tree-view">
@@ -672,37 +659,60 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
               <dt>当前状态</dt>
               <dd>{STATUS_CONFIG[detailStatus].shortLabel}</dd>
             </div>
-            <div>
-              <dt>子知识点数量</dt>
-              <dd>{(detailNode?.children || []).length}</dd>
-            </div>
+            {!detailIsLeaf && (
+              <div>
+                <dt>下级知识点</dt>
+                <dd>{statusCounts ? Object.values(statusCounts).reduce((a, b) => a + b, 0) : 0} 个</dd>
+              </div>
+            )}
           </dl>
 
-          <div className="km-status-manager">
-            <h3>状态管理</h3>
-            <div className="km-status-actions">
-              {MANUAL_STATUS_OPTIONS.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  className={`km-status-button${selectedManualStatus === option.value ? " km-status-button--active" : ""}`}
-                  onClick={() => saveStatus(option.value)}
-                  disabled={savingStatus !== "" || !detailNode?.code}
-                >
-                  {savingStatus === option.value ? "保存中..." : option.label}
-                </button>
-              ))}
+          {!detailIsLeaf && statusCounts && (
+            <div className="km-status-counts">
+              <h3>下级状态统计</h3>
+              <div className="km-counts-grid">
+                <div className="km-count-item"><span className="km-count-num">{statusCounts.not_started || 0}</span><span className="km-count-label">未学习</span></div>
+                <div className="km-count-item"><span className="km-count-num">{statusCounts.learning || 0}</span><span className="km-count-label">学习中</span></div>
+                <div className="km-count-item"><span className="km-count-num">{statusCounts.mastered || 0}</span><span className="km-count-label">已学习</span></div>
+                <div className="km-count-item"><span className="km-count-num">{statusCounts.review_due || 0}</span><span className="km-count-label">待复习</span></div>
+              </div>
             </div>
-          </div>
+          )}
+
+          {detailIsLeaf ? (
+            <div className="km-status-manager">
+              <h3>状态管理</h3>
+              <div className="km-status-actions">
+                {MANUAL_STATUS_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    className={`km-status-button${detailStatus === option.value ? " km-status-button--active" : ""}`}
+                    onClick={() => saveStatus(option.value)}
+                    disabled={savingStatus !== "" || !detailNode?.code}
+                  >
+                    {savingStatus === option.value ? "保存中..." : option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="km-status-manager km-status-manager--disabled">
+              <h3>状态管理</h3>
+              <p className="km-parent-hint">该节点状态由下级知识点自动汇总，不能手动设置。</p>
+            </div>
+          )}
 
           <div className="km-review-hint">
             <h3>复习提示</h3>
-            {detailStatus === "review_due" ? (
-              <p>该知识点已到复习时间，复习完成后请点击“已学习”开启下一轮复习。</p>
-            ) : detailStatus === "mastered" ? (
+            {detailIsLeaf && detailStatus === "review_due" ? (
+              <p>该知识点已到复习时间，复习完成后请点击"已学习"开启下一轮复习。</p>
+            ) : detailIsLeaf && detailStatus === "mastered" ? (
               <p>{detailNode?.review_due_at ? `下次复习时间：${formatDateTime(detailNode.review_due_at)}` : `已学习后 ${reviewIntervalDays} 天进入待复习。`}</p>
+            ) : detailIsLeaf ? (
+              <p>设置为"已学习"后，系统会根据复习间隔自动生成下次复习时间。</p>
             ) : (
-              <p>设置为“已学习”后，系统会根据复习间隔自动生成下次复习时间。</p>
+              <p>父级节点的复习状态由下级叶子知识点自动决定。</p>
             )}
           </div>
 

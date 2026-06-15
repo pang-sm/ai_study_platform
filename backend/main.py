@@ -11630,10 +11630,51 @@ def _knowledge_map_seed_path(course_id: str) -> Path:
 def _count_knowledge_map_points(nodes: list[dict], include_chapters: bool = False) -> int:
     total = 0
     for node in nodes:
-        if include_chapters or "chapter_no" not in node:
+        children = node.get("children") or []
+        # Only count leaf nodes (terminal knowledge points)
+        if children:
+            total += _count_knowledge_map_points(children, True)
+        elif include_chapters or "chapter_no" not in node:
             total += 1
-        total += _count_knowledge_map_points(node.get("children") or [], include_chapters=True)
     return total
+
+
+def _is_leaf_node(node: dict) -> bool:
+    """A leaf node has no children — it is a terminal knowledge point."""
+    return not bool(node.get("children"))
+
+
+def _collect_leaf_statuses(node: dict) -> dict[str, int]:
+    """Recursively collect leaf-node status counts under this node."""
+    counts = {"not_started": 0, "learning": 0, "mastered": 0, "review_due": 0}
+    children = node.get("children") or []
+    if not children:
+        # This is a leaf — count itself
+        status = str(node.get("status") or "not_started").strip()
+        if status in counts:
+            counts[status] = 1
+        return counts
+    for child in children:
+        child_counts = _collect_leaf_statuses(child)
+        for key in counts:
+            counts[key] += child_counts.get(key, 0)
+    return counts
+
+
+def _compute_aggregate_status(node: dict) -> str:
+    """Derive a parent node's status from all descendant leaves."""
+    children = node.get("children") or []
+    if not children:
+        return str(node.get("status") or "not_started").strip()
+    leaf_counts = _collect_leaf_statuses(node)
+    if leaf_counts.get("review_due", 0) > 0:
+        return "review_due"
+    if leaf_counts.get("learning", 0) > 0:
+        return "learning"
+    total_leaves = sum(leaf_counts.values())
+    if total_leaves > 0 and leaf_counts.get("mastered", 0) == total_leaves:
+        return "mastered"
+    return "not_started"
 
 
 def _normalize_map_node_status(status: str | None) -> str:
@@ -11705,7 +11746,20 @@ def _attach_knowledge_map_status(nodes: list[dict], progress_by_code: dict[str, 
             item["learned_at"] = item["progress"].get("learned_at")
             item["review_due_at"] = item["progress"].get("review_due_at")
             item["review_interval_days"] = item["progress"].get("review_interval_days")
-        item["children"] = _attach_knowledge_map_status(item.get("children") or [], progress_by_code, node_path)
+
+        # Recursively process children first
+        children = _attach_knowledge_map_status(item.get("children") or [], progress_by_code, node_path)
+        item["children"] = children
+        item["is_leaf"] = len(children) == 0
+
+        # For parent nodes: compute aggregate status from descendant leaves
+        if not item["is_leaf"]:
+            aggregate_status = _compute_aggregate_status(item)
+            item["status"] = aggregate_status
+            item["status_counts"] = _collect_leaf_statuses(item)
+        else:
+            item["status_counts"] = _collect_leaf_statuses(item)  # single leaf = itself
+
         result.append(item)
     return result
 
@@ -11772,22 +11826,26 @@ def get_knowledge_map(course_id: str, username: str = "", db: Session = Depends(
     review_due = 0
     not_started = 0
 
-    def tally(nodes: list[dict], include_self: bool = True):
+    def tally(nodes: list[dict]):
         nonlocal mastered, learning, review_due, not_started
         for node in nodes:
-            if include_self:
-                if node.get("status") == "mastered":
+            children = node.get("children") or []
+            if children:
+                tally(children)
+            else:
+                # Only count leaf nodes (terminal knowledge points)
+                status = str(node.get("status") or "not_started").strip()
+                if status == "mastered":
                     mastered += 1
-                elif node.get("status") == "learning":
+                elif status == "learning":
                     learning += 1
-                elif node.get("status") == "review_due":
+                elif status == "review_due":
                     review_due += 1
-                elif node.get("status") == "not_started":
+                elif status == "not_started":
                     not_started += 1
-            tally(node.get("children") or [], True)
 
     for chapter in chapters:
-        tally(chapter.get("children") or [], True)
+        tally(chapter.get("children") or [])
 
     return {
         "course_id": payload.get("course_id") or normalized_course,
@@ -11827,6 +11885,9 @@ def update_knowledge_map_progress(req: schemas.KnowledgeMapProgressUpdate, db: S
     node = node_index.get(code)
     if not node:
         raise HTTPException(status_code=404, detail="knowledge point is not in this course map")
+    # Only leaf nodes (no children) can be manually updated
+    if not _is_leaf_node(node):
+        raise HTTPException(status_code=400, detail="Only leaf knowledge points can be manually updated")
     canonical_title = str(node.get("title") or title or "").strip()
 
     progress = (
