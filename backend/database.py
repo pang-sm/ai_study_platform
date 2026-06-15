@@ -204,6 +204,28 @@ CODE_SESSIONS_COLUMNS = {
     "updated_at": "DATETIME",
 }
 
+PAST_PAPER_WRONG_QUESTIONS_COLUMNS = {
+    "mastered": "BOOLEAN NOT NULL DEFAULT 0",
+    "reviewed_at": "DATETIME",
+}
+
+EXAM_FAVORITE_QUESTIONS_COLUMNS = {
+    "username": "VARCHAR(50) NOT NULL",
+    "subject_key": "VARCHAR(50) NOT NULL",
+    "subject_name": "VARCHAR(50)",
+    "source": "VARCHAR(50) NOT NULL DEFAULT 'past_paper'",
+    "source_question_id": "VARCHAR(100) NOT NULL",
+    "year": "INTEGER",
+    "number": "INTEGER",
+    "question_type": "VARCHAR(30)",
+    "stem": "TEXT",
+    "options_json": "TEXT",
+    "standard_answer": "TEXT",
+    "knowledge_point_id": "VARCHAR(100)",
+    "knowledge_point_name": "VARCHAR(255)",
+    "created_at": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+}
+
 LEARNING_TASKS_COLUMNS = {
     "username": "VARCHAR(50) NOT NULL",
     "course_id": "VARCHAR(100)",
@@ -1033,6 +1055,37 @@ def ensure_question_attempts_schema(conn):
     ensure_columns(conn, "question_attempts", QUESTION_ATTEMPTS_COLUMNS)
 
 
+def ensure_past_paper_wrong_questions_schema(conn):
+    ensure_columns(conn, "past_paper_wrong_questions", PAST_PAPER_WRONG_QUESTIONS_COLUMNS)
+
+
+def ensure_exam_favorite_questions_schema(conn):
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS exam_favorite_questions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username VARCHAR(50) NOT NULL,
+                subject_key VARCHAR(50) NOT NULL,
+                subject_name VARCHAR(50),
+                source VARCHAR(50) NOT NULL DEFAULT 'past_paper',
+                source_question_id VARCHAR(100) NOT NULL,
+                year INTEGER,
+                number INTEGER,
+                question_type VARCHAR(30),
+                stem TEXT,
+                options_json TEXT,
+                standard_answer TEXT,
+                knowledge_point_id VARCHAR(100),
+                knowledge_point_name VARCHAR(255),
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+    )
+    ensure_columns(conn, "exam_favorite_questions", EXAM_FAVORITE_QUESTIONS_COLUMNS)
+
+
 def ensure_knowledge_points_schema(conn):
     conn.execute(
         text(
@@ -1467,6 +1520,8 @@ def init_user_profile_schema():
         ensure_practice_papers_schema(conn)
         ensure_questions_schema(conn)
         ensure_question_attempts_schema(conn)
+        ensure_past_paper_wrong_questions_schema(conn)
+        ensure_exam_favorite_questions_schema(conn)
         ensure_practice_import_jobs_schema(conn)
         ensure_knowledge_points_schema(conn)
         ensure_user_knowledge_progress_schema(conn)

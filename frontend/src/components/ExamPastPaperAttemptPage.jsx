@@ -21,7 +21,7 @@ const EXAM_SUBJECTS = {
   computer_network: "计算机网络",
 };
 
-export default function ExamPastPaperAttemptPage({ subjectKey, attemptId, onNavigateBack }) {
+export default function ExamPastPaperAttemptPage({ subjectKey, attemptId, user, onNavigateBack }) {
   const [loading, setLoading] = useState(true);
 
   // Unlock body scrolling for this standalone attempt page
@@ -37,8 +37,11 @@ export default function ExamPastPaperAttemptPage({ subjectKey, attemptId, onNavi
   const [submitted, setSubmitted] = useState(false);
   const [result, setResult] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [favorites, setFavorites] = useState({});
+  const [favoriteBusy, setFavoriteBusy] = useState({});
 
   const subjectLabel = EXAM_SUBJECTS[subjectKey] || subjectKey;
+  const username = user?.username || attempt?.username || "";
 
   useEffect(() => {
     if (!subjectKey || !attemptId) return;
@@ -52,6 +55,20 @@ export default function ExamPastPaperAttemptPage({ subjectKey, attemptId, onNavi
       .catch(e => setError(e.message || "加载失败"))
       .finally(() => setLoading(false));
   }, [subjectKey, attemptId]);
+
+  useEffect(() => {
+    if (!subjectKey || !username) return;
+    const params = new URLSearchParams({ username, source: "past_paper" });
+    safeFetch(`${API_BASE}/exam/11408/${subjectKey}/favorites?${params.toString()}`)
+      .then((data) => {
+        const byQuestionId = {};
+        for (const item of data.items || []) {
+          if (item.source_question_id) byQuestionId[item.source_question_id] = item;
+        }
+        setFavorites(byQuestionId);
+      })
+      .catch(() => setFavorites({}));
+  }, [subjectKey, username]);
 
   const saveDraft = useCallback(async () => {
     if (!attemptId) return;
@@ -69,6 +86,46 @@ export default function ExamPastPaperAttemptPage({ subjectKey, attemptId, onNavi
     setAnswers(prev => ({ ...prev, [qid]: val }));
   };
 
+  const toggleFavorite = async (question) => {
+    if (!username) {
+      setError("请先登录后收藏题目");
+      return;
+    }
+    const existing = favorites[question.id];
+    setFavoriteBusy((prev) => ({ ...prev, [question.id]: true }));
+    try {
+      if (existing?.id) {
+        await safeFetch(`${API_BASE}/exam/11408/${subjectKey}/favorites/${existing.id}?username=${encodeURIComponent(username)}`, { method: "DELETE" });
+        setFavorites((prev) => {
+          const next = { ...prev };
+          delete next[question.id];
+          return next;
+        });
+      } else {
+        const created = await safeFetch(`${API_BASE}/exam/11408/${subjectKey}/favorites`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username,
+            source: "past_paper",
+            source_question_id: question.id,
+            year: question.year || attempt?.year,
+            number: question.number,
+            question_type: question.type,
+            stem: question.stem || question.content || "",
+            options: question.options || {},
+            standard_answer: question.answer || question.standard_answer || "",
+          }),
+        });
+        setFavorites((prev) => ({ ...prev, [question.id]: created.item }));
+      }
+    } catch (err) {
+      setError(err.message || "收藏操作失败");
+    } finally {
+      setFavoriteBusy((prev) => ({ ...prev, [question.id]: false }));
+    }
+  };
+
   const unansweredCount = questions.filter(q => {
     const a = answers[q.id];
     return !a || !String(a).trim();
@@ -80,6 +137,7 @@ export default function ExamPastPaperAttemptPage({ subjectKey, attemptId, onNavi
     setSubmitting(true);
     try {
       const payload = {
+        username,
         answers: questions.map(q => ({
           question_id: q.id,
           user_answer: String(answers[q.id] || "").trim(),
@@ -158,6 +216,14 @@ export default function ExamPastPaperAttemptPage({ subjectKey, attemptId, onNavi
                     <span className="past-paper-q-year">{q.year} 年</span>
                     <span className="past-paper-q-number">第 {q.number} 题</span>
                     <span className="past-paper-q-type">{q.type}</span>
+                    <button
+                      type="button"
+                      className={`past-paper-favorite-btn${favorites[q.id] ? " past-paper-favorite-btn--active" : ""}`}
+                      disabled={!!favoriteBusy[q.id]}
+                      onClick={() => toggleFavorite(q)}
+                    >
+                      {favorites[q.id] ? "★ 已收藏" : "☆ 收藏"}
+                    </button>
                   </div>
                   {(q.stem || (q.content !== `第 ${q.number} 题` ? q.content : '')) && <div className="past-paper-q-content">{q.stem || q.content}</div>}
                   {q.image_urls?.length > 0 && (

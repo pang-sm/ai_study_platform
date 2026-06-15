@@ -647,6 +647,28 @@ class PastPaperWrongQuestion(Base):
     user_answer = Column(Text, nullable=True)
     score = Column(Integer, nullable=True)
     wrong_reason = Column(Text, nullable=True)
+    mastered = Column(Boolean, nullable=False, default=False)
+    reviewed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+
+
+class ExamFavoriteQuestion(Base):
+    __tablename__ = "exam_favorite_questions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), index=True, nullable=False)
+    subject_key = Column(String(50), index=True, nullable=False)
+    subject_name = Column(String(50), nullable=True)
+    source = Column(String(50), index=True, nullable=False, default="past_paper")
+    source_question_id = Column(String(100), nullable=False)
+    year = Column(Integer, nullable=True)
+    number = Column(Integer, nullable=True)
+    question_type = Column(String(30), nullable=True)
+    stem = Column(Text, nullable=True)
+    options_json = Column(Text, nullable=True)
+    standard_answer = Column(Text, nullable=True)
+    knowledge_point_id = Column(String(100), nullable=True)
+    knowledge_point_name = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=utc_now)
 
 

@@ -12118,6 +12118,7 @@ def get_past_paper_attempt(subject_key: str, attempt_id: int, db: Session = Depe
     return {
         "attempt": {
             "id": attempt.id, "attempt_no": attempt.attempt_no, "year": attempt.year,
+            "username": attempt.username,
             "status": attempt.status, "total_questions": attempt.total_questions,
             "started_at": serialize_datetime(attempt.started_at),
         },
@@ -12160,7 +12161,7 @@ def submit_attempt(subject_key: str, attempt_id: int, req: dict, db: Session = D
     attempt.result_json = json.dumps(result, ensure_ascii=False)
     db.commit()
     # Save wrong questions
-    username = (req.get("username") or "").strip()
+    username = (req.get("username") or attempt.username or "").strip()
     if username and result.get("wrong_questions"):
         for wq in result["wrong_questions"]:
             db.add(models.PastPaperWrongQuestion(
@@ -12178,6 +12179,180 @@ def submit_attempt(subject_key: str, attempt_id: int, req: dict, db: Session = D
             ))
         db.commit()
     return {**result, "attempt_id": attempt.id, "attempt_no": attempt.attempt_no}
+
+
+def _serialize_exam_favorite(item: models.ExamFavoriteQuestion):
+    options = {}
+    if item.options_json:
+        try:
+            options = json.loads(item.options_json)
+        except Exception:
+            options = {}
+    return {
+        "id": item.id,
+        "username": item.username,
+        "subject_key": item.subject_key,
+        "subject_name": item.subject_name or EXAM_SUBJECT_DIRS.get(item.subject_key, item.subject_key),
+        "source": item.source,
+        "source_question_id": item.source_question_id,
+        "year": item.year,
+        "number": item.number,
+        "question_type": item.question_type,
+        "stem": item.stem,
+        "options": options,
+        "standard_answer": item.standard_answer,
+        "knowledge_point_id": item.knowledge_point_id,
+        "knowledge_point_name": item.knowledge_point_name,
+        "created_at": serialize_datetime(item.created_at),
+    }
+
+
+@app.get("/exam/11408/{subject_key}/favorites")
+def get_exam_favorites(subject_key: str, username: str, source: str = "", db: Session = Depends(get_db)):
+    if subject_key not in EXAM_SUBJECT_DIRS:
+        raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
+    username = (username or "").strip()
+    if not username:
+        raise HTTPException(status_code=400, detail="username is required")
+    query = db.query(models.ExamFavoriteQuestion).filter(
+        models.ExamFavoriteQuestion.username == username,
+        models.ExamFavoriteQuestion.subject_key == subject_key,
+    )
+    if source:
+        query = query.filter(models.ExamFavoriteQuestion.source == source)
+    items = query.order_by(models.ExamFavoriteQuestion.created_at.desc()).all()
+    return {"items": [_serialize_exam_favorite(item) for item in items], "total": len(items)}
+
+
+@app.post("/exam/11408/{subject_key}/favorites")
+def create_exam_favorite(subject_key: str, req: dict, db: Session = Depends(get_db)):
+    if subject_key not in EXAM_SUBJECT_DIRS:
+        raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
+    username = (req.get("username") or "").strip()
+    source = (req.get("source") or "past_paper").strip()
+    source_question_id = str(req.get("source_question_id") or "").strip()
+    if not username or not source_question_id:
+        raise HTTPException(status_code=400, detail="username and source_question_id required")
+    existing = db.query(models.ExamFavoriteQuestion).filter(
+        models.ExamFavoriteQuestion.username == username,
+        models.ExamFavoriteQuestion.subject_key == subject_key,
+        models.ExamFavoriteQuestion.source == source,
+        models.ExamFavoriteQuestion.source_question_id == source_question_id,
+    ).first()
+    if existing:
+        return {"success": True, "item": _serialize_exam_favorite(existing)}
+    item = models.ExamFavoriteQuestion(
+        username=username,
+        subject_key=subject_key,
+        subject_name=EXAM_SUBJECT_DIRS.get(subject_key, subject_key),
+        source=source,
+        source_question_id=source_question_id,
+        year=req.get("year"),
+        number=req.get("number"),
+        question_type=req.get("question_type"),
+        stem=req.get("stem") or "",
+        options_json=json.dumps(req.get("options") or {}, ensure_ascii=False),
+        standard_answer=req.get("standard_answer") or "",
+        knowledge_point_id=req.get("knowledge_point_id"),
+        knowledge_point_name=req.get("knowledge_point_name"),
+        created_at=utc_now(),
+    )
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return {"success": True, "item": _serialize_exam_favorite(item)}
+
+
+@app.delete("/exam/11408/{subject_key}/favorites/{favorite_id}")
+def delete_exam_favorite(subject_key: str, favorite_id: int, username: str, db: Session = Depends(get_db)):
+    username = (username or "").strip()
+    item = db.query(models.ExamFavoriteQuestion).filter(
+        models.ExamFavoriteQuestion.id == favorite_id,
+        models.ExamFavoriteQuestion.username == username,
+        models.ExamFavoriteQuestion.subject_key == subject_key,
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="favorite not found")
+    db.delete(item)
+    db.commit()
+    return {"success": True}
+
+
+def _serialize_past_paper_wrong_question(item: models.PastPaperWrongQuestion):
+    options = {}
+    if item.options:
+        try:
+            options = json.loads(item.options)
+        except Exception:
+            options = {}
+    return {
+        "id": item.id,
+        "username": item.username,
+        "subject_key": item.subject_key,
+        "subject_name": EXAM_SUBJECT_DIRS.get(item.subject_key, item.subject_key),
+        "source": "past_paper",
+        "year": item.year,
+        "question_id": item.question_id,
+        "number": item.question_number,
+        "question_type": item.question_type,
+        "stem": item.content,
+        "options": options,
+        "standard_answer": item.standard_answer,
+        "user_answer": item.user_answer,
+        "score": item.score,
+        "feedback": item.wrong_reason,
+        "wrong_reason": item.wrong_reason,
+        "attempt_id": item.attempt_id,
+        "mastered": bool(getattr(item, "mastered", False)),
+        "created_at": serialize_datetime(item.created_at),
+    }
+
+
+@app.get("/exam/11408/{subject_key}/wrong-questions")
+def get_exam_wrong_questions(subject_key: str, username: str, source: str = "", db: Session = Depends(get_db)):
+    if subject_key not in EXAM_SUBJECT_DIRS:
+        raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
+    username = (username or "").strip()
+    if not username:
+        raise HTTPException(status_code=400, detail="username is required")
+    if source and source != "past_paper":
+        return {"items": [], "total": 0}
+    items = db.query(models.PastPaperWrongQuestion).filter(
+        models.PastPaperWrongQuestion.username == username,
+        models.PastPaperWrongQuestion.subject_key == subject_key,
+    ).order_by(models.PastPaperWrongQuestion.created_at.desc()).all()
+    return {"items": [_serialize_past_paper_wrong_question(item) for item in items], "total": len(items)}
+
+
+@app.delete("/exam/11408/{subject_key}/wrong-questions/{wrong_id}")
+def delete_exam_wrong_question(subject_key: str, wrong_id: int, username: str, db: Session = Depends(get_db)):
+    username = (username or "").strip()
+    item = db.query(models.PastPaperWrongQuestion).filter(
+        models.PastPaperWrongQuestion.id == wrong_id,
+        models.PastPaperWrongQuestion.username == username,
+        models.PastPaperWrongQuestion.subject_key == subject_key,
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="wrong question not found")
+    db.delete(item)
+    db.commit()
+    return {"success": True}
+
+
+@app.patch("/exam/11408/{subject_key}/wrong-questions/{wrong_id}/mastered")
+def mark_exam_wrong_question_mastered(subject_key: str, wrong_id: int, req: dict, db: Session = Depends(get_db)):
+    username = (req.get("username") or "").strip()
+    item = db.query(models.PastPaperWrongQuestion).filter(
+        models.PastPaperWrongQuestion.id == wrong_id,
+        models.PastPaperWrongQuestion.username == username,
+        models.PastPaperWrongQuestion.subject_key == subject_key,
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="wrong question not found")
+    item.mastered = True
+    item.reviewed_at = utc_now()
+    db.commit()
+    return {"success": True, "item": _serialize_past_paper_wrong_question(item)}
 
 
 @app.put("/knowledge-points/{point_id}/progress")

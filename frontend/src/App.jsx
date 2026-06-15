@@ -3324,6 +3324,7 @@ function App() {
           <ExamPastPaperAttemptPage
             subjectKey={attemptSubjectKey}
             attemptId={attemptId}
+            user={user}
             onNavigateBack={() => { window.location.href = "/"; }}
           />
         </Suspense>
