@@ -205,9 +205,6 @@ jobs:
             echo "[deploy] SMTP secrets not fully configured — skipping email service"
           fi
 
-          sudo systemctl restart ai-backend
-          sudo systemctl is-active --quiet ai-backend
-
           echo "=== 导入章节题库 + 知识点重映射 ==="
           cd backend
           if [ -x ".venv/bin/python" ]; then
@@ -219,5 +216,7 @@ jobs:
           fi
           cd ..
 
+          sudo systemctl restart ai-backend
+          sudo systemctl is-active --quiet ai-backend
           curl -fsS http://127.0.0.1 >/dev/null
           DEPLOYEOF
