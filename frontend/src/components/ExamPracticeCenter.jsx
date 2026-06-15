@@ -188,6 +188,11 @@ function formatPracticeDuration(minutes = 0) {
   return `${Number.isInteger(hours) ? hours : hours.toFixed(1)}h`;
 }
 
+function normalizeKnowledgePointId(rawId) {
+  if (!rawId) return "";
+  return String(rawId).replace(/^(_leaf:|leaf:|_node:|node:|_kp:|kp:)/i, "").trim();
+}
+
 function ChapterPracticePage({ subjectInfo, user, onBack }) {
   const [mapData, setMapData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -214,10 +219,11 @@ function ChapterPracticePage({ subjectInfo, user, onBack }) {
   useEffect(() => {
     if (!selected) return;
     setKpLoading(true); setKpQuestions(null);
-    const kpPath = selected.code ? `${selected.code} ${selected.title||""}`.trim() : (selected.title || selected.name || "");
-    const params = new URLSearchParams({ knowledge_point_id: selected.code || "", knowledge_point_path: kpPath, include_children: "true" });
+    const normId = normalizeKnowledgePointId(selected.code || selected.id || "");
+    const kpPath = normId ? `${normId} ${selected.title||""}`.trim() : (selected.title || selected.name || "");
+    const params = new URLSearchParams({ knowledge_point_id: normId, knowledge_point_path: kpPath, include_children: "true" });
     safeJsonFetch(`${API_BASE}/exam/11408/${subjectInfo.key}/chapter-practice/questions?${params.toString()}`)
-      .then(p => setKpQuestions(p)).catch(() => setKpQuestions({ items: [], total: 0 }))
+      .then(p => setKpQuestions(p)).catch(() => setKpQuestions({ items: [], total: 0, debug_info: {error:"request failed"} }))
       .finally(() => setKpLoading(false));
   }, [selected, subjectInfo.key]);
 
@@ -225,6 +231,7 @@ function ChapterPracticePage({ subjectInfo, user, onBack }) {
   const totalQ = kpQuestions?.total || 0;
   const choiceQ = kpQuestions?.items?.filter(i => (i.question_type||"").includes("choice") || (i.question_type||"").includes("选择")).length || 0;
   const bigQ = totalQ - choiceQ;
+  const normSelectedCode = normalizeKnowledgePointId(selected?.code || selected?.id || "");
 
   const handleStartPractice = async () => {
     if (!kpQuestions?.items?.length || !user?.username) return;
@@ -232,7 +239,7 @@ function ChapterPracticePage({ subjectInfo, user, onBack }) {
     try {
       const r = await safeJsonFetch(`${API_BASE}/exam/11408/${subjectInfo.key}/chapter-practice/attempts`, {
         method: "POST", headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({username:user.username,knowledge_point_id:selected?.code||"",knowledge_point_path:selected?`${selected.code} ${selected.title||""}`.trim():"",question_ids:qids}),
+        body: JSON.stringify({username:user.username,knowledge_point_id:normSelectedCode,knowledge_point_path:normSelectedCode?`${normSelectedCode} ${selected?.title||""}`.trim():"",question_ids:qids}),
       });
       window.open(`/exam/11408/${subjectInfo.key}/chapter-practice/attempt/${r.attempt_id}`, "_blank");
     } catch(e) { setError(e.message); }
@@ -252,7 +259,7 @@ function ChapterPracticePage({ subjectInfo, user, onBack }) {
           <section className="exam-practice-panel exam-practice-question-panel">
             <div className="exam-practice-panel-title">
               <h3>{selected?.title || selected?.name || "请选择知识点"}</h3>
-              {selected?.code && <span>{selected.code}</span>}
+              {normSelectedCode && <span>{normSelectedCode}</span>}
             </div>
             {kpLoading ? <div className="past-paper-loading">查询中...</div> :
             kpQuestions ? (

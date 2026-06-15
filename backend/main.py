@@ -12881,23 +12881,36 @@ def get_chapter_practice_questions(subject_key: str, knowledge_point_id: str = "
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
     items = db_query_chapter_questions(subject_key)
-    kp_id = (knowledge_point_id or "").strip()
+    # Normalize knowledge_point_id: strip _leaf:/leaf:/node: prefixes
+    import re as _re
+    raw_kp_id = (knowledge_point_id or "").strip()
+    kp_id = _re.sub(r'^(_leaf:|leaf:|_node:|node:|_kp:|kp:)', '', raw_kp_id).strip()
     kp_path = (knowledge_point_path or "").strip()
+    debug = {"raw_knowledge_point_id": raw_kp_id, "normalized_knowledge_point_id": kp_id,
+             "knowledge_point_path": kp_path, "include_children": include_children, "query_mode": "none"}
+    matched = []
     if kp_id:
         # Try exact ID match
         matched = [i for i in items if (i.knowledge_point_id or "") == kp_id]
+        debug["query_mode"] = "id_exact"
+        if not matched:
+            # Try child match
+            child = [i for i in items if ((i.knowledge_point_id or "").startswith(kp_id + "."))]
+            if child: matched = child; debug["query_mode"] = "id_children"
         if not matched and kp_path:
-            # Try path match
-            matched = [i for i in items if (i.knowledge_point_path or "").startswith(kp_path)]
-        if include_children and kp_id:
-            # Include children: ID prefix match like "8." matches "8.1", "8.2" etc.
-            child_matched = [i for i in items if ((i.knowledge_point_id or "").startswith(kp_id + "."))]
+            path_m = [i for i in items if (i.knowledge_point_path or "").startswith(kp_path)]
+            if path_m: matched = path_m; debug["query_mode"] = "path_prefix"
+        if include_children and matched:
+            child_m = [i for i in items if ((i.knowledge_point_id or "").startswith(kp_id + "."))]
             seen = {i.id for i in matched}
-            for i in child_matched:
-                if i.id not in seen:
-                    matched.append(i)
+            for i in child_m:
+                if i.id not in seen: matched.append(i)
+            debug["query_mode"] = "id_exact+children"
         items = matched
-    return {"items": [_serialize_question_bank(i) for i in items], "total": len(items)}
+    result = {"items": [_serialize_question_bank(i) for i in items], "total": len(items)}
+    # Only include debug in dev or when total=0
+    if len(items) == 0: result["debug_info"] = debug
+    return result
 
 @app.get("/exam/11408/{subject_key}/chapter/analytics")
 def get_chapter_analytics(subject_key: str, username: str = "", db: Session = Depends(get_db)):
