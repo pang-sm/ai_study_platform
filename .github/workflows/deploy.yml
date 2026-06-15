@@ -183,16 +183,12 @@ jobs:
           sudo chown -R $(whoami):$(whoami) /var/lib/ai_study_platform
           sudo chmod 755 /var/lib/ai_study_platform
 
-          echo "=== 导入章节题库(持久DB) ==="
+          echo "=== 章节题库部署(持久DB) ==="
           cd backend
-          PYTHON_BIN=""
-          if [ -x ".venv/bin/python" ]; then PYTHON_BIN=".venv/bin/python"
-          elif [ -x "venv/bin/python" ]; then PYTHON_BIN="venv/bin/python"
-          else PYTHON_BIN="python3"; fi
-          echo "[deploy] Using python: $PYTHON_BIN"
-          DATABASE_URL="sqlite:///$DATA_DB" $PYTHON_BIN scripts/precheck_data_structure_chapter_questions_txt.py || echo "[deploy] precheck failed - continuing"
-          DATABASE_URL="sqlite:///$DATA_DB" $PYTHON_BIN scripts/import_data_structure_chapter_questions_txt.py --all --skip 0 --batch-id deploy_auto || echo "[deploy] import failed - continuing"
-          DATABASE_URL="sqlite:///$DATA_DB" $PYTHON_BIN scripts/remap_data_structure_chapter_question_kps.py --apply-batch-auto --strategy batch || echo "[deploy] remap failed - continuing"
+          PYTHON_BIN=".venv/bin/python"
+          DATABASE_URL="sqlite:///$DATA_DB" $PYTHON_BIN scripts/import_data_structure_chapter_questions_txt.py --all --skip 0 --batch-id deploy_auto && \
+          DATABASE_URL="sqlite:///$DATA_DB" $PYTHON_BIN scripts/remap_data_structure_chapter_question_kps.py --apply-batch-auto --strategy batch && \
+          echo "[deploy] DB import + remap complete" || echo "[deploy] WARNING: import/remap failed"
           cd ..
 
           # ── Configure persistent database for systemd service ──
