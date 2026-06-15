@@ -149,7 +149,7 @@ export default function ExamPastPaperAttemptPage({ subjectKey, attemptId, onNavi
                     <span className="past-paper-q-number">第 {q.number} 题</span>
                     <span className="past-paper-q-type">{q.type}</span>
                   </div>
-                  {q.content && q.content !== `第 ${q.number} 题` && <div className="past-paper-q-content">{q.content}</div>}
+                  {(q.stem || (q.content !== `第 ${q.number} 题` ? q.content : '')) && <div className="past-paper-q-content">{q.stem || q.content}</div>}
                   {q.image_urls?.length > 0 && (
                     <div className="past-paper-q-images">
                       {q.image_urls.map((url, i) => (
@@ -157,6 +157,7 @@ export default function ExamPastPaperAttemptPage({ subjectKey, attemptId, onNavi
                       ))}
                     </div>
                   )}
+                  {/* OCR text is displayed above; image_urls removed from API response to reduce payload */}
                   {q.type === "选择题" ? (
                     <div className="past-paper-options">
                       {["A", "B", "C", "D"].map(opt => (
