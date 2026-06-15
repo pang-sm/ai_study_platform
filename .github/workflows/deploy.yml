@@ -173,15 +173,37 @@ jobs:
           sudo mkdir -p /var/www/ai_study_platform
           sudo rsync -a --delete frontend/dist/ /var/www/ai_study_platform/
 
+          # ── Persistent database outside git worktree ──
+          sudo mkdir -p /var/lib/ai_study_platform
+          DATA_DB=/var/lib/ai_study_platform/app.db
+          if [ ! -f "$DATA_DB" ] && [ -f backend/app.db ]; then
+            echo "[deploy] 首次部署：迁移本地 app.db 到持久目录"
+            sudo cp backend/app.db "$DATA_DB"
+          fi
+          sudo chown -R $(whoami):$(whoami) /var/lib/ai_study_platform
+
+          echo "=== 导入章节题库(持久DB) ==="
+          cd backend
+          DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python scripts/import_data_structure_chapter_questions_txt.py --all --skip 0 --batch-id deploy_auto || echo "[deploy] import failed - continuing"
+          DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python scripts/remap_data_structure_chapter_question_kps.py --apply-batch-auto --strategy batch || echo "[deploy] remap failed - continuing"
+          cd ..
+
+          # ── Configure persistent database for systemd service ──
+          sudo mkdir -p /var/lib/ai_study_platform
+          sudo mkdir -p /etc/systemd/system/ai-backend.service.d
+          sudo tee /etc/systemd/system/ai-backend.service.d/database.conf > /dev/null <<INNEREOF
+          [Service]
+          Environment="DATABASE_URL=sqlite:////var/lib/ai_study_platform/app.db"
+          INNEREOF
+          echo "[deploy] DATABASE_URL configured via systemd drop-in"
+
           # ── Configure ADMIN_LOGIN_CODE for systemd service ──
           if [ -n "${ADMIN_LOGIN_CODE:-}" ]; then
             echo "[deploy] Configuring ADMIN_LOGIN_CODE in systemd drop-in..."
-            sudo mkdir -p /etc/systemd/system/ai-backend.service.d
             sudo tee /etc/systemd/system/ai-backend.service.d/admin-code.conf > /dev/null <<INNEREOF
           [Service]
           Environment="ADMIN_LOGIN_CODE=${ADMIN_LOGIN_CODE}"
           INNEREOF
-            sudo systemctl daemon-reload
             echo "[deploy] ADMIN_LOGIN_CODE configured via systemd drop-in"
           else
             echo "[deploy] ADMIN_LOGIN_CODE secret is empty — skipping config"
@@ -205,17 +227,7 @@ jobs:
             echo "[deploy] SMTP secrets not fully configured — skipping email service"
           fi
 
-          echo "=== 导入章节题库 + 知识点重映射 ==="
-          cd backend
-          if [ -x ".venv/bin/python" ]; then
-            echo "[deploy] 导入章节题..."
-            .venv/bin/python scripts/precheck_data_structure_chapter_questions_txt.py || echo "[deploy] precheck failed - continuing"
-            .venv/bin/python scripts/import_data_structure_chapter_questions_txt.py --all --skip 0 --batch-id deploy_auto || echo "[deploy] import failed - continuing"
-            echo "[deploy] 知识点重映射..."
-            .venv/bin/python scripts/remap_data_structure_chapter_question_kps.py --apply-batch-auto --strategy batch || echo "[deploy] remap failed - continuing"
-          fi
-          cd ..
-
+          sudo systemctl daemon-reload
           sudo systemctl restart ai-backend
           sudo systemctl is-active --quiet ai-backend
           curl -fsS http://127.0.0.1 >/dev/null

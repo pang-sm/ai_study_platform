@@ -2,7 +2,8 @@ from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import declarative_base, sessionmaker
 from subjects import DEFAULT_SUBJECT, get_subject_migration_pairs
 
-DATABASE_URL = "sqlite:///./app.db"
+import os as _os
+DATABASE_URL = _os.getenv("DATABASE_URL", "sqlite:///./app.db")
 
 engine = create_engine(
     DATABASE_URL,
