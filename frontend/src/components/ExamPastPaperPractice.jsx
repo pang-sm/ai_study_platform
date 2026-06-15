@@ -76,9 +76,16 @@ export default function ExamPastPaperPractice({
   const [startLoading, setStartLoading] = useState(false);
 
   const startPractice = async () => {
-    if (!user?.username || !selectedYear) return;
+    if (!selectedYear) { setError("请先选择年份"); return; }
+    if (!subjectKey) { setError("科目标识缺失"); return; }
+    if (!user?.username) { setError("请先登录后开始练习"); return; }
+
     setStartLoading(true);
     setError("");
+
+    // Pre-open window to avoid popup blocking after async fetch
+    const newWindow = window.open("", "_blank");
+
     try {
       const res = await fetch(`${API_BASE}/exam/11408/${subjectKey}/past-paper-attempts`, {
         method: "POST",
@@ -86,13 +93,22 @@ export default function ExamPastPaperPractice({
         body: JSON.stringify({ username: user.username, year: selectedYear }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "创建练习失败");
+      if (!res.ok) throw new Error(data.detail || `创建练习失败 (HTTP ${res.status})`);
       const aid = data.attempt_id || data.id;
-      if (!aid) throw new Error("创建练习失败");
-      const url = `/exam/11408/${subjectKey}/past-paper/attempt/${aid}`;
-      window.open(url, "_blank", "noopener,noreferrer");
-    } catch (e) { setError(e.message); }
-    finally { setStartLoading(false); }
+      if (!aid) throw new Error("后端未返回 attempt_id");
+
+      const targetUrl = `/exam/11408/${subjectKey}/past-paper/attempt/${aid}`;
+      if (newWindow) {
+        newWindow.location.href = targetUrl;
+      } else {
+        window.location.href = targetUrl;
+      }
+    } catch (e) {
+      if (newWindow) newWindow.close();
+      setError(e.message || "开始练习失败，请检查网络或稍后重试");
+    } finally {
+      setStartLoading(false);
+    }
   };
 
   const saveDraft = async () => {
@@ -278,11 +294,13 @@ export default function ExamPastPaperPractice({
           <div className="past-paper-empty-icon">📋</div>
           <h3>{selectedYear ? `${selectedYear} 年真题` : "选择年份开始练习"}</h3>
           <p>选择上方年份后，点击下方按钮开始该年真题练习。每次练习会创建独立记录，可多次作答。</p>
+          {error && <div className="km-inline-message km-inline-message--error" style={{ marginBottom: 8, maxWidth: 400 }}>{error}</div>}
           {selectedYear && (
             <button type="button" className="exam-past-paper-start-btn" onClick={startPractice} disabled={startLoading}>
               {startLoading ? "创建练习中..." : `开始 ${selectedYear} 年练习`}
             </button>
           )}
+          {!user?.username && <p style={{ color: "#dc2626", fontSize: "0.78rem", marginTop: 8 }}>提示：需要登录后才能开始练习。当前未获取到用户信息。</p>}
         </div>
       )}
     </div>

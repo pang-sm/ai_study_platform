@@ -92,6 +92,7 @@ export default function ExamPracticeCenter({
         subjectName={pastPaperConfig.subjectName}
         years={pastPaperConfig.years}
         questionType={pastPaperConfig.questionType}
+        user={user}
         onBack={() => setPracticeView("dashboard")}
       />
     );
