@@ -422,7 +422,7 @@ def grade_submission(subject_key: str, year: int, answers: list[dict]) -> dict:
             else:
                 wrong.append({
                     "question_id": qid, "number": q.get("number"), "type": qtype,
-                    "content": q.get("content", ""), "options": q.get("options", {}),
+                    "content": q.get("stem") or q.get("content", ""), "options": q.get("options", {}),
                     "standard_answer": standard, "user_answer": user_answer,
                     "score": 0, "wrong_reason": "答案不匹配",
                 })
@@ -439,7 +439,7 @@ def grade_submission(subject_key: str, year: int, answers: list[dict]) -> dict:
             if score < 7:
                 wrong.append({
                     "question_id": qid, "number": q.get("number"), "type": qtype,
-                    "content": q.get("content", ""), "standard_answer": standard,
+                    "content": q.get("stem") or q.get("content", ""), "standard_answer": standard,
                     "user_answer": user_answer, "score": score, "wrong_reason": feedback,
                 })
             results.append({

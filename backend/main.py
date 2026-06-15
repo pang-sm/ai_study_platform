@@ -12563,6 +12563,7 @@ def _create_mock_exam_ai_questions(
     difficulty: str,
     requirement: str,
     fallback_reason: str = "",
+    generation_mode: str = "mock",
 ):
     now = utc_now()
     created_items = []
