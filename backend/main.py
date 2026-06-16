@@ -10863,6 +10863,100 @@ def get_learning_dashboard(username: str, db: Session = Depends(get_db)):
     }
 
 
+@app.get("/learning/report")
+def get_learning_report(
+    username: str,
+    start: str = "",
+    end: str = "",
+    db: Session = Depends(get_db),
+):
+    dashboard = get_learning_dashboard(username=username, db=db)
+    overview = dashboard.get("overview") or {}
+    weak_points = dashboard.get("weak_points") or []
+    recommendations = dashboard.get("recommendations") or []
+
+    def _format_minutes(minutes):
+        total = max(0, int(minutes or 0))
+        hours = total // 60
+        mins = total % 60
+        if hours <= 0:
+            return f"{mins} 分钟"
+        if mins == 0:
+            return f"{hours} h"
+        return f"{hours} h {mins} m"
+
+    def _format_percent(value):
+        try:
+            return f"{round(float(value), 1)}%"
+        except (TypeError, ValueError):
+            return "--"
+
+    weak_titles = [
+        (item.get("knowledge_point_name") or item.get("title") or "").strip()
+        for item in weak_points[:5]
+        if isinstance(item, dict)
+    ]
+    weak_titles = [title for title in weak_titles if title]
+
+    strengths = []
+    if overview.get("completed_tasks"):
+        strengths.append(f"已完成 {overview.get('completed_tasks')} 个学习任务")
+    if overview.get("practice_accuracy", 0) >= 70:
+        strengths.append(f"练习正确率达到 {_format_percent(overview.get('practice_accuracy'))}")
+    if overview.get("active_days_this_week"):
+        strengths.append(f"本阶段保持 {overview.get('active_days_this_week')} 天学习记录")
+    if not strengths:
+        strengths.append("已有学习记录可用于持续分析")
+
+    suggestions = []
+    for item in recommendations[:5]:
+        if isinstance(item, dict):
+            title = (item.get("title") or item.get("action_text") or "").strip()
+            if title:
+                suggestions.append(title)
+        elif item:
+            suggestions.append(str(item))
+    if not suggestions:
+        suggestions = [f"优先复习「{title}」并完成对应练习" for title in weak_titles[:3]]
+    if not suggestions:
+        suggestions = ["继续完成学习任务，并保持错题复盘节奏"]
+
+    total_minutes = overview.get("total_study_minutes", 0)
+    accuracy = overview.get("practice_accuracy", 0)
+    summary_text = (
+        f"所选时间范围内累计学习 {_format_minutes(total_minutes)}，"
+        f"练习正确率为 {_format_percent(accuracy)}。"
+        f"{' 当前需要重点关注：' + '、'.join(weak_titles[:3]) + '。' if weak_titles else ' 当前暂无明显薄弱知识点。'}"
+    )
+
+    return {
+        "start": start,
+        "end": end,
+        "summary": {
+            "overall_summary": summary_text,
+            "strengths": strengths,
+            "weaknesses": weak_titles or ["当前范围内暂无明确薄弱知识点"],
+            "suggestions": suggestions,
+        },
+        "metrics": {
+            "study_time": _format_minutes(total_minutes),
+            "knowledge_points": str(overview.get("completed_tasks", "--")),
+            "accuracy": _format_percent(accuracy),
+            "study_days": f"{overview.get('active_days_this_week', '--')} 天",
+        },
+        "trend": dashboard.get("trend") or [],
+        "errors": [
+            {
+                "knowledge_point": item.get("knowledge_point_name") or item.get("title") or "",
+                "count": item.get("wrong_count") or item.get("practice_count") or 0,
+                "mastery": item.get("mastery") or item.get("mastery_score"),
+            }
+            for item in weak_points
+            if isinstance(item, dict)
+        ],
+    }
+
+
 @app.get("/review/center")
 def get_review_center(username: str, course_id: str = "", db: Session = Depends(get_db)):
     user = get_user_by_username(username, db)
