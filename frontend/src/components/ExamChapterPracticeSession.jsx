@@ -98,6 +98,9 @@ export default function ExamChapterPracticeSession({ subjectKey, attemptId, user
               ✅ 本次没有新增错题
             </div>
           )}
+          <div style={{marginBottom:12,padding:"8px 14px",background:"#ede9fe",borderRadius:8,fontSize:"0.82rem",color:"#5b21b6"}}>
+            ✅ 已完成练习，题目已标记为"已做过"
+          </div>
           {closeHint&&<div className="km-inline-message" style={{marginBottom:8}}>{closeHint}</div>}
           <div className="past-paper-result-actions" style={{marginBottom:16}}>
             <button className="ghost-button compact" onClick={onBack}>返回章节练习</button>
