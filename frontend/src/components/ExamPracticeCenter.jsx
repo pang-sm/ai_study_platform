@@ -361,6 +361,11 @@ function ChapterPracticePage({ subjectInfo, user, onBack }) {
   const [startingPractice, setStartingPractice] = useState(false);
   const [doneIds, setDoneIds] = useState(new Set());
 
+  // Reset selected chapter when subject changes
+  useEffect(() => {
+    setSelected(getChapterOutline(subjectInfo.key)[0]);
+  }, [subjectInfo.key]);
+
   useEffect(() => {
     setKpLoading(true); setKpQuestions(null);
     const id = selected?.code || "";
