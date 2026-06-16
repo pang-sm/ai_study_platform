@@ -12187,6 +12187,14 @@ def create_past_paper_attempt(subject_key: str, req: dict, db: Session = Depends
             pass
     if total == 0:
         total = len(exam_paper_parser.get_year_questions(subject_key, year).get("questions", []))
+    if total == 0:
+        # Fallback: count from ExamQuestionBank for subjects without paper parser data
+        total = db.query(models.ExamQuestionBank).filter(
+            models.ExamQuestionBank.subject_key == subject_key,
+            models.ExamQuestionBank.source_type == "past_paper",
+            models.ExamQuestionBank.year == year,
+            models.ExamQuestionBank.is_active == True,
+        ).count()
     last = db.query(models.PastPaperAttempt).filter(
         models.PastPaperAttempt.username == username,
         models.PastPaperAttempt.subject_key == subject_key,
@@ -12281,6 +12289,69 @@ def submit_attempt(subject_key: str, attempt_id: int, req: dict, db: Session = D
     if not answers_list:
         raise HTTPException(status_code=400, detail="No answers provided")
     result = exam_paper_parser.grade_submission(subject_key, attempt.year, answers_list)
+    # Fallback: if paper parser has no data, grade from ExamQuestionBank
+    if result.get("total_questions", 0) == 0:
+        qb_items = db.query(models.ExamQuestionBank).filter(
+            models.ExamQuestionBank.subject_key == subject_key,
+            models.ExamQuestionBank.source_type == "past_paper",
+            models.ExamQuestionBank.year == attempt.year,
+            models.ExamQuestionBank.is_active == True,
+        ).order_by(models.ExamQuestionBank.question_number).all()
+        if qb_items:
+            results_list = []
+            correct = 0
+            wrong_qs = []
+            answer_map = {}
+            for a in answers_list:
+                if isinstance(a, dict):
+                    answer_map[str(a.get("question_id", ""))] = a.get("user_answer", "")
+            for item in qb_items:
+                qid = str(item.id)
+                ua = (answer_map.get(qid) or "").strip()
+                sa = (item.standard_answer or "").strip()
+                opts = {}
+                if item.options_json:
+                    try: opts = json.loads(item.options_json)
+                    except: pass
+                if item.question_type == "choice":
+                    is_c = ua.upper() == sa.upper()
+                    if is_c: correct += 1
+                    results_list.append({
+                        "question_id": qid, "number": item.question_number,
+                        "type": "选择题", "correct": is_c,
+                        "standard_answer": sa, "user_answer": ua,
+                        "score": 2 if is_c else 0, "full_score": 2,
+                    })
+                    if not is_c:
+                        wrong_qs.append({
+                            "question_id": qid, "number": item.question_number,
+                            "type": "选择题", "content": item.stem or "",
+                            "options": opts, "standard_answer": sa,
+                            "user_answer": ua, "score": 0,
+                            "wrong_reason": "答错",
+                        })
+                else:  # big
+                    score = 5  # default partial score for big questions
+                    results_list.append({
+                        "question_id": qid, "number": item.question_number,
+                        "type": "大题", "score": score, "full_score": 10,
+                        "standard_answer": sa, "user_answer": ua,
+                        "feedback": "请自行对照参考答案",
+                    })
+            total = len(qb_items)
+            choice_total = sum(1 for i in qb_items if i.question_type == "choice")
+            result = {
+                "subject_key": subject_key, "subject_name": EXAM_SUBJECT_DIRS.get(subject_key, subject_key),
+                "year": attempt.year,
+                "results": results_list,
+                "total_questions": total,
+                "choice_correct": correct,
+                "choice_total": choice_total,
+                "total_score": correct * 2,
+                "max_score": choice_total * 2 + (total - choice_total) * 10,
+                "wrong_questions": wrong_qs,
+                "wrong_count": len(wrong_qs),
+            }
     now = utc_now()
     attempt.status = "submitted"
     attempt.submitted_at = now
