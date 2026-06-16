@@ -23,7 +23,7 @@ PROJECT_DIR = BACKEND_DIR.parent
 RAW_DIR = BASE_DIR / "raw"
 CHECKED_DIR = BASE_DIR / "checked"
 REPORT_DIR = BASE_DIR / "import_reports"
-SOURCE_TXT = RAW_DIR / "2027数据结构_原创配套习题_全章总汇_带知识点标注.txt"
+SOURCE_TXT = RAW_DIR / "2027数据结构_原创配套习题_全章总汇_带知识点标注_修正版.txt"
 DB_PATH = BACKEND_DIR / "app.db"
 
 SUBJECT_KEY = "data_structure"
@@ -31,6 +31,40 @@ SUBJECT_NAME = "数据结构"
 SOURCE_TYPE = "chapter"
 CHOICE_SECTION_TITLE = "\u4e00\u3001\u5355\u9879\u9009\u62e9\u9898"
 BIG_SECTION_TITLE = "\u4e8c\u3001\u7efc\u5408\u5e94\u7528\u9898"
+GRAPH_KEYWORDS = (
+    "\u90bb\u63a5\u77e9\u9635",
+    "\u90bb\u63a5\u8868",
+    "\u5341\u5b57\u94fe\u8868",
+    "\u90bb\u63a5\u591a\u91cd\u8868",
+    "\u6709\u5411\u56fe",
+    "\u65e0\u5411\u56fe",
+    "\u8fde\u901a\u56fe",
+    "\u5f3a\u8fde\u901a",
+    "\u8fde\u901a\u5206\u91cf",
+    "\u9876\u70b9",
+    "\u8fb9\u96c6",
+    "\u5f27",
+    "\u5165\u5ea6",
+    "\u51fa\u5ea6",
+    "\u8def\u5f84",
+    "\u56de\u8def",
+    "\u7b80\u5355\u8def\u5f84",
+    "BFS",
+    "DFS",
+    "\u5e7f\u5ea6\u4f18\u5148",
+    "\u6df1\u5ea6\u4f18\u5148",
+    "\u751f\u6210\u6811",
+    "\u6700\u5c0f\u751f\u6210\u6811",
+    "Prim",
+    "Kruskal",
+    "\u6700\u77ed\u8def\u5f84",
+    "Dijkstra",
+    "Floyd",
+    "\u62d3\u6251\u6392\u5e8f",
+    "\u5173\u952e\u8def\u5f84",
+    "AOV",
+    "AOE",
+)
 
 CHAPTER_NAMES = {
     "1": "第1章 绪论",
@@ -63,6 +97,8 @@ class ParsedQuestion:
     chapter_name: str
     source_section_title: str
     source_batch_title: str
+    source_chapter_title: str
+    chapter_conflict: dict[str, str]
 
 
 def read_source() -> str:
@@ -85,18 +121,70 @@ def knowledge_point_code(kp: str) -> str:
     return match.group(1) if match else ""
 
 
-def chapter_from_knowledge_points(kps: list[str], batch_title: str) -> tuple[str, str]:
+def source_chapter_id(title: str) -> str:
+    match = re.search("\u7b2c\\s*(\\d+)\\s*\u7ae0", title or "")
+    return match.group(1) if match else ""
+
+
+def has_graph_signal(*parts: str) -> bool:
+    text = "\n".join(part or "" for part in parts)
+    lower_text = text.lower()
+    for keyword in GRAPH_KEYWORDS:
+        if keyword.isascii():
+            if keyword.lower() in lower_text:
+                return True
+        elif keyword in text:
+            return True
+    return False
+
+
+def chapter_from_knowledge_points(
+    kps: list[str],
+    batch_title: str,
+    source_chapter_title: str = "",
+    section_title: str = "",
+    stem: str = "",
+) -> tuple[str, str, dict[str, str]]:
+    source_id = source_chapter_id(source_chapter_title)
+    explicit_id = ""
     for kp in kps:
         code = knowledge_point_code(kp)
         if code:
-            chapter_id = code.split(".")[0]
-            if chapter_id in CHAPTER_NAMES:
-                return chapter_id, CHAPTER_NAMES[chapter_id]
-    match = re.search(r"第\s*(\d+)\s*章", batch_title or "")
+            explicit_id = code.split(".")[0]
+            break
+
+    graph_signal = has_graph_signal(*kps, source_chapter_title, section_title, stem)
+    conflict: dict[str, str] = {}
+    if explicit_id and explicit_id in CHAPTER_NAMES:
+        if source_id and source_id in CHAPTER_NAMES and source_id != explicit_id:
+            conflict = {
+                "knowledge_point_chapter_id": explicit_id,
+                "knowledge_point_chapter_name": CHAPTER_NAMES[explicit_id],
+                "source_chapter_id": source_id,
+                "source_chapter_title": source_chapter_title,
+                "reason": "knowledge_point_source_chapter_conflict",
+            }
+        return explicit_id, CHAPTER_NAMES[explicit_id], conflict
+
+    if source_id == "6" or graph_signal:
+        if explicit_id and explicit_id in CHAPTER_NAMES:
+            conflict = {
+                "knowledge_point_chapter_id": explicit_id,
+                "knowledge_point_chapter_name": CHAPTER_NAMES[explicit_id],
+                "source_chapter_id": source_id or "",
+                "source_chapter_title": source_chapter_title,
+                "reason": "source_or_keyword_graph_override",
+            }
+        return "6", CHAPTER_NAMES["6"], conflict
+
+    if source_id in CHAPTER_NAMES:
+        return source_id, CHAPTER_NAMES[source_id], conflict
+
+    match = re.search("\u7b2c\\s*(\\d+)\\s*\u7ae0", batch_title or "")
     if match and match.group(1) in CHAPTER_NAMES:
         chapter_id = match.group(1)
-        return chapter_id, CHAPTER_NAMES[chapter_id]
-    return "unclassified", CHAPTER_NAMES["unclassified"]
+        return chapter_id, CHAPTER_NAMES[chapter_id], conflict
+    return "unclassified", CHAPTER_NAMES["unclassified"], conflict
 
 
 def is_section_title(line: str) -> bool:
@@ -130,6 +218,7 @@ def parse_question_block(
     kps: list[str],
     section_title: str,
     batch_title: str,
+    source_chapter_title: str,
     raw_index: int,
     current_question_type: str,
 ) -> ParsedQuestion | None:
@@ -188,7 +277,13 @@ def parse_question_block(
     elif not options:
         question_type = "big"
     kps = kps[:]
-    chapter_id, chapter_name = chapter_from_knowledge_points(kps, batch_title)
+    chapter_id, chapter_name, chapter_conflict = chapter_from_knowledge_points(
+        kps,
+        batch_title,
+        source_chapter_title=source_chapter_title,
+        section_title=section_title,
+        stem=stem,
+    )
     kp_codes = [knowledge_point_code(kp) for kp in kps if knowledge_point_code(kp)]
     kp_id = "；".join(kp_codes)
     kp_path = "；".join(kps)
@@ -211,6 +306,8 @@ def parse_question_block(
         chapter_name=chapter_name,
         source_section_title=section_title,
         source_batch_title=batch_title,
+        source_chapter_title=source_chapter_title,
+        chapter_conflict=chapter_conflict,
     )
 
 
@@ -220,6 +317,7 @@ def parse_questions(text: str) -> list[ParsedQuestion]:
     pending_kps: list[str] = []
     current_section = ""
     current_batch = ""
+    current_source_chapter = ""
     current_question_type = "choice"
     i = 0
 
@@ -229,7 +327,20 @@ def parse_questions(text: str) -> list[ParsedQuestion]:
             current_batch = line
             i += 1
             continue
+        if re.match(r"^第\s*\d+\s*章", line):
+            current_source_chapter = line
+            i += 1
+            continue
         if is_section_title(line):
+            current_section = line
+            section_code = knowledge_point_code(line)
+            if section_code:
+                section_chapter_id = section_code.split(".")[0]
+                if section_chapter_id in CHAPTER_NAMES:
+                    current_source_chapter = f"{CHAPTER_NAMES[section_chapter_id]}｜{line}"
+            i += 1
+            continue
+        if re.match(r"^【\d+】", line):
             current_section = line
             i += 1
             continue
@@ -258,6 +369,8 @@ def parse_questions(text: str) -> list[ParsedQuestion]:
                     break
                 if next_line.startswith("====") or re.match(r"^第\d+批：", next_line):
                     break
+                if re.match(r"^第\s*\d+\s*章", next_line):
+                    break
                 if next_line in {CHOICE_SECTION_TITLE, BIG_SECTION_TITLE}:
                     break
                 if is_section_title(next_line):
@@ -269,6 +382,7 @@ def parse_questions(text: str) -> list[ParsedQuestion]:
                 pending_kps,
                 current_section,
                 current_batch,
+                current_source_chapter,
                 len(questions) + 1,
                 current_question_type,
             )
@@ -313,6 +427,7 @@ def validate_questions(questions: list[ParsedQuestion]) -> tuple[dict, list[dict
         "with_knowledge_points": sum(1 for q in questions if q.knowledge_points),
         "without_knowledge_points": sum(1 for q in questions if not q.knowledge_points),
         "unclassified": sum(1 for q in questions if q.chapter_id == "unclassified"),
+        "chapter_conflicts": sum(1 for q in questions if q.chapter_conflict),
         "by_chapter": dict(sorted(by_chapter.items())),
     }
     return stats, rejected
@@ -351,6 +466,20 @@ def write_outputs(questions: list[ParsedQuestion], rejected: list[dict], stats: 
         "encoding": "utf-8-sig",
         "built_at": timestamp,
         "stats": stats,
+        "chapter_conflicts": [
+            {
+                "raw_index": q.raw_index,
+                "source_question_number": q.source_question_number,
+                "knowledge_points": q.knowledge_points,
+                "chapter_id": q.chapter_id,
+                "chapter_name": q.chapter_name,
+                "source_chapter_title": q.source_chapter_title,
+                "source_section_title": q.source_section_title,
+                "conflict": q.chapter_conflict,
+            }
+            for q in questions
+            if q.chapter_conflict
+        ],
         "sample_questions": ready_payload[:5],
     }
     (REPORT_DIR / "data_structure_annotated_build_report.json").write_text(
@@ -367,6 +496,7 @@ def write_outputs(questions: list[ParsedQuestion], rejected: list[dict], stats: 
         f"- 带知识点: {stats['with_knowledge_points']}",
         f"- 无知识点: {stats['without_knowledge_points']}",
         f"- 未分类: {stats['unclassified']}",
+        f"- 章节冲突记录: {stats['chapter_conflicts']}",
         "",
         "## 每章题数",
     ]
@@ -435,6 +565,8 @@ def apply_to_database(questions: list[ParsedQuestion], timestamp: str) -> dict:
                             "knowledge_points": q.knowledge_points,
                             "source_section_title": q.source_section_title,
                             "source_batch_title": q.source_batch_title,
+                            "source_chapter_title": q.source_chapter_title,
+                            "chapter_conflict": q.chapter_conflict,
                         },
                         ensure_ascii=False,
                     ),
