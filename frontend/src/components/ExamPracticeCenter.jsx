@@ -401,7 +401,13 @@ function ChapterPracticePage({ subjectInfo, user, onBack }) {
 
 function parseItemOptions(item) {
   if (item.options_json) { try { return JSON.parse(item.options_json); } catch {} }
-  if (item.options) { return item.options; }
+  if (item.options) {
+    if (typeof item.options === 'string') {
+      try { return JSON.parse(item.options); } catch { return {}; }
+    }
+    if (typeof item.options === 'object' && !Array.isArray(item.options)) return item.options;
+    return {};
+  }
   return {};
 }
 function AnalysisBlock({ itemKey, analysisMap }) {

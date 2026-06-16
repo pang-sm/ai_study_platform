@@ -13485,12 +13485,17 @@ SOURCE_LABEL_MAP = {"past_paper": "真题错题", "chapter": "章节练习错题
 def _marshal_wrong_item(row, source):
     """Serialize a wrong-question row from either table into a uniform shape."""
     if source == "past_paper":
+        opts = {}
+        raw_opts = row.options
+        if raw_opts:
+            try: opts = json.loads(raw_opts)
+            except: pass
         return {
             "id": row.id, "username": row.username, "subject_key": row.subject_key,
             "source": "past_paper", "source_label": "真题错题",
             "year": row.year, "question_id": row.question_id, "question_number": row.question_number,
             "question_type": row.question_type, "stem": row.content or "",
-            "options": row.options or {}, "standard_answer": row.standard_answer or "",
+            "options": opts, "standard_answer": row.standard_answer or "",
             "user_answer": row.user_answer or "", "score": row.score,
             "wrong_reason": row.wrong_reason, "attempt_id": row.attempt_id,
             "status": row.status or "active", "mastered": bool(getattr(row, "mastered", False)),
