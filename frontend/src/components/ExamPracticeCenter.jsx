@@ -193,120 +193,128 @@ function normalizeKnowledgePointId(rawId) {
   return String(rawId).replace(/^(_leaf:|leaf:|_node:|node:|_kp:|kp:)/i, "").trim();
 }
 
+const CHAPTER_OUTLINE = [
+  { id:"0", title:"总览", code:"", children:[] },
+  { id:"1", title:"第1章 绪论", code:"1", children:[
+    {id:"1.1", title:"1.1 数据结构的基本概念", code:"1.1"},
+    {id:"1.2", title:"1.2 算法和算法评价", code:"1.2"},
+  ]},
+  { id:"2", title:"第2章 线性表", code:"2", children:[
+    {id:"2.1", title:"2.1 线性表的定义和基本操作", code:"2.1"},
+    {id:"2.2", title:"2.2 线性表的顺序表示", code:"2.2"},
+    {id:"2.3", title:"2.3 线性表的链式表示", code:"2.3"},
+  ]},
+  { id:"3", title:"第3章 栈、队列和数组", code:"3", children:[
+    {id:"3.1", title:"3.1 栈", code:"3.1"},
+    {id:"3.2", title:"3.2 队列", code:"3.2"},
+    {id:"3.3", title:"3.3 栈和队列的应用", code:"3.3"},
+    {id:"3.4", title:"3.4 数组和特殊矩阵", code:"3.4"},
+  ]},
+  { id:"4", title:"第4章 串", code:"4", children:[
+    {id:"4.1", title:"4.1 串的定义和实现", code:"4.1"},
+    {id:"4.2", title:"4.2 串的模式匹配", code:"4.2"},
+  ]},
+  { id:"5", title:"第5章 树与二叉树", code:"5", children:[
+    {id:"5.1", title:"5.1 树的基本概念", code:"5.1"},
+    {id:"5.2", title:"5.2 二叉树的概念", code:"5.2"},
+    {id:"5.3", title:"5.3 二叉树的遍历和线索二叉树", code:"5.3"},
+    {id:"5.4", title:"5.4 树、森林", code:"5.4"},
+    {id:"5.5", title:"5.5 树与二叉树的应用", code:"5.5"},
+  ]},
+  { id:"6", title:"第6章 图", code:"6", children:[
+    {id:"6.1", title:"6.1 图的基本概念", code:"6.1"},
+    {id:"6.2", title:"6.2 图的遍历", code:"6.2"},
+    {id:"6.3", title:"6.3 图的存储及基本操作", code:"6.3"},
+    {id:"6.4", title:"6.4 图的应用", code:"6.4"},
+  ]},
+  { id:"7", title:"第7章 查找", code:"7", children:[
+    {id:"7.1", title:"7.1 查找的基本概念", code:"7.1"},
+    {id:"7.2", title:"7.2 顺序查找和折半查找", code:"7.2"},
+    {id:"7.3", title:"7.3 树形查找", code:"7.3"},
+    {id:"7.4", title:"7.4 散列表", code:"7.4"},
+  ]},
+  { id:"8", title:"第8章 排序", code:"8", children:[
+    {id:"8.1", title:"8.1 排序的基本概念", code:"8.1"},
+    {id:"8.2", title:"8.2 插入排序", code:"8.2"},
+    {id:"8.3", title:"8.3 交换排序", code:"8.3"},
+    {id:"8.4", title:"8.4 选择排序", code:"8.4"},
+    {id:"8.5", title:"8.5 归并排序和基数排序", code:"8.5"},
+    {id:"8.6", title:"8.6 内部排序算法比较", code:"8.6"},
+    {id:"8.7", title:"8.7 外部排序", code:"8.7"},
+  ]},
+];
+
+function SectionOutline({ nodes, selectedId, onSelect }) {
+  const [expanded, setExpanded] = useState(() => new Set(nodes.filter(n=>n.children?.length>0).map(n=>n.id)));
+  return (
+    <div className="chapter-section-outline">
+      {nodes.map(ch => (
+        <div key={ch.id}>
+          <div className={`chapter-section-chapter ${selectedId===ch.id?"chapter-section-chapter--active":""}`}
+               onClick={() => onSelect(ch)}>
+            <span className="chapter-section-chapter-title">{ch.title}</span>
+          </div>
+          {expanded.has(ch.id) && ch.children?.length > 0 && (
+            <div className="chapter-section-sections">
+              {ch.children.map(sec => (
+                <div key={sec.id} className={`chapter-section-section ${selectedId===sec.id?"chapter-section-section--active":""}`}
+                     onClick={() => onSelect(sec)}>
+                  <span>{sec.title}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ChapterPracticePage({ subjectInfo, user, onBack }) {
-  const [mapData, setMapData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [selected, setSelected] = useState(null);
-  const [analytics, setAnalytics] = useState(null);
+  const [selected, setSelected] = useState(CHAPTER_OUTLINE[0]);
   const [kpQuestions, setKpQuestions] = useState(null);
   const [kpLoading, setKpLoading] = useState(false);
 
   useEffect(() => {
-    const params = new URLSearchParams({ course_id: subjectInfo.courseId });
-    if (user?.username) params.set("username", user.username);
-    setLoading(true);
-    Promise.all([
-      safeJsonFetch(`${API_BASE}/knowledge-map?${params.toString()}`).catch(() => ({ chapters: [] })),
-      safeJsonFetch(`${API_BASE}/exam/11408/${subjectInfo.key}/chapter/analytics?username=${user?.username||""}`).catch(() => null),
-    ]).then(([mapPayload, analyticsPayload]) => {
-      setMapData(mapPayload);
-      setAnalytics(analyticsPayload);
-      setSelected(mapPayload.chapters?.[0] || null);
-    }).catch(e => setError(e.message || "加载失败")).finally(() => setLoading(false));
-  }, [subjectInfo.courseId, user?.username]);
-
-  function normalizeChapterQuestionsResponse(data) {
-    if (Array.isArray(data)) return { items: data, total: data.length };
-    const items = data?.items || data?.questions || data?.results || data?.data || [];
-    return { items: Array.isArray(items) ? items : [], total: data?.total ?? (Array.isArray(items) ? items.length : 0), debug_info: data?.debug_info };
-  }
-
-  useEffect(() => {
-    if (!selected) return;
     setKpLoading(true); setKpQuestions(null);
-    const normId = normalizeKnowledgePointId(selected.code || selected.id || "");
-    const kpPath = normId ? `${normId} ${selected.title||""}`.trim() : (selected.title || selected.name || "");
-    const params = new URLSearchParams({ knowledge_point_id: normId, knowledge_point_path: kpPath, include_children: "true" });
+    const id = selected?.code || "";
+    const params = new URLSearchParams();
+    if (id) params.set("knowledge_point_id", id);
+    params.set("include_children", "true");
     safeJsonFetch(`${API_BASE}/exam/11408/${subjectInfo.key}/chapter-practice/questions?${params.toString()}`)
-      .then(p => setKpQuestions(normalizeChapterQuestionsResponse(p)))
-      .catch(() => setKpQuestions({ items: [], total: 0 }))
-      .finally(() => setKpLoading(false));
-  }, [selected, subjectInfo.key]);
+      .then(p => setKpQuestions(p)).catch(() => setKpQuestions({items:[],total:0})).finally(()=>setKpLoading(false));
+  }, [selected?.code, subjectInfo.key]);
 
-  const chapters = mapData?.chapters || [];
   const totalQ = kpQuestions?.total || 0;
-  const choiceQ = kpQuestions?.items?.filter(i => (i.question_type||"").includes("choice") || (i.question_type||"").includes("选择")).length || 0;
-  const bigQ = totalQ - choiceQ;
-  const normSelectedCode = normalizeKnowledgePointId(selected?.code || selected?.id || "");
-
-  const handleStartPractice = async () => {
-    if (!kpQuestions?.items?.length || !user?.username) return;
-    const qids = kpQuestions.items.map(i => i.id);
-    try {
-      const r = await safeJsonFetch(`${API_BASE}/exam/11408/${subjectInfo.key}/chapter-practice/attempts`, {
-        method: "POST", headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({username:user.username,knowledge_point_id:normSelectedCode,knowledge_point_path:normSelectedCode?`${normSelectedCode} ${selected?.title||""}`.trim():"",question_ids:qids}),
-      });
-      window.open(`/exam/11408/${subjectInfo.key}/chapter-practice/attempt/${r.attempt_id}`, "_blank");
-    } catch(e) { setError(e.message); }
-  };
+  const selTitle = selected?.title || "总览";
 
   return (
     <div className="exam-practice-subpage">
-      <PracticeSubPageHeader title="章节练习" subtitle="按知识点体系进行针对性练习" subjectInfo={subjectInfo} onBack={onBack} />
-      {loading ? <div className="past-paper-loading">正在加载知识点大纲...</div> : error ? (
-        <div className="km-inline-message km-inline-message--error">{error}</div>
-      ) : (
-        <div className="exam-practice-split">
-          <section className="exam-practice-panel exam-practice-outline-panel">
-            <h3>知识点大纲</h3>
-            <KnowledgeTree nodes={chapters} selectedCode={selected?.code || selected?.id} onSelect={setSelected} />
-          </section>
-          <section className="exam-practice-panel exam-practice-question-panel">
-            <div className="exam-practice-panel-title">
-              <h3>{selected?.title || selected?.name || "请选择知识点"}</h3>
-              {normSelectedCode && <span>{normSelectedCode}</span>}
+      <PracticeSubPageHeader title="章节练习" subtitle="按章节进行针对性练习" subjectInfo={subjectInfo} onBack={onBack} />
+      <div className="exam-practice-split">
+        <section className="exam-practice-panel exam-practice-outline-panel" style={{maxWidth:260}}>
+          <h3>章节大纲</h3>
+          <SectionOutline nodes={CHAPTER_OUTLINE} selectedId={selected?.id} onSelect={setSelected} />
+        </section>
+        <section className="exam-practice-panel exam-practice-question-panel">
+          <div className="exam-practice-panel-title"><h3>{selTitle}</h3></div>
+          {kpLoading ? <div className="past-paper-loading">查询中...</div> :
+           kpQuestions ? (totalQ > 0 ? (
+            <div className="chapter-analytics-panel">
+              <div className="chapter-analytics-row">
+                <span>当前范围：<strong>{selTitle}</strong></span>
+                <span>总题数：<strong>{totalQ}</strong></span>
+              </div>
             </div>
-            {kpLoading ? <div className="past-paper-loading">查询中...</div> :
-            kpQuestions ? (
-              totalQ > 0 ? (
-                <>
-                  <div className="chapter-analytics-panel">
-                    <div className="chapter-analytics-row">
-                      <span>当前知识点：<strong>{totalQ}</strong> 题</span>
-                      <span>选择题：{choiceQ}</span>
-                      <span>大题：{bigQ}</span>
-                    </div>
-                  </div>
-                  <div className="exam-practice-list" style={{ marginTop: 12 }}>
-                    {kpQuestions.items.slice(0, 5).map((item, index) => (
-                      <article key={item.id} className="exam-practice-question-item">
-                        <div className="past-paper-question-meta">
-                          <span className="past-paper-q-number">第 {index + 1} 题</span>
-                          <span className="past-paper-q-type">{item.question_type}</span>
-                          {item.chapter_name && <span className="past-paper-q-year">{item.chapter_name}</span>}
-                          {item.knowledge_point_path && <span className="past-paper-q-year">知识点：{item.knowledge_point_path}</span>}
-                        </div>
-                        <div className="past-paper-q-content">{item.stem}</div>
-                      </article>
-                    ))}
-                  </div>
-                  <button className="ai-group-start-btn" onClick={handleStartPractice}>开始练习</button>
-                </>
-              ) : (
-                <div className="exam-practice-empty-state">
-                  <strong>当前知识点暂未录入练习题</strong>
-                  <p>后续可在题库中补充。</p>
-                </div>
-              )
-            ) : null}
-          </section>
-        </div>
-      )}
+           ) : (
+            <div className="exam-practice-empty-state"><strong>当前范围暂未录入练习题</strong></div>
+           )) : null}
+        </section>
+      </div>
     </div>
   );
 }
+
 
 function parseItemOptions(item) {
   if (item.options_json) { try { return JSON.parse(item.options_json); } catch {} }

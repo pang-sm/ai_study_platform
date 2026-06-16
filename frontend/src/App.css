@@ -20984,6 +20984,15 @@ select.field:focus {
   margin-bottom: 12px;
 }
 
+.chapter-section-outline { display:flex; flex-direction:column; gap:2px; }
+.chapter-section-chapter { padding:8px 12px; border-radius:8px; cursor:pointer; font-weight:700; font-size:0.84rem; color:#1e293b; }
+.chapter-section-chapter:hover { background:#f5f0ff; }
+.chapter-section-chapter--active { background:#ede9fe; color:#6d28d9; }
+.chapter-section-sections { padding-left:16px; }
+.chapter-section-section { padding:6px 12px; border-radius:6px; cursor:pointer; font-size:0.8rem; color:#334155; }
+.chapter-section-section:hover { background:#faf8ff; }
+.chapter-section-section--active { background:#f5f0ff; color:#7c3aed; font-weight:600; }
+
 .chapter-analytics-panel { margin-bottom: 14px; }
 .chapter-analytics-row { display: flex; gap: 14px; flex-wrap: wrap; padding: 10px 14px; background: #faf8ff; border: 1px solid #e6daff; border-radius: 10px; font-size: 0.8rem; color: #5b21b6; margin-bottom: 10px; }
 .chapter-analytics-section { margin-bottom: 10px; }
