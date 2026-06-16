@@ -242,7 +242,44 @@ function getChapterOutline(subjectKey) {
       ]},
     ];
   }
+  // OS chapter outline (operating_system)
+  if (subjectKey === "operating_system") {
+    return [
+      { id:"0", title:"总览", code:"", children:[] },
+      { id:"1", title:"第1章 计算机系统概述", code:"1", children:[
+        {id:"1.1", title:"1.1 操作系统的基本概念", code:"1.1"},
+        {id:"1.2", title:"1.2 操作系统发展历程", code:"1.2"},
+        {id:"1.3", title:"1.3 操作系统运行环境", code:"1.3"},
+        {id:"1.4", title:"1.4 操作系统结构", code:"1.4"},
+        {id:"1.5", title:"1.5 操作系统引导", code:"1.5"},
+        {id:"1.6", title:"1.6 虚拟机", code:"1.6"},
+      ]},
+      { id:"2", title:"第2章 进程与线程", code:"2", children:[
+        {id:"2.1", title:"2.1 进程与线程简介", code:"2.1"},
+        {id:"2.2", title:"2.2 CPU调度", code:"2.2"},
+        {id:"2.3", title:"2.3 同步与互斥", code:"2.3"},
+        {id:"2.4", title:"2.4 死锁", code:"2.4"},
+      ]},
+      { id:"3", title:"第3章 内存管理", code:"3", children:[
+        {id:"3.1", title:"3.1 内存管理概述", code:"3.1"},
+        {id:"3.2", title:"3.2 虚拟内存管理", code:"3.2"},
+      ]},
+      { id:"4", title:"第4章 文件管理", code:"4", children:[
+        {id:"4.1", title:"4.1 文件系统基础", code:"4.1"},
+        {id:"4.2", title:"4.2 目录与文件", code:"4.2"},
+        {id:"4.3", title:"4.3 文件系统", code:"4.3"},
+      ]},
+      { id:"5", title:"第5章 输入/输出管理", code:"5", children:[
+        {id:"5.1", title:"5.1 I/O管理概述", code:"5.1"},
+        {id:"5.2", title:"5.2 设备管理与调度", code:"5.2"},
+        {id:"5.3", title:"5.3 磁盘和固态硬盘", code:"5.3"},
+      ]},
+    ];
+  }
   // Default: data_structure
+  if (subjectKey !== "data_structure" && subjectKey !== "computer_network") {
+    // Return DS as fallback only for data_structure
+  }
   return [
     { id:"0", title:"总览", code:"", children:[] },
     { id:"1", title:"第1章 绪论", code:"1", children:[
@@ -293,40 +330,6 @@ function getChapterOutline(subjectKey) {
       {id:"8.7", title:"8.7 外部排序", code:"8.7"},
     ]},
   ];
-  // OS chapter outline (operating_system)
-  if (subjectKey === "operating_system") {
-    return [
-      { id:"0", title:"总览", code:"", children:[] },
-      { id:"1", title:"第1章 计算机系统概述", code:"1", children:[
-        {id:"1.1", title:"1.1 操作系统的基本概念", code:"1.1"},
-        {id:"1.2", title:"1.2 操作系统发展历程", code:"1.2"},
-        {id:"1.3", title:"1.3 操作系统运行环境", code:"1.3"},
-        {id:"1.4", title:"1.4 操作系统结构", code:"1.4"},
-        {id:"1.5", title:"1.5 操作系统引导", code:"1.5"},
-        {id:"1.6", title:"1.6 虚拟机", code:"1.6"},
-      ]},
-      { id:"2", title:"第2章 进程与线程", code:"2", children:[
-        {id:"2.1", title:"2.1 进程与线程简介", code:"2.1"},
-        {id:"2.2", title:"2.2 CPU调度", code:"2.2"},
-        {id:"2.3", title:"2.3 同步与互斥", code:"2.3"},
-        {id:"2.4", title:"2.4 死锁", code:"2.4"},
-      ]},
-      { id:"3", title:"第3章 内存管理", code:"3", children:[
-        {id:"3.1", title:"3.1 内存管理概述", code:"3.1"},
-        {id:"3.2", title:"3.2 虚拟内存管理", code:"3.2"},
-      ]},
-      { id:"4", title:"第4章 文件管理", code:"4", children:[
-        {id:"4.1", title:"4.1 文件系统基础", code:"4.1"},
-        {id:"4.2", title:"4.2 目录与文件", code:"4.2"},
-        {id:"4.3", title:"4.3 文件系统", code:"4.3"},
-      ]},
-      { id:"5", title:"第5章 输入/输出管理", code:"5", children:[
-        {id:"5.1", title:"5.1 I/O管理概述", code:"5.1"},
-        {id:"5.2", title:"5.2 设备管理与调度", code:"5.2"},
-        {id:"5.3", title:"5.3 磁盘和固态硬盘", code:"5.3"},
-      ]},
-    ];
-  }
 }
 
 function SectionOutline({ nodes, selectedId, onSelect }) {
