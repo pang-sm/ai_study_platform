@@ -12047,6 +12047,17 @@ EXAM_SUBJECT_DIRS = {
 # if _exam_static.exists():
 #     app.mount("/static/exam_papers", StaticFiles(directory=str(_exam_static)), name="exam_static")
 
+# Past paper images for all 11408 subjects
+_PAST_PAPER_IMAGES_DIR = BASE_DIR / "exam_resources" / "11408"
+
+@app.get("/exam/11408/past-paper-images/{subject_key}/{year}/{filename:path}")
+def serve_past_paper_image(subject_key: str, year: int, filename: str):
+    """Serve past paper question images from exam_resources assets."""
+    img_path = _PAST_PAPER_IMAGES_DIR / subject_key / "past_papers" / "assets" / str(year) / filename
+    if not img_path.exists():
+        raise HTTPException(status_code=404, detail="Image not found")
+    return FileResponse(str(img_path))
+
 
 @app.get("/exam/11408/{subject_key}/past-papers")
 def get_exam_past_papers(subject_key: str):

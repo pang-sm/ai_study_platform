@@ -1,0 +1,35 @@
+{
+  "total": 65,
+  "choice": 55,
+  "big": 10,
+  "rejected": 0,
+  "pending_answers": 6,
+  "no_images": 0,
+  "per_year": {
+    "2022": {
+      "total": 13,
+      "choice": 11,
+      "big": 2
+    },
+    "2023": {
+      "total": 13,
+      "choice": 11,
+      "big": 2
+    },
+    "2024": {
+      "total": 13,
+      "choice": 11,
+      "big": 2
+    },
+    "2025": {
+      "total": 13,
+      "choice": 11,
+      "big": 2
+    },
+    "2026": {
+      "total": 13,
+      "choice": 11,
+      "big": 2
+    }
+  }
+}

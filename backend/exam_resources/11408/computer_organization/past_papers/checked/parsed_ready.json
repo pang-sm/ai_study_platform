@@ -1,0 +1,1527 @@
+[
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2022,
+    "paper_name": "2022年计算机组成原理真题",
+    "question_number": 12,
+    "question_type": "choice",
+    "question_text": "第12题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "A",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2022/q12_0.jpg",
+      "assets/2022/q12_1.jpg"
+    ],
+    "source_ref": "2022-Q12",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2022,
+    "paper_name": "2022年计算机组成原理真题",
+    "question_number": 13,
+    "question_type": "choice",
+    "question_text": "第13题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "B",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2022/q13_0.jpg"
+    ],
+    "source_ref": "2022-Q13",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2022,
+    "paper_name": "2022年计算机组成原理真题",
+    "question_number": 14,
+    "question_type": "choice",
+    "question_text": "第14题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "A",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2022/q14_0.jpg"
+    ],
+    "source_ref": "2022-Q14",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2022,
+    "paper_name": "2022年计算机组成原理真题",
+    "question_number": 15,
+    "question_type": "choice",
+    "question_text": "第15题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "C",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2022/q15_0.jpg"
+    ],
+    "source_ref": "2022-Q15",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2022,
+    "paper_name": "2022年计算机组成原理真题",
+    "question_number": 16,
+    "question_type": "choice",
+    "question_text": "第16题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "A",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2022/q16_0.jpg"
+    ],
+    "source_ref": "2022-Q16",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2022,
+    "paper_name": "2022年计算机组成原理真题",
+    "question_number": 17,
+    "question_type": "choice",
+    "question_text": "第17题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "C",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2022/q17_0.jpg"
+    ],
+    "source_ref": "2022-Q17",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2022,
+    "paper_name": "2022年计算机组成原理真题",
+    "question_number": 18,
+    "question_type": "choice",
+    "question_text": "第18题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "B",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2022/q18_0.jpg"
+    ],
+    "source_ref": "2022-Q18",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2022,
+    "paper_name": "2022年计算机组成原理真题",
+    "question_number": 19,
+    "question_type": "choice",
+    "question_text": "第19题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "D",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2022/q19_0.jpg"
+    ],
+    "source_ref": "2022-Q19",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2022,
+    "paper_name": "2022年计算机组成原理真题",
+    "question_number": 20,
+    "question_type": "choice",
+    "question_text": "第20题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "A",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2022/q20_0.jpg",
+      "assets/2022/q20_1.jpg"
+    ],
+    "source_ref": "2022-Q20",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2022,
+    "paper_name": "2022年计算机组成原理真题",
+    "question_number": 21,
+    "question_type": "choice",
+    "question_text": "第21题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "C",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2022/q21_0.jpg"
+    ],
+    "source_ref": "2022-Q21",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2022,
+    "paper_name": "2022年计算机组成原理真题",
+    "question_number": 22,
+    "question_type": "choice",
+    "question_text": "第22题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "C",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2022/q22_0.jpg"
+    ],
+    "source_ref": "2022-Q22",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2022,
+    "paper_name": "2022年计算机组成原理真题",
+    "question_number": 43,
+    "question_type": "big",
+    "question_text": "第43题（见截图）",
+    "options": {},
+    "answer": "待补充（本次上传的该年份 PDF 未检测到综合应用题参考答案）",
+    "answer_status": "pending",
+    "explanation": "",
+    "image_paths": [
+      "assets/2022/q43_0.jpg",
+      "assets/2022/q43_1.jpg"
+    ],
+    "source_ref": "2022-Q43",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2022,
+    "paper_name": "2022年计算机组成原理真题",
+    "question_number": 44,
+    "question_type": "big",
+    "question_text": "第44题（见截图）",
+    "options": {},
+    "answer": "待补充（本次上传的该年份 PDF 未检测到综合应用题参考答案）",
+    "answer_status": "pending",
+    "explanation": "",
+    "image_paths": [
+      "assets/2022/q44_0.jpg"
+    ],
+    "source_ref": "2022-Q44",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2023,
+    "paper_name": "2023年计算机组成原理真题",
+    "question_number": 12,
+    "question_type": "choice",
+    "question_text": "第12题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "C",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2023/q12_0.jpg"
+    ],
+    "source_ref": "2023-Q12",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2023,
+    "paper_name": "2023年计算机组成原理真题",
+    "question_number": 13,
+    "question_type": "choice",
+    "question_text": "第13题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "A",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2023/q13_0.jpg"
+    ],
+    "source_ref": "2023-Q13",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2023,
+    "paper_name": "2023年计算机组成原理真题",
+    "question_number": 14,
+    "question_type": "choice",
+    "question_text": "第14题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "A",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2023/q14_0.jpg"
+    ],
+    "source_ref": "2023-Q14",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2023,
+    "paper_name": "2023年计算机组成原理真题",
+    "question_number": 15,
+    "question_type": "choice",
+    "question_text": "第15题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "C",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2023/q15_0.jpg"
+    ],
+    "source_ref": "2023-Q15",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2023,
+    "paper_name": "2023年计算机组成原理真题",
+    "question_number": 16,
+    "question_type": "choice",
+    "question_text": "第16题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "B",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2023/q16_0.jpg"
+    ],
+    "source_ref": "2023-Q16",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2023,
+    "paper_name": "2023年计算机组成原理真题",
+    "question_number": 17,
+    "question_type": "choice",
+    "question_text": "第17题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "A",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2023/q17_0.jpg"
+    ],
+    "source_ref": "2023-Q17",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2023,
+    "paper_name": "2023年计算机组成原理真题",
+    "question_number": 18,
+    "question_type": "choice",
+    "question_text": "第18题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "B",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2023/q18_0.jpg"
+    ],
+    "source_ref": "2023-Q18",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2023,
+    "paper_name": "2023年计算机组成原理真题",
+    "question_number": 19,
+    "question_type": "choice",
+    "question_text": "第19题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "C",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2023/q19_0.jpg"
+    ],
+    "source_ref": "2023-Q19",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2023,
+    "paper_name": "2023年计算机组成原理真题",
+    "question_number": 20,
+    "question_type": "choice",
+    "question_text": "第20题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "D",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2023/q20_0.jpg"
+    ],
+    "source_ref": "2023-Q20",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2023,
+    "paper_name": "2023年计算机组成原理真题",
+    "question_number": 21,
+    "question_type": "choice",
+    "question_text": "第21题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "D",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2023/q21_0.jpg",
+      "assets/2023/q21_1.jpg"
+    ],
+    "source_ref": "2023-Q21",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2023,
+    "paper_name": "2023年计算机组成原理真题",
+    "question_number": 22,
+    "question_type": "choice",
+    "question_text": "第22题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "C",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2023/q22_0.jpg"
+    ],
+    "source_ref": "2023-Q22",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2023,
+    "paper_name": "2023年计算机组成原理真题",
+    "question_number": 43,
+    "question_type": "big",
+    "question_text": "第43题（见截图）",
+    "options": {},
+    "answer": "待补充（本次上传的该年份 PDF 未检测到综合应用题参考答案）",
+    "answer_status": "pending",
+    "explanation": "",
+    "image_paths": [
+      "assets/2023/q43_0.jpg",
+      "assets/2023/q43_1.jpg"
+    ],
+    "source_ref": "2023-Q43",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2023,
+    "paper_name": "2023年计算机组成原理真题",
+    "question_number": 44,
+    "question_type": "big",
+    "question_text": "第44题（见截图）",
+    "options": {},
+    "answer": "待补充（本次上传的该年份 PDF 未检测到综合应用题参考答案）",
+    "answer_status": "pending",
+    "explanation": "",
+    "image_paths": [
+      "assets/2023/q44_0.jpg",
+      "assets/2023/q44_1.jpg"
+    ],
+    "source_ref": "2023-Q44",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2024,
+    "paper_name": "2024年计算机组成原理真题",
+    "question_number": 12,
+    "question_type": "choice",
+    "question_text": "第12题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "B",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2024/q12_0.jpg"
+    ],
+    "source_ref": "2024-Q12",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2024,
+    "paper_name": "2024年计算机组成原理真题",
+    "question_number": 13,
+    "question_type": "choice",
+    "question_text": "第13题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "B",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2024/q13_0.jpg"
+    ],
+    "source_ref": "2024-Q13",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2024,
+    "paper_name": "2024年计算机组成原理真题",
+    "question_number": 14,
+    "question_type": "choice",
+    "question_text": "第14题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "C",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2024/q14_0.jpg"
+    ],
+    "source_ref": "2024-Q14",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2024,
+    "paper_name": "2024年计算机组成原理真题",
+    "question_number": 15,
+    "question_type": "choice",
+    "question_text": "第15题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "D",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2024/q15_0.jpg"
+    ],
+    "source_ref": "2024-Q15",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2024,
+    "paper_name": "2024年计算机组成原理真题",
+    "question_number": 16,
+    "question_type": "choice",
+    "question_text": "第16题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "D",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2024/q16_0.jpg"
+    ],
+    "source_ref": "2024-Q16",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2024,
+    "paper_name": "2024年计算机组成原理真题",
+    "question_number": 17,
+    "question_type": "choice",
+    "question_text": "第17题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "C",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2024/q17_0.jpg"
+    ],
+    "source_ref": "2024-Q17",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2024,
+    "paper_name": "2024年计算机组成原理真题",
+    "question_number": 18,
+    "question_type": "choice",
+    "question_text": "第18题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "B",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2024/q18_0.jpg"
+    ],
+    "source_ref": "2024-Q18",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2024,
+    "paper_name": "2024年计算机组成原理真题",
+    "question_number": 19,
+    "question_type": "choice",
+    "question_text": "第19题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "C",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2024/q19_0.jpg",
+      "assets/2024/q19_1.jpg"
+    ],
+    "source_ref": "2024-Q19",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2024,
+    "paper_name": "2024年计算机组成原理真题",
+    "question_number": 20,
+    "question_type": "choice",
+    "question_text": "第20题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "B",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2024/q20_0.jpg"
+    ],
+    "source_ref": "2024-Q20",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2024,
+    "paper_name": "2024年计算机组成原理真题",
+    "question_number": 21,
+    "question_type": "choice",
+    "question_text": "第21题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "A",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2024/q21_0.jpg"
+    ],
+    "source_ref": "2024-Q21",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2024,
+    "paper_name": "2024年计算机组成原理真题",
+    "question_number": 22,
+    "question_type": "choice",
+    "question_text": "第22题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "C",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2024/q22_0.jpg"
+    ],
+    "source_ref": "2024-Q22",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2024,
+    "paper_name": "2024年计算机组成原理真题",
+    "question_number": 43,
+    "question_type": "big",
+    "question_text": "第43题（见截图）",
+    "options": {},
+    "answer": "待补充（本次上传的该年份 PDF 未检测到综合应用题参考答案）",
+    "answer_status": "pending",
+    "explanation": "",
+    "image_paths": [
+      "assets/2024/q43_0.jpg",
+      "assets/2024/q43_1.jpg"
+    ],
+    "source_ref": "2024-Q43",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2024,
+    "paper_name": "2024年计算机组成原理真题",
+    "question_number": 44,
+    "question_type": "big",
+    "question_text": "第44题（见截图）",
+    "options": {},
+    "answer": "待补充（本次上传的该年份 PDF 未检测到综合应用题参考答案）",
+    "answer_status": "pending",
+    "explanation": "",
+    "image_paths": [
+      "assets/2024/q44_0.jpg",
+      "assets/2024/q44_1.jpg"
+    ],
+    "source_ref": "2024-Q44",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2025,
+    "paper_name": "2025年计算机组成原理真题",
+    "question_number": 12,
+    "question_type": "choice",
+    "question_text": "第12题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "D",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2025/q12_0.jpg"
+    ],
+    "source_ref": "2025-Q12",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2025,
+    "paper_name": "2025年计算机组成原理真题",
+    "question_number": 13,
+    "question_type": "choice",
+    "question_text": "第13题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "D",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2025/q13_0.jpg"
+    ],
+    "source_ref": "2025-Q13",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2025,
+    "paper_name": "2025年计算机组成原理真题",
+    "question_number": 14,
+    "question_type": "choice",
+    "question_text": "第14题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "D",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2025/q14_0.jpg"
+    ],
+    "source_ref": "2025-Q14",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2025,
+    "paper_name": "2025年计算机组成原理真题",
+    "question_number": 15,
+    "question_type": "choice",
+    "question_text": "第15题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "C",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2025/q15_0.jpg",
+      "assets/2025/q15_1.jpg"
+    ],
+    "source_ref": "2025-Q15",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2025,
+    "paper_name": "2025年计算机组成原理真题",
+    "question_number": 16,
+    "question_type": "choice",
+    "question_text": "第16题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "B",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2025/q16_0.jpg"
+    ],
+    "source_ref": "2025-Q16",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2025,
+    "paper_name": "2025年计算机组成原理真题",
+    "question_number": 17,
+    "question_type": "choice",
+    "question_text": "第17题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "C",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2025/q17_0.jpg"
+    ],
+    "source_ref": "2025-Q17",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2025,
+    "paper_name": "2025年计算机组成原理真题",
+    "question_number": 18,
+    "question_type": "choice",
+    "question_text": "第18题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "B",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2025/q18_0.jpg"
+    ],
+    "source_ref": "2025-Q18",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2025,
+    "paper_name": "2025年计算机组成原理真题",
+    "question_number": 19,
+    "question_type": "choice",
+    "question_text": "第19题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "A",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2025/q19_0.jpg"
+    ],
+    "source_ref": "2025-Q19",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2025,
+    "paper_name": "2025年计算机组成原理真题",
+    "question_number": 20,
+    "question_type": "choice",
+    "question_text": "第20题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "A",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2025/q20_0.jpg"
+    ],
+    "source_ref": "2025-Q20",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2025,
+    "paper_name": "2025年计算机组成原理真题",
+    "question_number": 21,
+    "question_type": "choice",
+    "question_text": "第21题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "B",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2025/q21_0.jpg"
+    ],
+    "source_ref": "2025-Q21",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2025,
+    "paper_name": "2025年计算机组成原理真题",
+    "question_number": 22,
+    "question_type": "choice",
+    "question_text": "第22题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "A",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2025/q22_0.jpg"
+    ],
+    "source_ref": "2025-Q22",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2025,
+    "paper_name": "2025年计算机组成原理真题",
+    "question_number": 43,
+    "question_type": "big",
+    "question_text": "第43题（见截图）",
+    "options": {},
+    "answer": "Cache 组号字段占6 位；块内地址字段占6 位。虚拟地址中VA₁₁～VA₆ 可作为\nCache 索引。\nd[100] 的虚拟地址为0180 01B0H。Cache 组号是000110B = 6。\nd[0] 在其所在主存块内的偏移量为20H。共发生129 次Cache 缺失，访问总次\n数为2048 × 2 = 4096，Cache 缺失率为129/4096 ≈3.15%；数组元素的平均访问时间约为2 + 3.15%\n× 200 = 8.3 个时钟周期。\n数组d 分布在3 页中。访问数组d 所引起的缺页次数是3。",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2025/q43_0.jpg"
+    ],
+    "source_ref": "2025-Q43",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2025,
+    "paper_name": "2025年计算机组成原理真题",
+    "question_number": 44,
+    "question_type": "big",
+    "question_text": "第44题（见截图）",
+    "options": {},
+    "answer": "R 中初始内容是FFFF FFFFH；Q 中初始内容是8765 4321H；Y 中初始内容是\n0000 00FFH。控制逻辑部件中包含计数器。由ALUop 所控制的ALU 运算有加运算、减运算。\n当x 为0000 0000H 时，发生除0 异常；当d[i] 为8000 0000H 且x 为FFFF\nFFFFH 时，发生除法运算溢出异常。CPU 检测到除法异常后，需要将断点和程序状态保存到内核\n栈或者特定寄存器中，关中断，最后跳转到内核中的除法异常处理程序执行。",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2025/q44_0.jpg",
+      "assets/2025/q44_1.jpg"
+    ],
+    "source_ref": "2025-Q44",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2026,
+    "paper_name": "2026年计算机组成原理真题",
+    "question_number": 12,
+    "question_type": "choice",
+    "question_text": "第12题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "B",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2026/q12_0.jpg"
+    ],
+    "source_ref": "2026-Q12",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2026,
+    "paper_name": "2026年计算机组成原理真题",
+    "question_number": 13,
+    "question_type": "choice",
+    "question_text": "第13题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "A",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2026/q13_0.jpg",
+      "assets/2026/q13_1.jpg"
+    ],
+    "source_ref": "2026-Q13",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2026,
+    "paper_name": "2026年计算机组成原理真题",
+    "question_number": 14,
+    "question_type": "choice",
+    "question_text": "第14题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "B",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2026/q14_0.jpg"
+    ],
+    "source_ref": "2026-Q14",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2026,
+    "paper_name": "2026年计算机组成原理真题",
+    "question_number": 15,
+    "question_type": "choice",
+    "question_text": "第15题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "A",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2026/q15_0.jpg"
+    ],
+    "source_ref": "2026-Q15",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2026,
+    "paper_name": "2026年计算机组成原理真题",
+    "question_number": 16,
+    "question_type": "choice",
+    "question_text": "第16题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "D",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2026/q16_0.jpg"
+    ],
+    "source_ref": "2026-Q16",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2026,
+    "paper_name": "2026年计算机组成原理真题",
+    "question_number": 17,
+    "question_type": "choice",
+    "question_text": "第17题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "B",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2026/q17_0.jpg"
+    ],
+    "source_ref": "2026-Q17",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2026,
+    "paper_name": "2026年计算机组成原理真题",
+    "question_number": 18,
+    "question_type": "choice",
+    "question_text": "第18题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "C",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2026/q18_0.jpg",
+      "assets/2026/q18_1.jpg"
+    ],
+    "source_ref": "2026-Q18",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2026,
+    "paper_name": "2026年计算机组成原理真题",
+    "question_number": 19,
+    "question_type": "choice",
+    "question_text": "第19题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "A",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2026/q19_0.jpg"
+    ],
+    "source_ref": "2026-Q19",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2026,
+    "paper_name": "2026年计算机组成原理真题",
+    "question_number": 20,
+    "question_type": "choice",
+    "question_text": "第20题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "A",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2026/q20_0.jpg",
+      "assets/2026/q20_1.jpg"
+    ],
+    "source_ref": "2026-Q20",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2026,
+    "paper_name": "2026年计算机组成原理真题",
+    "question_number": 21,
+    "question_type": "choice",
+    "question_text": "第21题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "D",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2026/q21_0.jpg"
+    ],
+    "source_ref": "2026-Q21",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2026,
+    "paper_name": "2026年计算机组成原理真题",
+    "question_number": 22,
+    "question_type": "choice",
+    "question_text": "第22题（见截图）",
+    "options": {
+      "A": "(见截图)",
+      "B": "(见截图)",
+      "C": "(见截图)",
+      "D": "(见截图)"
+    },
+    "answer": "C",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2026/q22_0.jpg"
+    ],
+    "source_ref": "2026-Q22",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2026,
+    "paper_name": "2026年计算机组成原理真题",
+    "question_number": 43,
+    "question_type": "big",
+    "question_text": "第43题（见截图）",
+    "options": {},
+    "answer": "（1）分析可知，计算机C 按字节编址，所以主存单元的宽度为8 位。通\n用寄存器的宽度与机器字长通常一致，该机的字长为16 位，所以是16 位。\n（2）Op1 和op2 的编码可以相同，op2 和op3 的编码不可以相同。\n（3）分析可知，该指令为R 型指令，且实现的是加法运算，即r2+r9→R2，\n所以r2 的内容为ABCDH+F001H=9BCEH。R9 内容不变，即为F001H。\n（4）①是1110；②是0000 0100；③是1111 1011；④是0000 0000\n0010",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2026/q43_0.jpg",
+      "assets/2026/q43_1.jpg"
+    ],
+    "source_ref": "2026-Q43",
+    "is_active": true
+  },
+  {
+    "exam_type": "11408",
+    "subject": "computer_organization",
+    "course_id": "computer_organization_11408",
+    "year": 2026,
+    "paper_name": "2026年计算机组成原理真题",
+    "question_number": 44,
+    "question_type": "big",
+    "question_text": "第44题（见截图）",
+    "options": {},
+    "answer": "（1）①②多路选择器\n（2）Extop 至少需要1 位。因为通过1 位即可实现符号拓展和零拓展。\n（3）MARSrc=0，ALUSrc=0，ALUSelect=1，RegWr=0\n（4）ALUSelect=2，RegSrc=1，RegDest=1，RegWr=1，不可以相同，因为\n左移指令的shamt 需要扩展，而M 型offset 需符号扩展，扩展方式不同。",
+    "answer_status": "confirmed",
+    "explanation": "",
+    "image_paths": [
+      "assets/2026/q44_0.jpg"
+    ],
+    "source_ref": "2026-Q44",
+    "is_active": true
+  }
+]
