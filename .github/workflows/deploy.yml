@@ -230,7 +230,8 @@ jobs:
           echo "=== 章节题库导入(持久DB, 不阻塞服务) ==="
           cd backend
           DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python exam_resources/11408/data_structure/chapter_questions/build_data_structure_chapter_questions.py || echo "[deploy] WARN: DS build failed"
-          DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python exam_resources/11408/computer_organization/chapter_questions/build_computer_organization_chapter_questions.py || echo "[deploy] WARN: CO build failed"
+          DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python exam_resources/11408/computer_organization/chapter_questions/build_computer_organization_chapter_questions.py || echo "[deploy] WARN: CO chapter build failed"
+          DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python exam_resources/11408/computer_organization/past_papers/build_computer_organization_past_papers_text.py --apply || echo "[deploy] WARN: CO past papers build failed"
           cd ..
           sudo systemctl restart ai-backend
 
