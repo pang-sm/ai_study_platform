@@ -13069,37 +13069,52 @@ def submit_chapter_attempt(subject_key: str, attempt_id: int, req: dict, db: Ses
     answers = req.get("answers", {})
     qids = json.loads(a.question_ids_json or "[]")
     items = {i.id: i for i in db.query(models.ExamQuestionBank).filter(models.ExamQuestionBank.id.in_(qids)).all()}
-    results, correct = [], 0; now = utc_now(); username = (req.get("username") or "").strip()
+    results, correct, wrong, big_count = [], 0, 0, 0; now = utc_now(); username = (req.get("username") or "").strip()
     for qid in qids:
         item = items.get(qid)
         if not item: continue
-        ua = str(answers.get(str(qid), "")).strip().upper()
-        sa = (item.standard_answer or "").strip().upper()
-        is_c = ua == sa
-        if is_c: correct += 1
+        ua = str(answers.get(str(qid), "")).strip()
+        sa = (item.standard_answer or "").strip()
         opts = {};
         if item.options_json:
             try: opts = json.loads(item.options_json)
             except: pass
-        results.append({"question_id": qid, "correct": is_c, "standard_answer": sa, "user_answer": ua,
-                        "stem": item.stem, "options": opts, "analysis": item.analysis or "",
-                        "question_type": item.question_type})
-        if not is_c and username:
-            db.add(models.ExamWrongQuestion(
-                username=username, subject_key=subject_key, question_bank_id=item.id,
-                practice_attempt_id=attempt_id, source_type="chapter", practice_type="chapter",
-                knowledge_point_id=a.knowledge_point_id, knowledge_point_name=a.knowledge_point_name,
-                knowledge_point_path=a.knowledge_point_path, question_type=item.question_type,
-                stem_snapshot=item.stem, options_snapshot_json=item.options_json,
-                standard_answer_snapshot=sa, analysis_snapshot=item.analysis or "",
-                user_answer=ua, score=0, wrong_reason="章节练习答错",
-            ))
-    total = len(qids)
+        if item.question_type == "big":
+            # Big questions: show reference answer, don't auto-grade
+            big_count += 1
+            results.append({"question_id": qid, "correct": None, "judge": "self_review",
+                            "standard_answer": sa, "user_answer": ua,
+                            "stem": item.stem, "options": opts, "analysis": item.analysis or "",
+                            "question_type": item.question_type,
+                            "hint": "请自行对照参考答案"})
+        else:
+            # Choice questions: auto-grade
+            ua_upper = ua.upper()
+            sa_upper = sa.upper()
+            is_c = ua_upper == sa_upper
+            if is_c: correct += 1
+            else: wrong += 1
+            results.append({"question_id": qid, "correct": is_c, "standard_answer": sa, "user_answer": ua,
+                            "stem": item.stem, "options": opts, "analysis": item.analysis or "",
+                            "question_type": item.question_type})
+            if not is_c and username:
+                db.add(models.ExamWrongQuestion(
+                    username=username, subject_key=subject_key, question_bank_id=item.id,
+                    practice_attempt_id=attempt_id, source_type="chapter", practice_type="chapter",
+                    knowledge_point_id=a.knowledge_point_id, knowledge_point_name=a.knowledge_point_name,
+                    knowledge_point_path=a.knowledge_point_path, question_type=item.question_type,
+                    stem_snapshot=item.stem, options_snapshot_json=item.options_json,
+                    standard_answer_snapshot=sa, analysis_snapshot=item.analysis or "",
+                    user_answer=ua, score=0, wrong_reason="章节练习答错",
+                ))
+    total = len(qids); choice_total = total - big_count
     a.status = "submitted"; a.submitted_at = now; a.correct_count = correct
-    a.wrong_count = total - correct; a.accuracy = round(correct/total*100,1) if total>0 else 0
-    a.result_json = json.dumps({"correct": correct, "total": total, "results": results}, ensure_ascii=False)
+    a.wrong_count = wrong; a.accuracy = round(correct/choice_total*100,1) if choice_total>0 else 0
+    a.result_json = json.dumps({"correct": correct, "total": total, "choice_total": choice_total,
+        "big_count": big_count, "results": results}, ensure_ascii=False)
     db.commit()
-    return {"total_questions": total, "correct_count": correct, "wrong_count": total-correct, "accuracy": a.accuracy, "results": results}
+    return {"total_questions": total, "choice_total": choice_total, "big_count": big_count,
+            "correct_count": correct, "wrong_count": wrong, "accuracy": a.accuracy, "results": results}
 
 
 @app.post("/exam/11408/{subject_key}/ai-questions/generate")

@@ -274,6 +274,7 @@ function ChapterPracticePage({ subjectInfo, user, onBack }) {
   const [selected, setSelected] = useState(CHAPTER_OUTLINE[0]);
   const [kpQuestions, setKpQuestions] = useState(null);
   const [kpLoading, setKpLoading] = useState(false);
+  const [startingPractice, setStartingPractice] = useState(false);
 
   useEffect(() => {
     setKpLoading(true); setKpQuestions(null);
@@ -288,6 +289,37 @@ function ChapterPracticePage({ subjectInfo, user, onBack }) {
   const totalQ = kpQuestions?.total || 0;
   const selTitle = selected?.title || "总览";
 
+  const startChapterPractice = async () => {
+    if (!user?.username || !kpQuestions?.items?.length || totalQ === 0) return;
+    // Open window synchronously to avoid popup blocker
+    const w = window.open("", "_blank");
+    setStartingPractice(true);
+    try {
+      const qids = kpQuestions.items.map(q => q.id);
+      const data = await safeJsonFetch(`${API_BASE}/exam/11408/${subjectInfo.key}/chapter-practice/attempts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: user.username,
+          question_ids: qids,
+          knowledge_point_id: selected?.code || "",
+          knowledge_point_name: selected?.title || "",
+          knowledge_point_path: selected?.title || "",
+        }),
+      });
+      if (w) {
+        w.location.href = `/exam/11408/${subjectInfo.key}/chapter-practice/session/${data.attempt_id}`;
+      } else {
+        window.open(`/exam/11408/${subjectInfo.key}/chapter-practice/session/${data.attempt_id}`, "_blank");
+      }
+    } catch (e) {
+      if (w) w.close();
+      alert("创建练习失败：" + (e.message || "未知错误"));
+    } finally {
+      setStartingPractice(false);
+    }
+  };
+
   return (
     <div className="exam-practice-subpage">
       <PracticeSubPageHeader title="章节练习" subtitle="按章节进行针对性练习" subjectInfo={subjectInfo} onBack={onBack} />
@@ -300,9 +332,16 @@ function ChapterPracticePage({ subjectInfo, user, onBack }) {
           <div className="exam-practice-panel-title"><h3>{selTitle}</h3></div>
           {kpLoading ? <div className="past-paper-loading">查询中...</div> :
            kpQuestions ? (totalQ > 0 ? (<>
-            <div className="chapter-analytics-row" style={{marginBottom:12,padding:10,background:"#faf8ff",borderRadius:10,fontSize:"0.82rem"}}>
-              <span>范围：<strong>{selTitle}</strong></span>
-              <span style={{marginLeft:16}}>总题数：<strong>{totalQ}</strong></span>
+            <div className="chapter-analytics-row" style={{marginBottom:12,padding:10,background:"#faf8ff",borderRadius:10,fontSize:"0.82rem",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+              <div>
+                <span>范围：<strong>{selTitle}</strong></span>
+                <span style={{marginLeft:16}}>总题数：<strong>{totalQ}</strong></span>
+              </div>
+              {selected?.code && (
+                <button className="primary-button compact" disabled={startingPractice} onClick={startChapterPractice} style={{fontSize:"0.85rem"}}>
+                  {startingPractice ? "创建中..." : "开始练习"}
+                </button>
+              )}
             </div>
             <div className="exam-practice-list" style={{maxHeight:"calc(100vh - 280px)",overflowY:"auto"}}>
               {(kpQuestions.items||[]).map((q,i) => (
