@@ -279,6 +279,19 @@ function ChapterPracticePage({ subjectInfo, user, onBack }) {
                       <span>大题：{bigQ}</span>
                     </div>
                   </div>
+                  <div className="exam-practice-list" style={{ marginTop: 12 }}>
+                    {kpQuestions.items.slice(0, 5).map((item, index) => (
+                      <article key={item.id} className="exam-practice-question-item">
+                        <div className="past-paper-question-meta">
+                          <span className="past-paper-q-number">第 {index + 1} 题</span>
+                          <span className="past-paper-q-type">{item.question_type}</span>
+                          {item.chapter_name && <span className="past-paper-q-year">{item.chapter_name}</span>}
+                          {item.knowledge_point_path && <span className="past-paper-q-year">知识点：{item.knowledge_point_path}</span>}
+                        </div>
+                        <div className="past-paper-q-content">{item.stem}</div>
+                      </article>
+                    ))}
+                  </div>
                   <button className="ai-group-start-btn" onClick={handleStartPractice}>开始练习</button>
                 </>
               ) : (

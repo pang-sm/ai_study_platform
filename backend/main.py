@@ -12786,9 +12786,28 @@ def _serialize_question_bank(item):
     if item.options_json:
         try: opts = json.loads(item.options_json)
         except: pass
+    source_meta = {}
+    if item.source_ref:
+        try:
+            parsed_ref = json.loads(item.source_ref)
+            if isinstance(parsed_ref, dict):
+                source_meta = parsed_ref
+        except Exception:
+            source_meta = {}
+    knowledge_points = source_meta.get("knowledge_points")
+    if not isinstance(knowledge_points, list):
+        knowledge_points = [p.strip() for p in re.split(r"[；;|]", item.knowledge_point_path or "") if p.strip()]
+    chapter_id = str(source_meta.get("chapter_id") or "").strip()
+    if not chapter_id:
+        first_code = str(item.knowledge_point_id or "").split("；", 1)[0].split(";", 1)[0].strip()
+        chapter_id = first_code.split(".", 1)[0] if first_code else ""
+    chapter_name = str(source_meta.get("chapter_name") or "").strip()
+    if not chapter_name and chapter_id:
+        chapter_name = f"第{chapter_id}章"
     return {"id": item.id, "subject_key": item.subject_key, "source_type": item.source_type,
             "visibility": item.visibility, "knowledge_point_id": item.knowledge_point_id,
             "knowledge_point_name": item.knowledge_point_name, "knowledge_point_path": item.knowledge_point_path,
+            "knowledge_points": knowledge_points, "chapter_id": chapter_id, "chapter_name": chapter_name,
             "year": item.year, "question_number": item.question_number, "question_type": item.question_type,
             "stem": item.stem, "options": opts, "standard_answer": item.standard_answer,
             "analysis": item.analysis, "difficulty": item.difficulty, "quality_status": item.quality_status,
@@ -12860,9 +12879,29 @@ def get_chapter_practice_outline(subject_key: str):
     questions = {}  # kp_id -> count
     items = db_query_chapter_questions(subject_key)
     for item in items:
-        kp = item.knowledge_point_id or ""
-        questions[kp] = questions.get(kp, 0) + 1
+        kp_ids = _split_chapter_question_kp_ids(item)
+        for kp in kp_ids or [""]:
+            questions[kp] = questions.get(kp, 0) + 1
     return {"subject_key": subject_key, "knowledge_points": questions, "total": sum(questions.values())}
+
+def _split_chapter_question_kp_ids(item):
+    raw = item.knowledge_point_id or ""
+    ids = [p.strip() for p in re.split(r"[；;|]", raw) if p.strip()]
+    if ids:
+        return ids
+    return []
+
+def _chapter_question_matches_kp(item, kp_id, include_children=False):
+    if not kp_id:
+        return True
+    for item_kp_id in _split_chapter_question_kp_ids(item):
+        if item_kp_id == kp_id:
+            return True
+        if include_children and item_kp_id.startswith(kp_id + "."):
+            return True
+        if kp_id.startswith(item_kp_id + "."):
+            return True
+    return False
 
 def db_query_chapter_questions(subject_key):
     from database import SessionLocal
@@ -12891,17 +12930,17 @@ def get_chapter_practice_questions(subject_key: str, knowledge_point_id: str = "
     matched = []
     if kp_id:
         # Try exact ID match
-        matched = [i for i in items if (i.knowledge_point_id or "") == kp_id]
+        matched = [i for i in items if _chapter_question_matches_kp(i, kp_id)]
         debug["query_mode"] = "id_exact"
         if not matched:
             # Try child match
-            child = [i for i in items if ((i.knowledge_point_id or "").startswith(kp_id + "."))]
+            child = [i for i in items if _chapter_question_matches_kp(i, kp_id, include_children=True)]
             if child: matched = child; debug["query_mode"] = "id_children"
         if not matched and kp_path:
             path_m = [i for i in items if (i.knowledge_point_path or "").startswith(kp_path)]
             if path_m: matched = path_m; debug["query_mode"] = "path_prefix"
         if include_children and matched:
-            child_m = [i for i in items if ((i.knowledge_point_id or "").startswith(kp_id + "."))]
+            child_m = [i for i in items if _chapter_question_matches_kp(i, kp_id, include_children=True)]
             seen = {i.id for i in matched}
             for i in child_m:
                 if i.id not in seen: matched.append(i)
