@@ -233,6 +233,7 @@ jobs:
           DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python exam_resources/11408/computer_organization/chapter_questions/build_computer_organization_chapter_questions.py || echo "[deploy] WARN: CO chapter build failed"
           DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python exam_resources/11408/computer_organization/past_papers/build_computer_organization_past_papers_text.py --apply || echo "[deploy] WARN: CO past papers build failed"
           DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python exam_resources/11408/operating_system/chapter_practice/build_operating_system_chapter_questions.py || echo "[deploy] WARN: OS chapter build failed"
+          DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python exam_resources/11408/operating_system/past_papers/build_operating_system_past_papers.py || echo "[deploy] WARN: OS past papers build failed"
           cd ..
           sudo systemctl restart ai-backend
 
