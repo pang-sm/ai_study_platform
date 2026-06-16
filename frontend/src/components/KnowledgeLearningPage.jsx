@@ -8,8 +8,14 @@ function getCourseId(subjectKey) {
   return `${subjectKey}_11408`;
 }
 function getCourseName(subjectKey) {
-  const names = { data_structure: "11408 数据结构", computer_organization: "11408 计算机组成原理" };
+  const names = { data_structure: "11408 数据结构", computer_organization: "11408 计算机组成原理",
+                  operating_system: "11408 操作系统", computer_network: "11408 计算机网络" };
   return names[subjectKey] || `11408 ${subjectKey}`;
+}
+function getSubjectDisplayName(subjectKey) {
+  const names = { data_structure: "数据结构", computer_organization: "计算机组成原理",
+                  operating_system: "操作系统", computer_network: "计算机网络" };
+  return names[subjectKey] || subjectKey || "数据结构";
 }
 
 const STATUS_CONFIG = {
@@ -498,8 +504,8 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI, subjectKey
       course_name: courseName,
       courseName: courseName,
       exam: "11408",
-      subject: "数据结构",
-      subject_key: "data_structure",
+      subject: getSubjectDisplayName(subjectKey),
+      subject_key: subjectKey || "data_structure",
       source_page: "knowledge_map",
       chapter: selectedChapterName,
       chapterTitle: selectedChapterName,
@@ -535,7 +541,7 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI, subjectKey
     <div className="km-page">
       <section className="km-hero-card">
         <div>
-          <h1>知识脉络 · 数据结构</h1>
+          <h1>知识脉络 · {getSubjectDisplayName(subjectKey)}</h1>
           <p>当前课程：{data?.course_name || courseName}</p>
         </div>
       </section>
