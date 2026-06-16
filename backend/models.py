@@ -810,6 +810,25 @@ class ExamWrongQuestion(Base):
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
 
+class ExamQuestionDoneRecord(Base):
+    """Track that a user has submitted and reviewed a question (any practice type)."""
+    __tablename__ = "exam_question_done_records"
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), index=True, nullable=False)
+    subject_key = Column(String(50), index=True, nullable=False)
+    practice_type = Column(String(30), nullable=False)  # chapter / ai_generated / real_exam
+    question_bank_id = Column(Integer, nullable=True)
+    ai_question_id = Column(Integer, nullable=True)
+    question_type = Column(String(30), nullable=True)
+    user_answer = Column(Text, nullable=True)
+    correct_answer = Column(Text, nullable=True)
+    is_correct = Column(Boolean, nullable=True)  # True/False/None(big)
+    done_count = Column(Integer, nullable=False, default=1)
+    attempt_id = Column(Integer, nullable=True)
+    first_done_at = Column(DateTime, default=utc_now)
+    last_done_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+
 class ExamFavoriteQuestionV2(Base):
     __tablename__ = "exam_favorite_questions_v2"
     id = Column(Integer, primary_key=True, index=True)

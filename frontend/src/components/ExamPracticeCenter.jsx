@@ -275,6 +275,7 @@ function ChapterPracticePage({ subjectInfo, user, onBack }) {
   const [kpQuestions, setKpQuestions] = useState(null);
   const [kpLoading, setKpLoading] = useState(false);
   const [startingPractice, setStartingPractice] = useState(false);
+  const [doneIds, setDoneIds] = useState(new Set());
 
   useEffect(() => {
     setKpLoading(true); setKpQuestions(null);
@@ -284,6 +285,12 @@ function ChapterPracticePage({ subjectInfo, user, onBack }) {
     params.set("include_children", "true");
     safeJsonFetch(`${API_BASE}/exam/11408/${subjectInfo.key}/chapter-practice/questions?${params.toString()}`)
       .then(p => setKpQuestions(p)).catch(() => setKpQuestions({items:[],total:0})).finally(()=>setKpLoading(false));
+    // Also load done records
+    if (user?.username) {
+      safeJsonFetch(`${API_BASE}/exam/11408/${subjectInfo.key}/done-records?username=${encodeURIComponent(user.username)}&practice_type=chapter`)
+        .then(d => setDoneIds(new Set((d.items||[]).map(r=>r.question_bank_id).filter(Boolean))))
+        .catch(() => {});
+    }
   }, [selected?.code, subjectInfo.key]);
 
   const totalQ = kpQuestions?.total || 0;
@@ -371,6 +378,7 @@ function ChapterPracticePage({ subjectInfo, user, onBack }) {
                     <span className="past-paper-q-number">第 {i+1} 题</span>
                     <span className="past-paper-q-type">{q.question_type==="choice"?"选择题":"大题"}</span>
                     <span className="past-paper-q-year">{q.knowledge_point_name||""}</span>
+                    {doneIds.has(q.id) && <span style={{fontSize:"0.7rem",background:"#ede9fe",color:"#7c3aed",padding:"1px 8px",borderRadius:10,fontWeight:500}}>已做过</span>}
                   </div>
                   <div className="past-paper-q-content">{q.stem}</div>
                   {q.options && Object.keys(q.options||{}).length>0 && (
@@ -410,71 +418,75 @@ function QuestionOptions({ item }) {
 
 function WrongPracticePage({ subjectKey, subjectInfo, user, onBack }) {
   const [items, setItems] = useState([]);
-  const [filter, setFilter] = useState("all");
+  const [sourceFilters, setSourceFilters] = useState(new Set());
+  const [masteredFilter, setMasteredFilter] = useState(""); // "" all, "1" mastered, "0" not
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [analysisMap, setAnalysisMap] = useState({});
 
   const loadItems = () => {
-    if (!user?.username) {
-      setError("请先登录后查看错题练习。");
-      setLoading(false);
-      return;
-    }
+    if (!user?.username) { setError("请先登录后查看错题练习。"); setLoading(false); return; }
     const params = new URLSearchParams({ username: user.username });
-    if (filter !== "all") params.set("source", filter);
+    if (sourceFilters.size > 0) params.set("source", [...sourceFilters].join(","));
+    if (masteredFilter) params.set("mastered", masteredFilter);
     setLoading(true);
     safeJsonFetch(`${API_BASE}/exam/11408/${subjectKey}/wrong-questions?${params.toString()}`)
-      .then((payload) => {
-        setItems(payload.items || []);
-        setError("");
-      })
+      .then((payload) => { setItems(payload.items || []); setError(""); })
       .catch((err) => setError(err.message || "错题加载失败"))
       .finally(() => setLoading(false));
   };
 
-  useEffect(loadItems, [subjectKey, user?.username, filter]);
+  useEffect(loadItems, [subjectKey, user?.username, sourceFilters, masteredFilter]);
 
-  const removeWrong = async (item) => {
-    await safeJsonFetch(`${API_BASE}/exam/11408/${subjectKey}/wrong-questions/${item.id}?username=${encodeURIComponent(user.username)}`, { method: "DELETE" });
-    loadItems();
+  const toggleSource = (val) => {
+    setSourceFilters(prev => { const next = new Set(prev); if (next.has(val)) next.delete(val); else next.add(val); return next; });
   };
 
-  const markMastered = async (item) => {
-    await safeJsonFetch(`${API_BASE}/exam/11408/${subjectKey}/wrong-questions/${item.id}/mastered`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: user.username }),
-    });
-    loadItems();
+  const removeWrong = async (item) => {
+    if (!window.confirm("确认移出错题本？\n\n移出后该题不会再出现在错题本中，但做题记录仍保留。")) return;
+    try {
+      await safeJsonFetch(`${API_BASE}/exam/11408/${subjectKey}/wrong-questions/${item.id}?username=${encodeURIComponent(user.username)}`, { method: "DELETE" });
+      loadItems();
+    } catch(e) { alert("移出失败：" + (e.message||"未知错误")); }
+  };
+
+  const toggleMastered = async (item) => {
+    const newVal = !item.mastered;
+    try {
+      const r = await safeJsonFetch(`${API_BASE}/exam/11408/${subjectKey}/wrong-questions/${item.id}/mastered`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: user.username, mastered: newVal }),
+      });
+      if (r.success) loadItems();
+    } catch(e) { alert("操作失败：" + (e.message||"未知错误")); }
   };
 
   return (
     <div className="exam-practice-subpage">
       <PracticeSubPageHeader title="错题练习" subtitle="系统批改后自动收集当前用户的错题" subjectInfo={subjectInfo} onBack={onBack} />
-      <div className="exam-practice-filter-row">
-        {[
-          ["all", "全部"],
-          ["chapter_practice", "章节练习错题"],
-          ["past_paper", "真题错题"],
-          ["ai_generated", "AI 出题错题"],
-        ].map(([value, label]) => (
-          <button key={value} type="button" className={`past-paper-chip${filter === value ? " past-paper-chip--active" : ""}`} onClick={() => setFilter(value)}>{label}</button>
+      <div className="exam-practice-filter-row" style={{flexWrap:"wrap",gap:6,marginBottom:4}}>
+        <span style={{fontSize:"0.78rem",color:"#6b7280",marginRight:4}}>来源：</span>
+        {[["past_paper","真题错题"],["chapter","章节练习错题"],["ai_generated","AI 出题错题"]].map(([v,l])=>(
+          <button key={v} className={`past-paper-chip${sourceFilters.has(v)?" past-paper-chip--active":""}`} onClick={()=>toggleSource(v)}>{l}</button>
         ))}
+        <span style={{fontSize:"0.78rem",color:"#6b7280",margin:"0 4px 0 12px"}}>状态：</span>
+        {[["1","已掌握"],["0","未掌握"]].map(([v,l])=>(
+          <button key={v} className={`past-paper-chip${masteredFilter===v?" past-paper-chip--active":""}`} onClick={()=>setMasteredFilter(masteredFilter===v?"":v)}>{l}</button>
+        ))}
+        <span style={{fontSize:"0.78rem",color:"#9ca3af",marginLeft:8}}>共 {items.length} 题</span>
       </div>
       {loading ? <div className="past-paper-loading">正在加载错题...</div> : error ? (
         <div className="km-inline-message km-inline-message--error">{error}</div>
       ) : items.length === 0 ? (
-        <div className="exam-practice-empty-state">
-          <strong>暂无错题，继续练习后这里会自动收集。</strong>
-        </div>
+        <div className="exam-practice-empty-state"><strong>暂无错题，继续练习后这里会自动收集。</strong></div>
       ) : (
         <div className="exam-practice-list">
           {items.map((item) => (
-            <article key={`${item.source}-${item.id}`} className="exam-practice-question-item">
+            <article key={`${item.source||"w"}-${item.id}`} className="exam-practice-question-item">
               <div className="past-paper-question-meta">
-                <span className="past-paper-q-type">{SOURCE_LABELS[item.source] || item.source}</span>
-                {item.year && <span className="past-paper-q-year">{item.year} 年 第 {item.number} 题</span>}
+                <span className="past-paper-q-type">{item.source_label || SOURCE_LABELS[item.source] || item.source}</span>
+                {item.year && <span className="past-paper-q-year">{item.year} 年 第 {item.question_number||item.number} 题</span>}
+                {item.knowledge_point_name && <span className="past-paper-q-year">{item.knowledge_point_name}</span>}
                 <span className="past-paper-q-number">{item.question_type}</span>
                 {item.mastered && <span className="past-paper-q-result-tag past-paper-q-result-tag--correct">已掌握</span>}
               </div>
@@ -486,7 +498,7 @@ function WrongPracticePage({ subjectKey, subjectInfo, user, onBack }) {
               <div className="exam-practice-action-row">
                 <button className="ghost-button compact" disabled={!!(analysisMap[`${item.source}-${item.id}`]||{}).loading} onClick={async()=>{const ak=`${item.source}-${item.id}`;setAnalysisMap(p=>({...p,[ak]:{loading:true,text:"",error:""}}));try{let o={};if(item.options_json)try{o=JSON.parse(item.options_json)}catch{}else if(item.options)o=item.options;const d=await safeJsonFetch(`${API_BASE}/exam/11408/${subjectKey}/question-analysis`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({source:item.source,question_type:item.question_type,stem:item.stem,options:o,standard_answer:item.standard_answer,user_answer:item.user_answer,context:"错题复盘"})});setAnalysisMap(p=>({...p,[ak]:{loading:false,text:d.analysis,error:""}}))}catch(e){setAnalysisMap(p=>({...p,[ak]:{loading:false,text:"",error:e.message}}))}}}>{(analysisMap[`${item.source}-${item.id}`]||{}).loading?"AI 解析中...":"AI 解析"}</button>
                 <button className="ghost-button compact" onClick={()=>removeWrong(item)}>移出错题本</button>
-                <button className="wrong-mastered-btn" onClick={()=>markMastered(item)}>标记已掌握</button>
+                <button className="wrong-mastered-btn" onClick={()=>toggleMastered(item)}>{item.mastered?"取消已掌握":"标记已掌握"}</button>
               </div>
             </article>
           ))}

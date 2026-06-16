@@ -12735,48 +12735,66 @@ def submit_ai_question_attempt(subject_key: str, attempt_id: int, req: dict, db:
     answers = req.get("answers", {})
     qids = json.loads(attempt.question_ids_json or "[]")
     items = {i.id: i for i in db.query(models.AIGeneratedQuestion).filter(models.AIGeneratedQuestion.id.in_(qids)).all()}
-    results, correct = [], 0
+    results, correct, wrong, big_count, mistake_saved = [], 0, 0, 0, 0
     username = (req.get("username") or "").strip()
     now = utc_now()
     for qid in qids:
         item = items.get(qid)
         if not item: continue
-        ua = str(answers.get(str(qid), "")).strip().upper()
-        sa = (item.standard_answer or "").strip().upper()
-        is_correct = ua == sa
-        if is_correct: correct += 1
-        results.append({"question_id": qid, "correct": is_correct, "standard_answer": sa, "user_answer": ua})
-        if not is_correct and username:
-            db.add(models.ExamFavoriteQuestion(
-                username=username, source="ai_generated", source_question_id=qid,
-                subject_key=subject_key, knowledge_point_id=attempt.knowledge_point_id,
-                knowledge_point_name=attempt.knowledge_point_name,
-                knowledge_point_path=attempt.knowledge_point_path,
-                question_type=item.question_type, stem=item.stem,
-                options_json=item.options_json, standard_answer=sa, user_answer=ua,
-                wrong_reason="AI题库练习答错", attempt_id=attempt_id,
-                created_at=now,
-            ))
-    total = len(qids)
+        ua = str(answers.get(str(qid), "")).strip()
+        sa = (item.standard_answer or "").strip()
+        opts = {}
+        if item.options_json:
+            try: opts = json.loads(item.options_json)
+            except: pass
+        if item.question_type == "big":
+            big_count += 1
+            results.append({"question_id": qid, "correct": None, "judge": "self_review",
+                "standard_answer": sa, "user_answer": ua, "stem": item.stem or "",
+                "options": opts, "analysis": item.analysis or "", "question_type": item.question_type,
+                "hint": "请自行对照参考答案"})
+        else:
+            ua_upper = ua.upper(); sa_upper = sa.upper()
+            is_c = ua_upper == sa_upper
+            if is_c: correct += 1
+            else: wrong += 1
+            results.append({"question_id": qid, "correct": is_c, "standard_answer": sa, "user_answer": ua,
+                "stem": item.stem or "", "options": opts, "analysis": item.analysis or "",
+                "question_type": item.question_type})
+            if not is_c and username:
+                existing = db.query(models.ExamWrongQuestion).filter(
+                    models.ExamWrongQuestion.username == username,
+                    models.ExamWrongQuestion.question_bank_id == None,
+                    models.ExamWrongQuestion.wrong_reason.like("AI%"),
+                ).filter(models.ExamWrongQuestion.stem_snapshot == (item.stem or "")).first()
+                # For AI questions, use a simple approach — always insert new (no easy dedup without question_bank_id)
+                db.add(models.ExamWrongQuestion(
+                    username=username, subject_key=subject_key, question_bank_id=None,
+                    practice_attempt_id=attempt_id, source_type="ai_generated", practice_type="ai_generated",
+                    knowledge_point_id=attempt.knowledge_point_id,
+                    knowledge_point_name=attempt.knowledge_point_name,
+                    knowledge_point_path=attempt.knowledge_point_path, question_type=item.question_type,
+                    stem_snapshot=item.stem, options_snapshot_json=item.options_json,
+                    standard_answer_snapshot=sa, analysis_snapshot=item.analysis or "",
+                    user_answer=ua, score=0, wrong_reason="AI题库练习答错",
+                ))
+                mistake_saved += 1
+        # Save done record
+        if username:
+            _save_done_record(db, username, subject_key, practice_type="ai_generated",
+                              ai_question_id=item.id, question_type=item.question_type,
+                              user_answer=ua, correct_answer=sa,
+                              is_correct=(True if item.question_type != "big" and ua.upper() == sa.upper() else (None if item.question_type == "big" else False)),
+                              attempt_id=attempt_id)
+    total = len(qids); choice_total = total - big_count
     attempt.status = "submitted"; attempt.submitted_at = now
-    attempt.correct_count = correct; attempt.accuracy = round(correct / total * 100, 1) if total > 0 else 0
+    attempt.correct_count = correct; attempt.wrong_count = wrong
+    attempt.accuracy = round(correct / choice_total * 100, 1) if choice_total > 0 else 0
     attempt.result_json = json.dumps({"correct": correct, "total": total, "results": results}, ensure_ascii=False)
     db.commit()
-    detailed_results = []
-    for r in results:
-        item = items.get(r["question_id"])
-        dr = dict(r)
-        if item:
-            dr["stem"] = item.stem or ""
-            opts = {}
-            if item.options_json:
-                try: opts = json.loads(item.options_json)
-                except: pass
-            dr["options"] = opts
-            dr["analysis"] = item.analysis or ""
-            dr["question_type"] = item.question_type
-        detailed_results.append(dr)
-    return {"total_questions": total, "correct_count": correct, "wrong_count": total - correct, "accuracy": attempt.accuracy, "results": detailed_results}
+    return {"total_questions": total, "choice_total": choice_total, "big_count": big_count,
+            "correct_count": correct, "wrong_count": wrong, "accuracy": attempt.accuracy,
+            "mistake_saved_count": mistake_saved, "results": results}
 
 
 # ── v2 Unified Question Bank ──
@@ -13129,6 +13147,18 @@ def submit_chapter_attempt(subject_key: str, attempt_id: int, req: dict, db: Ses
     a.wrong_count = wrong; a.accuracy = round(correct/choice_total*100,1) if choice_total>0 else 0
     a.result_json = json.dumps({"correct": correct, "total": total, "choice_total": choice_total,
         "big_count": big_count, "results": results, "mistake_saved": mistake_saved}, ensure_ascii=False)
+    # Save done records for all questions in this attempt
+    for qid in qids:
+        item = items.get(qid)
+        if not item: continue
+        ua = str(answers.get(str(qid), "")).strip()
+        sa = (item.standard_answer or "").strip()
+        is_c = None
+        if item.question_type != "big":
+            is_c = ua.upper() == sa.upper()
+        _save_done_record(db, username, subject_key, practice_type="chapter",
+                          question_bank_id=item.id, question_type=item.question_type,
+                          user_answer=ua, correct_answer=sa, is_correct=is_c, attempt_id=attempt_id)
     db.commit()
     return {"total_questions": total, "choice_total": choice_total, "big_count": big_count,
             "correct_count": correct, "wrong_count": wrong, "accuracy": a.accuracy,
@@ -13434,54 +13464,206 @@ def _serialize_past_paper_wrong_question(item: models.PastPaperWrongQuestion):
     }
 
 
+# ── Unified wrong questions (past_paper + exam v2) ──
+
+SOURCE_LABEL_MAP = {"past_paper": "真题错题", "chapter": "章节练习错题", "ai_generated": "AI 出题错题",
+                     "chapter_practice": "章节练习错题", "real_exam": "真题错题"}
+
+def _marshal_wrong_item(row, source):
+    """Serialize a wrong-question row from either table into a uniform shape."""
+    if source == "past_paper":
+        return {
+            "id": row.id, "username": row.username, "subject_key": row.subject_key,
+            "source": "past_paper", "source_label": "真题错题",
+            "year": row.year, "question_id": row.question_id, "question_number": row.question_number,
+            "question_type": row.question_type, "stem": row.content or "",
+            "options": row.options or {}, "standard_answer": row.standard_answer or "",
+            "user_answer": row.user_answer or "", "score": row.score,
+            "wrong_reason": row.wrong_reason, "attempt_id": row.attempt_id,
+            "status": row.status or "active", "mastered": bool(getattr(row, "mastered", False)),
+            "resolved_at": serialize_datetime(getattr(row, "resolved_at", None)),
+            "created_at": serialize_datetime(row.created_at),
+            "updated_at": serialize_datetime(getattr(row, "updated_at", None)),
+        }
+    else:
+        # exam_wrong_questions (chapter / ai_generated)
+        opts = {}
+        try: opts = json.loads(row.options_snapshot_json or "{}")
+        except: pass
+        return {
+            "id": row.id, "username": row.username, "subject_key": row.subject_key,
+            "source": row.practice_type or "chapter", "source_label": SOURCE_LABEL_MAP.get(row.practice_type, "章节练习错题"),
+            "knowledge_point_id": row.knowledge_point_id, "knowledge_point_name": row.knowledge_point_name,
+            "knowledge_point_path": row.knowledge_point_path,
+            "question_id": row.question_bank_id, "question_type": row.question_type,
+            "stem": row.stem_snapshot or "", "options": opts,
+            "standard_answer": row.standard_answer_snapshot or "",
+            "user_answer": row.user_answer or "", "score": row.score,
+            "wrong_reason": row.wrong_reason, "attempt_id": row.practice_attempt_id,
+            "status": row.status or "active", "mastered": bool(getattr(row, "mastered", False)),
+            "review_count": getattr(row, "review_count", 0),
+            "created_at": serialize_datetime(row.created_at),
+            "updated_at": serialize_datetime(getattr(row, "updated_at", None)),
+        }
+
+
 @app.get("/exam/11408/{subject_key}/wrong-questions")
-def get_exam_wrong_questions(subject_key: str, username: str, source: str = "", db: Session = Depends(get_db)):
+def get_exam_wrong_questions_v2(subject_key: str, username: str, source: str = "", mastered: str = "",
+                                 db: Session = Depends(get_db)):
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
     username = (username or "").strip()
     if not username:
         raise HTTPException(status_code=400, detail="username is required")
-    if source and source != "past_paper":
-        return {"items": [], "total": 0}
-    items = db.query(models.PastPaperWrongQuestion).filter(
-        models.PastPaperWrongQuestion.username == username,
-        models.PastPaperWrongQuestion.subject_key == subject_key,
-    ).order_by(models.PastPaperWrongQuestion.created_at.desc()).all()
-    return {"items": [_serialize_past_paper_wrong_question(item) for item in items], "total": len(items)}
+    # Parse multi-source filter (comma-separated)
+    src_set = set(s.strip() for s in source.split(",") if s.strip()) if source else set()
+    # Parse mastered filter: "1"/"true" → mastered only, "0"/"false" → not mastered, "" → all
+    m_param = mastered.strip().lower()
+    m_filter = None  # None=all, True=mastered, False=not mastered
+    if m_param in ("1", "true"): m_filter = True
+    elif m_param in ("0", "false"): m_filter = False
+
+    results = []
+
+    # 1. Past paper wrong questions
+    if not src_set or "past_paper" in src_set or "real_exam" in src_set:
+        q = db.query(models.PastPaperWrongQuestion).filter(
+            models.PastPaperWrongQuestion.username == username,
+            models.PastPaperWrongQuestion.subject_key == subject_key,
+        )
+        if m_filter is True: q = q.filter(models.PastPaperWrongQuestion.mastered == True)
+        elif m_filter is False: q = q.filter((models.PastPaperWrongQuestion.mastered == False) | (models.PastPaperWrongQuestion.mastered == None))
+        for row in q.order_by(models.PastPaperWrongQuestion.created_at.desc()).all():
+            results.append(_marshal_wrong_item(row, "past_paper"))
+
+    # 2. v2 exam wrong questions (chapter + ai_generated)
+    if not src_set or "chapter" in src_set or "chapter_practice" in src_set or "ai_generated" in src_set:
+        q = db.query(models.ExamWrongQuestion).filter(
+            models.ExamWrongQuestion.username == username,
+            models.ExamWrongQuestion.subject_key == subject_key,
+            models.ExamWrongQuestion.status == "active",
+        )
+        if src_set:
+            pt_filters = []
+            if "chapter" in src_set or "chapter_practice" in src_set:
+                pt_filters.append(models.ExamWrongQuestion.practice_type == "chapter")
+            if "ai_generated" in src_set:
+                pt_filters.append(models.ExamWrongQuestion.practice_type == "ai_generated")
+            if pt_filters:
+                if len(pt_filters) == 1: q = q.filter(pt_filters[0])
+                else: q = q.filter(or_(*pt_filters))
+        if m_filter is True: q = q.filter(models.ExamWrongQuestion.mastered == True)
+        elif m_filter is False: q = q.filter((models.ExamWrongQuestion.mastered == False) | (models.ExamWrongQuestion.mastered == None))
+        for row in q.order_by(models.ExamWrongQuestion.created_at.desc()).all():
+            results.append(_marshal_wrong_item(row, "v2"))
+
+    # Sort merged results by created_at desc
+    results.sort(key=lambda r: r.get("created_at") or "", reverse=True)
+    return {"items": results, "total": len(results)}
 
 
 @app.delete("/exam/11408/{subject_key}/wrong-questions/{wrong_id}")
-def delete_exam_wrong_question(subject_key: str, wrong_id: int, username: str, db: Session = Depends(get_db)):
+def delete_exam_wrong_question_v2(subject_key: str, wrong_id: int, username: str, db: Session = Depends(get_db)):
     username = (username or "").strip()
+    # Try past_paper table first
     item = db.query(models.PastPaperWrongQuestion).filter(
         models.PastPaperWrongQuestion.id == wrong_id,
         models.PastPaperWrongQuestion.username == username,
         models.PastPaperWrongQuestion.subject_key == subject_key,
     ).first()
-    if not item:
-        raise HTTPException(status_code=404, detail="wrong question not found")
-    db.delete(item)
-    db.commit()
-    return {"success": True}
+    if item:
+        db.delete(item); db.commit()
+        return {"success": True, "table": "past_paper"}
+    # Try exam_wrong_questions table
+    item2 = db.query(models.ExamWrongQuestion).filter(
+        models.ExamWrongQuestion.id == wrong_id,
+        models.ExamWrongQuestion.username == username,
+        models.ExamWrongQuestion.subject_key == subject_key,
+    ).first()
+    if item2:
+        item2.status = "removed"; db.commit()
+        return {"success": True, "table": "exam_v2"}
+    raise HTTPException(status_code=404, detail="wrong question not found")
 
 
 @app.patch("/exam/11408/{subject_key}/wrong-questions/{wrong_id}/mastered")
-def mark_exam_wrong_question_mastered(subject_key: str, wrong_id: int, req: dict, db: Session = Depends(get_db)):
+def toggle_exam_wrong_question_mastered(subject_key: str, wrong_id: int, req: dict, db: Session = Depends(get_db)):
     username = (req.get("username") or "").strip()
+    mastered_val = req.get("mastered", True)
+    now = utc_now()
+    # Try past_paper
     item = db.query(models.PastPaperWrongQuestion).filter(
         models.PastPaperWrongQuestion.id == wrong_id,
         models.PastPaperWrongQuestion.username == username,
         models.PastPaperWrongQuestion.subject_key == subject_key,
     ).first()
-    if not item:
-        raise HTTPException(status_code=404, detail="wrong question not found")
-    item.mastered = True
-    item.status = "mastered"
-    item.resolved_at = utc_now()
-    item.reviewed_at = utc_now()
-    item.updated_at = utc_now()
-    db.commit()
-    return {"success": True, "item": _serialize_past_paper_wrong_question(item)}
+    if item:
+        item.mastered = bool(mastered_val)
+        item.status = "mastered" if mastered_val else "active"
+        if mastered_val: item.resolved_at = now; item.reviewed_at = now
+        item.updated_at = now
+        db.commit()
+        return {"success": True, "mastered": item.mastered}
+    # Try exam_v2
+    item2 = db.query(models.ExamWrongQuestion).filter(
+        models.ExamWrongQuestion.id == wrong_id,
+        models.ExamWrongQuestion.username == username,
+        models.ExamWrongQuestion.subject_key == subject_key,
+    ).first()
+    if item2:
+        item2.mastered = bool(mastered_val)
+        item2.status = "mastered" if mastered_val else "active"
+        if mastered_val: item2.resolved_at = now
+        item2.updated_at = now
+        db.commit()
+        return {"success": True, "mastered": item2.mastered}
+    raise HTTPException(status_code=404, detail="wrong question not found")
+
+
+# ── Done records (已做过) ──
+
+@app.get("/exam/11408/{subject_key}/done-records")
+def get_done_records(subject_key: str, username: str, practice_type: str = "", db: Session = Depends(get_db)):
+    username = (username or "").strip()
+    if not username: raise HTTPException(status_code=400, detail="username required")
+    q = db.query(models.ExamQuestionDoneRecord).filter(
+        models.ExamQuestionDoneRecord.username == username,
+        models.ExamQuestionDoneRecord.subject_key == subject_key,
+    )
+    if practice_type: q = q.filter(models.ExamQuestionDoneRecord.practice_type == practice_type)
+    records = q.all()
+    return {"items": [{"question_bank_id": r.question_bank_id, "ai_question_id": r.ai_question_id,
+            "practice_type": r.practice_type, "is_correct": r.is_correct,
+            "done_count": r.done_count, "last_done_at": serialize_datetime(r.last_done_at),
+            "question_type": r.question_type} for r in records]}
+
+
+def _save_done_record(db, username, subject_key, practice_type, question_bank_id=None,
+                       ai_question_id=None, question_type=None, user_answer="", correct_answer="", is_correct=None,
+                       attempt_id=None):
+    existing = None
+    if question_bank_id:
+        existing = db.query(models.ExamQuestionDoneRecord).filter(
+            models.ExamQuestionDoneRecord.username == username,
+            models.ExamQuestionDoneRecord.question_bank_id == question_bank_id,
+        ).first()
+    if not existing and ai_question_id:
+        existing = db.query(models.ExamQuestionDoneRecord).filter(
+            models.ExamQuestionDoneRecord.username == username,
+            models.ExamQuestionDoneRecord.ai_question_id == ai_question_id,
+        ).first()
+    if existing:
+        existing.done_count = (existing.done_count or 0) + 1
+        existing.last_done_at = utc_now()
+        existing.user_answer = user_answer
+        if is_correct is not None: existing.is_correct = is_correct
+        existing.practice_type = practice_type
+    else:
+        db.add(models.ExamQuestionDoneRecord(
+            username=username, subject_key=subject_key, practice_type=practice_type,
+            question_bank_id=question_bank_id, ai_question_id=ai_question_id,
+            question_type=question_type, user_answer=user_answer, correct_answer=correct_answer,
+            is_correct=is_correct, attempt_id=attempt_id, done_count=1))
 
 
 @app.put("/knowledge-points/{point_id}/progress")
