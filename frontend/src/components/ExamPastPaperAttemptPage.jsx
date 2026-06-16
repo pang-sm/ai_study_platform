@@ -185,6 +185,9 @@ export default function ExamPastPaperAttemptPage({ subjectKey, attemptId, user, 
             <div className="practice-stat-card--dashboard"><div className="practice-stat-card-icon practice-stat-card-icon--accuracy">★</div><div className="practice-stat-card-body"><div className="practice-stat-card-value">{result.total_score}/{result.max_score}</div><div className="practice-stat-card-label">总分</div></div></div>
             <div className="practice-stat-card--dashboard"><div className="practice-stat-card-icon practice-stat-card-icon--time">❌</div><div className="practice-stat-card-body"><div className="practice-stat-card-value">{result.wrong_questions?.length || 0}</div><div className="practice-stat-card-label">错题数</div></div></div>
           </div>
+          <div style={{marginBottom:12,padding:"8px 14px",background:"#ede9fe",borderRadius:8,fontSize:"0.82rem",color:"#5b21b6"}}>
+            ✅ 已完成练习，全部题目已标记为"已做过"
+          </div>
           {result.results && result.results.map(r => {
             const q = questions.find(q => q.id === r.question_id);
             const isCorrect = r.type === "选择题" ? r.correct : null;
