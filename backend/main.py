@@ -12271,6 +12271,19 @@ def submit_attempt(subject_key: str, attempt_id: int, req: dict, db: Session = D
                 status="active", created_at=now, updated_at=now,
             ))
         db.commit()
+    # Save done records for all attempted questions
+    if username and result.get("results"):
+        for r in result["results"]:
+            qtype = r.get("type", "")
+            ua = str(r.get("user_answer", "")).strip()
+            sa = str(r.get("standard_answer", "")).strip()
+            is_c = None
+            if qtype == "选择题":
+                is_c = r.get("correct", False)
+            _save_done_record(db, username, subject_key, practice_type="real_exam",
+                              question_type=qtype, user_answer=ua, correct_answer=sa,
+                              is_correct=is_c, attempt_id=attempt_id)
+        db.commit()
     return {**result, "attempt_id": attempt.id, "attempt_no": attempt.attempt_no}
 
 
