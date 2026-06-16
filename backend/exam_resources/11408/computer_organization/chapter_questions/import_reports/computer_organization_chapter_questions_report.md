@@ -1,0 +1,12 @@
+# build report
+- total: 1200 (choice=960, big=240, rejected=0)
+- choice_no_opts: 0
+- choice_missing_abcd: 0
+- no_kp: 0
+- Ch1: 100
+- Ch2: 170
+- Ch3: 215
+- Ch4: 170
+- Ch5: 385
+- Ch6: 60
+- Ch7: 100

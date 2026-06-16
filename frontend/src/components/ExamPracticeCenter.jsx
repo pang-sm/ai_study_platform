@@ -193,56 +193,106 @@ function normalizeKnowledgePointId(rawId) {
   return String(rawId).replace(/^(_leaf:|leaf:|_node:|node:|_kp:|kp:)/i, "").trim();
 }
 
-const CHAPTER_OUTLINE = [
-  { id:"0", title:"总览", code:"", children:[] },
-  { id:"1", title:"第1章 绪论", code:"1", children:[
-    {id:"1.1", title:"1.1 数据结构的基本概念", code:"1.1"},
-    {id:"1.2", title:"1.2 算法和算法评价", code:"1.2"},
-  ]},
-  { id:"2", title:"第2章 线性表", code:"2", children:[
-    {id:"2.1", title:"2.1 线性表的定义和基本操作", code:"2.1"},
-    {id:"2.2", title:"2.2 线性表的顺序表示", code:"2.2"},
-    {id:"2.3", title:"2.3 线性表的链式表示", code:"2.3"},
-  ]},
-  { id:"3", title:"第3章 栈、队列和数组", code:"3", children:[
-    {id:"3.1", title:"3.1 栈", code:"3.1"},
-    {id:"3.2", title:"3.2 队列", code:"3.2"},
-    {id:"3.3", title:"3.3 栈和队列的应用", code:"3.3"},
-    {id:"3.4", title:"3.4 数组和特殊矩阵", code:"3.4"},
-  ]},
-  { id:"4", title:"第4章 串", code:"4", children:[
-    {id:"4.1", title:"4.1 串的定义和实现", code:"4.1"},
-    {id:"4.2", title:"4.2 串的模式匹配", code:"4.2"},
-  ]},
-  { id:"5", title:"第5章 树与二叉树", code:"5", children:[
-    {id:"5.1", title:"5.1 树的基本概念", code:"5.1"},
-    {id:"5.2", title:"5.2 二叉树的概念", code:"5.2"},
-    {id:"5.3", title:"5.3 二叉树的遍历和线索二叉树", code:"5.3"},
-    {id:"5.4", title:"5.4 树、森林", code:"5.4"},
-    {id:"5.5", title:"5.5 树与二叉树的应用", code:"5.5"},
-  ]},
-  { id:"6", title:"第6章 图", code:"6", children:[
-    {id:"6.1", title:"6.1 图的基本概念", code:"6.1"},
-    {id:"6.2", title:"6.2 图的遍历", code:"6.2"},
-    {id:"6.3", title:"6.3 图的存储及基本操作", code:"6.3"},
-    {id:"6.4", title:"6.4 图的应用", code:"6.4"},
-  ]},
-  { id:"7", title:"第7章 查找", code:"7", children:[
-    {id:"7.1", title:"7.1 查找的基本概念", code:"7.1"},
-    {id:"7.2", title:"7.2 顺序查找和折半查找", code:"7.2"},
-    {id:"7.3", title:"7.3 树形查找", code:"7.3"},
-    {id:"7.4", title:"7.4 散列表", code:"7.4"},
-  ]},
-  { id:"8", title:"第8章 排序", code:"8", children:[
-    {id:"8.1", title:"8.1 排序的基本概念", code:"8.1"},
-    {id:"8.2", title:"8.2 插入排序", code:"8.2"},
-    {id:"8.3", title:"8.3 交换排序", code:"8.3"},
-    {id:"8.4", title:"8.4 选择排序", code:"8.4"},
-    {id:"8.5", title:"8.5 归并排序和基数排序", code:"8.5"},
-    {id:"8.6", title:"8.6 内部排序算法比较", code:"8.6"},
-    {id:"8.7", title:"8.7 外部排序", code:"8.7"},
-  ]},
-];
+function getChapterOutline(subjectKey) {
+  if (subjectKey === "computer_organization") {
+    return [
+      { id:"0", title:"总览", code:"", children:[] },
+      { id:"1", title:"第1章 计算机系统概述", code:"1", children:[
+        {id:"1.1", title:"1.1 计算机发展历程", code:"1.1"},
+        {id:"1.2", title:"1.2 计算机系统层次结构", code:"1.2"},
+        {id:"1.3", title:"1.3 计算机的性能指标", code:"1.3"},
+      ]},
+      { id:"2", title:"第2章 数据的表示和运算", code:"2", children:[
+        {id:"2.1", title:"2.1 数制与编码", code:"2.1"},
+        {id:"2.2", title:"2.2 运算方法和运算电路", code:"2.2"},
+        {id:"2.3", title:"2.3 浮点数的表示与运算", code:"2.3"},
+      ]},
+      { id:"3", title:"第3章 存储系统", code:"3", children:[
+        {id:"3.1", title:"3.1 存储器概述", code:"3.1"},
+        {id:"3.2", title:"3.2 主存储器", code:"3.2"},
+        {id:"3.3", title:"3.3 主存储器与CPU的连接", code:"3.3"},
+        {id:"3.4", title:"3.4 外部存储器", code:"3.4"},
+        {id:"3.5", title:"3.5 高速缓冲存储器", code:"3.5"},
+        {id:"3.6", title:"3.6 虚拟存储器", code:"3.6"},
+      ]},
+      { id:"4", title:"第4章 指令系统", code:"4", children:[
+        {id:"4.1", title:"4.1 指令系统", code:"4.1"},
+        {id:"4.2", title:"4.2 寻址方式", code:"4.2"},
+        {id:"4.3", title:"4.3 汇编程序的基本概念和表示", code:"4.3"},
+        {id:"4.4", title:"4.4 CISC和RISC的基本概念", code:"4.4"},
+      ]},
+      { id:"5", title:"第5章 中央处理器", code:"5", children:[
+        {id:"5.1", title:"5.1 CPU的功能和基本结构", code:"5.1"},
+        {id:"5.2", title:"5.2 指令执行过程", code:"5.2"},
+        {id:"5.3", title:"5.3 数据通路的功能和基本结构", code:"5.3"},
+        {id:"5.4", title:"5.4 控制器的功能和工作原理", code:"5.4"},
+        {id:"5.5", title:"5.5 异常和中断机制", code:"5.5"},
+        {id:"5.6", title:"5.6 指令流水线", code:"5.6"},
+        {id:"5.7", title:"5.7 多处理器的基本概念", code:"5.7"},
+      ]},
+      { id:"6", title:"第6章 总线", code:"6", children:[
+        {id:"6.1", title:"6.1 总线概述", code:"6.1"},
+        {id:"6.2", title:"6.2 总线事务和定时", code:"6.2"},
+      ]},
+      { id:"7", title:"第7章 输入/输出系统", code:"7", children:[
+        {id:"7.1", title:"7.1 I/O系统基本概念", code:"7.1"},
+        {id:"7.2", title:"7.2 I/O接口", code:"7.2"},
+        {id:"7.3", title:"7.3 I/O方式", code:"7.3"},
+      ]},
+    ];
+  }
+  // Default: data_structure
+  return [
+    { id:"0", title:"总览", code:"", children:[] },
+    { id:"1", title:"第1章 绪论", code:"1", children:[
+      {id:"1.1", title:"1.1 数据结构的基本概念", code:"1.1"},
+      {id:"1.2", title:"1.2 算法和算法评价", code:"1.2"},
+    ]},
+    { id:"2", title:"第2章 线性表", code:"2", children:[
+      {id:"2.1", title:"2.1 线性表的定义和基本操作", code:"2.1"},
+      {id:"2.2", title:"2.2 线性表的顺序表示", code:"2.2"},
+      {id:"2.3", title:"2.3 线性表的链式表示", code:"2.3"},
+    ]},
+    { id:"3", title:"第3章 栈、队列和数组", code:"3", children:[
+      {id:"3.1", title:"3.1 栈", code:"3.1"},
+      {id:"3.2", title:"3.2 队列", code:"3.2"},
+      {id:"3.3", title:"3.3 栈和队列的应用", code:"3.3"},
+      {id:"3.4", title:"3.4 数组和特殊矩阵", code:"3.4"},
+    ]},
+    { id:"4", title:"第4章 串", code:"4", children:[
+      {id:"4.1", title:"4.1 串的定义和实现", code:"4.1"},
+      {id:"4.2", title:"4.2 串的模式匹配", code:"4.2"},
+    ]},
+    { id:"5", title:"第5章 树与二叉树", code:"5", children:[
+      {id:"5.1", title:"5.1 树的基本概念", code:"5.1"},
+      {id:"5.2", title:"5.2 二叉树的概念", code:"5.2"},
+      {id:"5.3", title:"5.3 二叉树的遍历和线索二叉树", code:"5.3"},
+      {id:"5.4", title:"5.4 树、森林", code:"5.4"},
+      {id:"5.5", title:"5.5 树与二叉树的应用", code:"5.5"},
+    ]},
+    { id:"6", title:"第6章 图", code:"6", children:[
+      {id:"6.1", title:"6.1 图的基本概念", code:"6.1"},
+      {id:"6.2", title:"6.2 图的遍历", code:"6.2"},
+      {id:"6.3", title:"6.3 图的存储及基本操作", code:"6.3"},
+      {id:"6.4", title:"6.4 图的应用", code:"6.4"},
+    ]},
+    { id:"7", title:"第7章 查找", code:"7", children:[
+      {id:"7.1", title:"7.1 查找的基本概念", code:"7.1"},
+      {id:"7.2", title:"7.2 顺序查找和折半查找", code:"7.2"},
+      {id:"7.3", title:"7.3 树形查找", code:"7.3"},
+      {id:"7.4", title:"7.4 散列表", code:"7.4"},
+    ]},
+    { id:"8", title:"第8章 排序", code:"8", children:[
+      {id:"8.1", title:"8.1 排序的基本概念", code:"8.1"},
+      {id:"8.2", title:"8.2 插入排序", code:"8.2"},
+      {id:"8.3", title:"8.3 交换排序", code:"8.3"},
+      {id:"8.4", title:"8.4 选择排序", code:"8.4"},
+      {id:"8.5", title:"8.5 归并排序和基数排序", code:"8.5"},
+      {id:"8.6", title:"8.6 内部排序算法比较", code:"8.6"},
+      {id:"8.7", title:"8.7 外部排序", code:"8.7"},
+    ]},
+  ];
+}
 
 function SectionOutline({ nodes, selectedId, onSelect }) {
   const [expanded, setExpanded] = useState(() => new Set(nodes.filter(n=>n.children?.length>0).map(n=>n.id)));
@@ -271,7 +321,7 @@ function SectionOutline({ nodes, selectedId, onSelect }) {
 }
 
 function ChapterPracticePage({ subjectInfo, user, onBack }) {
-  const [selected, setSelected] = useState(CHAPTER_OUTLINE[0]);
+  const [selected, setSelected] = useState(getChapterOutline(subjectInfo.key)[0]);
   const [kpQuestions, setKpQuestions] = useState(null);
   const [kpLoading, setKpLoading] = useState(false);
   const [startingPractice, setStartingPractice] = useState(false);
@@ -333,7 +383,7 @@ function ChapterPracticePage({ subjectInfo, user, onBack }) {
       <div className="exam-practice-split">
         <section className="exam-practice-panel exam-practice-outline-panel" style={{maxWidth:260}}>
           <h3>章节大纲</h3>
-          <SectionOutline nodes={CHAPTER_OUTLINE} selectedId={selected?.id} onSelect={setSelected} />
+          <SectionOutline nodes={getChapterOutline(subjectInfo.key)} selectedId={selected?.id} onSelect={setSelected} />
         </section>
         <section className="exam-practice-panel exam-practice-question-panel" style={{overflow:"auto"}}>
           <div className="exam-practice-panel-title"><h3>{selTitle}</h3></div>
