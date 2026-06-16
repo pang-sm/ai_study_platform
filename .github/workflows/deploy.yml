@@ -229,8 +229,7 @@ jobs:
 
           echo "=== 章节题库导入(持久DB, 不阻塞服务) ==="
           cd backend
-          DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python scripts/import_data_structure_chapter_questions_txt.py --all --skip 0 --batch-id deploy_auto || echo "[deploy] WARN: import failed"
-          DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python scripts/remap_data_structure_chapter_question_kps.py --apply-batch-auto --strategy batch || echo "[deploy] WARN: remap failed"
+          DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python exam_resources/11408/data_structure/chapter_questions/build_data_structure_chapter_questions.py || echo "[deploy] WARN: build failed"
           cd ..
           sudo systemctl restart ai-backend
 

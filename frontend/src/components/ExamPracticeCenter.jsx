@@ -296,17 +296,32 @@ function ChapterPracticePage({ subjectInfo, user, onBack }) {
           <h3>章节大纲</h3>
           <SectionOutline nodes={CHAPTER_OUTLINE} selectedId={selected?.id} onSelect={setSelected} />
         </section>
-        <section className="exam-practice-panel exam-practice-question-panel">
+        <section className="exam-practice-panel exam-practice-question-panel" style={{overflow:"auto"}}>
           <div className="exam-practice-panel-title"><h3>{selTitle}</h3></div>
           {kpLoading ? <div className="past-paper-loading">查询中...</div> :
-           kpQuestions ? (totalQ > 0 ? (
-            <div className="chapter-analytics-panel">
-              <div className="chapter-analytics-row">
-                <span>当前范围：<strong>{selTitle}</strong></span>
-                <span>总题数：<strong>{totalQ}</strong></span>
-              </div>
+           kpQuestions ? (totalQ > 0 ? (<>
+            <div className="chapter-analytics-row" style={{marginBottom:12,padding:10,background:"#faf8ff",borderRadius:10,fontSize:"0.82rem"}}>
+              <span>范围：<strong>{selTitle}</strong></span>
+              <span style={{marginLeft:16}}>总题数：<strong>{totalQ}</strong></span>
             </div>
-           ) : (
+            <div className="exam-practice-list" style={{maxHeight:"calc(100vh - 280px)",overflowY:"auto"}}>
+              {(kpQuestions.items||[]).map((q,i) => (
+                <article key={q.id||i} className="exam-practice-question-item">
+                  <div className="past-paper-question-meta">
+                    <span className="past-paper-q-number">第 {i+1} 题</span>
+                    <span className="past-paper-q-type">{q.question_type==="choice"?"选择题":"大题"}</span>
+                    <span className="past-paper-q-year">{q.knowledge_point_name||""}</span>
+                  </div>
+                  <div className="past-paper-q-content">{q.stem}</div>
+                  {q.options && Object.keys(q.options||{}).length>0 && (
+                    <div className="ai-question-options">
+                      {Object.entries(q.options).map(([k,v])=><div key={k}><strong>{k}.</strong> {v}</div>)}
+                    </div>
+                  )}
+                </article>
+              ))}
+            </div>
+           </>) : (
             <div className="exam-practice-empty-state"><strong>当前范围暂未录入练习题</strong></div>
            )) : null}
         </section>
