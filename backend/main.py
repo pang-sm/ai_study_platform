@@ -12176,25 +12176,24 @@ def create_past_paper_attempt(subject_key: str, req: dict, db: Session = Depends
     year = int(req.get("year", 0))
     if not username or year <= 0:
         raise HTTPException(status_code=400, detail="username and year required")
-    # Fast path: read OCR cache directly to avoid docx parsing
-    ocr_cache = exam_paper_parser._ocr_cache_path(subject_key, year)
-    total = 0
-    if ocr_cache.exists():
-        try:
-            cached = json.loads(ocr_cache.read_text(encoding="utf-8"))
-            total = len(cached.get("questions", []))
-        except Exception:
-            pass
+    # Check ExamQuestionBank first — always prefer it over paper parser for speed
+    total = db.query(models.ExamQuestionBank).filter(
+        models.ExamQuestionBank.subject_key == subject_key,
+        models.ExamQuestionBank.source_type == "past_paper",
+        models.ExamQuestionBank.year == year,
+        models.ExamQuestionBank.is_active == True,
+    ).count()
     if total == 0:
-        total = len(exam_paper_parser.get_year_questions(subject_key, year).get("questions", []))
-    if total == 0:
-        # Fallback: count from ExamQuestionBank for subjects without paper parser data
-        total = db.query(models.ExamQuestionBank).filter(
-            models.ExamQuestionBank.subject_key == subject_key,
-            models.ExamQuestionBank.source_type == "past_paper",
-            models.ExamQuestionBank.year == year,
-            models.ExamQuestionBank.is_active == True,
-        ).count()
+        # Fallback: try OCR cache and paper parser for legacy subjects
+        ocr_cache = exam_paper_parser._ocr_cache_path(subject_key, year)
+        if ocr_cache.exists():
+            try:
+                cached = json.loads(ocr_cache.read_text(encoding="utf-8"))
+                total = len(cached.get("questions", []))
+            except Exception:
+                pass
+        if total == 0:
+            total = len(exam_paper_parser.get_year_questions(subject_key, year).get("questions", []))
     last = db.query(models.PastPaperAttempt).filter(
         models.PastPaperAttempt.username == username,
         models.PastPaperAttempt.subject_key == subject_key,
@@ -12220,9 +12219,7 @@ def get_past_paper_attempt(subject_key: str, attempt_id: int, db: Session = Depe
     attempt = db.query(models.PastPaperAttempt).filter(models.PastPaperAttempt.id == attempt_id).first()
     if not attempt:
         raise HTTPException(status_code=404, detail="Attempt not found")
-    questions_data = exam_paper_parser.get_year_questions(subject_key, attempt.year)
-    questions = questions_data.get("questions", [])
-    # Check if ExamQuestionBank has data for this subject+year — always prefer it
+    # Check ExamQuestionBank first — always prefer it over paper parser
     qb_count = db.query(models.ExamQuestionBank).filter(
         models.ExamQuestionBank.subject_key == subject_key,
         models.ExamQuestionBank.source_type == "past_paper",
@@ -12236,24 +12233,25 @@ def get_past_paper_attempt(subject_key: str, attempt_id: int, db: Session = Depe
             models.ExamQuestionBank.year == attempt.year,
             models.ExamQuestionBank.is_active == True,
         ).order_by(models.ExamQuestionBank.question_number).all()
-        if qb_items:
-            questions = []
-            for item in qb_items:
-                opts = {}
-                if item.options_json:
-                    try: opts = json.loads(item.options_json)
-                    except: pass
-                questions.append({
-                    "id": item.id,
-                    "number": item.question_number,
-                    "type": "选择题" if item.question_type == "choice" else "大题",
-                    "stem": item.stem or "",
-                    "content": item.stem or "",
-                    "options": opts,
-                    "standard_answer": item.standard_answer or "",
-                    "question_type": item.question_type,
-                })
-            questions_data["questions"] = questions
+        questions = []
+        for item in qb_items:
+            opts = {}
+            if item.options_json:
+                try: opts = json.loads(item.options_json)
+                except: pass
+            questions.append({
+                "id": item.id,
+                "number": item.question_number,
+                "type": "选择题" if item.question_type == "choice" else "大题",
+                "stem": item.stem or "",
+                "content": item.stem or "",
+                "options": opts,
+                "standard_answer": item.standard_answer or "",
+                "question_type": item.question_type,
+            })
+    else:
+        questions_data = exam_paper_parser.get_year_questions(subject_key, attempt.year)
+        questions = questions_data.get("questions", [])
     saved_answers = {}
     if attempt.answers_json:
         try:
