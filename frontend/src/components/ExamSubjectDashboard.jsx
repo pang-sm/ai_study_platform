@@ -73,6 +73,7 @@ export default function ExamSubjectDashboard({
   materialsContent = null,
   knowledgeContent = null,
   practiceContent = null,
+  reportContent = null,
   knowledgeContext = null,
   initialMaterialToReference = null,
   onInitialMaterialReferenced = null,
@@ -82,7 +83,7 @@ export default function ExamSubjectDashboard({
 }) {
   const panelStorageKey = `exam_subject_active_panel_${subjectKey}`;
   const normalizePanel = (panel) => (
-    panel === "ai" || panel === "home" || panel === "materials" || panel === "knowledge" || panel === "practice" ? panel : null
+    panel === "ai" || panel === "home" || panel === "materials" || panel === "knowledge" || panel === "practice" || panel === "report" ? panel : null
   );
   const getSavedPanel = () => {
     try {
@@ -139,6 +140,10 @@ export default function ExamSubjectDashboard({
       setActiveSection("practice");
       return;
     }
+    if (target === "report" && reportContent) {
+      setActiveSection("report");
+      return;
+    }
     onNavigate?.(target, { subject: subjectKey, courseId, title: config.title });
   };
 
@@ -164,7 +169,7 @@ export default function ExamSubjectDashboard({
         </button>
       </aside>
 
-      <main className={`exam-subject-main${activeSection === "ai" ? " exam-subject-main--chat" : ""}${activeSection === "materials" ? " exam-subject-main--materials" : ""}${activeSection === "knowledge" ? " exam-subject-main--knowledge" : ""}${activeSection === "practice" ? " exam-subject-main--practice" : ""}`}>
+      <main className={`exam-subject-main${activeSection === "ai" ? " exam-subject-main--chat" : ""}${activeSection === "materials" ? " exam-subject-main--materials" : ""}${activeSection === "knowledge" ? " exam-subject-main--knowledge" : ""}${activeSection === "practice" ? " exam-subject-main--practice" : ""}${activeSection === "report" ? " exam-subject-main--report" : ""}`}>
         {activeSection === "ai" ? (
           <ExamChat
             user={user}
@@ -183,6 +188,8 @@ export default function ExamSubjectDashboard({
           knowledgeContent
         ) : activeSection === "practice" && practiceContent ? (
           practiceContent
+        ) : activeSection === "report" && reportContent ? (
+          reportContent
         ) : (
           <>
             <header className="exam-subject-header">

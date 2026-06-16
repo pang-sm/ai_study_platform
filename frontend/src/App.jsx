@@ -3200,7 +3200,7 @@ function App() {
     }
 
     if (target === "report") {
-      setPage("learningReportCenter", navContext);
+      setPage("examSubjectDashboard", { ...navContext, forcePanel: "report" });
       return;
     }
 
@@ -3240,6 +3240,12 @@ function App() {
         searchNavigate={searchNavigate}
         onClearSearchNavigate={() => setSearchNavigate(null)}
       />
+    </Suspense>
+  );
+
+  const learningReportPage = (
+    <Suspense fallback={<div className="empty-state">学习报告加载中...</div>}>
+      <LearningReportCenter user={user} />
     </Suspense>
   );
 
@@ -3427,6 +3433,7 @@ function App() {
         panelIntent={examSubjectPanelIntent}
         materialsContent={courseMaterialsPage}
         practiceContent={coursePracticePage}
+        reportContent={learningReportPage}
         knowledgeContext={examKnowledgeContext}
         initialMaterialToReference={examInitialMaterialReference}
         onInitialMaterialReferenced={() => setExamInitialMaterialReference(null)}
@@ -3613,12 +3620,21 @@ function App() {
   }
 
   if (page === "learningReportCenter") {
-    return wrapPage(
-      <div className="app-shell">
-        <Suspense fallback={<div className="empty-state">学习报告加载中...</div>}>
-          <LearningReportCenter user={user} />
-        </Suspense>
-      </div>
+    return (
+      <ExamSubjectDashboard
+        user={user}
+        subjectKey={examSubjectKey}
+        panelIntent={{ panel: "report", nonce: "learning-report-direct" }}
+        materialsContent={courseMaterialsPage}
+        practiceContent={coursePracticePage}
+        reportContent={learningReportPage}
+        knowledgeContext={examKnowledgeContext}
+        initialMaterialToReference={examInitialMaterialReference}
+        onInitialMaterialReferenced={() => setExamInitialMaterialReference(null)}
+        onNavigate={openExamSubjectFeature}
+        onBackHome={() => setPage("examHome")}
+        onProfile={() => setPage("examProfile")}
+      />
     );
   }
 
