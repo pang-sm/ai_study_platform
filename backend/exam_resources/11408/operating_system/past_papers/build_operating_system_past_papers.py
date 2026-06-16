@@ -119,7 +119,10 @@ def finalize_question(q, questions):
         'answer_status': q['answer_status'],
         'explanation': '',
         'source_ref': f"{q['year']}-Q{q['qnum']:02d}",
-        'text_quality': 'ready' if stem and q['answer'] and (qtype != 'choice' or len(opts) >= 4) else 'need_review',
+        'text_quality': 'ready' if (
+            stem and q['answer'] and q.get('answer_status') == 'confirmed' and
+            (qtype != 'choice' or len(opts) >= 4)
+        ) else 'need_review',
         'is_active': True,
     })
 
@@ -158,17 +161,21 @@ def main():
         print("DRY-RUN: skipping DB import.")
         return
 
-    # Import to DB
+    # Import to DB — delete old records first to avoid duplicates
     db = SessionLocal()
-    deactivated = db.query(models.ExamQuestionBank).filter(
+    deleted = db.query(models.ExamQuestionBank).filter(
         models.ExamQuestionBank.subject_key == SUBJECT_KEY,
         models.ExamQuestionBank.source_type == "past_paper",
-    ).update({'is_active': False})
+    ).delete()
     db.commit()
-    print(f"Deactivated {deactivated} old OS past papers")
+    print(f"Deleted {deleted} old OS past papers")
 
     ins = 0
+    ready_count = 0
+    review_count = 0
     for q in questions:
+        quality = q.get('text_quality', 'unchecked')
+        is_ready = (quality == 'ready')
         item = models.ExamQuestionBank(
             subject_key=SUBJECT_KEY, subject_name=SUBJECT_NAME,
             source_type="past_paper", visibility="public",
@@ -181,9 +188,14 @@ def main():
             analysis="",
             difficulty="基础",
             source_ref=f"past_paper:{q['source_ref']}",
-            is_active=True,
+            quality_status=quality,
+            is_active=is_ready,
         )
         db.add(item); ins += 1
+        if is_ready:
+            ready_count += 1
+        else:
+            review_count += 1
     db.commit()
 
     act = db.query(models.ExamQuestionBank).filter(
@@ -191,8 +203,13 @@ def main():
         models.ExamQuestionBank.source_type == "past_paper",
         models.ExamQuestionBank.is_active == True,
     ).count()
+    nrv = db.query(models.ExamQuestionBank).filter(
+        models.ExamQuestionBank.subject_key == SUBJECT_KEY,
+        models.ExamQuestionBank.source_type == "past_paper",
+        models.ExamQuestionBank.quality_status == "need_review",
+    ).count()
     db.close()
-    print(f"DB: {ins} inserted, {act} active")
+    print(f"DB: {ins} inserted, {act} active (ready={ready_count}, need_review={review_count}, DB need_review={nrv})")
 
 if __name__ == "__main__":
     main()

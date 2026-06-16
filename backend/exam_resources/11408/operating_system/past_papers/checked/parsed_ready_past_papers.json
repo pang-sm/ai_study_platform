@@ -220,7 +220,7 @@
     "answer_status": "pending",
     "explanation": "",
     "source_ref": "2022-Q45",
-    "text_quality": "ready",
+    "text_quality": "need_review",
     "is_active": true
   },
   {
@@ -238,7 +238,7 @@
     "answer_status": "pending",
     "explanation": "",
     "source_ref": "2022-Q46",
-    "text_quality": "ready",
+    "text_quality": "need_review",
     "is_active": true
   },
   {
@@ -465,7 +465,7 @@
     "answer_status": "pending",
     "explanation": "",
     "source_ref": "2023-Q45",
-    "text_quality": "ready",
+    "text_quality": "need_review",
     "is_active": true
   },
   {
@@ -483,7 +483,7 @@
     "answer_status": "pending",
     "explanation": "",
     "source_ref": "2023-Q46",
-    "text_quality": "ready",
+    "text_quality": "need_review",
     "is_active": true
   },
   {
@@ -704,7 +704,7 @@
     "answer_status": "pending",
     "explanation": "",
     "source_ref": "2024-Q45",
-    "text_quality": "ready",
+    "text_quality": "need_review",
     "is_active": true
   },
   {
@@ -722,7 +722,7 @@
     "answer_status": "pending",
     "explanation": "",
     "source_ref": "2024-Q46",
-    "text_quality": "ready",
+    "text_quality": "need_review",
     "is_active": true
   },
   {
