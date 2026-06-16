@@ -12278,6 +12278,15 @@ def create_past_paper_attempt(subject_key: str, req: dict, db: Session = Depends
         models.ExamQuestionBank.is_active == True,
     ).count()
     if total == 0:
+        # Check if there are need_review questions (imported but disabled)
+        any_inactive = db.query(models.ExamQuestionBank).filter(
+            models.ExamQuestionBank.subject_key == subject_key,
+            models.ExamQuestionBank.source_type == "past_paper",
+            models.ExamQuestionBank.year == year,
+            models.ExamQuestionBank.is_active == False,
+        ).count()
+        if any_inactive > 0:
+            raise HTTPException(status_code=503, detail="该年份真题正在校对中，暂时不可用")
         # Fallback: try OCR cache and paper parser for legacy subjects
         ocr_cache = exam_paper_parser._ocr_cache_path(subject_key, year)
         if ocr_cache.exists():
