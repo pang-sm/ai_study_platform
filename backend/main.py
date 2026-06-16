@@ -12213,6 +12213,33 @@ def get_past_paper_attempt(subject_key: str, attempt_id: int, db: Session = Depe
     if not attempt:
         raise HTTPException(status_code=404, detail="Attempt not found")
     questions_data = exam_paper_parser.get_year_questions(subject_key, attempt.year)
+    questions = questions_data.get("questions", [])
+    # Fallback: if paper parser has no data, load from ExamQuestionBank
+    if not questions:
+        qb_items = db.query(models.ExamQuestionBank).filter(
+            models.ExamQuestionBank.subject_key == subject_key,
+            models.ExamQuestionBank.source_type == "past_paper",
+            models.ExamQuestionBank.year == attempt.year,
+            models.ExamQuestionBank.is_active == True,
+        ).order_by(models.ExamQuestionBank.question_number).all()
+        if qb_items:
+            questions = []
+            for item in qb_items:
+                opts = {}
+                if item.options_json:
+                    try: opts = json.loads(item.options_json)
+                    except: pass
+                questions.append({
+                    "id": item.id,
+                    "number": item.question_number,
+                    "type": "选择题" if item.question_type == "choice" else "大题",
+                    "stem": item.stem or "",
+                    "content": item.stem or "",
+                    "options": opts,
+                    "standard_answer": item.standard_answer or "",
+                    "question_type": item.question_type,
+                })
+            questions_data["questions"] = questions
     saved_answers = {}
     if attempt.answers_json:
         try:
@@ -12226,7 +12253,7 @@ def get_past_paper_attempt(subject_key: str, attempt_id: int, db: Session = Depe
             "status": attempt.status, "total_questions": attempt.total_questions,
             "started_at": serialize_datetime(attempt.started_at),
         },
-        "questions": questions_data.get("questions", []),
+        "questions": questions,
         "saved_answers": saved_answers,
     }
 

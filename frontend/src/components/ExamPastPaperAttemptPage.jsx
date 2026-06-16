@@ -14,6 +14,10 @@ async function safeFetch(url, options = {}) {
   } finally { clearTimeout(timeout); }
 }
 
+function isAbortError(e) {
+  return e?.name === 'AbortError' || (e?.message || '').includes('aborted') || (e?.message || '').includes('signal is aborted');
+}
+
 const EXAM_SUBJECTS = {
   data_structure: "数据结构",
   computer_organization: "计算机组成原理",
@@ -52,7 +56,7 @@ export default function ExamPastPaperAttemptPage({ subjectKey, attemptId, user, 
         if (d.saved_answers) setAnswers(d.saved_answers);
         if (d.attempt?.status === "submitted") { setSubmitted(true); }
       })
-      .catch(e => setError(e.message || "加载失败"))
+      .catch(e => { if (!isAbortError(e)) setError(e.message || "加载失败"); })
       .finally(() => setLoading(false));
   }, [subjectKey, attemptId]);
 
@@ -149,7 +153,7 @@ export default function ExamPastPaperAttemptPage({ subjectKey, attemptId, user, 
       );
       setResult(data);
       setSubmitted(true);
-    } catch (e) { setError(e.message); }
+    } catch (e) { if (!isAbortError(e)) setError(e.message); }
     finally { setSubmitting(false); }
   };
 
