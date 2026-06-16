@@ -1,0 +1,103 @@
+{
+  "status": "READY",
+  "total": 65,
+  "choice": 55,
+  "big": 10,
+  "years": [
+    2022,
+    2023,
+    2024,
+    2025,
+    2026
+  ],
+  "empty_stem": [],
+  "empty_answer": [],
+  "bad_options": [],
+  "bad_answer_format": [],
+  "forbidden_visible": [],
+  "cross_subject": [],
+  "errors": [],
+  "warnings": [],
+  "spotlights": [
+    {
+      "ref": "2022-Q12",
+      "type": "choice",
+      "stem": "某计算机主频为 1GHz，程序 P 运行过程中，共执行了 10000 条指令，其中 80% 的指令执行平均需要 1 个时钟周期，20% 的指令执行平均需 10 个时钟周期。程序 P 的平均 CPI 和 CPU 执行时间分别是（ ）。",
+      "opts_keys": [
+        "A",
+        "B",
+        "C",
+        "D"
+      ],
+      "ans": "A",
+      "has_forbidden": false,
+      "subject": "computer_organization",
+      "is_active": true
+    },
+    {
+      "ref": "2023-Q43",
+      "type": "big",
+      "stem": "已知计算机 M 长为 32 位，按字节编址，采用请求调页策略的虚拟存储管理方式，虚拟地址 32 位，页面大小 4KB；数据 Cache 采用 4 路组相联映射方式，数据区大小 8KB，主存块大小 32B。现有 C 语言程序段：int a[2",
+      "opts_keys": [],
+      "ans": "（1）数组 a 的大小为 24 * 64 * 4B = 6144B。页面大小为 4KB = 4096B，数组 a 的起始地址 0042 2000H 的页内偏移为 0，因此数组 a 分布在 2 个页面中。由于执行程序段之前数组 a 不在主存，",
+      "has_forbidden": false,
+      "subject": "computer_organization",
+      "is_active": true
+    },
+    {
+      "ref": "2024-Q44",
+      "type": "big",
+      "stem": "对于 2024 年第 43 题中的计算机 M，C 语言程序 P 包含语句“sum += a[j];”，在 M 中对应的指令序列 S 如下：slli r4,r2,2；add r4,r3,r4；lw r5,0(r4)；add r1,r1,r5。",
+      "opts_keys": [],
+      "ans": "（1）由指令序列可知：slli r4, r2, 2 用 r2 左移 2 位计算 i*4，因此变量 i 存放在 r2 中，编号为 02H。add r4, r3, r4 用 r3 加偏移量得到数组元素地址，因此数组 a 的首地址存放在 r3 中",
+      "has_forbidden": false,
+      "subject": "computer_organization",
+      "is_active": true
+    },
+    {
+      "ref": "2025-Q17",
+      "type": "choice",
+      "stem": "下列关于 RISC 的叙述中，错误的是（ ）。",
+      "opts_keys": [
+        "A",
+        "B",
+        "C",
+        "D"
+      ],
+      "ans": "C",
+      "has_forbidden": false,
+      "subject": "computer_organization",
+      "is_active": true
+    },
+    {
+      "ref": "2025-Q43",
+      "type": "big",
+      "stem": "现有 C 语言程序 P 的部分代码如题图所示。假设运行程序 P 的计算机 M 字长为 32 位，按字节编址，数据 Cache 的数据区大小为 32KB，采用 8 路组相联映射方式，主存块大小为 64B，Cache 的命中时间为 2 个时钟周",
+      "opts_keys": [],
+      "ans": "Cache 组号字段占 6 位；块内地址字段占 6 位。虚拟地址中 VA11～VA6 可作为 Cache 索引。d[100] 的虚拟地址为 0180 01B0H。Cache 组号是 000110B=6。d[0] 在其所在主存块内的偏移量为 ",
+      "has_forbidden": false,
+      "subject": "computer_organization",
+      "is_active": true
+    },
+    {
+      "ref": "2026-Q43",
+      "type": "big",
+      "stem": "某 16 位计算机 C 按字节编址，通用寄存器 R0～R15 的编号为 0～15，存储器地址为 16 位，采用定长指令字，指令格式有 R、I 和 M 型。R 型指令格式：4位 0000 / 4位 rt / 4位 rs/num / 4位 op",
+      "opts_keys": [],
+      "ans": "（1）主存单元宽度 8 位（按字节编址）。通用寄存器宽度 16 位（与机器字长一致）。（2）op1 和 op2 可以相同（不同类型指令格式区分）。op2 和 op3 不可以相同（都在高 4 位，无法区分 I/M 型）。（3）指令 0000 ",
+      "has_forbidden": false,
+      "subject": "computer_organization",
+      "is_active": true
+    },
+    {
+      "ref": "2026-Q44",
+      "type": "big",
+      "stem": "假定 43 题中计算机 C 的部分数据通路如题 44 图所示（图示包含 GPRS 通用寄存器组、ALU、PC、MAR、MDR、CU、内存、多路选择器、扩展器等，并标注控制信号 RegWr、ZR.rt、ZR.rs、RegDst、ALUAsrc",
+      "opts_keys": [],
+      "ans": "（1）①②多路选择器。（2）Extop 至少需要 1 位。因为通过 1 位即可实现符号拓展和零拓展。（3）MARSrc=0，ALUSrc=0，ALUSelect=1，RegWr=0。（4）ALUSelect=2，RegSrc=1，RegDe",
+      "has_forbidden": false,
+      "subject": "computer_organization",
+      "is_active": true
+    }
+  ]
+}
