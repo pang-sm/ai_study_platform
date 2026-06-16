@@ -1,7 +1,11 @@
 {
   "total": 1010,
-  "choice": 999,
-  "big": 11,
+  "choice": 808,
+  "big": 202,
+  "rejected": 0,
+  "choice_no_opts": 0,
+  "choice_missing_abcd": 0,
+  "no_kp": 0,
   "per_chapter": {
     "1": 55,
     "2": 140,

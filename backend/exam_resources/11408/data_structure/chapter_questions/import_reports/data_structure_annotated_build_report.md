@@ -1,5 +1,8 @@
 # build report
-- total: 1010 (choice=999, big=11)
+- total: 1010 (choice=808, big=202, rejected=0)
+- choice_no_opts: 0
+- choice_missing_abcd: 0
+- no_kp: 0
 - Ch1: 55
 - Ch2: 140
 - Ch3: 135

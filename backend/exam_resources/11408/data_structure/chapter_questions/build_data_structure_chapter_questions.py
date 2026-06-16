@@ -34,12 +34,16 @@ def norm(raw):
     return(ch,sec,SEC_TITLES.get(sec,raw),CH_TITLES.get(ch,f"第{ch}章"))
 
 def parse(fp):
-    qs=[]; lines=Path(fp).read_text(encoding="utf-8").split('\n')
-    i=0; n=len(lines); kp=""
+    qs=[]; rejected=[]
+    lines=Path(fp).read_text(encoding="utf-8").split('\n')
+    i=0; n=len(lines); kp=""; section="choice"
     while i<n:
         l=lines[i].strip()
         km=re.match(r'【知识点：(.+?)】',l)
         if km: kp=km.group(1).strip(); i+=1; continue
+        # Track section header — only lines that START with the section marker
+        if re.match(r'^[一二三四五六七八九十]、\s*单项选择题',l): section="choice"; i+=1; continue
+        if re.match(r'^[一二三四五六七八九十]、\s*(?:综合应用题|综合应用|大题|简答题|算法题)',l): section="big"; i+=1; continue
         cm=re.match(r'^(\d{2,3})\.\s(.+)',l)
         if cm:
             s=cm.group(2).strip(); opts={}; ans=""; j=i+1
@@ -51,7 +55,19 @@ def parse(fp):
                 elif re.match(r'^\d{2,3}\.\s',nl) or re.match(r'^【知识点：',nl): break
                 j+=1
             ch,sec,sn,cn=norm(kp)
-            qs.append({"ch":ch,"kp":sec,"kp_name":sn,"ch_title":cn,"raw_kp":kp,"type":"choice","stem":s,"opts":opts,"ans":ans}); i=j; continue
+            # Determine type: all A/B/C/D → choice, partial → reject, none → big
+            has_all_abcd = all(k in opts for k in ['A','B','C','D'])
+            if has_all_abcd:
+                qtype = "choice"
+            elif len(opts) > 0:
+                # Partial options — reject, don't put in ready
+                rejected.append({"ch":ch,"kp":sec,"kp_name":sn,"ch_title":cn,"raw_kp":kp,
+                    "type":"choice_partial","stem":s,"opts":opts,"ans":ans,
+                    "reason":f"partial options: {sorted(opts.keys())}"})
+                i=j; continue
+            else:
+                qtype = "big"
+            qs.append({"ch":ch,"kp":sec,"kp_name":sn,"ch_title":cn,"raw_kp":kp,"type":qtype,"stem":s,"opts":opts,"ans":ans}); i=j; continue
         bm=re.match(r'^综合(\d{1,2})[.．]\s*(.+)',l)
         if bm:
             s=bm.group(2).strip(); ans=""; j=i+1
@@ -63,22 +79,34 @@ def parse(fp):
             ch,sec,sn,cn=norm(kp)
             qs.append({"ch":ch,"kp":sec,"kp_name":sn,"ch_title":cn,"raw_kp":kp,"type":"big","stem":s,"opts":{},"ans":ans}); i=j; continue
         i+=1
-    return qs
+    return qs, rejected
 
 def main():
-    qs=parse(TXT); t=len(qs); c=sum(1 for q in qs if q["type"]=="choice"); b=t-c
-    print(f"Parsed: {t} (choice={c}, big={b})")
+    dry_run = "--dry-run" in sys.argv
+    qs, rejected = parse(TXT)
+    t=len(qs); c=sum(1 for q in qs if q["type"]=="choice"); b=t-c; r=len(rejected)
+    print(f"Parsed: {t} (choice={c}, big={b}, rejected={r})")
+    # Validation
+    choice_no_opts = [q for q in qs if q["type"]=="choice" and len(q.get("opts",{}))==0]
+    choice_missing = [q for q in qs if q["type"]=="choice" and not all(k in q.get("opts",{}) for k in ['A','B','C','D'])]
+    no_kp = [q for q in qs if not q.get("kp")]
+    if choice_no_opts: print(f"WARNING: {len(choice_no_opts)} choice with empty opts!")
+    if choice_missing: print(f"WARNING: {len(choice_missing)} choice missing A/B/C/D!")
+    if no_kp: print(f"WARNING: {len(no_kp)} no knowledge point!")
     chc=defaultdict(int); sec=defaultdict(int)
     for q in qs: chc[q["ch"]]+=1; sec[q["kp"]]+=1
     for ch in sorted(chc): print(f"  Ch{ch}: {chc[ch]}")
     for k in sorted(sec): print(f"  {k}: {sec[k]}")
     CHKD.mkdir(parents=True,exist_ok=True); RPT.mkdir(parents=True,exist_ok=True)
     json.dump(qs,(CHKD/"parsed_ready.json").open("w",encoding="utf-8"),ensure_ascii=False,indent=2)
-    json.dump([],(CHKD/"parsed_rejected.json").open("w",encoding="utf-8"),ensure_ascii=False)
-    rp={"total":t,"choice":c,"big":b,"per_chapter":{str(k):v for k,v in sorted(chc.items())},"per_section":{k:v for k,v in sorted(sec.items())}}
+    json.dump(rejected,(CHKD/"parsed_rejected.json").open("w",encoding="utf-8"),ensure_ascii=False,indent=2)
+    rp={"total":t,"choice":c,"big":b,"rejected":r,"choice_no_opts":len(choice_no_opts),"choice_missing_abcd":len(choice_missing),"no_kp":len(no_kp),"per_chapter":{str(k):v for k,v in sorted(chc.items())},"per_section":{k:v for k,v in sorted(sec.items())}}
     json.dump(rp,(RPT/"data_structure_annotated_build_report.json").open("w",encoding="utf-8"),ensure_ascii=False,indent=2)
-    (RPT/"data_structure_annotated_build_report.md").write_text(f"# build report\n- total: {t} (choice={c}, big={b})\n"+"\n".join(f"- Ch{ch}: {chc[ch]}" for ch in sorted(chc)),encoding="utf-8")
+    (RPT/"data_structure_annotated_build_report.md").write_text(f"# build report\n- total: {t} (choice={c}, big={b}, rejected={r})\n- choice_no_opts: {len(choice_no_opts)}\n- choice_missing_abcd: {len(choice_missing)}\n- no_kp: {len(no_kp)}\n"+"\n".join(f"- Ch{ch}: {chc[ch]}" for ch in sorted(chc)),encoding="utf-8")
     print("Reports saved")
+    if dry_run:
+        print("DRY-RUN: skipping DB import.")
+        return
     # Import
     db=SessionLocal()
     db.query(models.ExamQuestionBank).filter(models.ExamQuestionBank.subject_key=="data_structure",models.ExamQuestionBank.source_type=="chapter").update({"is_active":False})
