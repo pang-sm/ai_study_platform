@@ -89,6 +89,15 @@ export default function ExamChapterPracticeSession({ subjectKey, attemptId, user
             <div className="practice-stat-card--dashboard"><div className="practice-stat-card-icon practice-stat-card-icon--accuracy">★</div><div className="practice-stat-card-body"><div className="practice-stat-card-value">{result.accuracy}%</div><div className="practice-stat-card-label">正确率</div></div></div>
             {result.big_count>0&&<div className="practice-stat-card--dashboard"><div className="practice-stat-card-icon">📝</div><div className="practice-stat-card-body"><div className="practice-stat-card-value">{result.big_count}</div><div className="practice-stat-card-label">大题(自评)</div></div></div>}
           </div>
+          {result.mistake_saved_count > 0 ? (
+            <div style={{marginBottom:12,padding:"8px 14px",background:"#fef3c7",borderRadius:8,fontSize:"0.85rem",color:"#92400e"}}>
+              📋 已将 <strong>{result.mistake_saved_count}</strong> 道错题收入错题本
+            </div>
+          ) : (
+            <div style={{marginBottom:12,padding:"8px 14px",background:"#f0fdf4",borderRadius:8,fontSize:"0.85rem",color:"#166534"}}>
+              ✅ 本次没有新增错题
+            </div>
+          )}
           {closeHint&&<div className="km-inline-message" style={{marginBottom:8}}>{closeHint}</div>}
           <div className="past-paper-result-actions" style={{marginBottom:16}}>
             <button className="ghost-button compact" onClick={onBack}>返回章节练习</button>

@@ -337,11 +337,32 @@ function ChapterPracticePage({ subjectInfo, user, onBack }) {
                 <span>范围：<strong>{selTitle}</strong></span>
                 <span style={{marginLeft:16}}>总题数：<strong>{totalQ}</strong></span>
               </div>
-              {selected?.code && (
-                <button className="primary-button compact" disabled={startingPractice} onClick={startChapterPractice} style={{fontSize:"0.85rem"}}>
-                  {startingPractice ? "创建中..." : "开始练习"}
+              {selected?.code ? (
+                <button
+                  disabled={startingPractice || totalQ === 0}
+                  onClick={startChapterPractice}
+                  style={{
+                    fontSize: "0.82rem",
+                    fontWeight: 500,
+                    padding: "6px 20px",
+                    height: 34,
+                    borderRadius: 999,
+                    border: "1.5px solid #7c3aed",
+                    background: startingPractice ? "#f3f4f6" : "#f5f3ff",
+                    color: startingPractice ? "#9ca3af" : "#7c3aed",
+                    cursor: (startingPractice || totalQ === 0) ? "not-allowed" : "pointer",
+                    transition: "all 0.15s",
+                    whiteSpace: "nowrap",
+                    flexShrink: 0,
+                  }}
+                  onMouseEnter={e => { if (!startingPractice && totalQ > 0) { e.target.style.background = "#7c3aed"; e.target.style.color = "#fff"; e.target.style.boxShadow = "0 2px 8px rgba(124,58,237,0.3)"; }}}
+                  onMouseLeave={e => { e.target.style.background = "#f5f3ff"; e.target.style.color = "#7c3aed"; e.target.style.boxShadow = "none"; }}
+                >
+                  ▶ {startingPractice ? "创建中..." : "开始练习"}
                 </button>
-              )}
+              ) : totalQ > 0 ? (
+                <span style={{fontSize:"0.78rem",color:"#9ca3af",whiteSpace:"nowrap"}}>选择二级知识点开始练习</span>
+              ) : null}
             </div>
             <div className="exam-practice-list" style={{maxHeight:"calc(100vh - 280px)",overflowY:"auto"}}>
               {(kpQuestions.items||[]).map((q,i) => (
