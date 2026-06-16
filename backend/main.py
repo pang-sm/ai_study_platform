@@ -12222,13 +12222,14 @@ def get_past_paper_attempt(subject_key: str, attempt_id: int, db: Session = Depe
         raise HTTPException(status_code=404, detail="Attempt not found")
     questions_data = exam_paper_parser.get_year_questions(subject_key, attempt.year)
     questions = questions_data.get("questions", [])
-    # Fallback: if paper parser has no data or only stubs, load from ExamQuestionBank
-    has_substance = any(
-        (q.get("stem") and len(q.get("stem", "")) > 50) or
-        (q.get("content") and len(q.get("content", "")) > 50)
-        for q in questions
-    ) if questions else False
-    if not has_substance:
+    # Check if ExamQuestionBank has data for this subject+year — always prefer it
+    qb_count = db.query(models.ExamQuestionBank).filter(
+        models.ExamQuestionBank.subject_key == subject_key,
+        models.ExamQuestionBank.source_type == "past_paper",
+        models.ExamQuestionBank.year == attempt.year,
+        models.ExamQuestionBank.is_active == True,
+    ).count()
+    if qb_count > 0:
         qb_items = db.query(models.ExamQuestionBank).filter(
             models.ExamQuestionBank.subject_key == subject_key,
             models.ExamQuestionBank.source_type == "past_paper",
@@ -12294,12 +12295,14 @@ def submit_attempt(subject_key: str, attempt_id: int, req: dict, db: Session = D
     if not answers_list:
         raise HTTPException(status_code=400, detail="No answers provided")
     result = exam_paper_parser.grade_submission(subject_key, attempt.year, answers_list)
-    # Fallback: if paper parser has no substance, grade from ExamQuestionBank
-    has_substance = any(
-        r.get("standard_answer") and len(r.get("standard_answer", "")) > 5
-        for r in result.get("results", [])
-    ) if result.get("results") else False
-    if not has_substance:
+    # If ExamQuestionBank has data for this subject+year, use it for grading
+    qb_count = db.query(models.ExamQuestionBank).filter(
+        models.ExamQuestionBank.subject_key == subject_key,
+        models.ExamQuestionBank.source_type == "past_paper",
+        models.ExamQuestionBank.year == attempt.year,
+        models.ExamQuestionBank.is_active == True,
+    ).count()
+    if qb_count > 0:
         qb_items = db.query(models.ExamQuestionBank).filter(
             models.ExamQuestionBank.subject_key == subject_key,
             models.ExamQuestionBank.source_type == "past_paper",
