@@ -193,6 +193,7 @@ function normalizeKnowledgePointId(rawId) {
   return String(rawId).replace(/^(_leaf:|leaf:|_node:|node:|_kp:|kp:)/i, "").trim();
 }
 
+// Dynamic chapter outline by subject — DO NOT hardcode data_structure as default
 function getChapterOutline(subjectKey) {
   if (subjectKey === "computer_organization") {
     return [
