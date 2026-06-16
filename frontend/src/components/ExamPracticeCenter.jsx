@@ -292,7 +292,7 @@ function getChapterOutline(subjectKey) {
       {id:"8.7", title:"8.7 外部排序", code:"8.7"},
     ]},
   ];
-  // Operating System outline
+  // OS chapter outline (operating_system)
   if (subjectKey === "operating_system") {
     return [
       { id:"0", title:"总览", code:"", children:[] },
