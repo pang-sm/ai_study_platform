@@ -2,8 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import "./KnowledgeLearningPage.css";
 
 const API_BASE = "/api";
-const COURSE_ID = "data_structure_11408";
-const COURSE_NAME = "11408 数据结构";
+
+function getCourseId(subjectKey) {
+  if (!subjectKey || subjectKey === "data_structure") return "data_structure_11408";
+  return `${subjectKey}_11408`;
+}
+function getCourseName(subjectKey) {
+  const names = { data_structure: "11408 数据结构", computer_organization: "11408 计算机组成原理" };
+  return names[subjectKey] || `11408 ${subjectKey}`;
+}
 
 const STATUS_CONFIG = {
   not_started: { label: "未学习", shortLabel: "未学习", color: "#64748b", bg: "#f1f5f9" },
@@ -261,7 +268,9 @@ function KnowledgeTreeNode({ node, depth = 1, selectedId, expandedIds, keyword, 
   );
 }
 
-export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
+export default function KnowledgeLearningPage({ user, onNavigateToAI, subjectKey }) {
+  const courseId = getCourseId(subjectKey);
+  const courseName = getCourseName(subjectKey);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -281,7 +290,7 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
     setLoading(true);
     setError("");
     try {
-      const params = new URLSearchParams({ course_id: COURSE_ID });
+      const params = new URLSearchParams({ course_id: courseId });
       if (user?.username) params.set("username", user.username);
       const res = await fetch(`${API_BASE}/knowledge-map?${params.toString()}`);
       const payload = await res.json();
@@ -316,7 +325,7 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
     const loadSettings = async () => {
       if (!user?.username) return;
       try {
-        const params = new URLSearchParams({ course_id: COURSE_ID, username: user.username });
+        const params = new URLSearchParams({ course_id: courseId, username: user.username });
         const res = await fetch(`${API_BASE}/knowledge-map/review-settings?${params.toString()}`);
         const payload = await res.json().catch(() => ({}));
         if (res.ok) {
@@ -423,7 +432,7 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           username: user.username,
-          course_id: COURSE_ID,
+          course_id: courseId,
           knowledge_point_code: detailNode.code,
           knowledge_point_title: nodeLabel(detailNode),
           status: nextStatus,
@@ -464,7 +473,7 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           username: user.username,
-          course_id: COURSE_ID,
+          course_id: courseId,
           review_interval_days: value,
         }),
       });
@@ -484,10 +493,10 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
     if (!detailNode) return;
     onNavigateToAI?.({
       type: "knowledge_point",
-      course_id: COURSE_ID,
-      courseId: COURSE_NAME,
-      course_name: COURSE_NAME,
-      courseName: COURSE_NAME,
+      course_id: courseId,
+      courseId: courseName,
+      course_name: courseName,
+      courseName: courseName,
       exam: "11408",
       subject: "数据结构",
       subject_key: "data_structure",
@@ -527,7 +536,7 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI }) {
       <section className="km-hero-card">
         <div>
           <h1>知识脉络 · 数据结构</h1>
-          <p>当前课程：{data?.course_name || COURSE_NAME}</p>
+          <p>当前课程：{data?.course_name || courseName}</p>
         </div>
       </section>
 

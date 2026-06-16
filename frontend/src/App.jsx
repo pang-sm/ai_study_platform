@@ -3291,6 +3291,7 @@ function App() {
   const knowledgeLearningPage = (
     <KnowledgeLearningPage
       user={user}
+      subjectKey={activeExamKnowledgeSubjectKey}
       course={subject}
       courseOptions={COURSE_OPTIONS}
       getSubjectLabel={getSubjectLabel}
@@ -3300,9 +3301,9 @@ function App() {
         setSelectedLibraryMaterials([]);
         setPendingAIContext(ctx);
         setPage("examSubjectDashboard", {
-          subject: "data_structure",
-          examCourseId: "11408 数据结构",
-          courseId: "11408 数据结构",
+          subject: activeExamKnowledgeSubjectKey,
+          examCourseId: `11408 ${getExamSubjectName(activeExamKnowledgeSubjectKey)}`,
+          courseId: `11408 ${getExamSubjectName(activeExamKnowledgeSubjectKey)}`,
           forcePanel: "ai",
         });
       }}
@@ -4303,6 +4304,7 @@ function App() {
         ) : page === "knowledgeLearning" ? (
           <KnowledgeLearningPage
             user={user}
+            subjectKey={activeExamKnowledgeSubjectKey}
             course={subject}
             courseOptions={COURSE_OPTIONS}
             getSubjectLabel={getSubjectLabel}

@@ -1,0 +1,1613 @@
+{
+  "course_id": "computer_organization_11408",
+  "course_name": "11408 计算机组成原理",
+  "source": "exam_resources/11408/computer_organization/knowledge_map/raw/计算机组成原理知识脉络整理.docx",
+  "chapters": [
+    {
+      "code": "1",
+      "title": "第1章 计算机系统概述",
+      "children": [
+        {
+          "code": "1.1",
+          "title": "1.1 计算机发展历程",
+          "children": [
+            {
+              "code": "1.1.1",
+              "title": "1.1.1 计算机硬件的发展",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．计算机的四代变化",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．计算机元件的更新换代",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "1.1.2",
+              "title": "1.1.2 计算机软件的发展",
+              "children": []
+            }
+          ]
+        },
+        {
+          "code": "1.2",
+          "title": "1.2 计算机系统层次结构",
+          "children": [
+            {
+              "code": "1.2.1",
+              "title": "1.2.1 计算机系统的组成",
+              "children": []
+            },
+            {
+              "code": "1.2.2",
+              "title": "1.2.2 计算机硬件",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．冯·诺依曼机的基本思想",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．计算机的功能部件",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "1.2.3",
+              "title": "1.2.3 计算机软件",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．系统软件和应用软件",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．软件和硬件的逻辑功能等价性",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "1.2.4",
+              "title": "1.2.4 计算机系统的层次结构",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．算法和编程",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．操作系统",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "3．指令集体系结构",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "4．微体系结构",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "1.2.5",
+              "title": "1.2.5 计算机系统的不同用户",
+              "children": []
+            },
+            {
+              "code": "1.2.6",
+              "title": "1.2.6 计算机系统的工作原理",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．“存储程序”工作方式",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．从源程序到可执行文件",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "3．指令执行过程的简要描述",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "1.3",
+          "title": "1.3 计算机的性能指标",
+          "children": [
+            {
+              "code": "1.3.1",
+              "title": "1.3.1 计算机的主要性能指标",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．运算速度",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．基准程序",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "2",
+      "title": "第2章 数据的表示和运算",
+      "children": [
+        {
+          "code": "2.1",
+          "title": "2.1 数制与编码",
+          "children": [
+            {
+              "code": "2.1.1",
+              "title": "2.1.1 进位计数制及其相互转换",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．进位计数制",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．不同进制数之间的相互转换",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "2.1.2",
+              "title": "2.1.2 定点数的编码表示",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．真值和机器数",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．机器数的定点表示",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "3．原码、补码、反码、移码",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "2.1.3",
+              "title": "2.1.3 整数的表示",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．无符号整数的表示",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．有符号整数的表示",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "2.1.4",
+              "title": "2.1.4 C语言中的整数类型及类型转换",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．C语言中的整型数据类型",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．整型数据的类型转换",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "2.2",
+          "title": "2.2 运算方法和运算电路",
+          "children": [
+            {
+              "code": "2.2.1",
+              "title": "2.2.1 基本运算部件",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．一位全加器",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．串行进位加法器",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "*3．并行进位加法器",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "4．带标志加法器",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "5．算术逻辑单元（ALU）",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "2.2.2",
+              "title": "2.2.2 定点数的移位运算",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．逻辑移位",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．算术移位",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "2.2.3",
+              "title": "2.2.3 定点数的加减运算",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．补码加减运算",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．溢出判别方法",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "3．加减运算电路",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "*4．原码的加减运算（了解）",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "2.2.4",
+              "title": "2.2.4 定点数的乘除运算",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．乘法运算",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．除法运算",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "2.3",
+          "title": "2.3 浮点数的表示与运算",
+          "children": [
+            {
+              "code": "2.3.1",
+              "title": "2.3.1 IEEE 754标准的浮点数",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．IEEE 754标准的浮点数格式",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．IEEE 754格式浮点数的表示范围",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "3．几种特殊的IEEE 754浮点数",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "2.3.2",
+              "title": "2.3.2 浮点数的加减运算",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．对阶",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．尾数加减",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "3．尾数规格化",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "4．舍入",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "5．溢出判断",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "2.3.3",
+              "title": "2.3.3 C语言中的浮点数类型",
+              "children": []
+            },
+            {
+              "code": "2.3.4",
+              "title": "2.3.4 数据的宽度和存储",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．数据的宽度和单位",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．数据的“大端方式”和“小端方式”存储",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "3．数据按“边界对齐”方式存储",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "3",
+      "title": "第3章 存储系统",
+      "children": [
+        {
+          "code": "3.1",
+          "title": "3.1 存储器概述",
+          "children": [
+            {
+              "code": "3.1.1",
+              "title": "3.1.1 存储器的分类",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．按存储元件分类",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．按存取方式分类",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "3．按信息的可更改性分类",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "4．按信息的可保存性分类",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "3.1.2",
+              "title": "3.1.2 主存储器的组成和基本操作",
+              "children": []
+            },
+            {
+              "code": "3.1.3",
+              "title": "3.1.3 存储器的层次化结构",
+              "children": []
+            },
+            {
+              "code": "3.1.4",
+              "title": "3.1.4 存储器的主要性能指标",
+              "children": []
+            }
+          ]
+        },
+        {
+          "code": "3.2",
+          "title": "3.2 主存储器",
+          "children": [
+            {
+              "code": "3.2.1",
+              "title": "3.2.1 半导体随机存取存储器",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．SRAM的工作原理",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．DRAM的工作原理",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "3．存储芯片的组成",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "4．DRAM芯片的关键技术",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "5．同步DRAM",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "6．SRAM和DRAM的比较",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "3.2.2",
+              "title": "3.2.2 非易失性存储器",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．只读存储器（ROM）的特点",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "3.2.3",
+              "title": "3.2.3 多模块存储器",
+              "children": []
+            }
+          ]
+        },
+        {
+          "code": "3.3",
+          "title": "3.3 主存储器与CPU的连接",
+          "children": [
+            {
+              "code": "3.3.1",
+              "title": "3.3.1 连接原理",
+              "children": []
+            },
+            {
+              "code": "3.3.2",
+              "title": "3.3.2 主存容量的扩展",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．位扩展法",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．字扩展法",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "3．字位同时扩展法",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "3.4",
+          "title": "3.4 外部存储器",
+          "children": [
+            {
+              "code": "3.4.1",
+              "title": "3.4.1 磁盘存储器",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．磁盘存储器",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．磁盘阵列",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "3.4.2",
+              "title": "3.4.2 固态硬盘",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．固态硬盘的特性",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．磨损均衡（Wear Leveling）",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "3.5",
+          "title": "3.5 高速缓冲存储器",
+          "children": [
+            {
+              "code": "3.5.1",
+              "title": "3.5.1 程序访问的局部性原理",
+              "children": []
+            },
+            {
+              "code": "3.5.2",
+              "title": "3.5.2 Cache的基本工作原理",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．Cache的访问过程",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．Cache的命中率分析",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "3.5.3",
+              "title": "3.5.3 Cache和主存的映射方式",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．直接映射",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．全相联映射",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "3．组相联映射",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "3.5.4",
+              "title": "3.5.4 Cache中主存块的替换算法",
+              "children": []
+            },
+            {
+              "code": "3.5.5",
+              "title": "3.5.5 Cache的一致性问题",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．Cache写命中的处理方法",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．Cache写不命中的处理方法",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "3.5.6",
+              "title": "3.5.6 Cache容量的计算举例",
+              "children": []
+            },
+            {
+              "code": "3.5.7",
+              "title": "3.5.7 Cache的应用",
+              "children": []
+            }
+          ]
+        },
+        {
+          "code": "3.6",
+          "title": "3.6 虚拟存储器",
+          "children": [
+            {
+              "code": "3.6.1",
+              "title": "3.6.1 虚拟存储器的基本概念",
+              "children": []
+            },
+            {
+              "code": "3.6.2",
+              "title": "3.6.2 页式虚拟存储器",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．页表",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．地址转换",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "3．快表（TLB）",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "4．具有TLB和Cache的多级存储系统",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "3.6.3",
+              "title": "3.6.3 段式虚拟存储器",
+              "children": []
+            },
+            {
+              "code": "3.6.4",
+              "title": "3.6.4 段页式虚拟存储器",
+              "children": []
+            },
+            {
+              "code": "3.6.5",
+              "title": "3.6.5 虚拟存储器与Cache的比较",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．相同之处",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．不同之处",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "4",
+      "title": "第4章 指令系统",
+      "children": [
+        {
+          "code": "4.1",
+          "title": "4.1 指令系统",
+          "children": [
+            {
+              "code": "4.1.1",
+              "title": "4.1.1 指令集体系结构",
+              "children": []
+            },
+            {
+              "code": "4.1.2",
+              "title": "4.1.2 指令的基本格式",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．零地址指令",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．一地址指令",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "3．二地址指令",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "4．三地址指令",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "4.1.3",
+              "title": "4.1.3 定长操作码指令格式",
+              "children": []
+            },
+            {
+              "code": "4.1.4",
+              "title": "4.1.4 扩展操作码指令格式",
+              "children": []
+            },
+            {
+              "code": "4.1.5",
+              "title": "4.1.5 指令的类型",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．数据传送指令",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．算术和逻辑运算指令",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "3．移位操作指令",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "4．顺序控制指令",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "5．输入输出指令",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "6．CPU控制指令",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "4.2",
+          "title": "4.2 寻址方式",
+          "children": [
+            {
+              "code": "4.2.1",
+              "title": "4.2.1 指令寻址和数据寻址",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．指令寻址",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．数据寻址",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "4.2.2",
+              "title": "4.2.2 常见的数据寻址方式",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．隐含寻址",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．立即（数）寻址",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "3．直接寻址",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "4．间接寻址",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "5．寄存器寻址",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "6．寄存器间接寻址",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "7．相对寻址",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "8．基址寻址",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "9．变址寻址",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "10．堆栈寻址",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "4.3",
+          "title": "4.3 程序的机器级代码表示",
+          "children": [
+            {
+              "code": "4.3.1",
+              "title": "4.3.1 常用汇编指令介绍",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．相关寄存器",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．常用指令",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "3．汇编指令格式",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "4.3.2",
+              "title": "4.3.2 选择语句的机器级表示",
+              "children": []
+            },
+            {
+              "code": "4.3.3",
+              "title": "4.3.3 循环语句的机器级表示",
+              "children": []
+            },
+            {
+              "code": "4.3.4",
+              "title": "4.3.4 过程调用的机器级表示",
+              "children": []
+            }
+          ]
+        },
+        {
+          "code": "4.4",
+          "title": "4.4 CISC和RISC的基本概念",
+          "children": [
+            {
+              "code": "4.4.1",
+              "title": "4.4.1 复杂指令系统计算机（CISC）",
+              "children": []
+            },
+            {
+              "code": "4.4.2",
+              "title": "4.4.2 精简指令系统计算机（RISC）",
+              "children": []
+            },
+            {
+              "code": "4.4.3",
+              "title": "4.4.3 CISC和RISC的比较",
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "5",
+      "title": "第5章 中央处理器",
+      "children": [
+        {
+          "code": "5.1",
+          "title": "5.1 CPU的功能和基本结构",
+          "children": [
+            {
+              "code": "5.1.1",
+              "title": "5.1.1 CPU的功能",
+              "children": []
+            },
+            {
+              "code": "5.1.2",
+              "title": "5.1.2 CPU的基本结构",
+              "children": []
+            },
+            {
+              "code": "5.1.3",
+              "title": "5.1.3 CPU中的寄存器",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．用户可见寄存器",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．用户不可见寄存器",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "5.2",
+          "title": "5.2 指令执行过程",
+          "children": [
+            {
+              "code": "5.2.1",
+              "title": "5.2.1 指令执行的一般流程",
+              "children": []
+            },
+            {
+              "code": "5.2.2",
+              "title": "5.2.2 CPU的时序控制",
+              "children": []
+            },
+            {
+              "code": "5.2.3",
+              "title": "5.2.3 指令周期的基本概念",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．取指（IF）",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．译码/读寄存器（ID）",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "3．执行/计算地址（EX）",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "4．访存（MEM）",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "5．写回（WB）",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "5.2.4",
+              "title": "5.2.4 处理器指令执行模型",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．单周期处理器",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．多周期处理器",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "3．流水线处理器",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "5.3",
+          "title": "5.3 数据通路的功能和基本结构",
+          "children": [
+            {
+              "code": "5.3.1",
+              "title": "5.3.1 数据通路的功能",
+              "children": []
+            },
+            {
+              "code": "5.3.2",
+              "title": "5.3.2 数据通路的组成",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．组合逻辑元件（操作元件）",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．时序逻辑元件（状态元件）",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "5.3.3",
+              "title": "5.3.3 数据通路的组织与分类",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．按部件连接方式划分",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．按时序组织方式划分",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "5.3.4",
+              "title": "5.3.4 单总线结构的数据通路",
+              "children": []
+            },
+            {
+              "code": "5.3.4",
+              "title": "5.3.4 专用结构的数据通路",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．取指令部件的设计",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．R型运算类指令数据通路",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "3．I型运算指令的数据通路",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "4．访存指令的数据通路",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "5．完整的单周期数据通路结构图",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "5.4",
+          "title": "5.4 控制器的功能和工作原理",
+          "children": [
+            {
+              "code": "5.4.1",
+              "title": "5.4.1 控制器的结构和功能",
+              "children": []
+            },
+            {
+              "code": "5.4.2",
+              "title": "5.4.2 硬布线控制器",
+              "children": []
+            },
+            {
+              "code": "5.4.3",
+              "title": "5.4.3 微程序控制器",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．微程序控制的基本概念",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．微程序控制器的组成和工作过程",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "3．微指令的编码方式",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "4．微指令的地址形成方式",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "5．微指令的格式",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "6．硬布线控制器和微程序控制器的特点",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "5.5",
+          "title": "5.5 异常和中断机制",
+          "children": [
+            {
+              "code": "5.5.1",
+              "title": "5.5.1 异常和中断的基本概念",
+              "children": []
+            },
+            {
+              "code": "5.5.2",
+              "title": "5.5.2 异常和中断的分类",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．异常的分类",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．中断的分类",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "5.5.3",
+              "title": "5.5.3 异常和中断响应过程",
+              "children": []
+            }
+          ]
+        },
+        {
+          "code": "5.6",
+          "title": "5.6 指令流水线",
+          "children": [
+            {
+              "code": "5.6.1",
+              "title": "5.6.1 指令流水线的基本概念",
+              "children": []
+            },
+            {
+              "code": "5.6.2",
+              "title": "5.6.2 流水线的基本实现",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．流水线设计的原则",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．流水线的逻辑结构",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "3．流水线的时空图表示",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "4．流水线的吞吐率分析",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "5.6.3",
+              "title": "5.6.3 MIPS指令集的流水段分析",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．R型指令的功能段划分",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．I型指令的功能段划分",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "3．lw指令的功能段划分",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "4．sw指令的功能段划分",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "5．beq指令的功能段划分",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "6．j指令的功能段划分",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "5.6.4",
+              "title": "5.6.4 流水线的冒险与处理",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．结构冒险",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．数据冒险",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "3．控制冒险",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "5.6.5",
+              "title": "5.6.5 高级流水线技术",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．超标量流水线技术（动态多发射）",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．超长指令字技术（静态多发射）",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "3．超流水线技术",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "5.7",
+          "title": "5.7 多处理器的基本概念",
+          "children": [
+            {
+              "code": "5.7.1",
+              "title": "5.7.1 SISD、SIMD、MIMD的基本概念",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．单指令流单数据流（SISD）结构",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．单指令流多数据流（SIMD）结构",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "3．多指令流单数据流（MISD）结构",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "4．多指令流多数据流（MIMD）结构",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "5.7.2",
+              "title": "5.7.2 硬件多线程的基本概念",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．细粒度多线程",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．粗粒度多线程",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "3．同时多线程",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "5.7.3",
+              "title": "5.7.3 多核处理器的基本概念",
+              "children": []
+            },
+            {
+              "code": "5.7.4",
+              "title": "5.7.4 共享内存多处理器的基本概念",
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "6",
+      "title": "第6章 总线",
+      "children": [
+        {
+          "code": "6.1",
+          "title": "6.1 总线概述",
+          "children": [
+            {
+              "code": "6.1.1",
+              "title": "6.1.1 总线的分类",
+              "children": []
+            },
+            {
+              "code": "6.1.3",
+              "title": "6.1.3 总线的性能指标",
+              "children": []
+            },
+            {
+              "code": "6.1.4",
+              "title": "6.1.4 总线的结构",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．早期共享总线结构",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．传统分层总线：南北桥结构",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "3．现代集成化总线结构",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "6.2",
+          "title": "6.2 总线事务和定时",
+          "children": [
+            {
+              "code": "6.2.1",
+              "title": "6.2.1 总线事务",
+              "children": []
+            },
+            {
+              "code": "6.2.2",
+              "title": "6.2.2 总线定时",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．同步定时方式",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．异步定时方式",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "3．半同步定时方式",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "4．分离式定时方式",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "7",
+      "title": "第7章 输入/输出系统",
+      "children": [
+        {
+          "code": "7.1",
+          "title": "7.1 I/O系统基本概念",
+          "children": [
+            {
+              "code": null,
+              "title": "1．输入设备",
+              "children": []
+            },
+            {
+              "code": null,
+              "title": "2．输出设备",
+              "children": []
+            },
+            {
+              "code": null,
+              "title": "3．外部存储器（辅存）",
+              "children": []
+            }
+          ]
+        },
+        {
+          "code": "7.2",
+          "title": "7.2 I/O接口",
+          "children": [
+            {
+              "code": "7.2.1",
+              "title": "7.2.1 I/O接口的功能",
+              "children": []
+            },
+            {
+              "code": "7.2.2",
+              "title": "7.2.2 I/O接口的基本结构",
+              "children": []
+            },
+            {
+              "code": "7.2.3",
+              "title": "7.2.3 I/O接口的类型",
+              "children": []
+            },
+            {
+              "code": "7.2.4",
+              "title": "7.2.4 I/O端口及其编址",
+              "children": []
+            }
+          ]
+        },
+        {
+          "code": "7.3",
+          "title": "7.3 I/O方式",
+          "children": [
+            {
+              "code": "7.3.1",
+              "title": "7.3.1 程序查询方式",
+              "children": []
+            },
+            {
+              "code": "7.3.2",
+              "title": "7.3.2 程序中断方式",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．程序中断的基本概念",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．程序中断的工作流程",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "3．多重中断和中断屏蔽技术",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "code": "7.3.3",
+              "title": "7.3.3 DMA方式",
+              "children": [
+                {
+                  "code": null,
+                  "title": "1．DMA方式的特点",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "2．DMA控制器的组成",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "3．DMA的传送方式",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "4．DMA的传送过程",
+                  "children": []
+                },
+                {
+                  "code": null,
+                  "title": "5．DMA方式和中断方式的区别",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
