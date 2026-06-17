@@ -43,6 +43,7 @@ export default function ExamPastPaperAttemptPage({ subjectKey, attemptId, user, 
   const [submitting, setSubmitting] = useState(false);
   const [favorites, setFavorites] = useState({});
   const [favoriteBusy, setFavoriteBusy] = useState({});
+  const [failedImages, setFailedImages] = useState({});
 
   const subjectLabel = EXAM_SUBJECTS[subjectKey] || subjectKey;
   const username = user?.username || attempt?.username || "";
@@ -245,11 +246,30 @@ export default function ExamPastPaperAttemptPage({ subjectKey, attemptId, user, 
                   </div>
                   {(q.stem || (q.content !== `第 ${q.number} 题` ? q.content : '')) && <div className="past-paper-q-content">{q.stem || q.content}</div>}
                   {isNeedReview && q.review_notes && <div className="past-paper-q-review-notes">{q.review_notes}</div>}
-                  {q.image_urls?.length > 0 && (
+                  {/* Images: only show when image_required is true */}
+                  {q.image_required && q.image_urls?.length > 0 && !failedImages[q.id] && (
                     <div className="past-paper-q-images">
+                      <div className="past-paper-q-images-title">原题图示</div>
                       {q.image_urls.map((url, i) => (
-                        <img key={i} src={url} alt={`第${q.number}题`} className="past-paper-q-img" />
+                        <img
+                          key={i}
+                          src={url}
+                          alt=""
+                          className="past-paper-q-img"
+                          onError={() => setFailedImages(prev => ({ ...prev, [q.id]: true }))}
+                          style={{ display: 'block' }}
+                        />
                       ))}
+                    </div>
+                  )}
+                  {q.image_required && q.image_urls?.length > 0 && failedImages[q.id] && (
+                    <div className="past-paper-q-img-fallback">
+                      原题图暂未加载，不影响当前题目作答
+                    </div>
+                  )}
+                  {q.image_required && (!q.image_urls || q.image_urls.length === 0) && !isNeedReview && (
+                    <div className="past-paper-q-img-fallback">
+                      ⚠ 该题图表待补充
                     </div>
                   )}
                   {isNeedReview ? (

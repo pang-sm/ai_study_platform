@@ -313,12 +313,25 @@ def main():
     # Apply manual review patches
     apply_patches(questions)
 
-    # Load image mapping and attach to questions
+    # Determine which questions NEED images (table/diagram/big questions)
+    TABLE_KEYWORDS = ['下表','右图','下图','如图','表中','图示','如下表','调度','资源分配','页表','结构图','目录结构','索引节点']
+
+    def question_needs_image(q):
+        if q['question_type'] == 'big':
+            return True
+        stem = q.get('question_text', '')
+        return any(kw in stem for kw in TABLE_KEYWORDS)
+
+    # Load image mapping and attach to questions (only for questions that need images)
     img_mapping = load_image_mapping()
     q_with_imgs = 0
     for q in questions:
         key = f"{q['year']}-{q['question_number']:02d}"
-        q['image_urls'] = img_mapping.get(key, [])
+        q['image_required'] = question_needs_image(q)
+        if q['image_required']:
+            q['image_urls'] = img_mapping.get(key, [])
+        else:
+            q['image_urls'] = []
         if q['image_urls']:
             q_with_imgs += 1
             # If question has images, remove diagram-missing review notes

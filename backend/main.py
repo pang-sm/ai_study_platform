@@ -12372,6 +12372,7 @@ def get_past_paper_attempt(subject_key: str, attempt_id: int, db: Session = Depe
                 "quality_status": item.quality_status or "unchecked",
                 "review_notes": item.analysis or "",
                 "image_urls": get_question_images(subject_key, item.year, item.question_number),
+                "image_required": item.question_type == "big" or bool(get_question_images(subject_key, item.year, item.question_number)),
             })
     else:
         questions_data = exam_paper_parser.get_year_questions(subject_key, attempt.year)

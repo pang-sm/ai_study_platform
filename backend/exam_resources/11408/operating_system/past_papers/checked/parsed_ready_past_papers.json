@@ -22,9 +22,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2022/2022_23_0.jpg"
-    ]
+    "image_urls": [],
+    "image_required": false
   },
   {
     "exam_type": "11408",
@@ -49,9 +48,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2022/2022_24_0.jpg"
-    ]
+    "image_urls": [],
+    "image_required": false
   },
   {
     "exam_type": "11408",
@@ -79,7 +77,8 @@
     "image_urls": [
       "/api/exam/11408/operating_system/past-paper-images/2022/2022_25_0.jpg",
       "/api/exam/11408/operating_system/past-paper-images/2022/2022_25_1.jpg"
-    ]
+    ],
+    "image_required": true
   },
   {
     "exam_type": "11408",
@@ -106,7 +105,8 @@
     "is_active": true,
     "image_urls": [
       "/api/exam/11408/operating_system/past-paper-images/2022/2022_26_0.jpg"
-    ]
+    ],
+    "image_required": true
   },
   {
     "exam_type": "11408",
@@ -131,9 +131,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2022/2022_27_0.jpg"
-    ]
+    "image_urls": [],
+    "image_required": false
   },
   {
     "exam_type": "11408",
@@ -158,9 +157,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2022/2022_28_0.jpg"
-    ]
+    "image_urls": [],
+    "image_required": false
   },
   {
     "exam_type": "11408",
@@ -185,9 +183,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2022/2022_29_0.jpg"
-    ]
+    "image_urls": [],
+    "image_required": false
   },
   {
     "exam_type": "11408",
@@ -212,9 +209,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2022/2022_30_0.jpg"
-    ]
+    "image_urls": [],
+    "image_required": false
   },
   {
     "exam_type": "11408",
@@ -239,10 +235,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2022/2022_31_0.jpg",
-      "/api/exam/11408/operating_system/past-paper-images/2022/2022_31_1.jpg"
-    ]
+    "image_urls": [],
+    "image_required": false
   },
   {
     "exam_type": "11408",
@@ -267,9 +261,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2022/2022_32_0.jpg"
-    ]
+    "image_urls": [],
+    "image_required": false
   },
   {
     "exam_type": "11408",
@@ -292,7 +285,8 @@
     "image_urls": [
       "/api/exam/11408/operating_system/past-paper-images/2022/2022_45_0.jpg",
       "/api/exam/11408/operating_system/past-paper-images/2022/2022_45_1.jpg"
-    ]
+    ],
+    "image_required": true
   },
   {
     "exam_type": "11408",
@@ -312,7 +306,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": []
+    "image_urls": [],
+    "image_required": true
   },
   {
     "exam_type": "11408",
@@ -337,9 +332,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2023/2023_23_0.jpg"
-    ]
+    "image_urls": [],
+    "image_required": false
   },
   {
     "exam_type": "11408",
@@ -364,9 +358,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2023/2023_24_0.jpg"
-    ]
+    "image_urls": [],
+    "image_required": false
   },
   {
     "exam_type": "11408",
@@ -391,9 +384,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2023/2023_25_0.jpg"
-    ]
+    "image_urls": [],
+    "image_required": false
   },
   {
     "exam_type": "11408",
@@ -418,9 +410,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2023/2023_26_0.jpg"
-    ]
+    "image_urls": [],
+    "image_required": false
   },
   {
     "exam_type": "11408",
@@ -445,9 +436,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2023/2023_27_0.jpg"
-    ]
+    "image_urls": [],
+    "image_required": false
   },
   {
     "exam_type": "11408",
@@ -472,9 +462,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2023/2023_28_0.jpg"
-    ]
+    "image_urls": [],
+    "image_required": false
   },
   {
     "exam_type": "11408",
@@ -502,7 +491,8 @@
     "image_urls": [
       "/api/exam/11408/operating_system/past-paper-images/2023/2023_29_0.jpg",
       "/api/exam/11408/operating_system/past-paper-images/2023/2023_29_1.jpg"
-    ]
+    ],
+    "image_required": true
   },
   {
     "exam_type": "11408",
@@ -527,9 +517,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2023/2023_30_0.jpg"
-    ]
+    "image_urls": [],
+    "image_required": false
   },
   {
     "exam_type": "11408",
@@ -554,9 +543,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2023/2023_31_0.jpg"
-    ]
+    "image_urls": [],
+    "image_required": false
   },
   {
     "exam_type": "11408",
@@ -581,9 +569,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2023/2023_32_0.jpg"
-    ]
+    "image_urls": [],
+    "image_required": false
   },
   {
     "exam_type": "11408",
@@ -605,7 +592,8 @@
     "is_active": true,
     "image_urls": [
       "/api/exam/11408/operating_system/past-paper-images/2023/2023_45_0.jpg"
-    ]
+    ],
+    "image_required": true
   },
   {
     "exam_type": "11408",
@@ -627,7 +615,8 @@
     "is_active": true,
     "image_urls": [
       "/api/exam/11408/operating_system/past-paper-images/2023/2023_46_0.jpg"
-    ]
+    ],
+    "image_required": true
   },
   {
     "exam_type": "11408",
@@ -652,9 +641,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2024/2024_23_0.jpg"
-    ]
+    "image_urls": [],
+    "image_required": false
   },
   {
     "exam_type": "11408",
@@ -679,9 +667,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2024/2024_24_0.jpg"
-    ]
+    "image_urls": [],
+    "image_required": false
   },
   {
     "exam_type": "11408",
@@ -708,7 +695,8 @@
     "is_active": true,
     "image_urls": [
       "/api/exam/11408/operating_system/past-paper-images/2024/2024_25_0.jpg"
-    ]
+    ],
+    "image_required": true
   },
   {
     "exam_type": "11408",
@@ -733,9 +721,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2024/2024_26_0.jpg"
-    ]
+    "image_urls": [],
+    "image_required": false
   },
   {
     "exam_type": "11408",
@@ -760,9 +747,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2024/2024_27_0.jpg"
-    ]
+    "image_urls": [],
+    "image_required": false
   },
   {
     "exam_type": "11408",
@@ -787,10 +773,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2024/2024_28_0.jpg",
-      "/api/exam/11408/operating_system/past-paper-images/2024/2024_28_1.jpg"
-    ]
+    "image_urls": [],
+    "image_required": false
   },
   {
     "exam_type": "11408",
@@ -815,9 +799,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2024/2024_29_0.jpg"
-    ]
+    "image_urls": [],
+    "image_required": false
   },
   {
     "exam_type": "11408",
@@ -844,7 +827,8 @@
     "is_active": true,
     "image_urls": [
       "/api/exam/11408/operating_system/past-paper-images/2024/2024_30_0.jpg"
-    ]
+    ],
+    "image_required": true
   },
   {
     "exam_type": "11408",
@@ -869,9 +853,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2024/2024_31_0.jpg"
-    ]
+    "image_urls": [],
+    "image_required": false
   },
   {
     "exam_type": "11408",
@@ -898,7 +881,8 @@
     "is_active": true,
     "image_urls": [
       "/api/exam/11408/operating_system/past-paper-images/2024/2024_32_0.jpg"
-    ]
+    ],
+    "image_required": true
   },
   {
     "exam_type": "11408",
@@ -920,7 +904,8 @@
     "is_active": true,
     "image_urls": [
       "/api/exam/11408/operating_system/past-paper-images/2024/2024_45_0.jpg"
-    ]
+    ],
+    "image_required": true
   },
   {
     "exam_type": "11408",
@@ -943,7 +928,8 @@
     "image_urls": [
       "/api/exam/11408/operating_system/past-paper-images/2024/2024_46_0.jpg",
       "/api/exam/11408/operating_system/past-paper-images/2024/2024_46_1.jpg"
-    ]
+    ],
+    "image_required": true
   },
   {
     "exam_type": "11408",
@@ -968,9 +954,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2025/2025_23_0.jpg"
-    ]
+    "image_urls": [],
+    "image_required": false
   },
   {
     "exam_type": "11408",
@@ -995,10 +980,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2025/2025_24_0.jpg",
-      "/api/exam/11408/operating_system/past-paper-images/2025/2025_24_1.jpg"
-    ]
+    "image_urls": [],
+    "image_required": false
   },
   {
     "exam_type": "11408",
@@ -1025,7 +1008,8 @@
     "is_active": true,
     "image_urls": [
       "/api/exam/11408/operating_system/past-paper-images/2025/2025_25_0.jpg"
-    ]
+    ],
+    "image_required": true
   },
   {
     "exam_type": "11408",
@@ -1050,9 +1034,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2025/2025_26_0.jpg"
-    ]
+    "image_urls": [],
+    "image_required": false
   },
   {
     "exam_type": "11408",
@@ -1077,9 +1060,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2025/2025_27_0.jpg"
-    ]
+    "image_urls": [],
+    "image_required": false
   },
   {
     "exam_type": "11408",
@@ -1104,9 +1086,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2025/2025_28_0.jpg"
-    ]
+    "image_urls": [],
+    "image_required": false
   },
   {
     "exam_type": "11408",
@@ -1133,7 +1114,8 @@
     "is_active": true,
     "image_urls": [
       "/api/exam/11408/operating_system/past-paper-images/2025/2025_29_0.jpg"
-    ]
+    ],
+    "image_required": true
   },
   {
     "exam_type": "11408",
@@ -1158,9 +1140,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2025/2025_30_0.jpg"
-    ]
+    "image_urls": [],
+    "image_required": false
   },
   {
     "exam_type": "11408",
@@ -1185,9 +1166,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2025/2025_31_0.jpg"
-    ]
+    "image_urls": [],
+    "image_required": false
   },
   {
     "exam_type": "11408",
@@ -1212,10 +1192,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2025/2025_32_0.jpg",
-      "/api/exam/11408/operating_system/past-paper-images/2025/2025_32_1.jpg"
-    ]
+    "image_urls": [],
+    "image_required": false
   },
   {
     "exam_type": "11408",
@@ -1237,7 +1215,8 @@
     "is_active": true,
     "image_urls": [
       "/api/exam/11408/operating_system/past-paper-images/2025/2025_45_0.jpg"
-    ]
+    ],
+    "image_required": true
   },
   {
     "exam_type": "11408",
@@ -1259,7 +1238,8 @@
     "is_active": true,
     "image_urls": [
       "/api/exam/11408/operating_system/past-paper-images/2025/2025_46_0.jpg"
-    ]
+    ],
+    "image_required": true
   },
   {
     "exam_type": "11408",
@@ -1284,10 +1264,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2026/2026_23_0.jpg",
-      "/api/exam/11408/operating_system/past-paper-images/2026/2026_23_1.jpg"
-    ]
+    "image_urls": [],
+    "image_required": false
   },
   {
     "exam_type": "11408",
@@ -1312,9 +1290,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2026/2026_24_0.jpg"
-    ]
+    "image_urls": [],
+    "image_required": false
   },
   {
     "exam_type": "11408",
@@ -1339,9 +1316,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2026/2026_25_0.jpg"
-    ]
+    "image_urls": [],
+    "image_required": false
   },
   {
     "exam_type": "11408",
@@ -1368,7 +1344,8 @@
     "is_active": true,
     "image_urls": [
       "/api/exam/11408/operating_system/past-paper-images/2026/2026_26_0.jpg"
-    ]
+    ],
+    "image_required": true
   },
   {
     "exam_type": "11408",
@@ -1393,10 +1370,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2026/2026_27_0.jpg",
-      "/api/exam/11408/operating_system/past-paper-images/2026/2026_27_1.jpg"
-    ]
+    "image_urls": [],
+    "image_required": false
   },
   {
     "exam_type": "11408",
@@ -1423,7 +1398,8 @@
     "is_active": true,
     "image_urls": [
       "/api/exam/11408/operating_system/past-paper-images/2026/2026_28_0.jpg"
-    ]
+    ],
+    "image_required": true
   },
   {
     "exam_type": "11408",
@@ -1451,7 +1427,8 @@
     "image_urls": [
       "/api/exam/11408/operating_system/past-paper-images/2026/2026_29_0.jpg",
       "/api/exam/11408/operating_system/past-paper-images/2026/2026_29_1.jpg"
-    ]
+    ],
+    "image_required": true
   },
   {
     "exam_type": "11408",
@@ -1478,7 +1455,8 @@
     "is_active": true,
     "image_urls": [
       "/api/exam/11408/operating_system/past-paper-images/2026/2026_30_0.jpg"
-    ]
+    ],
+    "image_required": true
   },
   {
     "exam_type": "11408",
@@ -1503,9 +1481,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2026/2026_31_0.jpg"
-    ]
+    "image_urls": [],
+    "image_required": false
   },
   {
     "exam_type": "11408",
@@ -1530,10 +1507,8 @@
     "text_quality": "ready",
     "review_notes": "",
     "is_active": true,
-    "image_urls": [
-      "/api/exam/11408/operating_system/past-paper-images/2026/2026_32_0.jpg",
-      "/api/exam/11408/operating_system/past-paper-images/2026/2026_32_1.jpg"
-    ]
+    "image_urls": [],
+    "image_required": false
   },
   {
     "exam_type": "11408",
@@ -1555,7 +1530,8 @@
     "is_active": true,
     "image_urls": [
       "/api/exam/11408/operating_system/past-paper-images/2026/2026_45_0.jpg"
-    ]
+    ],
+    "image_required": true
   },
   {
     "exam_type": "11408",
@@ -1578,6 +1554,7 @@
     "image_urls": [
       "/api/exam/11408/operating_system/past-paper-images/2026/2026_46_0.jpg",
       "/api/exam/11408/operating_system/past-paper-images/2026/2026_46_1.jpg"
-    ]
+    ],
+    "image_required": true
   }
 ]

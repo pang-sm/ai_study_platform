@@ -21944,6 +21944,32 @@ select.field:focus {
   margin-bottom: 8px;
 }
 
+/* Image display */
+.past-paper-q-images {
+  margin: 10px 0;
+}
+.past-paper-q-images-title {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+.past-paper-q-img {
+  max-width: 100%;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  margin-bottom: 8px;
+}
+.past-paper-q-img-fallback {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 6px;
+  margin: 8px 0;
+}
+
 .past-paper-q-type {
   font-size: 0.72rem;
   color: #64748b;
