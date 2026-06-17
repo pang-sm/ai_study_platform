@@ -3214,6 +3214,7 @@ function App() {
     page === "workspaceMaterials" && Boolean(getExamSubjectKeyFromCourse(subject));
   const activeExamKnowledgeSubjectKey = getExamSubjectKeyFromCourse(subject) || examSubjectKey || "data_structure";
   const isExamCourseKnowledgePage = page === "knowledgeLearning";
+  const isExamCourseTaskCenter = page === "taskCenter" && String(subject).startsWith("11408");
 
   // 11408 exam practice center — uses dedicated ExamPracticeCenter component
   const getExamSubjectName = (key) => {
@@ -3320,6 +3321,22 @@ function App() {
       searchNavigate={searchNavigate}
       onClearSearchNavigate={() => setSearchNavigate(null)}
     />
+  );
+
+  const coursePlanPage = (
+    <Suspense fallback={<div className="empty-state">学习任务中心加载中...</div>}>
+      <TaskCenter
+        user={user}
+        subject={subject}
+        courseOptions={COURSE_OPTIONS}
+        getSubjectLabel={getSubjectLabel}
+        normalizeSubject={normalizeSubject}
+        formatDate={formatDate}
+        onStartPractice={openPracticeFromTask}
+        searchNavigate={searchNavigate}
+        onClearSearchNavigate={() => setSearchNavigate(null)}
+      />
+    </Suspense>
   );
 
   // ── Independent 11408 past-paper attempt page ──
@@ -3434,6 +3451,7 @@ function App() {
         materialsContent={courseMaterialsPage}
         practiceContent={coursePracticePage}
         reportContent={learningReportPage}
+        planContent={coursePlanPage}
         knowledgeContext={examKnowledgeContext}
         initialMaterialToReference={examInitialMaterialReference}
         onInitialMaterialReferenced={() => setExamInitialMaterialReference(null)}
@@ -3498,6 +3516,21 @@ function App() {
           />
         </Suspense>
       </div>
+    );
+  }
+
+  if (isExamCourseTaskCenter) {
+    return (
+      <ExamSubjectDashboard
+        user={user}
+        subjectKey={getExamSubjectKeyFromCourse(subject) || examSubjectKey || "data_structure"}
+        panelIntent={{ panel: "plan", nonce: Date.now() }}
+        materialsContent={courseMaterialsPage}
+        planContent={coursePlanPage}
+        onNavigate={openExamSubjectFeature}
+        onBackHome={() => setPage("examHome")}
+        onProfile={() => setPage("examProfile")}
+      />
     );
   }
 
