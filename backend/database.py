@@ -1607,6 +1607,8 @@ def init_user_profile_schema():
         ensure_system_announcements_schema(conn)
         ensure_system_settings_schema(conn)
         ensure_material_chunks_fts(conn)
+        ensure_exam_study_plan_settings_schema(conn)
+        ensure_exam_study_plan_chapter_practice_schema(conn)
         normalize_existing_subjects(conn)
 
         user_columns = get_existing_columns(conn, "users")
@@ -1767,6 +1769,64 @@ def init_user_profile_schema():
                     """
                 )
             )
+
+
+def ensure_exam_study_plan_settings_schema(conn):
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS exam_study_plan_settings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username VARCHAR(50) NOT NULL,
+                subject_key VARCHAR(50) NOT NULL,
+                learning_goal VARCHAR(255),
+                start_date VARCHAR(30),
+                daily_hours VARCHAR(30),
+                weekly_days INTEGER,
+                review_strategy VARCHAR(30) DEFAULT 'sequential',
+                show_completed BOOLEAN NOT NULL DEFAULT 1,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+    )
+    conn.execute(
+        text(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_exam_study_plan_settings_user_subject
+            ON exam_study_plan_settings (username, subject_key)
+            """
+        )
+    )
+
+
+def ensure_exam_study_plan_chapter_practice_schema(conn):
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS exam_study_plan_chapter_practice (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username VARCHAR(50) NOT NULL,
+                subject_key VARCHAR(50) NOT NULL,
+                section_code VARCHAR(100) NOT NULL,
+                section_title VARCHAR(255),
+                completed BOOLEAN NOT NULL DEFAULT 0,
+                completed_at DATETIME,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+    )
+    conn.execute(
+        text(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_exam_study_plan_cp_user_subject_code
+            ON exam_study_plan_chapter_practice (username, subject_key, section_code)
+            """
+        )
+    )
 
 
 def is_material_chunks_fts_enabled():

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import ExamChat from "./ExamChat.jsx";
+import ExamStudyPlan from "./ExamStudyPlan.jsx";
 
 const SUBJECT_CONFIG = {
   data_structure: {
@@ -196,7 +197,13 @@ export default function ExamSubjectDashboard({
         ) : activeSection === "report" && reportContent ? (
           reportContent
         ) : activeSection === "plan" ? (
-          planContent || <DefaultPlanView config={config} onNavigate={navigate} />
+          planContent || (
+            <ExamStudyPlan
+              user={user}
+              subjectKey={subjectKey}
+              onNavigate={navigate}
+            />
+          )
         ) : (
           <>
             <header className="exam-subject-header">
@@ -292,78 +299,6 @@ export default function ExamSubjectDashboard({
         )}
       </main>
     </div>
-  );
-}
-
-function DefaultPlanView({ config, onNavigate }) {
-  return (
-    <>
-      <header className="exam-subject-header">
-        <div>
-          <div className="exam-subject-title-row">
-            <span className="exam-subject-logo">{config.icon}</span>
-            <div>
-              <h1>{config.title}</h1>
-              <p>学习计划 / 当前科目</p>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <section className="exam-subject-top-grid">
-        <div className="exam-subject-hero">
-          <div>
-            <h2>今日学习计划</h2>
-            <p>{config.subtitle}</p>
-          </div>
-          <div className="exam-subject-hero-art" aria-hidden="true">
-            <span>计</span>
-          </div>
-        </div>
-      </section>
-
-      <section className="exam-subject-content-grid">
-        <div className="exam-subject-card" style={{ gridColumn: "1 / -1" }}>
-          <h3>学习任务</h3>
-          <div className="exam-subject-plan-list">
-            {config.plan.map((item, index) => (
-              <div key={item} className="exam-subject-plan-item">
-                <span>{index + 1}</span>
-                <div>
-                  <strong>{item}</strong>
-                  <p>第 {Math.max(1, index + 1)} 章 · {config.title}</p>
-                </div>
-                <button type="button" onClick={() => onNavigate("knowledge")}>
-                  {index === 0 ? "去学习" : "查看"}
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="exam-subject-card">
-          <h3>学习进度</h3>
-          <div className="exam-subject-overview-grid">
-            <Metric label="总章节" value={`${config.overview.chapters} 个`} />
-            <Metric label="知识点" value={`${config.overview.knowledge} 个`} />
-            <Metric label="已学习" value={`${config.overview.learned}%`} />
-            <Metric label="学习时长" value={`${config.overview.hours} 小时`} />
-          </div>
-        </div>
-
-        <div className="exam-subject-card">
-          <h3>资料库概览</h3>
-          <div className="exam-subject-material-grid">
-            {MATERIAL_LABELS.map((label, index) => (
-              <button key={label} type="button" onClick={() => onNavigate("materials")}>
-                <span>{label}</span>
-                <strong>{config.materials[index]} 份</strong>
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
-    </>
   );
 }
 

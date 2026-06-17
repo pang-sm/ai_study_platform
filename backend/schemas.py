@@ -574,6 +574,37 @@ class QuestionAiExplainRequest(BaseModel):
     username: str
 
 
+# ── 11408 Study Plan ────────────────────────────────────────
+
+
+class ExamStudyPlanSettingsUpdate(BaseModel):
+    username: str
+    subject_key: str
+    learning_goal: str | None = None
+    start_date: str | None = None
+    daily_hours: str | None = None
+    weekly_days: int | None = None
+    review_strategy: str | None = None
+    show_completed: bool | None = None
+
+
+class ExamStudyPlanKnowledgeItemUpdate(BaseModel):
+    username: str
+    subject_key: str
+    course_id: str
+    knowledge_point_code: str
+    knowledge_point_title: str = ""
+    status: str  # "not_started" | "learning" | "mastered"
+
+
+class ExamStudyPlanChapterPracticeUpdate(BaseModel):
+    username: str
+    subject_key: str
+    section_code: str
+    section_title: str = ""
+    completed: bool
+
+
 # ── AI Knowledge Point Generation ────────────────────────
 
 

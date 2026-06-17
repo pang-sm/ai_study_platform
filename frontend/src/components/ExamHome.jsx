@@ -19,24 +19,17 @@ const SUBJECTS = [
   { key: "computer_network", name: "计算机网络", icon: "🌐", progress: 58, correctRate: 58 },
 ];
 
-const PLAN_ITEMS = [
-  { id: 1, title: "数据结构：刷套卷专项练习", progress: "已完成10", status: "已完成", done: true },
-  { id: 2, title: "操作系统：进程与线程复习", progress: "0/1", status: "待完成", done: false },
-  { id: 3, title: "计组：存储系统知识点总结", progress: "0/1", status: "待完成", done: false },
-  { id: 4, title: "计网：章节刷 10 题", progress: "0/10", status: "待完成", done: false },
-];
-
 export default function ExamHome({ user, setPage, subject, setSubject, apiBase, onLogout }) {
   const [daysLeft, setDaysLeft] = useState(128);
   const [targetSchool, setTargetSchool] = useState("");
   const [examStage, setExamStage] = useState("");
   const [examDaily, setExamDaily] = useState("");
-  const [planItems, setPlanItems] = useState(PLAN_ITEMS);
   const [motto, setMotto] = useState("保持节奏，每天进步一点点");
   const [editingMotto, setEditingMotto] = useState(false);
   const [mottoInput, setMottoInput] = useState("");
   const [examPackageLabel, setExamPackageLabel] = useState("");
   const mottoInputRef = useRef(null);
+  const [studyPlanSummary, setStudyPlanSummary] = useState(null);
 
   // Fetch real data from tracks API on mount
   useEffect(() => {
@@ -73,6 +66,18 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
     }
     // Then refresh from API for latest data
     fetchData();
+
+    // Fetch study plan summary
+    const fetchPlanSummary = async () => {
+      try {
+        const username = user?.username || "";
+        if (!username) return;
+        const res = await fetch(`/api/exam/11408/study-plan/summary?username=${encodeURIComponent(username)}`);
+        const data = await res.json().catch(() => null);
+        if (data?.subjects) setStudyPlanSummary(data);
+      } catch { /* ignore */ }
+    };
+    fetchPlanSummary();
   }, []);
 
   const displayName = user?.nickname || user?.username || "小庞同学";
@@ -112,10 +117,6 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
     return "未选择套餐";
   };
   const packageLabel = examPackageLabel || getPackageLabel();
-
-  const togglePlanItem = (id) => {
-    setPlanItems((prev) => prev.map((p) => (p.id === id ? { ...p, done: !p.done, status: !p.done ? "已完成" : "待完成" } : p)));
-  };
 
   const saveMotto = async () => {
     // Use ref to get latest DOM value (avoids stale closure)
@@ -207,17 +208,27 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
         <div className="eh-card eh-progress-card">
           <h3 className="eh-card-title">📈 学习进度总览</h3>
           <div className="eh-progress-list">
-            {SUBJECTS.map((s) => (
-              <div key={s.key} className="eh-progress-row">
-                <span className="eh-progress-icon">{s.icon}</span>
-                <span className="eh-progress-name">{s.name}</span>
-                <div className="eh-progress-bar-wrap">
-                  <div className="eh-progress-bar" style={{ width: `${s.progress}%` }} />
+            {SUBJECTS.map((s) => {
+              const realProgress = studyPlanSummary?.subjects?.find(
+                (sp) => sp.subject_key === s.key
+              );
+              const pct = realProgress?.overall_progress ?? s.progress;
+              const sectionsDone = realProgress?.sections_completed ?? 0;
+              const sectionsTotal = realProgress?.total_sections ?? 0;
+              return (
+                <div key={s.key} className="eh-progress-row">
+                  <span className="eh-progress-icon">{s.icon}</span>
+                  <span className="eh-progress-name">{s.name}</span>
+                  <div className="eh-progress-bar-wrap">
+                    <div className="eh-progress-bar" style={{ width: `${pct}%` }} />
+                  </div>
+                  <span className="eh-progress-pct">{pct}%</span>
+                  <span className="eh-progress-rate">
+                    {sectionsDone}/{sectionsTotal} 章节
+                  </span>
                 </div>
-                <span className="eh-progress-pct">{s.progress}%</span>
-                <span className="eh-progress-rate">正确率{s.correctRate}%</span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -235,38 +246,84 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
         </div>
       </div>
 
-      {/* ── Bottom row: Study Plan ── */}
+      {/* ── Bottom row: Study Plan Summary ── */}
       <div className="eh-bottom">
         <div className="eh-card eh-plan-card">
-          <h3 className="eh-card-title">📋 学习计划</h3>
-          <table className="eh-plan-table">
-            <thead>
-              <tr>
-                <th></th>
-                <th>任务</th>
-                <th>进度</th>
-                <th>状态</th>
-              </tr>
-            </thead>
-            <tbody>
-              {planItems.map((p) => (
-                <tr key={p.id} className={p.done ? "eh-plan-done" : ""}>
-                  <td>
-                    <button
-                      type="button"
-                      className={`eh-plan-check${p.done ? " checked" : ""}`}
-                      onClick={() => togglePlanItem(p.id)}
-                    >
-                      {p.done ? "✓" : ""}
-                    </button>
-                  </td>
-                  <td>{p.title}</td>
-                  <td className="eh-plan-progress-cell">{p.progress}</td>
-                  <td className={`eh-plan-status${p.done ? " done" : " pending"}`}>{p.status}</td>
+          <h3 className="eh-card-title">📋 四科学习计划</h3>
+          {studyPlanSummary?.subjects ? (
+            <table className="eh-plan-table">
+              <thead>
+                <tr>
+                  <th>学科</th>
+                  <th>进度</th>
+                  <th>二级知识点</th>
+                  <th>知识点掌握</th>
+                  <th>状态</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {studyPlanSummary.subjects.map((sp) => (
+                  <tr
+                    key={sp.subject_key}
+                    className={sp.is_completed ? "eh-plan-done" : ""}
+                    style={{ cursor: "pointer" }}
+                    onClick={() => {
+                      if (setPage) {
+                        setPage("examSubjectDashboard", {
+                          subject: sp.subject_key,
+                          examCourseId: `11408 ${sp.subject_name}`,
+                          forcePanel: "plan",
+                        });
+                      }
+                    }}
+                  >
+                    <td>
+                      <strong>
+                        {SUBJECTS.find((s) => s.key === sp.subject_key)?.icon || "📚"}{" "}
+                        {sp.subject_name}
+                      </strong>
+                    </td>
+                    <td className="eh-plan-progress-cell">
+                      <div className="eh-plan-mini-bar-wrap">
+                        <div
+                          className="eh-plan-mini-bar"
+                          style={{ width: `${sp.overall_progress}%` }}
+                        />
+                      </div>
+                      <span>{sp.overall_progress}%</span>
+                    </td>
+                    <td>
+                      {sp.sections_completed}/{sp.total_sections}
+                    </td>
+                    <td>
+                      {sp.mastered_knowledge_points}/{sp.total_knowledge_points}
+                    </td>
+                    <td className={`eh-plan-status${sp.is_completed ? " done" : sp.overall_progress > 0 ? " pending" : ""}`}>
+                      {sp.is_completed ? "已完成" : sp.overall_progress > 0 ? "学习中" : "未开始"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="eh-plan-empty">
+              <p>加载学习计划数据中...</p>
+              <button
+                type="button"
+                onClick={() => {
+                  if (setPage) {
+                    setPage("examSubjectDashboard", {
+                      subject: "data_structure",
+                      examCourseId: "11408 数据结构",
+                      forcePanel: "plan",
+                    });
+                  }
+                }}
+              >
+                进入数据结构学习计划 →
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

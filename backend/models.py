@@ -871,3 +871,41 @@ class PastPaperAttempt(Base):
     started_at = Column(DateTime, default=utc_now)
     submitted_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=utc_now)
+
+
+class ExamStudyPlanSetting(Base):
+    """Per-user, per-subject study plan settings for 11408 exam subjects."""
+    __tablename__ = "exam_study_plan_settings"
+    __table_args__ = (
+        Index("idx_exam_study_plan_settings_user_subject", "username", "subject_key", unique=True),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), index=True, nullable=False)
+    subject_key = Column(String(50), index=True, nullable=False)
+    learning_goal = Column(String(255), nullable=True)
+    start_date = Column(String(30), nullable=True)
+    daily_hours = Column(String(30), nullable=True)
+    weekly_days = Column(Integer, nullable=True)
+    review_strategy = Column(String(30), nullable=True, default="sequential")
+    show_completed = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+
+class ExamStudyPlanChapterPractice(Base):
+    """Tracks chapter practice completion status per section (二级知识点) in 11408 study plans."""
+    __tablename__ = "exam_study_plan_chapter_practice"
+    __table_args__ = (
+        Index("idx_exam_study_plan_cp_user_subject_code", "username", "subject_key", "section_code", unique=True),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), index=True, nullable=False)
+    subject_key = Column(String(50), index=True, nullable=False)
+    section_code = Column(String(100), index=True, nullable=False)
+    section_title = Column(String(255), nullable=True)
+    completed = Column(Boolean, nullable=False, default=False)
+    completed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)

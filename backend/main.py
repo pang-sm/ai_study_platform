@@ -12120,6 +12120,491 @@ def update_knowledge_map_review_settings(req: schemas.KnowledgeMapReviewSettings
     return {"success": True, "course_id": course_id, "review_interval_days": interval}
 
 
+# ── 11408 Study Plan (Knowledge-Point-Based) ────────────────
+
+def _get_exam_study_plan_settings(username: str, subject_key: str, db: Session):
+    return db.query(models.ExamStudyPlanSetting).filter(
+        models.ExamStudyPlanSetting.username == username,
+        models.ExamStudyPlanSetting.subject_key == subject_key,
+    ).first()
+
+
+def _get_exam_study_plan_chapter_practices(username: str, subject_key: str, db: Session):
+    rows = db.query(models.ExamStudyPlanChapterPractice).filter(
+        models.ExamStudyPlanChapterPractice.username == username,
+        models.ExamStudyPlanChapterPractice.subject_key == subject_key,
+    ).all()
+    return {row.section_code: row for row in rows}
+
+
+def _build_study_plan_tree(chapters: list[dict], progress_by_code: dict, chapter_practice_by_code: dict) -> list[dict]:
+    """Build the study plan tree from knowledge map chapters, merging user progress.
+
+    Hierarchy:
+      chapter (一级知识点) -> section (二级知识点) -> sub-section/leaf (小知识点)
+
+    Each section (二级知识点) gets:
+      - leaf progress counts
+      - chapter practice status
+      - computed section status and completion rate
+    """
+    result = []
+    for chapter_raw in chapters:
+        chapter = dict(chapter_raw)
+        chapter_children = []
+        for section_raw in (chapter.get("children") or []):
+            section = dict(section_raw)
+            # Collect leaf statuses for this section
+            leaf_statuses = _collect_leaf_statuses(section)
+            total_leaves = sum(leaf_statuses.values())
+            mastered = leaf_statuses.get("mastered", 0)
+            learning_count = leaf_statuses.get("learning", 0)
+
+            # Chapter practice status
+            section_code = str(section.get("code") or "").strip()
+            cp_record = chapter_practice_by_code.get(section_code)
+            cp_completed = cp_record.completed if cp_record else False
+
+            # Section status computation
+            all_leaves_done = (total_leaves > 0 and mastered == total_leaves)
+            if all_leaves_done and cp_completed:
+                section_status = "completed"
+            elif mastered > 0 or learning_count > 0 or cp_completed:
+                section_status = "learning"
+            else:
+                section_status = "not_started"
+
+            # Sub-children (小知识点 with progress attached)
+            sub_children = _attach_knowledge_map_status(
+                section.get("children") or [], progress_by_code
+            )
+
+            section["children"] = sub_children
+            section["leaf_stats"] = {
+                "total": total_leaves,
+                "mastered": mastered,
+                "learning": learning_count,
+                "not_started": leaf_statuses.get("not_started", 0),
+                "review_due": leaf_statuses.get("review_due", 0),
+            }
+            section["chapter_practice_completed"] = cp_completed
+            section["section_status"] = section_status
+            section["completion_rate"] = round(mastered / total_leaves * 100) if total_leaves > 0 else 0
+            chapter_children.append(section)
+
+        # Chapter-level stats
+        all_sections_done = all(
+            s.get("section_status") == "completed"
+            for s in chapter_children
+        )
+        chapter_total_leaves = sum(s["leaf_stats"]["total"] for s in chapter_children)
+        chapter_mastered = sum(s["leaf_stats"]["mastered"] for s in chapter_children)
+        chapter_learning = sum(s["leaf_stats"]["learning"] for s in chapter_children)
+
+        chapter["children"] = chapter_children
+        chapter["chapter_completion_rate"] = round(chapter_mastered / chapter_total_leaves * 100) if chapter_total_leaves > 0 else 0
+        chapter["chapter_status"] = "completed" if all_sections_done else ("learning" if chapter_mastered > 0 or chapter_learning > 0 else "not_started")
+        chapter["section_count"] = len(chapter_children)
+        chapter["sections_completed"] = sum(1 for s in chapter_children if s.get("section_status") == "completed")
+        result.append(chapter)
+
+    return result
+
+
+@app.get("/api/exam/11408/subjects/{subject_key}/study-plan")
+def get_exam_subject_study_plan(subject_key: str, username: str = "", db: Session = Depends(get_db)):
+    """Get the full study plan for a 11408 subject, including knowledge map,
+    user progress, settings, and chapter practice status."""
+    if subject_key not in EXAM_SUBJECT_DIRS:
+        raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
+
+    username = (username or "").strip()
+    course_id = f"{subject_key}_11408"
+    subject_name = EXAM_SUBJECT_DIRS[subject_key]
+
+    # Load knowledge map seed data
+    seed_path = _knowledge_map_seed_path(course_id)
+    if not seed_path.exists():
+        raise HTTPException(status_code=404, detail="知识脉络数据不存在")
+
+    try:
+        payload = json.loads(seed_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail="知识脉络数据格式错误")
+
+    # User progress
+    progress_by_code: dict[str, models.UserKnowledgeProgress] = {}
+    review_interval_days = 7
+    if username:
+        user = get_user_by_username(username, db)
+        review_interval_days = _get_review_interval_days(db, user.username, course_id)
+        progress_rows = (
+            db.query(models.UserKnowledgeProgress)
+            .filter(
+                models.UserKnowledgeProgress.username == user.username,
+                models.UserKnowledgeProgress.course_id == course_id,
+            )
+            .all()
+        )
+        progress_by_code = {
+            str(getattr(p, "knowledge_point_code", "") or "").strip(): p
+            for p in progress_rows
+            if str(getattr(p, "knowledge_point_code", "") or "").strip()
+        }
+
+    # Chapter practice records
+    chapter_practice_by_code: dict[str, models.ExamStudyPlanChapterPractice] = {}
+    if username:
+        chapter_practice_by_code = _get_exam_study_plan_chapter_practices(username, subject_key, db)
+
+    # Plan settings
+    plan_settings = None
+    if username:
+        plan_settings = _get_exam_study_plan_settings(username, subject_key, db)
+
+    # Build enriched study plan tree
+    raw_chapters = payload.get("chapters") or []
+    study_plan_tree = _build_study_plan_tree(raw_chapters, progress_by_code, chapter_practice_by_code)
+
+    # Compute overall stats
+    total_leaves = sum(
+        s["leaf_stats"]["total"]
+        for ch in study_plan_tree
+        for s in (ch.get("children") or [])
+    )
+    total_mastered = sum(
+        s["leaf_stats"]["mastered"]
+        for ch in study_plan_tree
+        for s in (ch.get("children") or [])
+    )
+    total_sections = sum(len(ch.get("children") or []) for ch in study_plan_tree)
+    sections_completed = sum(
+        1 for ch in study_plan_tree
+        for s in (ch.get("children") or [])
+        if s.get("section_status") == "completed"
+    )
+    sections_learning = sum(
+        1 for ch in study_plan_tree
+        for s in (ch.get("children") or [])
+        if s.get("section_status") == "learning"
+    )
+
+    overall_progress = round(total_mastered / total_leaves * 100) if total_leaves > 0 else 0
+    overall_status = "completed" if sections_completed == total_sections and total_sections > 0 else (
+        "learning" if sections_completed > 0 or sections_learning > 0 else "not_started"
+    )
+
+    return {
+        "course_id": course_id,
+        "course_name": payload.get("course_name") or subject_name,
+        "subject_key": subject_key,
+        "subject_name": subject_name,
+        "settings": {
+            "learning_goal": plan_settings.learning_goal if plan_settings else "",
+            "start_date": plan_settings.start_date if plan_settings else "",
+            "daily_hours": plan_settings.daily_hours if plan_settings else "",
+            "weekly_days": plan_settings.weekly_days if plan_settings else 5,
+            "review_strategy": plan_settings.review_strategy if plan_settings else "sequential",
+            "show_completed": plan_settings.show_completed if plan_settings else True,
+        },
+        "stats": {
+            "total_knowledge_points": total_leaves,
+            "mastered": total_mastered,
+            "total_sections": total_sections,
+            "sections_completed": sections_completed,
+            "sections_learning": sections_learning,
+            "sections_not_started": total_sections - sections_completed - sections_learning,
+            "overall_progress": overall_progress,
+            "overall_status": overall_status,
+        },
+        "review_interval_days": review_interval_days,
+        "chapters": study_plan_tree,
+    }
+
+
+@app.patch("/api/exam/11408/subjects/{subject_key}/study-plan/settings")
+def update_exam_study_plan_settings(
+    subject_key: str,
+    req: schemas.ExamStudyPlanSettingsUpdate,
+    db: Session = Depends(get_db),
+):
+    """Update study plan settings for a 11408 subject."""
+    if subject_key not in EXAM_SUBJECT_DIRS:
+        raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
+
+    user = get_user_by_username(req.username, db)
+    now = utc_now()
+
+    setting = db.query(models.ExamStudyPlanSetting).filter(
+        models.ExamStudyPlanSetting.username == user.username,
+        models.ExamStudyPlanSetting.subject_key == subject_key,
+    ).first()
+
+    if not setting:
+        setting = models.ExamStudyPlanSetting(
+            username=user.username,
+            subject_key=subject_key,
+            created_at=now,
+        )
+        db.add(setting)
+
+    if req.learning_goal is not None:
+        setting.learning_goal = req.learning_goal
+    if req.start_date is not None:
+        setting.start_date = req.start_date
+    if req.daily_hours is not None:
+        setting.daily_hours = req.daily_hours
+    if req.weekly_days is not None:
+        setting.weekly_days = req.weekly_days
+    if req.review_strategy is not None:
+        setting.review_strategy = req.review_strategy
+    if req.show_completed is not None:
+        setting.show_completed = req.show_completed
+
+    setting.updated_at = now
+    db.commit()
+    db.refresh(setting)
+
+    return {
+        "success": True,
+        "settings": {
+            "learning_goal": setting.learning_goal or "",
+            "start_date": setting.start_date or "",
+            "daily_hours": setting.daily_hours or "",
+            "weekly_days": setting.weekly_days or 5,
+            "review_strategy": setting.review_strategy or "sequential",
+            "show_completed": setting.show_completed if setting.show_completed is not None else True,
+        },
+    }
+
+
+@app.patch("/api/exam/11408/subjects/{subject_key}/study-plan/knowledge-items/{item_code:path}")
+def update_exam_study_plan_knowledge_item(
+    subject_key: str,
+    item_code: str,
+    req: schemas.ExamStudyPlanKnowledgeItemUpdate,
+    db: Session = Depends(get_db),
+):
+    """Update a leaf knowledge point status within the study plan.
+    Wraps the existing knowledge-map/progress endpoint but validates
+    against the 11408 subject context."""
+    if subject_key not in EXAM_SUBJECT_DIRS:
+        raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
+
+    course_id = f"{subject_key}_11408"
+
+    # Validate status
+    valid_statuses = {"not_started", "learning", "mastered"}
+    if req.status not in valid_statuses:
+        raise HTTPException(status_code=400, detail=f"Invalid status: {req.status}")
+
+    user = get_user_by_username(req.username, db)
+
+    seed_path = _knowledge_map_seed_path(course_id)
+    if not seed_path.exists():
+        raise HTTPException(status_code=404, detail="knowledge map not found")
+
+    payload = json.loads(seed_path.read_text(encoding="utf-8"))
+    node_index = _build_enriched_map_index(payload.get("chapters") or [])
+    node = node_index.get(item_code)
+    if not node:
+        raise HTTPException(status_code=404, detail="knowledge point is not in this course map")
+    if not _is_leaf_node(node):
+        raise HTTPException(status_code=400, detail="Only leaf knowledge points can be manually updated")
+
+    canonical_title = str(node.get("title") or req.knowledge_point_title or "").strip()
+
+    progress = (
+        db.query(models.UserKnowledgeProgress)
+        .filter(
+            models.UserKnowledgeProgress.username == user.username,
+            models.UserKnowledgeProgress.course_id == course_id,
+            models.UserKnowledgeProgress.knowledge_point_code == item_code,
+        )
+        .first()
+    )
+
+    now = utc_now()
+    if not progress:
+        progress = models.UserKnowledgeProgress(
+            username=user.username,
+            course_id=course_id,
+            knowledge_point_id=0,
+            knowledge_point_code=item_code,
+            knowledge_point_title=canonical_title,
+            mastery_score=0,
+            status="not_started",
+            practice_count=0,
+            task_count=0,
+            created_at=now,
+        )
+        db.add(progress)
+
+    progress.knowledge_point_code = item_code
+    progress.knowledge_point_title = canonical_title
+    progress.status = req.status
+    progress.updated_at = now
+    progress.last_studied_at = now
+
+    if req.status == "not_started":
+        progress.mastery_score = 0
+        progress.learned_at = None
+        progress.review_due_at = None
+        progress.review_interval_days = None
+    elif req.status == "learning":
+        progress.mastery_score = progress.mastery_score if progress.mastery_score is not None else 30
+        progress.learned_at = None
+        progress.review_due_at = None
+        progress.review_interval_days = None
+    elif req.status == "mastered":
+        interval_days = _get_review_interval_days(db, user.username, course_id)
+        progress.mastery_score = 100
+        progress.learned_at = now
+        progress.review_interval_days = interval_days
+        progress.review_due_at = now + timedelta(days=interval_days)
+
+    db.commit()
+    db.refresh(progress)
+    display_status = _display_map_progress_status(progress)
+
+    return {
+        "success": True,
+        "knowledge_point_code": item_code,
+        "knowledge_point_title": canonical_title,
+        "status": display_status,
+        "stored_status": progress.status,
+    }
+
+
+@app.patch("/api/exam/11408/subjects/{subject_key}/study-plan/chapter-practice/{node_code:path}")
+def update_exam_study_plan_chapter_practice(
+    subject_key: str,
+    node_code: str,
+    req: schemas.ExamStudyPlanChapterPracticeUpdate,
+    db: Session = Depends(get_db),
+):
+    """Update chapter practice completion status for a section (二级知识点)."""
+    if subject_key not in EXAM_SUBJECT_DIRS:
+        raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
+
+    user = get_user_by_username(req.username, db)
+    now = utc_now()
+
+    record = db.query(models.ExamStudyPlanChapterPractice).filter(
+        models.ExamStudyPlanChapterPractice.username == user.username,
+        models.ExamStudyPlanChapterPractice.subject_key == subject_key,
+        models.ExamStudyPlanChapterPractice.section_code == node_code,
+    ).first()
+
+    if not record:
+        record = models.ExamStudyPlanChapterPractice(
+            username=user.username,
+            subject_key=subject_key,
+            section_code=node_code,
+            section_title=req.section_title or "",
+            created_at=now,
+        )
+        db.add(record)
+
+    record.section_title = req.section_title or record.section_title or ""
+    record.completed = req.completed
+    record.completed_at = now if req.completed else None
+    record.updated_at = now
+
+    db.commit()
+    db.refresh(record)
+
+    return {
+        "success": True,
+        "section_code": node_code,
+        "completed": record.completed,
+        "completed_at": serialize_datetime(record.completed_at) if record.completed_at else None,
+    }
+
+
+@app.get("/api/exam/11408/study-plan/summary")
+def get_exam_study_plan_summary(username: str = "", db: Session = Depends(get_db)):
+    """Get a four-subject summary of study plan progress for the 11408 home page."""
+    username = (username or "").strip()
+    subjects = []
+
+    for subject_key, subject_name in EXAM_SUBJECT_DIRS.items():
+        course_id = f"{subject_key}_11408"
+        seed_path = _knowledge_map_seed_path(course_id)
+
+        total_sections = 0
+        sections_completed = 0
+        total_leaves = 0
+        mastered_leaves = 0
+        learning_leaves = 0
+
+        if seed_path.exists():
+            try:
+                payload = json.loads(seed_path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                payload = {"chapters": []}
+
+            raw_chapters = payload.get("chapters") or []
+
+            # Count sections and leaf stats from seed data
+            for chapter in raw_chapters:
+                for section in (chapter.get("children") or []):
+                    total_sections += 1
+                    leaf_counts = _collect_leaf_statuses(section)
+                    total_leaves += sum(leaf_counts.values())
+
+            if username:
+                user = get_user_by_username(username, db)
+                # Progress from user_knowledge_progress
+                progress_rows = (
+                    db.query(models.UserKnowledgeProgress)
+                    .filter(
+                        models.UserKnowledgeProgress.username == user.username,
+                        models.UserKnowledgeProgress.course_id == course_id,
+                    )
+                    .all()
+                )
+                for p in progress_rows:
+                    status = _display_map_progress_status(p)
+                    if status == "mastered":
+                        mastered_leaves += 1
+
+        # Determine which sections have chapter practice completed
+        sections_completed = 0
+        if username:
+            cp_rows = db.query(models.ExamStudyPlanChapterPractice).filter(
+                models.ExamStudyPlanChapterPractice.username == username,
+                models.ExamStudyPlanChapterPractice.subject_key == subject_key,
+                models.ExamStudyPlanChapterPractice.completed == True,
+            ).all()
+            sections_completed = len(cp_rows)
+
+        # Overall progress as percentage
+        overall_progress = round(mastered_leaves / total_leaves * 100) if total_leaves > 0 else 0
+        is_completed = sections_completed >= total_sections and total_sections > 0 and mastered_leaves >= total_leaves
+
+        subjects.append({
+            "subject_key": subject_key,
+            "subject_name": subject_name,
+            "overall_progress": overall_progress,
+            "total_sections": total_sections,
+            "sections_completed": sections_completed,
+            "total_knowledge_points": total_leaves,
+            "mastered_knowledge_points": mastered_leaves,
+            "is_completed": is_completed,
+        })
+
+    total_all_progress = round(
+        sum(s["overall_progress"] for s in subjects) / len(subjects)
+    ) if subjects else 0
+
+    return {
+        "subjects": subjects,
+        "total_progress": total_all_progress,
+        "total_subjects_completed": sum(1 for s in subjects if s["is_completed"]),
+    }
+
+
 # ── 11408 Past Papers ───────────────────────────────────────
 
 import exam_paper_parser
