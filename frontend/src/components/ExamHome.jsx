@@ -270,24 +270,8 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
                 const cs = task.computed_status || task.status || "not_started";
                 const STATUS_LABELS = { completed: "已完成", in_progress: "进行中", not_started: "未开始" };
                 const TYPE_LABELS = { knowledge: "知识点学习", chapter_practice: "章节练习", review: "阶段复习" };
-                const isChapterPractice = task.task_type === "chapter_practice";
-                const actionLabel = isChapterPractice ? "去练习中心完成" :
-                  task.action_target === "knowledge_map" ? "去知识脉络学习" : "进入学习计划";
-                const homeActionPanel = isChapterPractice ? "practice" : "plan";
                 return (
-                  <div
-                    key={task.id}
-                    className={`eh-task-card ${cs}`}
-                    onClick={() => {
-                      if (setPage) {
-                        setPage("examSubjectDashboard", {
-                          subject: task.subject_key,
-                          examCourseId: `11408 ${subj?.name || task.subject_key}`,
-                          forcePanel: "plan",
-                        });
-                      }
-                    }}
-                  >
+                  <div key={task.id} className={`eh-task-card ${cs}`}>
                     <div className="eh-task-card-header">
                       <span className="eh-task-subject-tag">
                         {subj?.icon || "📚"} {subj?.name || task.subject_key}
@@ -313,16 +297,6 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
                     {task.due_date && (
                       <span className="eh-task-card-due">📅 {task.due_date}</span>
                     )}
-                    <button type="button" className="eh-task-card-action-btn"
-                      onClick={(e) => { e.stopPropagation(); if (setPage) {
-                        setPage("examSubjectDashboard", {
-                          subject: task.subject_key,
-                          examCourseId: `11408 ${subj?.name || task.subject_key}`,
-                          forcePanel: homeActionPanel,
-                        });
-                      }}}>
-                      {actionLabel} →
-                    </button>
                   </div>
                 );
               })}
@@ -330,17 +304,6 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
           ) : (
             <div className="eh-plan-empty">
               <p>还没有阶段学习任务，请进入具体学科的学习计划中设置。</p>
-              <button type="button" onClick={() => {
-                if (setPage) {
-                  setPage("examSubjectDashboard", {
-                    subject: "data_structure",
-                    examCourseId: "11408 数据结构",
-                    forcePanel: "plan",
-                  });
-                }
-              }}>
-                进入数据结构学习计划 →
-              </button>
             </div>
           )}
         </div>
