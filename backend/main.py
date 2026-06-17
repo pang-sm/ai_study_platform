@@ -13236,43 +13236,53 @@ def get_exam_subject_dashboard_summary(subject_key: str, username: str = "", db:
         pkg = normalize_exam_package(track.package_type) if track else "free"
         pkg_quota = EXAM_PACKAGE_QUOTA.get(pkg, EXAM_PACKAGE_QUOTA["free"])
 
-        # AI usage today
+        # AI usage today — feature names: "chat", "question_generate"
         today_start = utc_now().replace(hour=0, minute=0, second=0, microsecond=0)
         ai_today = db.query(models.AiUsageLog).filter(
             models.AiUsageLog.username == user.username,
             models.AiUsageLog.created_at >= today_start,
             models.AiUsageLog.status == "success",
         ).all()
-        chat_used = sum(1 for a in ai_today if (a.feature or "").startswith("ai_chat"))
-        question_used = sum(1 for a in ai_today if (a.feature or "").startswith("ai_question") or "question" in (a.feature or "").lower())
+
+        # AI chat: feature == "chat" (includes all normal chat calls)
+        chat_used = sum(1 for a in ai_today if (a.feature or "").strip() == "chat")
+        # AI question generation: feature == "question_generate"
+        question_used = sum(1 for a in ai_today if (a.feature or "").strip() == "question_generate")
 
         chat_limit = int(pkg_quota.get("ai_chat_daily_limit", 50))
         q_limit = int(pkg_quota.get("ai_question_daily_limit", 5))
 
-        material_uploaded = 0
-        if user:
-            uploads = db.query(models.StudyMaterial).filter(
-                models.StudyMaterial.username == user.username,
-                models.StudyMaterial.is_deleted == False,
-            ).count()
-            material_uploaded = uploads
-        mat_limit_mb = int(pkg_quota.get("material_upload_limit_mb", 100))
+        # Material upload: count by files uploaded today
+        material_uploaded_today = db.query(models.StudyMaterial).filter(
+            models.StudyMaterial.username == user.username,
+            models.StudyMaterial.is_deleted == False,
+            models.StudyMaterial.created_at >= today_start,
+        ).count()
+        # Total for display context
+        material_total = db.query(models.StudyMaterial).filter(
+            models.StudyMaterial.username == user.username,
+            models.StudyMaterial.is_deleted == False,
+        ).count()
+        mat_limit = int(pkg_quota.get("material_upload_limit_mb", 100))
 
         quota = {
             "ai_chat": {
                 "used": chat_used,
                 "limit": chat_limit,
                 "remaining": max(0, chat_limit - chat_used),
+                "unit": "次",
             },
             "ai_question": {
                 "used": question_used,
                 "limit": q_limit,
                 "remaining": max(0, q_limit - question_used),
+                "unit": "次",
             },
             "material_upload": {
-                "used": material_uploaded,
-                "limit": mat_limit_mb,
-                "remaining": max(0, mat_limit_mb - material_uploaded),
+                "used": material_total,
+                "limit": mat_limit,
+                "remaining": max(0, mat_limit - material_total),
+                "unit": "个",
             },
         }
 

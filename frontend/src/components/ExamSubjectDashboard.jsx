@@ -43,8 +43,6 @@ const NAV_ITEMS = [
   { key: "report", label: "学习报告", icon: "报" },
 ];
 
-const MATERIAL_LABELS = ["课件讲义", "习题集", "参考资料", "代码示例"];
-
 export const EXAM_SUBJECTS = SUBJECT_CONFIG;
 
 export function getExamSubjectConfig(subjectKey) {
@@ -134,7 +132,6 @@ export default function ExamSubjectDashboard({
 
   // Formatters
   const overview = dashData?.overview || {};
-  const materials = dashData?.materials || {};
   const quota = dashData?.quota || {};
   const plans = dashData?.today_plan || [];
 
@@ -146,14 +143,15 @@ export default function ExamSubjectDashboard({
     return m > 0 ? `${h}.${Math.round(m / 6)} 小时` : `${h} 小时`;
   };
 
-  const fmtQuotaPercent = (used, limit) => {
+  const fmtQuotaPercent = (remaining, limit) => {
     if (!limit || limit <= 0) return 100;
-    return Math.min(100, Math.round(used / limit * 100));
+    if (limit === null || limit === undefined) return 100;
+    return Math.round(remaining / limit * 100);
   };
 
-  const fmtQuotaValue = (used, limit) => {
-    if (limit === null || limit === undefined) return `${used} / 不限`;
-    return `${used} / ${limit}`;
+  const fmtQuotaValue = (remaining, limit) => {
+    if (limit === null || limit === undefined) return `不限`;
+    return `${remaining} / ${limit}`;
   };
 
   const TASK_TYPE_LABELS = { knowledge: "知识点学习", chapter_practice: "章节练习", review: "阶段复习" };
@@ -278,35 +276,19 @@ export default function ExamSubjectDashboard({
                 </div>
               </div>
 
-              {/* Materials Overview */}
-              <div className="exam-subject-card">
-                <h3>资料库概览</h3>
-                <div className="exam-subject-material-grid">
-                  {MATERIAL_LABELS.map((label, index) => {
-                    const keys = ["lecture_notes", "exercises", "references", "code_examples"];
-                    return (
-                      <button key={label} type="button" onClick={() => navigate("materials")}>
-                        <span>{label}</span>
-                        <strong>{(materials[keys[index]] ?? 0)} 份</strong>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
               {/* Quota */}
               <div className="exam-subject-card">
                 <h3>额度剩余</h3>
                 <div className="exam-subject-quota-list">
                   <Quota label="AI 问答剩余"
-                    value={fmtQuotaValue(quota.ai_chat?.used ?? 0, quota.ai_chat?.limit ?? 0)}
-                    percent={fmtQuotaPercent(quota.ai_chat?.used ?? 0, quota.ai_chat?.limit ?? 0)} />
+                    value={fmtQuotaValue(quota.ai_chat?.remaining ?? 0, quota.ai_chat?.limit ?? 0)}
+                    percent={fmtQuotaPercent(quota.ai_chat?.remaining ?? 0, quota.ai_chat?.limit ?? 0)} />
                   <Quota label="AI 出题剩余"
-                    value={fmtQuotaValue(quota.ai_question?.used ?? 0, quota.ai_question?.limit ?? 0)}
-                    percent={fmtQuotaPercent(quota.ai_question?.used ?? 0, quota.ai_question?.limit ?? 0)} />
-                  <Quota label="资料上传"
-                    value={fmtQuotaValue(quota.material_upload?.used ?? 0, quota.material_upload?.limit ?? 0)}
-                    percent={fmtQuotaPercent(quota.material_upload?.used ?? 0, quota.material_upload?.limit ?? 0)} />
+                    value={fmtQuotaValue(quota.ai_question?.remaining ?? 0, quota.ai_question?.limit ?? 0)}
+                    percent={fmtQuotaPercent(quota.ai_question?.remaining ?? 0, quota.ai_question?.limit ?? 0)} />
+                  <Quota label="资料上传剩余"
+                    value={fmtQuotaValue(quota.material_upload?.remaining ?? 0, quota.material_upload?.limit ?? 0)}
+                    percent={fmtQuotaPercent(quota.material_upload?.remaining ?? 0, quota.material_upload?.limit ?? 0)} />
                 </div>
               </div>
             </section>
