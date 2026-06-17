@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as echarts from "echarts/core";
 import { LineChart } from "echarts/charts";
 import { GridComponent, TooltipComponent } from "echarts/components";
@@ -8,22 +8,40 @@ import { generateAIReport } from "../services/learningReport.js";
 
 echarts.use([LineChart, GridComponent, TooltipComponent, CanvasRenderer]);
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-function pad(value) { return String(value).padStart(2, "0"); }
+function pad(v) { return String(v).padStart(2, "0"); }
 
 function formatDate(date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-function safeText(value, fallback = "--") {
-  if (value === null || value === undefined || value === "") return fallback;
-  return String(value);
+function formatStudyTime(minutes) {
+  if (minutes === null || minutes === undefined) return "--";
+  const m = Number(minutes);
+  if (!Number.isFinite(m) || m <= 0) return "0 分钟";
+  const h = Math.floor(m / 60);
+  const min = m % 60;
+  if (h > 0 && min > 0) return `${h} 小时 ${min} 分钟`;
+  if (h > 0) return `${h} 小时`;
+  return `${min} 分钟`;
+}
+
+function formatAccuracy(value) {
+  if (value === null || value === undefined) return "--";
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "--";
+  return `${n}%`;
+}
+
+function formatStudyDays(count) {
+  if (count === null || count === undefined) return "--";
+  const n = Number(count);
+  if (!Number.isFinite(n) || n <= 0) return "0 天";
+  return `${n} 天`;
 }
 
 const EMPTY_REPORT = {
   range: { start_date: "", end_date: "", label: "" },
-  metrics: { study_time: "--", knowledge_points: "--", accuracy: "--", study_days: "--" },
+  metrics: { study_minutes: 0, completed_knowledge_count: 0, practice_accuracy: null, study_days: 0 },
   ai_report: { summary: "", strengths: [], weaknesses: [], suggestions: [] },
   trend: [],
   errors: [],
@@ -31,15 +49,15 @@ const EMPTY_REPORT = {
 
 function normalizeReport(raw) {
   const data = raw && typeof raw === "object" ? raw : {};
-  const metrics = data.metrics && typeof data.metrics === "object" ? data.metrics : {};
+  const m = data.metrics && typeof data.metrics === "object" ? data.metrics : {};
   const ai = data.ai_report && typeof data.ai_report === "object" ? data.ai_report : {};
   return {
     range: data.range || { start_date: "", end_date: "", label: "" },
     metrics: {
-      study_time: safeText(metrics.study_time),
-      knowledge_points: safeText(metrics.knowledge_points),
-      accuracy: safeText(metrics.accuracy),
-      study_days: safeText(metrics.study_days),
+      study_minutes: Number.isFinite(Number(m.study_minutes)) ? Number(m.study_minutes) : 0,
+      completed_knowledge_count: Number.isFinite(Number(m.completed_knowledge_count)) ? Number(m.completed_knowledge_count) : 0,
+      practice_accuracy: Number.isFinite(Number(m.practice_accuracy)) ? Number(m.practice_accuracy) : null,
+      study_days: Number.isFinite(Number(m.study_days)) ? Number(m.study_days) : 0,
     },
     summary: {
       overall_summary: ai.summary || "",
@@ -70,10 +88,11 @@ function TrendChart({ trend }) {
     label: item.date || item.day || item.label || "",
     value: Number(item.study_minutes ?? item.value ?? item.count ?? 0),
   }));
+  const hasData = points.some((p) => p.value > 0);
   const safePoints = points.length > 0 ? points : [];
 
   useEffect(() => {
-    if (!chartRef.current) return undefined;
+    if (!chartRef.current || !hasData) return undefined;
     const chart = echarts.init(chartRef.current);
     chart.setOption({
       grid: { left: 42, right: 24, top: 28, bottom: 34 },
@@ -107,7 +126,7 @@ function TrendChart({ trend }) {
       <div className="report-section-head">
         <div><h3>学习趋势图</h3><p>所选时间范围内的学习投入变化</p></div>
       </div>
-      {safePoints.length === 0 ? (
+      {!hasData ? (
         <div className="report-empty-mini" style={{padding:"40px 20px",textAlign:"center",color:"#6b7280"}}>
           当前时间范围内暂无学习趋势数据
         </div>
@@ -255,11 +274,12 @@ export default function LearningReportCenter({ user }) {
     }
   };
 
+  const m = report.metrics;
   const metricCards = [
-    { icon: "⏱", label: "学习时长", value: report.metrics.study_time, tone: "purple" },
-    { icon: "▣", label: "完成知识点", value: report.metrics.knowledge_points, tone: "blue" },
-    { icon: "✓", label: "练习正确率", value: report.metrics.accuracy, tone: "green" },
-    { icon: "▤", label: "学习天数", value: report.metrics.study_days, tone: "orange" },
+    { icon: "⏱", label: "学习时长", value: formatStudyTime(m.study_minutes), tone: "purple" },
+    { icon: "▣", label: "完成知识点", value: String(m.completed_knowledge_count ?? 0), tone: "blue" },
+    { icon: "✓", label: "练习正确率", value: formatAccuracy(m.practice_accuracy), tone: "green" },
+    { icon: "▤", label: "学习天数", value: formatStudyDays(m.study_days), tone: "orange" },
   ];
 
   return (
