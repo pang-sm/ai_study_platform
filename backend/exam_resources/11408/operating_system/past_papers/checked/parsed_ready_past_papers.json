@@ -56,19 +56,19 @@
     "paper_name": "2022年操作系统真题",
     "question_number": 25,
     "question_type": "choice",
-    "question_text": "25.进程 PO、P1l、P2 和 P3 进入就绪队列的时刻、优先级值越小优先权越高”及 CPU 执行时间如下表所示。 【表格数据见原题】若系统采用基于优先权的抢占式进程调度算法, 则从 Oms 时刻开始调度,到 4 个进程都 运行结束为止，发生进程调度的总次数为 m4 A4 B.5 C6 BF",
+    "question_text": "25.进程P0、P1、P2和P3进入就绪队列的时刻、优先级（值越小优先权越高）及CPU执行时间如下表所示。若系统采用基于优先权的抢占式进程调度算法，则从0ms时刻开始调度，到4个进程都运行结束为止，发生进程调度的总次数为",
     "options": {
-      "A": "O(1)、O(1)",
-      "B": "O(1)、O(n)",
-      "C": "O(n)、O(1)",
-      "D": "O(n)、O(n)"
+      "A": "4",
+      "B": "5",
+      "C": "6",
+      "D": "7"
     },
     "answer": "C",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2022-Q25",
-    "text_quality": "need_review",
-    "review_notes": "选项缺失: A,B,C,D; 【图示/表格缺失，待补充原题截图】",
+    "text_quality": "ready",
+    "review_notes": "题干中的进程调度表（P0/P1/P2/P3到达时间、优先级、CPU执行时间）需从原题截图查看",
     "is_active": true
   },
   {
@@ -80,14 +80,19 @@
     "paper_name": "2022年操作系统真题",
     "question_number": 26,
     "question_type": "choice",
-    "question_text": "26. 系统中有三个进程 PO、P1、P2 及三类资源 A、B、C。若某时刻系统分配资源的情 况如下表所示，则此时系统中存在的安全序列的个数为() 进程 ee rE EEE 【表格数据见原题】[ ame 4 D4",
-    "options": {},
+    "question_text": "26.系统中有三个进程P0、P1、P2及三类资源A、B、C。若某时刻系统分配资源的情况如下表所示，则此时系统中存在的安全序列的个数为",
+    "options": {
+      "A": "1",
+      "B": "2",
+      "C": "3",
+      "D": "4"
+    },
     "answer": "B",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2022-Q26",
-    "text_quality": "need_review",
-    "review_notes": "选项缺失: A,B,C,D; 【图示/表格缺失，待补充原题截图】",
+    "text_quality": "ready",
+    "review_notes": "题干中的资源分配表（各进程已分配/尚需的A/B/C数量）需从原题截图查看",
     "is_active": true
   },
   {
@@ -123,14 +128,19 @@
     "paper_name": "2022年操作系统真题",
     "question_number": 28,
     "question_type": "choice",
-    "question_text": "28.下列事件或操作中，可能导致进程P 由执行态变为阻塞态的原因可能是 I进程P读文件开进程P的时间片用完 III.进程P 申请外设 IV.进程P执行信号量的 wait( )操作 AAI. IV BALM, UI CAM I, IV DAM I, I, IV",
-    "options": {},
+    "question_text": "28.下列事件或操作中，可能导致进程P由执行态变为阻塞态的原因是\nI.进程P读文件  II.进程P的时间片用完\nIII.进程P申请外设  IV.进程P执行信号量的wait()操作",
+    "options": {
+      "A": "仅I、IV",
+      "B": "仅I、II、III",
+      "C": "仅I、II、IV",
+      "D": "I、III、IV"
+    },
     "answer": "D",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2022-Q28",
-    "text_quality": "need_review",
-    "review_notes": "选项缺失: A,B,C,D",
+    "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -190,14 +200,19 @@
     "paper_name": "2022年操作系统真题",
     "question_number": 31,
     "question_type": "choice",
-    "question_text": "31. 执行系统调用的过程涉及下列操作，其中由操作系统完成的是 = = I保存上断点和程序状态字 ”IH保存通用寄存器的内容 UL PUT ALAS NEL 。 “IV.将 CPU 模式改为内核态 Ag BAU. UL \\@ G6. Hs IV DAI, Wl, IV",
-    "options": {},
+    "question_text": "31.执行系统调用的过程涉及下列操作，其中由操作系统完成的是\nI.保存断点和程序状态字  II.保存通用寄存器的内容\nIII.执行系统调用服务程序  IV.将CPU模式改为内核态",
+    "options": {
+      "A": "仅I、II",
+      "B": "仅II、III",
+      "C": "仅III、IV",
+      "D": "I、II、IV"
+    },
     "answer": "B",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2022-Q31",
-    "text_quality": "need_review",
-    "review_notes": "选项缺失: A,B,C,D",
+    "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -235,7 +250,7 @@
     "question_type": "big",
     "question_text": "45. (7 分)某文件系统的磁盘块大小为4 KB，目录项由文件名和索引节点号构成,每 = 9 AVA4 秆圭国局工WWT罗十扣填写 el) See 个索引节点占 256 字节， 其中包含直接地址项 10 个, 一级、二级和三级间接地址项各 1 个，每个地址项占 4 字节。该文件系统中子目录 stu 的结构如题 45(a)图所示，stu 包含 子目录 course 和文件 doc, course子目录包含文件 course 1 和course2。各文件的文件名、 索引节点号、占用磁盘块的块号如题 45(b)图所示。 Su 文件名 . 2 M145 (a) 图 M145 (b) 图 请回答下列问题。 (1) 目录文件 stu 中每个目录项的内容是什么? (2) 文件 doc 占用的磁盘块的块号 x 的值是多少? (3) 车目录文件 course 的内容已在内存，则打开文件 coursel 并将其读入内存，需要 读几个磁盘块? 说明理由。 (4) 若文件 course2 的大小增长到6 MB，则为了存取course2 需要使用该文件索引节 占的哪几级间接地址项?说明理由。",
     "options": {},
-    "answer": "（1）stu目录项：(course, 2) 和 (doc, 10)。（2）x = 30，doc与course1共享索引节点号10，磁盘块号相同。（3）打开course1需读2个磁盘块：第1块读索引节点所在块，第2块读内容所在块（30号块）。（4）6MB = 1536个磁盘块，直接地址项10块，一级间接10+1024=1034块不足，需一级和二级间接地址项。",
+    "answer": "（1）stu目录项：(course, 2) 和 (doc, 10)。（2）x = 30，doc与course1共享索引节点号10，磁盘块号相同。（3）打开course1需读2个磁盘块：第1块读索引节点所在磁盘块，第2块读内容所在磁盘块（30号块）。（4）6MB = 1536个磁盘块，直接地址项10块，一级间接10+1024=1034块不足，需使用一级和二级间接地址项。",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2022-Q45",
@@ -254,7 +269,7 @@
     "question_type": "big",
     "question_text": "46. (8 分) 某进程的两个线秤Tl 和T2 并发执行 A、B、C、D、E 和下共 6个操作， 其中Tl执行A、E和F,T2执行B、C 和D。题46 图表示上述6个操作的执行顺序所 必须满足的约束: C 在A 和 B 完成后执行, D 和EE在完成后行执行, 下在FE完成后 执行。请使用信号量的 wait( )、signal 0操作描述Tl 和T2 之间的同步关系，并说明所 用信号量的作用及其初值 Ail 46 图",
     "options": {},
-    "answer": "定义信号量：semaphore S_AC=0（控制A→C跨线程同步），semaphore S_CE=0（控制C→E跨线程同步）。T1：完成A → signal(S_AC) → wait(S_CE) → 完成E → 完成F。T2：完成B → wait(S_AC) → 完成C → signal(S_CE) → 完成D。同一线程内B→C、C→D、E→F的顺序无需信号量保证。",
+    "answer": "信号量：semaphore S_AC=0（控制A→C跨线程同步）；semaphore S_CE=0（控制C→E跨线程同步）。T1：完成A → V(S_AC) → P(S_CE) → 完成E → 完成F。T2：完成B → P(S_AC) → 完成C → V(S_CE) → 完成D。同一线程内B→C、C→D、E→F的顺序由程序顺序保证，无需信号量。",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2022-Q46",
@@ -271,14 +286,19 @@
     "paper_name": "2023年操作系统真题",
     "question_number": 23,
     "question_type": "choice",
-    "question_text": "23. 与宏内核操作系统相比，下列特征中，微内核操作系统具有的是 ) I 较好的性能 TL. 较高的可靠性 TIL 较高的安全性 IV. 较强的可扩展性 AI IV Boy I HI CI I IV DI I. IV",
-    "options": {},
+    "question_text": "23.与宏内核操作系统相比，下列特征中，微内核操作系统具有的是\nI.较好的性能  II.较高的可靠性\nIII.较高的安全性  IV.较强的可扩展性",
+    "options": {
+      "A": "仅I、IV",
+      "B": "仅II、III",
+      "C": "仅I、II、IV",
+      "D": "II、III、IV"
+    },
     "answer": "D",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2023-Q23",
-    "text_quality": "need_review",
-    "review_notes": "选项缺失: A,B,C,D",
+    "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -410,18 +430,19 @@
     "paper_name": "2023年操作系统真题",
     "question_number": 29,
     "question_type": "choice",
-    "question_text": "29. 进程 PI、P2 和 P3 进入就绪队列的的时刻、优先级〈值越大优先权越高) 及 CPU 执行时间如下表所示: m4 ”43 EER ASIA Sw el) See moms ms 若系统采用基于优先权的抢占式 CPU 调度算法，从 Oms 时刻开始进行调度，则 PIT、 P2 和了3 的平均周转时间为《 )",
+    "question_text": "29.进程P1、P2和P3进入就绪队列的时刻、优先级（值越大优先权越高）及CPU执行时间如下表所示。若系统采用基于优先权的抢占式CPU调度算法，从0ms时刻开始进行调度，则P1、P2和P3的平均周转时间为",
     "options": {
-      "A": "60 ms B. 61 ms Cc. 70 ms",
-      "B": "61 ms Cc. 70 ms D. 71 ms",
-      "D": "71 ms"
+      "A": "60ms",
+      "B": "61ms",
+      "C": "70ms",
+      "D": "71ms"
     },
     "answer": "B",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2023-Q29",
-    "text_quality": "need_review",
-    "review_notes": "选项缺失: C; 【图示/表格缺失，待补充原题截图】",
+    "text_quality": "ready",
+    "review_notes": "进程调度表（P1/P2/P3到达时间、优先级值、CPU执行时间）需从原题截图查看",
     "is_active": true
   },
   {
@@ -481,14 +502,19 @@
     "paper_name": "2023年操作系统真题",
     "question_number": 32,
     "question_type": "choice",
-    "question_text": "32. 下列因素中，设备分配需要考虑的是 ) L 设备的类型 TL. 设备的访问权限 TH. 设备的占用状态 IV. 册辑设备与物理设备的映射关系 AL I B.I, Ul CI. IV D.I. Il. I. IV",
-    "options": {},
+    "question_text": "32.下列因素中，设备分配需要考虑的是\nI.设备的类型  II.设备的访问权限\nIII.设备的占用状态  IV.逻辑设备与物理设备的映射关系",
+    "options": {
+      "A": "仅I",
+      "B": "I、III",
+      "C": "I、IV",
+      "D": "I、II、III、IV"
+    },
     "answer": "D",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2023-Q32",
-    "text_quality": "need_review",
-    "review_notes": "选项缺失: A,B,C,D",
+    "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -502,7 +528,7 @@
     "question_type": "big",
     "question_text": "45. (7 分) 现要求学生使用 swap 指令和布尔型变量 lock 实现临界区互斥。lock 为 线程间共享的变量。lock 的值为 TRUE 时线程不能进入临界区。为 FALSE 时线程能 够进入临界区。某同学编写的实现临界区互尺的伪代码如题 45 (a》图所示。 某同学编写的伪代码 - Bool lock= FALSE; 。 //共享变量 i Void newSwap(bool *a,bool *b) | ENE { 局 “if (key=TRUE) | “pa Bs |__ swap key,lock; /交换 key 和 lock 的值 | wy aa ~<a *b=temp; (a) (b) iii 45 Al 请回答下列问题 (1)题 45 Ca) 图的伪代码中哪些语句存在错误? 将其改为正确的语句〈不增加语句 (2)题 45 (Cb) 图给出了两个变量值的函数 newSwap0 的代码，是否可以用函数调用 语句“”newSwap(&key, &lock)”，代替指令“swap key, lock”以实现临界区互斥? 为什 么?",
     "options": {},
-    "answer": "（1）两个错误：①if应改为while（忙等待循环检查）；②退出区应设置lock=FALSE而非TRUE。（2）不能。函数调用newSwap()不是原子操作，并发执行时可能导致多个线程同时进入临界区。硬件swap指令是原子指令，保证不可分割。",
+    "answer": "（1）两个错误：①if应改为while（忙等待需要循环检查）；②退出区应设置lock=FALSE而非TRUE。（2）不能。函数调用newSwap()不是原子操作，并发执行时可能导致多个线程同时进入临界区。硬件swap指令是原子指令，执行过程中不会被中断。",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2023-Q45",
@@ -521,7 +547,7 @@
     "question_type": "big",
     "question_text": "46. (8 分) 进程P通过系统调用从键盘接收一个字符的输入。己知此过程中与进程 a 9 相关的操作包括: 将进程了插入就绪队列; 加将进程了插入阻塞队列， @将字符从键 盘控制器读入系统缓冲区，@启动键盘中断处理程序，@进程P 从系统调用返回; OF 户在键盘上输入字符。以上编号~@仅用于标记操作，与操作的先后顺序无关。请回 答下列问题。 (1)按照正确的操作顺序, 操作虽的前一个和后一个操作分别是上述操作中的哪二个? 操作@的后一个操作是上述操作中的哪一个? (2)在上述哪个操作之后 CPU 一定从进程P切换到其他进程? 在上述哪个操作之后 CPU 调度程序才能选中进程执行? (3) 完成上述哪个操作的代码属于键盘驱动程序? (4) 键盘中断处理程序执行时，进程P处于什么状态?CPU 处于内核态还是用户态?",
     "options": {},
-    "answer": "（1）正确顺序：②将进程P插入阻塞队列→⑥用户键入字符→④启动键盘中断服务程序→③将字符读入缓冲区→①将进程P插入就绪队列→⑤从系统调用返回。（2）执行操作②后CPU必须切换离开P；直到操作①后才可由调度程序选中P。（3）操作③属于键盘驱动程序。（4）键盘ISR执行期间，进程P处于阻塞态；CPU处于内核态。",
+    "answer": "（1）正确顺序：②(将进程P插入阻塞队列)→⑥(用户键入字符)→④(启动键盘中断服务程序)→③(将字符读入系统缓冲区)→①(将进程P插入就绪队列)→⑤(进程P从系统调用返回)。操作②之后CPU一定切换到其他进程。操作①之后CPU调度程序才能选中P执行。（2）操作③的代码属于键盘驱动程序。（3）键盘中断处理程序执行时，进程P处于阻塞态；CPU处于内核态。",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2023-Q46",
@@ -540,16 +566,17 @@
     "question_type": "choice",
     "question_text": "23. 下列关于中上断、异常和系统调用的叙述中，错误的是。 DT 2 eR eee tA tS er ee 4 ge",
     "options": {
-      "A": "中断或异常发生时，CPU 处于内核态",
+      "A": "中断或异常发生时，CPU处于内核态",
       "B": "每个系统调用都有对应的内核服务例程",
-      "C": "中断处理程序开始执行时，CPU 处于内核态"
+      "C": "中断处理程序开始执行时，CPU处于内核态",
+      "D": "异常是由正在执行的指令引发的"
     },
     "answer": "A",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2024-Q23",
-    "text_quality": "need_review",
-    "review_notes": "选项缺失: D",
+    "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -561,18 +588,19 @@
     "paper_name": "2024年操作系统真题",
     "question_number": 24,
     "question_type": "choice",
-    "question_text": "24, 下列选项中，操作系统在终止进程时不一定执行的是 CD.",
+    "question_text": "24.下列选项中，操作系统在终止进程时不一定执行的是",
     "options": {
-      "A": "终止了进程",
-      "C": "SGI IEE 有同收为济程外配的内存",
-      "B": "回收进程占用的设备"
+      "A": "终止子进程",
+      "B": "回收进程占用的设备",
+      "C": "回收为进程分配的内存",
+      "D": "释放进程的进程控制块"
     },
     "answer": "A",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2024-Q24",
-    "text_quality": "need_review",
-    "review_notes": "选项缺失: D",
+    "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -584,17 +612,19 @@
     "paper_name": "2024年操作系统真题",
     "question_number": 25,
     "question_type": "choice",
-    "question_text": "25. 在支持页式存储管理的系统中，进程切换时操作系统需要执行的操作是 L 更新程序计数器的值 TL, 更新栈基址寄存器的值 TH, 更新页表基地址寄存器的值",
+    "question_text": "25.在支持页式存储管理的系统中，进程切换时操作系统需要执行的操作是\nI.更新程序计数器的值  II.更新栈基址寄存器的值\nIII.更新页表基地址寄存器的值",
     "options": {
-      "A": "4M IIL",
-      "B": "WLI Cc. WI. IH DI Ik I"
+      "A": "仅I、II",
+      "B": "仅II、III",
+      "C": "仅I、III",
+      "D": "I、II、III"
     },
     "answer": "D",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2024-Q25",
-    "text_quality": "need_review",
-    "review_notes": "选项缺失: C,D",
+    "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -654,14 +684,19 @@
     "paper_name": "2024年操作系统真题",
     "question_number": 28,
     "question_type": "choice",
-    "question_text": "28. 若进程P中的线程了先打开文件，得到文件描述符得，再创建两个线程 Ta 和Tb， 则下列资源中，Ta 与 Tb 可共享的是 m4 Ui (CUES SRLS Sw ae) Re I进程P 的地址空间工.线程了的栈 I文件描述符人 | SA ALT B. WI. I Cc. Wk Wm DI I W [ F",
-    "options": {},
+    "question_text": "28.若进程P中的线程T先打开文件，得到文件描述符fd，再创建两个线程Ta和Tb，则下列资源中，Ta与Tb可共享的是\nI.进程P的地址空间  II.线程T的栈\nIII.文件描述符fd",
+    "options": {
+      "A": "仅I",
+      "B": "I、III",
+      "C": "I、II",
+      "D": "I、II、III"
+    },
     "answer": "B",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2024-Q28",
-    "text_quality": "need_review",
-    "review_notes": "选项缺失: A,B,C,D",
+    "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -771,7 +806,7 @@
     "question_type": "big",
     "question_text": "45〔本题 7分) 某计算机按字节编址，采用页式虚拟存储管理方式，虚拟地址和物理地 址的长度均为 32 位，页表项的大小为4字节，页大小为4MB，虚拟地址结构如下: PERE P 的页表起始虚拟地址为 B8C0 OOOOH, 被装载到从物理地址 6540 OOOOH 开始的连 续主存空间中。 请回答下列，要求答案用十六进制表示。 (1) 车 CPU 在执行进程P 的过程中,访问虚拟地址 1234 5678H 时发生了缺页异常， 经过缺页异常处理和MMU 地址转换后得到的物理地址是BAB4 5678H，在此次缺页异 常处理过程中,需要为所缺页分配页框并更新相应的页表项，则该页表项的虚拟地址和 物理地址分别是什么? 该页表项中的页框号更新后的值是什么? (3 分) (2) 进程P 的页表所在页的页号是什么? 该页对应的页表项的虚拟地址是什么? 该页 表项中的页框旦是多人少? (4分)",
     "options": {},
-    "answer": "（1）页表项虚拟地址：B8C0 0120H；物理地址：6540 0120H；页框号：2EAH。（2）页表所在页的页号：2E3H；对应页表项虚拟地址：B8C0 0B8CH；页框号：195H。",
+    "answer": "（1）页表项的虚拟地址：B8C0 0120H；物理地址：6540 0120H；更新后的页框号：2EAH。（2）页表所在页的页号：2E3H；对应页表项的虚拟地址：B8C0 0B8CH；该页表项中的页框号：195H。",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2024-Q45",
@@ -790,7 +825,7 @@
     "question_type": "big",
     "question_text": "46(本题 8分) 计算机系统中的进程之间往往需要相互协作以完成一个任务。在某网络 系统中缓冲区 B 用于存放一个数据分组，对 B 的操作有 Cl、C2 和C3。C1 将一个数据 分组写入B 中,C2 从B 中读出一个数据分组，C3 对 B 中的数据分组进行修改。 BOR B 为空时才能执行 C1，B 非空时才能执行 C2 和C3。请回答下列问题。 (1) 假设进程 Pl 和 P2 均需执行 C1, 实现 C1 的代码是否为临界区? WHA? (2 分) (2) 假设 B 初始为空，进程P1 执行 C1 一次,进程 P2 执行 C2 一次。请定义尽可能少 的信号量，并用 wait( )、signal ©) 操作描述进程 Pl 和P2 之间的同步或互斥关系，说 明所用信号量的作用及其初值。(3 分》 (3) 假设 B 初始不为空，进程 Pl1 和P2 各执行 C3 一次，请定义尽可能少的信号量， 并用 wait ©. signal () 操作描述进程 Pl1 和 P2 之间的同步或互斥关系，说明所用信号 量的作用及初值。(3 a) 10",
     "options": {},
-    "answer": "（1）C1是临界区。多个进程同时执行C1可能试图同时写入数据分组，导致数据不一致。（2）需两个信号量：mutex（互斥，初值1）和full（同步缓冲区状态，初值0）。（3）P1和P2对C3操作需一个信号量mutex（互斥，初值1），均通过wait(mutex)/signal(mutex)保护C3操作。",
+    "answer": "（1）C1是临界区。多个进程同时执行C1可能试图同时写入数据分组到缓冲区B，导致数据不一致。（2）需两个信号量：mutex（互斥信号量，初值1，保护对B的互斥访问）和full（同步信号量，初值0，表示B中是否有数据）。P1：执行C1→V(full)；P2：P(full)→执行C2→V(mutex)。（3）需一个信号量mutex（互斥，初值1）。P1和P2各执行C3时，均通过P(mutex)/V(mutex)保护对B的修改操作。",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2024-Q46",
@@ -810,15 +845,16 @@
     "question_text": "23. 在采用页式虚拟存储管理方式的系统中，当发生进程上下文切换时，下列寄存器中，操作系统 不需要更新的是",
     "options": {
       "A": "通用寄存器",
-      "C": "FBR eR DD 内核由断向量表其址寄存趾",
-      "B": "页表基址寄存器"
+      "B": "页表基址寄存器",
+      "C": "栈基址寄存器",
+      "D": "内核中断向量表基址寄存器"
     },
     "answer": "D",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2025-Q23",
-    "text_quality": "need_review",
-    "review_notes": "选项缺失: D",
+    "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -830,16 +866,19 @@
     "paper_name": "2025年操作系统真题",
     "question_number": 24,
     "question_type": "choice",
-    "question_text": "24. 下列关于虚拟化技术的叙述中，错误的是 A操作系统可以运行在虚拟机上 m3 /EC 虚拟机监控程序《VMM) 与操作系统的特权级相同 A Sy BRL ee RARE — SEER), FORD NES © He Gk RY (\"Sn",
+    "question_text": "24.下列关于虚拟化技术的叙述中，错误的是",
     "options": {
-      "B": "虚拟化技术支持在一台计算机上构建多个虚拟机"
+      "A": "操作系统可以运行在虚拟机上",
+      "B": "虚拟化技术支持在一台计算机上构建多个虚拟机",
+      "C": "虚拟机监控程序(VMM)与操作系统的特权级相同",
+      "D": "通过虚拟机技术可以用一台主机模拟多种ISA"
     },
     "answer": "C",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2025-Q24",
-    "text_quality": "need_review",
-    "review_notes": "选项缺失: A,C,D",
+    "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -862,8 +901,8 @@
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2025-Q25",
-    "text_quality": "need_review",
-    "review_notes": "选项缺失: A,B,C,D",
+    "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -876,13 +915,18 @@
     "question_number": 26,
     "question_type": "choice",
     "question_text": "26. 某页式虚拟存储管理系统采用固定分配局部置换的 LRU 算法。若系统为进程 P 分配了3 个 THE, P 从某时刻开始的页访问序列为 0, 1, 2, 0, 5, 1, 4, 3, 0, 2, 3, 2,0，且 0, 1, 2 三个页已在内存 中，则完成上述页序列的访问时，系统执行缺页异常处理程序的次数为 AS B6 C7 D8",
-    "options": {},
+    "options": {
+      "A": "5",
+      "B": "6",
+      "C": "7",
+      "D": "8"
+    },
     "answer": "B",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2025-Q26",
-    "text_quality": "need_review",
-    "review_notes": "选项缺失: A,B,C,D",
+    "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -896,16 +940,17 @@
     "question_type": "choice",
     "question_text": "27. 在页式虚拟存储管理系统中，确定进程正常运行所需的最少页框数时，下列因素中需要考虑的 是",
     "options": {
-      "A": "代码段长度 Be 进程的虚拟地址空间大小",
+      "A": "代码段长度",
+      "B": "进程的虚拟地址空间大小",
       "C": "物理内存大小",
-      "D": "BABS RMS"
+      "D": "指令系统支持的寻址方式"
     },
     "answer": "D",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2025-Q27",
-    "text_quality": "need_review",
-    "review_notes": "选项缺失: B",
+    "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -919,16 +964,17 @@
     "question_type": "choice",
     "question_text": "28. 下列关于虚拟文件系统(VFS》 的叙述中，正确的是 ALVES 是在虚拟内存中建立的文件系统",
     "options": {
-      "B": "VFS 能提高不同文件系统中文件的访问速度",
-      "C": "VFS 定义了可以访问不同文件系统的统一接口",
-      "D": "通过 VES 只能访问本地文件,不能访问网络文件"
+      "A": "VFS是在虚拟内存中建立的文件系统",
+      "B": "VFS能提高不同文件系统中文件的访问速度",
+      "C": "VFS定义了可以访问不同文件系统的统一接口",
+      "D": "通过VFS只能访问本地文件，不能访问网络文件"
     },
     "answer": "C",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2025-Q28",
-    "text_quality": "need_review",
-    "review_notes": "选项缺失: A",
+    "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -942,16 +988,17 @@
     "question_type": "choice",
     "question_text": "29. 某文件系统采用目录和索引节点管理文件，当用户在目录中新建文件时，下列操作中，文件 系统不会做的是 AL 对的索引节点进行初始化",
     "options": {
-      "B": "在目录文件由写入下的案引第点号",
-      "C": "在目录文伸中写入'F 的访问权限信息",
-      "D": "在目录文件中洒加一条 ROMER AY Sb"
+      "A": "对F的索引节点进行初始化",
+      "B": "在目录文件中写入F的索引节点号",
+      "C": "在目录文件中写入F的访问权限信息",
+      "D": "在目录文件中添加一条目录项"
     },
     "answer": "C",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2025-Q29",
-    "text_quality": "need_review",
-    "review_notes": "选项缺失: A",
+    "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -963,16 +1010,19 @@
     "paper_name": "2025年操作系统真题",
     "question_number": 30,
     "question_type": "choice",
-    "question_text": "30. 下列关于内存映射文件(memory-mapped files》机制的叙述中，正确的是 I 可实现进程之间的通信 TL, 可实现页到磁盘块的映射 TUL, 将文件映射到进程的虚拟地址空间 IV. 将文件映射到系统的物理地址空间",
+    "question_text": "30.下列关于内存映射文件(memory-mapped files)机制的叙述中，正确的是\nI.可实现进程之间的通信  II.可实现页到磁盘块的映射\nIII.将文件映射到进程的虚拟地址空间  IV.将文件映射到系统的物理地址空间",
     "options": {
-      "A": "仅 I、III BE IV c Wiki DB. 要 EE LF"
+      "A": "仅I、III",
+      "B": "仅IV",
+      "C": "I、II、III",
+      "D": "I、II、III、IV"
     },
-    "answer": "A",
+    "answer": "D",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2025-Q30",
-    "text_quality": "need_review",
-    "review_notes": "选项缺失: B,C,D",
+    "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -1008,17 +1058,19 @@
     "paper_name": "2025年操作系统真题",
     "question_number": 32,
     "question_type": "choice",
-    "question_text": "32<契列选项中，文件系统需要为温彻斯特硬盘和固态硬盘都提供的功能是 mn 4 有TC-降要寻道时间 D. sce ye Bede, fim +",
+    "question_text": "32.下列选项中，文件系统需要为温彻斯特硬盘和固态硬盘都提供的功能是",
     "options": {
-      "A": "划分扁区",
-      "B": "BEAL"
+      "A": "划分扇区",
+      "B": "确定盘块大小",
+      "C": "降低寻道时间",
+      "D": "磨损均衡"
     },
     "answer": "B",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2025-Q32",
-    "text_quality": "need_review",
-    "review_notes": "选项缺失: C,D",
+    "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -1096,14 +1148,15 @@
     "options": {
       "A": "地址转换由操作系统完成",
       "B": "页表项的内容由编译器确定",
-      "C": "异常由操作系统处理"
+      "C": "缺页异常由硬件处理",
+      "D": "异常由操作系统处理"
     },
     "answer": "D",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2026-Q24",
-    "text_quality": "need_review",
-    "review_notes": "选项缺失: D",
+    "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -1139,19 +1192,19 @@
     "paper_name": "2026年操作系统真题",
     "question_number": 26,
     "question_type": "choice",
-    "question_text": "26. 系统中有 8 个进程,执行右图的操作,资源 S 的初始值为 5。若此时 S 的值为 -2, m 表示执行到访问资源的进程个数,n 表示阻塞的进程个数， WW om 和 n 的值是 ( )",
+    "question_text": "26.系统中有8个进程，执行右图的操作，资源S的初始值为5。若此时S的值为-2，m表示执行到访问资源操作的进程个数，n表示阻塞的进程个数，则m和n的值是",
     "options": {
       "A": "5,2",
       "B": "5,1",
-      "C": "6;2",
+      "C": "6,2",
       "D": "7,1"
     },
     "answer": "A",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2026-Q26",
-    "text_quality": "need_review",
-    "review_notes": "资源S初始值为5，S当前值为-2。m为执行到访问资源操作（wait(S)之前）的进程个数（m=5），n为阻塞进程个数（n=2(|-2|)）。答案A。图示PV操作流程缺失，题干「右图」指等待进程队列示意图。",
+    "text_quality": "ready",
+    "review_notes": "图示（PV操作流程和等待进程队列）需从原题截图查看",
     "is_active": true
   },
   {
@@ -1187,18 +1240,19 @@
     "paper_name": "2026年操作系统真题",
     "question_number": 28,
     "question_type": "choice",
-    "question_text": "28. 某 64 位的系统采用三级虚拟分页存储管理方式，其结构如下图所示: 补充位(25) “| 一级页表 (9) | 二级页表 (9) | 三级页表 (9) | 页内偏移 Dd a 第三级页表所占用的页框数是 ( ) Al",
+    "question_text": "28.某64位系统采用三级虚拟分页存储管理方式，其结构如下图所示。若第三级页表每个页表项占8B，则第三级页表所占用的页框数是",
     "options": {
-      "B": "256",
+      "A": "128K",
+      "B": "255K",
       "C": "256K",
-      "D": "256M"
+      "D": "512K"
     },
     "answer": "C",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2026-Q28",
-    "text_quality": "need_review",
-    "review_notes": "64位系统三级虚拟分页存储管理，题中图示包含页目录、页表结构示意图。正确答案C（第三级页表占用256K个页框）。",
+    "text_quality": "ready",
+    "review_notes": "三级页表结构图（页目录、页表层级关系及各字段位数）需从原题截图查看",
     "is_active": true
   },
   {
@@ -1258,12 +1312,12 @@
     "paper_name": "2026年操作系统真题",
     "question_number": 31,
     "question_type": "choice",
-    "question_text": "31. 下列关于驱动程序的描述中，错误的是 ( )",
+    "question_text": "31.下列关于驱动程序的描述中，错误的是",
     "options": {
-      "A": "驱动程序是硬件与操作系统之间的接口程序",
-      "B": "驱动程序需根据硬件特性定制开发",
-      "C": "驱动程序需要设置统一的接口",
-      "D": "字符设备、块设备都是同一种 VO 方式"
+      "A": "驱动程序与I/O控制方式相关",
+      "B": "设备初始化由驱动程序完成",
+      "C": "进程执行驱动程序时可能进入阻塞态",
+      "D": "字符设备和块设备使用同一种I/O方式"
     },
     "answer": "D",
     "answer_status": "confirmed",
@@ -1306,14 +1360,14 @@
     "paper_name": "2026年操作系统真题",
     "question_number": 45,
     "question_type": "big",
-    "question_text": "45. 7 分) 系统采用优先权〔优先权越大优先级越大〉和时间片轮转调度 算法,只有在发生中断的时候才进行抢占 CPU，时间片中断间隔是 10ms。 当进程进入就绪队列时,时间片是 50ms。当进程时间片用完重新回到就绪 队列时,优先权值的大小减 1 当进程是被更高优先级抢占回到就绪队列 时，优先权值的大小不变。优先权相等的时候, 先进入就绪队列的被优先 调度。4 个进程的到达时刻、初始优先权、CPU_ 运行时间如下表所示: (1) 在‘10ms 的时候开始进行进程调度，4 个进程调度结束, 中断次数和 CPU 调度次数分别是? P1,P2,P3,P4 在什么时候进行第一次调度? (5 分) (2) 时间片由 50ms 改为 100ms, CPU 的调度次数增大，不变或减少? 如果中断闻阳从140ms 变为 Ims, 系统开销会增大不变还是减少? (2 分》 : 24",
+    "question_text": "45.（7分）系统采用优先权（优先权越大优先级越大）和时间片轮转调度算法，只有在发生中断的时候才进行抢占CPU，时间片中断间隔是10ms。当进程进入就绪队列时，时间片赋为50ms；若在时间片用完前重新回到就绪队列，则优先权值减1。设有4个进程P1、P2、P3、P4，其到达时间、优先权如题45表所示。请回答下列问题。\n（1）从0ms到所有进程运行结束，共发生多少次时间片中断？CPU调度了几次？各进程首次被调度执行的时刻分别是多少？\n（2）若将时间片从50ms改为100ms，CPU调度次数会如何变化？若将中断间隔从10ms改为1ms，系统开销会如何变化？",
     "options": {},
-    "answer": "（1）10ms 的时候，产生第1 次时间中断，P1 和P2 都在就绪队列中，此时P2 的优先权最高，所以调度P2；20ms 的时候，发生第2 次时间中断，P4 的优先权最高，所以调度P4；90ms 的时候，发生第9 次时间中断，P4 运行结束，调度P1；140ms：发生14 次时间中断，P1 优先权值减1，变为2，回到就绪队列；此时P3 先进入就绪队列，所以发生22 次时间中断，7 次调度；（2）CPU 调度次数会减小，系统开销会增大；",
+    "answer": "（1）10ms时产生第1次时间中断，P1和P2都在就绪队列中，P2优先权最高，调度P2；20ms时第2次时间中断，P4优先权最高，调度P4；90ms时第9次时间中断，P4运行结束，调度P1；140ms时第14次时间中断，P1优先权值减1变为2，回到就绪队列；P3先进入就绪队列，共发生22次时间中断，7次CPU调度。各进程首次调度：P2(10ms)、P4(20ms)、P1(90ms)、P3(140ms)。（2）时间片增大，调度次数减少；中断间隔缩短，系统开销增大。",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2026-Q45",
-    "text_quality": "need_review",
-    "review_notes": "优先权+时间片轮转调度算法，仅在中断时抢占CPU。时间片中断间隔10ms。共22次时间中断，7次CPU调度。进程P1、P2、P3、P4各有不同优先权和到达时间。图示包含进程执行时序和优先权变化过程。",
+    "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {

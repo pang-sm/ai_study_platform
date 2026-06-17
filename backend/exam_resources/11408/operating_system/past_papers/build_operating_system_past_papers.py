@@ -202,37 +202,42 @@ def apply_patches(questions):
             if q["year"] == yr and q["question_number"] == num:
                 fix_type = p.get("fix", "")
 
-                if "answer" in fix_type or "answer" in p:
-                    new_answer = p.get("answer", "")
-                    if new_answer and "待补充" in q.get("answer", ""):
-                        q["answer"] = new_answer
-                        q["answer_status"] = "confirmed"
-                        q["review_notes"] = ""
-                        patched += 1
-                        print(f"    Fixed answer: {yr}-{num:02d}")
+                changed = False
 
-                if "options" in fix_type or "options" in p:
-                    new_opts = p.get("options", {})
-                    if new_opts and len(new_opts) == 4:
-                        q["options"] = new_opts
-                        q["text_quality"] = _recalc_quality(q)
-                        patched += 1
-                        print(f"    Fixed options: {yr}-{num:02d}")
+                # Fix stem
+                if p.get("stem_cleanup"):
+                    q["question_text"] = p["stem_cleanup"]
+                    changed = True
 
-                if "stem_notes" in fix_type:
-                    keep = p.get("keep_need_review", True)
-                    if keep and p.get("review_notes"):
-                        q["review_notes"] = p["review_notes"]
-                        patched += 1
-                        print(f"    Updated notes: {yr}-{num:02d}")
+                # Fix options
+                new_opts = p.get("options", {})
+                if new_opts and len(new_opts) == 4:
+                    q["options"] = new_opts
+                    changed = True
 
-                if p.get("quality") == "ready" and "answer" in (fix_type or ""):
-                    # Answer was fixed, recalc quality
-                    q["text_quality"] = _recalc_quality(q)
-                    q["review_notes"] = q.get("review_notes", "").replace(
-                        "答案待补充（PDF未检测到参考答案）", ""
-                    ).strip()
-                    print(f"    Quality -> ready: {yr}-{num:02d}")
+                # Fix answer
+                new_answer = p.get("answer", "")
+                if new_answer and ("待补充" in q.get("answer", "") or
+                                   q.get("answer_status") == "pending" or
+                                   p.get("quality") == "ready"):
+                    q["answer"] = new_answer
+                    q["answer_status"] = "confirmed"
+                    changed = True
+
+                # Fix review_notes
+                if p.get("review_notes"):
+                    q["review_notes"] = p["review_notes"]
+                    changed = True
+                elif p.get("quality") == "ready":
+                    q["review_notes"] = ""
+
+                # Apply quality
+                if p.get("quality"):
+                    q["text_quality"] = p["quality"]
+
+                if changed:
+                    patched += 1
+                    print(f"    Patched: {yr}-{num:02d} ({p.get('fix','')}) -> quality={q['text_quality']}")
 
                 break
     print(f"  Patched {patched} items.")
