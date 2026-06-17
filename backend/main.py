@@ -12211,7 +12211,7 @@ def _build_study_plan_tree(chapters: list[dict], progress_by_code: dict, chapter
     return result
 
 
-@app.get("/api/exam/11408/subjects/{subject_key}/study-plan")
+@app.get("/exam/11408/subjects/{subject_key}/study-plan")
 def get_exam_subject_study_plan(subject_key: str, username: str = "", db: Session = Depends(get_db)):
     """Get the full study plan for a 11408 subject, including knowledge map,
     user progress, settings, and chapter practice status."""
@@ -12322,7 +12322,7 @@ def get_exam_subject_study_plan(subject_key: str, username: str = "", db: Sessio
     }
 
 
-@app.patch("/api/exam/11408/subjects/{subject_key}/study-plan/settings")
+@app.patch("/exam/11408/subjects/{subject_key}/study-plan/settings")
 def update_exam_study_plan_settings(
     subject_key: str,
     req: schemas.ExamStudyPlanSettingsUpdate,
@@ -12378,7 +12378,7 @@ def update_exam_study_plan_settings(
     }
 
 
-@app.patch("/api/exam/11408/subjects/{subject_key}/study-plan/knowledge-items/{item_code:path}")
+@app.patch("/exam/11408/subjects/{subject_key}/study-plan/knowledge-items/{item_code:path}")
 def update_exam_study_plan_knowledge_item(
     subject_key: str,
     item_code: str,
@@ -12476,7 +12476,7 @@ def update_exam_study_plan_knowledge_item(
     }
 
 
-@app.patch("/api/exam/11408/subjects/{subject_key}/study-plan/chapter-practice/{node_code:path}")
+@app.patch("/exam/11408/subjects/{subject_key}/study-plan/chapter-practice/{node_code:path}")
 def update_exam_study_plan_chapter_practice(
     subject_key: str,
     node_code: str,
@@ -12522,7 +12522,7 @@ def update_exam_study_plan_chapter_practice(
     }
 
 
-@app.get("/api/exam/11408/study-plan/summary")
+@app.get("/exam/11408/study-plan/summary")
 def get_exam_study_plan_summary(username: str = "", db: Session = Depends(get_db)):
     """Get a four-subject summary of study plan progress for the 11408 home page."""
     username = (username or "").strip()
