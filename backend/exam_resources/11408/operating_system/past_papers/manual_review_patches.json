@@ -230,6 +230,36 @@
       "source": "OCR text + noobdream"
     },
     {
+      "year": 2024, "number": 23, "fix": "stem_cleanup",
+      "stem_cleanup": "23.下列关于中断、异常和系统调用的叙述中，错误的是",
+      "quality": "ready", "source": "stem cleanup - remove OCR garbage"
+    },
+    {
+      "year": 2024, "number": 26, "fix": "options",
+      "options": {"A":"位图法","B":"空闲表法","C":"成组链接法","D":"空闲链表法"},
+      "answer": "A", "quality": "ready", "source": "OCR text correction"
+    },
+    {
+      "year": 2024, "number": 29, "fix": "options",
+      "options": {"A":"open()","B":"read()","C":"write()","D":"close()"},
+      "answer": "A", "quality": "ready", "source": "OCR text correction"
+    },
+    {
+      "year": 2024, "number": 30, "fix": "options",
+      "options": {"A":"200ms","B":"205ms","C":"250ms","D":"295ms"},
+      "answer": "C", "quality": "ready", "source": "OCR text correction"
+    },
+    {
+      "year": 2024, "number": 32, "fix": "options",
+      "options": {"A":"599","B":"619","C":"788","D":"799"},
+      "answer": "C", "quality": "ready", "source": "OCR text correction (lines 460-466)"
+    },
+    {
+      "year": 2025, "number": 31, "fix": "options",
+      "options": {"A":"目录","B":"系统打开文件表","C":"文件分配表(FAT)","D":"文件控制块(FCB)"},
+      "answer": "C", "quality": "ready", "source": "OCR text correction"
+    },
+    {
       "year": 2026, "number": 45, "fix": "stem_cleanup",
       "stem_cleanup": "45.（7分）系统采用优先权（优先权越大优先级越大）和时间片轮转调度算法，只有在发生中断的时候才进行抢占CPU，时间片中断间隔是10ms。当进程进入就绪队列时，时间片赋为50ms；若在时间片用完前重新回到就绪队列，则优先权值减1。设有4个进程P1、P2、P3、P4，其到达时间、优先权如题45表所示。请回答下列问题。\n（1）从0ms到所有进程运行结束，共发生多少次时间片中断？CPU调度了几次？各进程首次被调度执行的时刻分别是多少？\n（2）若将时间片从50ms改为100ms，CPU调度次数会如何变化？若将中断间隔从10ms改为1ms，系统开销会如何变化？",
       "answer": "（1）10ms时产生第1次时间中断，P1和P2都在就绪队列中，P2优先权最高，调度P2；20ms时第2次时间中断，P4优先权最高，调度P4；90ms时第9次时间中断，P4运行结束，调度P1；140ms时第14次时间中断，P1优先权值减1变为2，回到就绪队列；P3先进入就绪队列，共发生22次时间中断，7次CPU调度。各进程首次调度：P2(10ms)、P4(20ms)、P1(90ms)、P3(140ms)。（2）时间片增大，调度次数减少；中断间隔缩短，系统开销增大。",

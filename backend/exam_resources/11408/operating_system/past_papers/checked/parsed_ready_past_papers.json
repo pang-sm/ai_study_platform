@@ -8,7 +8,7 @@
     "paper_name": "2022年操作系统真题",
     "question_number": 23,
     "question_type": "choice",
-    "question_text": "23.下列关于多道程序系统的叙述中，不正确的是()",
+    "question_text": "23.下列关于多道程序系统的叙述中，不正确的是（）",
     "options": {
       "A": "支持进程的并发执行",
       "B": "不必支持虚拟存储管理",
@@ -35,7 +35,7 @@
     "paper_name": "2022年操作系统真题",
     "question_number": 24,
     "question_type": "choice",
-    "question_text": "24.下列选项中，需要在操作系统进行初始化过程中创建的是()",
+    "question_text": "24.下列选项中，需要在操作系统进行初始化过程中创建的是（）",
     "options": {
       "A": "中断向量表",
       "C": "硬盘分区表",
@@ -171,7 +171,7 @@
     "paper_name": "2022年操作系统真题",
     "question_number": 29,
     "question_type": "choice",
-    "question_text": "29.某进程访问的页b 不在内存中,导致产生缺页异常, 该缺页异常处理过程中不一定包 含的操作是 ()",
+    "question_text": "29.某进程访问的页b 不在内存中,导致产生缺页异常, 该缺页异常处理过程中不一定包 含的操作是 （）",
     "options": {
       "A": "淘汰内存中的页",
       "B": "建立页号与页框号的对应关系",
@@ -198,7 +198,7 @@
     "paper_name": "2022年操作系统真题",
     "question_number": 30,
     "question_type": "choice",
-    "question_text": "30. 下列选项中，不会影响系统缺页率的是()",
+    "question_text": "30. 下列选项中，不会影响系统缺页率的是（）",
     "options": {
       "A": "页置换算法",
       "C": "进程的数量",
@@ -253,7 +253,7 @@
     "paper_name": "2022年操作系统真题",
     "question_number": 32,
     "question_type": "choice",
-    "question_text": "32.下列关于驱动程序的叙述中，不正确的是 ()",
+    "question_text": "32.下列关于驱动程序的叙述中，不正确的是 （）",
     "options": {
       "A": "驱动程序与 1O 控制方式无关",
       "B": "初始化设备是由驱动程序控制完成的",
@@ -280,7 +280,7 @@
     "paper_name": "2022年操作系统真题",
     "question_number": 45,
     "question_type": "big",
-    "question_text": "45. (7 分)某文件系统的磁盘块大小为4 KB，目录项由文件名和索引节点号构成,每 = 9 AVA4 秆圭国局工WWT罗十扣填写 el) See 个索引节点占 256 字节， 其中包含直接地址项 10 个, 一级、二级和三级间接地址项各 1 个，每个地址项占 4 字节。该文件系统中子目录 stu 的结构如题 45(a)图所示，stu 包含 子目录 course 和文件 doc, course子目录包含文件 course 1 和course2。各文件的文件名、 索引节点号、占用磁盘块的块号如题 45(b)图所示。 Su 文件名 . 2 M145 (a) 图 M145 (b) 图 请回答下列问题。 (1) 目录文件 stu 中每个目录项的内容是什么? (2) 文件 doc 占用的磁盘块的块号 x 的值是多少? (3) 车目录文件 course 的内容已在内存，则打开文件 coursel 并将其读入内存，需要 读几个磁盘块? 说明理由。 (4) 若文件 course2 的大小增长到6 MB，则为了存取course2 需要使用该文件索引节 占的哪几级间接地址项?说明理由。",
+    "question_text": "45. (7 分)某文件系统的磁盘块大小为4 KB，目录项由文件名和索引节点号构成,每 = 9 秆圭国局工WWT罗十扣填写 ) See 个索引节点占 256 字节， 其中包含直接地址项 10 个, 一级、二级和三级间接地址项各 1 个，每个地址项占 4 字节。该文件系统中子目录 stu 的结构如题 45(a)图所示，stu 包含 子目录 course 和文件 doc, course子目录包含文件 course 1 和course2。各文件的文件名、 索引节点号、占用磁盘块的块号如题 45(b)图所示。 Su 文件名 . 2 请回答下列问题。 (1) 目录文件 stu 中每个目录项的内容是什么? (2) 文件 doc 占用的磁盘块的块号 x 的值是多少? (3) 车目录文件 course 的内容已在内存，则打开文件 coursel 并将其读入内存，需要 读几个磁盘块? 说明理由。 (4) 若文件 course2 的大小增长到6 MB，则为了存取course2 需要使用该文件索引节 占的哪几级间接地址项?说明理由。",
     "options": {},
     "answer": "（1）stu目录项：(course, 2) 和 (doc, 10)。（2）x = 30，doc与course1共享索引节点号10，磁盘块号相同。（3）打开course1需读2个磁盘块：第1块读索引节点所在磁盘块，第2块读内容所在磁盘块（30号块）。（4）6MB = 1536个磁盘块，直接地址项10块，一级间接10+1024=1034块不足，需使用一级和二级间接地址项。",
     "answer_status": "confirmed",
@@ -431,7 +431,7 @@
     "paper_name": "2023年操作系统真题",
     "question_number": 27,
     "question_type": "choice",
-    "question_text": "27. 下列由当前线程引起的事件或执行的操作中，可能导致该线程由执行态变为就结态 的是 ()",
+    "question_text": "27. 下列由当前线程引起的事件或执行的操作中，可能导致该线程由执行态变为就结态 的是 （）",
     "options": {
       "A": "键盘输入",
       "C": "主动中让 CPU",
@@ -594,7 +594,7 @@
     "paper_name": "2023年操作系统真题",
     "question_number": 45,
     "question_type": "big",
-    "question_text": "45. (7 分) 现要求学生使用 swap 指令和布尔型变量 lock 实现临界区互斥。lock 为 线程间共享的变量。lock 的值为 TRUE 时线程不能进入临界区。为 FALSE 时线程能 够进入临界区。某同学编写的实现临界区互尺的伪代码如题 45 (a》图所示。 某同学编写的伪代码 - Bool lock= FALSE; 。 //共享变量 i Void newSwap(bool *a,bool *b) | ENE { 局 “if (key=TRUE) | “pa Bs |__ swap key,lock; /交换 key 和 lock 的值 | wy aa ~<a *b=temp; (a) (b) iii 45 Al 请回答下列问题 (1)题 45 Ca) 图的伪代码中哪些语句存在错误? 将其改为正确的语句〈不增加语句 (2)题 45 (Cb) 图给出了两个变量值的函数 newSwap0 的代码，是否可以用函数调用 语句“”newSwap(&key, &lock)”，代替指令“swap key, lock”以实现临界区互斥? 为什 么?",
+    "question_text": "45. (7 分) 现要求学生使用 swap 指令和布尔型变量 lock 实现临界区互斥。lock 为 线程间共享的变量。lock 的值为 TRUE 时线程不能进入临界区。为 FALSE 时线程能 够进入临界区。某同学编写的实现临界区互尺的伪代码如题 45 (a》图所示。 某同学编写的伪代码 - Bool lock= FALSE; 。 //共享变量 i Void newSwap(bool *a,bool *b) | ENE { 局 “if (key=TRUE) | “ |__ swap key,lock; /交换 key 和 lock 的值 | wy aa ~<a *b=temp; (a) (b) iii 45 Al 请回答下列问题 (1)题 45 Ca) 图的伪代码中哪些语句存在错误? 将其改为正确的语句〈不增加语句 (2)题 45 (Cb) 图给出了两个变量值的函数 newSwap0 的代码，是否可以用函数调用 语句“”newSwap(&key, &lock)”，代替指令“swap key, lock”以实现临界区互斥? 为什 么?",
     "options": {},
     "answer": "（1）两个错误：①if应改为while（忙等待需要循环检查）；②退出区应设置lock=FALSE而非TRUE。（2）不能。函数调用newSwap()不是原子操作，并发执行时可能导致多个线程同时进入临界区。硬件swap指令是原子指令，执行过程中不会被中断。",
     "answer_status": "confirmed",
@@ -638,7 +638,7 @@
     "paper_name": "2024年操作系统真题",
     "question_number": 23,
     "question_type": "choice",
-    "question_text": "23. 下列关于中上断、异常和系统调用的叙述中，错误的是。 DT 2 eR eee tA tS er ee 4 ge",
+    "question_text": "23.下列关于中断、异常和系统调用的叙述中，错误的是",
     "options": {
       "A": "中断或异常发生时，CPU处于内核态",
       "B": "每个系统调用都有对应的内核服务例程",
@@ -721,9 +721,9 @@
     "question_type": "choice",
     "question_text": "26. 文件系统需要占用部分外存空间记录空闲块位置，占用外存空间的大小与当前空闲 块数量无关的是( )。",
     "options": {
-      "A": "位图法 B. 空闲表法 C. 成组链接法",
-      "B": "空闲表法 C. 成组链接法 D. 空闲链表法",
-      "C": "成组链接法 D. 空闲链表法",
+      "A": "位图法",
+      "B": "空闲表法",
+      "C": "成组链接法",
       "D": "空闲链表法"
     },
     "answer": "A",
@@ -803,9 +803,9 @@
     "question_type": "choice",
     "question_text": "29. 下列系统调用的实现中，包含文件按名查找功能的是",
     "options": {
-      "A": "open() B. read() C. write()",
-      "B": "read() C. write() D. close()",
-      "C": "write() D. close()",
+      "A": "open()",
+      "B": "read()",
+      "C": "write()",
       "D": "close()"
     },
     "answer": "A",
@@ -830,9 +830,9 @@
     "question_type": "choice",
     "question_text": "30. 假设某系统使用时间片轮转调度算法进行 CPU 调度,时间片大小为 Sms，系统共有 10 个进程,初始时均处于就绪队列， 执行结束前仅处于执行态或就绪态。若队尾的进程 P 所需 CPU 时间最短，时间为25ms，在不考虑系统开销的情况下，则进程P 的周转时 间为",
     "options": {
-      "A": "200ms B. 205ms C.250ms",
-      "B": "205ms C.250ms D. 295ms",
-      "C": "250ms D. 295ms",
+      "A": "200ms",
+      "B": "205ms",
+      "C": "250ms",
       "D": "295ms"
     },
     "answer": "C",
@@ -884,9 +884,9 @@
     "question_type": "choice",
     "question_text": "32. 某磁盘的磁道数为 400〔磁道号为 0~399),采用循环扫描算法(CSCAN) 进行磁盘 调度，完成对 200 号磁道的请求后，磁头向磁道号减小的方向移动。若还有 7 个磁盘请 求，对应的磁道号分别为300，120，110，0，160，210，399，则完成上述磁盘访问请 求后磁头移动的距离是",
     "options": {
-      "A": "599 B.619 C. 788",
-      "B": "619 C. 788 D. 799",
-      "C": "788 D. 799",
+      "A": "599",
+      "B": "619",
+      "C": "788",
       "D": "799"
     },
     "answer": "C",
@@ -931,7 +931,7 @@
     "paper_name": "2024年操作系统真题",
     "question_number": 46,
     "question_type": "big",
-    "question_text": "46(本题 8分) 计算机系统中的进程之间往往需要相互协作以完成一个任务。在某网络 系统中缓冲区 B 用于存放一个数据分组，对 B 的操作有 Cl、C2 和C3。C1 将一个数据 分组写入B 中,C2 从B 中读出一个数据分组，C3 对 B 中的数据分组进行修改。 BOR B 为空时才能执行 C1，B 非空时才能执行 C2 和C3。请回答下列问题。 (1) 假设进程 Pl 和 P2 均需执行 C1, 实现 C1 的代码是否为临界区? WHA? (2 分) (2) 假设 B 初始为空，进程P1 执行 C1 一次,进程 P2 执行 C2 一次。请定义尽可能少 的信号量，并用 wait( )、signal ©) 操作描述进程 Pl 和P2 之间的同步或互斥关系，说 明所用信号量的作用及其初值。(3 分》 (3) 假设 B 初始不为空，进程 Pl1 和P2 各执行 C3 一次，请定义尽可能少的信号量， 并用 wait ©. signal () 操作描述进程 Pl1 和 P2 之间的同步或互斥关系，说明所用信号 量的作用及初值。(3 a) 10",
+    "question_text": "46(本题 8分) 计算机系统中的进程之间往往需要相互协作以完成一个任务。在某网络 系统中缓冲区 B 用于存放一个数据分组，对 B 的操作有 Cl、C2 和C3。C1 将一个数据 分组写入B 中,C2 从B 中读出一个数据分组，C3 对 B 中的数据分组进行修改。 为空时才能执行 C1，B 非空时才能执行 C2 和C3。请回答下列问题。 (1) 假设进程 Pl 和 P2 均需执行 C1, 实现 C1 的代码是否为临界区? WHA? (2 分) (2) 假设 B 初始为空，进程P1 执行 C1 一次,进程 P2 执行 C2 一次。请定义尽可能少 的信号量，并用 wait( )、signal ©) 操作描述进程 Pl 和P2 之间的同步或互斥关系，说 明所用信号量的作用及其初值。(3 分》 (3) 假设 B 初始不为空，进程 Pl1 和P2 各执行 C3 一次，请定义尽可能少的信号量， 并用 wait ©. signal （） 操作描述进程 Pl1 和 P2 之间的同步或互斥关系，说明所用信号 量的作用及初值。(3 a) 10",
     "options": {},
     "answer": "（1）C1是临界区。多个进程同时执行C1可能试图同时写入数据分组到缓冲区B，导致数据不一致。（2）需两个信号量：mutex（互斥信号量，初值1，保护对B的互斥访问）和full（同步信号量，初值0，表示B中是否有数据）。P1：执行C1→V(full)；P2：P(full)→执行C2→V(mutex)。（3）需一个信号量mutex（互斥，初值1）。P1和P2各执行C3时，均通过P(mutex)/V(mutex)保护对B的修改操作。",
     "answer_status": "confirmed",
@@ -1174,9 +1174,9 @@
     "question_text": "31. 下列选项中，文件系统可用于记录外存空闲空间使用情况的是",
     "options": {
       "A": "目录",
-      "C": "文件分配表 (FATY)",
       "B": "系统打开文件表",
-      "D": "文件控制块 (FCB)"
+      "C": "文件分配表(FAT)",
+      "D": "文件控制块(FCB)"
     },
     "answer": "C",
     "answer_status": "confirmed",
@@ -1226,7 +1226,7 @@
     "paper_name": "2025年操作系统真题",
     "question_number": 45,
     "question_type": "big",
-    "question_text": "45. (本题 7 分) 甲、乙、丙三人一起植树，甲负责挖树坑，志负责将树苗放入树坑中并填土，丙 负责为新种的树苗浇水,植树的步又依次为; 挖树坑s放树苗、填土和浇水。现有铁鳅和水桶各 1 个， 铁铬用于挖树坑和填土，水桶用于浇水。当树坑的数量小于 3 时，甲才可以挖树坑。假设初始时树 坑的数量为 0，铁锻和水桶均可用。请定义尽可能少的信号量，用 wait(). signal() 操作描述植树过 程中三人之间的同步或互太关系,并说明所用信号量的作用及其初值",
+    "question_text": "45. (本题 7 分) 甲、乙、丙三人一起植树，甲负责挖树坑，志负责将树苗放入树坑中并填土，丙 负责为新种的树苗浇水,植树的步又依次为; 挖树坑s放树苗、填土和浇水。现有铁鳅和水桶各 1 个， 铁铬用于挖树坑和填土，水桶用于浇水。当树坑的数量小于 3 时，甲才可以挖树坑。假设初始时树 坑的数量为 0，铁锻和水桶均可用。请定义尽可能少的信号量，用 wait（）. signal（） 操作描述植树过 程中三人之间的同步或互太关系,并说明所用信号量的作用及其初值",
     "options": {},
     "answer": "Semaphore position = 3;// 可挖树坑的数量Semaphore pit = 0;// 树坑的数量Semaphore tree = 0;// 待浇水的树苗数Semaphore mutex = 1;// 实现铁锹的互斥使用甲：for(;;) { wait(position); wait(mutex); 挖树坑； signal(mutex); signal(pit); ...}乙：for(;;) { wait(pit); 放树苗； signal(position); wait(mutex); 填土； signal(mutex); signal(tree); ...}丙：for(;;) { wait(tree); 浇水； ...}",
     "answer_status": "confirmed",
@@ -1248,7 +1248,7 @@
     "paper_name": "2025年操作系统真题",
     "question_number": 46,
     "question_type": "big",
-    "question_text": "46.〈本题 8 分) 某系统中进程的虚拟地址空间包括内核区、用户栈、运行时堆、可读写数据段、 只读代码段等区域, 其布局如题 46 图所示,图中阴影部分表示未占用区域。 IVA C 语言程序的部 分代码如下。 | void main © : 2 int length; E ptr=(char*)malloc(100); i i seant(\"%s\"ptr); | ( length=strlen(ptr); : | m9 |“ 请回答下列问题。 (eae) (5 全述程序执行时，其进程控制抉位于哪个区域? 执行 scanf() SERRA, BAIR «BARS? _(2 分) ee CJmain0 函数的代码位于哪个区域? SL ER ME MY EL LP SIL? (3 分) (3)变量 ptr 被分配在哪个区域? 若变量 length 没有被分配在寄存器中,则会被分配在哪个区域? pir 指向的字符囊位于哪个区域? (3 分)",
+    "question_text": "46.〈本题 8 分) 某系统中进程的虚拟地址空间包括内核区、用户栈、运行时堆、可读写数据段、 只读代码段等区域, 其布局如题 46 图所示,图中阴影部分表示未占用区域。 IVA C 语言程序的部 分代码如下。 | void main © : 2 int length; E ptr=(char*)malloc(100); i i seant(\"%s\"ptr); | ( length=strlen(ptr); : | m9 |“ 请回答下列问题。 (eae) (5 全述程序执行时，其进程控制抉位于哪个区域? 执行 scanf（） SERRA, BAIR «BARS? _(2 分) ee CJmain0 函数的代码位于哪个区域? SL ME MY EL LP SIL? (3 分) (3)变量 ptr 被分配在哪个区域? 若变量 length 没有被分配在寄存器中,则会被分配在哪个区域? pir 指向的字符囊位于哪个区域? (3 分)",
     "options": {},
     "answer": "进程控制块位于内核区。该进程处于阻塞态。main() 函数的代码位于只读代码段。scanf() 和printf() 的功能需要通过执行驱动程序实现。ptr 被分配在可读写数据段中。length 会被分配在用户栈中。ptr 指向的字符串位于运行时堆中。",
     "answer_status": "confirmed",

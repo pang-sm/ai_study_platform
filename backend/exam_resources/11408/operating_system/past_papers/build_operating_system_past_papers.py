@@ -97,30 +97,68 @@ def parse_ocr(fp):
 
 def clean_ocr_stem(stem, qnum, year):
     """Remove obvious OCR artifacts from question stem."""
-    # Remove trailing orphan characters like "mo", "m4", etc.
+    # Remove trailing orphan characters
     stem = re.sub(r'\s+mo\s*$', '', stem)
     stem = re.sub(r'\s+m\d+\s*$', '', stem)
-    # Remove garbled table remnants (only replace consecutive garbled tokens)
-    garbled_table_pattern = re.compile(r'(?:\b(?:EE|CE|ER|el|pel|fe|Act|B2|ame)\b\s*){2,}')
-    stem = garbled_table_pattern.sub('【表格数据见原题】', stem)
-    # Clean up duplicate markers
-    stem = re.sub(r'(【表格数据见原题】[\s|]*)+', '【表格数据见原题】', stem)
+    # Remove known OCR garbage fragments
+    garbage_fragments = [
+        r'DT\s*2\s*eR\s*eee\s*tA\s*tS\s*er\s*ee\s*\d*\s*ge',
+        r'AVA\d+\s*[^一-鿿A-Za-z]+',  # garbled after AVA
+        r'\bENE\b\s*\{[^}]*\}', r'BOR\s+B', r'OF户', r'pa\s+Bs',
+        r'\b(?:EE|CE|ER|el|pel|fe|Act|B2|ame|EEE|EER|SRLS|Sw|CUES)\b',
+        r'【截图OCR[：:]\s*image\d+\.(?:jpg|png)】',
+        r'⊙', r'◎', r'M\d{3}\s*[（(][a-z][）)]\s*图',
+    ]
+    for pattern in garbage_fragments:
+        stem = re.sub(pattern, '', stem)
     # Fix stray parentheses
     stem = re.sub(r'《\)', '）', stem)
     stem = re.sub(r'\(》', '（', stem)
-    # Collapse multiple spaces
+    stem = re.sub(r'\(\)', '（）', stem)
+    # Clean up whitespace
+    stem = re.sub(r'\n{3,}', '\n\n', stem)
     stem = re.sub(r'\s{2,}', ' ', stem)
-    return stem.strip()
+    stem = stem.strip()
+    return stem
 
 def clean_ocr_options(opts):
-    """Clean option text from OCR merging issues."""
+    """Clean option text from OCR merging issues and split merged options."""
     cleaned = {}
-    for k, v in opts.items():
+    for k, v in list(opts.items()):
         if k not in 'ABCD':
             continue
-        # Remove artifacts
         v = re.sub(r'\s+', ' ', v).strip()
         cleaned[k] = v
+
+    # Post-process: split options where A/B/C/D labels are embedded in values
+    # e.g., A="open() B. read() C. write()" → split properly
+    all_vals = {k: v for k, v in cleaned.items()}
+    for key in sorted(all_vals.keys()):
+        val = cleaned.get(key, '')
+        if not val:
+            continue
+        # Find other option labels embedded in this value
+        remaining = val
+        for other in sorted([x for x in 'ABCD' if x > key]):
+            if other not in cleaned or not cleaned.get(other):
+                # Look for patterns like " B." or " B " followed by text
+                patterns = [
+                    rf'\s+{other}[.、．)\s]\s*',  # " B. xxx" or " B) xxx"
+                    rf'\s+{other}\s+',              # " B xxx"
+                ]
+                for pat in patterns:
+                    m = re.search(pat, remaining)
+                    if m:
+                        split_pos = m.start()
+                        # Content before the split belongs to current option
+                        # Content after belongs to the other option
+                        before = remaining[:split_pos].strip()
+                        after = remaining[m.end():].strip()
+                        cleaned[key] = before
+                        cleaned[other] = after
+                        remaining = after
+                        break
+
     return cleaned
 
 def finalize_question(q, questions):
