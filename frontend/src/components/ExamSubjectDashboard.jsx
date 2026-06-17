@@ -93,7 +93,7 @@ export default function ExamSubjectDashboard({
     setDashLoading(true);
     try {
       const res = await fetch(
-        `/api/exam/subjects/${encodeURIComponent(subjectKey)}/dashboard-summary?username=${encodeURIComponent(uname)}`
+        `/api/exam/11408/subjects/${encodeURIComponent(subjectKey)}/dashboard-summary?username=${encodeURIComponent(uname)}`
       );
       if (res.ok) {
         const data = await res.json();

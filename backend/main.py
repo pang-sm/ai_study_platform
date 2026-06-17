@@ -13114,7 +13114,7 @@ def get_exam_study_plan_tasks_summary(username: str = "", db: Session = Depends(
 # ── 11408 Subject Dashboard Summary ──────────────────────
 
 
-@app.get("/exam/subjects/{subject_key}/dashboard-summary")
+@app.get("/exam/11408/subjects/{subject_key}/dashboard-summary")
 def get_exam_subject_dashboard_summary(subject_key: str, username: str = "", db: Session = Depends(get_db)):
     """Return a lightweight dashboard summary for the 11408 subject home page."""
     if subject_key not in EXAM_SUBJECT_DIRS:
