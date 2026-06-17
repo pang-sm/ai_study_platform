@@ -12147,7 +12147,11 @@ _PAST_PAPER_IMAGES_DIR = BASE_DIR / "exam_resources" / "11408"
 @app.get("/exam/11408/past-paper-images/{subject_key}/{year}/{filename:path}")
 def serve_past_paper_image(subject_key: str, year: int, filename: str):
     """Serve past paper question images from exam_resources assets."""
+    # Try legacy assets path first (OS format: assets/{year}/{filename})
     img_path = _PAST_PAPER_IMAGES_DIR / subject_key / "past_papers" / "assets" / str(year) / filename
+    if not img_path.exists():
+        # Try new images path (CN/OS format: images/{filename})
+        img_path = BASE_DIR / f"exam_resources/11408/{subject_key}/past_papers/images" / filename
     if not img_path.exists():
         raise HTTPException(status_code=404, detail="Image not found")
     return FileResponse(str(img_path))
@@ -12344,14 +12348,6 @@ def get_question_images(subject_key, year, question_number):
     if isinstance(val, dict):
         return val.get("image_urls", [])
     return val if isinstance(val, list) else []
-
-@app.get("/exam/11408/past-paper-images/{subject_key}/{year}/{filename:path}")
-def serve_past_paper_image(subject_key: str, year: int, filename: str):
-    img_dir = BASE_DIR / f"exam_resources/11408/{subject_key}/past_papers/images"
-    img_path = img_dir / filename
-    if not img_path.exists():
-        raise HTTPException(status_code=404, detail="Image not found")
-    return FileResponse(str(img_path))
 
 
 @app.get("/exam/11408/{subject_key}/past-paper-attempts/{attempt_id}")
