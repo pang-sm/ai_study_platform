@@ -919,74 +919,201 @@ export default function TaskCenter({
     );
   };
 
-  return (
-    <section className="chat-panel chat-panel--wide task-center-panel task-center-v2">
-      <header className="task-titlebar">
+  const totalTasks = tasks.length;
+  const doneTasks = tasks.filter((task) => task.status === "done" || task.status === "completed").length;
+  const progressPercent = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
+  const currentGoalTask = tasks.find((task) => task.status === "doing" || task.status === "in_progress") || tasks[0];
+  const currentGoalTitle = currentGoalTask ? getTaskTitle(currentGoalTask) : "第1章 操作系统的核心与系统抽象";
+  const minuteValues = tasks.map((task) => getEstimatedMinutes(task)).filter((value) => value > 0);
+  const dailyMinutes = Number(planForm.customMinutes) || Number(planForm.dailyMinutes) || (minuteValues.length > 0
+    ? Math.round(minuteValues.reduce((sum, value) => sum + value, 0) / minuteValues.length)
+    : 60);
+  const plannedDays = selectedPlanType?.days || (totalTasks > 0 ? Math.max(1, Math.ceil(totalTasks / 2)) : 7);
+  const visiblePlanRows = tasks.slice(0, 5);
+  const primaryPlanTask = visiblePlanRows[0];
+  const primaryDayRows = primaryPlanTask
+    ? [primaryPlanTask, ...(tasksByStatus.todo || []).filter((item) => item.id !== primaryPlanTask.id)].slice(0, 5)
+    : [];
+  const knowledgeTaskCount = tasks.filter((task) => !/练习|复习/.test(getTaskTypeText(task))).length;
+  const practiceTaskCount = tasks.filter((task) => /练习/.test(getTaskTypeText(task))).length;
+  const reviewTaskCount = Math.max(totalTasks - knowledgeTaskCount - practiceTaskCount, 0);
+  const distributionRows = [
+    { label: "知识点学习", value: knowledgeTaskCount, color: "#6f51ff" },
+    { label: "练习巩固", value: practiceTaskCount, color: "#62c4e4" },
+    { label: "复习巩固", value: reviewTaskCount, color: "#7ed0f0" },
+  ];
+
+  const renderPlanAction = (item) => {
+    if (item.status === "done" || item.status === "completed") {
+      return <button type="button" className="tiny-button" onClick={() => startPracticeFromTask(item)}>再练一次</button>;
+    }
+    if (item.status === "doing" || item.status === "in_progress") {
+      return (
+        <button type="button" className="tiny-button" disabled={actionTaskId === item.id} onClick={() => updateTaskStatus(item, "done")}>
+          完成
+        </button>
+      );
+    }
+    return (
+      <button type="button" className="tiny-button" disabled={actionTaskId === item.id} onClick={() => updateTaskStatus(item, "doing")}>
+        开始
+      </button>
+    );
+  };
+
+  const planDashboard = (
+    <>
+      <header className="lp-page-head">
         <div>
-          <h2>学习任务</h2>
-          <p>把资料、知识点和练习安排成可执行计划。</p>
-        </div>
-        <div className="task-title-actions">
-          <button type="button" className="task-btn-primary" onClick={openCreateModal}>
-            + 新建任务
-          </button>
-          <button type="button" className="task-btn-ai" onClick={openPlanModal}>
-            ✨ AI 生成计划
-          </button>
+          <h2>学习计划</h2>
+          <p>制定个性化学习计划，科学安排学习进度</p>
         </div>
       </header>
 
-      <div className="task-toolbar">
-        <label>
-          <span>课程</span>
-          <select className="field" value={courseFilter} onChange={(event) => setCourseFilter(event.target.value)}>
-            <option value="">全部课程</option>
-            {courseOptions.map((item) => (
-              <option key={item} value={item}>{getSubjectLabel(item)}</option>
-            ))}
-          </select>
-        </label>
-        <button type="button" className="task-btn-secondary" onClick={loadTasks}>刷新</button>
+      <section className="lp-summary-card">
+        <div className="lp-current-goal">
+          <span>当前学习目标</span>
+          <strong>{currentGoalTitle}</strong>
+          <small>预计完成时间：2024-06-15</small>
+        </div>
+        <button type="button" className="lp-edit-goal" onClick={openPlanModal}>编辑目标</button>
+        <div className="lp-summary-divider" />
+        <div className="lp-stat-card">
+          <span>计划学习天数</span>
+          <strong>{plannedDays}<small>天</small></strong>
+          <p>建议每天 1-2 节</p>
+        </div>
+        <div className="lp-stat-card">
+          <span>每日学习时长</span>
+          <strong>{dailyMinutes}<small>分钟</small></strong>
+          <p>建议 45-90 分钟</p>
+        </div>
+        <div className="lp-stat-card">
+          <span>总学习任务</span>
+          <strong>{totalTasks}<small>个</small></strong>
+          <p>知识点 + 练习</p>
+        </div>
+        <div className="lp-stat-card lp-progress-stat">
+          <span>完成进度</span>
+          <strong>{progressPercent}<small>%</small></strong>
+          <p>{doneTasks} / {totalTasks} 已完成</p>
+          <div className="lp-progress-ring" style={{ "--lp-progress": `${progressPercent * 3.6}deg` }}>
+            <b>{progressPercent}%</b>
+          </div>
+        </div>
+      </section>
+
+      <div className="lp-content-grid">
+        <section className="lp-plan-card">
+          <div className="lp-tabs">
+            <button type="button" className="active">学习计划</button>
+            <button type="button">进度日历</button>
+          </div>
+          <p className="lp-plan-hint">按章节推进学习路径，循序渐进掌握知识</p>
+          {loading ? (
+            <div className="task-empty-state-v2 lp-empty-compact">正在加载任务...</div>
+          ) : tasks.length === 0 ? (
+            <div className="task-empty-state-v2 lp-empty-compact">
+              <h3>还没有学习任务</h3>
+              <p>可以手动创建任务，也可以让 AI 根据课程进度和资料库生成学习计划。</p>
+              <div className="task-empty-actions">
+                <button type="button" className="task-btn-primary" onClick={openCreateModal}>创建任务</button>
+                <button type="button" className="task-btn-ai" onClick={openPlanModal}>AI 生成计划</button>
+              </div>
+            </div>
+          ) : (
+            <div className="lp-chapter-list">
+              {visiblePlanRows.map((task, index) => (
+                <article
+                  id={`task-row-${task.id}`}
+                  key={task.id}
+                  className={`lp-chapter-item ${index === 0 ? "is-expanded" : ""} ${highlightTaskId === task.id ? "task-row-highlight" : ""}`}
+                  onClick={() => openDetailModal(task)}
+                >
+                  <div className="lp-chapter-head">
+                    <span className={`lp-chapter-dot ${task.status === "done" || task.status === "completed" ? "is-done" : task.status === "doing" || task.status === "in_progress" ? "is-doing" : ""}`} />
+                    <strong>第{index + 1}章 {getTaskTitle(task)}</strong>
+                    <em>{getStatusText(task)}</em>
+                    <small>预计 {Math.max(1, Math.ceil((getEstimatedMinutes(task) || dailyMinutes) / Math.max(dailyMinutes, 1)))} 天</small>
+                    <small>{task.status === "done" || task.status === "completed" ? 100 : task.status === "doing" || task.status === "in_progress" ? 40 : 0}%</small>
+                    <button type="button" onClick={(event) => { event.stopPropagation(); openDetailModal(task); }}>⌄</button>
+                  </div>
+                  {index === 0 && (
+                    <div className="lp-day-list" onClick={(event) => event.stopPropagation()}>
+                      {primaryDayRows.map((item, dayIndex) => (
+                        <div className="lp-day-row" key={`${item.id}-${dayIndex}`}>
+                          <span className={`lp-day-dot ${item.status === "done" || item.status === "completed" ? "is-done" : item.status === "doing" || item.status === "in_progress" ? "is-doing" : ""}`} />
+                          <b>Day {dayIndex + 1}</b>
+                          <p>{getTaskTitle(item)}</p>
+                          <small>{getTaskTypeText(item)}</small>
+                          <i />
+                          <small>{item.status === "done" || item.status === "completed" ? "1/1" : "0/1"}</small>
+                          <div className="lp-row-actions">
+                            {renderPlanAction(item)}
+                            <button type="button" className="tiny-button danger" disabled={actionTaskId === item.id} onClick={() => deleteTask(item)}>删除</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </article>
+              ))}
+              <button type="button" className="lp-adjust-btn" onClick={openPlanModal}>调整计划</button>
+            </div>
+          )}
+        </section>
+
+        <aside className="lp-side-stack">
+          <section className="lp-side-card">
+            <h3>计划设置</h3>
+            <div className="lp-setting-list">
+              <div><span>计划类型</span><strong>章节学习（智能）</strong></div>
+              <div><span>开始日期</span><strong>2024-05-01（今天）</strong></div>
+              <div><span>每日学习时长</span><strong>{dailyMinutes} 分钟</strong></div>
+              <div><span>每周学习天数</span><strong>5 天（工作日）</strong></div>
+              <div><span>复习安排</span><strong>智能复习（艾宾浩斯）</strong></div>
+            </div>
+            <button type="button" className="lp-outline-wide" onClick={openPlanModal}>修改计划设置</button>
+          </section>
+          <section className="lp-side-card">
+            <h3>任务类型分布</h3>
+            <div className="lp-distribution">
+              <div className="lp-donut">
+                <strong>{totalTasks}</strong>
+                <span>总任务数</span>
+              </div>
+              <div className="lp-legend">
+                {distributionRows.map((row) => (
+                  <div key={row.label}>
+                    <i style={{ background: row.color }} />
+                    <span>{row.label}</span>
+                    <strong>{row.value} ({totalTasks > 0 ? Math.round((row.value / totalTasks) * 100) : 0}%)</strong>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+          <section className="lp-side-card">
+            <h3>学习建议</h3>
+            <div className="lp-advice-list">
+              <div className="purple"><b>循序渐进，稳步提升</b><span>按照计划完成每日任务，不要急于求成，保证学习质量。</span></div>
+              <div className="green"><b>及时复习，巩固记忆</b><span>系统将自动安排复习任务，帮助你增强知识记忆效果。</span></div>
+              <div className="orange"><b>多做练习，学以致用</b><span>通过练习检验学习效果，发现薄弱环节并及时加强。</span></div>
+            </div>
+          </section>
+        </aside>
       </div>
+    </>
+  );
+
+  return (
+    <section className="chat-panel chat-panel--wide task-center-panel task-center-v2 learning-plan-page">
+      {planDashboard}
 
       {planSuccess && (
         <div className="task-success-banner">
           <span>{planSuccess}</span>
           <button type="button" onClick={() => setPlanSuccess("")}>关闭</button>
-        </div>
-      )}
-
-      {loading ? (
-        <div className="task-empty-state-v2">正在加载任务...</div>
-      ) : tasks.length === 0 ? (
-        <div className="task-empty-state-v2">
-          <h3>还没有学习任务</h3>
-          <p>可以手动创建任务，也可以让 AI 根据课程进度和资料库生成学习计划。</p>
-          <div className="task-empty-actions">
-            <button type="button" className="task-btn-primary" onClick={openCreateModal}>创建任务</button>
-            <button type="button" className="task-btn-ai" onClick={openPlanModal}>✨ AI 生成计划</button>
-          </div>
-        </div>
-      ) : (
-        <div className="task-board">
-          {STATUS_COLUMNS.map((column) => {
-            const statusTasks = tasksByStatus[column.value] || [];
-            return (
-              <section className="task-board-column" key={column.value}>
-                <div className="task-board-column-header">
-                  <h3>{column.label}</h3>
-                  <span>{statusTasks.length}</span>
-                </div>
-                <div className="task-board-list">
-                  {statusTasks.length === 0 ? (
-                    <p className="task-column-empty">暂无任务</p>
-                  ) : (
-                    statusTasks.map((task, index) => renderTaskCard(task, index, statusTasks))
-                  )}
-                </div>
-              </section>
-            );
-          })}
         </div>
       )}
 
