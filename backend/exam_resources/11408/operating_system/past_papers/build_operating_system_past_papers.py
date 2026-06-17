@@ -12,6 +12,14 @@ OCR_TXT = BASE / "exam_resources/11408/operating_system/past_papers/raw/11408_20
 CHKD = BASE / "exam_resources/11408/operating_system/past_papers/checked"
 RPT = BASE / "exam_resources/11408/operating_system/past_papers/import_reports"
 PATCHES_FILE = BASE / "exam_resources/11408/operating_system/past_papers/manual_review_patches.json"
+IMG_MAPPING = BASE / "exam_resources/11408/operating_system/past_papers/image_mapping.json"
+STATIC_IMG_DIR = BASE / "exam_resources/11408/operating_system/past_papers/images"
+
+# Load image mapping
+def load_image_mapping():
+    if not IMG_MAPPING.exists():
+        return {}
+    return json.loads(IMG_MAPPING.read_text(encoding="utf-8"))
 
 SUBJECT_KEY = "operating_system"
 SUBJECT_NAME = "操作系统"
@@ -180,6 +188,7 @@ def finalize_question(q, questions):
         ) else 'need_review',
         'review_notes': '; '.join(review_notes) if review_notes else '',
         'is_active': True,
+        'image_urls': [],  # will be filled in main()
     })
 
 def apply_patches(questions):
@@ -265,6 +274,29 @@ def main():
 
     # Apply manual review patches
     apply_patches(questions)
+
+    # Load image mapping and attach to questions
+    img_mapping = load_image_mapping()
+    q_with_imgs = 0
+    for q in questions:
+        key = f"{q['year']}-{q['question_number']:02d}"
+        q['image_urls'] = img_mapping.get(key, [])
+        if q['image_urls']:
+            q_with_imgs += 1
+            # If question has images, remove diagram-missing review notes
+            if q.get('review_notes'):
+                q['review_notes'] = q['review_notes'].replace(
+                    '【图示/表格缺失，待补充原题截图】', ''
+                ).strip().rstrip(';').strip()
+                if q['review_notes'] in ('', ';'):
+                    q['review_notes'] = ''
+                # Re-evaluate quality if review_notes is now empty
+                if not q['review_notes'] and q.get('text_quality') == 'need_review':
+                    if q.get('answer_status') == 'confirmed' and q.get('question_text'):
+                        opts = q.get('options', {})
+                        if q['question_type'] == 'big' or len(opts) >= 4:
+                            q['text_quality'] = 'ready'
+    print(f"  Questions with images: {q_with_imgs}/{len(questions)}")
 
     t = len(questions)
     c = sum(1 for q in questions if q['question_type'] == 'choice')

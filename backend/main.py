@@ -12307,6 +12307,35 @@ def create_past_paper_attempt(subject_key: str, req: dict, db: Session = Depends
             "year": year, "status": "in_progress", "total_questions": total}
 
 
+# ── Question image URLs ──
+_IMG_MAPPING_CACHE = {}
+
+def _load_img_mapping(subject_key):
+    if subject_key not in _IMG_MAPPING_CACHE:
+        mapping_file = BASE_DIR / f"exam_resources/11408/{subject_key}/past_papers/image_mapping.json"
+        if mapping_file.exists():
+            try:
+                _IMG_MAPPING_CACHE[subject_key] = json.loads(mapping_file.read_text(encoding="utf-8"))
+            except Exception:
+                _IMG_MAPPING_CACHE[subject_key] = {}
+        else:
+            _IMG_MAPPING_CACHE[subject_key] = {}
+    return _IMG_MAPPING_CACHE[subject_key]
+
+def get_question_images(subject_key, year, question_number):
+    mapping = _load_img_mapping(subject_key)
+    key = f"{year}-{question_number:02d}"
+    return mapping.get(key, [])
+
+@app.get("/exam/11408/past-paper-images/{subject_key}/{year}/{filename:path}")
+def serve_past_paper_image(subject_key: str, year: int, filename: str):
+    img_dir = BASE_DIR / f"exam_resources/11408/{subject_key}/past_papers/images"
+    img_path = img_dir / filename
+    if not img_path.exists():
+        raise HTTPException(status_code=404, detail="Image not found")
+    return FileResponse(str(img_path))
+
+
 @app.get("/exam/11408/{subject_key}/past-paper-attempts/{attempt_id}")
 def get_past_paper_attempt(subject_key: str, attempt_id: int, db: Session = Depends(get_db)):
     attempt = db.query(models.PastPaperAttempt).filter(models.PastPaperAttempt.id == attempt_id).first()
@@ -12342,6 +12371,7 @@ def get_past_paper_attempt(subject_key: str, attempt_id: int, db: Session = Depe
                 "question_type": item.question_type,
                 "quality_status": item.quality_status or "unchecked",
                 "review_notes": item.analysis or "",
+                "image_urls": get_question_images(subject_key, item.year, item.question_number),
             })
     else:
         questions_data = exam_paper_parser.get_year_questions(subject_key, attempt.year)

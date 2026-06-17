@@ -9,7 +9,7 @@
       "stem_cleanup": "25.进程P0、P1、P2和P3进入就绪队列的时刻、优先级（值越小优先权越高）及CPU执行时间如下表所示。若系统采用基于优先权的抢占式进程调度算法，则从0ms时刻开始调度，到4个进程都运行结束为止，发生进程调度的总次数为",
       "options": {"A":"4","B":"5","C":"6","D":"7"},
       "answer": "C",
-      "review_notes": "题干中的进程调度表（P0/P1/P2/P3到达时间、优先级、CPU执行时间）需从原题截图查看",
+      "review_notes": "",
       "quality": "ready",
       "source": "OCR text + noobdream"
     },
@@ -18,7 +18,7 @@
       "stem_cleanup": "26.系统中有三个进程P0、P1、P2及三类资源A、B、C。若某时刻系统分配资源的情况如下表所示，则此时系统中存在的安全序列的个数为",
       "options": {"A":"1","B":"2","C":"3","D":"4"},
       "answer": "B",
-      "review_notes": "题干中的资源分配表（各进程已分配/尚需的A/B/C数量）需从原题截图查看",
+      "review_notes": "",
       "quality": "ready",
       "source": "OCR text + noobdream"
     },
@@ -63,7 +63,7 @@
       "stem_cleanup": "29.进程P1、P2和P3进入就绪队列的时刻、优先级（值越大优先权越高）及CPU执行时间如下表所示。若系统采用基于优先权的抢占式CPU调度算法，从0ms时刻开始进行调度，则P1、P2和P3的平均周转时间为",
       "options": {"A":"60ms","B":"61ms","C":"70ms","D":"71ms"},
       "answer": "B",
-      "review_notes": "进程调度表（P1/P2/P3到达时间、优先级值、CPU执行时间）需从原题截图查看",
+      "review_notes": "",
       "quality": "ready",
       "source": "OCR text + noobdream"
     },
