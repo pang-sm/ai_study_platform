@@ -12659,55 +12659,52 @@ def _compute_task_completion(
     chapters = seed_data.get("chapters") or []
 
     # Build section → leaf codes mapping from seed data
+    # Key insight: we collect ALL leaf codes under a top-level section,
+    # regardless of how deep the nesting goes (subsection → sub-subsection → leaf).
     section_leaf_codes: dict[str, list[str]] = {}
     all_leaf_codes: list[str] = []
+    section_code_by_title: dict[str, str] = {}
 
-    def _walk_section_codes(nodes, current_sec_code="", path_prefix=""):
+    def _collect_leaves_under(nodes, parent_section_code, path_prefix=""):
         for i, node in enumerate(nodes or [], start=1):
             node_path = f"{path_prefix}.{i}" if path_prefix else str(i)
             code = str(node.get("code") or "").strip()
             children = node.get("children") or []
 
             if code:
-                current_sec_code = code
-                if current_sec_code not in section_leaf_codes:
-                    section_leaf_codes[current_sec_code] = []
+                # Track title→code mapping for matching
+                title = str(node.get("title") or "").strip()
+                if title and parent_section_code:
+                    section_code_by_title[title] = parent_section_code
 
             if not children:
-                # leaf
                 leaf_code = code if code else f"_leaf:{node_path}"
                 all_leaf_codes.append(leaf_code)
-                if current_sec_code in section_leaf_codes:
-                    section_leaf_codes[current_sec_code].append(leaf_code)
+                if parent_section_code in section_leaf_codes:
+                    section_leaf_codes[parent_section_code].append(leaf_code)
             else:
-                _walk_section_codes(children, current_sec_code, node_path)
+                _collect_leaves_under(children, parent_section_code, node_path)
 
     for ch in chapters:
         for sec in (ch.get("children") or []):
-            _walk_section_codes([sec], "", "")
+            sec_code = str(sec.get("code") or "").strip()
+            sec_title = str(sec.get("title") or "").strip()
+            if sec_code:
+                section_leaf_codes[sec_code] = []
+                section_code_by_title[sec_title] = sec_code
+            _collect_leaves_under(sec.get("children") or [], sec_code, "")
 
     # Determine relevant leaf codes for this task
     relevant_codes: list[str] = []
     if scope == "all" or not kp_name:
         relevant_codes = list(all_leaf_codes)
     else:
-        # Find the section code matching the knowledge_point_name
-        for sec_code, leaves in section_leaf_codes.items():
-            # Also match by title
-            for ch in chapters:
-                for sec in (ch.get("children") or []):
-                    if sec.get("title", "").strip() == kp_name and sec.get("code", "").strip() == sec_code:
-                        relevant_codes = leaves
-                        break
-        if not relevant_codes:
-            # Try matching by section title from seed
-            for ch in chapters:
-                for sec in (ch.get("children") or []):
-                    if sec.get("title", "").strip() == kp_name:
-                        sec_code = str(sec.get("code") or "").strip()
-                        if sec_code in section_leaf_codes:
-                            relevant_codes = section_leaf_codes[sec_code]
-                        break
+        # Match by section title first, then by section code
+        matched_code = section_code_by_title.get(kp_name, "")
+        if not matched_code:
+            matched_code = kp_name  # might be the code itself
+        if matched_code in section_leaf_codes:
+            relevant_codes = list(section_leaf_codes[matched_code])
 
     if not relevant_codes:
         # No matching knowledge points — task is effectively pending
