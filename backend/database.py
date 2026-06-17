@@ -1610,6 +1610,7 @@ def init_user_profile_schema():
         ensure_exam_study_plan_settings_schema(conn)
         ensure_exam_study_plan_chapter_practice_schema(conn)
         ensure_exam_study_plan_tasks_schema(conn)
+        ensure_user_service_memberships_schema(conn)
         normalize_existing_subjects(conn)
 
         user_columns = get_existing_columns(conn, "users")
@@ -1863,6 +1864,54 @@ def ensure_exam_study_plan_tasks_schema(conn):
         "knowledge_point_name": "VARCHAR(255)",
         "scope_type": "VARCHAR(30) NOT NULL DEFAULT 'single'",
     })
+
+
+def ensure_user_service_memberships_schema(conn):
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS user_service_memberships (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL REFERENCES users(id),
+                service_key VARCHAR(50) NOT NULL,
+                is_enabled BOOLEAN NOT NULL DEFAULT 0,
+                plan VARCHAR(30) DEFAULT 'free',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+    )
+    conn.execute(
+        text(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_user_service_memberships_user_service
+            ON user_service_memberships (user_id, service_key)
+            """
+        )
+    )
+    # ── Migration: backfill for existing users ──
+    all_users = conn.execute(text("SELECT id, COALESCE(plan, 'free') AS plan FROM users WHERE COALESCE(is_deleted, 0) = 0")).fetchall()
+    service_keys = ["exam_11408", "course", "programming"]
+    for user_row in all_users:
+        uid = user_row[0]
+        legacy_plan = (user_row[1] or "free").strip()
+        for sk in service_keys:
+            existing = conn.execute(
+                text("SELECT id FROM user_service_memberships WHERE user_id = :uid AND service_key = :sk"),
+                {"uid": uid, "sk": sk},
+            ).first()
+            if existing:
+                continue
+            is_enabled = 1 if sk == "exam_11408" else 0
+            plan = legacy_plan if sk == "exam_11408" else "free"
+            conn.execute(
+                text(
+                    "INSERT INTO user_service_memberships (user_id, service_key, is_enabled, plan) "
+                    "VALUES (:uid, :sk, :enabled, :plan)"
+                ),
+                {"uid": uid, "sk": sk, "enabled": is_enabled, "plan": plan},
+            )
 
 
 def is_material_chunks_fts_enabled():

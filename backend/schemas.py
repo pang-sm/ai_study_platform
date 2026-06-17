@@ -754,6 +754,11 @@ class LearningReportSaveRequest(BaseModel):
     end_date: str | None = None
 
 
+class AdminUpdateMembershipsRequest(BaseModel):
+    admin_username: str
+    memberships: dict
+
+
 class LearningReportAiGenerateRequest(BaseModel):
     username: str
     range_type: str = "7d"  # 7d / 15d / 30d / month / custom

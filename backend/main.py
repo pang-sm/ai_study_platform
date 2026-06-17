@@ -674,8 +674,37 @@ def upgrade_exam_package(req: dict, db: Session = Depends(get_db)):
     }
 
 
+def _sync_membership_to_track(db: Session, user: models.User):
+    """Sync exam_11408 membership plan to UserLearningTrack for 11408 backward compat."""
+    membership = db.query(models.UserServiceMembership).filter(
+        models.UserServiceMembership.user_id == user.id,
+        models.UserServiceMembership.service_key == "exam_11408",
+    ).first()
+    if not membership or not membership.is_enabled:
+        return
+    track = get_user_track(db, user.id, "exam_408")
+    mplan = membership.plan or "free"
+    # Map membership plan → existing package_type
+    plan_to_pkg = {"free": "free", "monthly": "monthly_sprint", "quarterly": "quarterly_boost", "full": "full_exam"}
+    pkg = plan_to_pkg.get(mplan, "free")
+    pkg = normalize_package_type(pkg)
+    if track:
+        if track.package_type != pkg:
+            track.package_type = pkg
+            track.plan = EXAM_PACKAGE_PLANS[pkg]
+            track.permissions_json = json.dumps(get_exam_package_permissions(pkg), ensure_ascii=False)
+            track.quota_json = json.dumps(get_exam_package_quota(pkg), ensure_ascii=False)
+            track.updated_at = utc_now()
+            db.commit()
+    # Sync users.plan for legacy compat
+    user.plan = "pro" if mplan in ("monthly", "quarterly", "full") else mplan
+    db.commit()
+
+
 def ensure_exam_408_track(db: Session, user: models.User):
     """Auto-create exam_408 track for old users who have 11408 data but no track record."""
+    # Sync from membership first
+    _sync_membership_to_track(db, user)
     existing = get_user_track(db, user.id, "exam_408")
     if existing:
         package = normalize_package_type(existing.package_type)
@@ -21775,6 +21804,27 @@ def admin_users_list(
         task_count = (
             db.query(models.LearningTask).filter(models.LearningTask.username == u.username).count()
         )
+        # Load three-direction memberships
+        membership_rows = db.query(models.UserServiceMembership).filter(
+            models.UserServiceMembership.user_id == u.id,
+        ).all()
+        memberships = {}
+        SERVICE_LABELS = {
+            "exam_11408": {"free": "普通用户", "monthly": "月度冲刺包", "quarterly": "季度强化包", "full": "全程备考包"},
+            "course": {"free": "普通用户", "monthly": "月度学习包", "quarterly": "季度学习包", "full": "全程学习包"},
+            "programming": {"free": "普通用户", "monthly": "月度练习包", "quarterly": "季度练习包", "full": "年度提升包"},
+        }
+        for m in membership_rows:
+            labels = SERVICE_LABELS.get(m.service_key, {})
+            memberships[m.service_key] = {
+                "is_enabled": bool(m.is_enabled),
+                "plan": m.plan or "free",
+                "plan_label": labels.get(m.plan or "free", "普通用户") if m.is_enabled else "未开通",
+            }
+        for sk in ["exam_11408", "course", "programming"]:
+            if sk not in memberships:
+                memberships[sk] = {"is_enabled": False, "plan": "free", "plan_label": "未开通"}
+
         items.append({
             "id": u.id,
             "user_id": str(u.id),
@@ -21803,6 +21853,7 @@ def admin_users_list(
             "knowledge_point_count": kp_count,
             "task_count": task_count,
             "created_at": serialize_datetime(u.created_at),
+            "memberships": memberships,
         })
 
     return {"items": items, "total": total, "page": page, "page_size": page_size}
@@ -22394,6 +22445,75 @@ def admin_update_user_plan(
         "plan": target_user.plan,
         "plan_expires_at": serialize_datetime(target_user.plan_expire_at),
     }
+
+
+SERVICE_KEYS = ["exam_11408", "course", "programming"]
+VALID_PLANS = ["free", "monthly", "quarterly", "full"]
+SERVICE_PLAN_LABELS = {
+    "exam_11408": {"free": "普通用户", "monthly": "月度冲刺包", "quarterly": "季度强化包", "full": "全程备考包"},
+    "course": {"free": "普通用户", "monthly": "月度学习包", "quarterly": "季度学习包", "full": "全程学习包"},
+    "programming": {"free": "普通用户", "monthly": "月度练习包", "quarterly": "季度练习包", "full": "年度提升包"},
+}
+
+
+@app.patch("/admin/users/{user_id}/memberships")
+def admin_update_user_memberships(
+    user_id: int,
+    req: schemas.AdminUpdateMembershipsRequest,
+    db: Session = Depends(get_db),
+):
+    """Update a user's three-direction service memberships."""
+    admin = require_admin_permission(db, req.admin_username, "users.manage_plan")
+    target_user = db.query(models.User).filter(
+        models.User.id == user_id, models.User.is_deleted == 0,
+    ).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    memberships_data = req.memberships or {}
+    if not memberships_data:
+        raise HTTPException(status_code=400, detail="请提供 memberships 数据")
+
+    now = utc_now()
+    updated = {}
+    for sk, data in memberships_data.items():
+        if sk not in SERVICE_KEYS:
+            continue
+        is_enabled = bool(data.get("is_enabled", False)) if isinstance(data, dict) else False
+        plan = str(data.get("plan", "free")).strip().lower() if isinstance(data, dict) else "free"
+        if plan not in VALID_PLANS:
+            plan = "free"
+
+        membership = db.query(models.UserServiceMembership).filter(
+            models.UserServiceMembership.user_id == user_id,
+            models.UserServiceMembership.service_key == sk,
+        ).first()
+        if not membership:
+            membership = models.UserServiceMembership(
+                user_id=user_id, service_key=sk,
+                is_enabled=is_enabled, plan=plan,
+                created_at=now, updated_at=now,
+            )
+            db.add(membership)
+        else:
+            membership.is_enabled = is_enabled
+            membership.plan = plan
+            membership.updated_at = now
+
+        # Sync exam_11408 plan to legacy users.plan for backward compat
+        if sk == "exam_11408" and is_enabled:
+            target_user.plan = "pro" if plan in ("monthly", "quarterly", "full") else plan
+            db.add(target_user)
+
+        labels = SERVICE_PLAN_LABELS.get(sk, {})
+        updated[sk] = {
+            "is_enabled": is_enabled,
+            "plan": plan,
+            "plan_label": labels.get(plan, "普通用户") if is_enabled else "未开通",
+        }
+
+    db.commit()
+    return {"success": True, "user_id": user_id, "memberships": updated}
 
 
 @app.get("/admin/usage-trend")

@@ -934,3 +934,19 @@ class ExamStudyPlanTask(Base):
     note = Column(Text, nullable=True)
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+
+class UserServiceMembership(Base):
+    """Per-user, per-service-direction membership (exam_11408 / course / programming)."""
+    __tablename__ = "user_service_memberships"
+    __table_args__ = (
+        Index("idx_user_service_memberships_user_service", "user_id", "service_key", unique=True),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=False)
+    service_key = Column(String(50), index=True, nullable=False)
+    is_enabled = Column(Boolean, nullable=False, default=False)
+    plan = Column(String(30), nullable=True, default="free")
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
