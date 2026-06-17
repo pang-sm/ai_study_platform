@@ -420,6 +420,7 @@ function ChapterPracticePage({ subjectInfo, user, onBack }) {
     const params = new URLSearchParams();
     if (id) params.set("knowledge_point_id", id);
     params.set("include_children", "true");
+    if (user?.username) params.set("username", user.username);
     safeJsonFetch(`${API_BASE}/exam/11408/${subjectInfo.key}/chapter-practice/questions?${params.toString()}`)
       .then(p => setKpQuestions(p)).catch(() => setKpQuestions({items:[],total:0})).finally(()=>setKpLoading(false));
     // Also load done records
@@ -466,7 +467,7 @@ function ChapterPracticePage({ subjectInfo, user, onBack }) {
 
   return (
     <div className="exam-practice-subpage">
-      <PracticeSubPageHeader title="章节练习" subtitle="按章节进行针对性练习" subjectInfo={subjectInfo} onBack={onBack} />
+      <PracticeSubPageHeader title="练习看板 · 章节练习" subtitle="按章节知识点做题，提交后自动标记已练习" subjectInfo={subjectInfo} onBack={onBack} />
       <div className="exam-practice-split">
         <section className="exam-practice-panel exam-practice-outline-panel" style={{maxWidth:260}}>
           <h3>章节大纲</h3>
@@ -515,7 +516,8 @@ function ChapterPracticePage({ subjectInfo, user, onBack }) {
                     <span className="past-paper-q-number">第 {i+1} 题</span>
                     <span className="past-paper-q-type">{q.question_type==="choice"?"选择题":"大题"}</span>
                     <span className="past-paper-q-year">{q.knowledge_point_name||""}</span>
-                    {doneIds.has(q.id) && <span style={{fontSize:"0.7rem",background:"#ede9fe",color:"#7c3aed",padding:"1px 8px",borderRadius:10,fontWeight:500}}>已做过</span>}
+                    {doneIds.has(q.id) && <span style={{fontSize:"0.7rem",background:"#d1fae5",color:"#065f46",padding:"1px 8px",borderRadius:10,fontWeight:600}}>已练习</span>}
+                    {!doneIds.has(q.id) && <span style={{fontSize:"0.7rem",background:"#f3f4f6",color:"#9ca3af",padding:"1px 8px",borderRadius:10,fontWeight:500}}>未练习</span>}
                   </div>
                   <div className="past-paper-q-content">{q.stem}</div>
                   {q.options && Object.keys(q.options||{}).length>0 && (

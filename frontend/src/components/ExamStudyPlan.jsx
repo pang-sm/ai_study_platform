@@ -62,28 +62,6 @@ export default function ExamStudyPlan({ user, subjectKey, onNavigate }) {
     }
   };
 
-  const toggleChapterPractice = async (sectionCode, sectionTitle, currentCompleted) => {
-    setSavingCode(`cp:${sectionCode}`);
-    try {
-      await fetch(
-        `/api/exam/11408/subjects/${encodeURIComponent(subjectKey)}/study-plan/chapter-practice/${encodeURIComponent(sectionCode)}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            username, subject_key: subjectKey, section_code: sectionCode,
-            section_title: sectionTitle, completed: !currentCompleted,
-          }),
-        }
-      );
-      await fetchPlan();
-    } catch (e) {
-      console.error("Failed to update chapter practice:", e);
-    } finally {
-      setSavingCode(null);
-    }
-  };
-
   const deleteTask = async (taskId) => {
     if (!confirm("确定要删除这个任务吗？")) return;
     try {
@@ -166,6 +144,9 @@ export default function ExamStudyPlan({ user, subjectKey, onNavigate }) {
           <div className="esp-tasks-list">
             {tasks.map((task) => {
               const cs = task.computed_status || task.status || "not_started";
+              const isChapterPractice = task.task_type === "chapter_practice";
+              const actionLabel = isChapterPractice ? "前往练习中心" : "前往知识脉络";
+              const actionTarget = isChapterPractice ? "practice" : "knowledge";
               return (
                 <div key={task.id} className={`esp-task-card ${cs}`}>
                   <div className="esp-task-main">
@@ -183,9 +164,7 @@ export default function ExamStudyPlan({ user, subjectKey, onNavigate }) {
                         </span>
                       </div>
                       {task.completion_reason && (
-                        <p className="esp-task-reason">
-                          💡 {task.completion_reason}
-                        </p>
+                        <p className="esp-task-reason">💡 {task.completion_reason}</p>
                       )}
                       {task.due_date && (
                         <span className="esp-task-due">📅 计划完成：{task.due_date}</span>
@@ -193,18 +172,10 @@ export default function ExamStudyPlan({ user, subjectKey, onNavigate }) {
                       {task.note && <p className="esp-task-note">{task.note}</p>}
                     </div>
                     <div className="esp-task-actions">
-                      {task.action_target === "practice_center" && (
-                        <button type="button" className="esp-task-goto-btn"
-                          onClick={() => onNavigate?.("practice")}>
-                          前往练习中心
-                        </button>
-                      )}
-                      {task.action_target === "knowledge_map" && (
-                        <button type="button" className="esp-task-goto-btn"
-                          onClick={() => onNavigate?.("knowledge")}>
-                          前往知识脉络
-                        </button>
-                      )}
+                      <button type="button" className="esp-task-goto-btn"
+                        onClick={() => onNavigate?.(actionTarget)}>
+                        {actionLabel}
+                      </button>
                       <button type="button" className="esp-task-edit-btn"
                         onClick={() => { setEditingTask(task); setTaskModalOpen(true); }}>
                         编辑
@@ -230,7 +201,7 @@ export default function ExamStudyPlan({ user, subjectKey, onNavigate }) {
         <div className="esp-summary-chip pending"><span>未开始</span><strong>{stats.sections_not_started || 0}</strong></div>
       </section>
 
-      {/* Knowledge Point Board */}
+      {/* Knowledge Point Board (read-only preview) */}
       <section className="esp-chapters">
         <h2 className="esp-board-title">📚 知识点推进看板</h2>
         {chapters.length === 0 ? (
@@ -243,7 +214,7 @@ export default function ExamStudyPlan({ user, subjectKey, onNavigate }) {
             <ChapterCard key={chapter.code || chapter.title} chapter={chapter}
               expandedSections={expandedSections} onToggleSection={toggleSection}
               onUpdateKnowledgeItem={updateKnowledgeItem}
-              onToggleChapterPractice={toggleChapterPractice}
+              onNavigate={onNavigate}
               savingCode={savingCode} />
           ))
         )}
@@ -259,7 +230,7 @@ export default function ExamStudyPlan({ user, subjectKey, onNavigate }) {
   );
 }
 
-function ChapterCard({ chapter, expandedSections, onToggleSection, onUpdateKnowledgeItem, onToggleChapterPractice, savingCode }) {
+function ChapterCard({ chapter, expandedSections, onToggleSection, onUpdateKnowledgeItem, onNavigate, savingCode }) {
   const sections = chapter.children || [];
   return (
     <div className={`esp-chapter-card${chapter.chapter_status === "completed" ? " completed" : ""}`}>
@@ -301,17 +272,18 @@ function ChapterCard({ chapter, expandedSections, onToggleSection, onUpdateKnowl
                   </div>
                   <div className="esp-section-meta">
                     <span>小知识点 {ls.mastered || 0}/{ls.total || 0}</span>
-                    <span className="esp-section-cp">章节练习：{cpDone ? "✅ 已完成" : "⬜ 未完成"}</span>
+                    <span className="esp-section-cp">
+                      {cpDone ? "✅ 练习已完成" : "⬜ 练习未完成"}
+                    </span>
                   </div>
                   <div className="esp-section-bar-wrap">
                     <div className="esp-section-bar" style={{ width: `${section.completion_rate || 0}%` }} />
                   </div>
                 </div>
                 <div className="esp-section-actions">
-                  <button type="button" className={`esp-cp-btn${cpDone ? " done" : ""}`}
-                    disabled={savingCode === `cp:${sectionCode}`}
-                    onClick={() => onToggleChapterPractice(sectionCode, section.title, cpDone)}>
-                    {savingCode === `cp:${sectionCode}` ? "保存中..." : cpDone ? "练习已完成 ✓" : "标记练习完成"}
+                  <button type="button" className="esp-task-goto-btn"
+                    onClick={() => onNavigate?.("practice")}>
+                    去练习中心
                   </button>
                 </div>
               </div>

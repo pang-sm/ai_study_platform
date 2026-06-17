@@ -12740,24 +12740,60 @@ def _compute_task_completion(
             return ("not_started", "等待知识脉络中该知识点标记为已学习", "knowledge_map")
 
     elif task_type == "chapter_practice":
-        # Chapter practice: all relevant sections have cp completed
-        # Map relevant_codes to their section codes
-        relevant_sections = set()
-        for sec_code, leaves in section_leaf_codes.items():
-            if any(l in relevant_codes for l in leaves):
-                relevant_sections.add(sec_code)
-
-        if not relevant_sections:
-            relevant_sections = {kp_name}
-
-        sections_done = sum(1 for sc in relevant_sections if sc in cp_completed_codes)
-        sections_total = len(relevant_sections)
-        if sections_total > 0 and sections_done == sections_total:
-            return ("completed", "所有章节练习均已完成", "practice_center")
-        elif sections_done > 0:
-            return ("in_progress", f"已完成 {sections_done}/{sections_total} 个章节练习，等待练习中心完成剩余练习", "practice_center")
+        # Chapter practice: check ExamQuestionDoneRecord for practiced questions
+        # Find questions for the relevant knowledge points
+        kp_ids = set()
+        if scope == "all" or not kp_name:
+            # All knowledge points in this subject
+            q_rows = db.query(models.ExamQuestionBank).filter(
+                models.ExamQuestionBank.subject_key == subject_key,
+                models.ExamQuestionBank.source_type == "chapter",
+                models.ExamQuestionBank.is_active == True,
+            ).all()
         else:
-            return ("not_started", "等待练习中心完成该知识点章节练习", "practice_center")
+            # Find questions matching this knowledge_point_name or related section codes
+            q_rows = db.query(models.ExamQuestionBank).filter(
+                models.ExamQuestionBank.subject_key == subject_key,
+                models.ExamQuestionBank.source_type == "chapter",
+                models.ExamQuestionBank.is_active == True,
+            ).all()
+            # Filter to matching knowledge points (by name or section code)
+            matching_kp_ids = set()
+            for sec_code in section_leaf_codes:
+                if kp_name in sec_code or sec_code in kp_name:
+                    matching_kp_ids.add(sec_code)
+            matching_kp_ids.add(kp_name)
+            for title, code in section_code_by_title.items():
+                if kp_name in title:
+                    matching_kp_ids.add(code)
+            q_rows = [
+                q for q in q_rows
+                if (q.knowledge_point_id or "") in matching_kp_ids
+                or (q.knowledge_point_name or "") == kp_name
+            ]
+
+        if not q_rows:
+            return ("not_started", "该知识点暂无章节练习题目", "practice_center")
+
+        # Get done records for these questions
+        q_ids = [q.id for q in q_rows]
+        done_rows = db.query(models.ExamQuestionDoneRecord).filter(
+            models.ExamQuestionDoneRecord.username == username,
+            models.ExamQuestionDoneRecord.subject_key == subject_key,
+            models.ExamQuestionDoneRecord.practice_type == "chapter",
+            models.ExamQuestionDoneRecord.question_bank_id.in_(q_ids),
+        ).all()
+        done_q_ids = {r.question_bank_id for r in done_rows}
+
+        total_q = len(q_ids)
+        practiced_q = sum(1 for qid in q_ids if qid in done_q_ids)
+
+        if total_q > 0 and practiced_q == total_q:
+            return ("completed", f"全部 {total_q} 题已练习", "practice_center")
+        elif practiced_q > 0:
+            return ("in_progress", f"已练习 {practiced_q}/{total_q} 题，前往练习中心继续练习", "practice_center")
+        else:
+            return ("not_started", f"共 {total_q} 题待练习，前往练习中心开始", "practice_center")
 
     elif task_type == "review":
         # Stage review: no review_due leaves, all mastered
@@ -14007,10 +14043,23 @@ def db_query_chapter_questions(subject_key):
 
 @app.get("/exam/11408/{subject_key}/chapter-practice/questions")
 def get_chapter_practice_questions(subject_key: str, knowledge_point_id: str = "",
-                                     knowledge_point_path: str = "", include_children: bool = False):
+                                     knowledge_point_path: str = "", include_children: bool = False,
+                                     username: str = "", db: Session = Depends(get_db)):
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
     items = db_query_chapter_questions(subject_key)
+
+    # Load done records to tag practiced questions
+    done_q_ids: set[int] = set()
+    u = (username or "").strip()
+    if u:
+        u2 = get_user_by_username(u, db)
+        done_rows = db.query(models.ExamQuestionDoneRecord).filter(
+            models.ExamQuestionDoneRecord.username == u2.username,
+            models.ExamQuestionDoneRecord.subject_key == subject_key,
+            models.ExamQuestionDoneRecord.practice_type == "chapter",
+        ).all()
+        done_q_ids = {r.question_bank_id for r in done_rows if r.question_bank_id}
     # Normalize knowledge_point_id: strip _leaf:/leaf:/node: prefixes
     import re as _re
     raw_kp_id = (knowledge_point_id or "").strip()
@@ -14037,7 +14086,13 @@ def get_chapter_practice_questions(subject_key: str, knowledge_point_id: str = "
                 if i.id not in seen: matched.append(i)
             debug["query_mode"] = "id_exact+children"
         items = matched
-    result = {"items": [_serialize_question_bank(i) for i in items], "total": len(items)}
+    result = {
+        "items": [
+            {**_serialize_question_bank(i), "practiced": i.id in done_q_ids}
+            for i in items
+        ],
+        "total": len(items),
+    }
     # Only include debug in dev or when total=0
     if len(items) == 0: result["debug_info"] = debug
     return result
