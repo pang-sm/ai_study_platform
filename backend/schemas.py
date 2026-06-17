@@ -605,6 +605,30 @@ class ExamStudyPlanChapterPracticeUpdate(BaseModel):
     completed: bool
 
 
+class ExamStudyPlanTaskCreate(BaseModel):
+    username: str
+    subject_key: str
+    title: str
+    primary_knowledge: str | None = None
+    secondary_knowledge: str | None = None
+    task_type: str = "knowledge"
+    status: str = "not_started"
+    due_date: str | None = None
+    note: str | None = None
+
+
+class ExamStudyPlanTaskUpdate(BaseModel):
+    username: str
+    subject_key: str
+    title: str | None = None
+    primary_knowledge: str | None = None
+    secondary_knowledge: str | None = None
+    task_type: str | None = None
+    status: str | None = None
+    due_date: str | None = None
+    note: str | None = None
+
+
 # ── AI Knowledge Point Generation ────────────────────────
 
 

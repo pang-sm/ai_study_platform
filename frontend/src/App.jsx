@@ -3451,7 +3451,7 @@ function App() {
         materialsContent={courseMaterialsPage}
         practiceContent={coursePracticePage}
         reportContent={learningReportPage}
-        planContent={coursePlanPage}
+        planContent={null}
         knowledgeContext={examKnowledgeContext}
         initialMaterialToReference={examInitialMaterialReference}
         onInitialMaterialReferenced={() => setExamInitialMaterialReference(null)}
@@ -3526,7 +3526,7 @@ function App() {
         subjectKey={getExamSubjectKeyFromCourse(subject) || examSubjectKey || "data_structure"}
         panelIntent={{ panel: "plan", nonce: Date.now() }}
         materialsContent={courseMaterialsPage}
-        planContent={coursePlanPage}
+        planContent={null}
         onNavigate={openExamSubjectFeature}
         onBackHome={() => setPage("examHome")}
         onProfile={() => setPage("examProfile")}

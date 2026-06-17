@@ -909,3 +909,24 @@ class ExamStudyPlanChapterPractice(Base):
     completed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+
+class ExamStudyPlanTask(Base):
+    """Per-user, per-subject stage-level study tasks for 11408 exam preparation."""
+    __tablename__ = "exam_study_plan_tasks"
+    __table_args__ = (
+        Index("idx_exam_study_plan_tasks_user_subject", "username", "subject_key"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), index=True, nullable=False)
+    subject_key = Column(String(50), index=True, nullable=False)
+    title = Column(String(500), nullable=False)
+    primary_knowledge = Column(String(255), nullable=True)
+    secondary_knowledge = Column(String(255), nullable=True)
+    task_type = Column(String(30), nullable=False, default="knowledge")
+    status = Column(String(20), nullable=False, default="not_started")
+    due_date = Column(String(30), nullable=True)
+    note = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)

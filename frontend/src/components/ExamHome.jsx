@@ -30,6 +30,7 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
   const [examPackageLabel, setExamPackageLabel] = useState("");
   const mottoInputRef = useRef(null);
   const [studyPlanSummary, setStudyPlanSummary] = useState(null);
+  const [taskSummary, setTaskSummary] = useState(null);
 
   // Fetch real data from tracks API on mount
   useEffect(() => {
@@ -78,6 +79,18 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
       } catch { /* ignore */ }
     };
     fetchPlanSummary();
+
+    // Fetch task summary for home page
+    const fetchTaskSummary = async () => {
+      try {
+        const username = user?.username || "";
+        if (!username) return;
+        const res = await fetch(`/api/exam/11408/study-plan/tasks/summary?username=${encodeURIComponent(username)}`);
+        const data = await res.json().catch(() => null);
+        if (data) setTaskSummary(data);
+      } catch { /* ignore */ }
+    };
+    fetchTaskSummary();
   }, []);
 
   const displayName = user?.nickname || user?.username || "小庞同学";
@@ -246,80 +259,69 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
         </div>
       </div>
 
-      {/* ── Bottom row: Study Plan Summary ── */}
+      {/* ── Bottom row: Current Stage Tasks ── */}
       <div className="eh-bottom">
         <div className="eh-card eh-plan-card">
-          <h3 className="eh-card-title">📋 四科学习计划</h3>
-          {studyPlanSummary?.subjects ? (
-            <table className="eh-plan-table">
-              <thead>
-                <tr>
-                  <th>学科</th>
-                  <th>进度</th>
-                  <th>二级知识点</th>
-                  <th>知识点掌握</th>
-                  <th>状态</th>
-                </tr>
-              </thead>
-              <tbody>
-                {studyPlanSummary.subjects.map((sp) => (
-                  <tr
-                    key={sp.subject_key}
-                    className={sp.is_completed ? "eh-plan-done" : ""}
-                    style={{ cursor: "pointer" }}
+          <h3 className="eh-card-title">📋 当前学习任务</h3>
+          {taskSummary?.tasks && taskSummary.tasks.length > 0 ? (
+            <div className="eh-task-cards">
+              {taskSummary.tasks.map((task) => {
+                const subj = SUBJECTS.find((s) => s.key === task.subject_key);
+                return (
+                  <div
+                    key={task.id}
+                    className={`eh-task-card ${task.status}`}
                     onClick={() => {
                       if (setPage) {
                         setPage("examSubjectDashboard", {
-                          subject: sp.subject_key,
-                          examCourseId: `11408 ${sp.subject_name}`,
+                          subject: task.subject_key,
+                          examCourseId: `11408 ${subj?.name || task.subject_key}`,
                           forcePanel: "plan",
                         });
                       }
                     }}
                   >
-                    <td>
-                      <strong>
-                        {SUBJECTS.find((s) => s.key === sp.subject_key)?.icon || "📚"}{" "}
-                        {sp.subject_name}
-                      </strong>
-                    </td>
-                    <td className="eh-plan-progress-cell">
-                      <div className="eh-plan-mini-bar-wrap">
-                        <div
-                          className="eh-plan-mini-bar"
-                          style={{ width: `${sp.overall_progress}%` }}
-                        />
-                      </div>
-                      <span>{sp.overall_progress}%</span>
-                    </td>
-                    <td>
-                      {sp.sections_completed}/{sp.total_sections}
-                    </td>
-                    <td>
-                      {sp.mastered_knowledge_points}/{sp.total_knowledge_points}
-                    </td>
-                    <td className={`eh-plan-status${sp.is_completed ? " done" : sp.overall_progress > 0 ? " pending" : ""}`}>
-                      {sp.is_completed ? "已完成" : sp.overall_progress > 0 ? "学习中" : "未开始"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    <div className="eh-task-card-header">
+                      <span className="eh-task-subject-tag">
+                        {subj?.icon || "📚"} {subj?.name || task.subject_key}
+                      </span>
+                      <span className={`eh-task-status-tag ${task.status}`}>
+                        {task.status === "completed" ? "已完成" :
+                         task.status === "in_progress" ? "进行中" : "未开始"}
+                      </span>
+                    </div>
+                    <strong className="eh-task-card-title">{task.title}</strong>
+                    <div className="eh-task-card-meta">
+                      {task.primary_knowledge && (
+                        <span>📘 {task.primary_knowledge}</span>
+                      )}
+                      {task.secondary_knowledge && (
+                        <span>📖 {task.secondary_knowledge}</span>
+                      )}
+                      <span className="eh-task-type-label">
+                        {task.task_type === "knowledge" ? "知识点学习" :
+                         task.task_type === "chapter_practice" ? "章节练习" : "阶段复习"}
+                      </span>
+                    </div>
+                    {task.due_date && (
+                      <span className="eh-task-card-due">📅 {task.due_date}</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           ) : (
             <div className="eh-plan-empty">
-              <p>加载学习计划数据中...</p>
-              <button
-                type="button"
-                onClick={() => {
-                  if (setPage) {
-                    setPage("examSubjectDashboard", {
-                      subject: "data_structure",
-                      examCourseId: "11408 数据结构",
-                      forcePanel: "plan",
-                    });
-                  }
-                }}
-              >
+              <p>还没有阶段学习任务，请进入具体学科的学习计划中设置。</p>
+              <button type="button" onClick={() => {
+                if (setPage) {
+                  setPage("examSubjectDashboard", {
+                    subject: "data_structure",
+                    examCourseId: "11408 数据结构",
+                    forcePanel: "plan",
+                  });
+                }
+              }}>
                 进入数据结构学习计划 →
               </button>
             </div>

@@ -12250,6 +12250,15 @@ def get_exam_subject_study_plan(subject_key: str, username: str = "", db: Sessio
     if username:
         plan_settings = _get_exam_study_plan_settings(username, subject_key, db)
 
+    # Load stage tasks for this subject
+    tasks = []
+    if username:
+        task_rows = db.query(models.ExamStudyPlanTask).filter(
+            models.ExamStudyPlanTask.username == username,
+            models.ExamStudyPlanTask.subject_key == subject_key,
+        ).order_by(models.ExamStudyPlanTask.created_at.desc()).all()
+        tasks = [_serialize_task(t) for t in task_rows]
+
     # First attach user progress at the ROOT level so all leaf codes
     # are globally scoped and consistent with _build_enriched_map_index
     enriched_chapters = _attach_knowledge_map_status(
@@ -12312,6 +12321,7 @@ def get_exam_subject_study_plan(subject_key: str, username: str = "", db: Sessio
         },
         "review_interval_days": review_interval_days,
         "chapters": study_plan_tree,
+        "tasks": tasks,
     }
 
 
@@ -12595,6 +12605,146 @@ def get_exam_study_plan_summary(username: str = "", db: Session = Depends(get_db
         "subjects": subjects,
         "total_progress": total_all_progress,
         "total_subjects_completed": sum(1 for s in subjects if s["is_completed"]),
+    }
+
+
+# ── 11408 Study Plan Tasks ──────────────────────────────
+
+
+def _serialize_task(task: models.ExamStudyPlanTask) -> dict:
+    return {
+        "id": task.id,
+        "username": task.username,
+        "subject_key": task.subject_key,
+        "title": task.title,
+        "primary_knowledge": task.primary_knowledge or "",
+        "secondary_knowledge": task.secondary_knowledge or "",
+        "task_type": task.task_type or "knowledge",
+        "status": task.status or "not_started",
+        "due_date": task.due_date or "",
+        "note": task.note or "",
+        "created_at": serialize_datetime(task.created_at) if task.created_at else None,
+        "updated_at": serialize_datetime(task.updated_at) if task.updated_at else None,
+    }
+
+
+@app.post("/exam/11408/subjects/{subject_key}/study-plan/tasks")
+def create_exam_study_plan_task(
+    subject_key: str,
+    req: schemas.ExamStudyPlanTaskCreate,
+    db: Session = Depends(get_db),
+):
+    if subject_key not in EXAM_SUBJECT_DIRS:
+        raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
+    user = get_user_by_username(req.username, db)
+    now = utc_now()
+    task = models.ExamStudyPlanTask(
+        username=user.username,
+        subject_key=subject_key,
+        title=req.title,
+        primary_knowledge=req.primary_knowledge or "",
+        secondary_knowledge=req.secondary_knowledge or "",
+        task_type=req.task_type or "knowledge",
+        status=req.status or "not_started",
+        due_date=req.due_date or "",
+        note=req.note or "",
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+    return {"success": True, "task": _serialize_task(task)}
+
+
+@app.patch("/exam/11408/subjects/{subject_key}/study-plan/tasks/{task_id}")
+def update_exam_study_plan_task(
+    subject_key: str,
+    task_id: int,
+    req: schemas.ExamStudyPlanTaskUpdate,
+    db: Session = Depends(get_db),
+):
+    if subject_key not in EXAM_SUBJECT_DIRS:
+        raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
+    user = get_user_by_username(req.username, db)
+    task = db.query(models.ExamStudyPlanTask).filter(
+        models.ExamStudyPlanTask.id == task_id,
+        models.ExamStudyPlanTask.username == user.username,
+        models.ExamStudyPlanTask.subject_key == subject_key,
+    ).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    now = utc_now()
+    if req.title is not None:
+        task.title = req.title
+    if req.primary_knowledge is not None:
+        task.primary_knowledge = req.primary_knowledge
+    if req.secondary_knowledge is not None:
+        task.secondary_knowledge = req.secondary_knowledge
+    if req.task_type is not None:
+        task.task_type = req.task_type
+    if req.status is not None:
+        task.status = req.status
+    if req.due_date is not None:
+        task.due_date = req.due_date
+    if req.note is not None:
+        task.note = req.note
+    task.updated_at = now
+    db.commit()
+    db.refresh(task)
+    return {"success": True, "task": _serialize_task(task)}
+
+
+@app.delete("/exam/11408/subjects/{subject_key}/study-plan/tasks/{task_id}")
+def delete_exam_study_plan_task(
+    subject_key: str,
+    task_id: int,
+    username: str = "",
+    db: Session = Depends(get_db),
+):
+    if subject_key not in EXAM_SUBJECT_DIRS:
+        raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
+    user = get_user_by_username(username, db)
+    task = db.query(models.ExamStudyPlanTask).filter(
+        models.ExamStudyPlanTask.id == task_id,
+        models.ExamStudyPlanTask.username == user.username,
+        models.ExamStudyPlanTask.subject_key == subject_key,
+    ).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    db.delete(task)
+    db.commit()
+    return {"success": True, "deleted_id": task_id}
+
+
+@app.get("/exam/11408/study-plan/tasks/summary")
+def get_exam_study_plan_tasks_summary(username: str = "", db: Session = Depends(get_db)):
+    """Get all current-stage tasks across all four 11408 subjects for the home page."""
+    username = (username or "").strip()
+    if not username:
+        return {"tasks": [], "by_subject": {}}
+    user = get_user_by_username(username, db)
+    tasks = db.query(models.ExamStudyPlanTask).filter(
+        models.ExamStudyPlanTask.username == user.username,
+    ).order_by(models.ExamStudyPlanTask.created_at.desc()).all()
+
+    task_list = [_serialize_task(t) for t in tasks]
+    by_subject: dict[str, list] = {}
+    for t in task_list:
+        sk = t["subject_key"]
+        if sk not in by_subject:
+            by_subject[sk] = []
+        by_subject[sk].append(t)
+
+    return {
+        "tasks": task_list,
+        "by_subject": by_subject,
+        "total": len(task_list),
+        "by_status": {
+            "not_started": sum(1 for t in task_list if t["status"] == "not_started"),
+            "in_progress": sum(1 for t in task_list if t["status"] == "in_progress"),
+            "completed": sum(1 for t in task_list if t["status"] == "completed"),
+        },
     }
 
 

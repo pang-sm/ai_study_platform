@@ -1609,6 +1609,7 @@ def init_user_profile_schema():
         ensure_material_chunks_fts(conn)
         ensure_exam_study_plan_settings_schema(conn)
         ensure_exam_study_plan_chapter_practice_schema(conn)
+        ensure_exam_study_plan_tasks_schema(conn)
         normalize_existing_subjects(conn)
 
         user_columns = get_existing_columns(conn, "users")
@@ -1824,6 +1825,37 @@ def ensure_exam_study_plan_chapter_practice_schema(conn):
             """
             CREATE UNIQUE INDEX IF NOT EXISTS idx_exam_study_plan_cp_user_subject_code
             ON exam_study_plan_chapter_practice (username, subject_key, section_code)
+            """
+        )
+    )
+
+
+def ensure_exam_study_plan_tasks_schema(conn):
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS exam_study_plan_tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username VARCHAR(50) NOT NULL,
+                subject_key VARCHAR(50) NOT NULL,
+                title VARCHAR(500) NOT NULL,
+                primary_knowledge VARCHAR(255),
+                secondary_knowledge VARCHAR(255),
+                task_type VARCHAR(30) NOT NULL DEFAULT 'knowledge',
+                status VARCHAR(20) NOT NULL DEFAULT 'not_started',
+                due_date VARCHAR(30),
+                note TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+    )
+    conn.execute(
+        text(
+            """
+            CREATE INDEX IF NOT EXISTS idx_exam_study_plan_tasks_user_subject
+            ON exam_study_plan_tasks (username, subject_key)
             """
         )
     )
