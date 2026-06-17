@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import ExamChat from "./ExamChat.jsx";
 import ExamStudyPlan from "./ExamStudyPlan.jsx";
 
@@ -9,9 +9,6 @@ const SUBJECT_CONFIG = {
     hero: "开始今天的数据结构学习",
     subtitle: "线性表、栈与队列、树和图，是 11408 高频得分区。",
     tags: ["线性表", "栈与队列", "树", "图"],
-    overview: { chapters: 12, knowledge: 86, learned: 24, hours: 18.6 },
-    plan: ["线性表的基本概念", "顺序表的实现", "单链表的操作"],
-    materials: [32, 68, 24, 15],
   },
   computer_organization: {
     title: "计算机组成原理",
@@ -19,9 +16,6 @@ const SUBJECT_CONFIG = {
     hero: "开始今天的计算机组成原理学习",
     subtitle: "围绕数据表示、CPU、存储系统和指令系统建立硬件视角。",
     tags: ["数据表示", "CPU", "存储系统", "指令系统"],
-    overview: { chapters: 14, knowledge: 92, learned: 18, hours: 15.2 },
-    plan: ["定点数与浮点数表示", "CPU 数据通路梳理", "Cache 映射方式复盘"],
-    materials: [24, 52, 19, 12],
   },
   operating_system: {
     title: "操作系统",
@@ -29,9 +23,6 @@ const SUBJECT_CONFIG = {
     hero: "开始今天的操作系统学习",
     subtitle: "从进程、内存、文件系统到 I/O，建立系统运行的整体模型。",
     tags: ["进程管理", "内存管理", "文件系统", "I/O"],
-    overview: { chapters: 11, knowledge: 78, learned: 21, hours: 16.4 },
-    plan: ["进程与线程状态转换", "PV 操作同步互斥", "页面置换算法训练"],
-    materials: [28, 61, 22, 10],
   },
   computer_network: {
     title: "计算机网络",
@@ -39,9 +30,6 @@ const SUBJECT_CONFIG = {
     hero: "开始今天的计算机网络学习",
     subtitle: "按网络体系结构逐层复盘，把协议、报文和计算题串起来。",
     tags: ["网络体系结构", "传输层", "网络层", "应用层"],
-    overview: { chapters: 10, knowledge: 74, learned: 16, hours: 12.8 },
-    plan: ["OSI/TCP-IP 体系结构", "TCP 可靠传输机制", "IP 地址与子网划分"],
-    materials: [20, 45, 18, 9],
   },
 };
 
@@ -68,20 +56,13 @@ export function getExamCourseId(subjectKey) {
 }
 
 export default function ExamSubjectDashboard({
-  user,
-  subjectKey = "data_structure",
-  panelIntent = null,
-  materialsContent = null,
-  knowledgeContent = null,
-  practiceContent = null,
-  reportContent = null,
-  planContent = null,
-  knowledgeContext = null,
+  user, subjectKey = "data_structure", panelIntent = null,
+  materialsContent = null, knowledgeContent = null,
+  practiceContent = null, reportContent = null,
+  planContent = null, knowledgeContext = null,
   initialMaterialToReference = null,
   onInitialMaterialReferenced = null,
-  onNavigate,
-  onBackHome,
-  onProfile,
+  onNavigate, onBackHome, onProfile,
 }) {
   const panelStorageKey = `exam_subject_active_panel_${subjectKey}`;
   const normalizePanel = (panel) => (
@@ -94,16 +75,39 @@ export default function ExamSubjectDashboard({
         const data = JSON.parse(raw);
         return normalizePanel(data?.activePanel) || "home";
       }
-    } catch {
-      // Ignore corrupt local UI state.
-    }
+    } catch { /* ignore */ }
     return "home";
   };
 
   const [activeSection, setActiveSection] = useState(() => normalizePanel(panelIntent?.panel) || getSavedPanel());
+  const [dashData, setDashData] = useState(null);
+  const [dashLoading, setDashLoading] = useState(false);
   const config = getExamSubjectConfig(subjectKey);
   const courseId = getExamCourseId(subjectKey);
   const displayName = user?.nickname || user?.username || "同学";
+
+  // Fetch dashboard summary
+  const fetchDashboard = useCallback(async () => {
+    const uname = user?.username;
+    if (!uname) return;
+    setDashLoading(true);
+    try {
+      const res = await fetch(
+        `/api/exam/subjects/${encodeURIComponent(subjectKey)}/dashboard-summary?username=${encodeURIComponent(uname)}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setDashData(data);
+      }
+    } catch { /* best effort */ }
+    finally {
+      setDashLoading(false);
+    }
+  }, [user?.username, subjectKey]);
+
+  useEffect(() => {
+    if (activeSection === "home") fetchDashboard();
+  }, [activeSection, fetchDashboard]);
 
   useEffect(() => {
     if (!panelIntent?.panel) return;
@@ -114,44 +118,46 @@ export default function ExamSubjectDashboard({
   useEffect(() => {
     try {
       localStorage.setItem(panelStorageKey, JSON.stringify({ activePanel: activeSection, ts: Date.now() }));
-    } catch {
-      // Ignore private-mode storage failures.
-    }
+    } catch { /* ignore */ }
   }, [panelStorageKey, activeSection]);
 
   const navigate = (target) => {
-    if (target === "home") {
-      setActiveSection("home");
-      return;
-    }
-    if (target === "ai") {
-      setActiveSection("ai");
-      return;
-    }
-    if (target === "materials" && materialsContent) {
-      setActiveSection("materials");
-      onNavigate?.(target, { subject: subjectKey, courseId, title: config.title });
-      return;
-    }
-    if (target === "knowledge" && knowledgeContent) {
-      setActiveSection("knowledge");
-      onNavigate?.(target, { subject: subjectKey, courseId, title: config.title });
-      return;
-    }
-    if (target === "practice" && practiceContent) {
-      setActiveSection("practice");
-      return;
-    }
-    if (target === "report" && reportContent) {
-      setActiveSection("report");
-      return;
-    }
-    if (target === "plan") {
-      setActiveSection("plan");
-      return;
-    }
+    if (target === "home") { setActiveSection("home"); return; }
+    if (target === "ai") { setActiveSection("ai"); return; }
+    if (target === "materials" && materialsContent) { setActiveSection("materials"); onNavigate?.(target, { subject: subjectKey, courseId, title: config.title }); return; }
+    if (target === "knowledge" && knowledgeContent) { setActiveSection("knowledge"); onNavigate?.(target, { subject: subjectKey, courseId, title: config.title }); return; }
+    if (target === "practice" && practiceContent) { setActiveSection("practice"); return; }
+    if (target === "report" && reportContent) { setActiveSection("report"); return; }
+    if (target === "plan") { setActiveSection("plan"); return; }
     onNavigate?.(target, { subject: subjectKey, courseId, title: config.title });
   };
+
+  // Formatters
+  const overview = dashData?.overview || {};
+  const materials = dashData?.materials || {};
+  const quota = dashData?.quota || {};
+  const plans = dashData?.today_plan || [];
+
+  const fmtStudyTime = (mins) => {
+    if (!mins || mins <= 0) return "0 分钟";
+    if (mins < 60) return `${mins} 分钟`;
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return m > 0 ? `${h}.${Math.round(m / 6)} 小时` : `${h} 小时`;
+  };
+
+  const fmtQuotaPercent = (used, limit) => {
+    if (!limit || limit <= 0) return 100;
+    return Math.min(100, Math.round(used / limit * 100));
+  };
+
+  const fmtQuotaValue = (used, limit) => {
+    if (limit === null || limit === undefined) return `${used} / 不限`;
+    return `${used} / ${limit}`;
+  };
+
+  const TASK_TYPE_LABELS = { knowledge: "知识点学习", chapter_practice: "章节练习", review: "阶段复习" };
+  const STATUS_LABELS = { completed: "已完成", in_progress: "进行中", not_started: "未开始" };
 
   return (
     <div className="exam-subject-shell">
@@ -159,8 +165,7 @@ export default function ExamSubjectDashboard({
         <nav className="exam-subject-nav" aria-label="11408 学科工作台导航">
           {NAV_ITEMS.map((item) => (
             <button
-              key={item.key}
-              type="button"
+              key={item.key} type="button"
               className={`exam-subject-nav-item${item.key === activeSection ? " active" : ""}`}
               onClick={() => navigate(item.key)}
             >
@@ -169,25 +174,17 @@ export default function ExamSubjectDashboard({
             </button>
           ))}
         </nav>
-
-        <button type="button" className="exam-subject-back" onClick={onBackHome}>
-          返回主页
-        </button>
+        <button type="button" className="exam-subject-back" onClick={onBackHome}>返回主页</button>
       </aside>
 
       <main className={`exam-subject-main${activeSection === "ai" ? " exam-subject-main--chat" : ""}${activeSection === "materials" ? " exam-subject-main--materials" : ""}${activeSection === "knowledge" ? " exam-subject-main--knowledge" : ""}${activeSection === "practice" ? " exam-subject-main--practice" : ""}${activeSection === "report" ? " exam-subject-main--report" : ""}${activeSection === "plan" ? " exam-subject-main--plan" : ""}`}>
         {activeSection === "ai" ? (
-          <ExamChat
-            user={user}
-            subjectKey={subjectKey}
-            subjectTitle={config.title}
-            courseName={courseId}
-            knowledgeContext={knowledgeContext}
+          <ExamChat user={user} subjectKey={subjectKey} subjectTitle={config.title}
+            courseName={courseId} knowledgeContext={knowledgeContext}
             initialMaterialToReference={initialMaterialToReference}
             onInitialMaterialReferenced={onInitialMaterialReferenced}
             onBackDashboard={() => setActiveSection("home")}
-            onOpenMaterials={() => navigate("materials")}
-          />
+            onOpenMaterials={() => navigate("materials")} />
         ) : activeSection === "materials" && materialsContent ? (
           materialsContent
         ) : activeSection === "knowledge" && knowledgeContent ? (
@@ -197,13 +194,7 @@ export default function ExamSubjectDashboard({
         ) : activeSection === "report" && reportContent ? (
           reportContent
         ) : activeSection === "plan" ? (
-          planContent || (
-            <ExamStudyPlan
-              user={user}
-              subjectKey={subjectKey}
-              onNavigate={navigate}
-            />
-          )
+          planContent || <ExamStudyPlan user={user} subjectKey={subjectKey} onNavigate={navigate} />
         ) : (
           <>
             <header className="exam-subject-header">
@@ -239,59 +230,83 @@ export default function ExamSubjectDashboard({
               <div className="exam-subject-card exam-subject-overview">
                 <h3>课程概览</h3>
                 <div className="exam-subject-overview-grid">
-                  <Metric label="总章节" value={`${config.overview.chapters} 个`} />
-                  <Metric label="知识点" value={`${config.overview.knowledge} 个`} />
-                  <Metric label="已学习" value={`${config.overview.learned}%`} />
-                  <Metric label="学习时长" value={`${config.overview.hours} 小时`} />
+                  <Metric label="总章节" value={`${overview.total_chapters ?? 0} 个`} />
+                  <Metric label="知识点" value={`${overview.total_knowledge_points ?? 0} 个`} />
+                  <Metric label="已学习" value={`${overview.learned_percent ?? 0}%`} />
+                  <Metric label="学习时长" value={fmtStudyTime(overview.study_minutes ?? 0)} />
                 </div>
               </div>
             </section>
 
             <section className="exam-subject-content-grid">
+              {/* Today's Plan */}
               <div className="exam-subject-card">
                 <h3>今日学习计划</h3>
                 <div className="exam-subject-plan-list">
-                  {config.plan.map((item, index) => (
-                    <div key={item} className="exam-subject-plan-item">
-                      <span>{index + 1}</span>
-                      <div>
-                        <strong>{item}</strong>
-                        <p>第 {Math.max(1, index + 1)} 章 · {config.title}</p>
+                  {[0, 1, 2].map((slotIndex) => {
+                    const task = plans[slotIndex];
+                    if (task) {
+                      const cs = task.computed_status || task.status || "not_started";
+                      return (
+                        <div key={task.id} className="exam-subject-plan-item">
+                          <span>{slotIndex + 1}</span>
+                          <div>
+                            <strong>{task.title}</strong>
+                            <p>
+                              {task.knowledge_point_name || TASK_TYPE_LABELS[task.task_type] || ""}
+                              {" · "}
+                              <span className={`esp-task-computed-status ${cs}`} style={{fontSize:"11px"}}>
+                                {STATUS_LABELS[cs] || cs}
+                              </span>
+                            </p>
+                          </div>
+                          <button type="button" onClick={() => navigate("plan")}>
+                            {slotIndex === 0 ? "查看计划" : "去学习"}
+                          </button>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div key={`empty-${slotIndex}`} className="exam-subject-plan-item exam-subject-plan-item--empty">
+                        <span>{slotIndex + 1}</span>
+                        <div>
+                          <strong>暂无学习计划</strong>
+                        </div>
                       </div>
-                      <button type="button" onClick={() => navigate("plan")}>
-                        {index === 0 ? "继续学习" : "去学习"}
-                      </button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
+              {/* Materials Overview */}
               <div className="exam-subject-card">
                 <h3>资料库概览</h3>
                 <div className="exam-subject-material-grid">
-                  {MATERIAL_LABELS.map((label, index) => (
-                    <button key={label} type="button" onClick={() => navigate("materials")}>
-                      <span>{label}</span>
-                      <strong>{config.materials[index]} 份</strong>
-                    </button>
-                  ))}
+                  {MATERIAL_LABELS.map((label, index) => {
+                    const keys = ["lecture_notes", "exercises", "references", "code_examples"];
+                    return (
+                      <button key={label} type="button" onClick={() => navigate("materials")}>
+                        <span>{label}</span>
+                        <strong>{(materials[keys[index]] ?? 0)} 份</strong>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              <div className="exam-subject-card exam-subject-knowledge-card">
-                <h3>知识脉络</h3>
-                <div className="exam-subject-knowledge-map">
-                  <strong>{config.title}</strong>
-                  {config.tags.map((tag) => <span key={tag}>{tag}</span>)}
-                </div>
-              </div>
-
+              {/* Quota */}
               <div className="exam-subject-card">
                 <h3>额度剩余</h3>
                 <div className="exam-subject-quota-list">
-                  <Quota label="AI 问答剩余" value="42 / 50" percent={84} />
-                  <Quota label="AI 出题剩余" value="8 / 10" percent={80} />
-                  <Quota label="资料上传剩余" value="6 / 10" percent={60} />
+                  <Quota label="AI 问答剩余"
+                    value={fmtQuotaValue(quota.ai_chat?.used ?? 0, quota.ai_chat?.limit ?? 0)}
+                    percent={fmtQuotaPercent(quota.ai_chat?.used ?? 0, quota.ai_chat?.limit ?? 0)} />
+                  <Quota label="AI 出题剩余"
+                    value={fmtQuotaValue(quota.ai_question?.used ?? 0, quota.ai_question?.limit ?? 0)}
+                    percent={fmtQuotaPercent(quota.ai_question?.used ?? 0, quota.ai_question?.limit ?? 0)} />
+                  <Quota label="资料上传"
+                    value={fmtQuotaValue(quota.material_upload?.used ?? 0, quota.material_upload?.limit ?? 0)}
+                    percent={fmtQuotaPercent(quota.material_upload?.used ?? 0, quota.material_upload?.limit ?? 0)} />
                 </div>
               </div>
             </section>

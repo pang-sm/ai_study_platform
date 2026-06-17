@@ -13111,6 +13111,181 @@ def get_exam_study_plan_tasks_summary(username: str = "", db: Session = Depends(
     }
 
 
+# ── 11408 Subject Dashboard Summary ──────────────────────
+
+
+@app.get("/exam/subjects/{subject_key}/dashboard-summary")
+def get_exam_subject_dashboard_summary(subject_key: str, username: str = "", db: Session = Depends(get_db)):
+    """Return a lightweight dashboard summary for the 11408 subject home page."""
+    if subject_key not in EXAM_SUBJECT_DIRS:
+        raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
+    user = get_user_by_username(username, db) if username else None
+
+    course_id = f"{subject_key}_11408"
+    subject_name = EXAM_SUBJECT_DIRS[subject_key]
+
+    # ── 1. Overview ──
+    seed_path = _knowledge_map_seed_path(course_id)
+    total_chapters = 0
+    total_knowledge_points = 0
+    learned_percent = 0
+    study_minutes = 0
+
+    if seed_path.exists():
+        try:
+            payload = json.loads(seed_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            payload = {"chapters": []}
+        raw_chapters = payload.get("chapters") or []
+        total_chapters = len(raw_chapters)
+        total_knowledge_points = _count_knowledge_map_points(raw_chapters)
+
+    if user:
+        progress_rows = (
+            db.query(models.UserKnowledgeProgress)
+            .filter(
+                models.UserKnowledgeProgress.username == user.username,
+                models.UserKnowledgeProgress.course_id == course_id,
+            )
+            .all()
+        )
+        mastered_count = sum(
+            1 for p in progress_rows
+            if _display_map_progress_status(p) == "mastered"
+        )
+        learned_percent = round(mastered_count / total_knowledge_points * 100) if total_knowledge_points > 0 else 0
+
+        # Study minutes from practice attempts in this subject
+        attempts = db.query(models.ExamPracticeAttempt).filter(
+            models.ExamPracticeAttempt.username == user.username,
+            models.ExamPracticeAttempt.subject_key == subject_key,
+            models.ExamPracticeAttempt.status == "submitted",
+        ).all()
+        study_minutes = sum(
+            _minutes_between(a.started_at, a.submitted_at)
+            for a in attempts
+            if a.started_at and a.submitted_at
+        )
+
+    overview = {
+        "total_chapters": total_chapters,
+        "total_knowledge_points": total_knowledge_points,
+        "learned_percent": learned_percent,
+        "study_minutes": study_minutes,
+    }
+
+    # ── 2. Today's plan (tasks from study plan, max 3) ──
+    today_plan = []
+    if user:
+        task_rows = db.query(models.ExamStudyPlanTask).filter(
+            models.ExamStudyPlanTask.username == user.username,
+            models.ExamStudyPlanTask.subject_key == subject_key,
+        ).order_by(models.ExamStudyPlanTask.created_at.desc()).limit(3).all()
+        today_plan = [
+            {
+                "id": t.id,
+                "title": t.title,
+                "knowledge_point_name": t.knowledge_point_name or t.secondary_knowledge or "",
+                "task_type": t.task_type or "knowledge",
+                "computed_status": _compute_task_completion(t, db)[0] if t.task_type else "not_started",
+                "due_date": t.due_date or "",
+            }
+            for t in task_rows
+        ]
+
+    # ── 3. Materials ──
+    materials = {
+        "lecture_notes": 0,
+        "exercises": 0,
+        "references": 0,
+        "code_examples": 0,
+        "total_materials": 0,
+    }
+    if user:
+        course_name = f"11408 {subject_name}"
+        mat_rows = db.query(models.StudyMaterial).filter(
+            models.StudyMaterial.username.in_([user.username, "system"]),
+            models.StudyMaterial.subject == course_name,
+            models.StudyMaterial.is_deleted == False,
+        ).all()
+        for m in mat_rows:
+            ft = (m.file_type or "").strip()
+            if ft == "lecture" or ft == "courseware":
+                materials["lecture_notes"] += 1
+            elif ft == "exercise" or ft == "exam":
+                materials["exercises"] += 1
+            elif ft == "reference" or ft == "reference_metadata":
+                materials["references"] += 1
+            elif ft == "code" or ft == "example":
+                materials["code_examples"] += 1
+            else:
+                materials["references"] += 1
+        materials["total_materials"] = len(mat_rows)
+
+    # ── 4. Quota ──
+    quota = {
+        "ai_chat": {"used": 0, "limit": 50, "remaining": 50},
+        "ai_question": {"used": 0, "limit": 5, "remaining": 5},
+        "material_upload": {"used": 0, "limit": 100, "remaining": 100},
+    }
+    if user:
+        track = db.query(models.UserLearningTrack).filter(
+            models.UserLearningTrack.user_id == user.id,
+            models.UserLearningTrack.track_type == "exam_408",
+        ).first()
+        pkg = normalize_exam_package(track.package_type) if track else "free"
+        pkg_quota = EXAM_PACKAGE_QUOTA.get(pkg, EXAM_PACKAGE_QUOTA["free"])
+
+        # AI usage today
+        today_start = utc_now().replace(hour=0, minute=0, second=0, microsecond=0)
+        ai_today = db.query(models.AIUsageLog).filter(
+            models.AIUsageLog.username == user.username,
+            models.AIUsageLog.created_at >= today_start,
+            models.AIUsageLog.status == "success",
+        ).all()
+        chat_used = sum(1 for a in ai_today if (a.feature or "").startswith("ai_chat"))
+        question_used = sum(1 for a in ai_today if (a.feature or "").startswith("ai_question") or "question" in (a.feature or "").lower())
+
+        chat_limit = int(pkg_quota.get("ai_chat_daily_limit", 50))
+        q_limit = int(pkg_quota.get("ai_question_daily_limit", 5))
+
+        material_uploaded = 0
+        if user:
+            uploads = db.query(models.StudyMaterial).filter(
+                models.StudyMaterial.username == user.username,
+                models.StudyMaterial.is_deleted == False,
+            ).count()
+            material_uploaded = uploads
+        mat_limit_mb = int(pkg_quota.get("material_upload_limit_mb", 100))
+
+        quota = {
+            "ai_chat": {
+                "used": chat_used,
+                "limit": chat_limit,
+                "remaining": max(0, chat_limit - chat_used),
+            },
+            "ai_question": {
+                "used": question_used,
+                "limit": q_limit,
+                "remaining": max(0, q_limit - question_used),
+            },
+            "material_upload": {
+                "used": material_uploaded,
+                "limit": mat_limit_mb,
+                "remaining": max(0, mat_limit_mb - material_uploaded),
+            },
+        }
+
+    return {
+        "subject_key": subject_key,
+        "subject_name": subject_name,
+        "overview": overview,
+        "today_plan": today_plan,
+        "materials": materials,
+        "quota": quota,
+    }
+
+
 # ── 11408 Past Papers ───────────────────────────────────────
 
 import exam_paper_parser
