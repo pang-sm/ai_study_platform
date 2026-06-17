@@ -416,6 +416,13 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
               </div>
               <button type="button" className="ep-outline-btn" onClick={openEmailModal}>{emailBtnLabel}</button>
             </div>
+            <div className="ep-sec-item ep-sec-item--logout">
+              <div>
+                <strong>退出登录</strong>
+                <p>退出后需要重新登录才能访问</p>
+              </div>
+              <button type="button" className="ep-logout-btn" onClick={onLogout}>退出登录</button>
+            </div>
           </div>
         </div>
 

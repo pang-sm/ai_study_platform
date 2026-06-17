@@ -18309,6 +18309,34 @@ select.field:focus {
   border-color: #a78bfa;
 }
 
+.ep-logout-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 20px;
+  border: 1.5px solid #fca5a5;
+  border-radius: 10px;
+  background: #fff;
+  color: #dc2626;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.ep-logout-btn:hover {
+  background: #fef2f2;
+  border-color: #ef4444;
+  color: #b91c1c;
+}
+
+.ep-sec-item--logout {
+  border-top: 1px solid #f3f4f6;
+  padding-top: 8px;
+  margin-top: 4px;
+}
+
 /* ── Basic Info Grid ── */
 
 .ep-basic-grid {
