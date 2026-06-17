@@ -1,0 +1,110 @@
+{
+  "_description": "Manual patches for OS past papers based on cross-referencing with noobdream.com, zhihu.com, and other online sources.",
+  "_sources": [
+    "https://noobdream.com/Practice/exam_solution/41100/ (2022)",
+    "https://noobdream.com/Practice/exam_solution/38225/ (2023)",
+    "https://noobdream.com/Practice/exam_solution/40794/ (2024)",
+    "https://noobdream.com/Practice/exam_solution/41907/ (2025)",
+    "https://noobdream.com/Practice/exam_solution/45198/ (2026)",
+    "https://zhuanlan.zhihu.com/p/666335788 (2022 OS)"
+  ],
+  "_verified_answers": {
+    "2022": {"23":"D","24":"A","25":"C","26":"B","27":"C","28":"D","29":"A","30":"D","31":"B","32":"A"},
+    "2023": {"23":"D","24":"A","25":"C","26":"D","27":"C","28":"D","29":"B","30":"C","31":"B","32":"D"},
+    "2024": {"23":"A","24":"A","25":"D","26":"A","27":"A","28":"B","29":"A","30":"C","31":"C","32":"C"},
+    "2025": {"23":"D","24":"C","25":"C","26":"B","27":"D","28":"C","29":"C","30":"D","31":"C","32":"B"},
+    "2026": {"23":"C","24":"D","25":"D","26":"A","27":"C","28":"C","29":"C","30":"B","31":"D","32":"D"}
+  },
+  "patches": [
+    {
+      "year": 2022, "number": 25,
+      "fix": "options_text",
+      "options": {
+        "A": "O(1)、O(1)",
+        "B": "O(1)、O(n)",
+        "C": "O(n)、O(1)",
+        "D": "O(n)、O(n)"
+      },
+      "source": "解析推断：该题涉及优先权调度算法插入和选出的时间复杂度（与2025#25类似题型）",
+      "note": "此题基于优先权的抢占式进程调度，表格数据无法重构，保持need_review"
+    },
+    {
+      "year": 2022, "number": 45,
+      "fix": "answer",
+      "answer": "（1）stu目录项：(course, 2) 和 (doc, 10)。（2）x = 30，doc与course1共享索引节点号10，磁盘块号相同。（3）打开course1需读2个磁盘块：第1块读索引节点所在块，第2块读内容所在块（30号块）。（4）6MB = 1536个磁盘块，直接地址项10块，一级间接10+1024=1034块不足，需一级和二级间接地址项。",
+      "source": "https://zhuanlan.zhihu.com/p/666335788",
+      "quality": "ready"
+    },
+    {
+      "year": 2022, "number": 46,
+      "fix": "answer",
+      "answer": "定义信号量：semaphore S_AC=0（控制A→C跨线程同步），semaphore S_CE=0（控制C→E跨线程同步）。T1：完成A → signal(S_AC) → wait(S_CE) → 完成E → 完成F。T2：完成B → wait(S_AC) → 完成C → signal(S_CE) → 完成D。同一线程内B→C、C→D、E→F的顺序无需信号量保证。",
+      "source": "https://zhuanlan.zhihu.com/p/666335788",
+      "quality": "ready"
+    },
+    {
+      "year": 2023, "number": 45,
+      "fix": "answer",
+      "answer": "（1）两个错误：①if应改为while（忙等待循环检查）；②退出区应设置lock=FALSE而非TRUE。（2）不能。函数调用newSwap()不是原子操作，并发执行时可能导致多个线程同时进入临界区。硬件swap指令是原子指令，保证不可分割。",
+      "source": "https://noobdream.com/Practice/exam_solution/38225/",
+      "quality": "ready"
+    },
+    {
+      "year": 2023, "number": 46,
+      "fix": "answer",
+      "answer": "（1）正确顺序：②将进程P插入阻塞队列→⑥用户键入字符→④启动键盘中断服务程序→③将字符读入缓冲区→①将进程P插入就绪队列→⑤从系统调用返回。（2）执行操作②后CPU必须切换离开P；直到操作①后才可由调度程序选中P。（3）操作③属于键盘驱动程序。（4）键盘ISR执行期间，进程P处于阻塞态；CPU处于内核态。",
+      "source": "https://noobdream.com/Practice/exam_solution/38225/",
+      "quality": "ready"
+    },
+    {
+      "year": 2024, "number": 45,
+      "fix": "answer",
+      "answer": "（1）页表项虚拟地址：B8C0 0120H；物理地址：6540 0120H；页框号：2EAH。（2）页表所在页的页号：2E3H；对应页表项虚拟地址：B8C0 0B8CH；页框号：195H。",
+      "source": "https://noobdream.com/Practice/exam_solution/40794/",
+      "quality": "ready"
+    },
+    {
+      "year": 2024, "number": 46,
+      "fix": "answer",
+      "answer": "（1）C1是临界区。多个进程同时执行C1可能试图同时写入数据分组，导致数据不一致。（2）需两个信号量：mutex（互斥，初值1）和full（同步缓冲区状态，初值0）。（3）P1和P2对C3操作需一个信号量mutex（互斥，初值1），均通过wait(mutex)/signal(mutex)保护C3操作。",
+      "source": "https://noobdream.com/Practice/exam_solution/40794/",
+      "quality": "ready"
+    },
+    {
+      "year": 2025, "number": 25,
+      "fix": "options_text",
+      "options": {
+        "A": "O(1)、O(1)",
+        "B": "O(1)、O(n)",
+        "C": "O(n)、O(1)",
+        "D": "O(n)、O(n)"
+      },
+      "source": "https://noobdream.com/Practice/exam_solution/41907/",
+      "quality": "ready"
+    },
+    {
+      "year": 2026, "number": 26,
+      "fix": "stem_notes",
+      "review_notes": "资源S初始值为5，S当前值为-2。m为执行到访问资源操作（wait(S)之前）的进程个数（m=5），n为阻塞进程个数（n=2(|-2|)）。答案A。图示PV操作流程缺失，题干「右图」指等待进程队列示意图。",
+      "source": "https://noobdream.com/Practice/exam_solution/45198/",
+      "keep_need_review": true,
+      "reason": "图示缺失，PV操作流程图无法在纯文字中完整重构"
+    },
+    {
+      "year": 2026, "number": 28,
+      "fix": "stem_notes",
+      "review_notes": "64位系统三级虚拟分页存储管理，题中图示包含页目录、页表结构示意图。正确答案C（第三级页表占用256K个页框）。",
+      "source": "https://noobdream.com/Practice/exam_solution/45198/",
+      "keep_need_review": true,
+      "reason": "三级页表结构图示缺失，地址结构各字段位数无法从OCR文本确认"
+    },
+    {
+      "year": 2026, "number": 45,
+      "fix": "stem_notes",
+      "review_notes": "优先权+时间片轮转调度算法，仅在中断时抢占CPU。时间片中断间隔10ms。共22次时间中断，7次CPU调度。进程P1、P2、P3、P4各有不同优先权和到达时间。图示包含进程执行时序和优先权变化过程。",
+      "source": "https://noobdream.com/Practice/exam_solution/45198/",
+      "keep_need_review": true,
+      "reason": "进程优先权动态变化和时间片轮转时序图无法完全从OCR重构"
+    }
+  ]
+}

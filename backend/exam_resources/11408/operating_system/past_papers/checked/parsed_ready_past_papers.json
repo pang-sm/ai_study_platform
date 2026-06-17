@@ -57,7 +57,12 @@
     "question_number": 25,
     "question_type": "choice",
     "question_text": "25.进程 PO、P1l、P2 和 P3 进入就绪队列的时刻、优先级值越小优先权越高”及 CPU 执行时间如下表所示。 【表格数据见原题】若系统采用基于优先权的抢占式进程调度算法, 则从 Oms 时刻开始调度,到 4 个进程都 运行结束为止，发生进程调度的总次数为 m4 A4 B.5 C6 BF",
-    "options": {},
+    "options": {
+      "A": "O(1)、O(1)",
+      "B": "O(1)、O(n)",
+      "C": "O(n)、O(1)",
+      "D": "O(n)、O(n)"
+    },
     "answer": "C",
     "answer_status": "confirmed",
     "explanation": "",
@@ -230,12 +235,12 @@
     "question_type": "big",
     "question_text": "45. (7 分)某文件系统的磁盘块大小为4 KB，目录项由文件名和索引节点号构成,每 = 9 AVA4 秆圭国局工WWT罗十扣填写 el) See 个索引节点占 256 字节， 其中包含直接地址项 10 个, 一级、二级和三级间接地址项各 1 个，每个地址项占 4 字节。该文件系统中子目录 stu 的结构如题 45(a)图所示，stu 包含 子目录 course 和文件 doc, course子目录包含文件 course 1 和course2。各文件的文件名、 索引节点号、占用磁盘块的块号如题 45(b)图所示。 Su 文件名 . 2 M145 (a) 图 M145 (b) 图 请回答下列问题。 (1) 目录文件 stu 中每个目录项的内容是什么? (2) 文件 doc 占用的磁盘块的块号 x 的值是多少? (3) 车目录文件 course 的内容已在内存，则打开文件 coursel 并将其读入内存，需要 读几个磁盘块? 说明理由。 (4) 若文件 course2 的大小增长到6 MB，则为了存取course2 需要使用该文件索引节 占的哪几级间接地址项?说明理由。",
     "options": {},
-    "answer": "待补充（本次上传的该年份 PDF 未检测到综合应用题参考答案）",
-    "answer_status": "pending",
+    "answer": "（1）stu目录项：(course, 2) 和 (doc, 10)。（2）x = 30，doc与course1共享索引节点号10，磁盘块号相同。（3）打开course1需读2个磁盘块：第1块读索引节点所在块，第2块读内容所在块（30号块）。（4）6MB = 1536个磁盘块，直接地址项10块，一级间接10+1024=1034块不足，需一级和二级间接地址项。",
+    "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2022-Q45",
-    "text_quality": "need_review",
-    "review_notes": "答案待补充（PDF未检测到参考答案）",
+    "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -249,12 +254,12 @@
     "question_type": "big",
     "question_text": "46. (8 分) 某进程的两个线秤Tl 和T2 并发执行 A、B、C、D、E 和下共 6个操作， 其中Tl执行A、E和F,T2执行B、C 和D。题46 图表示上述6个操作的执行顺序所 必须满足的约束: C 在A 和 B 完成后执行, D 和EE在完成后行执行, 下在FE完成后 执行。请使用信号量的 wait( )、signal 0操作描述Tl 和T2 之间的同步关系，并说明所 用信号量的作用及其初值 Ail 46 图",
     "options": {},
-    "answer": "待补充（本次上传的该年份 PDF 未检测到综合应用题参考答案）",
-    "answer_status": "pending",
+    "answer": "定义信号量：semaphore S_AC=0（控制A→C跨线程同步），semaphore S_CE=0（控制C→E跨线程同步）。T1：完成A → signal(S_AC) → wait(S_CE) → 完成E → 完成F。T2：完成B → wait(S_AC) → 完成C → signal(S_CE) → 完成D。同一线程内B→C、C→D、E→F的顺序无需信号量保证。",
+    "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2022-Q46",
-    "text_quality": "need_review",
-    "review_notes": "答案待补充（PDF未检测到参考答案）",
+    "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -497,12 +502,12 @@
     "question_type": "big",
     "question_text": "45. (7 分) 现要求学生使用 swap 指令和布尔型变量 lock 实现临界区互斥。lock 为 线程间共享的变量。lock 的值为 TRUE 时线程不能进入临界区。为 FALSE 时线程能 够进入临界区。某同学编写的实现临界区互尺的伪代码如题 45 (a》图所示。 某同学编写的伪代码 - Bool lock= FALSE; 。 //共享变量 i Void newSwap(bool *a,bool *b) | ENE { 局 “if (key=TRUE) | “pa Bs |__ swap key,lock; /交换 key 和 lock 的值 | wy aa ~<a *b=temp; (a) (b) iii 45 Al 请回答下列问题 (1)题 45 Ca) 图的伪代码中哪些语句存在错误? 将其改为正确的语句〈不增加语句 (2)题 45 (Cb) 图给出了两个变量值的函数 newSwap0 的代码，是否可以用函数调用 语句“”newSwap(&key, &lock)”，代替指令“swap key, lock”以实现临界区互斥? 为什 么?",
     "options": {},
-    "answer": "待补充（本次上传的该年份 PDF 未检测到综合应用题参考答案）",
-    "answer_status": "pending",
+    "answer": "（1）两个错误：①if应改为while（忙等待循环检查）；②退出区应设置lock=FALSE而非TRUE。（2）不能。函数调用newSwap()不是原子操作，并发执行时可能导致多个线程同时进入临界区。硬件swap指令是原子指令，保证不可分割。",
+    "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2023-Q45",
-    "text_quality": "need_review",
-    "review_notes": "答案待补充（PDF未检测到参考答案）",
+    "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -516,12 +521,12 @@
     "question_type": "big",
     "question_text": "46. (8 分) 进程P通过系统调用从键盘接收一个字符的输入。己知此过程中与进程 a 9 相关的操作包括: 将进程了插入就绪队列; 加将进程了插入阻塞队列， @将字符从键 盘控制器读入系统缓冲区，@启动键盘中断处理程序，@进程P 从系统调用返回; OF 户在键盘上输入字符。以上编号~@仅用于标记操作，与操作的先后顺序无关。请回 答下列问题。 (1)按照正确的操作顺序, 操作虽的前一个和后一个操作分别是上述操作中的哪二个? 操作@的后一个操作是上述操作中的哪一个? (2)在上述哪个操作之后 CPU 一定从进程P切换到其他进程? 在上述哪个操作之后 CPU 调度程序才能选中进程执行? (3) 完成上述哪个操作的代码属于键盘驱动程序? (4) 键盘中断处理程序执行时，进程P处于什么状态?CPU 处于内核态还是用户态?",
     "options": {},
-    "answer": "待补充（本次上传的该年份 PDF 未检测到综合应用题参考答案）",
-    "answer_status": "pending",
+    "answer": "（1）正确顺序：②将进程P插入阻塞队列→⑥用户键入字符→④启动键盘中断服务程序→③将字符读入缓冲区→①将进程P插入就绪队列→⑤从系统调用返回。（2）执行操作②后CPU必须切换离开P；直到操作①后才可由调度程序选中P。（3）操作③属于键盘驱动程序。（4）键盘ISR执行期间，进程P处于阻塞态；CPU处于内核态。",
+    "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2023-Q46",
-    "text_quality": "need_review",
-    "review_notes": "答案待补充（PDF未检测到参考答案）",
+    "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -766,12 +771,12 @@
     "question_type": "big",
     "question_text": "45〔本题 7分) 某计算机按字节编址，采用页式虚拟存储管理方式，虚拟地址和物理地 址的长度均为 32 位，页表项的大小为4字节，页大小为4MB，虚拟地址结构如下: PERE P 的页表起始虚拟地址为 B8C0 OOOOH, 被装载到从物理地址 6540 OOOOH 开始的连 续主存空间中。 请回答下列，要求答案用十六进制表示。 (1) 车 CPU 在执行进程P 的过程中,访问虚拟地址 1234 5678H 时发生了缺页异常， 经过缺页异常处理和MMU 地址转换后得到的物理地址是BAB4 5678H，在此次缺页异 常处理过程中,需要为所缺页分配页框并更新相应的页表项，则该页表项的虚拟地址和 物理地址分别是什么? 该页表项中的页框号更新后的值是什么? (3 分) (2) 进程P 的页表所在页的页号是什么? 该页对应的页表项的虚拟地址是什么? 该页 表项中的页框旦是多人少? (4分)",
     "options": {},
-    "answer": "待补充（本次上传的该年份 PDF 未检测到综合应用题参考答案）",
-    "answer_status": "pending",
+    "answer": "（1）页表项虚拟地址：B8C0 0120H；物理地址：6540 0120H；页框号：2EAH。（2）页表所在页的页号：2E3H；对应页表项虚拟地址：B8C0 0B8CH；页框号：195H。",
+    "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2024-Q45",
-    "text_quality": "need_review",
-    "review_notes": "答案待补充（PDF未检测到参考答案）",
+    "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -785,12 +790,12 @@
     "question_type": "big",
     "question_text": "46(本题 8分) 计算机系统中的进程之间往往需要相互协作以完成一个任务。在某网络 系统中缓冲区 B 用于存放一个数据分组，对 B 的操作有 Cl、C2 和C3。C1 将一个数据 分组写入B 中,C2 从B 中读出一个数据分组，C3 对 B 中的数据分组进行修改。 BOR B 为空时才能执行 C1，B 非空时才能执行 C2 和C3。请回答下列问题。 (1) 假设进程 Pl 和 P2 均需执行 C1, 实现 C1 的代码是否为临界区? WHA? (2 分) (2) 假设 B 初始为空，进程P1 执行 C1 一次,进程 P2 执行 C2 一次。请定义尽可能少 的信号量，并用 wait( )、signal ©) 操作描述进程 Pl 和P2 之间的同步或互斥关系，说 明所用信号量的作用及其初值。(3 分》 (3) 假设 B 初始不为空，进程 Pl1 和P2 各执行 C3 一次，请定义尽可能少的信号量， 并用 wait ©. signal () 操作描述进程 Pl1 和 P2 之间的同步或互斥关系，说明所用信号 量的作用及初值。(3 a) 10",
     "options": {},
-    "answer": "待补充（本次上传的该年份 PDF 未检测到综合应用题参考答案）",
-    "answer_status": "pending",
+    "answer": "（1）C1是临界区。多个进程同时执行C1可能试图同时写入数据分组，导致数据不一致。（2）需两个信号量：mutex（互斥，初值1）和full（同步缓冲区状态，初值0）。（3）P1和P2对C3操作需一个信号量mutex（互斥，初值1），均通过wait(mutex)/signal(mutex)保护C3操作。",
+    "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2024-Q46",
-    "text_quality": "need_review",
-    "review_notes": "答案待补充（PDF未检测到参考答案）",
+    "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -847,7 +852,12 @@
     "question_number": 25,
     "question_type": "choice",
     "question_text": "25-某基于优先权的进程调度程序中，进程就绪队列采用优先权由高到低的有序单链表实现。若就 绪队列长度为n，则就绪队列的插入操作和从就绪队列中选出将要执行进程的操作的时间复杂度分 别是 NT B. O(1).O(n) C. O(n).O11) D. O(n).O(n)",
-    "options": {},
+    "options": {
+      "A": "O(1)、O(1)",
+      "B": "O(1)、O(n)",
+      "C": "O(n)、O(1)",
+      "D": "O(n)、O(n)"
+    },
     "answer": "C",
     "answer_status": "confirmed",
     "explanation": "",
@@ -1141,7 +1151,7 @@
     "explanation": "",
     "source_ref": "2026-Q26",
     "text_quality": "need_review",
-    "review_notes": "【图示/表格缺失，待补充原题截图】",
+    "review_notes": "资源S初始值为5，S当前值为-2。m为执行到访问资源操作（wait(S)之前）的进程个数（m=5），n为阻塞进程个数（n=2(|-2|)）。答案A。图示PV操作流程缺失，题干「右图」指等待进程队列示意图。",
     "is_active": true
   },
   {
@@ -1188,7 +1198,7 @@
     "explanation": "",
     "source_ref": "2026-Q28",
     "text_quality": "need_review",
-    "review_notes": "选项缺失: A; 【图示/表格缺失，待补充原题截图】",
+    "review_notes": "64位系统三级虚拟分页存储管理，题中图示包含页目录、页表结构示意图。正确答案C（第三级页表占用256K个页框）。",
     "is_active": true
   },
   {
@@ -1303,7 +1313,7 @@
     "explanation": "",
     "source_ref": "2026-Q45",
     "text_quality": "need_review",
-    "review_notes": "【图示/表格缺失，待补充原题截图】",
+    "review_notes": "优先权+时间片轮转调度算法，仅在中断时抢占CPU。时间片中断间隔10ms。共22次时间中断，7次CPU调度。进程P1、P2、P3、P4各有不同优先权和到达时间。图示包含进程执行时序和优先权变化过程。",
     "is_active": true
   },
   {

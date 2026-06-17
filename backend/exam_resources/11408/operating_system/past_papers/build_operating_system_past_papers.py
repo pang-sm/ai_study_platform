@@ -11,6 +11,7 @@ import models
 OCR_TXT = BASE / "exam_resources/11408/operating_system/past_papers/raw/11408_2022_2026_operating_system_OCR.txt"
 CHKD = BASE / "exam_resources/11408/operating_system/past_papers/checked"
 RPT = BASE / "exam_resources/11408/operating_system/past_papers/import_reports"
+PATCHES_FILE = BASE / "exam_resources/11408/operating_system/past_papers/manual_review_patches.json"
 
 SUBJECT_KEY = "operating_system"
 SUBJECT_NAME = "操作系统"
@@ -181,9 +182,84 @@ def finalize_question(q, questions):
         'is_active': True,
     })
 
+def apply_patches(questions):
+    """Apply manual review patches to fix answers, options, and review_notes."""
+    if not PATCHES_FILE.exists():
+        print(f"  No patches file: {PATCHES_FILE}")
+        return
+    patches_data = json.loads(PATCHES_FILE.read_text(encoding="utf-8"))
+    patches = patches_data.get("patches", [])
+    if not patches:
+        return
+
+    print(f"  Applying {len(patches)} manual patches...")
+    patched = 0
+    for p in patches:
+        yr = p.get("year")
+        num = p.get("number")
+        # Find matching question
+        for q in questions:
+            if q["year"] == yr and q["question_number"] == num:
+                fix_type = p.get("fix", "")
+
+                if "answer" in fix_type or "answer" in p:
+                    new_answer = p.get("answer", "")
+                    if new_answer and "待补充" in q.get("answer", ""):
+                        q["answer"] = new_answer
+                        q["answer_status"] = "confirmed"
+                        q["review_notes"] = ""
+                        patched += 1
+                        print(f"    Fixed answer: {yr}-{num:02d}")
+
+                if "options" in fix_type or "options" in p:
+                    new_opts = p.get("options", {})
+                    if new_opts and len(new_opts) == 4:
+                        q["options"] = new_opts
+                        q["text_quality"] = _recalc_quality(q)
+                        patched += 1
+                        print(f"    Fixed options: {yr}-{num:02d}")
+
+                if "stem_notes" in fix_type:
+                    keep = p.get("keep_need_review", True)
+                    if keep and p.get("review_notes"):
+                        q["review_notes"] = p["review_notes"]
+                        patched += 1
+                        print(f"    Updated notes: {yr}-{num:02d}")
+
+                if p.get("quality") == "ready" and "answer" in (fix_type or ""):
+                    # Answer was fixed, recalc quality
+                    q["text_quality"] = _recalc_quality(q)
+                    q["review_notes"] = q.get("review_notes", "").replace(
+                        "答案待补充（PDF未检测到参考答案）", ""
+                    ).strip()
+                    print(f"    Quality -> ready: {yr}-{num:02d}")
+
+                break
+    print(f"  Patched {patched} items.")
+
+
+def _recalc_quality(q):
+    """Recalculate text_quality based on current state."""
+    stem = q.get("question_text", "")
+    answer = q.get("answer", "")
+    qtype = q.get("question_type", "choice")
+    opts = q.get("options", {})
+    review_notes = q.get("review_notes", "")
+
+    ok = bool(stem) and bool(answer) and q.get("answer_status") == "confirmed"
+    if qtype == "choice":
+        ok = ok and len(opts) >= 4
+    if review_notes:
+        ok = False
+    return "ready" if ok else "need_review"
+
+
 def main():
     dry_run = '--dry-run' in sys.argv
     questions = parse_ocr(OCR_TXT)
+
+    # Apply manual review patches
+    apply_patches(questions)
 
     t = len(questions)
     c = sum(1 for q in questions if q['question_type'] == 'choice')
