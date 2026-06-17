@@ -12339,7 +12339,11 @@ def _question_needs_image(item):
 def get_question_images(subject_key, year, question_number):
     mapping = _load_img_mapping(subject_key)
     key = f"{year}-{question_number:02d}"
-    return mapping.get(key, [])
+    val = mapping.get(key, [])
+    # Support both formats: plain list (OS) and dict with image_urls (CN)
+    if isinstance(val, dict):
+        return val.get("image_urls", [])
+    return val if isinstance(val, list) else []
 
 @app.get("/exam/11408/past-paper-images/{subject_key}/{year}/{filename:path}")
 def serve_past_paper_image(subject_key: str, year: int, filename: str):
