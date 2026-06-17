@@ -240,7 +240,7 @@ def main():
     db = SessionLocal()
     deleted = db.query(models.ExamQuestionBank).filter(
         models.ExamQuestionBank.subject_key == SUBJECT_KEY,
-        models.ExamQuestionBank.source_type == "chapter_practice",
+        models.ExamQuestionBank.source_type == "chapter",
     ).delete()
     db.commit()
     print(f"Deleted {deleted} old CN chapter practice questions")
@@ -249,7 +249,7 @@ def main():
     for q in questions:
         item = models.ExamQuestionBank(
             subject_key=SUBJECT_KEY, subject_name=SUBJECT_NAME,
-            source_type="chapter_practice", visibility="public",
+            source_type="chapter", visibility="public",
             knowledge_point_id=q.get('knowledge_point_code', '') or '',
             knowledge_point_name=q.get('knowledge_point_title', '') or '',
             knowledge_point_path="",
@@ -269,12 +269,12 @@ def main():
 
     act = db.query(models.ExamQuestionBank).filter(
         models.ExamQuestionBank.subject_key == SUBJECT_KEY,
-        models.ExamQuestionBank.source_type == "chapter_practice",
+        models.ExamQuestionBank.source_type == "chapter",
         models.ExamQuestionBank.is_active == True,
     ).count()
     nrv_db = db.query(models.ExamQuestionBank).filter(
         models.ExamQuestionBank.subject_key == SUBJECT_KEY,
-        models.ExamQuestionBank.source_type == "chapter_practice",
+        models.ExamQuestionBank.source_type == "chapter",
         models.ExamQuestionBank.quality_status == "need_review",
     ).count()
     db.close()
