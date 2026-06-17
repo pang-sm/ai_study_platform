@@ -13238,10 +13238,10 @@ def get_exam_subject_dashboard_summary(subject_key: str, username: str = "", db:
 
         # AI usage today
         today_start = utc_now().replace(hour=0, minute=0, second=0, microsecond=0)
-        ai_today = db.query(models.AIUsageLog).filter(
-            models.AIUsageLog.username == user.username,
-            models.AIUsageLog.created_at >= today_start,
-            models.AIUsageLog.status == "success",
+        ai_today = db.query(models.AiUsageLog).filter(
+            models.AiUsageLog.username == user.username,
+            models.AiUsageLog.created_at >= today_start,
+            models.AiUsageLog.status == "success",
         ).all()
         chat_used = sum(1 for a in ai_today if (a.feature or "").startswith("ai_chat"))
         question_used = sum(1 for a in ai_today if (a.feature or "").startswith("ai_question") or "question" in (a.feature or "").lower())
