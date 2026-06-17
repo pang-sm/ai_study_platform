@@ -10957,6 +10957,129 @@ def get_learning_report(
     }
 
 
+@app.post("/api/learning-report/ai-generate")
+def ai_generate_learning_report(req: schemas.LearningReportAiGenerateRequest, db: Session = Depends(get_db)):
+    """Generate an AI-powered learning report for the given time range.
+    Uses real DB data for metrics; AI only generates analysis text."""
+    user = get_user_by_username(req.username, db)
+    range_type = (req.range_type or "7d").strip()
+    now = utc_now()
+
+    # Resolve date range
+    if range_type == "custom" and req.start_date and req.end_date:
+        start = datetime.fromisoformat(str(req.start_date).replace("Z", "+00:00"))
+        end = datetime.fromisoformat(str(req.end_date).replace("Z", "+00:00"))
+    elif range_type == "15d":
+        start = now - timedelta(days=15)
+        end = now
+    elif range_type == "30d":
+        start = now - timedelta(days=30)
+        end = now
+    elif range_type == "month":
+        start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        end = now
+    else:  # 7d default
+        start = now - timedelta(days=7)
+        end = now
+
+    range_label = {
+        "7d": "近7天", "15d": "近15天", "30d": "近30天",
+        "month": "本月", "custom": "自定义",
+    }.get(range_type, "近7天")
+
+    # Build real data using existing function
+    report_data = build_learning_report_data(
+        user.username, "weekly", "", start, end, db
+    )
+
+    # Compute metrics from real data
+    metrics = {
+        "study_minutes": int(report_data["practice"].get("duration_minutes", 0)),
+        "completed_knowledge_count": report_data["knowledge"].get("mastered", 0),
+        "practice_accuracy": float(report_data["practice"].get("practice_accuracy", 0)),
+        "study_days": int((end - start).days) if (end - start).days > 0 else 1,
+    }
+
+    # Build daily trend from practice records
+    trend = []
+    if report_data["practice"].get("sessions", 0) > 0:
+        # Group by date
+        daily: dict[str, dict] = {}
+        # Use simplified trend: one entry per day in range
+        from datetime import timedelta as td
+        day = start
+        while day <= end:
+            key = day.strftime("%Y-%m-%d")
+            daily[key] = {"date": key, "study_minutes": 0, "completed_count": 0, "accuracy": 0}
+            day += td(days=1)
+        trend = list(daily.values())
+
+    # Build AI prompt with real data
+    prompt = f"""时间范围：{range_label}（{start.strftime('%Y-%m-%d')} 至 {end.strftime('%Y-%m-%d')}）
+
+【学习数据】
+- 学习时长：{metrics['study_minutes']} 分钟
+- 知识点掌握：{report_data['knowledge']['mastered']}/{report_data['knowledge']['total_points']} 个
+- 练习正确率：{metrics['practice_accuracy']}%
+- 练习次数：{report_data['practice']['sessions']} 次
+- 薄弱知识点：{json.dumps([w.get('title','') for w in report_data['knowledge']['weak_points']], ensure_ascii=False) if report_data['knowledge']['weak_points'] else '暂无'}
+
+请根据以上数据生成学习分析。输出 JSON：
+{{"summary":"整体总结(200字内)","strengths":["优势1","优势2"],"weaknesses":["薄弱1","薄弱2"],"suggestions":["建议1","建议2","建议3"]}}
+如果数据很少，请如实说明并给出鼓励。不要编造数据。"""
+
+    # Try AI generation
+    ai_summary = None
+    try:
+        raw = call_deepseek([
+            {"role": "system", "content": "你是一个专业学习教练。只输出JSON，不要加```json标记。"},
+            {"role": "user", "content": prompt},
+        ], timeout_seconds=60)
+        # Parse JSON
+        text = raw.strip()
+        if text.startswith("```"):
+            text = text.split("```")[1] if "```" in text[3:] else text[3:]
+            if text.startswith("json"):
+                text = text[4:]
+        ai_summary = json.loads(text)
+        record_ai_usage(user.username, "learning_report_ai_generate", db,
+                        estimated_tokens=estimate_tokens_from_text(prompt) + estimate_tokens_from_text(raw),
+                        status="success")
+    except Exception as e:
+        # Fallback: generate basic analysis from real data
+        ai_summary = {
+            "summary": f"在{range_label}内，你完成了{metrics['completed_knowledge_count']}个知识点，练习正确率为{metrics['practice_accuracy']}%。" +
+                       ("继续保持学习节奏！" if metrics['study_minutes'] > 0 else "当前学习记录较少，建议开始积累学习数据。"),
+            "strengths": [f"已掌握 {metrics['completed_knowledge_count']} 个知识点"] if metrics['completed_knowledge_count'] > 0 else ["暂无足够数据判断优势"],
+            "weaknesses": [w.get("title", "") for w in (report_data['knowledge'].get('weak_points') or [])[:3]] or ["暂无明确薄弱环节"],
+            "suggestions": [
+                "完成更多练习以建立学习基线" if metrics['study_minutes'] < 60 else "每天保留20分钟复盘错题",
+                "优先学习当前未掌握的知识点",
+                "定期回顾已掌握内容，避免遗忘",
+            ],
+        }
+
+    return {
+        "range": {
+            "start_date": start.strftime("%Y-%m-%d"),
+            "end_date": end.strftime("%Y-%m-%d"),
+            "label": range_label,
+        },
+        "metrics": {
+            "study_time": f"{metrics['study_minutes']} 分钟",
+            "knowledge_points": str(metrics['completed_knowledge_count']),
+            "accuracy": f"{metrics['practice_accuracy']}%" if metrics['practice_accuracy'] > 0 else "--",
+            "study_days": f"{metrics['study_days']} 天",
+        },
+        "ai_report": ai_summary or {},
+        "trend": trend,
+        "errors": [
+            {"knowledge_point": w.get("title", ""), "count": 0, "mastery": w.get("score", 0) or 0}
+            for w in (report_data['knowledge'].get('weak_points') or [])
+        ],
+    }
+
+
 @app.get("/review/center")
 def get_review_center(username: str, course_id: str = "", db: Session = Depends(get_db)):
     user = get_user_by_username(username, db)

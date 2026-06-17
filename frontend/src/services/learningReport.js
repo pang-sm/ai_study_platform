@@ -61,6 +61,22 @@ function adaptDashboardReport(data, { start, end }) {
   };
 }
 
+export async function generateAIReport({ rangeType, startDate, endDate, username } = {}) {
+  const res = await fetch(`${API_BASE}/learning-report/ai-generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      username,
+      range_type: rangeType || "7d",
+      start_date: startDate || null,
+      end_date: endDate || null,
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.ok) return data;
+  throw new Error(data.detail || "AI报告生成失败，请稍后重试。");
+}
+
 export async function fetchLearningReport({ start, end, username } = {}) {
   const params = new URLSearchParams();
   if (start) params.set("start", start);

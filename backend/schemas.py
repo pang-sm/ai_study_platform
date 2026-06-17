@@ -754,6 +754,13 @@ class LearningReportSaveRequest(BaseModel):
     end_date: str | None = None
 
 
+class LearningReportAiGenerateRequest(BaseModel):
+    username: str
+    range_type: str = "7d"  # 7d / 15d / 30d / month / custom
+    start_date: str | None = None
+    end_date: str | None = None
+
+
 class LearningReportShareCreateRequest(BaseModel):
     username: str
     report_id: int
