@@ -1,4 +1,4 @@
-import Sidebar, { useSidebarCollapsed } from "./Sidebar.jsx";
+import Figure2Sidebar, { useFigure2SidebarCollapsed } from "./Figure2Sidebar.jsx";
 import "./AppLayout.css";
 
 export default function AppLayout({
@@ -9,11 +9,11 @@ export default function AppLayout({
   onLogout,
   children,
 }) {
-  const { collapsed, toggle } = useSidebarCollapsed();
+  const { collapsed, toggle } = useFigure2SidebarCollapsed();
 
   return (
     <div className="al-shell">
-      <Sidebar
+      <Figure2Sidebar
         activePage={activePage}
         onNavigate={onNavigate}
         isAdmin={isAdmin}
