@@ -12658,33 +12658,14 @@ def _compute_task_completion(
             pass
     chapters = seed_data.get("chapters") or []
 
-    # Build section → leaf codes mapping from seed data
-    # Key insight: we collect ALL leaf codes under a top-level section,
-    # regardless of how deep the nesting goes (subsection → sub-subsection → leaf).
+    # Use _build_enriched_map_index for globally-consistent leaf codes,
+    # then build a section→leaf mapping from the index.
+    enriched_index = _build_enriched_map_index(chapters)
     section_leaf_codes: dict[str, list[str]] = {}
     all_leaf_codes: list[str] = []
     section_code_by_title: dict[str, str] = {}
 
-    def _collect_leaves_under(nodes, parent_section_code, path_prefix=""):
-        for i, node in enumerate(nodes or [], start=1):
-            node_path = f"{path_prefix}.{i}" if path_prefix else str(i)
-            code = str(node.get("code") or "").strip()
-            children = node.get("children") or []
-
-            if code:
-                # Track title→code mapping for matching
-                title = str(node.get("title") or "").strip()
-                if title and parent_section_code:
-                    section_code_by_title[title] = parent_section_code
-
-            if not children:
-                leaf_code = code if code else f"_leaf:{node_path}"
-                all_leaf_codes.append(leaf_code)
-                if parent_section_code in section_leaf_codes:
-                    section_leaf_codes[parent_section_code].append(leaf_code)
-            else:
-                _collect_leaves_under(children, parent_section_code, node_path)
-
+    # Build section titles from seed chapters
     for ch in chapters:
         for sec in (ch.get("children") or []):
             sec_code = str(sec.get("code") or "").strip()
@@ -12692,7 +12673,40 @@ def _compute_task_completion(
             if sec_code:
                 section_leaf_codes[sec_code] = []
                 section_code_by_title[sec_title] = sec_code
-            _collect_leaves_under(sec.get("children") or [], sec_code, "")
+
+    # Assign each leaf code to its section by walking the tree
+    def _assign_leaves_to_sections(nodes, parent_sec_code="", path_prefix=""):
+        for i, node in enumerate(nodes or [], start=1):
+            node_path = f"{path_prefix}.{i}" if path_prefix else str(i)
+            code = str(node.get("code") or "").strip()
+            children = node.get("children") or []
+
+            # Track the section this node belongs to
+            if code:
+                if code in section_leaf_codes:
+                    parent_sec_code = code
+                title = str(node.get("title") or "").strip()
+                if title and parent_sec_code:
+                    section_code_by_title[title] = parent_sec_code
+
+            if not children:
+                # Use the globally-scoped code from enriched_index or generate locally
+                leaf_code = code if (code and code in enriched_index) else None
+                if not leaf_code:
+                    for ek, ev in enriched_index.items():
+                        if ev.get("title") == node.get("title") and _is_leaf_node(ev):
+                            leaf_code = ek
+                            break
+                if not leaf_code:
+                    leaf_code = code if code else f"_leaf:{node_path}"
+                all_leaf_codes.append(leaf_code)
+                if parent_sec_code and parent_sec_code in section_leaf_codes:
+                    section_leaf_codes[parent_sec_code].append(leaf_code)
+            else:
+                _assign_leaves_to_sections(children, parent_sec_code, node_path)
+
+    for ch in chapters:
+        _assign_leaves_to_sections(ch.get("children") or [], "", "")
 
     # Determine relevant leaf codes for this task
     relevant_codes: list[str] = []
