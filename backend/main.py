@@ -10957,7 +10957,7 @@ def get_learning_report(
     }
 
 
-@app.post("/api/learning-report/ai-generate")
+@app.post("/learning-report/ai-generate")
 def ai_generate_learning_report(req: schemas.LearningReportAiGenerateRequest, db: Session = Depends(get_db)):
     """Generate an AI-powered learning report for the given time range.
     Uses real DB data for metrics; AI only generates analysis text."""
