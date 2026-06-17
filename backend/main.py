@@ -12270,23 +12270,13 @@ def create_past_paper_attempt(subject_key: str, req: dict, db: Session = Depends
     year = int(req.get("year", 0))
     if not username or year <= 0:
         raise HTTPException(status_code=400, detail="username and year required")
-    # Check ExamQuestionBank first — always prefer it over paper parser for speed
+    # Count ALL questions (both ready and need_review) — all are visible
     total = db.query(models.ExamQuestionBank).filter(
         models.ExamQuestionBank.subject_key == subject_key,
         models.ExamQuestionBank.source_type == "past_paper",
         models.ExamQuestionBank.year == year,
-        models.ExamQuestionBank.is_active == True,
     ).count()
     if total == 0:
-        # Check if there are need_review questions (imported but disabled)
-        any_inactive = db.query(models.ExamQuestionBank).filter(
-            models.ExamQuestionBank.subject_key == subject_key,
-            models.ExamQuestionBank.source_type == "past_paper",
-            models.ExamQuestionBank.year == year,
-            models.ExamQuestionBank.is_active == False,
-        ).count()
-        if any_inactive > 0:
-            raise HTTPException(status_code=503, detail="该年份真题正在校对中，暂时不可用")
         # Fallback: try OCR cache and paper parser for legacy subjects
         ocr_cache = exam_paper_parser._ocr_cache_path(subject_key, year)
         if ocr_cache.exists():
@@ -12322,19 +12312,17 @@ def get_past_paper_attempt(subject_key: str, attempt_id: int, db: Session = Depe
     attempt = db.query(models.PastPaperAttempt).filter(models.PastPaperAttempt.id == attempt_id).first()
     if not attempt:
         raise HTTPException(status_code=404, detail="Attempt not found")
-    # Check ExamQuestionBank first — always prefer it over paper parser
+    # Get ALL questions (both ready and need_review) for full visibility
     qb_count = db.query(models.ExamQuestionBank).filter(
         models.ExamQuestionBank.subject_key == subject_key,
         models.ExamQuestionBank.source_type == "past_paper",
         models.ExamQuestionBank.year == attempt.year,
-        models.ExamQuestionBank.is_active == True,
     ).count()
     if qb_count > 0:
         qb_items = db.query(models.ExamQuestionBank).filter(
             models.ExamQuestionBank.subject_key == subject_key,
             models.ExamQuestionBank.source_type == "past_paper",
             models.ExamQuestionBank.year == attempt.year,
-            models.ExamQuestionBank.is_active == True,
         ).order_by(models.ExamQuestionBank.question_number).all()
         questions = []
         for item in qb_items:
@@ -12345,12 +12333,15 @@ def get_past_paper_attempt(subject_key: str, attempt_id: int, db: Session = Depe
             questions.append({
                 "id": item.id,
                 "number": item.question_number,
+                "year": item.year,
                 "type": "选择题" if item.question_type == "choice" else "大题",
                 "stem": item.stem or "",
                 "content": item.stem or "",
                 "options": opts,
                 "standard_answer": item.standard_answer or "",
                 "question_type": item.question_type,
+                "quality_status": item.quality_status or "unchecked",
+                "review_notes": item.analysis or "",
             })
     else:
         questions_data = exam_paper_parser.get_year_questions(subject_key, attempt.year)

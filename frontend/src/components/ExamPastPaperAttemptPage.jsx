@@ -131,18 +131,24 @@ export default function ExamPastPaperAttemptPage({ subjectKey, attemptId, user, 
   };
 
   const unansweredCount = questions.filter(q => {
+    if (q.quality_status === 'need_review') return false; // skip review questions
     const a = answers[q.id];
     return !a || !String(a).trim();
   }).length;
 
   const handleSubmit = async () => {
-    if (questions.length === 0) { setError("无题目可提交"); return; }
-    if (unansweredCount > 0 && !window.confirm(`还有 ${unansweredCount} 题未答，确定提交？`)) return;
+    const readyQuestions = questions.filter(q => q.quality_status !== 'need_review');
+    if (readyQuestions.length === 0) { setError("无ready题目可提交"); return; }
+    const unanswered = readyQuestions.filter(q => {
+      const a = answers[q.id];
+      return !a || !String(a).trim();
+    });
+    if (unanswered.length > 0 && !window.confirm(`还有 ${unanswered.length} 题未答，确定提交？`)) return;
     setSubmitting(true);
     try {
       const payload = {
         username,
-        answers: questions.map(q => ({
+        answers: readyQuestions.map(q => ({
           question_id: q.id,
           user_answer: String(answers[q.id] || "").trim(),
         })),
@@ -217,12 +223,17 @@ export default function ExamPastPaperAttemptPage({ subjectKey, attemptId, user, 
             <div className="past-paper-empty">当前年份无题目数据</div>
           ) : (
             <div className="past-paper-question-list">
-              {questions.map(q => (
-                <div key={q.id} className="past-paper-question-card">
+              {questions.map(q => {
+                const isNeedReview = q.quality_status === 'need_review';
+                const year = q.year || attempt?.year || '?';
+                return (
+                <div key={q.id} className={`past-paper-question-card${isNeedReview ? ' past-paper-q-need-review' : ''}`}>
                   <div className="past-paper-question-meta">
-                    <span className="past-paper-q-year">{q.year} 年</span>
+                    <span className="past-paper-q-year">{year} 年</span>
                     <span className="past-paper-q-number">第 {q.number} 题</span>
                     <span className="past-paper-q-type">{q.type}</span>
+                    {isNeedReview && <span className="past-paper-q-review-badge">⚠ 待校对</span>}
+                    {!isNeedReview && q.quality_status === 'ready' && <span className="past-paper-q-ready-badge">✓ 已校对</span>}
                     <button
                       type="button"
                       className={`past-paper-favorite-btn${favorites[q.id] ? " past-paper-favorite-btn--active" : ""}`}
@@ -233,6 +244,7 @@ export default function ExamPastPaperAttemptPage({ subjectKey, attemptId, user, 
                     </button>
                   </div>
                   {(q.stem || (q.content !== `第 ${q.number} 题` ? q.content : '')) && <div className="past-paper-q-content">{q.stem || q.content}</div>}
+                  {isNeedReview && q.review_notes && <div className="past-paper-q-review-notes">{q.review_notes}</div>}
                   {q.image_urls?.length > 0 && (
                     <div className="past-paper-q-images">
                       {q.image_urls.map((url, i) => (
@@ -240,29 +252,36 @@ export default function ExamPastPaperAttemptPage({ subjectKey, attemptId, user, 
                       ))}
                     </div>
                   )}
-                  {/* OCR text is displayed above; image_urls removed from API response to reduce payload */}
-                  {q.type === "选择题" ? (
-                    <div className="past-paper-options">
-                      {["A", "B", "C", "D"].map(opt => {
-                        const optText = q.options?.[opt] || '';
-                        return (
-                        <label key={opt} className={`past-paper-option ${answers[q.id] === opt ? "past-paper-option--selected" : ""}`}>
-                          <input type="radio" name={`q_${q.id}`} value={opt} checked={answers[q.id] === opt} onChange={() => handleAnswer(q.id, opt)} />
-                          <span className="past-paper-opt-label">{opt}</span>
-                          <span className="past-paper-opt-text">{optText || `选项 ${opt} 文本缺失`}</span>
-                        </label>
-                        );
-                      })}
+                  {isNeedReview ? (
+                    <div className="past-paper-q-need-review-notice">
+                      {q.options && Object.keys(q.options || {}).length === 0 && q.type === '选择题' ? '⚠ 该题选项缺失，暂不可作答' : ''}
+                      {q.standard_answer && q.standard_answer.includes('待补充') ? '⚠ 该题答案待补充，暂不可作答' : ''}
+                      {(!q.standard_answer?.includes('待补充') && (q.options === undefined || Object.keys(q.options || {}).length > 0 || q.type !== '选择题')) ? '⚠ 该题待人工校对，答案可能不完整' : ''}
                     </div>
                   ) : (
-                    <div className="past-paper-big-answer">
-                      {q.image_urls?.length > 0 && <p style={{ fontSize: "0.78rem", color: "#94a3b8", marginBottom: 8 }}>请根据上方题目图片作答</p>}
-                      <textarea className="field" rows={5} placeholder="请输入你的答案..." value={answers[q.id] || ""} onChange={e => handleAnswer(q.id, e.target.value)} />
-                    </div>
+                    q.type === "选择题" ? (
+                      <div className="past-paper-options">
+                        {["A", "B", "C", "D"].map(opt => {
+                          const optText = q.options?.[opt] || '';
+                          return (
+                          <label key={opt} className={`past-paper-option ${answers[q.id] === opt ? "past-paper-option--selected" : ""}`}>
+                            <input type="radio" name={`q_${q.id}`} value={opt} checked={answers[q.id] === opt} onChange={() => handleAnswer(q.id, opt)} />
+                            <span className="past-paper-opt-label">{opt}</span>
+                            <span className="past-paper-opt-text">{optText || `选项 ${opt} 文本缺失`}</span>
+                          </label>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="past-paper-big-answer">
+                        {q.image_urls?.length > 0 && <p style={{ fontSize: "0.78rem", color: "#94a3b8", marginBottom: 8 }}>请根据上方题目图片作答</p>}
+                        <textarea className="field" rows={5} placeholder="请输入你的答案..." value={answers[q.id] || ""} onChange={e => handleAnswer(q.id, e.target.value)} />
+                      </div>
+                    )
                   )}
                 </div>
-              ))}
-            </div>
+              );
+              })}</div>
           )}
 
           {questions.length > 0 && (<>

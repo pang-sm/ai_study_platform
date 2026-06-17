@@ -86,23 +86,76 @@ def parse_ocr(fp):
 
     return questions
 
+def clean_ocr_stem(stem, qnum, year):
+    """Remove obvious OCR artifacts from question stem."""
+    # Remove trailing orphan characters like "mo", "m4", etc.
+    stem = re.sub(r'\s+mo\s*$', '', stem)
+    stem = re.sub(r'\s+m\d+\s*$', '', stem)
+    # Remove garbled table remnants (only replace consecutive garbled tokens)
+    garbled_table_pattern = re.compile(r'(?:\b(?:EE|CE|ER|el|pel|fe|Act|B2|ame)\b\s*){2,}')
+    stem = garbled_table_pattern.sub('【表格数据见原题】', stem)
+    # Clean up duplicate markers
+    stem = re.sub(r'(【表格数据见原题】[\s|]*)+', '【表格数据见原题】', stem)
+    # Fix stray parentheses
+    stem = re.sub(r'《\)', '）', stem)
+    stem = re.sub(r'\(》', '（', stem)
+    # Collapse multiple spaces
+    stem = re.sub(r'\s{2,}', ' ', stem)
+    return stem.strip()
+
+def clean_ocr_options(opts):
+    """Clean option text from OCR merging issues."""
+    cleaned = {}
+    for k, v in opts.items():
+        if k not in 'ABCD':
+            continue
+        # Remove artifacts
+        v = re.sub(r'\s+', ' ', v).strip()
+        cleaned[k] = v
+    return cleaned
+
 def finalize_question(q, questions):
     """Clean and add question to list."""
     stem = ' '.join(q['stem_lines']).strip()
     # Clean common OCR artifacts
+    stem = clean_ocr_stem(stem, q['qnum'], q['year'])
     stem = re.sub(r'\s+', ' ', stem)
     stem = stem.strip()
 
     qtype = 'big' if q['qnum'] in BIG_NUMBERS else 'choice'
-    opts = q['opts'] if qtype == 'choice' else {}
+    opts = clean_ocr_options(q['opts']) if qtype == 'choice' else {}
 
     # Validate choice options
     if qtype == 'choice':
         # Keep only A-D keys
         opts = {k: v for k, v in opts.items() if k in 'ABCD'}
-        if len(opts) < 4:
-            # Try to fill missing options from stem
-            pass
+        # Check for merged options (B/D text merged into A/C values)
+        for key in list(opts.keys()):
+            val = opts[key]
+            # Check if another option label is embedded: e.g., "A.xxx B.yyy" in key A
+            for other in 'ABCD':
+                if other != key:
+                    pattern = rf'\b{other}[.．、)\s]'
+                    if re.search(pattern, val):
+                        # Try to split
+                        parts = re.split(rf'\s*\b{other}[.．、)\s]\s*', val, maxsplit=1)
+                        if len(parts) == 2:
+                            opts[key] = parts[0].strip()
+                            if other not in opts:
+                                opts[other] = parts[1].strip()
+
+    # Determine review notes
+    review_notes = []
+    if qtype == 'choice' and len(opts) < 4:
+        missing = [x for x in 'ABCD' if x not in opts]
+        review_notes.append(f'选项缺失: {",".join(missing)}')
+    if q.get('answer_status') == 'pending':
+        review_notes.append('答案待补充（PDF未检测到参考答案）')
+    if not stem:
+        review_notes.append('题干缺失')
+    # Check for table/chart dependency
+    if re.search(r'下表|下表所|如下表|右图|下图|如图|表中|图示', stem):
+        review_notes.append('【图示/表格缺失，待补充原题截图】')
 
     questions.append({
         'exam_type': '11408',
@@ -121,8 +174,10 @@ def finalize_question(q, questions):
         'source_ref': f"{q['year']}-Q{q['qnum']:02d}",
         'text_quality': 'ready' if (
             stem and q['answer'] and q.get('answer_status') == 'confirmed' and
-            (qtype != 'choice' or len(opts) >= 4)
+            (qtype != 'choice' or len(opts) >= 4) and
+            not review_notes
         ) else 'need_review',
+        'review_notes': '; '.join(review_notes) if review_notes else '',
         'is_active': True,
     })
 
@@ -175,7 +230,6 @@ def main():
     review_count = 0
     for q in questions:
         quality = q.get('text_quality', 'unchecked')
-        is_ready = (quality == 'ready')
         item = models.ExamQuestionBank(
             subject_key=SUBJECT_KEY, subject_name=SUBJECT_NAME,
             source_type="past_paper", visibility="public",
@@ -185,14 +239,14 @@ def main():
             stem=q['question_text'],
             options_json=json.dumps(q.get('options', {}), ensure_ascii=False),
             standard_answer=q.get('answer', ''),
-            analysis="",
+            analysis=q.get('review_notes', ''),
             difficulty="基础",
             source_ref=f"past_paper:{q['source_ref']}",
             quality_status=quality,
-            is_active=is_ready,
+            is_active=True,  # ALL questions visible; quality_status drives UX
         )
         db.add(item); ins += 1
-        if is_ready:
+        if quality == 'ready':
             ready_count += 1
         else:
             review_count += 1

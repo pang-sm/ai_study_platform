@@ -20,6 +20,7 @@
     "explanation": "",
     "source_ref": "2022-Q23",
     "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -33,14 +34,17 @@
     "question_type": "choice",
     "question_text": "24.下列选项中，需要在操作系统进行初始化过程中创建的是()",
     "options": {
-      "A": "中断向量表 B.文件系统的根目录",
-      "C": "硬盘分区表 D.文件系统的索引节点表"
+      "A": "中断向量表",
+      "C": "硬盘分区表",
+      "B": "文件系统的根目录",
+      "D": "文件系统的索引节点表"
     },
     "answer": "A",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2022-Q24",
-    "text_quality": "need_review",
+    "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -52,13 +56,14 @@
     "paper_name": "2022年操作系统真题",
     "question_number": 25,
     "question_type": "choice",
-    "question_text": "25.进程 PO、P1l、P2 和 P3 进入就绪队列的时刻、优先级值越小优先权越高”及 CPU 执行时间如下表所示。 EE CE ER 若系统采用基于优先权的抢占式进程调度算法, 则从 Oms 时刻开始调度,到 4 个进程都 运行结束为止，发生进程调度的总次数为 m4 A4 B.5 C6 BF",
+    "question_text": "25.进程 PO、P1l、P2 和 P3 进入就绪队列的时刻、优先级值越小优先权越高”及 CPU 执行时间如下表所示。 【表格数据见原题】若系统采用基于优先权的抢占式进程调度算法, 则从 Oms 时刻开始调度,到 4 个进程都 运行结束为止，发生进程调度的总次数为 m4 A4 B.5 C6 BF",
     "options": {},
     "answer": "C",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2022-Q25",
     "text_quality": "need_review",
+    "review_notes": "选项缺失: A,B,C,D; 【图示/表格缺失，待补充原题截图】",
     "is_active": true
   },
   {
@@ -70,13 +75,14 @@
     "paper_name": "2022年操作系统真题",
     "question_number": 26,
     "question_type": "choice",
-    "question_text": "26. 系统中有三个进程 PO、P1、P2 及三类资源 A、B、C。若某时刻系统分配资源的情 况如下表所示，则此时系统中存在的安全序列的个数为() 进程 ee rE EEE el pel pel fe | Act B2 [ ame 4 D4",
+    "question_text": "26. 系统中有三个进程 PO、P1、P2 及三类资源 A、B、C。若某时刻系统分配资源的情 况如下表所示，则此时系统中存在的安全序列的个数为() 进程 ee rE EEE 【表格数据见原题】[ ame 4 D4",
     "options": {},
     "answer": "B",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2022-Q26",
     "text_quality": "need_review",
+    "review_notes": "选项缺失: A,B,C,D; 【图示/表格缺失，待补充原题截图】",
     "is_active": true
   },
   {
@@ -88,7 +94,7 @@
     "paper_name": "2022年操作系统真题",
     "question_number": 27,
     "question_type": "choice",
-    "question_text": "27.下列关于 CPU 模式的叙述中正确的是 (》",
+    "question_text": "27.下列关于 CPU 模式的叙述中正确的是 （",
     "options": {
       "A": "CPU 处于用户态时只能执行特权指令",
       "B": "CPU 处于内核态时只能执行特权指令",
@@ -100,6 +106,7 @@
     "explanation": "",
     "source_ref": "2022-Q27",
     "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -118,6 +125,7 @@
     "explanation": "",
     "source_ref": "2022-Q28",
     "text_quality": "need_review",
+    "review_notes": "选项缺失: A,B,C,D",
     "is_active": true
   },
   {
@@ -141,6 +149,7 @@
     "explanation": "",
     "source_ref": "2022-Q29",
     "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -154,14 +163,17 @@
     "question_type": "choice",
     "question_text": "30. 下列选项中，不会影响系统缺页率的是()",
     "options": {
-      "A": "页置换算法 B.工作集的大小",
-      "C": "进程的数量 D.页缓冲队列的长度"
+      "A": "页置换算法",
+      "C": "进程的数量",
+      "B": "工作集的大小",
+      "D": "页缓冲队列的长度"
     },
     "answer": "D",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2022-Q30",
-    "text_quality": "need_review",
+    "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -180,6 +192,7 @@
     "explanation": "",
     "source_ref": "2022-Q31",
     "text_quality": "need_review",
+    "review_notes": "选项缺失: A,B,C,D",
     "is_active": true
   },
   {
@@ -203,6 +216,7 @@
     "explanation": "",
     "source_ref": "2022-Q32",
     "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -221,6 +235,7 @@
     "explanation": "",
     "source_ref": "2022-Q45",
     "text_quality": "need_review",
+    "review_notes": "答案待补充（PDF未检测到参考答案）",
     "is_active": true
   },
   {
@@ -239,6 +254,7 @@
     "explanation": "",
     "source_ref": "2022-Q46",
     "text_quality": "need_review",
+    "review_notes": "答案待补充（PDF未检测到参考答案）",
     "is_active": true
   },
   {
@@ -257,6 +273,7 @@
     "explanation": "",
     "source_ref": "2023-Q23",
     "text_quality": "need_review",
+    "review_notes": "选项缺失: A,B,C,D",
     "is_active": true
   },
   {
@@ -270,14 +287,17 @@
     "question_type": "choice",
     "question_text": "24. 在操作系统内核中，中断向量表适合采用的数据结构是 (。 )",
     "options": {
-      "A": "数组 B. 队列",
-      "C": "单向链表 D. 双向链表"
+      "A": "数组",
+      "C": "单向链表",
+      "B": "队列",
+      "D": "双向链表"
     },
     "answer": "A",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2023-Q24",
-    "text_quality": "need_review",
+    "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -291,14 +311,17 @@
     "question_type": "choice",
     "question_text": "25. 某系统采用页式存储管理，用位图管理空闲页框。若页大小为 4KB，物理内存大小 为16GB，则位图所占空间的大小是 )",
     "options": {
-      "A": "128B B. 128KB",
-      "C": "512KB D.4MB"
+      "A": "128B",
+      "C": "512KB",
+      "B": "128KB",
+      "D": "4MB"
     },
     "answer": "C",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2023-Q25",
-    "text_quality": "need_review",
+    "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -312,14 +335,17 @@
     "question_type": "choice",
     "question_text": "26. 下列操作完成时，导致 CPU 从内核态转为用户态的是( )",
     "options": {
-      "A": "阻塞过程 B. 执行 CPU 调度",
-      "C": "MARBUT RE D. 执行系统调用"
+      "A": "阻塞过程",
+      "C": "MARBUT RE",
+      "B": "执行 CPU 调度",
+      "D": "执行系统调用"
     },
     "answer": "D",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2023-Q26",
-    "text_quality": "need_review",
+    "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -333,14 +359,17 @@
     "question_type": "choice",
     "question_text": "27. 下列由当前线程引起的事件或执行的操作中，可能导致该线程由执行态变为就结态 的是 ()",
     "options": {
-      "A": "键盘输入 B. 缺页异常",
-      "C": "主动中让 CPU D. 执行信号量的 wait( EVE"
+      "A": "键盘输入",
+      "C": "主动中让 CPU",
+      "B": "缺页异常",
+      "D": "执行信号量的 wait( EVE"
     },
     "answer": "C",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2023-Q27",
-    "text_quality": "need_review",
+    "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -355,7 +384,7 @@
     "question_text": "28. 对于采用虚拟内存管理方式的系统，下列关于进程虚拟地址空间的叙述中，错误的 是( )",
     "options": {
       "A": "每个进程都有自己独立的虚拟地址空间",
-      "B": "C 语言中 malloc( )函数返回的是虚拟地址",
+      "B": "",
       "C": "进程对数据段和代码段可以有不同的访问权限",
       "D": "虚拟地址空间的大小由内存和三闪的大小决定"
     },
@@ -364,6 +393,7 @@
     "explanation": "",
     "source_ref": "2023-Q28",
     "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -377,13 +407,16 @@
     "question_type": "choice",
     "question_text": "29. 进程 PI、P2 和 P3 进入就绪队列的的时刻、优先级〈值越大优先权越高) 及 CPU 执行时间如下表所示: m4 ”43 EER ASIA Sw el) See moms ms 若系统采用基于优先权的抢占式 CPU 调度算法，从 Oms 时刻开始进行调度，则 PIT、 P2 和了3 的平均周转时间为《 )",
     "options": {
-      "A": "60 ms B. 61 ms Cc. 70 ms D. 71 ms"
+      "A": "60 ms B. 61 ms Cc. 70 ms",
+      "B": "61 ms Cc. 70 ms D. 71 ms",
+      "D": "71 ms"
     },
     "answer": "B",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2023-Q29",
     "text_quality": "need_review",
+    "review_notes": "选项缺失: C; 【图示/表格缺失，待补充原题截图】",
     "is_active": true
   },
   {
@@ -407,6 +440,7 @@
     "explanation": "",
     "source_ref": "2023-Q30",
     "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -430,6 +464,7 @@
     "explanation": "",
     "source_ref": "2023-Q31",
     "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -448,6 +483,7 @@
     "explanation": "",
     "source_ref": "2023-Q32",
     "text_quality": "need_review",
+    "review_notes": "选项缺失: A,B,C,D",
     "is_active": true
   },
   {
@@ -466,6 +502,7 @@
     "explanation": "",
     "source_ref": "2023-Q45",
     "text_quality": "need_review",
+    "review_notes": "答案待补充（PDF未检测到参考答案）",
     "is_active": true
   },
   {
@@ -484,6 +521,7 @@
     "explanation": "",
     "source_ref": "2023-Q46",
     "text_quality": "need_review",
+    "review_notes": "答案待补充（PDF未检测到参考答案）",
     "is_active": true
   },
   {
@@ -506,6 +544,7 @@
     "explanation": "",
     "source_ref": "2024-Q23",
     "text_quality": "need_review",
+    "review_notes": "选项缺失: D",
     "is_active": true
   },
   {
@@ -519,14 +558,16 @@
     "question_type": "choice",
     "question_text": "24, 下列选项中，操作系统在终止进程时不一定执行的是 CD.",
     "options": {
-      "A": "终止了进程 B. 回收进程占用的设备",
-      "C": "SGI IEE 有同收为济程外配的内存"
+      "A": "终止了进程",
+      "C": "SGI IEE 有同收为济程外配的内存",
+      "B": "回收进程占用的设备"
     },
     "answer": "A",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2024-Q24",
     "text_quality": "need_review",
+    "review_notes": "选项缺失: D",
     "is_active": true
   },
   {
@@ -540,13 +581,15 @@
     "question_type": "choice",
     "question_text": "25. 在支持页式存储管理的系统中，进程切换时操作系统需要执行的操作是 L 更新程序计数器的值 TL, 更新栈基址寄存器的值 TH, 更新页表基地址寄存器的值",
     "options": {
-      "A": "4M IIL B. WLI Cc. WI. IH DI Ik I"
+      "A": "4M IIL",
+      "B": "WLI Cc. WI. IH DI Ik I"
     },
     "answer": "D",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2024-Q25",
     "text_quality": "need_review",
+    "review_notes": "选项缺失: C,D",
     "is_active": true
   },
   {
@@ -560,13 +603,17 @@
     "question_type": "choice",
     "question_text": "26. 文件系统需要占用部分外存空间记录空闲块位置，占用外存空间的大小与当前空闲 块数量无关的是( )。",
     "options": {
-      "A": "位图法 B. 空闲表法 C. 成组链接法 D. 空闲链表法"
+      "A": "位图法 B. 空闲表法 C. 成组链接法",
+      "B": "空闲表法 C. 成组链接法 D. 空闲链表法",
+      "C": "成组链接法 D. 空闲链表法",
+      "D": "空闲链表法"
     },
     "answer": "A",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2024-Q26",
-    "text_quality": "need_review",
+    "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -580,14 +627,17 @@
     "question_type": "choice",
     "question_text": "27. 下列算法中，每次回收分区时仅合并大小相等的空闲分区的是",
     "options": {
-      "A": "伙伴算法 B. 最佳适应算法",
-      "C": "BIEN EE D. 首次适应算法"
+      "A": "伙伴算法",
+      "C": "BIEN EE",
+      "B": "最佳适应算法",
+      "D": "首次适应算法"
     },
     "answer": "A",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2024-Q27",
-    "text_quality": "need_review",
+    "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -606,6 +656,7 @@
     "explanation": "",
     "source_ref": "2024-Q28",
     "text_quality": "need_review",
+    "review_notes": "选项缺失: A,B,C,D",
     "is_active": true
   },
   {
@@ -619,13 +670,17 @@
     "question_type": "choice",
     "question_text": "29. 下列系统调用的实现中，包含文件按名查找功能的是",
     "options": {
-      "A": "open() B. read() C. write() D. close()"
+      "A": "open() B. read() C. write()",
+      "B": "read() C. write() D. close()",
+      "C": "write() D. close()",
+      "D": "close()"
     },
     "answer": "A",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2024-Q29",
-    "text_quality": "need_review",
+    "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -639,13 +694,17 @@
     "question_type": "choice",
     "question_text": "30. 假设某系统使用时间片轮转调度算法进行 CPU 调度,时间片大小为 Sms，系统共有 10 个进程,初始时均处于就绪队列， 执行结束前仅处于执行态或就绪态。若队尾的进程 P 所需 CPU 时间最短，时间为25ms，在不考虑系统开销的情况下，则进程P 的周转时 间为",
     "options": {
-      "A": "200ms B. 205ms C.250ms D. 295ms"
+      "A": "200ms B. 205ms C.250ms",
+      "B": "205ms C.250ms D. 295ms",
+      "C": "250ms D. 295ms",
+      "D": "295ms"
     },
     "answer": "C",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2024-Q30",
-    "text_quality": "need_review",
+    "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -659,14 +718,17 @@
     "question_type": "choice",
     "question_text": "31. 键盘中断服务例程执行结束时，所输入数据的存放位置是",
     "options": {
-      "A": "用户缓冲区 B. CPU 中的通用寄存器",
-      "C": "内核绥冲区 D. 键盘控制器的数据寄存哄"
+      "A": "用户缓冲区",
+      "C": "内核绥冲区",
+      "B": "CPU 中的通用寄存器",
+      "D": "键盘控制器的数据寄存哄"
     },
     "answer": "C",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2024-Q31",
-    "text_quality": "need_review",
+    "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -680,13 +742,17 @@
     "question_type": "choice",
     "question_text": "32. 某磁盘的磁道数为 400〔磁道号为 0~399),采用循环扫描算法(CSCAN) 进行磁盘 调度，完成对 200 号磁道的请求后，磁头向磁道号减小的方向移动。若还有 7 个磁盘请 求，对应的磁道号分别为300，120，110，0，160，210，399，则完成上述磁盘访问请 求后磁头移动的距离是",
     "options": {
-      "A": "599 B.619 C. 788 D. 799"
+      "A": "599 B.619 C. 788",
+      "B": "619 C. 788 D. 799",
+      "C": "788 D. 799",
+      "D": "799"
     },
     "answer": "C",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2024-Q32",
-    "text_quality": "need_review",
+    "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -705,6 +771,7 @@
     "explanation": "",
     "source_ref": "2024-Q45",
     "text_quality": "need_review",
+    "review_notes": "答案待补充（PDF未检测到参考答案）",
     "is_active": true
   },
   {
@@ -723,6 +790,7 @@
     "explanation": "",
     "source_ref": "2024-Q46",
     "text_quality": "need_review",
+    "review_notes": "答案待补充（PDF未检测到参考答案）",
     "is_active": true
   },
   {
@@ -736,14 +804,16 @@
     "question_type": "choice",
     "question_text": "23. 在采用页式虚拟存储管理方式的系统中，当发生进程上下文切换时，下列寄存器中，操作系统 不需要更新的是",
     "options": {
-      "A": "通用寄存器 B. 页表基址寄存器",
-      "C": "FBR eR DD 内核由断向量表其址寄存趾"
+      "A": "通用寄存器",
+      "C": "FBR eR DD 内核由断向量表其址寄存趾",
+      "B": "页表基址寄存器"
     },
     "answer": "D",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2025-Q23",
     "text_quality": "need_review",
+    "review_notes": "选项缺失: D",
     "is_active": true
   },
   {
@@ -764,6 +834,7 @@
     "explanation": "",
     "source_ref": "2025-Q24",
     "text_quality": "need_review",
+    "review_notes": "选项缺失: A,C,D",
     "is_active": true
   },
   {
@@ -782,6 +853,7 @@
     "explanation": "",
     "source_ref": "2025-Q25",
     "text_quality": "need_review",
+    "review_notes": "选项缺失: A,B,C,D",
     "is_active": true
   },
   {
@@ -800,6 +872,7 @@
     "explanation": "",
     "source_ref": "2025-Q26",
     "text_quality": "need_review",
+    "review_notes": "选项缺失: A,B,C,D",
     "is_active": true
   },
   {
@@ -814,13 +887,15 @@
     "question_text": "27. 在页式虚拟存储管理系统中，确定进程正常运行所需的最少页框数时，下列因素中需要考虑的 是",
     "options": {
       "A": "代码段长度 Be 进程的虚拟地址空间大小",
-      "C": "物理内存大小 D. BABS RMS"
+      "C": "物理内存大小",
+      "D": "BABS RMS"
     },
     "answer": "D",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2025-Q27",
     "text_quality": "need_review",
+    "review_notes": "选项缺失: B",
     "is_active": true
   },
   {
@@ -843,6 +918,7 @@
     "explanation": "",
     "source_ref": "2025-Q28",
     "text_quality": "need_review",
+    "review_notes": "选项缺失: A",
     "is_active": true
   },
   {
@@ -865,6 +941,7 @@
     "explanation": "",
     "source_ref": "2025-Q29",
     "text_quality": "need_review",
+    "review_notes": "选项缺失: A",
     "is_active": true
   },
   {
@@ -885,6 +962,7 @@
     "explanation": "",
     "source_ref": "2025-Q30",
     "text_quality": "need_review",
+    "review_notes": "选项缺失: B,C,D",
     "is_active": true
   },
   {
@@ -898,14 +976,17 @@
     "question_type": "choice",
     "question_text": "31. 下列选项中，文件系统可用于记录外存空闲空间使用情况的是",
     "options": {
-      "A": "目录 B. 系统打开文件表",
-      "C": "文件分配表 (FATY) D. 文件控制块 (FCB)"
+      "A": "目录",
+      "C": "文件分配表 (FATY)",
+      "B": "系统打开文件表",
+      "D": "文件控制块 (FCB)"
     },
     "answer": "C",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2025-Q31",
-    "text_quality": "need_review",
+    "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -919,13 +1000,15 @@
     "question_type": "choice",
     "question_text": "32<契列选项中，文件系统需要为温彻斯特硬盘和固态硬盘都提供的功能是 mn 4 有TC-降要寻道时间 D. sce ye Bede, fim +",
     "options": {
-      "A": "划分扁区 B. BEAL"
+      "A": "划分扁区",
+      "B": "BEAL"
     },
     "answer": "B",
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2025-Q32",
     "text_quality": "need_review",
+    "review_notes": "选项缺失: C,D",
     "is_active": true
   },
   {
@@ -944,6 +1027,7 @@
     "explanation": "",
     "source_ref": "2025-Q45",
     "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -962,6 +1046,7 @@
     "explanation": "",
     "source_ref": "2025-Q46",
     "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -973,7 +1058,7 @@
     "paper_name": "2026年操作系统真题",
     "question_number": 23,
     "question_type": "choice",
-    "question_text": "23. 下列操作申,在内核态执行的是 ( ) mo",
+    "question_text": "23. 下列操作申,在内核态执行的是 ( )",
     "options": {
       "A": "编译程序",
       "B": "链接程序",
@@ -985,6 +1070,7 @@
     "explanation": "",
     "source_ref": "2026-Q23",
     "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -1007,6 +1093,7 @@
     "explanation": "",
     "source_ref": "2026-Q24",
     "text_quality": "need_review",
+    "review_notes": "选项缺失: D",
     "is_active": true
   },
   {
@@ -1030,6 +1117,7 @@
     "explanation": "",
     "source_ref": "2026-Q25",
     "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -1052,7 +1140,8 @@
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2026-Q26",
-    "text_quality": "ready",
+    "text_quality": "need_review",
+    "review_notes": "【图示/表格缺失，待补充原题截图】",
     "is_active": true
   },
   {
@@ -1076,6 +1165,7 @@
     "explanation": "",
     "source_ref": "2026-Q27",
     "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -1098,6 +1188,7 @@
     "explanation": "",
     "source_ref": "2026-Q28",
     "text_quality": "need_review",
+    "review_notes": "选项缺失: A; 【图示/表格缺失，待补充原题截图】",
     "is_active": true
   },
   {
@@ -1121,6 +1212,7 @@
     "explanation": "",
     "source_ref": "2026-Q29",
     "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -1144,6 +1236,7 @@
     "explanation": "",
     "source_ref": "2026-Q30",
     "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -1167,6 +1260,7 @@
     "explanation": "",
     "source_ref": "2026-Q31",
     "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -1178,7 +1272,7 @@
     "paper_name": "2026年操作系统真题",
     "question_number": 32,
     "question_type": "choice",
-    "question_text": "32. 下列操作中，鼠标中断处理程序完成的是(》 13",
+    "question_text": "32. 下列操作中，鼠标中断处理程序完成的是（ 13",
     "options": {
       "A": "解析鼠标的输入指令含义",
       "B": "将鼠标数据同步到用户应用程序缓冲区",
@@ -1190,6 +1284,7 @@
     "explanation": "",
     "source_ref": "2026-Q32",
     "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   },
   {
@@ -1207,7 +1302,8 @@
     "answer_status": "confirmed",
     "explanation": "",
     "source_ref": "2026-Q45",
-    "text_quality": "ready",
+    "text_quality": "need_review",
+    "review_notes": "【图示/表格缺失，待补充原题截图】",
     "is_active": true
   },
   {
@@ -1226,6 +1322,7 @@
     "explanation": "",
     "source_ref": "2026-Q46",
     "text_quality": "ready",
+    "review_notes": "",
     "is_active": true
   }
 ]
