@@ -132,6 +132,8 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
   const [actionLoading, setActionLoading] = useState("");
   const [actionError, setActionError] = useState("");
   const [actionSuccess, setActionSuccess] = useState("");
+  const [editingMemberUser, setEditingMemberUser] = useState(null);
+  const [membershipForm, setMembershipForm] = useState({});
   const [showAnnouncementForm, setShowAnnouncementForm] = useState(false);
   const [announcementFormError, setAnnouncementFormError] = useState("");
   const [editingAnnouncement, setEditingAnnouncement] = useState(null);
@@ -441,6 +443,41 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
     }
   };
 
+  const openMembershipEditor = (item) => {
+    const m = item.memberships || {};
+    setMembershipForm({
+      exam_11408: { is_enabled: m.exam_11408?.is_enabled ?? true, plan: m.exam_11408?.plan || "free" },
+      course: { is_enabled: m.course?.is_enabled ?? false, plan: m.course?.plan || "free" },
+      programming: { is_enabled: m.programming?.is_enabled ?? false, plan: m.programming?.plan || "free" },
+    });
+    setEditingMemberUser(item);
+  };
+
+  const saveMemberships = async () => {
+    if (!editingMemberUser) return;
+    setActionError("");
+    setActionLoading("membership");
+    try {
+      await getJson(`${API_BASE}/admin/users/${editingMemberUser.user_id || editingMemberUser.id}/memberships`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ admin_username: user.username, memberships: membershipForm }),
+      });
+      setEditingMemberUser(null);
+      await loadCurrentPage();
+    } catch (err) {
+      setActionError(err.message || "修改会员失败");
+    } finally {
+      setActionLoading("");
+    }
+  };
+
+  const SERVICE_LABELS = {
+    exam_11408: { name: "11408 考研", plans: { free: "普通用户", monthly: "月度冲刺包", quarterly: "季度强化包", full: "全程备考包" } },
+    course: { name: "课程学习", plans: { free: "普通用户", monthly: "月度学习包", quarterly: "季度学习包", full: "全程学习包" } },
+    programming: { name: "编程能力提升", plans: { free: "普通用户", monthly: "月度练习包", quarterly: "季度练习包", full: "年度提升包" } },
+  };
+
   const renderDashboard = () => (
     <>
       <section className="admin-dashboard-stats">
@@ -577,7 +614,17 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
         <button type="button" onClick={loadCurrentPage}>刷新</button>
       </div>
       {actionError && <div className="admin-dashboard-error">{actionError}</div>}
-      <UsersTable rows={usersData?.items || []} onBan={banUser} onUnban={unbanUser} onDelete={deleteUser} actionLoading={actionLoading} />
+      <UsersTable rows={usersData?.items || []} onBan={banUser} onUnban={unbanUser} onDelete={deleteUser} onEditMembership={openMembershipEditor} actionLoading={actionLoading} />
+      {editingMemberUser && (
+        <MembershipEditModal
+          user={editingMemberUser}
+          form={membershipForm}
+          onChange={setMembershipForm}
+          onSave={saveMemberships}
+          onClose={() => setEditingMemberUser(null)}
+          loading={actionLoading === "membership"}
+        />
+      )}
     </AdminPageCard>
   );
 
@@ -1065,18 +1112,45 @@ function StatusBadge({ tone = "ok", children }) {
   return <span className={`admin-dashboard-status admin-dashboard-status--${tone}`}>{children}</span>;
 }
 
-function UsersTable({ rows, hideActions = false, onBan, onUnban, onDelete, actionLoading = "" }) {
+function UsersTable({ rows, hideActions = false, onBan, onUnban, onDelete, onEditMembership, actionLoading = "" }) {
   if (!rows || rows.length === 0) {
     return <EmptyState title="暂无用户数据" description="当前没有可展示的用户记录。" />;
   }
-  const columns = ["用户昵称", "用户ID", "账号", "注册时间", "最后登录", "学习时长", "状态"];
+  const columns = ["用户昵称", "用户ID", "账号", "三方向会员", "注册时间", "学习时长", "状态"];
   if (!hideActions) columns.push("操作");
+
+  const M_BADGE = (m, sk) => {
+    const mb = (m && m[sk]) || {};
+    const label = mb.plan_label || (mb.is_enabled ? mb.plan : "未开通");
+    const enabled = mb.is_enabled;
+    return (
+      <span key={sk} className={`adm-membership-badge${enabled ? "" : " disabled"}`}
+        title={sk === "exam_11408" ? "11408 考研" : sk === "course" ? "课程学习" : "编程能力提升"}>
+        {sk === "exam_11408" ? "📘" : sk === "course" ? "📗" : "📙"} {label}
+      </span>
+    );
+  };
+
   const tableRows = rows.map((item) => {
     const isBanned = Boolean(item.is_banned);
     const isAdmin = Boolean(item.is_admin) || (item.admin_role && item.admin_role !== "none");
+    const m = item.memberships || {};
     const status = isBanned ? <StatusBadge tone="danger">已封禁</StatusBadge> : <StatusBadge tone="ok">正常</StatusBadge>;
+    const membershipCell = (
+      <div className="adm-membership-cell">
+        {M_BADGE(m, "exam_11408")}
+        {M_BADGE(m, "course")}
+        {M_BADGE(m, "programming")}
+      </div>
+    );
     const actions = (
       <div className="admin-dashboard-actions">
+        {!isAdmin && (
+          <button type="button" disabled={!!actionLoading}
+            onClick={() => onEditMembership?.(item)} style={{color:"#7c3aed",borderColor:"#c4b5fd"}}>
+            会员
+          </button>
+        )}
         {isBanned ? (
           <button type="button" disabled={!!actionLoading || isAdmin} onClick={() => onUnban?.(item)}>解封</button>
         ) : (
@@ -1089,8 +1163,8 @@ function UsersTable({ rows, hideActions = false, onBan, onUnban, onDelete, actio
       <><span className="admin-dashboard-user-avatar">U</span>{displayUserName(item)}</>,
       item.user_id || item.id || "-",
       item.username || "-",
+      membershipCell,
       formatDateTime(item.register_time || item.created_at),
-      formatDateTime(item.last_active_time),
       `${formatNumber(item.learning_hours, 1)} 小时`,
       status,
     ];
@@ -1098,4 +1172,64 @@ function UsersTable({ rows, hideActions = false, onBan, onUnban, onDelete, actio
     return base;
   });
   return <DataTable columns={columns} rows={tableRows} />;
+}
+
+function MembershipEditModal({ user: targetUser, form, onChange, onSave, onClose, loading }) {
+  const SERVICE_KEYS = ["exam_11408", "course", "programming"];
+  const SERVICE_INFO = {
+    exam_11408: { name: "11408 考研", icon: "📘", plans: { free: "普通用户", monthly: "月度冲刺包", quarterly: "季度强化包", full: "全程备考包" }, disabledHint: "当前用户尚未开通 11408 考研服务" },
+    course: { name: "课程学习", icon: "📗", plans: { free: "普通用户", monthly: "月度学习包", quarterly: "季度学习包", full: "全程学习包" }, disabledHint: "当前用户尚未开通课程学习服务" },
+    programming: { name: "编程能力提升", icon: "📙", plans: { free: "普通用户", monthly: "月度练习包", quarterly: "季度练习包", full: "年度提升包" }, disabledHint: "当前用户尚未开通编程能力提升服务" },
+  };
+  const updateField = (sk, field, val) => {
+    onChange((prev) => ({ ...prev, [sk]: { ...prev[sk], [field]: val } }));
+  };
+
+  return (
+    <div className="esp-modal-overlay" onClick={loading ? undefined : onClose}>
+      <div className="esp-modal" style={{maxWidth:560}} onClick={(e) => e.stopPropagation()}>
+        <div className="esp-modal-header">
+          <h2>三方向服务权限 / 会员设置 — {targetUser.nickname || targetUser.username}</h2>
+          <button type="button" className="esp-modal-close" onClick={onClose} disabled={loading}>✕</button>
+        </div>
+        <div className="esp-modal-body">
+          {SERVICE_KEYS.map((sk) => {
+            const info = SERVICE_INFO[sk];
+            const f = form[sk] || { is_enabled: false, plan: "free" };
+            return (
+              <div key={sk} className={`adm-membership-card${f.is_enabled ? "" : " disabled"}`}>
+                <div className="adm-membership-card-head">
+                  <span>{info.icon} <strong>{info.name}</strong></span>
+                  <label className="adm-toggle">
+                    <input type="checkbox" checked={f.is_enabled}
+                      onChange={(e) => updateField(sk, "is_enabled", e.target.checked)} disabled={loading} />
+                    <span className="adm-toggle-slider" />
+                    <span className="adm-toggle-label">{f.is_enabled ? "已开通" : "未开通"}</span>
+                  </label>
+                </div>
+                {f.is_enabled ? (
+                  <div className="adm-membership-card-body">
+                    <label>会员等级</label>
+                    <select value={f.plan} onChange={(e) => updateField(sk, "plan", e.target.value)} disabled={loading}>
+                      {Object.entries(info.plans).map(([k, v]) => (
+                        <option key={k} value={k}>{v}</option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <p className="adm-membership-hint">{info.disabledHint}</p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <div className="esp-modal-footer">
+          <button type="button" className="esp-modal-cancel" onClick={onClose} disabled={loading}>取消</button>
+          <button type="button" className="esp-modal-save" onClick={onSave} disabled={loading}>
+            {loading ? "保存中..." : "保存"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }

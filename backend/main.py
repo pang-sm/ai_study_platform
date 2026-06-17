@@ -696,8 +696,8 @@ def _sync_membership_to_track(db: Session, user: models.User):
             track.quota_json = json.dumps(get_exam_package_quota(pkg), ensure_ascii=False)
             track.updated_at = utc_now()
             db.commit()
-    # Sync users.plan for legacy compat
-    user.plan = "pro" if mplan in ("monthly", "quarterly", "full") else mplan
+    # Sync users.plan for legacy compat using standard plan names
+    user.plan = mplan  # free / monthly / quarterly / full
     db.commit()
 
 
@@ -22502,7 +22502,7 @@ def admin_update_user_memberships(
 
         # Sync exam_11408 plan to legacy users.plan for backward compat
         if sk == "exam_11408" and is_enabled:
-            target_user.plan = "pro" if plan in ("monthly", "quarterly", "full") else plan
+            target_user.plan = plan  # free / monthly / quarterly / full
             db.add(target_user)
 
         labels = SERVICE_PLAN_LABELS.get(sk, {})
