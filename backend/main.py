@@ -13252,18 +13252,16 @@ def get_exam_subject_dashboard_summary(subject_key: str, username: str = "", db:
         chat_limit = int(pkg_quota.get("ai_chat_daily_limit", 50))
         q_limit = int(pkg_quota.get("ai_question_daily_limit", 5))
 
-        # Material upload: count by files uploaded today
-        material_uploaded_today = db.query(models.StudyMaterial).filter(
+        # Material upload: sum file_size in bytes → MB for today's uploads
+        today_uploads = db.query(models.StudyMaterial).filter(
             models.StudyMaterial.username == user.username,
             models.StudyMaterial.is_deleted == False,
             models.StudyMaterial.created_at >= today_start,
-        ).count()
-        # Total for display context
-        material_total = db.query(models.StudyMaterial).filter(
-            models.StudyMaterial.username == user.username,
-            models.StudyMaterial.is_deleted == False,
-        ).count()
-        mat_limit = int(pkg_quota.get("material_upload_limit_mb", 100))
+        ).all()
+        today_bytes = sum(m.file_size or 0 for m in today_uploads)
+        material_used_mb = round(today_bytes / (1024 * 1024), 2)
+
+        mat_limit_mb = int(pkg_quota.get("material_upload_limit_mb", 100))
 
         quota = {
             "ai_chat": {
@@ -13279,10 +13277,10 @@ def get_exam_subject_dashboard_summary(subject_key: str, username: str = "", db:
                 "unit": "次",
             },
             "material_upload": {
-                "used": material_total,
-                "limit": mat_limit,
-                "remaining": max(0, mat_limit - material_total),
-                "unit": "个",
+                "used": material_used_mb,
+                "limit": mat_limit_mb,
+                "remaining": max(0, mat_limit_mb - material_used_mb),
+                "unit": "MB",
             },
         }
 

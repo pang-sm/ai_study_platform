@@ -149,9 +149,10 @@ export default function ExamSubjectDashboard({
     return Math.round(remaining / limit * 100);
   };
 
-  const fmtQuotaValue = (remaining, limit) => {
+  const fmtQuotaValue = (remaining, limit, unit) => {
     if (limit === null || limit === undefined) return `不限`;
-    return `${remaining} / ${limit}`;
+    const r = Number.isFinite(remaining) ? remaining : 0;
+    return `${r} / ${limit} ${unit || ""}`;
   };
 
   const TASK_TYPE_LABELS = { knowledge: "知识点学习", chapter_practice: "章节练习", review: "阶段复习" };
@@ -281,13 +282,13 @@ export default function ExamSubjectDashboard({
                 <h3>额度剩余</h3>
                 <div className="exam-subject-quota-list">
                   <Quota label="AI 问答剩余"
-                    value={fmtQuotaValue(quota.ai_chat?.remaining ?? 0, quota.ai_chat?.limit ?? 0)}
+                    value={fmtQuotaValue(quota.ai_chat?.remaining ?? 0, quota.ai_chat?.limit ?? 0, quota.ai_chat?.unit)}
                     percent={fmtQuotaPercent(quota.ai_chat?.remaining ?? 0, quota.ai_chat?.limit ?? 0)} />
                   <Quota label="AI 出题剩余"
-                    value={fmtQuotaValue(quota.ai_question?.remaining ?? 0, quota.ai_question?.limit ?? 0)}
+                    value={fmtQuotaValue(quota.ai_question?.remaining ?? 0, quota.ai_question?.limit ?? 0, quota.ai_question?.unit)}
                     percent={fmtQuotaPercent(quota.ai_question?.remaining ?? 0, quota.ai_question?.limit ?? 0)} />
                   <Quota label="资料上传剩余"
-                    value={fmtQuotaValue(quota.material_upload?.remaining ?? 0, quota.material_upload?.limit ?? 0)}
+                    value={fmtQuotaValue(quota.material_upload?.remaining ?? 0, quota.material_upload?.limit ?? 0, quota.material_upload?.unit)}
                     percent={fmtQuotaPercent(quota.material_upload?.remaining ?? 0, quota.material_upload?.limit ?? 0)} />
                 </div>
               </div>
