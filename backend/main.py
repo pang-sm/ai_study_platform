@@ -12154,7 +12154,14 @@ def _build_study_plan_tree(chapters: list[dict], progress_by_code: dict, chapter
         chapter_children = []
         for section_raw in (chapter.get("children") or []):
             section = dict(section_raw)
-            # Collect leaf statuses for this section
+
+            # IMPORTANT: First attach user progress to sub-children, then compute stats
+            sub_children = _attach_knowledge_map_status(
+                section.get("children") or [], progress_by_code
+            )
+            section["children"] = sub_children
+
+            # Now collect leaf statuses from the enriched children
             leaf_statuses = _collect_leaf_statuses(section)
             total_leaves = sum(leaf_statuses.values())
             mastered = leaf_statuses.get("mastered", 0)
@@ -12173,13 +12180,6 @@ def _build_study_plan_tree(chapters: list[dict], progress_by_code: dict, chapter
                 section_status = "learning"
             else:
                 section_status = "not_started"
-
-            # Sub-children (小知识点 with progress attached)
-            sub_children = _attach_knowledge_map_status(
-                section.get("children") or [], progress_by_code
-            )
-
-            section["children"] = sub_children
             section["leaf_stats"] = {
                 "total": total_leaves,
                 "mastered": mastered,
