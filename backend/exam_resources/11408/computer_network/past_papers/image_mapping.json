@@ -1,0 +1,238 @@
+{
+  "2022-33": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2022-34": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2022-35": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2022-36": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2022-37": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2022-38": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2022-39": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2022-40": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2022-47": {
+    "image_required": true,
+    "image_reason": "综合题包含网络拓扑图/表格",
+    "image_urls": [
+      "/api/exam/11408/computer_network/past-paper-images/2022/2022_q47_1.jpg"
+    ]
+  },
+  "2023-33": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2023-34": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2023-35": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2023-36": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2023-37": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2023-38": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2023-39": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2023-40": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2023-47": {
+    "image_required": true,
+    "image_reason": "综合题包含网络拓扑图/表格",
+    "image_urls": [
+      "/api/exam/11408/computer_network/past-paper-images/2023/2023_q47_1.jpg"
+    ]
+  },
+  "2024-33": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2024-34": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2024-35": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2024-36": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2024-37": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2024-38": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2024-39": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2024-40": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2024-47": {
+    "image_required": true,
+    "image_reason": "综合题包含网络拓扑图/表格",
+    "image_urls": [
+      "/api/exam/11408/computer_network/past-paper-images/2024/2024_q47_1.jpg"
+    ]
+  },
+  "2025-33": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2025-34": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2025-35": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2025-36": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2025-37": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2025-38": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2025-39": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2025-40": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2025-47": {
+    "image_required": true,
+    "image_reason": "综合题包含网络拓扑图/表格",
+    "image_urls": [
+      "/api/exam/11408/computer_network/past-paper-images/2025/2025_q47_1.jpg"
+    ]
+  },
+  "2026-33": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2026-34": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2026-35": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2026-36": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2026-37": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2026-38": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2026-39": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2026-40": {
+    "image_required": false,
+    "image_reason": "",
+    "image_urls": []
+  },
+  "2026-47": {
+    "image_required": true,
+    "image_reason": "综合题包含网络拓扑图/表格",
+    "image_urls": [
+      "/api/exam/11408/computer_network/past-paper-images/2026/2026_q47_1.jpg",
+      "/api/exam/11408/computer_network/past-paper-images/2026/2026_q47_2.jpg"
+    ]
+  }
+}

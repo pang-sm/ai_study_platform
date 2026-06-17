@@ -11,6 +11,12 @@ import models
 TXT = BASE / "exam_resources/11408/computer_network/past_papers/raw/11408_2022_2026_计算机网络_题目答案.txt"
 CHKD = BASE / "exam_resources/11408/computer_network/past_papers/checked"
 RPT = BASE / "exam_resources/11408/computer_network/past_papers/import_reports"
+IMG_MAPPING_FILE = BASE / "exam_resources/11408/computer_network/past_papers/image_mapping.json"
+
+def load_img_mapping():
+    if IMG_MAPPING_FILE.exists():
+        return json.loads(IMG_MAPPING_FILE.read_text(encoding="utf-8"))
+    return {}
 
 SUBJECT_KEY = "computer_network"
 SUBJECT_NAME = "计算机网络"
@@ -197,6 +203,18 @@ def parse(fp):
 def main():
     dry_run = '--dry-run' in sys.argv
     questions = parse(TXT)
+
+    # Apply image mapping
+    img_mapping = load_img_mapping()
+    q_with_imgs = 0
+    for q in questions:
+        key = f"{q['year']}-{q['question_number']:02d}"
+        img_data = img_mapping.get(key, {})
+        q['image_required'] = img_data.get('image_required', False)
+        q['image_urls'] = img_data.get('image_urls', [])
+        if q['image_urls']:
+            q_with_imgs += 1
+    print(f"  Questions with images: {q_with_imgs}/{len(questions)}")
 
     t = len(questions)
     c = sum(1 for q in questions if q['question_type'] == 'choice')

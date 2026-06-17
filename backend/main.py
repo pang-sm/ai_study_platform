@@ -12328,6 +12328,9 @@ _TABLE_DIAGRAM_KW = ['下表','右图','下图','如图','表中','图示','如�
 
 def _question_needs_image(item):
     """Returns True if the question has table/diagram dependency and should show images."""
+    # CN: only Q47 comprehensive questions need images
+    if getattr(item, 'subject_key', '') == 'computer_network' and getattr(item, 'source_type', '') == 'past_paper':
+        return item.question_type == "big"
     if item.question_type == "big":
         return True
     stem = (item.stem or "")
