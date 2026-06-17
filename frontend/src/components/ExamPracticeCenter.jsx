@@ -276,10 +276,54 @@ function getChapterOutline(subjectKey) {
       ]},
     ];
   }
-  // Default: data_structure
-  if (subjectKey !== "data_structure" && subjectKey !== "computer_network") {
-    // Return DS as fallback only for data_structure
+  // CN chapter outline (computer_network)
+  if (subjectKey === "computer_network") {
+    return [
+      { id:"0", title:"总览", code:"", children:[] },
+      { id:"1", title:"第1章 计算机网络体系结构", code:"1", children:[
+        {id:"1.1", title:"1.1 计算机网络概述", code:"1.1"},
+        {id:"1.2", title:"1.2 计算机网络体系结构与参考模型", code:"1.2"},
+      ]},
+      { id:"2", title:"第2章 物理层", code:"2", children:[
+        {id:"2.1", title:"2.1 通信基础", code:"2.1"},
+        {id:"2.2", title:"2.2 传输介质", code:"2.2"},
+        {id:"2.3", title:"2.3 物理层设备", code:"2.3"},
+      ]},
+      { id:"3", title:"第3章 数据链路层", code:"3", children:[
+        {id:"3.1", title:"3.1 数据链路层功能", code:"3.1"},
+        {id:"3.2", title:"3.2 组帧", code:"3.2"},
+        {id:"3.3", title:"3.3 差错控制", code:"3.3"},
+        {id:"3.4", title:"3.4 流量控制与可靠传输", code:"3.4"},
+        {id:"3.5", title:"3.5 介质访问控制", code:"3.5"},
+        {id:"3.6", title:"3.6 局域网", code:"3.6"},
+        {id:"3.7", title:"3.7 广域网", code:"3.7"},
+        {id:"3.8", title:"3.8 数据链路层设备", code:"3.8"},
+      ]},
+      { id:"4", title:"第4章 网络层", code:"4", children:[
+        {id:"4.1", title:"4.1 网络层功能", code:"4.1"},
+        {id:"4.2", title:"4.2 路由算法", code:"4.2"},
+        {id:"4.3", title:"4.3 IPv4", code:"4.3"},
+        {id:"4.4", title:"4.4 IPv6", code:"4.4"},
+        {id:"4.5", title:"4.5 路由协议", code:"4.5"},
+        {id:"4.6", title:"4.6 IP组播", code:"4.6"},
+        {id:"4.7", title:"4.7 移动IP", code:"4.7"},
+        {id:"4.8", title:"4.8 网络层设备", code:"4.8"},
+      ]},
+      { id:"5", title:"第5章 传输层", code:"5", children:[
+        {id:"5.1", title:"5.1 传输层概述", code:"5.1"},
+        {id:"5.2", title:"5.2 UDP", code:"5.2"},
+        {id:"5.3", title:"5.3 TCP", code:"5.3"},
+      ]},
+      { id:"6", title:"第6章 应用层", code:"6", children:[
+        {id:"6.1", title:"6.1 网络应用模型", code:"6.1"},
+        {id:"6.2", title:"6.2 DNS", code:"6.2"},
+        {id:"6.3", title:"6.3 FTP", code:"6.3"},
+        {id:"6.4", title:"6.4 电子邮件", code:"6.4"},
+        {id:"6.5", title:"6.5 万维网WWW", code:"6.5"},
+      ]},
+    ];
   }
+  // Default: data_structure only
   return [
     { id:"0", title:"总览", code:"", children:[] },
     { id:"1", title:"第1章 绪论", code:"1", children:[
