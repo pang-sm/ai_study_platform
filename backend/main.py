@@ -12322,6 +12322,17 @@ def _load_img_mapping(subject_key):
             _IMG_MAPPING_CACHE[subject_key] = {}
     return _IMG_MAPPING_CACHE[subject_key]
 
+# Keywords indicating a question needs diagram/table display
+_TABLE_DIAGRAM_KW = ['下表','右图','下图','如图','表中','图示','如下表','调度表','资源分配','页表结构',
+                      '目录结构','索引节点','三级页表','结构图','前驱图','操作表','布局图','地址空间']
+
+def _question_needs_image(item):
+    """Returns True if the question has table/diagram dependency and should show images."""
+    if item.question_type == "big":
+        return True
+    stem = (item.stem or "")
+    return any(kw in stem for kw in _TABLE_DIAGRAM_KW)
+
 def get_question_images(subject_key, year, question_number):
     mapping = _load_img_mapping(subject_key)
     key = f"{year}-{question_number:02d}"
@@ -12372,7 +12383,7 @@ def get_past_paper_attempt(subject_key: str, attempt_id: int, db: Session = Depe
                 "quality_status": item.quality_status or "unchecked",
                 "review_notes": item.analysis or "",
                 "image_urls": get_question_images(subject_key, item.year, item.question_number),
-                "image_required": item.question_type == "big" or bool(get_question_images(subject_key, item.year, item.question_number)),
+                "image_required": _question_needs_image(item),
             })
     else:
         questions_data = exam_paper_parser.get_year_questions(subject_key, attempt.year)
