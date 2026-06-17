@@ -21836,7 +21836,7 @@ def admin_users_list(
             "register_time": serialize_datetime(u.created_at),
             "last_active_time": serialize_datetime(last_active or u.created_at),
             "learning_hours": round((int(getattr(u, "daily_study_minutes", 0) or 0)) / 60, 1),
-            "plan": u.plan or "free",
+            "plan": memberships.get("exam_11408", {}).get("plan") or u.plan or "free",
             "is_admin": bool(u.is_admin),
             "admin_role": normalize_admin_role(u),
             "admin_role_label": get_admin_role_label(normalize_admin_role(u)),
