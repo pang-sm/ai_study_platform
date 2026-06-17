@@ -1859,6 +1859,10 @@ def ensure_exam_study_plan_tasks_schema(conn):
             """
         )
     )
+    ensure_columns(conn, "exam_study_plan_tasks", {
+        "knowledge_point_name": "VARCHAR(255)",
+        "scope_type": "VARCHAR(30) NOT NULL DEFAULT 'single'",
+    })
 
 
 def is_material_chunks_fts_enabled():

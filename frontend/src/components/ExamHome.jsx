@@ -267,10 +267,15 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
             <div className="eh-task-cards">
               {taskSummary.tasks.map((task) => {
                 const subj = SUBJECTS.find((s) => s.key === task.subject_key);
+                const cs = task.computed_status || task.status || "not_started";
+                const STATUS_LABELS = { completed: "已完成", in_progress: "进行中", not_started: "未开始" };
+                const TYPE_LABELS = { knowledge: "知识点学习", chapter_practice: "章节练习", review: "阶段复习" };
+                const actionLabel = task.action_target === "practice_center" ? "去练习中心完成" :
+                  task.action_target === "knowledge_map" ? "去知识脉络学习" : "进入学习计划";
                 return (
                   <div
                     key={task.id}
-                    className={`eh-task-card ${task.status}`}
+                    className={`eh-task-card ${cs}`}
                     onClick={() => {
                       if (setPage) {
                         setPage("examSubjectDashboard", {
@@ -285,27 +290,37 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
                       <span className="eh-task-subject-tag">
                         {subj?.icon || "📚"} {subj?.name || task.subject_key}
                       </span>
-                      <span className={`eh-task-status-tag ${task.status}`}>
-                        {task.status === "completed" ? "已完成" :
-                         task.status === "in_progress" ? "进行中" : "未开始"}
+                      <span className={`eh-task-status-tag ${cs}`}>
+                        {STATUS_LABELS[cs] || cs}
                       </span>
                     </div>
                     <strong className="eh-task-card-title">{task.title}</strong>
                     <div className="eh-task-card-meta">
-                      {task.primary_knowledge && (
-                        <span>📘 {task.primary_knowledge}</span>
-                      )}
-                      {task.secondary_knowledge && (
-                        <span>📖 {task.secondary_knowledge}</span>
-                      )}
+                      <span>
+                        {task.scope_type === "all" ? "📚 全部范围" : `📖 ${task.knowledge_point_name || task.secondary_knowledge || ""}`}
+                      </span>
                       <span className="eh-task-type-label">
-                        {task.task_type === "knowledge" ? "知识点学习" :
-                         task.task_type === "chapter_practice" ? "章节练习" : "阶段复习"}
+                        {TYPE_LABELS[task.task_type] || task.task_type}
                       </span>
                     </div>
+                    {task.completion_reason && (
+                      <span style={{ fontSize: "11px", color: "#6b7280", display: "block", marginTop: "4px" }}>
+                        💡 {task.completion_reason}
+                      </span>
+                    )}
                     {task.due_date && (
                       <span className="eh-task-card-due">📅 {task.due_date}</span>
                     )}
+                    <button type="button" className="eh-task-card-action-btn"
+                      onClick={(e) => { e.stopPropagation(); if (setPage) {
+                        setPage("examSubjectDashboard", {
+                          subject: task.subject_key,
+                          examCourseId: `11408 ${subj?.name || task.subject_key}`,
+                          forcePanel: task.action_target === "practice_center" ? "practice" : "plan",
+                        });
+                      }}}>
+                      {actionLabel} →
+                    </button>
                   </div>
                 );
               })}

@@ -1,5 +1,4 @@
 import { useEffect, useState, useCallback } from "react";
-import ExamStudyPlanSettingsModal from "./ExamStudyPlanSettingsModal.jsx";
 import ExamStudyPlanTaskModal from "./ExamStudyPlanTaskModal.jsx";
 import { getExamSubjectConfig } from "./ExamSubjectDashboard.jsx";
 
@@ -10,7 +9,6 @@ export default function ExamStudyPlan({ user, subjectKey, onNavigate }) {
   const [planData, setPlanData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
   const [expandedSections, setExpandedSections] = useState({});
@@ -34,9 +32,7 @@ export default function ExamStudyPlan({ user, subjectKey, onNavigate }) {
     }
   }, [username, subjectKey]);
 
-  useEffect(() => {
-    fetchPlan();
-  }, [fetchPlan]);
+  useEffect(() => { fetchPlan(); }, [fetchPlan]);
 
   const toggleSection = (sectionCode) => {
     setExpandedSections((prev) => ({ ...prev, [sectionCode]: !prev[sectionCode] }));
@@ -101,22 +97,6 @@ export default function ExamStudyPlan({ user, subjectKey, onNavigate }) {
     }
   };
 
-  const quickUpdateTaskStatus = async (taskId, newStatus) => {
-    try {
-      await fetch(
-        `/api/exam/11408/subjects/${encodeURIComponent(subjectKey)}/study-plan/tasks/${taskId}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username, subject_key: subjectKey, status: newStatus }),
-        }
-      );
-      await fetchPlan();
-    } catch (e) {
-      console.error("Failed to update task:", e);
-    }
-  };
-
   if (loading) {
     return (
       <div className="esp-loading">
@@ -136,64 +116,40 @@ export default function ExamStudyPlan({ user, subjectKey, onNavigate }) {
   }
 
   const stats = planData?.stats || {};
-  const settings = planData?.settings || {};
   const chapters = planData?.chapters || [];
   const tasks = planData?.tasks || [];
 
+  const TASK_TYPE_LABELS = {
+    knowledge: "知识点学习",
+    chapter_practice: "章节练习",
+    review: "阶段复习",
+  };
+  const STATUS_LABELS = {
+    completed: "已完成",
+    in_progress: "进行中",
+    not_started: "未开始",
+  };
+
   return (
     <div className="exam-study-plan">
-      {/* Header */}
       <header className="exam-subject-header">
         <div>
           <div className="exam-subject-title-row">
             <span className="exam-subject-logo">{config.icon}</span>
             <div>
               <h1>{config.title}</h1>
-              <p>学习计划 / 知识点推进看板</p>
+              <p>学习计划 / 知识点联动任务</p>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Top stats card */}
-      <section className="esp-stats-card">
-        <div className="esp-stats-grid">
-          <div className="esp-stat-item">
-            <span className="esp-stat-label">当前学习目标</span>
-            <strong className="esp-stat-value">
-              {settings.learning_goal || `${config.title} 系统复习`}
-            </strong>
-          </div>
-          <div className="esp-stat-item">
-            <span className="esp-stat-label">计划开始日期</span>
-            <strong className="esp-stat-value">{settings.start_date || "未设置"}</strong>
-          </div>
-          <div className="esp-stat-item">
-            <span className="esp-stat-label">每日学习时长</span>
-            <strong className="esp-stat-value">{settings.daily_hours || "未设置"}</strong>
-          </div>
-          <div className="esp-stat-item">
-            <span className="esp-stat-label">阶段任务数</span>
-            <strong className="esp-stat-value">{tasks.length} 个</strong>
-          </div>
-          <div className="esp-stat-item">
-            <span className="esp-stat-label">完成进度</span>
-            <strong className="esp-stat-value esp-stat-accent">{stats.overall_progress || 0}%</strong>
-          </div>
-        </div>
-        <div className="esp-stats-bar-wrap">
-          <div className="esp-stats-bar" style={{ width: `${stats.overall_progress || 0}%` }} />
-        </div>
-        <button type="button" className="esp-edit-goal-btn" onClick={() => setSettingsOpen(true)}>
-          编辑目标
-        </button>
-      </section>
-
       {/* ── Stage Tasks Section ── */}
       <section className="esp-tasks-section">
         <div className="esp-tasks-header">
           <h2>📋 阶段学习任务</h2>
-          <button type="button" className="esp-add-task-btn" onClick={() => { setEditingTask(null); setTaskModalOpen(true); }}>
+          <button type="button" className="esp-add-task-btn"
+            onClick={() => { setEditingTask(null); setTaskModalOpen(true); }}>
             + 新建任务
           </button>
         </div>
@@ -201,65 +157,72 @@ export default function ExamStudyPlan({ user, subjectKey, onNavigate }) {
         {tasks.length === 0 ? (
           <div className="esp-tasks-empty">
             <p>还没有阶段学习任务</p>
-            <button type="button" onClick={() => { setEditingTask(null); setTaskModalOpen(true); }}>
+            <button type="button"
+              onClick={() => { setEditingTask(null); setTaskModalOpen(true); }}>
               创建第一个任务
             </button>
           </div>
         ) : (
           <div className="esp-tasks-list">
-            {tasks.map((task) => (
-              <div key={task.id} className={`esp-task-card ${task.status}`}>
-                <div className="esp-task-main">
-                  <div className="esp-task-info">
-                    <strong className="esp-task-title">{task.title}</strong>
-                    <div className="esp-task-meta">
-                      {task.primary_knowledge && (
-                        <span className="esp-task-kp">📘 {task.primary_knowledge}</span>
+            {tasks.map((task) => {
+              const cs = task.computed_status || task.status || "not_started";
+              return (
+                <div key={task.id} className={`esp-task-card ${cs}`}>
+                  <div className="esp-task-main">
+                    <div className="esp-task-info">
+                      <strong className="esp-task-title">{task.title}</strong>
+                      <div className="esp-task-meta">
+                        <span className="esp-task-kp">
+                          {task.scope_type === "all" ? "📚 全部范围" : `📖 ${task.knowledge_point_name || task.secondary_knowledge || "未指定"}`}
+                        </span>
+                        <span className={`esp-task-type-tag ${task.task_type}`}>
+                          {TASK_TYPE_LABELS[task.task_type] || task.task_type}
+                        </span>
+                        <span className={`esp-task-computed-status ${cs}`}>
+                          {STATUS_LABELS[cs] || cs}
+                        </span>
+                      </div>
+                      {task.completion_reason && (
+                        <p className="esp-task-reason">
+                          💡 {task.completion_reason}
+                        </p>
                       )}
-                      {task.secondary_knowledge && (
-                        <span className="esp-task-kp">📖 {task.secondary_knowledge}</span>
+                      {task.due_date && (
+                        <span className="esp-task-due">📅 计划完成：{task.due_date}</span>
                       )}
-                      <span className={`esp-task-type-tag ${task.task_type}`}>
-                        {task.task_type === "knowledge" ? "知识点学习" :
-                         task.task_type === "chapter_practice" ? "章节练习" : "阶段复习"}
-                      </span>
-                      <span className={`esp-task-status-tag ${task.status}`}>
-                        {task.status === "completed" ? "已完成" :
-                         task.status === "in_progress" ? "进行中" : "未开始"}
-                      </span>
+                      {task.note && <p className="esp-task-note">{task.note}</p>}
                     </div>
-                    {task.due_date && (
-                      <span className="esp-task-due">📅 计划完成：{task.due_date}</span>
-                    )}
-                    {task.note && <p className="esp-task-note">{task.note}</p>}
-                  </div>
-                  <div className="esp-task-actions">
-                    <select
-                      className="esp-task-status-select"
-                      value={task.status}
-                      onChange={(e) => quickUpdateTaskStatus(task.id, e.target.value)}
-                    >
-                      <option value="not_started">未开始</option>
-                      <option value="in_progress">进行中</option>
-                      <option value="completed">已完成</option>
-                    </select>
-                    <button type="button" className="esp-task-edit-btn"
-                      onClick={() => { setEditingTask(task); setTaskModalOpen(true); }}>
-                      编辑
-                    </button>
-                    <button type="button" className="esp-task-del-btn"
-                      onClick={() => deleteTask(task.id)}>
-                      删除
-                    </button>
+                    <div className="esp-task-actions">
+                      {task.action_target === "practice_center" && (
+                        <button type="button" className="esp-task-goto-btn"
+                          onClick={() => onNavigate?.("practice")}>
+                          前往练习中心
+                        </button>
+                      )}
+                      {task.action_target === "knowledge_map" && (
+                        <button type="button" className="esp-task-goto-btn"
+                          onClick={() => onNavigate?.("knowledge")}>
+                          前往知识脉络
+                        </button>
+                      )}
+                      <button type="button" className="esp-task-edit-btn"
+                        onClick={() => { setEditingTask(task); setTaskModalOpen(true); }}>
+                        编辑
+                      </button>
+                      <button type="button" className="esp-task-del-btn"
+                        onClick={() => deleteTask(task.id)}>
+                        删除
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>
 
-      {/* ── Summary Row ── */}
+      {/* Summary chips */}
       <section className="esp-summary-row">
         <div className="esp-summary-chip"><span>二级知识点</span><strong>{stats.total_sections || 0}</strong></div>
         <div className="esp-summary-chip done"><span>已完成</span><strong>{stats.sections_completed || 0}</strong></div>
@@ -267,7 +230,7 @@ export default function ExamStudyPlan({ user, subjectKey, onNavigate }) {
         <div className="esp-summary-chip pending"><span>未开始</span><strong>{stats.sections_not_started || 0}</strong></div>
       </section>
 
-      {/* ── Knowledge Point Board ── */}
+      {/* Knowledge Point Board */}
       <section className="esp-chapters">
         <h2 className="esp-board-title">📚 知识点推进看板</h2>
         {chapters.length === 0 ? (
@@ -281,19 +244,11 @@ export default function ExamStudyPlan({ user, subjectKey, onNavigate }) {
               expandedSections={expandedSections} onToggleSection={toggleSection}
               onUpdateKnowledgeItem={updateKnowledgeItem}
               onToggleChapterPractice={toggleChapterPractice}
-              savingCode={savingCode}
-              showCompleted={settings.show_completed !== false} />
+              savingCode={savingCode} />
           ))
         )}
       </section>
 
-      {/* Modals */}
-      {settingsOpen && (
-        <ExamStudyPlanSettingsModal user={user} subjectKey={subjectKey}
-          currentSettings={settings}
-          onSaved={() => { setSettingsOpen(false); fetchPlan(); }}
-          onClose={() => setSettingsOpen(false)} />
-      )}
       {taskModalOpen && (
         <ExamStudyPlanTaskModal user={user} subjectKey={subjectKey}
           chapters={chapters} editTask={editingTask}
@@ -304,8 +259,7 @@ export default function ExamStudyPlan({ user, subjectKey, onNavigate }) {
   );
 }
 
-/* ── Chapter Card ── */
-function ChapterCard({ chapter, expandedSections, onToggleSection, onUpdateKnowledgeItem, onToggleChapterPractice, savingCode, showCompleted }) {
+function ChapterCard({ chapter, expandedSections, onToggleSection, onUpdateKnowledgeItem, onToggleChapterPractice, savingCode }) {
   const sections = chapter.children || [];
   return (
     <div className={`esp-chapter-card${chapter.chapter_status === "completed" ? " completed" : ""}`}>
@@ -332,7 +286,6 @@ function ChapterCard({ chapter, expandedSections, onToggleSection, onUpdateKnowl
           const ls = section.leaf_stats || {};
           const cpDone = section.chapter_practice_completed;
           const isExpanded = expandedSections[sectionCode] || false;
-          if (!showCompleted && st === "completed") return null;
           return (
             <div key={sectionCode} className={`esp-section-card ${st}`}>
               <div className="esp-section-header">

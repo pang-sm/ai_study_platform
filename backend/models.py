@@ -922,8 +922,12 @@ class ExamStudyPlanTask(Base):
     username = Column(String(50), index=True, nullable=False)
     subject_key = Column(String(50), index=True, nullable=False)
     title = Column(String(500), nullable=False)
+    # Legacy fields kept for backward compatibility
     primary_knowledge = Column(String(255), nullable=True)
     secondary_knowledge = Column(String(255), nullable=True)
+    # New knowledge-point binding
+    knowledge_point_name = Column(String(255), nullable=True)
+    scope_type = Column(String(30), nullable=False, default="single")
     task_type = Column(String(30), nullable=False, default="knowledge")
     status = Column(String(20), nullable=False, default="not_started")
     due_date = Column(String(30), nullable=True)

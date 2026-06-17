@@ -23418,3 +23418,61 @@ body.exam-attempt-body #root {
   color: #6b7280;
   display: inline-block;
 }
+.eh-task-card-action-btn {
+  display: block;
+  margin-top: 10px;
+  padding: 6px 14px;
+  background: #f5f3ff;
+  color: #7c3aed;
+  border: 1px solid #c4b5fd;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s;
+}
+.eh-task-card-action-btn:hover {
+  background: #ede9fe;
+  border-color: #7c3aed;
+}
+
+/* Computed status badge (learning plan page) */
+.esp-task-computed-status {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+.esp-task-computed-status.completed {
+  background: #d1fae5;
+  color: #065f46;
+}
+.esp-task-computed-status.in_progress {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+.esp-task-computed-status.not_started {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+.esp-task-reason {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #6b7280;
+  font-style: italic;
+}
+.esp-task-goto-btn {
+  padding: 4px 12px;
+  background: #f5f3ff;
+  color: #7c3aed;
+  border: 1px solid #c4b5fd;
+  border-radius: 8px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.esp-task-goto-btn:hover {
+  background: #ede9fe;
+}

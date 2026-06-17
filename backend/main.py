@@ -12611,20 +12611,182 @@ def get_exam_study_plan_summary(username: str = "", db: Session = Depends(get_db
 # ── 11408 Study Plan Tasks ──────────────────────────────
 
 
-def _serialize_task(task: models.ExamStudyPlanTask) -> dict:
+def _compute_task_completion(
+    task: "models.ExamStudyPlanTask",
+    db: Session,
+) -> tuple[str, str, str]:
+    """Compute a task's real completion status from knowledge map and chapter practice data.
+
+    Returns (computed_status, completion_reason, action_target).
+    """
+    username = task.username
+    subject_key = task.subject_key
+    course_id = f"{subject_key}_11408"
+    kp_name = (task.knowledge_point_name or "").strip()
+    scope = (task.scope_type or "single").strip()
+    task_type = (task.task_type or "knowledge").strip()
+
+    # Load all user progress for this subject
+    progress_rows = (
+        db.query(models.UserKnowledgeProgress)
+        .filter(
+            models.UserKnowledgeProgress.username == username,
+            models.UserKnowledgeProgress.course_id == course_id,
+        )
+        .all()
+    )
+    progress_by_code: dict[str, str] = {}
+    for p in progress_rows:
+        code = str(getattr(p, "knowledge_point_code", "") or "").strip()
+        p_status = _display_map_progress_status(p)
+        progress_by_code[code] = p_status
+
+    # Load chapter practice records
+    cp_rows = db.query(models.ExamStudyPlanChapterPractice).filter(
+        models.ExamStudyPlanChapterPractice.username == username,
+        models.ExamStudyPlanChapterPractice.subject_key == subject_key,
+    ).all()
+    cp_completed_codes = {r.section_code for r in cp_rows if r.completed}
+
+    # Build knowledge map index to resolve scope
+    seed_path = _knowledge_map_seed_path(course_id)
+    seed_data = {"chapters": []}
+    if seed_path.exists():
+        try:
+            seed_data = json.loads(seed_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            pass
+    chapters = seed_data.get("chapters") or []
+
+    # Build section → leaf codes mapping from seed data
+    section_leaf_codes: dict[str, list[str]] = {}
+    all_leaf_codes: list[str] = []
+
+    def _walk_section_codes(nodes, current_sec_code="", path_prefix=""):
+        for i, node in enumerate(nodes or [], start=1):
+            node_path = f"{path_prefix}.{i}" if path_prefix else str(i)
+            code = str(node.get("code") or "").strip()
+            children = node.get("children") or []
+
+            if code:
+                current_sec_code = code
+                if current_sec_code not in section_leaf_codes:
+                    section_leaf_codes[current_sec_code] = []
+
+            if not children:
+                # leaf
+                leaf_code = code if code else f"_leaf:{node_path}"
+                all_leaf_codes.append(leaf_code)
+                if current_sec_code in section_leaf_codes:
+                    section_leaf_codes[current_sec_code].append(leaf_code)
+            else:
+                _walk_section_codes(children, current_sec_code, node_path)
+
+    for ch in chapters:
+        for sec in (ch.get("children") or []):
+            _walk_section_codes([sec], "", "")
+
+    # Determine relevant leaf codes for this task
+    relevant_codes: list[str] = []
+    if scope == "all" or not kp_name:
+        relevant_codes = list(all_leaf_codes)
+    else:
+        # Find the section code matching the knowledge_point_name
+        for sec_code, leaves in section_leaf_codes.items():
+            # Also match by title
+            for ch in chapters:
+                for sec in (ch.get("children") or []):
+                    if sec.get("title", "").strip() == kp_name and sec.get("code", "").strip() == sec_code:
+                        relevant_codes = leaves
+                        break
+        if not relevant_codes:
+            # Try matching by section title from seed
+            for ch in chapters:
+                for sec in (ch.get("children") or []):
+                    if sec.get("title", "").strip() == kp_name:
+                        sec_code = str(sec.get("code") or "").strip()
+                        if sec_code in section_leaf_codes:
+                            relevant_codes = section_leaf_codes[sec_code]
+                        break
+
+    if not relevant_codes:
+        # No matching knowledge points — task is effectively pending
+        return ("not_started", "等待知识脉络数据加载", "knowledge_map")
+
+    # Collect statuses for relevant leaves
+    leaf_statuses = [progress_by_code.get(c, "not_started") for c in relevant_codes]
+    total = len(leaf_statuses)
+    mastered = sum(1 for s in leaf_statuses if s == "mastered")
+    review_due = sum(1 for s in leaf_statuses if s == "review_due")
+
+    if task_type == "knowledge":
+        # Knowledge learning: all leaves mastered → completed
+        if total > 0 and mastered == total:
+            return ("completed", "所有知识点均已掌握", "knowledge_map")
+        elif mastered > 0:
+            return ("in_progress", f"已掌握 {mastered}/{total} 个知识点，等待知识脉络中标记为已学习", "knowledge_map")
+        else:
+            return ("not_started", "等待知识脉络中该知识点标记为已学习", "knowledge_map")
+
+    elif task_type == "chapter_practice":
+        # Chapter practice: all relevant sections have cp completed
+        # Map relevant_codes to their section codes
+        relevant_sections = set()
+        for sec_code, leaves in section_leaf_codes.items():
+            if any(l in relevant_codes for l in leaves):
+                relevant_sections.add(sec_code)
+
+        if not relevant_sections:
+            relevant_sections = {kp_name}
+
+        sections_done = sum(1 for sc in relevant_sections if sc in cp_completed_codes)
+        sections_total = len(relevant_sections)
+        if sections_total > 0 and sections_done == sections_total:
+            return ("completed", "所有章节练习均已完成", "practice_center")
+        elif sections_done > 0:
+            return ("in_progress", f"已完成 {sections_done}/{sections_total} 个章节练习，等待练习中心完成剩余练习", "practice_center")
+        else:
+            return ("not_started", "等待练习中心完成该知识点章节练习", "practice_center")
+
+    elif task_type == "review":
+        # Stage review: no review_due leaves, all mastered
+        if review_due == 0 and total > 0 and mastered == total:
+            return ("completed", "该知识点暂无待复习项，全部已掌握", "knowledge_map")
+        elif review_due > 0:
+            return ("in_progress", f"有 {review_due} 个知识点待复习，前往知识脉络复习", "knowledge_map")
+        elif mastered > 0:
+            return ("in_progress", f"已掌握 {mastered}/{total}，部分知识点仍需学习", "knowledge_map")
+        else:
+            return ("not_started", "等待知识脉络中标记学习状态", "knowledge_map")
+
+    return ("not_started", "等待开始", "knowledge_map")
+
+
+def _serialize_task(task: models.ExamStudyPlanTask, db: Session | None = None) -> dict:
+    computed_status, reason, action_target = "not_started", "", "knowledge_map"
+    if db is not None:
+        computed_status, reason, action_target = _compute_task_completion(task, db)
+
     return {
         "id": task.id,
         "username": task.username,
         "subject_key": task.subject_key,
+        "subject_name": EXAM_SUBJECT_DIRS.get(task.subject_key, task.subject_key),
         "title": task.title,
-        "primary_knowledge": task.primary_knowledge or "",
-        "secondary_knowledge": task.secondary_knowledge or "",
+        "knowledge_point_name": task.knowledge_point_name or task.secondary_knowledge or "",
+        "scope_type": task.scope_type or "single",
         "task_type": task.task_type or "knowledge",
-        "status": task.status or "not_started",
+        "computed_status": computed_status,
+        "completion_reason": reason,
+        "action_target": action_target,
         "due_date": task.due_date or "",
         "note": task.note or "",
         "created_at": serialize_datetime(task.created_at) if task.created_at else None,
         "updated_at": serialize_datetime(task.updated_at) if task.updated_at else None,
+        # Legacy field for backward compat
+        "status": computed_status,
+        "primary_knowledge": task.primary_knowledge or "",
+        "secondary_knowledge": task.secondary_knowledge or "",
     }
 
 
@@ -12636,16 +12798,19 @@ def create_exam_study_plan_task(
 ):
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
+    if not (req.knowledge_point_name or "").strip() and (req.scope_type or "single") != "all":
+        raise HTTPException(status_code=400, detail="knowledge_point_name is required when scope_type is not 'all'")
     user = get_user_by_username(req.username, db)
     now = utc_now()
+    kp_name = req.knowledge_point_name or ""
     task = models.ExamStudyPlanTask(
         username=user.username,
         subject_key=subject_key,
         title=req.title,
-        primary_knowledge=req.primary_knowledge or "",
-        secondary_knowledge=req.secondary_knowledge or "",
+        knowledge_point_name=kp_name,
+        scope_type=req.scope_type or "single",
         task_type=req.task_type or "knowledge",
-        status=req.status or "not_started",
+        status="not_started",
         due_date=req.due_date or "",
         note=req.note or "",
         created_at=now,
@@ -12654,7 +12819,7 @@ def create_exam_study_plan_task(
     db.add(task)
     db.commit()
     db.refresh(task)
-    return {"success": True, "task": _serialize_task(task)}
+    return {"success": True, "task": _serialize_task(task, db)}
 
 
 @app.patch("/exam/11408/subjects/{subject_key}/study-plan/tasks/{task_id}")
@@ -12677,14 +12842,12 @@ def update_exam_study_plan_task(
     now = utc_now()
     if req.title is not None:
         task.title = req.title
-    if req.primary_knowledge is not None:
-        task.primary_knowledge = req.primary_knowledge
-    if req.secondary_knowledge is not None:
-        task.secondary_knowledge = req.secondary_knowledge
+    if req.knowledge_point_name is not None:
+        task.knowledge_point_name = req.knowledge_point_name
+    if req.scope_type is not None:
+        task.scope_type = req.scope_type
     if req.task_type is not None:
         task.task_type = req.task_type
-    if req.status is not None:
-        task.status = req.status
     if req.due_date is not None:
         task.due_date = req.due_date
     if req.note is not None:
@@ -12692,7 +12855,7 @@ def update_exam_study_plan_task(
     task.updated_at = now
     db.commit()
     db.refresh(task)
-    return {"success": True, "task": _serialize_task(task)}
+    return {"success": True, "task": _serialize_task(task, db)}
 
 
 @app.delete("/exam/11408/subjects/{subject_key}/study-plan/tasks/{task_id}")
@@ -12728,7 +12891,7 @@ def get_exam_study_plan_tasks_summary(username: str = "", db: Session = Depends(
         models.ExamStudyPlanTask.username == user.username,
     ).order_by(models.ExamStudyPlanTask.created_at.desc()).all()
 
-    task_list = [_serialize_task(t) for t in tasks]
+    task_list = [_serialize_task(t, db) for t in tasks]
     by_subject: dict[str, list] = {}
     for t in task_list:
         sk = t["subject_key"]
@@ -12741,9 +12904,9 @@ def get_exam_study_plan_tasks_summary(username: str = "", db: Session = Depends(
         "by_subject": by_subject,
         "total": len(task_list),
         "by_status": {
-            "not_started": sum(1 for t in task_list if t["status"] == "not_started"),
-            "in_progress": sum(1 for t in task_list if t["status"] == "in_progress"),
-            "completed": sum(1 for t in task_list if t["status"] == "completed"),
+            "not_started": sum(1 for t in task_list if t["computed_status"] == "not_started"),
+            "in_progress": sum(1 for t in task_list if t["computed_status"] == "in_progress"),
+            "completed": sum(1 for t in task_list if t["computed_status"] == "completed"),
         },
     }
 

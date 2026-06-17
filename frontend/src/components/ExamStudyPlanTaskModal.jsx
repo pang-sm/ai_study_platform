@@ -7,47 +7,37 @@ export default function ExamStudyPlanTaskModal({ user, subjectKey, chapters, edi
   const isEdit = !!editTask;
 
   const [title, setTitle] = useState(editTask?.title || "");
-  const [primaryKp, setPrimaryKp] = useState(editTask?.primary_knowledge || "");
-  const [secondaryKp, setSecondaryKp] = useState(editTask?.secondary_knowledge || "");
+  const [kpName, setKpName] = useState(
+    editTask?.knowledge_point_name || editTask?.secondary_knowledge || ""
+  );
+  const [scopeType, setScopeType] = useState(editTask?.scope_type || "single");
   const [taskType, setTaskType] = useState(editTask?.task_type || "knowledge");
-  const [status, setStatus] = useState(editTask?.status || "not_started");
   const [dueDate, setDueDate] = useState(editTask?.due_date || "");
   const [note, setNote] = useState(editTask?.note || "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  // Flatten knowledge points for dropdowns
+  // Gather all section (二级知识点) names for dropdown
   const allSections = useMemo(() => {
     const result = [];
     for (const ch of (chapters || [])) {
-      const chName = ch.title || "";
       for (const sec of (ch.children || [])) {
-        result.push({
-          chapterName: chName,
-          sectionName: sec.title || "",
-          sectionCode: sec.code || "",
-        });
-        for (const sub of (sec.children || [])) {
-          if (sub.children && sub.children.length > 0) {
-            for (const leaf of sub.children) {
-              if (!leaf.children || leaf.children.length === 0) {
-                // This is a leaf — skip, we only want section level
-              }
-            }
-          }
+        const name = sec.title || "";
+        if (name && !result.find((r) => r.name === name)) {
+          result.push({ name, code: sec.code || "" });
         }
       }
     }
     return result;
   }, [chapters]);
 
-  const allChapterNames = useMemo(() => {
-    return [...new Set((chapters || []).map((c) => c.title || "").filter(Boolean))];
-  }, [chapters]);
-
   const handleSave = async () => {
     if (!title.trim()) {
       setError("请输入任务标题");
+      return;
+    }
+    if (scopeType !== "all" && !kpName.trim()) {
+      setError("请选择知识点");
       return;
     }
     setSaving(true);
@@ -57,10 +47,9 @@ export default function ExamStudyPlanTaskModal({ user, subjectKey, chapters, edi
       username,
       subject_key: subjectKey,
       title: title.trim(),
-      primary_knowledge: primaryKp,
-      secondary_knowledge: secondaryKp,
+      knowledge_point_name: scopeType === "all" ? "全部范围" : kpName,
+      scope_type: scopeType,
       task_type: taskType,
-      status,
       due_date: dueDate,
       note: note.trim(),
     };
@@ -108,47 +97,38 @@ export default function ExamStudyPlanTaskModal({ user, subjectKey, chapters, edi
             <label>任务标题 *</label>
             <input type="text" value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="例如：完成线性表顺序表与链表复习" />
+              placeholder="例如：完成线性表知识点学习" />
           </div>
 
-          <div className="esp-form-row">
-            <div className="esp-form-group">
-              <label>所属一级知识点</label>
-              <select value={primaryKp} onChange={(e) => setPrimaryKp(e.target.value)}>
-                <option value="">不指定</option>
-                {allChapterNames.map((name) => (
-                  <option key={name} value={name}>{name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="esp-form-group">
-              <label>所属二级知识点</label>
-              <select value={secondaryKp} onChange={(e) => setSecondaryKp(e.target.value)}>
-                <option value="">不指定</option>
-                {allSections.map((s) => (
-                  <option key={s.sectionCode} value={s.sectionName}>{s.sectionName}</option>
-                ))}
-              </select>
-            </div>
+          <div className="esp-form-group">
+            <label>知识点 *</label>
+            <select value={scopeType === "all" ? "__all__" : kpName}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === "__all__") {
+                  setScopeType("all");
+                  setKpName("全部范围");
+                } else {
+                  setScopeType("single");
+                  setKpName(val);
+                }
+              }}
+              required>
+              <option value="__all__">📚 全部范围</option>
+              <option value="" disabled>—— 选择具体知识点 ——</option>
+              {allSections.map((s) => (
+                <option key={s.code || s.name} value={s.name}>{s.name}</option>
+              ))}
+            </select>
           </div>
 
-          <div className="esp-form-row">
-            <div className="esp-form-group">
-              <label>任务类型</label>
-              <select value={taskType} onChange={(e) => setTaskType(e.target.value)}>
-                {TASK_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>{t.label}</option>
-                ))}
-              </select>
-            </div>
-            <div className="esp-form-group">
-              <label>状态</label>
-              <select value={status} onChange={(e) => setStatus(e.target.value)}>
-                <option value="not_started">未开始</option>
-                <option value="in_progress">进行中</option>
-                <option value="completed">已完成</option>
-              </select>
-            </div>
+          <div className="esp-form-group">
+            <label>任务类型</label>
+            <select value={taskType} onChange={(e) => setTaskType(e.target.value)}>
+              {TASK_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
           </div>
 
           <div className="esp-form-group">
@@ -165,6 +145,10 @@ export default function ExamStudyPlanTaskModal({ user, subjectKey, chapters, edi
               rows={3}
               style={{ resize: "vertical", padding: "10px 14px", borderRadius: "10px", border: "1px solid #d1d5db", fontSize: "14px", outline: "none", fontFamily: "inherit" }} />
           </div>
+
+          <p style={{ fontSize: "12px", color: "#6b7280", margin: 0 }}>
+            💡 任务完成状态由系统自动计算，无需手动设置。
+          </p>
         </div>
         <div className="esp-modal-footer">
           <button type="button" className="esp-modal-cancel" onClick={onClose} disabled={saving}>取消</button>
