@@ -12137,16 +12137,10 @@ def _get_exam_study_plan_chapter_practices(username: str, subject_key: str, db: 
     return {row.section_code: row for row in rows}
 
 
-def _build_study_plan_tree(chapters: list[dict], progress_by_code: dict, chapter_practice_by_code: dict) -> list[dict]:
-    """Build the study plan tree from knowledge map chapters, merging user progress.
+def _build_study_plan_tree(chapters: list[dict], chapter_practice_by_code: dict) -> list[dict]:
+    """Build the study plan tree from already-enriched knowledge map chapters.
 
-    Hierarchy:
-      chapter (一级知识点) -> section (二级知识点) -> sub-section/leaf (小知识点)
-
-    Each section (二级知识点) gets:
-      - leaf progress counts
-      - chapter practice status
-      - computed section status and completion rate
+    Expects chapters to already have user progress attached via _attach_knowledge_map_status.
     """
     result = []
     for chapter_raw in chapters:
@@ -12155,13 +12149,7 @@ def _build_study_plan_tree(chapters: list[dict], progress_by_code: dict, chapter
         for section_raw in (chapter.get("children") or []):
             section = dict(section_raw)
 
-            # IMPORTANT: First attach user progress to sub-children, then compute stats
-            sub_children = _attach_knowledge_map_status(
-                section.get("children") or [], progress_by_code
-            )
-            section["children"] = sub_children
-
-            # Now collect leaf statuses from the enriched children
+            # Leaf statuses are already computed on the enriched nodes
             leaf_statuses = _collect_leaf_statuses(section)
             total_leaves = sum(leaf_statuses.values())
             mastered = leaf_statuses.get("mastered", 0)
@@ -12262,9 +12250,14 @@ def get_exam_subject_study_plan(subject_key: str, username: str = "", db: Sessio
     if username:
         plan_settings = _get_exam_study_plan_settings(username, subject_key, db)
 
-    # Build enriched study plan tree
-    raw_chapters = payload.get("chapters") or []
-    study_plan_tree = _build_study_plan_tree(raw_chapters, progress_by_code, chapter_practice_by_code)
+    # First attach user progress at the ROOT level so all leaf codes
+    # are globally scoped and consistent with _build_enriched_map_index
+    enriched_chapters = _attach_knowledge_map_status(
+        payload.get("chapters") or [], progress_by_code
+    )
+
+    # Build study plan tree from already-enriched chapters
+    study_plan_tree = _build_study_plan_tree(enriched_chapters, chapter_practice_by_code)
 
     # Compute overall stats
     total_leaves = sum(
