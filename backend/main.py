@@ -674,16 +674,51 @@ def upgrade_exam_package(req: dict, db: Session = Depends(get_db)):
     }
 
 
+def get_user_service_membership(db: Session, user_id: int, service_key: str):
+    """Unified membership reader.
+
+    Returns the UserServiceMembership record for (user_id, service_key),
+    or None if no record exists.
+
+    Usage:
+        m = get_user_service_membership(db, user.id, "exam_11408")
+        plan = m.plan if m and m.is_enabled else "free"
+
+    IMPORTANT:
+        - users.plan is a LEGACY compatibility field only — do NOT use it
+          as the primary plan source for 11408/course/programming.
+        - Always read plan from user_service_memberships for accurate
+          service-direction membership.
+        - course and programming should use get_user_service_membership
+          with their respective service_key when they are implemented.
+    """
+    return db.query(models.UserServiceMembership).filter(
+        models.UserServiceMembership.user_id == user_id,
+        models.UserServiceMembership.service_key == service_key,
+    ).first()
+
+
+def get_effective_service_plan(db: Session, user_id: int, service_key: str) -> str:
+    """Return the effective plan for a service direction.
+
+    Returns the membership's plan if enabled, otherwise 'free'.
+    Falls back to 'free' if no membership record exists.
+
+    This is the SINGLE source of truth for service-direction plan lookups.
+    """
+    m = get_user_service_membership(db, user_id, service_key)
+    if m and m.is_enabled:
+        return m.plan or "free"
+    return "free"
+
+
 def _sync_membership_to_track(db: Session, user: models.User):
     """Sync exam_11408 membership plan to UserLearningTrack for 11408 backward compat."""
-    membership = db.query(models.UserServiceMembership).filter(
-        models.UserServiceMembership.user_id == user.id,
-        models.UserServiceMembership.service_key == "exam_11408",
-    ).first()
+    membership = get_user_service_membership(db, user.id, "exam_11408")
     if not membership or not membership.is_enabled:
         return
     track = get_user_track(db, user.id, "exam_408")
-    mplan = membership.plan or "free"
+    mplan = get_effective_service_plan(db, user.id, "exam_11408")
     # Map membership plan → existing package_type
     plan_to_pkg = {"free": "free", "monthly": "monthly_sprint", "quarterly": "quarterly_boost", "full": "full_exam"}
     pkg = plan_to_pkg.get(mplan, "free")
@@ -21836,7 +21871,7 @@ def admin_users_list(
             "register_time": serialize_datetime(u.created_at),
             "last_active_time": serialize_datetime(last_active or u.created_at),
             "learning_hours": round((int(getattr(u, "daily_study_minutes", 0) or 0)) / 60, 1),
-            "plan": memberships.get("exam_11408", {}).get("plan") or u.plan or "free",
+            "plan": get_effective_service_plan(db, u.id, "exam_11408") or u.plan or "free",
             "is_admin": bool(u.is_admin),
             "admin_role": normalize_admin_role(u),
             "admin_role_label": get_admin_role_label(normalize_admin_role(u)),
@@ -22119,7 +22154,7 @@ def admin_user_detail(target_username: str, admin_username: str, db: Session = D
     return {
         "username": u.username,
         "nickname": u.nickname or "",
-        "plan": u.plan or "free",
+        "plan": get_effective_service_plan(db, u.id, "exam_11408") or u.plan or "free",
         "is_admin": bool(u.is_admin),
         "admin_role": normalize_admin_role(u),
         "admin_role_label": get_admin_role_label(normalize_admin_role(u)),
