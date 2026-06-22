@@ -19,7 +19,7 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeou
 from datetime import date, datetime, timedelta, timezone
 from io import BytesIO, StringIO
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 
 import fitz
 from dotenv import load_dotenv
@@ -986,7 +986,7 @@ def get_current_user_from_bearer(authorization: str | None, db: Session):
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="请先登录")
 
-    username = authorization.replace("Bearer ", "", 1).strip()
+    username = unquote(authorization.replace("Bearer ", "", 1).strip())
     user = get_user_by_username(username, db)
     ensure_user_can_access(user)
     return user

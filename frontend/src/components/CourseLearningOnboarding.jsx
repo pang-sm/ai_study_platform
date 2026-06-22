@@ -101,7 +101,7 @@ export default function CourseLearningOnboarding({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${user.username}`,
+          Authorization: `Bearer ${encodeURIComponent(user.username)}`,
         },
         body: JSON.stringify({
           major,

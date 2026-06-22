@@ -1005,7 +1005,7 @@ function App() {
   const loadCourseLearningOnboardingStatus = async (targetUser = user) => {
     if (!targetUser?.username) return null;
     const res = await fetch(`${API_BASE}/course-learning/onboarding`, {
-      headers: { Authorization: `Bearer ${targetUser.username}` },
+      headers: { Authorization: `Bearer ${encodeURIComponent(targetUser.username)}` },
     });
     const data = await res.json();
     if (!res.ok) {
@@ -3223,7 +3223,7 @@ function App() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${user.username}`,
+            Authorization: `Bearer ${encodeURIComponent(user.username)}`,
           },
           body: JSON.stringify({
             major: details.major || user.major || "",
