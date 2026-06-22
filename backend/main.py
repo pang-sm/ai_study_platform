@@ -300,6 +300,13 @@ class OnboardingUpdateRequest(BaseModel):
     exam_package_type: str | None = None
 
 
+class CourseLearningOnboardingRequest(BaseModel):
+    major: str
+    grade: str
+    selected_courses: list[str]
+    material_types: list[str] = []
+
+
 class AddMaterialFromMessageRequest(BaseModel):
     username: str
     message_id: int
@@ -557,6 +564,16 @@ def serialize_track(track):
         "created_at": serialize_datetime(track.created_at),
         "updated_at": serialize_datetime(track.updated_at),
     }
+
+
+def _parse_track_onboarding_detail(track) -> dict:
+    if not track or not track.onboarding_detail_json:
+        return {}
+    try:
+        detail = json.loads(track.onboarding_detail_json)
+        return detail if isinstance(detail, dict) else {}
+    except (json.JSONDecodeError, TypeError):
+        return {}
 
 
 # ── 11408 School Whitelist ──
@@ -4711,6 +4728,104 @@ def complete_onboarding(req: OnboardingUpdateRequest, username: str, db: Session
     profile["tracks"] = tracks
     profile["active_track_type"] = goal_type if goal_type else None
     return {"message": "onboarding saved", "user": profile, "profile": profile}
+
+
+def _course_learning_onboarding_payload(user: models.User, track: models.UserLearningTrack | None):
+    detail = _parse_track_onboarding_detail(track)
+    completed = bool(detail.get("course_learning_onboarding_completed"))
+    return {
+        "service_key": "course_learning",
+        "onboarding_completed": completed,
+        "major": detail.get("major") or user.major or "",
+        "grade": detail.get("grade") or user.grade or "",
+        "selected_courses": detail.get("selected_courses") if isinstance(detail.get("selected_courses"), list) else [],
+        "material_types": detail.get("material_types") if isinstance(detail.get("material_types"), list) else [],
+        "created_at": detail.get("course_learning_created_at") or (serialize_datetime(track.created_at) if track else None),
+        "updated_at": detail.get("course_learning_updated_at") or (serialize_datetime(track.updated_at) if track else None),
+    }
+
+
+@app.get("/course-learning/onboarding")
+def get_course_learning_onboarding(username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    ensure_user_can_access(user)
+    track = get_user_track(db, user.id, "university_course")
+    return _course_learning_onboarding_payload(user, track)
+
+
+@app.post("/course-learning/onboarding")
+def save_course_learning_onboarding(
+    req: CourseLearningOnboardingRequest,
+    username: str,
+    db: Session = Depends(get_db),
+):
+    user = get_user_by_username(username, db)
+    ensure_user_can_access(user)
+
+    major = (req.major or "").strip()[:80]
+    grade = (req.grade or "").strip()[:30]
+    selected_courses = []
+    for item in req.selected_courses or []:
+        value = (item or "").strip()
+        if value and value not in selected_courses:
+            selected_courses.append(value[:60])
+    material_types = []
+    for item in req.material_types or []:
+        value = (item or "").strip()
+        if value and value not in material_types:
+            material_types.append(value[:30])
+
+    if not major:
+        raise HTTPException(status_code=400, detail="请选择专业")
+    if not grade:
+        raise HTTPException(status_code=400, detail="请选择年级")
+    if not selected_courses:
+        raise HTTPException(status_code=400, detail="请选择至少一门想学习的课程")
+
+    user.major = major
+    user.grade = grade
+    if selected_courses:
+        user.focus_courses = "、".join(selected_courses)[:200]
+        user.default_course_id = selected_courses[0][:100]
+    user.learning_direction = user.learning_direction or "大学课程学习"
+
+    track = get_user_track(db, user.id, "university_course")
+    detail = _parse_track_onboarding_detail(track)
+    now_text = serialize_datetime(utc_now())
+    detail.update({
+        "service_key": "course_learning",
+        "major": major,
+        "grade": grade,
+        "selected_courses": selected_courses,
+        "material_types": material_types,
+        "course_learning_onboarding_completed": True,
+        "course_learning_updated_at": now_text,
+    })
+    if not detail.get("course_learning_created_at"):
+        detail["course_learning_created_at"] = now_text
+
+    track = upsert_user_track(
+        db,
+        user.id,
+        "university_course",
+        plan="free",
+        package_type=None,
+        onboarding_detail=detail,
+    )
+    db.commit()
+    db.refresh(user)
+    db.refresh(track)
+
+    profile = user_profile(user)
+    tracks = [serialize_track(t) for t in get_user_tracks(db, user.id)]
+    profile["tracks"] = tracks
+    profile["active_track_type"] = next((t["track_type"] for t in tracks if t["is_active"]), "university_course")
+    return {
+        "message": "course learning onboarding saved",
+        "onboarding": _course_learning_onboarding_payload(user, track),
+        "user": profile,
+        "profile": profile,
+    }
 
 
 class ChangePasswordRequest(BaseModel):

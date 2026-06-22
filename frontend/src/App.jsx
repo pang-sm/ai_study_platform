@@ -6,6 +6,7 @@ import CourseDashboard from "./components/CourseDashboard.jsx";
 import KnowledgeLearningPage from "./components/KnowledgeLearningPage.jsx";
 import CourseMaterialsPage from "./components/CourseMaterialsPage.jsx";
 import HomePage from "./components/HomePage.jsx";
+import CourseLearningOnboarding from "./components/CourseLearningOnboarding.jsx";
 import AIQuestionPage from "./components/AIQuestionPage.jsx";
 import MaterialPickerModal from "./components/MaterialPickerModal.jsx";
 import ProfilePage from "./components/ProfilePage.jsx";
@@ -437,8 +438,26 @@ const VALID_PAGES = new Set([
   "adminUsageCenter", "adminCenter",
   "materials", "workspaceMaterials", "chat", "records", "history",
   "knowledgeLearning", "searchResults",
-  "profileEdit", "onboarding", "examHome", "examProfile", "examPlan", "examSubjectDashboard",
+  "profileEdit", "onboarding", "courseLearningOnboarding", "examHome", "examProfile", "examPlan", "examSubjectDashboard",
   "login", "adminLogin",
+]);
+
+const COURSE_LEARNING_ENTRY_PAGES = new Set([
+  "home",
+  "dashboard",
+  "chat",
+  "workspaceMaterials",
+  "records",
+  "history",
+  "knowledgeLearning",
+  "practiceCenter",
+  "taskCenter",
+  "learningDataCenter",
+  "reviewCenter",
+  "learningPlanCenter",
+  "knowledgeBaseCenter",
+  "learningReportCenter",
+  "searchResults",
 ]);
 
 const ADMIN_PAGES = [
@@ -551,6 +570,9 @@ function App() {
   const [emailLoginCountdown, setEmailLoginCountdown] = useState(0);
   const [emailLoginLoading, setEmailLoginLoading] = useState(false);
   const [user, setUser] = useState(getSavedUser);
+  const [courseOnboardingStatus, setCourseOnboardingStatus] = useState(null);
+  const [courseOnboardingChecking, setCourseOnboardingChecking] = useState(false);
+  const [courseOnboardingTargetPage, setCourseOnboardingTargetPage] = useState("dashboard");
   const [publicFeatures, setPublicFeatures] = useState(null);
   const [userAnnouncements, setUserAnnouncements] = useState([]);
   const [dismissedAnnounceIds, setDismissedAnnounceIds] = useState(() => {
@@ -976,6 +998,19 @@ function App() {
       throw new Error(data.user?.is_deleted ? "账号已被删除" : "账号已被封禁，请联系管理员");
     }
     return data.user;
+  };
+
+  const loadCourseLearningOnboardingStatus = async (targetUser = user) => {
+    if (!targetUser?.username) return null;
+    const res = await fetch(
+      `${API_BASE}/course-learning/onboarding?username=${encodeURIComponent(targetUser.username)}`
+    );
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(getDisplayMessage(data.detail, "无法读取课程学习引导状态"));
+    }
+    setCourseOnboardingStatus(data);
+    return data;
   };
 
   const addLearningGoal = () => {
@@ -2088,6 +2123,41 @@ function App() {
   }, [page, user?.username, user?.is_admin, user?.admin_role, user?.role]);
 
   useEffect(() => {
+    if (!user?.username || user?.needs_onboarding) return undefined;
+    const isCourseEntry = COURSE_LEARNING_ENTRY_PAGES.has(page);
+    const isCourseOnboardingPage = page === "courseLearningOnboarding";
+    if (!isCourseEntry && !isCourseOnboardingPage) return undefined;
+
+    let cancelled = false;
+    const checkCourseOnboarding = async () => {
+      if (isCourseEntry) {
+        setCourseOnboardingTargetPage(page);
+      }
+      setCourseOnboardingChecking(true);
+      try {
+        const status = await loadCourseLearningOnboardingStatus(user);
+        if (cancelled) return;
+        if (!status?.onboarding_completed && isCourseEntry) {
+          setPage("courseLearningOnboarding");
+        }
+        if (status?.onboarding_completed && isCourseOnboardingPage) {
+          setPage(courseOnboardingTargetPage || "dashboard");
+        }
+      } catch (error) {
+        console.error("Failed to check course learning onboarding:", error);
+        if (!cancelled) setTip("暂时无法读取课程学习引导状态，请稍后重试。");
+      } finally {
+        if (!cancelled) setCourseOnboardingChecking(false);
+      }
+    };
+
+    checkCourseOnboarding();
+    return () => {
+      cancelled = true;
+    };
+  }, [page, user?.username, user?.needs_onboarding]);
+
+  useEffect(() => {
     if (page === "records" && user?.username) {
       const timer = window.setTimeout(() => {
         loadLearningRecords();
@@ -3107,6 +3177,26 @@ function App() {
       setPage(goalType === "exam_408" ? "examHome" : "home");
     };
     return <Onboarding user={user} onComplete={handleOnboardingComplete} API_BASE={API_BASE} />;
+  }
+
+  if (page === "courseLearningOnboarding") {
+    const handleCourseOnboardingComplete = (data) => {
+      if (data?.profile) {
+        saveLoginUser(data.profile);
+      }
+      setCourseOnboardingStatus(data?.onboarding || { onboarding_completed: true });
+      setPage(courseOnboardingTargetPage || "dashboard");
+    };
+    return (
+      <CourseLearningOnboarding
+        user={user}
+        apiBase={API_BASE}
+        initialData={courseOnboardingStatus}
+        checking={courseOnboardingChecking}
+        onComplete={handleCourseOnboardingComplete}
+        onBack={() => setPage("home")}
+      />
+    );
   }
 
   const wrapPage = (children) => {

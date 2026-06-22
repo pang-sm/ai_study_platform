@@ -217,7 +217,39 @@ export default function Onboarding({ user, onComplete, API_BASE }) {
       return;
     }
     setError("");
-    if (goalType === "exam_408") { setStep(2); } else { setStep(2); }
+    if (goalType === "university_course") {
+      completeCourseDirectionSelection();
+      return;
+    }
+    setStep(2);
+  };
+
+  const completeCourseDirectionSelection = async () => {
+    setSaving(true);
+    setError("");
+    try {
+      const res = await fetch(`${API_BASE}/me/onboarding?username=${encodeURIComponent(user.username)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nickname: user?.nickname || user?.username || "",
+          learning_direction: "大学课程学习",
+          learning_goal_type: "university_course",
+          onboarding_detail: {
+            course_learning_onboarding_completed: false,
+          },
+          preferred_subjects: [],
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "保存失败");
+      if (DRAFT_KEY) { try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ } }
+      onComplete(data.profile || data.user, "university_course");
+    } catch (err) {
+      setError(err.message || "保存失败，请稍后重试");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleStep2Next = () => {
