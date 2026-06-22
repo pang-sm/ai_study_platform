@@ -132,32 +132,35 @@ export default function CourseLearningOnboarding({
           <p>请补充你的课程学习信息，我们将为你制定更合适的学习内容与功能入口</p>
         </div>
 
-        <div className="course-onboarding-section">
-          <h2>1. 你的专业、年级？</h2>
+        <div className="course-onboarding-section course-onboarding-section--profile">
           <div className="course-onboarding-select-row">
-            <label className="course-onboarding-select-wrap">
-              <span className="course-onboarding-select-icon">专</span>
-              <select value={major} onChange={(event) => { setMajor(event.target.value); setMessage(""); }}>
-                <option value="">请选择专业</option>
-                {MAJOR_OPTIONS.map((item) => (
-                  <option key={item} value={item}>{item}</option>
-                ))}
-              </select>
+            <label className="course-onboarding-field">
+              <span className="course-onboarding-field-label">你的专业</span>
+              <span className="course-onboarding-select-wrap">
+                <select value={major} onChange={(event) => { setMajor(event.target.value); setMessage(""); }}>
+                  <option value="">请选择专业</option>
+                  {MAJOR_OPTIONS.map((item) => (
+                    <option key={item} value={item}>{item}</option>
+                  ))}
+                </select>
+              </span>
             </label>
-            <label className="course-onboarding-select-wrap">
-              <span className="course-onboarding-select-icon">级</span>
-              <select value={grade} onChange={(event) => { setGrade(event.target.value); setMessage(""); }}>
-                <option value="">请选择年级</option>
-                {GRADE_OPTIONS.map((item) => (
-                  <option key={item} value={item}>{item}</option>
-                ))}
-              </select>
+            <label className="course-onboarding-field">
+              <span className="course-onboarding-field-label">你的年级</span>
+              <span className="course-onboarding-select-wrap">
+                <select value={grade} onChange={(event) => { setGrade(event.target.value); setMessage(""); }}>
+                  <option value="">请选择年级</option>
+                  {GRADE_OPTIONS.map((item) => (
+                    <option key={item} value={item}>{item}</option>
+                  ))}
+                </select>
+              </span>
             </label>
           </div>
         </div>
 
         <div className="course-onboarding-section">
-          <h2>2. 想学习哪些课程？（多选）</h2>
+          <h2>想学习哪些课程？（多选）</h2>
           <div className="course-onboarding-chip-grid course-onboarding-chip-grid--courses">
             {COURSE_OPTIONS.map((course) => (
               <button
@@ -173,7 +176,7 @@ export default function CourseLearningOnboarding({
         </div>
 
         <div className="course-onboarding-section">
-          <h2>3. 是否已有课程资料？</h2>
+          <h2>是否已有课程资料？（多选）</h2>
           <div className="course-onboarding-chip-grid course-onboarding-chip-grid--materials">
             {MATERIAL_OPTIONS.map((material) => (
               <button
@@ -182,8 +185,7 @@ export default function CourseLearningOnboarding({
                 className={`course-onboarding-material ${materialTypes.includes(material) ? "is-selected" : ""}`}
                 onClick={() => toggleMaterial(material)}
               >
-                <span className="course-onboarding-material-icon">{material === "暂时没有" ? "无" : material.slice(0, 1)}</span>
-                <span>{material}</span>
+                {material}
               </button>
             ))}
           </div>
@@ -196,7 +198,7 @@ export default function CourseLearningOnboarding({
             上一步
           </button>
           <button type="button" className="course-onboarding-next" onClick={handleSubmit} disabled={saving}>
-            {saving ? "保存中..." : "下一步"}
+            {saving ? "保存中..." : "保存并进入"}
           </button>
         </div>
       </section>
