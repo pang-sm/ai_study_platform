@@ -3174,7 +3174,17 @@ function App() {
   if (page === "onboarding") {
     const handleOnboardingComplete = (profile, goalType) => {
       saveLoginUser(profile);
-      setPage(goalType === "exam_408" ? "examHome" : "home");
+      if (goalType === "exam_408") {
+        setPage("examHome");
+        return;
+      }
+      if (goalType === "university_course") {
+        setCourseOnboardingTargetPage("home");
+        setCourseOnboardingStatus(null);
+        setPage("courseLearningOnboarding");
+        return;
+      }
+      setPage("home");
     };
     return <Onboarding user={user} onComplete={handleOnboardingComplete} API_BASE={API_BASE} />;
   }
@@ -3194,7 +3204,7 @@ function App() {
         initialData={courseOnboardingStatus}
         checking={courseOnboardingChecking}
         onComplete={handleCourseOnboardingComplete}
-        onBack={() => setPage("home")}
+        onBack={() => setPage("onboarding")}
       />
     );
   }
