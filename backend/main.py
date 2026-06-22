@@ -305,6 +305,8 @@ class CourseLearningOnboardingRequest(BaseModel):
     grade: str
     selected_courses: list[str]
     material_types: list[str] = []
+    plan: str | None = None
+    onboarding_completed: bool = True
 
 
 class AddMaterialFromMessageRequest(BaseModel):
@@ -508,7 +510,10 @@ def upsert_user_track(db: Session, user_id: int, track_type: str, plan: str = "f
         db.add(track)
     else:
         track.plan = plan
-        track.package_type = normalize_package_type(normalized_package or track.package_type)
+        if track_type == "exam_408":
+            track.package_type = normalize_package_type(normalized_package or track.package_type)
+        else:
+            track.package_type = normalized_package or track.package_type
     perms = dict(TRACK_PERMISSIONS.get(track_type, {}))
     if track_type == "exam_408":
         package = normalize_exam_package(normalized_package or track.package_type)
@@ -542,7 +547,7 @@ def serialize_track(track):
             onboarding = json.loads(track.onboarding_detail_json)
     except (json.JSONDecodeError, TypeError):
         pass
-    package = normalize_package_type(track.package_type)
+    package = normalize_package_type(track.package_type) if track.track_type == "exam_408" else (track.package_type or track.plan or "free")
     if track.track_type == "exam_408":
         default_perms = get_exam_package_permissions(package)
         default_quota = get_exam_package_quota(package)
@@ -4746,6 +4751,7 @@ def _course_learning_onboarding_payload(user: models.User, track: models.UserLea
     return {
         "service_key": "course_learning",
         "onboarding_completed": completed,
+        "plan": detail.get("course_learning_plan") or (track.plan if track else None) or "free",
         "major": detail.get("major") or user.major or "",
         "grade": detail.get("grade") or user.grade or "",
         "selected_courses": detail.get("selected_courses") if isinstance(detail.get("selected_courses"), list) else [],
@@ -4803,13 +4809,20 @@ def save_course_learning_onboarding(
     track = get_user_track(db, user.id, "university_course")
     detail = _parse_track_onboarding_detail(track)
     now_text = serialize_datetime(utc_now())
+    completed = bool(req.onboarding_completed)
+    allowed_plans = {"free", "monthly", "quarterly", "full"}
+    plan = (req.plan or (track.plan if track else None) or "free").strip()
+    if plan not in allowed_plans:
+        raise HTTPException(status_code=400, detail="invalid course learning plan")
+    if completed:
+        detail["course_learning_plan"] = plan
     detail.update({
         "service_key": "course_learning",
         "major": major,
         "grade": grade,
         "selected_courses": selected_courses,
         "material_types": material_types,
-        "course_learning_onboarding_completed": True,
+        "course_learning_onboarding_completed": completed,
         "course_learning_updated_at": now_text,
     })
     if not detail.get("course_learning_created_at"):
@@ -4819,8 +4832,8 @@ def save_course_learning_onboarding(
         db,
         user.id,
         "university_course",
-        plan="free",
-        package_type=None,
+        plan=plan,
+        package_type=plan,
         onboarding_detail=detail,
     )
     db.commit()

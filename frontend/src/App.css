@@ -5058,6 +5058,10 @@ select.field:focus {
   margin-top: auto;
 }
 
+.course-package-card {
+  width: min(1080px, 100%);
+}
+
 /* Responsive */
 @media (max-width: 860px) {
   .ob-packages {

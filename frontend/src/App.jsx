@@ -7,6 +7,7 @@ import KnowledgeLearningPage from "./components/KnowledgeLearningPage.jsx";
 import CourseMaterialsPage from "./components/CourseMaterialsPage.jsx";
 import HomePage from "./components/HomePage.jsx";
 import CourseLearningOnboarding from "./components/CourseLearningOnboarding.jsx";
+import CourseLearningPackageStep from "./components/CourseLearningPackageStep.jsx";
 import AIQuestionPage from "./components/AIQuestionPage.jsx";
 import MaterialPickerModal from "./components/MaterialPickerModal.jsx";
 import ProfilePage from "./components/ProfilePage.jsx";
@@ -438,7 +439,7 @@ const VALID_PAGES = new Set([
   "adminUsageCenter", "adminCenter",
   "materials", "workspaceMaterials", "chat", "records", "history",
   "knowledgeLearning", "searchResults",
-  "profileEdit", "onboarding", "courseLearningOnboarding", "examHome", "examProfile", "examPlan", "examSubjectDashboard",
+  "profileEdit", "onboarding", "courseLearningOnboarding", "courseLearningPackageStep", "examHome", "examProfile", "examPlan", "examSubjectDashboard",
   "login", "adminLogin",
 ]);
 
@@ -573,6 +574,7 @@ function App() {
   const [courseOnboardingStatus, setCourseOnboardingStatus] = useState(null);
   const [courseOnboardingChecking, setCourseOnboardingChecking] = useState(false);
   const [courseOnboardingTargetPage, setCourseOnboardingTargetPage] = useState("dashboard");
+  const [coursePackageSaving, setCoursePackageSaving] = useState(false);
   const [publicFeatures, setPublicFeatures] = useState(null);
   const [userAnnouncements, setUserAnnouncements] = useState([]);
   const [dismissedAnnounceIds, setDismissedAnnounceIds] = useState(() => {
@@ -2126,7 +2128,8 @@ function App() {
     if (!user?.username || user?.needs_onboarding) return undefined;
     const isCourseEntry = COURSE_LEARNING_ENTRY_PAGES.has(page);
     const isCourseOnboardingPage = page === "courseLearningOnboarding";
-    if (!isCourseEntry && !isCourseOnboardingPage) return undefined;
+    const isCoursePackagePage = page === "courseLearningPackageStep";
+    if (!isCourseEntry && !isCourseOnboardingPage && !isCoursePackagePage) return undefined;
 
     let cancelled = false;
     const checkCourseOnboarding = async () => {
@@ -2138,9 +2141,10 @@ function App() {
         const status = await loadCourseLearningOnboardingStatus(user);
         if (cancelled) return;
         if (!status?.onboarding_completed && isCourseEntry) {
-          setPage("courseLearningOnboarding");
+          const hasSavedDetails = Boolean(status?.major && status?.grade && status?.selected_courses?.length);
+          setPage(hasSavedDetails ? "courseLearningPackageStep" : "courseLearningOnboarding");
         }
-        if (status?.onboarding_completed && isCourseOnboardingPage) {
+        if (status?.onboarding_completed && (isCourseOnboardingPage || isCoursePackagePage)) {
           setPage(courseOnboardingTargetPage || "dashboard");
         }
       } catch (error) {
@@ -3190,12 +3194,12 @@ function App() {
   }
 
   if (page === "courseLearningOnboarding") {
-    const handleCourseOnboardingComplete = (data) => {
+    const handleCourseOnboardingNext = (data) => {
       if (data?.profile) {
         saveLoginUser(data.profile);
       }
-      setCourseOnboardingStatus(data?.onboarding || { onboarding_completed: true });
-      setPage(courseOnboardingTargetPage || "dashboard");
+      setCourseOnboardingStatus(data?.onboarding || null);
+      setPage("courseLearningPackageStep");
     };
     return (
       <CourseLearningOnboarding
@@ -3203,8 +3207,55 @@ function App() {
         apiBase={API_BASE}
         initialData={courseOnboardingStatus}
         checking={courseOnboardingChecking}
-        onComplete={handleCourseOnboardingComplete}
+        onNext={handleCourseOnboardingNext}
         onBack={() => setPage("onboarding")}
+      />
+    );
+  }
+
+  if (page === "courseLearningPackageStep") {
+    const handleCoursePackageComplete = async (plan) => {
+      if (!user?.username || coursePackageSaving) return;
+      const details = courseOnboardingStatus || {};
+      setCoursePackageSaving(true);
+      try {
+        const res = await fetch(`${API_BASE}/course-learning/onboarding`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${user.username}`,
+          },
+          body: JSON.stringify({
+            major: details.major || user.major || "",
+            grade: details.grade || user.grade || "",
+            selected_courses: details.selected_courses || [],
+            material_types: details.material_types || [],
+            plan,
+            onboarding_completed: true,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setTip(getDisplayMessage(data.detail, "课程学习套餐保存失败，请稍后再试。"));
+          return;
+        }
+        if (data?.profile) {
+          saveLoginUser(data.profile);
+        }
+        setTip("");
+        setCourseOnboardingStatus(data?.onboarding || { onboarding_completed: true, plan });
+        setPage(courseOnboardingTargetPage || "dashboard");
+      } finally {
+        setCoursePackageSaving(false);
+      }
+    };
+    return (
+      <CourseLearningPackageStep
+        initialPlan={courseOnboardingStatus?.plan || "quarterly"}
+        saving={coursePackageSaving}
+        error={tip}
+        onBack={() => setPage("courseLearningOnboarding")}
+        onComplete={handleCoursePackageComplete}
       />
     );
   }

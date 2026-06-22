@@ -39,6 +39,7 @@ export default function CourseLearningOnboarding({
   user,
   apiBase,
   initialData,
+  onNext,
   onComplete,
   onBack,
 }) {
@@ -107,6 +108,7 @@ export default function CourseLearningOnboarding({
           grade,
           selected_courses: selectedCourses,
           material_types: materialTypes,
+          onboarding_completed: false,
         }),
       });
       const data = await res.json();
@@ -114,7 +116,11 @@ export default function CourseLearningOnboarding({
         setMessage(data.detail || "保存失败，请稍后再试。");
         return;
       }
-      onComplete?.(data);
+      if (onNext) {
+        onNext(data);
+      } else {
+        onComplete?.(data);
+      }
     } catch (error) {
       console.error("Failed to save course learning onboarding:", error);
       setMessage("暂时无法保存学习详情，请检查网络后重试。");
@@ -198,10 +204,11 @@ export default function CourseLearningOnboarding({
             上一步
           </button>
           <button type="button" className="course-onboarding-next" onClick={handleSubmit} disabled={saving}>
-            {saving ? "保存中..." : "保存并进入"}
+            {saving ? "保存中..." : "下一步"}
           </button>
         </div>
       </section>
     </div>
   );
 }
+
