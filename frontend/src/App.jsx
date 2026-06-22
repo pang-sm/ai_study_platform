@@ -1002,9 +1002,9 @@ function App() {
 
   const loadCourseLearningOnboardingStatus = async (targetUser = user) => {
     if (!targetUser?.username) return null;
-    const res = await fetch(
-      `${API_BASE}/course-learning/onboarding?username=${encodeURIComponent(targetUser.username)}`
-    );
+    const res = await fetch(`${API_BASE}/course-learning/onboarding`, {
+      headers: { Authorization: `Bearer ${targetUser.username}` },
+    });
     const data = await res.json();
     if (!res.ok) {
       throw new Error(getDisplayMessage(data.detail, "无法读取课程学习引导状态"));

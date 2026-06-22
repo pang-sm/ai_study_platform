@@ -977,6 +977,16 @@ def get_username_from_upload(username: str | None, authorization: str | None):
     return ""
 
 
+def get_current_user_from_bearer(authorization: str | None, db: Session):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="请先登录")
+
+    username = authorization.replace("Bearer ", "", 1).strip()
+    user = get_user_by_username(username, db)
+    ensure_user_can_access(user)
+    return user
+
+
 def sanitize_filename(filename: str) -> str:
     original = os.path.basename(filename or "material")
     cleaned = re.sub(r"[^A-Za-z0-9._-]", "_", original)
@@ -4746,9 +4756,11 @@ def _course_learning_onboarding_payload(user: models.User, track: models.UserLea
 
 
 @app.get("/course-learning/onboarding")
-def get_course_learning_onboarding(username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
-    ensure_user_can_access(user)
+def get_course_learning_onboarding(
+    authorization: str | None = Header(None),
+    db: Session = Depends(get_db),
+):
+    user = get_current_user_from_bearer(authorization, db)
     track = get_user_track(db, user.id, "university_course")
     return _course_learning_onboarding_payload(user, track)
 
@@ -4756,11 +4768,10 @@ def get_course_learning_onboarding(username: str, db: Session = Depends(get_db))
 @app.post("/course-learning/onboarding")
 def save_course_learning_onboarding(
     req: CourseLearningOnboardingRequest,
-    username: str,
+    authorization: str | None = Header(None),
     db: Session = Depends(get_db),
 ):
-    user = get_user_by_username(username, db)
-    ensure_user_can_access(user)
+    user = get_current_user_from_bearer(authorization, db)
 
     major = (req.major or "").strip()[:80]
     grade = (req.grade or "").strip()[:30]

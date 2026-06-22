@@ -96,19 +96,19 @@ export default function CourseLearningOnboarding({
     setSaving(true);
     setMessage("");
     try {
-      const res = await fetch(
-        `${apiBase}/course-learning/onboarding?username=${encodeURIComponent(user.username)}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            major,
-            grade,
-            selected_courses: selectedCourses,
-            material_types: materialTypes,
-          }),
-        }
-      );
+      const res = await fetch(`${apiBase}/course-learning/onboarding`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${user.username}`,
+        },
+        body: JSON.stringify({
+          major,
+          grade,
+          selected_courses: selectedCourses,
+          material_types: materialTypes,
+        }),
+      });
       const data = await res.json();
       if (!res.ok) {
         setMessage(data.detail || "保存失败，请稍后再试。");
