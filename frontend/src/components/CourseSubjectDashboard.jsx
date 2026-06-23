@@ -83,6 +83,16 @@ function EmptyState({ title, desc }) {
   );
 }
 
+function CourseContextStrip({ context }) {
+  return (
+    <div className="csd-context-strip">
+      <span>track: {context.track}</span>
+      <span>courseId: {context.courseId}</span>
+      <span>courseName: {context.courseName}</span>
+    </div>
+  );
+}
+
 export default function CourseSubjectDashboard({
   user,
   course,
@@ -244,11 +254,7 @@ export default function CourseSubjectDashboard({
         courseName={courseName}
       />
       <div className="csd-card csd-chat-card">
-        <div className="csd-context-strip">
-          <span>track: {context.track}</span>
-          <span>courseId: {context.courseId}</span>
-          <span>courseName: {context.courseName}</span>
-        </div>
+        <CourseContextStrip context={context} />
         <div className="csd-chat-window">
           <p className="csd-chat-bubble">你好，我会围绕《{courseName}》的课程资料、课堂笔记和学习目标回答问题，并保持在当前课程上下文中。</p>
         </div>
@@ -264,10 +270,7 @@ export default function CourseSubjectDashboard({
     <section className="csd-section">
       <SectionHeader eyebrow="Course Library" title={`${courseName} · 资料库`} courseName={courseName} />
       <div className="csd-card csd-library-card">
-        <div className="csd-context-strip">
-          <span>资料作用域：{COURSE_TRACK}</span>
-          <span>当前课程：{courseName}</span>
-        </div>
+        <CourseContextStrip context={context} />
         {courseMaterials.length > 0 ? (
           <div className="csd-material-list">
             {courseMaterials.slice(0, 8).map((item) => (
@@ -287,6 +290,7 @@ export default function CourseSubjectDashboard({
   const renderKnowledgeSection = () => (
     <section className="csd-section">
       <SectionHeader eyebrow="Course Knowledge" title={`${courseName} · 知识脉络`} courseName={courseName} />
+      <CourseContextStrip context={context} />
       <div className="csd-knowledge-section-grid">
         {renderKnowledgeCard()}
         <div className="csd-card csd-section-side-card">
@@ -301,6 +305,7 @@ export default function CourseSubjectDashboard({
   const renderPlanSection = () => (
     <section className="csd-section">
       <SectionHeader eyebrow="Course Plan" title={`${courseName} · 学习计划`} courseName={courseName} />
+      <CourseContextStrip context={context} />
       <div className="csd-section-single">{renderPlanCard()}</div>
     </section>
   );
@@ -308,6 +313,7 @@ export default function CourseSubjectDashboard({
   const renderPracticeSection = () => (
     <section className="csd-section">
       <SectionHeader eyebrow="Course Practice" title={`${courseName} · 练习中心`} courseName={courseName} />
+      <CourseContextStrip context={context} />
       <div className="csd-practice-grid">
         {["课堂练习", "作业复盘", "AI 出题", "错题整理"].map((item) => (
           <div className="csd-card csd-practice-card" key={item}>
@@ -323,6 +329,7 @@ export default function CourseSubjectDashboard({
   const renderReportSection = () => (
     <section className="csd-section">
       <SectionHeader eyebrow="Course Report" title={`${courseName} · 学习报告`} courseName={courseName} />
+      <CourseContextStrip context={context} />
       <div className="csd-report-grid">
         <div className="csd-card csd-report-card"><strong>{learnedPercent}%</strong><span>课程进度</span></div>
         <div className="csd-card csd-report-card"><strong>{formatHours(studyMinutes)}</strong><span>学习时长</span></div>
