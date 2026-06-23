@@ -28,6 +28,7 @@ export default function CourseLearningProfile({ user, setPage, onLogout, API_BAS
   );
   const [quotaData, setQuotaData] = useState(null);
   const [courseCount, setCourseCount] = useState(0);
+  const [servicePlans, setServicePlans] = useState(() => user?.service_plans || {});
   const avatarInputRef = useRef(null);
 
   const pkgType = courseTrack?.package_type || "free";
@@ -75,6 +76,18 @@ export default function CourseLearningProfile({ user, setPage, onLogout, API_BAS
       const quota = await quotaRes.json().catch(() => ({}));
       if (quotaRes.ok) setQuotaData(quota);
     } catch { /* keep current quota */ }
+    // Refresh service plans for accurate switching
+    try {
+      const meRes = await fetch(`${API_BASE}/me`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: user.username }),
+      });
+      const meData = await meRes.json().catch(() => ({}));
+      if (meRes.ok && meData.user?.service_plans) {
+        setServicePlans(meData.user.service_plans);
+      }
+    } catch { /* keep existing plans */ }
   };
   useEffect(() => { fetchCourseAccountData(); }, []);
 
@@ -85,30 +98,26 @@ export default function CourseLearningProfile({ user, setPage, onLogout, API_BAS
   const emailDisplay = realEmail ? maskEmail(realEmail) : "未绑定";
   const emailBtnLabel = realEmail ? "修改" : "绑定";
 
-  // Preferred courses from onboarding
   const courseMajors = onboardingDetail?.major || user?.major || "未设置";
   const courseGrade = onboardingDetail?.grade || user?.grade || "未设置";
-  const selectedCourses = Array.isArray(onboardingDetail?.selected_courses) ? onboardingDetail.selected_courses : [];
-  const courseGoals = onboardingDetail?.course_goals || {};
+  const courseSemester = onboardingDetail?.current_semester || "未设置";
 
-  const hasExamTrack = (user?.tracks || []).some((t) => t.track_type === "exam_408");
-  const hasCodeTrack = (user?.tracks || []).some((t) => t.track_type === "programming");
-
-  const switchTrack = (targetTrack) => {
+  const switchTrack = async (targetTrack) => {
     if (targetTrack === "exam_408") {
-      // Check if exam_11408 is registered via service_plans
-      const examPlan = user?.service_plans?.["exam_11408"];
+      // Check exam_11408 status from service_plans (refreshed on mount)
+      const examPlan = servicePlans?.["exam_11408"];
       const isEnabled = examPlan?.is_enabled;
       if (!isEnabled) {
-        // Navigate to 11408 registration (reuse existing exam onboarding flow)
+        // Not registered — navigate to 11408 registration
         if (setPage) setPage("onboarding");
         return;
       }
+      // Registered — enter 11408 profile
       if (setPage) setPage("examProfile");
       return;
     }
     if (targetTrack === "programming") {
-      const progPlan = user?.service_plans?.["programming"];
+      const progPlan = servicePlans?.["programming"];
       if (!progPlan?.is_enabled) {
         setActionErr("编程方向暂未开放注册，敬请期待");
         return;
@@ -116,11 +125,7 @@ export default function CourseLearningProfile({ user, setPage, onLogout, API_BAS
       if (setPage) setPage("codeStudio");
       return;
     }
-    if (!(user?.tracks || []).some((t) => t.track_type === targetTrack)) {
-      setActionErr(`请先开通${targetTrack === "exam_408" ? "11408 考研" : "编程能力提升"}方向`);
-      return;
-    }
-    if (setPage) setPage(targetTrack === "exam_408" ? "examHome" : "codeStudio");
+    setActionErr("未知方向");
   };
 
   // ── Avatar ──
@@ -292,7 +297,7 @@ export default function CourseLearningProfile({ user, setPage, onLogout, API_BAS
             <div className="ep-info-col">
               <div className="ep-info-row"><span className="ep-info-label">年级</span><span>{courseGrade}</span></div>
               <div className="ep-info-row"><span className="ep-info-label">已加入课程</span><span>{courseCount} 门</span></div>
-              <div className="ep-info-row"><span className="ep-info-label">当前学期</span><span>{onboardingDetail?.current_semester || "未设置"}</span></div>
+              <div className="ep-info-row"><span className="ep-info-label">当前学期</span><span>{courseSemester}</span></div>
               <div className="ep-info-row"><span className="ep-info-label">注册时间</span><span className="ep-info-time">{registerTime}</span></div>
             </div>
           </div>
@@ -319,56 +324,7 @@ export default function CourseLearningProfile({ user, setPage, onLogout, API_BAS
           </div>
         </div>
 
-        {/* ═══ Section 3: My Courses ═══ */}
-        <div className="ep-card">
-          <div className="ep-card-head"><h2>我的课程</h2></div>
-          {selectedCourses.length === 0 ? (
-            <div className="ep-empty-note" style={{ padding: 16, color: "#6b7280", fontSize: 14 }}>
-              暂未加入课程，请先完成课程学习引导注册。
-            </div>
-          ) : (
-            <div className="ep-course-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12, marginTop: 8 }}>
-              {selectedCourses.map((course, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  className="ep-outline-btn"
-                  style={{ padding: "14px 16px", textAlign: "left", height: "auto" }}
-                  onClick={() => {
-                    if (setPage) {
-                      // Navigate to course subject dashboard
-                      setPage("dashboard", { subject: course });
-                    }
-                  }}
-                >
-                  <strong>{course}</strong>
-                  <br />
-                  <small style={{ color: "#6b7280" }}>进入课程工作台 →</small>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* ═══ Section 4: Quick Entry ═══ */}
-        <div className="ep-card">
-          <div className="ep-card-head"><h2>快捷入口</h2></div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12, marginTop: 8 }}>
-            {[
-              { icon: "▣", label: "课程资料库", action: () => { if (selectedCourses[0]) setPage("dashboard", { subject: selectedCourses[0], forcePanel: "materials" }); } },
-              { icon: "☵", label: "AI 问答", action: () => { if (selectedCourses[0]) setPage("dashboard", { subject: selectedCourses[0], forcePanel: "chat" }); } },
-              { icon: "▤", label: "学习计划", action: () => { if (selectedCourses[0]) setPage("dashboard", { subject: selectedCourses[0], forcePanel: "plan" }); } },
-              { icon: "▧", label: "学习报告", action: () => { if (selectedCourses[0]) setPage("dashboard", { subject: selectedCourses[0], forcePanel: "report" }); } },
-            ].map((item, idx) => (
-              <button key={idx} type="button" className="ep-outline-btn" style={{ padding: "16px", height: "auto", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }} onClick={item.action}>
-                <span style={{ fontSize: 28 }}>{item.icon}</span>
-                <span style={{ fontSize: 14, fontWeight: 700 }}>{item.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* ═══ Section 5: Account Security ═══ */}
+        {/* ═══ Section 3: Account Security ═══ */}
         <div className="ep-card">
           <div className="ep-card-head"><h2>账号安全</h2></div>
           <div className="ep-security-grid">
@@ -379,6 +335,14 @@ export default function CourseLearningProfile({ user, setPage, onLogout, API_BAS
                 <span>********</span>
               </div>
               <button type="button" className="ep-outline-btn" onClick={openPwdModal}>修改</button>
+            </div>
+            <div className="ep-sec-item">
+              <div>
+                <strong>绑定手机号</strong>
+                <p>用于接收验证码和安全验证</p>
+                <span>{user?.phone ? maskEmail(user.phone).replace("@","") : "未绑定"}</span>
+              </div>
+              <button type="button" className="ep-outline-btn" onClick={() => setActionErr("手机号绑定功能暂未开放")}>修改</button>
             </div>
             <div className="ep-sec-item">
               <div>
@@ -398,7 +362,7 @@ export default function CourseLearningProfile({ user, setPage, onLogout, API_BAS
           </div>
         </div>
 
-        {/* ═══ Section 6: My Package ═══ */}
+        {/* ═══ Section 4: My Package ═══ */}
         <div className="ep-card">
           <div className="ep-card-head"><h2>我的套餐</h2></div>
           <div className="ep-package-row">
