@@ -2,7 +2,6 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
 import AppLayout from "./components/AppLayout.jsx";
 import ChatMessage from "./components/ChatMessage.jsx";
-import CourseDashboard from "./components/CourseDashboard.jsx";
 import CourseSubjectDashboard from "./components/CourseSubjectDashboard.jsx";
 import KnowledgeLearningPage from "./components/KnowledgeLearningPage.jsx";
 import CourseMaterialsPage from "./components/CourseMaterialsPage.jsx";
@@ -530,6 +529,13 @@ function App() {
         avatar: user.avatar || "avatar_1",
       });
       setLearningGoals(Array.isArray(user?.learning_goals) ? [...user.learning_goals] : []);
+    }
+
+    // Guard: navigating to dashboard (course_learning) requires an explicit course selection
+    if (nextPage === "dashboard" && !context?.subject && !context?.courseId && !context?.examCourseId) {
+      // No course selected — redirect to course learning profile
+      setPageRaw("courseProfile");
+      return;
     }
 
     if (context?.subject) {
@@ -4520,34 +4526,8 @@ function App() {
         </div>
       </div>
 
-      <main className={`workspace-main ${page === "dashboard" || page === "knowledgeLearning" || page === "workspaceMaterials" ? "workspace-main--wide" : "workspace-main--chat-only"}`}>
-        {page === "dashboard" ? (
-          <CourseDashboard
-            user={user}
-            course={subject}
-            dashboard={courseDashboardData}
-            coursePreference={coursePreference}
-            onPreferenceChange={setCoursePreference}
-            loading={courseDashboardLoading}
-            savingPointKey={courseProgressSavingKey}
-            setPage={setPage}
-            onProgressChange={updateCourseProgress}
-            onStartAsk={() => {
-              openChatPageForCourse(subject, true);
-              setSelectedLibraryMaterials([]);
-              setPendingAIContext(null);
-            }}
-            onOpenCodeStudio={() => setPage("codeStudio")}
-            onOpenPracticeCenter={() => setPage("practiceCenter")}
-            getSubjectLabel={getSubjectLabel}
-            formatDate={formatDate}
-            materials={materials}
-            loadMaterials={(target) => loadMaterials(normalizeSubject(target || subject))}
-            loadDashboard={() => loadCourseDashboard(subject)}
-            goalConfig={goalConfig}
-            setGoalConfig={updateGoalConfig}
-          />
-        ) : page === "knowledgeLearning" ? (
+      <main className={`workspace-main ${page === "knowledgeLearning" || page === "workspaceMaterials" ? "workspace-main--wide" : "workspace-main--chat-only"}`}>
+        {page === "knowledgeLearning" ? (
           <KnowledgeLearningPage
             user={user}
             subjectKey={activeExamKnowledgeSubjectKey}

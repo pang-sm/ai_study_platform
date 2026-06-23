@@ -254,7 +254,7 @@ export default function LearningPlanCenter({ user, getSubjectLabel }) {
           </label>
           <input
             className="field"
-            placeholder="例如：我想复习计算系统基础，准备期末考试"
+            placeholder="例如：我想复习当前课程内容，准备期末考试"
             value={goal}
             onChange={(e) => setGoal(e.target.value)}
             style={{ maxWidth: 500 }}
