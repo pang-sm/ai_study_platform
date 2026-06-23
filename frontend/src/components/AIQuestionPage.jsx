@@ -329,7 +329,7 @@ export default function AIQuestionPage({
 
           <div
             className="aiqp-topbar-user"
-            onClick={() => setPage("profile")}
+            onClick={() => setPage("examProfile")}
             title="个人主页"
           >
             {hasCustomAvatar && user ? (

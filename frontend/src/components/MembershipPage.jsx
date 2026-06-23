@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import "./MembershipPage.css";
 
-export default function MembershipPage({ user, apiBase, setPage, onPlanUpdate }) {
+export default function MembershipPage({ user, apiBase, setPage, onPlanUpdate, profilePage = "examProfile" }) {
   const [effectivePlan, setEffectivePlan] = useState(null);
   const [plans, setPlans] = useState([]);
   const [recommendation, setRecommendation] = useState(null);
@@ -127,7 +127,7 @@ export default function MembershipPage({ user, apiBase, setPage, onPlanUpdate })
       <div className="mp-shell">
         {toast && <div className="mp-toast">{toast}</div>}
         <div className="mp-header">
-          <button className="mp-back-btn" onClick={() => setPage("profile")}>← 返回个人主页</button>
+          <button className="mp-back-btn" onClick={() => setPage(profilePage)}>← 返回个人主页</button>
           <h1 className="mp-title">会员中心</h1>
         </div>
         <div className="mp-card mp-dev-card">
@@ -152,7 +152,7 @@ export default function MembershipPage({ user, apiBase, setPage, onPlanUpdate })
 
       {/* Header */}
       <div className="mp-header">
-        <button className="mp-back-btn" onClick={() => setPage("profile")}>← 返回个人主页</button>
+        <button className="mp-back-btn" onClick={() => setPage(profilePage)}>← 返回个人主页</button>
         <div>
           <h1 className="mp-title">会员中心</h1>
           <p className="mp-subtitle">根据你的专业，为你推荐最适合的学习套餐</p>

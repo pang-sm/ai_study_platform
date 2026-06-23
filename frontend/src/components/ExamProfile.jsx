@@ -73,23 +73,6 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
 
   const fetchExamAccountData = async () => {
     try {
-      const meRes = await fetch(`${API_BASE}/me`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: user.username }),
-      });
-      const meData = await meRes.json().catch(() => ({}));
-      if (meRes.ok && meData.user?.service_plans) {
-        const examEnabled = meData.user.service_plans?.["exam_11408"]?.is_enabled;
-        if (!examEnabled) {
-          // exam_11408 not enabled — redirect to registration
-          if (setPage) setPage("onboarding");
-          return;
-        }
-      }
-    } catch { /* continue */ }
-
-    try {
       const res = await fetch(`${API_BASE}/me/tracks?username=${encodeURIComponent(user.username)}`);
       const data = await res.json().catch(() => ({}));
       const tracks = data.tracks || [];

@@ -86,11 +86,6 @@ export default function CourseLearningProfile({ user, setPage, onLogout, API_BAS
       const meData = await meRes.json().catch(() => ({}));
       if (meRes.ok && meData.user?.service_plans) {
         setServicePlans(meData.user.service_plans);
-        // Guard: if course_learning is not enabled, redirect to registration
-        if (!meData.user.service_plans?.["course_learning"]?.is_enabled) {
-          if (setPage) setPage("courseRegistration");
-          return;
-        }
       }
     } catch { /* keep existing plans */ }
   };

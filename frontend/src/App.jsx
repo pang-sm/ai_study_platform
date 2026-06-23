@@ -3676,16 +3676,17 @@ function App() {
     );
   }
 
+  // Map active_track_type to the correct profile page name
+  const activeTrackType = user?.active_track_type || "";
+  const currentProfilePage = activeTrackType === "exam_408" ? "examProfile"
+    : activeTrackType === "university_course" ? "courseProfile"
+    : activeTrackType === "programming" ? "codeStudio"
+    : "examProfile"; // fallback
+
   if (page === "profile") {
-    return wrapPage(
-      <ProfilePage
-        user={user}
-        apiBase={API_BASE}
-        onLogout={logout}
-        setPage={setPage}
-        onProfileUpdate={handleProfileUpdate}
-      />
-    );
+    // Legacy profile page — redirect to current direction's profile
+    setPageRaw(currentProfilePage);
+    return null;
   }
 
   if (page === "membership") {
@@ -3695,6 +3696,7 @@ function App() {
         apiBase={API_BASE}
         setPage={setPage}
         onPlanUpdate={handleProfileUpdate}
+        profilePage={currentProfilePage}
       />
     );
   }
