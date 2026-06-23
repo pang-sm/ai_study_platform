@@ -1,28 +1,43 @@
 .csd-page {
-  min-height: 100vh;
+  box-sizing: border-box;
+  height: 100dvh;
   display: grid;
   grid-template-columns: 250px minmax(0, 1fr);
   background:
     radial-gradient(circle at 20% 8%, rgba(139, 92, 246, 0.08), transparent 30%),
     linear-gradient(135deg, #fbfaff 0%, #f4f0ff 48%, #fbfdff 100%);
   color: #15172f;
+  overflow: hidden;
+}
+
+.csd-page *,
+.csd-page *::before,
+.csd-page *::after {
+  box-sizing: border-box;
 }
 
 .csd-sidebar {
-  min-height: 100vh;
-  padding: 24px 18px;
+  box-sizing: border-box;
+  height: 100dvh;
+  min-height: 0;
+  padding: 16px 18px calc(14px + env(safe-area-inset-bottom, 0px));
   background: rgba(255, 255, 255, 0.64);
   border-right: 1px solid rgba(168, 140, 255, 0.16);
   box-shadow: 18px 0 50px rgba(116, 84, 190, 0.08);
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 12px;
+  overflow: hidden;
 }
 
 .csd-nav {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding-right: 4px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 8px;
 }
 
 .csd-nav-item,
@@ -36,18 +51,26 @@
   cursor: pointer;
 }
 
+.csd-sidebar-footer {
+  flex: 0 0 auto;
+  display: grid;
+  gap: 10px;
+  padding-bottom: 0;
+  min-height: 0;
+}
+
 .csd-nav-item {
-  height: 58px;
-  padding: 0 20px;
+  min-height: 48px;
+  padding: 0 18px;
   border: 0;
-  border-radius: 16px;
+  border-radius: 14px;
   background: transparent;
   color: #2f3160;
   display: flex;
   align-items: center;
   gap: 16px;
   text-align: left;
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 850;
   transition: transform 0.16s ease, background 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
 }
@@ -67,10 +90,9 @@
 }
 
 .csd-member-card {
-  margin-top: auto;
-  padding: 22px 18px;
+  padding: 13px 14px;
   border: 1px solid rgba(168, 140, 255, 0.18);
-  border-radius: 20px;
+  border-radius: 18px;
   background:
     radial-gradient(circle at 80% 55%, rgba(139, 92, 246, 0.18), transparent 34%),
     rgba(255, 255, 255, 0.82);
@@ -79,26 +101,26 @@
 
 .csd-member-card strong {
   color: #7c3aed;
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 950;
 }
 
 .csd-member-card p {
-  margin: 10px 0 14px;
+  margin: 6px 0 8px;
   color: #6c7190;
-  font-size: 13px;
-  line-height: 1.6;
+  font-size: 12px;
+  line-height: 1.45;
   font-weight: 750;
 }
 
 .csd-member-card ul {
-  margin: 0 0 18px;
+  margin: 0 0 10px;
   padding: 0;
   list-style: none;
   display: grid;
-  gap: 8px;
+  gap: 5px;
   color: #4d5471;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 760;
 }
 
@@ -110,7 +132,7 @@
 
 .csd-member-card button {
   width: 100%;
-  height: 40px;
+  height: 38px;
   border: 0;
   border-radius: 999px;
   background: linear-gradient(135deg, #8b5cf6, #6d28d9);
@@ -119,18 +141,23 @@
 }
 
 .csd-back-home {
-  height: 52px;
+  min-height: 44px;
+  flex: 0 0 auto;
   border: 1px solid rgba(168, 140, 255, 0.18);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.78);
   color: #6d5bd0;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 900;
 }
 
 .csd-main {
+  box-sizing: border-box;
   min-width: 0;
+  height: 100dvh;
   padding: 32px 38px 44px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .csd-header {
@@ -187,6 +214,21 @@
   gap: 12px;
   font-weight: 850;
   box-shadow: 0 14px 38px rgba(95, 76, 148, 0.1);
+}
+
+.csd-header-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.csd-active-pill {
+  padding: 9px 14px;
+  border-radius: 999px;
+  background: #f0e9ff;
+  color: #6d28d9;
+  font-size: 13px;
+  font-weight: 900;
 }
 
 .csd-profile span {
@@ -378,6 +420,249 @@
   background: rgba(255, 255, 255, 0.82);
   color: #68708d;
   font-weight: 760;
+}
+
+.csd-section {
+  display: grid;
+  gap: 22px;
+}
+
+.csd-section-header {
+  padding: 24px 28px;
+  border: 1px solid rgba(168, 140, 255, 0.16);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 18px 44px rgba(95, 76, 148, 0.08);
+}
+
+.csd-section-header span {
+  display: inline-flex;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #f0e9ff;
+  color: #6d28d9;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.csd-section-header h2 {
+  margin: 12px 0 8px;
+  color: #15172f;
+  font-size: 28px;
+  font-weight: 950;
+}
+
+.csd-section-header p {
+  margin: 0;
+  color: #69708d;
+  font-size: 15px;
+  font-weight: 760;
+}
+
+.csd-context-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.csd-context-strip span {
+  padding: 7px 11px;
+  border-radius: 999px;
+  background: #f7f3ff;
+  color: #6d28d9;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.csd-empty-state {
+  padding: 26px;
+  border: 1px dashed #d8cff1;
+  border-radius: 16px;
+  background: #fbfaff;
+}
+
+.csd-empty-state strong {
+  color: #242747;
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.csd-empty-state p {
+  margin: 8px 0 0;
+  color: #707692;
+  line-height: 1.7;
+  font-weight: 720;
+}
+
+.csd-chat-card,
+.csd-library-card,
+.csd-report-note,
+.csd-section-side-card {
+  padding: 26px;
+}
+
+.csd-chat-window {
+  min-height: 230px;
+  padding: 20px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #fbfaff, #f7f3ff);
+}
+
+.csd-chat-bubble {
+  width: min(620px, 100%);
+  margin: 0;
+  padding: 16px 18px;
+  border-radius: 18px 18px 18px 6px;
+  background: #fff;
+  color: #343850;
+  box-shadow: 0 12px 30px rgba(95, 76, 148, 0.08);
+  font-weight: 760;
+}
+
+.csd-chat-input {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px;
+  gap: 12px;
+}
+
+.csd-chat-input textarea {
+  min-height: 82px;
+  resize: vertical;
+  padding: 14px 16px;
+  border: 1px solid #e3def0;
+  border-radius: 16px;
+  background: #fff;
+  color: #242747;
+  font: inherit;
+}
+
+.csd-chat-input button {
+  border: 0;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+  color: #fff;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.csd-chat-input button:disabled {
+  opacity: 0.56;
+  cursor: not-allowed;
+}
+
+.csd-material-list {
+  display: grid;
+  gap: 10px;
+}
+
+.csd-material-row {
+  min-height: 58px;
+  padding: 12px 16px;
+  border: 1px solid #eeeaf8;
+  border-radius: 14px;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.csd-material-row strong {
+  color: #252849;
+  font-weight: 900;
+}
+
+.csd-material-row span {
+  color: #7a80a0;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.csd-knowledge-section-grid,
+.csd-practice-grid,
+.csd-report-grid {
+  display: grid;
+  gap: 22px;
+}
+
+.csd-knowledge-section-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 0.85fr);
+}
+
+.csd-section-side-card p {
+  color: #69708d;
+  font-weight: 760;
+}
+
+.csd-section-single {
+  max-width: 760px;
+}
+
+.csd-practice-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.csd-practice-card {
+  min-height: 188px;
+  padding: 24px;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+
+.csd-practice-card span {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.csd-practice-card strong {
+  color: #242747;
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.csd-practice-card p {
+  margin: 0;
+  color: #707692;
+  line-height: 1.65;
+  font-weight: 720;
+}
+
+.csd-report-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.csd-report-card {
+  min-height: 138px;
+  padding: 24px;
+  display: grid;
+  align-content: center;
+  gap: 8px;
+}
+
+.csd-report-card strong {
+  color: #6d28d9;
+  font-size: 34px;
+  font-weight: 950;
+}
+
+.csd-report-card span {
+  color: #69708d;
+  font-weight: 850;
+}
+
+.csd-report-note p {
+  color: #69708d;
+  line-height: 1.7;
+  font-weight: 740;
 }
 
 .csd-panel-hint strong {
@@ -625,6 +910,7 @@
 
   .csd-sidebar {
     min-height: auto;
+    height: auto;
   }
 
   .csd-main {
@@ -635,6 +921,18 @@
   .csd-hero-card {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .csd-header-right,
+  .csd-chat-input {
+    width: 100%;
+    grid-template-columns: 1fr;
+  }
+
+  .csd-knowledge-section-grid,
+  .csd-practice-grid,
+  .csd-report-grid {
+    grid-template-columns: 1fr;
   }
 
   .csd-hero-art {
