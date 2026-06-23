@@ -3548,7 +3548,7 @@ function App() {
   }
 
   if (page === "home") {
-    return wrapPage(
+    return (
       <CourseLearningHome
         user={user}
         apiBase={API_BASE}

@@ -305,6 +305,7 @@ class CourseLearningOnboardingRequest(BaseModel):
     grade: str
     selected_courses: list[str]
     material_types: list[str] = []
+    course_goals: dict[str, str] | None = None
     plan: str | None = None
     onboarding_completed: bool = True
 
@@ -4756,6 +4757,7 @@ def _course_learning_onboarding_payload(user: models.User, track: models.UserLea
         "grade": detail.get("grade") or user.grade or "",
         "selected_courses": detail.get("selected_courses") if isinstance(detail.get("selected_courses"), list) else [],
         "material_types": detail.get("material_types") if isinstance(detail.get("material_types"), list) else [],
+        "course_goals": detail.get("course_goals") if isinstance(detail.get("course_goals"), dict) else {},
         "created_at": detail.get("course_learning_created_at") or (serialize_datetime(track.created_at) if track else None),
         "updated_at": detail.get("course_learning_updated_at") or (serialize_datetime(track.updated_at) if track else None),
     }
@@ -4791,6 +4793,13 @@ def save_course_learning_onboarding(
         value = (item or "").strip()
         if value and value not in material_types:
             material_types.append(value[:30])
+    allowed_course_goals = {"平日学习", "考试突击"}
+    course_goals = {}
+    for course in selected_courses:
+        value = ""
+        if isinstance(req.course_goals, dict):
+            value = (req.course_goals.get(course) or "").strip()
+        course_goals[course] = value if value in allowed_course_goals else "平日学习"
 
     if not major:
         raise HTTPException(status_code=400, detail="请选择专业")
@@ -4822,6 +4831,7 @@ def save_course_learning_onboarding(
         "grade": grade,
         "selected_courses": selected_courses,
         "material_types": material_types,
+        "course_goals": course_goals,
         "course_learning_onboarding_completed": completed,
         "course_learning_updated_at": now_text,
     })

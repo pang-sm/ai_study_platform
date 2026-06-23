@@ -1,14 +1,15 @@
 .clh-page {
-  min-height: 100%;
-  padding: 40px 44px 54px;
+  min-height: 100vh;
+  padding: 44px 48px 56px;
   background:
     radial-gradient(circle at 12% 12%, rgba(139, 92, 246, 0.08), transparent 30%),
     linear-gradient(135deg, #fbfaff 0%, #f7f4ff 48%, #fbfdff 100%);
   color: #15172f;
+  overflow-x: hidden;
 }
 
 .clh-shell {
-  width: min(1180px, 100%);
+  width: min(1240px, 100%);
   margin: 0 auto;
 }
 
@@ -118,7 +119,7 @@
   display: grid;
   grid-template-columns: 120px minmax(0, 1fr);
   gap: 26px;
-  align-items: center;
+  align-items: start;
   padding: 24px;
   margin-bottom: 28px;
 }
@@ -141,8 +142,8 @@
 
 .clh-course-row {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr)) 112px;
-  gap: 24px;
+  grid-template-columns: repeat(auto-fit, minmax(228px, 1fr));
+  gap: 18px;
 }
 
 .clh-course-card,
@@ -217,7 +218,8 @@
 .clh-course-text {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
+  min-width: 0;
 }
 
 .clh-course-text strong {
@@ -230,6 +232,17 @@
   color: #8087a0;
   font-size: 14px;
   font-weight: 700;
+}
+
+.clh-course-text em {
+  width: fit-content;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #f0e9ff;
+  color: #7c3aed;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 850;
 }
 
 .clh-course-check {
@@ -515,6 +528,204 @@
   opacity: 0.9;
 }
 
+.clh-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  padding: 28px;
+  background: rgba(28, 23, 52, 0.28);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.clh-add-modal {
+  position: relative;
+  width: min(760px, 100%);
+  max-height: min(86vh, 780px);
+  padding: 30px;
+  border: 1px solid rgba(164, 147, 211, 0.24);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 88% 10%, rgba(139, 92, 246, 0.1), transparent 24%),
+    rgba(255, 255, 255, 0.96);
+  box-shadow: 0 30px 90px rgba(55, 42, 99, 0.22);
+  overflow: hidden auto;
+}
+
+.clh-modal-close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 34px;
+  height: 34px;
+  border: 1px solid #e5e0f3;
+  border-radius: 999px;
+  background: #fff;
+  color: #77718f;
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.clh-modal-header {
+  padding-right: 34px;
+  margin-bottom: 24px;
+}
+
+.clh-modal-header span {
+  display: inline-flex;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #f0e9ff;
+  color: #7c3aed;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.clh-modal-header h2 {
+  margin: 14px 0 8px;
+  color: #181a35;
+  font-size: 25px;
+  line-height: 1.25;
+  font-weight: 950;
+}
+
+.clh-modal-header p {
+  margin: 0;
+  color: #737891;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.clh-modal-section {
+  margin-top: 22px;
+}
+
+.clh-modal-section h3 {
+  margin: 0 0 12px;
+  color: #292b46;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.clh-course-picker {
+  max-height: 286px;
+  padding: 4px 6px 6px 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  overflow: auto;
+}
+
+.clh-picker-item,
+.clh-goal-option,
+.clh-modal-secondary,
+.clh-modal-primary {
+  font: inherit;
+  cursor: pointer;
+}
+
+.clh-picker-item {
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid #e2def0;
+  border-radius: 14px;
+  background: #fff;
+  color: #30324b;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 800;
+  transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease, transform 0.16s ease;
+}
+
+.clh-picker-item:hover,
+.clh-goal-option:hover {
+  transform: translateY(-1px);
+  border-color: #c4b5fd;
+}
+
+.clh-picker-item.is-selected,
+.clh-goal-option.is-selected {
+  border-color: #8b5cf6;
+  background: #f4efff;
+  color: #6d28d9;
+  box-shadow: 0 10px 24px rgba(124, 58, 237, 0.1);
+}
+
+.clh-empty-picker {
+  margin: 0;
+  padding: 18px;
+  border-radius: 14px;
+  background: #f8f7fc;
+  color: #7d7893;
+  font-weight: 750;
+}
+
+.clh-goal-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.clh-goal-option {
+  min-width: 120px;
+  min-height: 42px;
+  padding: 9px 18px;
+  border: 1px solid #e2def0;
+  border-radius: 999px;
+  background: #fff;
+  color: #30324b;
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.clh-modal-error {
+  margin: 18px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.clh-modal-actions {
+  margin-top: 26px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.clh-modal-secondary,
+.clh-modal-primary {
+  min-width: 116px;
+  height: 44px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.clh-modal-secondary {
+  border: 1px solid #ded8ec;
+  background: #fff;
+  color: #5e6078;
+}
+
+.clh-modal-primary {
+  border: 0;
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+  color: #fff;
+  box-shadow: 0 14px 28px rgba(124, 58, 237, 0.22);
+}
+
+.clh-modal-primary:disabled,
+.clh-modal-secondary:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
 @media (max-width: 1100px) {
   .clh-page {
     padding: 28px 24px 42px;
@@ -550,6 +761,23 @@
   .clh-plan-card,
   .clh-material-card {
     padding: 24px 20px;
+  }
+
+  .clh-add-modal {
+    padding: 24px 20px;
+  }
+
+  .clh-course-picker {
+    grid-template-columns: 1fr;
+  }
+
+  .clh-modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .clh-modal-secondary,
+  .clh-modal-primary {
+    width: 100%;
   }
 
   .clh-plan-body {
