@@ -3,6 +3,7 @@ import "./App.css";
 import AppLayout from "./components/AppLayout.jsx";
 import ChatMessage from "./components/ChatMessage.jsx";
 import CourseDashboard from "./components/CourseDashboard.jsx";
+import CourseSubjectDashboard from "./components/CourseSubjectDashboard.jsx";
 import KnowledgeLearningPage from "./components/KnowledgeLearningPage.jsx";
 import CourseMaterialsPage from "./components/CourseMaterialsPage.jsx";
 import CourseLearningHome from "./components/CourseLearningHome.jsx";
@@ -3559,6 +3560,21 @@ function App() {
         loadMaterials={loadMaterials}
         courseOptions={COURSE_OPTIONS}
         getSubjectLabel={getSubjectLabel}
+      />
+    );
+  }
+
+  if (page === "dashboard") {
+    return (
+      <CourseSubjectDashboard
+        user={user}
+        course={subject}
+        dashboard={courseDashboardData}
+        coursePreference={coursePreference}
+        loading={courseDashboardLoading}
+        setPage={setPage}
+        getSubjectLabel={getSubjectLabel}
+        materials={materials}
       />
     );
   }
