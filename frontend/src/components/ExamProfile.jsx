@@ -174,7 +174,14 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
     if (targetTrack === "university_course") {
       const isEnabled = plans?.["course_learning"]?.is_enabled;
       if (!isEnabled) {
-        if (setPage) setPage("courseRegistration");
+        if (setPage) {
+          setPage("courseLearningOnboarding", {
+            fromServiceSwitch: true,
+            targetServiceKey: "course_learning",
+            initialStep: 2,
+            targetPage: "courseProfile",
+          });
+        }
         return;
       }
       if (setPage) setPage("courseProfile");

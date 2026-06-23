@@ -135,7 +135,15 @@ const EXAM_PACKAGES = [
   },
 ];
 
-export default function Onboarding({ user, onComplete, API_BASE }) {
+export default function Onboarding({
+  user,
+  onComplete,
+  API_BASE,
+  initialStep,
+  initialGoalType,
+  fromServiceSwitch = false,
+  hideBackButton = false,
+}) {
   const uid = user?.username || user?.id || "";
   const DRAFT_KEY = uid ? `onboarding_draft_${uid}` : "";
 
@@ -154,10 +162,11 @@ export default function Onboarding({ user, onComplete, API_BASE }) {
     }
   };
 
-  const draft = loadDraft();
+  const draft = fromServiceSwitch ? null : loadDraft();
 
   // Restore step — validate it matches goalType
   const restoredStep = (() => {
+    if (fromServiceSwitch) return Number(initialStep) || 2;
     if (!draft) return 1;
     const s = Number(draft.currentStep) || 1;
     const g = draft.goalType || "university_course";
@@ -166,12 +175,13 @@ export default function Onboarding({ user, onComplete, API_BASE }) {
     return s >= 1 && s <= 3 ? s : 1;
   })();
 
-  const restoredGoal = draft?.goalType || "university_course";
+  const restoredGoal = initialGoalType || draft?.goalType || "university_course";
 
   const [step, setStep] = useState(restoredStep);
   const [goalType, setGoalType] = useState(restoredGoal);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const shouldHideStep2Back = hideBackButton || fromServiceSwitch;
 
   // ── Exam 408 form ──
   const [examTime, setExamTime] = useState(draft?.examTime || "暂不确定");
@@ -196,7 +206,7 @@ export default function Onboarding({ user, onComplete, API_BASE }) {
 
   // ── Auto-save draft to localStorage ──
   useEffect(() => {
-    if (!DRAFT_KEY) return;
+    if (!DRAFT_KEY || fromServiceSwitch) return;
     const d = {
       currentStep: step,
       goalType,
@@ -206,7 +216,7 @@ export default function Onboarding({ user, onComplete, API_BASE }) {
       selectedPackage,
     };
     try { localStorage.setItem(DRAFT_KEY, JSON.stringify(d)); } catch { /* quota exceeded */ }
-  }, [DRAFT_KEY, step, goalType,
+  }, [DRAFT_KEY, fromServiceSwitch, step, goalType,
     examTime, examStage, examWeak, examDaily, examMaterials,
     courseMajor, courseGrade, courseCourses, courseMaterials,
     codeLang, codeLevel, codeProblems, selectedPackage]);
@@ -565,7 +575,7 @@ export default function Onboarding({ user, onComplete, API_BASE }) {
             {error && <div className="ob-error">{error}</div>}
 
             <div className="ob-actions ob-actions--dual">
-              <button type="button" className="ob-btn-secondary" onClick={handleBack}>上一步</button>
+              {!shouldHideStep2Back && <button type="button" className="ob-btn-secondary" onClick={handleBack}>上一步</button>}
               <button type="button" className="ob-btn-primary" onClick={handleStep2Next} disabled={saving && goalType !== "exam_408"}>
                 {goalType === "exam_408" ? "下一步" : (saving ? "保存中..." : "保存并进入")}
               </button>

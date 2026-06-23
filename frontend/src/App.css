@@ -23862,6 +23862,10 @@ body.exam-attempt-body #root {
   gap: 18px;
 }
 
+.course-onboarding-actions--single {
+  justify-content: center;
+}
+
 .course-onboarding-back,
 .course-onboarding-next {
   min-width: 148px;

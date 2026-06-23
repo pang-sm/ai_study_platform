@@ -62,6 +62,7 @@ export default function AIQuestionPage({
   subject = "computer_organization",
   setSubject = () => {},
   setPage = () => {},
+  profilePage = "examProfile",
   COURSE_OPTIONS = [],
   AVATARS = [],
   getSubjectLabel = (v) => v,
@@ -329,7 +330,7 @@ export default function AIQuestionPage({
 
           <div
             className="aiqp-topbar-user"
-            onClick={() => setPage("examProfile")}
+            onClick={() => setPage(profilePage)}
             title="个人主页"
           >
             {hasCustomAvatar && user ? (

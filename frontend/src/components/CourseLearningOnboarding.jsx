@@ -42,6 +42,7 @@ export default function CourseLearningOnboarding({
   onNext,
   onComplete,
   onBack,
+  hideBackButton = false,
 }) {
   const [major, setMajor] = useState("");
   const [grade, setGrade] = useState("");
@@ -199,10 +200,12 @@ export default function CourseLearningOnboarding({
 
         {message && <div className="course-onboarding-message">{message}</div>}
 
-        <div className="course-onboarding-actions">
-          <button type="button" className="course-onboarding-back" onClick={onBack} disabled={saving}>
-            上一步
-          </button>
+        <div className={`course-onboarding-actions${hideBackButton ? " course-onboarding-actions--single" : ""}`}>
+          {!hideBackButton && (
+            <button type="button" className="course-onboarding-back" onClick={onBack} disabled={saving}>
+              上一步
+            </button>
+          )}
           <button type="button" className="course-onboarding-next" onClick={handleSubmit} disabled={saving}>
             {saving ? "保存中..." : "下一步"}
           </button>

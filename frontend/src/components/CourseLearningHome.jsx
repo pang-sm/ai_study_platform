@@ -95,12 +95,12 @@ function getCourseInitials(course, index) {
   return known[course] || COURSE_THEMES[index % COURSE_THEMES.length].icon;
 }
 
-function UserCard({ user, apiBase }) {
+function UserCard({ user, apiBase, onProfile }) {
   const name = user?.nickname || user?.username || "同学";
   const hasAvatar = (user?.avatar_url || "").startsWith("/me/avatar/");
 
   return (
-    <button className="clh-user-card" type="button" aria-label="个人信息">
+    <button className="clh-user-card" type="button" aria-label="个人信息" onClick={onProfile}>
       {hasAvatar ? (
         <img className="clh-user-avatar" src={`${apiBase}${user.avatar_url}?username=${encodeURIComponent(user?.username || "")}`} alt="头像" />
       ) : (
@@ -280,7 +280,7 @@ export default function CourseLearningHome({
             <h1>欢迎回来，开始今天的课程学习 <span>✦</span></h1>
             <p>保持专注，持续进步，每一天都比昨天更优秀！</p>
           </div>
-          <UserCard user={user} apiBase={apiBase} />
+          <UserCard user={user} apiBase={apiBase} onProfile={() => setPage?.("courseProfile")} />
         </header>
 
         <section className="clh-card clh-courses-card">

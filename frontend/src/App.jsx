@@ -546,6 +546,21 @@ function App() {
       setExamSubjectKey(context.subject);
       try { localStorage.setItem(CURRENT_EXAM_SUBJECT_KEY, context.subject); } catch { /* ignore */ }
     }
+    if (context?.fromServiceSwitch) {
+      setServiceSwitchOnboarding({
+        fromServiceSwitch: true,
+        targetServiceKey: context.targetServiceKey || "",
+        goalType: context.goalType || "",
+        initialStep: context.initialStep || 2,
+        targetPage: context.targetPage || "",
+      });
+    } else if (
+      nextPage !== "courseLearningOnboarding" &&
+      nextPage !== "courseLearningPackageStep" &&
+      nextPage !== "onboarding"
+    ) {
+      setServiceSwitchOnboarding(null);
+    }
     if (nextPage === "examSubjectDashboard" && context?.forcePanel) {
       setExamSubjectPanelIntent({ panel: context.forcePanel, nonce: Date.now() });
     } else if (nextPage !== "examSubjectDashboard") {
@@ -588,6 +603,7 @@ function App() {
   const [courseOnboardingChecking, setCourseOnboardingChecking] = useState(false);
   const [courseOnboardingTargetPage, setCourseOnboardingTargetPage] = useState("home");
   const [coursePackageSaving, setCoursePackageSaving] = useState(false);
+  const [serviceSwitchOnboarding, setServiceSwitchOnboarding] = useState(null);
   const [publicFeatures, setPublicFeatures] = useState(null);
   const [userAnnouncements, setUserAnnouncements] = useState([]);
   const [dismissedAnnounceIds, setDismissedAnnounceIds] = useState(() => {
@@ -3199,6 +3215,11 @@ function App() {
   if (page === "onboarding") {
     const handleOnboardingComplete = (profile, goalType) => {
       saveLoginUser(profile);
+      if (serviceSwitchOnboarding?.fromServiceSwitch && serviceSwitchOnboarding.targetPage) {
+        setServiceSwitchOnboarding(null);
+        setPage(serviceSwitchOnboarding.targetPage);
+        return;
+      }
       if (goalType === "exam_408") {
         setPage("examHome");
         return;
@@ -3211,7 +3232,17 @@ function App() {
       }
       setPage("home");
     };
-    return <Onboarding user={user} onComplete={handleOnboardingComplete} API_BASE={API_BASE} />;
+    return (
+      <Onboarding
+        user={user}
+        onComplete={handleOnboardingComplete}
+        API_BASE={API_BASE}
+        initialStep={serviceSwitchOnboarding?.initialStep}
+        initialGoalType={serviceSwitchOnboarding?.goalType}
+        fromServiceSwitch={Boolean(serviceSwitchOnboarding?.fromServiceSwitch)}
+        hideBackButton={Boolean(serviceSwitchOnboarding?.fromServiceSwitch)}
+      />
+    );
   }
 
   if (page === "courseLearningOnboarding") {
@@ -3222,6 +3253,7 @@ function App() {
       setCourseOnboardingStatus(data?.onboarding || null);
       setPage("courseLearningPackageStep");
     };
+    const isServiceSwitchCourseOnboarding = Boolean(serviceSwitchOnboarding?.fromServiceSwitch);
     return (
       <CourseLearningOnboarding
         user={user}
@@ -3230,6 +3262,7 @@ function App() {
         checking={courseOnboardingChecking}
         onNext={handleCourseOnboardingNext}
         onBack={() => setPage("onboarding")}
+        hideBackButton={isServiceSwitchCourseOnboarding}
       />
     );
   }
@@ -3265,7 +3298,9 @@ function App() {
         }
         setTip("");
         setCourseOnboardingStatus(data?.onboarding || { onboarding_completed: true, plan });
-        setPage(courseOnboardingTargetPage || "home");
+        const nextPage = serviceSwitchOnboarding?.targetPage || courseOnboardingTargetPage || "home";
+        setServiceSwitchOnboarding(null);
+        setPage(nextPage);
       } finally {
         setCoursePackageSaving(false);
       }
@@ -4363,6 +4398,7 @@ function App() {
         subject={subject}
         setSubject={setSubject}
         setPage={setPage}
+        profilePage={currentProfilePage}
         COURSE_OPTIONS={COURSE_OPTIONS}
         AVATARS={AVATARS}
         getSubjectLabel={getSubjectLabel}

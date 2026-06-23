@@ -121,8 +121,16 @@ export default function CourseLearningProfile({ user, setPage, onLogout, API_BAS
     if (targetTrack === "exam_408") {
       const isEnabled = plans?.["exam_11408"]?.is_enabled;
       if (!isEnabled) {
-        // Not registered — navigate to 11408 registration
-        if (setPage) setPage("onboarding");
+        // Not registered: enter the target direction's detail step directly.
+        if (setPage) {
+          setPage("onboarding", {
+            fromServiceSwitch: true,
+            targetServiceKey: "exam_11408",
+            goalType: "exam_408",
+            initialStep: 2,
+            targetPage: "examProfile",
+          });
+        }
         return;
       }
       // Registered — enter 11408 profile
