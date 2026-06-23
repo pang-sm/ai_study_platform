@@ -61,16 +61,21 @@ function adaptDashboardReport(data, { start, end }) {
   };
 }
 
-export async function generateAIReport({ rangeType, startDate, endDate, username } = {}) {
+export async function generateAIReport({ rangeType, startDate, endDate, username, mode, courseName } = {}) {
+  const body = {
+    username,
+    range_type: rangeType || "7d",
+    start_date: startDate || null,
+    end_date: endDate || null,
+  };
+  if (mode === "course_learning" && courseName) {
+    body.mode = "course_learning";
+    body.course_name = courseName;
+  }
   const res = await fetch(`${API_BASE}/learning-report/ai-generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      username,
-      range_type: rangeType || "7d",
-      start_date: startDate || null,
-      end_date: endDate || null,
-    }),
+    body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
   if (res.ok) return data;

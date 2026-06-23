@@ -240,11 +240,21 @@ export default function ExamChat({
   subjectKey,
   subjectTitle,
   courseName,
+  mode = "exam_11408",       // "exam_11408" | "course_learning"
+  courseId = "",             // used in course_learning mode
+  contextDisplay = "",       // custom subtitle, e.g. "课程学习 / 互联网计算"
   knowledgeContext = null,
   initialMaterialToReference = null,
   onInitialMaterialReferenced = null,
 }) {
-  const subjectLabel = getSubjectLabel(subjectKey, subjectTitle);
+  const isCourseMode = mode === "course_learning";
+  const subjectLabel = isCourseMode
+    ? (courseName || subjectTitle || "课程学习")
+    : getSubjectLabel(subjectKey, subjectTitle);
+  const displayCourseName = isCourseMode ? courseName : (courseName || `11408 ${subjectLabel}`);
+  const subtitleText = isCourseMode
+    ? (contextDisplay || `课程学习 / ${courseName || "当前课程"}`)
+    : (contextDisplay || `当前上下文：${courseName || `11408 ${subjectLabel}`}`);
   const [currentSessionId, setCurrentSessionId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [historySessions, setHistorySessions] = useState([]);
@@ -270,7 +280,18 @@ export default function ExamChat({
   const userInteractedRef = useRef(false);
   const shouldScrollToLatestUserRef = useRef(false);
 
-  const recommendations = useMemo(() => getRecommendations(subjectKey).slice(0, 5), [subjectKey]);
+  const recommendations = useMemo(() => {
+    if (isCourseMode) {
+      return [
+        `《${courseName}》的核心知识点有哪些？`,
+        `如何高效学习${courseName}？`,
+        `${courseName}的课程重点是什么？`,
+        `请帮我梳理${courseName}的知识体系`,
+        `${courseName}常见的习题类型有哪些？`,
+      ];
+    }
+    return getRecommendations(subjectKey).slice(0, 5);
+  }, [isCourseMode, courseName, subjectKey]);
   const lastUserMessageId = useMemo(() => {
     for (let index = messages.length - 1; index >= 0; index -= 1) {
       if (messages[index]?.role === "user") return messages[index].id;
@@ -281,25 +302,46 @@ export default function ExamChat({
   const buildScopeParams = useCallback((includeUser = true) => {
     const query = new URLSearchParams();
     if (includeUser && user?.username) query.set("username", user.username);
-    if (subjectKey) {
-      query.set("subject_key", subjectKey);
-      query.set("exam_subject", subjectKey);
+    if (isCourseMode) {
+      // course_learning mode: use courseName as subject/course, no exam_subject
+      if (courseName) {
+        query.set("subject", courseName);
+        query.set("course", courseName);
+      }
+    } else {
+      if (subjectKey) {
+        query.set("subject_key", subjectKey);
+        query.set("exam_subject", subjectKey);
+      }
+      if (subjectLabel) query.set("subject", subjectLabel);
+      if (courseName) query.set("course", courseName);
     }
-    if (subjectLabel) query.set("subject", subjectLabel);
-    if (courseName) query.set("course", courseName);
     return query;
-  }, [courseName, subjectKey, subjectLabel, user?.username]);
+  }, [isCourseMode, courseName, subjectKey, subjectLabel, user?.username]);
 
-  const buildChatPayload = useCallback((message, extra = {}) => ({
-    username: user.username,
-    message,
-    subject: subjectLabel,
-    course: courseName,
-    subject_key: subjectKey,
-    exam_subject: subjectKey,
-    knowledge_context: knowledgeContext || undefined,
-    ...extra,
-  }), [courseName, knowledgeContext, subjectKey, subjectLabel, user?.username]);
+  const buildChatPayload = useCallback((message, extra = {}) => {
+    const base = {
+      username: user.username,
+      message,
+      subject: subjectLabel,
+      course: displayCourseName,
+    };
+    if (isCourseMode) {
+      // course_learning mode: no exam_subject or subject_key
+      Object.assign(base, {
+        knowledge_context: knowledgeContext || undefined,
+        ...extra,
+      });
+    } else {
+      Object.assign(base, {
+        subject_key: subjectKey,
+        exam_subject: subjectKey,
+        knowledge_context: knowledgeContext || undefined,
+        ...extra,
+      });
+    }
+    return base;
+  }, [isCourseMode, displayCourseName, knowledgeContext, subjectKey, subjectLabel, user?.username]);
 
   const canReferenceMaterial = useCallback((material) => {
     const status = String(material?.parse_status || "").toLowerCase();
@@ -851,7 +893,7 @@ export default function ExamChat({
                 onClick={() => loadSession(session.id)}
               >
                 <span>{session.title || "未命名对话"}</span>
-                <small>{getSubjectLabel(session.exam_subject, subjectLabel)} · {formatTime(session.created_at)}</small>
+                <small>{isCourseMode ? (session.subject || subjectLabel) : getSubjectLabel(session.exam_subject, subjectLabel)} · {formatTime(session.created_at)}</small>
                 <i>
                   <b onClick={(event) => renameSession(session, event)}>重命名</b>
                   <b onClick={(event) => deleteSession(session.id, event)}>删除</b>
@@ -866,7 +908,7 @@ export default function ExamChat({
         <header className="examchat-header">
           <div>
             <h2 className="examchat-title">AI 问答 · {subjectLabel}</h2>
-            <p className="examchat-subtitle">当前上下文：{courseName}</p>
+            <p className="examchat-subtitle">{subtitleText}</p>
           </div>
         </header>
 
@@ -1023,7 +1065,7 @@ export default function ExamChat({
               value={inputText}
               onChange={(event) => setInputText(event.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={`向 AI 提问 ${subjectLabel} 相关问题...`}
+              placeholder={`向 AI 提问${isCourseMode ? `《${courseName}》` : " " + subjectLabel}相关问题...`}
               rows={2}
               disabled={loading}
             />

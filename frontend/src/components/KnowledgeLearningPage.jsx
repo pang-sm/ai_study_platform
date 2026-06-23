@@ -18,6 +18,10 @@ function getSubjectDisplayName(subjectKey) {
   return names[subjectKey] || subjectKey || "数据结构";
 }
 
+function buildCourseLearningId(courseName) {
+  return `course_${String(courseName || "course").trim().replace(/\s+/g, "_")}`;
+}
+
 const STATUS_CONFIG = {
   not_started: { label: "未学习", shortLabel: "未学习", color: "#64748b", bg: "#f1f5f9" },
   learning: { label: "学习中", shortLabel: "学习中", color: "#7c3aed", bg: "#ede9fe" },
@@ -274,9 +278,23 @@ function KnowledgeTreeNode({ node, depth = 1, selectedId, expandedIds, keyword, 
   );
 }
 
-export default function KnowledgeLearningPage({ user, onNavigateToAI, subjectKey }) {
-  const courseId = getCourseId(subjectKey);
-  const courseName = getCourseName(subjectKey);
+export default function KnowledgeLearningPage({
+  user,
+  onNavigateToAI,
+  subjectKey,
+  mode = "exam_11408",         // "exam_11408" | "course_learning"
+  courseName: courseNameProp,   // direct course name for course_learning mode
+}) {
+  const isCourseMode = mode === "course_learning";
+  const courseId = isCourseMode
+    ? buildCourseLearningId(courseNameProp || "course")
+    : getCourseId(subjectKey);
+  const displayCourseName = isCourseMode
+    ? (courseNameProp || "课程学习")
+    : getCourseName(subjectKey);
+  const displaySubjectName = isCourseMode
+    ? (courseNameProp || "课程学习")
+    : getSubjectDisplayName(subjectKey);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -500,12 +518,12 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI, subjectKey
     onNavigateToAI?.({
       type: "knowledge_point",
       course_id: courseId,
-      courseId: courseName,
-      course_name: courseName,
-      courseName: courseName,
-      exam: "11408",
-      subject: getSubjectDisplayName(subjectKey),
-      subject_key: subjectKey || "data_structure",
+      courseId: displayCourseName,
+      course_name: displayCourseName,
+      courseName: displayCourseName,
+      exam: isCourseMode ? "course_learning" : "11408",
+      subject: displaySubjectName,
+      subject_key: isCourseMode ? undefined : (subjectKey || "data_structure"),
       source_page: "knowledge_map",
       chapter: selectedChapterName,
       chapterTitle: selectedChapterName,
@@ -541,8 +559,8 @@ export default function KnowledgeLearningPage({ user, onNavigateToAI, subjectKey
     <div className="km-page">
       <section className="km-hero-card">
         <div>
-          <h1>知识脉络 · {getSubjectDisplayName(subjectKey)}</h1>
-          <p>当前课程：{data?.course_name || courseName}</p>
+          <h1>知识脉络 · {displaySubjectName}</h1>
+          <p>当前课程：{data?.course_name || displayCourseName}</p>
         </div>
       </section>
 

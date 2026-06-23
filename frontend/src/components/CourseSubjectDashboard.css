@@ -20,13 +20,14 @@
   box-sizing: border-box;
   height: 100dvh;
   min-height: 0;
-  padding: 16px 18px calc(14px + env(safe-area-inset-bottom, 0px));
+  padding: 16px 18px 20px;
+  padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
   background: rgba(255, 255, 255, 0.64);
   border-right: 1px solid rgba(168, 140, 255, 0.16);
   box-shadow: 18px 0 50px rgba(116, 84, 190, 0.08);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   overflow: hidden;
 }
 
@@ -37,7 +38,7 @@
   padding-right: 4px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .csd-nav-item,
@@ -53,10 +54,49 @@
 
 .csd-sidebar-footer {
   flex: 0 0 auto;
+  flex-shrink: 0;
   display: grid;
-  gap: 10px;
+  gap: 8px;
   padding-bottom: 0;
   min-height: 0;
+  margin-top: auto;
+}
+
+/* Compact member card to prevent pushing back-home off screen */
+.csd-sidebar-footer .csd-member-card {
+  padding: 10px 12px;
+}
+
+.csd-sidebar-footer .csd-member-card strong {
+  font-size: 15px;
+}
+
+.csd-sidebar-footer .csd-member-card p {
+  margin: 4px 0 6px;
+  font-size: 11px;
+}
+
+.csd-sidebar-footer .csd-member-card ul {
+  gap: 3px;
+  margin-bottom: 8px;
+  font-size: 11px;
+}
+
+.csd-sidebar-footer .csd-member-card button {
+  height: 32px;
+  font-size: 13px;
+}
+
+.csd-back-home {
+  min-height: 40px;
+  flex: 0 0 auto;
+  flex-shrink: 0;
+  border: 1px solid rgba(168, 140, 255, 0.18);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.78);
+  color: #6d5bd0;
+  font-size: 14px;
+  font-weight: 900;
 }
 
 .csd-nav-item {
@@ -885,6 +925,38 @@
   padding: 40px;
   color: #6d5bd0;
   font-weight: 900;
+}
+
+/* ── Main area overrides when rendering mature components ── */
+.csd-main--chat,
+.csd-main--materials,
+.csd-main--knowledge,
+.csd-main--plan,
+.csd-main--practice,
+.csd-main--report {
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Ensure ExamChat shell fills the available space */
+.csd-main--chat > .examchat-shell {
+  height: 100%;
+  max-height: 100dvh;
+}
+
+/* Ensure CourseMaterialsPage fills the available space */
+.csd-main--materials > .cmp-shell {
+  height: 100%;
+  max-height: 100dvh;
+}
+
+/* Maintain header visibility in non-fullscreen sections */
+.csd-main--plan,
+.csd-main--practice,
+.csd-main--report,
+.csd-main--knowledge {
+  padding: 32px 38px 44px;
+  overflow-y: auto;
 }
 
 @media (max-width: 1180px) {

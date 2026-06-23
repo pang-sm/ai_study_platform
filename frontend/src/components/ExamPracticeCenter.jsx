@@ -966,8 +966,14 @@ export default function ExamPracticeCenter({
   subjectKey = "data_structure",
   subjectName = "11408 数据结构",
   user,
+  mode = "exam_11408",         // "exam_11408" | "course_learning"
+  courseName = "",              // used in course_learning mode
 }) {
-  const subjectInfo = EXAM_SUBJECTS[subjectKey] || EXAM_SUBJECTS.data_structure;
+  const isCourseMode = mode === "course_learning";
+  const displayName = isCourseMode ? (courseName || "课程学习") : subjectName;
+  const subjectInfo = isCourseMode
+    ? { key: "course", label: courseName || "课程学习", shortLabel: courseName || "课程", courseId: `course_${(courseName || "course").replace(/\s+/g, "_")}` }
+    : (EXAM_SUBJECTS[subjectKey] || EXAM_SUBJECTS.data_structure);
   const [practiceView, setPracticeView] = useState("dashboard");
   const [pastPaperConfig, setPastPaperConfig] = useState(null);
   const [pastPapers, setPastPapers] = useState(null);
@@ -981,11 +987,15 @@ export default function ExamPracticeCenter({
   const [statsError, setStatsError] = useState("");
 
   useEffect(() => {
+    if (isCourseMode) {
+      setPastPapers({ available: false, resource_files: [] });
+      return;
+    }
     fetch(`${API_BASE}/exam/11408/${subjectKey}/past-papers`)
       .then((r) => r.json())
       .then((data) => setPastPapers(data))
       .catch(() => setPastPapers({ available: false, resource_files: [] }));
-  }, [subjectKey]);
+  }, [subjectKey, isCourseMode]);
 
   useEffect(() => {
     if (!user?.username) {
@@ -997,14 +1007,17 @@ export default function ExamPracticeCenter({
     setStatsLoading(true);
     setStatsError("");
     const params = new URLSearchParams({ username: user.username });
-    safeJsonFetch(`${API_BASE}/exam/11408/${subjectKey}/practice/stats?${params.toString()}`)
+    const apiPath = isCourseMode
+      ? `${API_BASE}/learning/practice/stats`  // course_learning practice stats
+      : `${API_BASE}/exam/11408/${subjectKey}/practice/stats`;
+    safeJsonFetch(`${apiPath}?${params.toString()}`)
       .then((payload) => setPracticeStats(payload))
       .catch((err) => {
         setPracticeStats({ total_practices: 0, completed_practices: 0, accuracy: 0, total_duration_minutes: 0 });
-        setStatsError(`练习数据加载失败：${err.message || "服务器错误"}`);
+        if (!isCourseMode) setStatsError(`练习数据加载失败：${err.message || "服务器错误"}`);
       })
       .finally(() => setStatsLoading(false));
-  }, [subjectKey, user?.username]);
+  }, [subjectKey, user?.username, isCourseMode]);
 
   const availableYears = [];
   if (pastPapers?.resource_files) {
@@ -1016,7 +1029,7 @@ export default function ExamPracticeCenter({
     availableYears.sort((a, b) => b - a);
   }
 
-  if (practiceView === "pastPaper" && pastPaperConfig) {
+  if (practiceView === "pastPaper" && pastPaperConfig && !isCourseMode) {
     return (
       <ExamPastPaperPractice
         subjectKey={pastPaperConfig.subjectKey}
@@ -1027,6 +1040,11 @@ export default function ExamPracticeCenter({
         onBack={() => setPracticeView("dashboard")}
       />
     );
+  }
+
+  if (isCourseMode && practiceView === "pastPaper") {
+    setPracticeView("dashboard"); // redirect away from past paper
+    return null;
   }
 
   if (practiceView === "chapter") {
@@ -1042,13 +1060,20 @@ export default function ExamPracticeCenter({
     return <AIQuestionPracticePage subjectInfo={subjectInfo} user={user} onBack={() => setPracticeView("dashboard")} />;
   }
 
-  const cards = [
-    { key: "chapter", icon: "📋", title: "章节练习", desc: "按章节知识点进行针对性练习", count: "题目待录入" },
-    { key: "wrong", icon: "❌", title: "错题练习", desc: "查看批改后自动收集的个人错题", count: "个人错题本" },
-    { key: "favorite", icon: "⭐", title: "收藏练习", desc: "练习自己收藏的题目", count: "个人收藏" },
-    { key: "pastPaper", icon: "📜", title: "真题练习", desc: "基于历年 11408 真题进行专项训练", count: "近五年真题", className: "practice-type-card--past" },
-    { key: "ai", icon: "🤖", title: "AI 出题", desc: "按知识点生成 11408 风格练习题", count: "自定义生成", className: "practice-type-card--ai" },
-  ];
+  const cards = isCourseMode
+    ? [
+        { key: "chapter", icon: "📋", title: "章节练习", desc: "按章节知识点进行针对性练习", count: "题目待录入" },
+        { key: "wrong", icon: "❌", title: "错题练习", desc: "查看批改后自动收集的个人错题", count: "个人错题本" },
+        { key: "favorite", icon: "⭐", title: "收藏练习", desc: "练习自己收藏的题目", count: "个人收藏" },
+        { key: "ai", icon: "🤖", title: "AI 出题", desc: `按知识点生成《${courseName}》风格练习题`, count: "自定义生成", className: "practice-type-card--ai" },
+      ]
+    : [
+        { key: "chapter", icon: "📋", title: "章节练习", desc: "按章节知识点进行针对性练习", count: "题目待录入" },
+        { key: "wrong", icon: "❌", title: "错题练习", desc: "查看批改后自动收集的个人错题", count: "个人错题本" },
+        { key: "favorite", icon: "⭐", title: "收藏练习", desc: "练习自己收藏的题目", count: "个人收藏" },
+        { key: "pastPaper", icon: "📜", title: "真题练习", desc: "基于历年 11408 真题进行专项训练", count: "近五年真题", className: "practice-type-card--past" },
+        { key: "ai", icon: "🤖", title: "AI 出题", desc: "按知识点生成 11408 风格练习题", count: "自定义生成", className: "practice-type-card--ai" },
+      ];
 
   const openCard = (key) => {
     if (key === "pastPaper") {
@@ -1064,7 +1089,7 @@ export default function ExamPracticeCenter({
       <div className="practice-dashboard-header">
         <div>
           <h2>练习中心</h2>
-          <p>巩固知识，提升能力</p>
+          <p>{isCourseMode ? `${displayName} · 巩固知识，提升能力` : "巩固知识，提升能力"}</p>
         </div>
       </div>
 

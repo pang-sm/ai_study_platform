@@ -248,7 +248,13 @@ function GenerateReportModal({ onClose, onGenerate, generating }) {
 }
 
 /* ── Main Component ── */
-export default function LearningReportCenter({ user }) {
+export default function LearningReportCenter({
+  user,
+  mode = "exam_11408",        // "exam_11408" | "course_learning"
+  courseName = "",             // used in course_learning mode
+}) {
+  const isCourseMode = mode === "course_learning";
+  const contextName = isCourseMode ? (courseName || "课程学习") : "11408";
   const [report, setReport] = useState(() => normalizeReport(EMPTY_REPORT));
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -263,6 +269,8 @@ export default function LearningReportCenter({ user }) {
       const data = await generateAIReport({
         rangeType, startDate, endDate,
         username: user?.username,
+        mode: isCourseMode ? "course_learning" : "exam_11408",
+        courseName: isCourseMode ? courseName : undefined,
       });
       setReport(normalizeReport(data));
       setHasReport(true);

@@ -3575,6 +3575,15 @@ function App() {
         setPage={setPage}
         getSubjectLabel={getSubjectLabel}
         materials={materials}
+        // Pass mature content components — same pattern as ExamSubjectDashboard
+        materialsContent={courseMaterialsPage}
+        knowledgeContent={null}      // TODO: course-aware knowledge page
+        practiceContent={null}       // TODO: course-aware practice center
+        reportContent={null}         // TODO: course-aware report
+        planContent={null}           // TODO: course-aware study plan
+        knowledgeContext={examKnowledgeContext}
+        initialMaterialToReference={examInitialMaterialReference}
+        onInitialMaterialReferenced={() => setExamInitialMaterialReference(null)}
       />
     );
   }

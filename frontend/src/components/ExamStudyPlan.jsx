@@ -2,8 +2,17 @@ import { useEffect, useState, useCallback } from "react";
 import ExamStudyPlanTaskModal from "./ExamStudyPlanTaskModal.jsx";
 import { getExamSubjectConfig } from "./ExamSubjectDashboard.jsx";
 
-export default function ExamStudyPlan({ user, subjectKey, onNavigate }) {
-  const config = getExamSubjectConfig(subjectKey);
+export default function ExamStudyPlan({
+  user,
+  subjectKey,
+  onNavigate,
+  mode = "exam_11408",       // "exam_11408" | "course_learning"
+  courseName = "",            // used in course_learning mode
+}) {
+  const isCourseMode = mode === "course_learning";
+  const config = isCourseMode
+    ? { title: courseName || "课程学习", icon: "CL", hero: "", subtitle: "", tags: [] }
+    : getExamSubjectConfig(subjectKey);
   const username = user?.username || "";
 
   const [planData, setPlanData] = useState(null);
@@ -17,9 +26,10 @@ export default function ExamStudyPlan({ user, subjectKey, onNavigate }) {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(
-        `/api/exam/11408/subjects/${encodeURIComponent(subjectKey)}/study-plan?username=${encodeURIComponent(username)}`
-      );
+      const apiPath = isCourseMode
+        ? `/api/course-learning/study-plan?username=${encodeURIComponent(username)}&course_name=${encodeURIComponent(courseName || "")}`
+        : `/api/exam/11408/subjects/${encodeURIComponent(subjectKey)}/study-plan?username=${encodeURIComponent(username)}`;
+      const res = await fetch(apiPath);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setPlanData(data);
@@ -28,17 +38,17 @@ export default function ExamStudyPlan({ user, subjectKey, onNavigate }) {
     } finally {
       setLoading(false);
     }
-  }, [username, subjectKey]);
+  }, [username, subjectKey, isCourseMode, courseName]);
 
   useEffect(() => { fetchPlan(); }, [fetchPlan]);
 
   const deleteTask = async (taskId) => {
     if (!confirm("确定要删除这个任务吗？")) return;
     try {
-      await fetch(
-        `/api/exam/11408/subjects/${encodeURIComponent(subjectKey)}/study-plan/tasks/${taskId}?username=${encodeURIComponent(username)}`,
-        { method: "DELETE" }
-      );
+      const apiPath = isCourseMode
+        ? `/api/course-learning/study-plan/tasks/${taskId}?username=${encodeURIComponent(username)}`
+        : `/api/exam/11408/subjects/${encodeURIComponent(subjectKey)}/study-plan/tasks/${taskId}?username=${encodeURIComponent(username)}`;
+      await fetch(apiPath, { method: "DELETE" });
       await fetchPlan();
     } catch (e) {
       console.error("Failed to delete task:", e);
@@ -165,6 +175,7 @@ export default function ExamStudyPlan({ user, subjectKey, onNavigate }) {
       {taskModalOpen && (
         <ExamStudyPlanTaskModal user={user} subjectKey={subjectKey}
           chapters={chapters} editTask={editingTask}
+          mode={mode} courseName={courseName}
           onSaved={() => { setTaskModalOpen(false); setEditingTask(null); fetchPlan(); }}
           onClose={() => { setTaskModalOpen(false); setEditingTask(null); }} />
       )}

@@ -1,8 +1,20 @@
 import { useState, useMemo } from "react";
 import { getExamSubjectConfig } from "./ExamSubjectDashboard.jsx";
 
-export default function ExamStudyPlanTaskModal({ user, subjectKey, chapters, editTask, onSaved, onClose }) {
-  const config = getExamSubjectConfig(subjectKey);
+export default function ExamStudyPlanTaskModal({
+  user,
+  subjectKey,
+  chapters,
+  editTask,
+  onSaved,
+  onClose,
+  mode = "exam_11408",        // "exam_11408" | "course_learning"
+  courseName = "",             // used in course_learning mode
+}) {
+  const isCourseMode = mode === "course_learning";
+  const config = isCourseMode
+    ? { title: courseName || "课程学习", icon: "CL", hero: "", subtitle: "", tags: [] }
+    : getExamSubjectConfig(subjectKey);
   const username = user?.username || "";
   const isEdit = !!editTask;
 
@@ -45,7 +57,6 @@ export default function ExamStudyPlanTaskModal({ user, subjectKey, chapters, edi
 
     const body = {
       username,
-      subject_key: subjectKey,
       title: title.trim(),
       knowledge_point_name: scopeType === "all" ? "全部范围" : kpName,
       scope_type: scopeType,
@@ -53,11 +64,21 @@ export default function ExamStudyPlanTaskModal({ user, subjectKey, chapters, edi
       due_date: dueDate,
       note: note.trim(),
     };
+    if (isCourseMode) {
+      body.mode = "course_learning";
+      body.course_name = courseName || "";
+    } else {
+      body.subject_key = subjectKey;
+    }
 
     try {
-      const url = isEdit
-        ? `/api/exam/11408/subjects/${encodeURIComponent(subjectKey)}/study-plan/tasks/${editTask.id}`
-        : `/api/exam/11408/subjects/${encodeURIComponent(subjectKey)}/study-plan/tasks`;
+      const url = isCourseMode
+        ? (isEdit
+            ? `/api/course-learning/study-plan/tasks/${editTask.id}`
+            : `/api/course-learning/study-plan/tasks`)
+        : (isEdit
+            ? `/api/exam/11408/subjects/${encodeURIComponent(subjectKey)}/study-plan/tasks/${editTask.id}`
+            : `/api/exam/11408/subjects/${encodeURIComponent(subjectKey)}/study-plan/tasks`);
       const method = isEdit ? "PATCH" : "POST";
       const res = await fetch(url, {
         method,
