@@ -9,6 +9,8 @@ import CourseMaterialsPage from "./components/CourseMaterialsPage.jsx";
 import CourseLearningHome from "./components/CourseLearningHome.jsx";
 import CourseLearningOnboarding from "./components/CourseLearningOnboarding.jsx";
 import CourseLearningPackageStep from "./components/CourseLearningPackageStep.jsx";
+import CourseLearningProfile from "./components/CourseLearningProfile.jsx";
+import CourseLearningRegistration from "./components/CourseLearningRegistration.jsx";
 import AIQuestionPage from "./components/AIQuestionPage.jsx";
 import MaterialPickerModal from "./components/MaterialPickerModal.jsx";
 import ProfilePage from "./components/ProfilePage.jsx";
@@ -440,7 +442,7 @@ const VALID_PAGES = new Set([
   "adminUsageCenter", "adminCenter",
   "materials", "workspaceMaterials", "chat", "records", "history",
   "knowledgeLearning", "searchResults",
-  "profileEdit", "onboarding", "courseLearningOnboarding", "courseLearningPackageStep", "examHome", "examProfile", "examPlan", "examSubjectDashboard",
+  "profileEdit", "onboarding", "courseLearningOnboarding", "courseLearningPackageStep", "courseProfile", "courseRegistration", "examHome", "examProfile", "examPlan", "examSubjectDashboard",
   "login", "adminLogin",
 ]);
 
@@ -3564,6 +3566,15 @@ function App() {
     );
   }
 
+  // Filter materials for course_learning — exclude 11408 reference metadata
+  const courseLearningMaterials = useMemo(() => {
+    return (Array.isArray(materials) ? materials : []).filter((item) => {
+      // Exclude system reference metadata materials (11408 official references)
+      if (item.source_type === "reference_metadata" || item.visibility === "system_public_metadata") return false;
+      return true;
+    });
+  }, [materials]);
+
   if (page === "dashboard") {
     return (
       <CourseSubjectDashboard
@@ -3574,13 +3585,13 @@ function App() {
         loading={courseDashboardLoading}
         setPage={setPage}
         getSubjectLabel={getSubjectLabel}
-        materials={materials}
+        materials={courseLearningMaterials}
         // Pass mature content components — same pattern as ExamSubjectDashboard
-        materialsContent={courseMaterialsPage}
-        knowledgeContent={null}      // TODO: course-aware knowledge page
-        practiceContent={null}       // TODO: course-aware practice center
-        reportContent={null}         // TODO: course-aware report
-        planContent={null}           // TODO: course-aware study plan
+        materialsContent={null}      // CourseSubjectDashboard builds its own materials page
+        knowledgeContent={null}
+        practiceContent={null}
+        reportContent={null}
+        planContent={null}
         knowledgeContext={examKnowledgeContext}
         initialMaterialToReference={examInitialMaterialReference}
         onInitialMaterialReferenced={() => setExamInitialMaterialReference(null)}
@@ -3635,6 +3646,18 @@ function App() {
   if (page === "examProfile") {
     return (
       <ExamProfile user={user} setPage={setPage} onLogout={logout} API_BASE={API_BASE} />
+    );
+  }
+
+  if (page === "courseProfile") {
+    return (
+      <CourseLearningProfile user={user} setPage={setPage} onLogout={logout} API_BASE={API_BASE} />
+    );
+  }
+
+  if (page === "courseRegistration") {
+    return (
+      <CourseLearningRegistration user={user} setPage={setPage} API_BASE={API_BASE} />
     );
   }
 

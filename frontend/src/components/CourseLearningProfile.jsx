@@ -1,18 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 
-const EXAM_408_SCHOOLS = [
-  "北京大学", "南京大学", "浙江大学", "上海交通大学",
-  "复旦大学", "中国科学技术大学", "武汉大学", "华中科技大学",
-  "同济大学", "中国人民大学", "北京邮电大学", "北京工业大学",
-  "北京交通大学", "南京理工大学", "华东理工大学", "上海大学",
-  "郑州大学", "云南大学", "河北工业大学", "武汉理工大学",
-];
-
 const PACKAGE_LABELS = {
   free: "免费模式",
-  monthly_sprint: "月度冲刺包",
-  quarterly_boost: "季度强化包",
-  full_exam: "全程考包",
+  monthly: "月度包",
+  quarterly: "季度包",
+  full: "全程包",
 };
 
 function maskEmail(email) {
@@ -25,35 +17,31 @@ function maskEmail(email) {
   return name.slice(0, 3) + "***" + domain;
 }
 
-export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
+export default function CourseLearningProfile({ user, setPage, onLogout, API_BASE }) {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [actionMsg, setActionMsg] = useState("");
   const [actionErr, setActionErr] = useState("");
   const [editing, setEditing] = useState(false);
   const [nickname, setNickname] = useState(user?.nickname || "");
-  const [examTrack, setExamTrack] = useState(() => (user?.tracks || []).find((t) => t.track_type === "exam_408") || null);
+  const [courseTrack, setCourseTrack] = useState(() =>
+    (user?.tracks || []).find((t) => t.track_type === "university_course") || null
+  );
   const [quotaData, setQuotaData] = useState(null);
+  const [courseCount, setCourseCount] = useState(0);
   const avatarInputRef = useRef(null);
 
-  // Target school search
-  const [targetSchool, setTargetSchool] = useState("");
-  const [schoolQuery, setSchoolQuery] = useState("");
-  const [schoolResults, setSchoolResults] = useState([]);
-  const [schoolFocused, setSchoolFocused] = useState(false);
-  const schoolRef = useRef(null);
-
-  const pkgType = examTrack?.package_type || "free";
-  const permissions = examTrack?.permissions || {};
+  const pkgType = courseTrack?.package_type || "free";
+  const permissions = courseTrack?.permissions || {};
   const onboardingDetail = (() => {
     try {
-      if (examTrack?.onboarding_detail) return examTrack.onboarding_detail;
+      if (courseTrack?.onboarding_detail) return courseTrack.onboarding_detail;
       const d = user?.onboarding_detail;
       if (!d) return null;
       return typeof d === "string" ? JSON.parse(d) : d;
     } catch { return null; }
   })();
 
-  const displayPkg = examTrack?.package_display_name || PACKAGE_LABELS[pkgType] || "免费模式";
+  const displayPkg = courseTrack?.package_display_name || PACKAGE_LABELS[pkgType] || "免费模式";
   const chatLimit = permissions.ai_chat_daily_limit ?? quotaData?.feature_limits?.chat?.limit ?? 50;
   const questionLimit = permissions.ai_question_daily_limit ?? quotaData?.feature_limits?.question_generate?.limit ?? 5;
   const uploadLimitMb = permissions.material_upload_limit_mb ?? quotaData?.upload_limits?.single_file_size_mb ?? 100;
@@ -71,17 +59,16 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
     { icon: "📊", label: "学习报告", value: permissions.learning_report ? "已解锁" : "未解锁", unit: "", sub: permissions.learning_report ? "当前套餐可用" : "升级后可用" },
   ];
 
-  const fetchExamAccountData = async () => {
+  const fetchCourseAccountData = async () => {
     try {
       const res = await fetch(`${API_BASE}/me/tracks?username=${encodeURIComponent(user.username)}`);
       const data = await res.json().catch(() => ({}));
       const tracks = data.tracks || [];
-      const examT = tracks.find((t) => t.track_type === "exam_408");
-      if (examT) setExamTrack(examT);
-      const detail = examT?.onboarding_detail || {};
-      const school = detail?.target_school || "";
-      setTargetSchool(school);
-      setSchoolQuery(school);
+      const courseT = tracks.find((t) => t.track_type === "university_course");
+      if (courseT) setCourseTrack(courseT);
+      const detail = courseT?.onboarding_detail || {};
+      const courses = detail?.selected_courses || [];
+      setCourseCount(courses.length || 0);
     } catch { /* keep current value */ }
     try {
       const quotaRes = await fetch(`${API_BASE}/me/quota?username=${encodeURIComponent(user.username)}`);
@@ -89,83 +76,35 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
       if (quotaRes.ok) setQuotaData(quota);
     } catch { /* keep current quota */ }
   };
-  useEffect(() => { fetchExamAccountData(); }, []);
+  useEffect(() => { fetchCourseAccountData(); }, []);
 
-  const fetchSchools = async (q) => {
-    const query = (q || "").trim();
-    // Try backend API first
-    try {
-      const res = await fetch(`${API_BASE}/exam-408/schools?q=${encodeURIComponent(query)}`);
-      const data = await res.json().catch(() => ({}));
-      if (data.schools && data.schools.length > 0) {
-        setSchoolResults(data.schools);
-        return;
-      }
-    } catch { /* fallback to local list */ }
-    // Fallback: filter local constant
-    const lower = query.toLowerCase();
-    const results = query
-      ? EXAM_408_SCHOOLS.filter((s) => s.toLowerCase().includes(lower))
-      : EXAM_408_SCHOOLS;
-    setSchoolResults(results);
-  };
-
-  const selectSchool = async (school) => {
-    if (!EXAM_408_SCHOOLS.includes(school)) {
-      setActionErr("请选择 11408 院校库中的学校");
-      return;
-    }
-    setSchoolQuery(school);
-    setTargetSchool(school);
-    setSchoolFocused(false);
-    // Save to backend
-    try {
-      const res = await fetch(`${API_BASE}/exam-408/target-school`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: user.username, school }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.detail || "保存失败");
-      await fetchExamAccountData();
-      setActionMsg("目标院校已更新");
-      setTimeout(() => setActionMsg(""), 2500);
-    } catch (err) {
-      setActionErr(err.message);
-      fetchExamAccountData();
-    }
-  };
-
-  // Click outside to close dropdown
-  useEffect(() => {
-    const handler = (e) => { if (schoolRef.current && !schoolRef.current.contains(e.target)) setSchoolFocused(false); };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  const displayName = user?.nickname || user?.username || "小庞同学";
-  const username = user?.username || "xiaopang";
-  const examTime = onboardingDetail?.exam_time || "2026 年 12 月";
-  const examStage = onboardingDetail?.stage || "基础阶段";
-  const examDaily = onboardingDetail?.daily_study_time || "6 - 8 小时";
-  const registerTime = user?.created_at || "2024-12-01 10:30:25";
+  const displayName = user?.nickname || user?.username || "同学";
+  const username = user?.username || "";
+  const registerTime = user?.created_at || "";
   const realEmail = user?.email || "";
   const emailDisplay = realEmail ? maskEmail(realEmail) : "未绑定";
   const emailBtnLabel = realEmail ? "修改" : "绑定";
 
-  const hasCourseTrack = (user?.tracks || []).some((t) => t.track_type === "university_course");
+  // Preferred courses from onboarding
+  const courseMajors = onboardingDetail?.major || user?.major || "未设置";
+  const courseGrade = onboardingDetail?.grade || user?.grade || "未设置";
+  const selectedCourses = Array.isArray(onboardingDetail?.selected_courses) ? onboardingDetail.selected_courses : [];
+  const courseGoals = onboardingDetail?.course_goals || {};
+
+  const hasExamTrack = (user?.tracks || []).some((t) => t.track_type === "exam_408");
   const hasCodeTrack = (user?.tracks || []).some((t) => t.track_type === "programming");
 
   const switchTrack = (targetTrack) => {
-    if (targetTrack === "university_course") {
-      // Check if course_learning is registered via service_plans
-      const coursePlan = user?.service_plans?.["course_learning"];
-      const isEnabled = coursePlan?.is_enabled;
+    if (targetTrack === "exam_408") {
+      // Check if exam_11408 is registered via service_plans
+      const examPlan = user?.service_plans?.["exam_11408"];
+      const isEnabled = examPlan?.is_enabled;
       if (!isEnabled) {
-        if (setPage) setPage("courseRegistration");
+        // Navigate to 11408 registration (reuse existing exam onboarding flow)
+        if (setPage) setPage("onboarding");
         return;
       }
-      if (setPage) setPage("courseProfile");
+      if (setPage) setPage("examProfile");
       return;
     }
     if (targetTrack === "programming") {
@@ -178,10 +117,10 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
       return;
     }
     if (!(user?.tracks || []).some((t) => t.track_type === targetTrack)) {
-      setActionErr(`请先开通${targetTrack === "university_course" ? "课程学习" : "编程能力提升"}方向`);
+      setActionErr(`请先开通${targetTrack === "exam_408" ? "11408 考研" : "编程能力提升"}方向`);
       return;
     }
-    if (setPage) setPage(targetTrack === "university_course" ? "home" : "codeStudio");
+    if (setPage) setPage(targetTrack === "exam_408" ? "examHome" : "codeStudio");
   };
 
   // ── Avatar ──
@@ -312,8 +251,8 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
     <div className="ep-page-wrap">
       <div className="ep-shell">
         <div className="ep-header">
-          <button type="button" className="ep-outline-btn" onClick={() => setPage && setPage("examHome")}>← 返回 11408 主页</button>
-          <h1 className="ep-title">🛡 个人中心</h1>
+          <button type="button" className="ep-outline-btn" onClick={() => setPage && setPage("home")}>← 返回课程学习主页</button>
+          <h1 className="ep-title">📚 课程学习 · 个人中心</h1>
         </div>
 
         {actionMsg && <div className="admin-dashboard-success" style={{ marginBottom: 12 }}>{actionMsg}</div>}
@@ -347,52 +286,24 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
                 <span className="ep-info-label">昵称</span>
                 {editing ? <input className="ep-info-input" value={nickname} onChange={(e) => setNickname(e.target.value)} /> : <span>{displayName}</span>}
               </div>
-              <div className="ep-info-row"><span className="ep-info-label">学习方向</span><span className="ep-info-tag">11408 考研</span></div>
-              <div className="ep-info-row">
-                <span className="ep-info-label">目标院校</span>
-                <div className="ep-school-wrap" ref={schoolRef}>
-                  {editing ? (
-                    <>
-                      <input
-                        className="ep-school-input"
-                        value={schoolQuery}
-                        placeholder="输入院校名称搜索..."
-                        onChange={(e) => { setSchoolQuery(e.target.value); fetchSchools(e.target.value); }}
-                        onFocus={() => { setSchoolFocused(true); if (!schoolQuery) fetchSchools(""); }}
-                      />
-                      {schoolFocused && (
-                        <div className="ep-school-drop">
-                          {schoolResults.length === 0 ? (
-                            <span className="ep-school-none">未找到匹配院校</span>
-                          ) : (
-                            schoolResults.map((s) => (
-                              <button key={s} type="button" className="ep-school-opt" onClick={() => selectSchool(s)}>{s}</button>
-                            ))
-                          )}
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <span>{targetSchool || "未设置"}</span>
-                  )}
-                </div>
-              </div>
+              <div className="ep-info-row"><span className="ep-info-label">学习方向</span><span className="ep-info-tag">课程学习</span></div>
+              <div className="ep-info-row"><span className="ep-info-label">专业</span><span>{courseMajors}</span></div>
             </div>
             <div className="ep-info-col">
-              <div className="ep-info-row"><span className="ep-info-label">考试时间</span><span>{examTime}</span></div>
-              <div className="ep-info-row"><span className="ep-info-label">当前备考阶段</span><span>{examStage}</span></div>
-              <div className="ep-info-row"><span className="ep-info-label">每天学习时间</span><span>{examDaily}</span></div>
+              <div className="ep-info-row"><span className="ep-info-label">年级</span><span>{courseGrade}</span></div>
+              <div className="ep-info-row"><span className="ep-info-label">已加入课程</span><span>{courseCount} 门</span></div>
+              <div className="ep-info-row"><span className="ep-info-label">当前学期</span><span>{onboardingDetail?.current_semester || "未设置"}</span></div>
               <div className="ep-info-row"><span className="ep-info-label">注册时间</span><span className="ep-info-time">{registerTime}</span></div>
             </div>
           </div>
         </div>
 
-        {/* ═══ Section 2: Account Overview ═══ */}
+        {/* ═══ Section 2: Course Learning Overview ═══ */}
         <div className="ep-card">
           <div className="ep-card-head">
-            <h2>账号概览 <span className="ep-help-icon" title="当前方向的功能与额度">?</span></h2>
+            <h2>课程学习概览 <span className="ep-help-icon" title="课程学习方向的功能与额度">?</span></h2>
             <div className="ep-switch-btns">
-              <button type="button" className="ep-outline-btn" onClick={() => switchTrack("university_course")}>切换到课程</button>
+              <button type="button" className="ep-outline-btn" onClick={() => switchTrack("exam_408")}>切换到 11408</button>
               <button type="button" className="ep-outline-btn" onClick={() => switchTrack("programming")}>切换到编程</button>
             </div>
           </div>
@@ -408,7 +319,56 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
           </div>
         </div>
 
-        {/* ═══ Section 3: Account Security ═══ */}
+        {/* ═══ Section 3: My Courses ═══ */}
+        <div className="ep-card">
+          <div className="ep-card-head"><h2>我的课程</h2></div>
+          {selectedCourses.length === 0 ? (
+            <div className="ep-empty-note" style={{ padding: 16, color: "#6b7280", fontSize: 14 }}>
+              暂未加入课程，请先完成课程学习引导注册。
+            </div>
+          ) : (
+            <div className="ep-course-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12, marginTop: 8 }}>
+              {selectedCourses.map((course, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  className="ep-outline-btn"
+                  style={{ padding: "14px 16px", textAlign: "left", height: "auto" }}
+                  onClick={() => {
+                    if (setPage) {
+                      // Navigate to course subject dashboard
+                      setPage("dashboard", { subject: course });
+                    }
+                  }}
+                >
+                  <strong>{course}</strong>
+                  <br />
+                  <small style={{ color: "#6b7280" }}>进入课程工作台 →</small>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ═══ Section 4: Quick Entry ═══ */}
+        <div className="ep-card">
+          <div className="ep-card-head"><h2>快捷入口</h2></div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12, marginTop: 8 }}>
+            {[
+              { icon: "▣", label: "课程资料库", action: () => { if (selectedCourses[0]) setPage("dashboard", { subject: selectedCourses[0], forcePanel: "materials" }); } },
+              { icon: "☵", label: "AI 问答", action: () => { if (selectedCourses[0]) setPage("dashboard", { subject: selectedCourses[0], forcePanel: "chat" }); } },
+              { icon: "▤", label: "学习计划", action: () => { if (selectedCourses[0]) setPage("dashboard", { subject: selectedCourses[0], forcePanel: "plan" }); } },
+              { icon: "▧", label: "学习报告", action: () => { if (selectedCourses[0]) setPage("dashboard", { subject: selectedCourses[0], forcePanel: "report" }); } },
+            ].map((item, idx) => (
+              <button key={idx} type="button" className="ep-outline-btn" style={{ padding: "16px", height: "auto", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }} onClick={item.action}>
+                <span style={{ fontSize: 28 }}>{item.icon}</span>
+                <span style={{ fontSize: 14, fontWeight: 700 }}>{item.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* ═══ Section 5: Account Security ═══ */}
         <div className="ep-card">
           <div className="ep-card-head"><h2>账号安全</h2></div>
           <div className="ep-security-grid">
@@ -419,14 +379,6 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
                 <span>********</span>
               </div>
               <button type="button" className="ep-outline-btn" onClick={openPwdModal}>修改</button>
-            </div>
-            <div className="ep-sec-item">
-              <div>
-                <strong>绑定手机号</strong>
-                <p>用于接收验证码和安全验证</p>
-                <span>{user?.phone ? maskEmail(user.phone).replace("@","") : "未绑定"}</span>
-              </div>
-              <button type="button" className="ep-outline-btn" onClick={() => setActionErr("手机号绑定功能暂未开放")}>修改</button>
             </div>
             <div className="ep-sec-item">
               <div>
@@ -446,7 +398,7 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
           </div>
         </div>
 
-        {/* ═══ Section 4: My Package ═══ */}
+        {/* ═══ Section 6: My Package ═══ */}
         <div className="ep-card">
           <div className="ep-card-head"><h2>我的套餐</h2></div>
           <div className="ep-package-row">
@@ -457,9 +409,7 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
               <span className="ep-package-section-label">当前套餐</span>
               <div className="ep-package-name-row">
                 <strong>{displayPkg}</strong>
-                {pkgType === "quarterly_boost" && <span className="ep-package-recommend-tag">推荐</span>}
               </div>
-              <span className="ep-package-expire">有效期至：2025-03-01</span>
             </div>
             <div className="ep-package-perks">
               <span className="ep-package-section-label">套餐权益</span>
@@ -477,9 +427,6 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
                   </li>
                 ))}
               </ul>
-            </div>
-            <div className="ep-package-action">
-              <button type="button" className="ep-outline-btn" onClick={() => setPage && setPage("examPlan")}>查看套餐详情</button>
             </div>
           </div>
         </div>

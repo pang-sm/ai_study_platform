@@ -162,6 +162,10 @@ export default function CourseSubjectDashboard({
   const displayName = user?.nickname || user?.username || "同学";
   const courseContextDisplay = `课程学习 / ${courseName}`;
 
+  // Check course_learning membership plan — hide ad if full
+  const coursePlan = user?.service_plans?.["course_learning"]?.plan || "free";
+  const isCourseFullPlan = coursePlan === "full";
+
   // Materials for overview
   const courseMaterialsArr = (() => {
     const targetNames = new Set([courseName, course, getSubjectLabel?.(course)].filter(Boolean));
@@ -407,17 +411,19 @@ export default function CourseSubjectDashboard({
         </nav>
 
         <div className="csd-sidebar-footer">
-          <div className="csd-member-card">
-            <strong>会员 <span>♛</span></strong>
-            <p>解锁专属权益，畅享课程学习特权</p>
-            <ul>
-              <li>专属学习资源</li>
-              <li>AI 问答优先使用</li>
-              <li>学习数据深度分析</li>
-              <li>更多高级功能</li>
-            </ul>
-            <button type="button" onClick={() => setPage?.("membership")}>了解会员权益 →</button>
-          </div>
+          {!isCourseFullPlan && (
+            <div className="csd-member-card">
+              <strong>会员 <span>♛</span></strong>
+              <p>解锁专属权益，畅享课程学习特权</p>
+              <ul>
+                <li>专属学习资源</li>
+                <li>AI 问答优先使用</li>
+                <li>学习数据深度分析</li>
+                <li>更多高级功能</li>
+              </ul>
+              <button type="button" onClick={() => setPage?.("membership")}>了解会员权益 →</button>
+            </div>
+          )}
 
           <button className="csd-back-home" type="button" onClick={() => setPage?.("home")}>
             ↩ 返回主页
@@ -435,8 +441,7 @@ export default function CourseSubjectDashboard({
             </div>
           </div>
           <div className="csd-header-right">
-            <span className="csd-active-pill">{activeLabel}</span>
-            <button className="csd-profile" type="button" aria-label="个人资料" onClick={() => setPage?.("profile")}>
+            <button className="csd-profile" type="button" aria-label="个人资料" onClick={() => setPage?.("courseProfile")}>
               <span>{displayName.charAt(0).toUpperCase()}</span>
               个人资料⌄
             </button>

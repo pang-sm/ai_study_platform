@@ -4564,6 +4564,17 @@ def me(req: MeRequest, db: Session = Depends(get_db)):
     active_track = next((t["track_type"] for t in tracks if t["is_active"]), tracks[0]["track_type"] if tracks else None)
     profile["tracks"] = tracks
     profile["active_track_type"] = active_track
+
+    # Include service-direction membership plans
+    service_keys = ["exam_11408", "course_learning", "programming"]
+    service_plans = {}
+    for sk in service_keys:
+        service_plans[sk] = {
+            "is_enabled": bool(get_user_service_membership(db, user.id, sk)),
+            "plan": get_effective_service_plan(db, user.id, sk),
+        }
+    profile["service_plans"] = service_plans
+
     return {"user": profile}
 
 
@@ -4859,6 +4870,86 @@ def save_course_learning_onboarding(
         "onboarding": _course_learning_onboarding_payload(user, track),
         "user": profile,
         "profile": profile,
+    }
+
+
+# ── Course Learning Registration ──
+
+class CourseLearningRegisterRequest(BaseModel):
+    username: str
+    plan: str = "free"
+    service_key: str = "course_learning"
+
+
+@app.post("/course-learning/register")
+def register_course_learning(req: CourseLearningRegisterRequest, db: Session = Depends(get_db)):
+    """Register/enable course_learning service for a user."""
+    user = get_user_by_username(req.username, db)
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    service_key = req.service_key or "course_learning"
+    plan = req.plan or "free"
+    if plan not in ("free", "monthly", "quarterly", "full"):
+        raise HTTPException(status_code=400, detail=f"无效的套餐: {plan}")
+
+    # Upsert UserServiceMembership
+    membership = get_user_service_membership(db, user.id, service_key)
+    if membership:
+        membership.is_enabled = True
+        membership.plan = plan
+        membership.updated_at = utc_now()
+    else:
+        membership = models.UserServiceMembership(
+            user_id=user.id,
+            service_key=service_key,
+            is_enabled=True,
+            plan=plan,
+        )
+        db.add(membership)
+
+    # Also ensure a university_course track exists
+    track = get_user_track(db, user.id, "university_course")
+    if not track:
+        from backend.database import upsert_user_track
+        track = upsert_user_track(
+            db, user.id, "university_course",
+            {"track_type": "university_course", "is_active": True}
+        )
+
+    db.commit()
+    db.refresh(user)
+
+    # Return updated profile info
+    profile = user_profile(user)
+    tracks = [serialize_track(t) for t in get_user_tracks(db, user.id)]
+    profile["tracks"] = tracks
+    service_plans = {}
+    for sk in ["exam_11408", "course_learning", "programming"]:
+        service_plans[sk] = {
+            "is_enabled": bool(get_user_service_membership(db, user.id, sk)),
+            "plan": get_effective_service_plan(db, user.id, sk),
+        }
+    profile["service_plans"] = service_plans
+
+    return {
+        "message": "课程学习空间已开通",
+        "user": profile,
+        "service_key": service_key,
+        "plan": plan,
+    }
+
+
+@app.get("/course-learning/status")
+def check_course_learning_status(username: str, db: Session = Depends(get_db)):
+    """Check if a user has course_learning registered/enabled."""
+    user = get_user_by_username(username, db)
+    plan = get_effective_service_plan(db, user.id, "course_learning")
+    membership = get_user_service_membership(db, user.id, "course_learning")
+    return {
+        "is_enabled": bool(membership and membership.is_enabled),
+        "plan": plan,
+        "service_key": "course_learning",
     }
 
 

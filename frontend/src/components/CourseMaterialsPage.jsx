@@ -34,8 +34,13 @@ const SORT_OPTIONS = [
   { value: "chunksDesc", label: "片段 ↓" },
 ];
 
-function getCourseDisplay(subject, getSubjectLabel) {
+function getCourseDisplay(subject, getSubjectLabel, isCourseMode = false) {
   const raw = String(subject || "").trim();
+  if (isCourseMode) {
+    // course_learning: no "11408" prefix
+    const label = getSubjectLabel?.(raw) || raw || "当前课程";
+    return { title: label, course: raw || label };
+  }
   const withoutPrefix = raw.replace(/^11408\s*/, "").trim();
   const label = raw.startsWith("11408 ")
     ? withoutPrefix
@@ -231,6 +236,8 @@ export default function CourseMaterialsPage({
   user,
   subject,
   getSubjectLabel,
+  mode = "exam_11408",         // "exam_11408" | "course_learning"
+  courseName = "",              // used in course_learning mode
   materials = [],
   materialsLoading,
   reindexLoading,
@@ -254,6 +261,7 @@ export default function CourseMaterialsPage({
   onQuoteMaterial,
   initialSearchQuery = "",
 }) {
+  const isCourseMode = mode === "course_learning";
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -269,8 +277,12 @@ export default function CourseMaterialsPage({
   const [expandedModules, setExpandedModules] = useState(new Set());
   const appliedInitialSearchRef = useRef("");
 
-  const course = getCourseDisplay(subject, getSubjectLabel);
-  const currentItems = Array.isArray(materials) ? materials : [];
+  const course = getCourseDisplay(subject, getSubjectLabel, isCourseMode);
+  const rawItems = Array.isArray(materials) ? materials : [];
+  // In course_learning mode, filter out 11408 reference metadata materials
+  const currentItems = isCourseMode
+    ? rawItems.filter((item) => !isReferenceMetadata(item))
+    : rawItems;
 
   const matchedMaterialIds = useMemo(() => {
     if (!query.trim()) return new Set();
