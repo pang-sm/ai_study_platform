@@ -46,8 +46,7 @@
 .csd-back-home,
 .csd-profile,
 .csd-hero-actions button,
-.csd-plan-item button,
-.csd-material-item {
+.csd-plan-item button {
   font: inherit;
   cursor: pointer;
 }
@@ -785,6 +784,7 @@
   border: 1px solid #f0edf8;
   border-radius: 16px;
   background: #fbfaff;
+  cursor: default;
   display: flex;
   flex-direction: column;
   align-items: center;

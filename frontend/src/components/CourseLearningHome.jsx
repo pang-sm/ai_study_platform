@@ -110,7 +110,6 @@ function UserCard({ user, apiBase, onProfile }) {
         <strong>{name}</strong>
         <span>会员 Pro</span>
       </span>
-      <span className="clh-user-chevron">⌄</span>
     </button>
   );
 }
@@ -208,8 +207,20 @@ export default function CourseLearningHome({
   const usedPercent = Math.min(100, Math.round((totalSize / quotaBytes) * 100));
 
   const openCourse = (course) => {
-    if (course && setSubject) setSubject(course);
-    setPage("dashboard");
+    const courseName = normalizeCourseName(course);
+    const courseContext = {
+      id: courseName,
+      courseId: courseName,
+      name: courseName,
+      title: courseName,
+      courseName,
+      courseTitle: courseName,
+      subject: courseName,
+      track: "course_learning",
+      serviceKey: "course_learning",
+    };
+    if (courseName && setSubject) setSubject(courseName);
+    setPage("dashboard", courseContext);
   };
 
   const openAddModal = () => {

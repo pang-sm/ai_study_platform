@@ -436,6 +436,48 @@ EXAM_PACKAGE_QUOTA = {
     },
 }
 
+COURSE_PACKAGE_NAMES = {
+    "free": "免费模式",
+    "monthly": "月度学习包",
+    "quarterly": "季度学习包",
+    "full": "全程学习包",
+}
+
+COURSE_PACKAGE_QUOTA = {
+    "free": {
+        "ai_chat_daily_limit": 50,
+        "ai_question_daily_limit": 5,
+        "material_upload_limit_mb": 100,
+        "learning_plan": False,
+        "mistake_review": False,
+        "learning_report": False,
+    },
+    "monthly": {
+        "ai_chat_daily_limit": 300,
+        "ai_question_daily_limit": 30,
+        "material_upload_limit_mb": 500,
+        "learning_plan": True,
+        "mistake_review": True,
+        "learning_report": True,
+    },
+    "quarterly": {
+        "ai_chat_daily_limit": 500,
+        "ai_question_daily_limit": 50,
+        "material_upload_limit_mb": 1024,
+        "learning_plan": True,
+        "mistake_review": True,
+        "learning_report": True,
+    },
+    "full": {
+        "ai_chat_daily_limit": 1000,
+        "ai_question_daily_limit": 100,
+        "material_upload_limit_mb": 2048,
+        "learning_plan": True,
+        "mistake_review": True,
+        "learning_report": True,
+    },
+}
+
 # Normalize legacy/Chinese package values to English enum.
 PACKAGE_NORMALIZE_MAP = {
     "免费模式": "free", "free": "free",
@@ -733,6 +775,30 @@ def get_effective_service_plan(db: Session, user_id: int, service_key: str) -> s
     if m and m.is_enabled:
         return m.plan or "free"
     return "free"
+
+
+def normalize_course_plan(raw: str | None) -> str:
+    plan = (raw or "free").strip().lower()
+    return plan if plan in COURSE_PACKAGE_QUOTA else "free"
+
+
+def get_course_package_entitlements(plan: str | None) -> dict:
+    normalized = normalize_course_plan(plan)
+    quota = COURSE_PACKAGE_QUOTA[normalized]
+    return {
+        "service_key": "course_learning",
+        "plan": normalized,
+        "plan_label": COURSE_PACKAGE_NAMES[normalized],
+        "permissions": quota,
+        "benefits": [
+            {"key": "chat", "label": "AI 问答", "limit": quota["ai_chat_daily_limit"], "unit": "次 / 每天", "enabled": True},
+            {"key": "question_generate", "label": "AI 出题", "limit": quota["ai_question_daily_limit"], "unit": "次 / 每天", "enabled": True},
+            {"key": "material_upload", "label": "资料上传限制", "limit": quota["material_upload_limit_mb"], "unit": "MB", "enabled": True},
+            {"key": "learning_plan", "label": "学习计划", "limit": None, "unit": "", "enabled": bool(quota["learning_plan"])},
+            {"key": "mistake_review", "label": "错题复盘", "limit": None, "unit": "", "enabled": bool(quota["mistake_review"])},
+            {"key": "learning_report", "label": "学习报告", "limit": None, "unit": "", "enabled": bool(quota["learning_report"])},
+        ],
+    }
 
 
 def _sync_membership_to_track(db: Session, user: models.User):
@@ -4857,6 +4923,19 @@ def save_course_learning_onboarding(
         package_type=plan,
         onboarding_detail=detail,
     )
+    if completed:
+        membership = get_user_service_membership(db, user.id, "course_learning")
+        if membership:
+            membership.is_enabled = True
+            membership.plan = plan
+            membership.updated_at = utc_now()
+        else:
+            db.add(models.UserServiceMembership(
+                user_id=user.id,
+                service_key="course_learning",
+                is_enabled=True,
+                plan=plan,
+            ))
     db.commit()
     db.refresh(user)
     db.refresh(track)
@@ -5256,6 +5335,48 @@ def get_my_quota(username: str, db: Session = Depends(get_db)):
         "all_features": ALL_FEATURES,
         "active_track_type": "exam_408" if exam_track else None,
         "exam_408_track": exam_serialized,
+    }
+
+
+@app.get("/course-learning/entitlements")
+def get_course_learning_entitlements(username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    plan = get_effective_service_plan(db, user.id, "course_learning")
+    entitlement = get_course_package_entitlements(plan)
+    permissions = entitlement["permissions"]
+
+    feature_map = {
+        "chat": int(permissions["ai_chat_daily_limit"]),
+        "question_generate": int(permissions["ai_question_daily_limit"]),
+        "learning_plan_generate": 999999 if permissions["learning_plan"] else 0,
+        "learning_report_generate": 999999 if permissions["learning_report"] else 0,
+    }
+    feature_limits = {}
+    for feature, limit in feature_map.items():
+        used = get_today_usage(user.username, feature, db)
+        feature_limits[feature] = {
+            "used": used,
+            "limit": limit,
+            "remaining": max(0, limit - used),
+        }
+
+    course_materials_query = db.query(models.StudyMaterial).filter(
+        models.StudyMaterial.username == user.username,
+        models.StudyMaterial.is_deleted.is_(False),
+        ~models.StudyMaterial.subject.like("11408%"),
+    )
+    upload_used = course_materials_query.count()
+
+    return {
+        **entitlement,
+        "feature_limits": feature_limits,
+        "upload_limits": {
+            "material_upload_count": {
+                "used": upload_used,
+                "limit": permissions["material_upload_limit_mb"],
+            },
+            "single_file_size_mb": permissions["material_upload_limit_mb"],
+        },
     }
 
 

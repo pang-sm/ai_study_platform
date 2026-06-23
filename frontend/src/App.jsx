@@ -507,6 +507,7 @@ function App() {
   const [examSubjectPanelIntent, setExamSubjectPanelIntent] = useState(null);
   const [examInitialMaterialReference, setExamInitialMaterialReference] = useState(null);
   const [examKnowledgeContext, setExamKnowledgeContext] = useState(null);
+  const [courseSubjectContext, setCourseSubjectContext] = useState(null);
 
   const setPage = (nextPage, context = null) => {
     // Feature gating: intercept navigation to disabled features
@@ -533,8 +534,8 @@ function App() {
 
     // Guard: navigating to dashboard (course_learning) requires an explicit course selection
     if (nextPage === "dashboard" && !context?.subject && !context?.courseId && !context?.examCourseId) {
-      // No course selected — redirect to course learning profile
-      setPageRaw("courseProfile");
+      // No course selected — return to course home.
+      setPageRaw("home");
       return;
     }
 
@@ -543,8 +544,24 @@ function App() {
       setSubject(normalizeSubject(context.subject));
       try { localStorage.setItem(CURRENT_SUBJECT_KEY, normalizeSubject(context.subject)); } catch { /* ignore */ }
       // Also set examSubjectKey for 11408 backward compatibility
-      setExamSubjectKey(context.subject);
-      try { localStorage.setItem(CURRENT_EXAM_SUBJECT_KEY, context.subject); } catch { /* ignore */ }
+      if (context?.track !== "course_learning" && context?.serviceKey !== "course_learning") {
+        setExamSubjectKey(context.subject);
+        try { localStorage.setItem(CURRENT_EXAM_SUBJECT_KEY, context.subject); } catch { /* ignore */ }
+      }
+    }
+    if (nextPage === "dashboard") {
+      const rawCourseName = context?.courseName || context?.courseTitle || context?.name || context?.title || context?.subject || context?.courseId;
+      setCourseSubjectContext({
+        ...(context || {}),
+        courseId: context?.courseId || rawCourseName,
+        courseName: rawCourseName,
+        courseTitle: context?.courseTitle || rawCourseName,
+        subject: rawCourseName,
+        track: "course_learning",
+        serviceKey: "course_learning",
+      });
+    } else {
+      setCourseSubjectContext(null);
     }
     if (context?.fromServiceSwitch) {
       setServiceSwitchOnboarding({
@@ -3620,10 +3637,18 @@ function App() {
   }
 
   if (page === "dashboard") {
+    const activeCourseContext = courseSubjectContext || {
+      courseId: subject,
+      courseName: getSubjectLabel?.(subject) || subject,
+      courseTitle: getSubjectLabel?.(subject) || subject,
+      subject,
+      track: "course_learning",
+      serviceKey: "course_learning",
+    };
     return (
       <CourseSubjectDashboard
         user={user}
-        course={subject}
+        course={activeCourseContext}
         dashboard={courseDashboardData}
         coursePreference={coursePreference}
         loading={courseDashboardLoading}

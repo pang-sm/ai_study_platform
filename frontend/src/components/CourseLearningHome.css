@@ -54,7 +54,15 @@
   align-items: center;
   gap: 12px;
   text-align: left;
-  cursor: default;
+  cursor: pointer;
+  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+}
+
+.clh-user-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(139, 92, 246, 0.34);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 20px 48px rgba(89, 72, 129, 0.12);
 }
 
 .clh-user-avatar {
@@ -100,12 +108,6 @@
   color: #7c3aed;
   font-size: 12px;
   font-weight: 800;
-}
-
-.clh-user-chevron {
-  color: #8b86a8;
-  font-size: 24px;
-  line-height: 1;
 }
 
 .clh-card {

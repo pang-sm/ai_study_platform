@@ -69,6 +69,20 @@ function buildCourseId(courseName, course) {
   return String(course || courseName || "course").trim().replace(/\s+/g, "_");
 }
 
+function resolveCourseName(course, getSubjectLabel) {
+  if (course && typeof course === "object") {
+    return course.courseName || course.courseTitle || course.name || course.title || course.subject || course.courseId || "璇剧▼瀛︿範";
+  }
+  return getSubjectLabel?.(course) || course || "璇剧▼瀛︿範";
+}
+
+function resolveCourseId(course, courseName) {
+  if (course && typeof course === "object") {
+    return course.courseId || course.id || course.subject || courseName;
+  }
+  return course || courseName;
+}
+
 function Metric({ label, value }) {
   return (
     <div className="exam-subject-metric">
@@ -110,7 +124,9 @@ export default function CourseSubjectDashboard({
   onInitialMaterialReferenced = null,
   panelIntent = null,
 }) {
-  const panelStorageKey = `course_subject_active_panel_${buildCourseId(String(course || ""), String(course || ""))}`;
+  const initialCourseName = resolveCourseName(course, getSubjectLabel);
+  const initialCourseId = resolveCourseId(course, initialCourseName);
+  const panelStorageKey = `course_subject_active_panel_${buildCourseId(initialCourseName, initialCourseId)}`;
 
   const normalizePanel = (panel) =>
     ["overview", "chat", "materials", "knowledge", "plan", "practice", "report"].includes(panel)
@@ -132,8 +148,8 @@ export default function CourseSubjectDashboard({
     normalizePanel(panelIntent?.panel) || getSavedPanel()
   );
   const stats = dashboard?.stats || {};
-  const courseName = getSubjectLabel?.(course) || course || "课程学习";
-  const courseId = buildCourseId(courseName, course);
+  const courseName = initialCourseName;
+  const courseId = buildCourseId(courseName, initialCourseId);
 
   // Persist active section
   useEffect(() => {
@@ -168,7 +184,7 @@ export default function CourseSubjectDashboard({
 
   // Materials for overview
   const courseMaterialsArr = (() => {
-    const targetNames = new Set([courseName, course, getSubjectLabel?.(course)].filter(Boolean));
+    const targetNames = new Set([courseName, initialCourseId, getSubjectLabel?.(initialCourseId)].filter(Boolean));
     return (Array.isArray(materials) ? materials : []).filter((item) => {
       const itemName = getSubjectLabel?.(item.subject) || item.subject;
       return targetNames.has(item.subject) || targetNames.has(itemName);
@@ -236,11 +252,11 @@ export default function CourseSubjectDashboard({
           <h3><span>▣</span> 资料库概览</h3>
           <div className="csd-material-grid">
             {MATERIAL_CARDS.map((item) => (
-              <button className={`csd-material-item csd-material-item--${item.tone}`} type="button" key={item.key} onClick={() => setActiveSection("materials")}>
+              <div className={`csd-material-item csd-material-item--${item.tone}`} key={item.key}>
                 <span>■</span>
                 <strong>{item.label}</strong>
                 <em>{countMaterialType(courseMaterialsArr, item)} 份</em>
-              </button>
+              </div>
             ))}
           </div>
         </div>
@@ -441,9 +457,9 @@ export default function CourseSubjectDashboard({
             </div>
           </div>
           <div className="csd-header-right">
-            <button className="csd-profile" type="button" aria-label="个人资料" onClick={() => setPage?.("courseProfile")}>
+            <button className="csd-profile" type="button" aria-label="个人主页" onClick={() => setPage?.("courseProfile")}>
               <span>{displayName.charAt(0).toUpperCase()}</span>
-              个人资料⌄
+              个人主页
             </button>
           </div>
         </header>

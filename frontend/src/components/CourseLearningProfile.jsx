@@ -29,10 +29,12 @@ export default function CourseLearningProfile({ user, setPage, onLogout, API_BAS
   const [quotaData, setQuotaData] = useState(null);
   const [courseCount, setCourseCount] = useState(0);
   const [servicePlans, setServicePlans] = useState(() => user?.service_plans || {});
+  const [courseEntitlements, setCourseEntitlements] = useState(null);
   const avatarInputRef = useRef(null);
 
-  const pkgType = courseTrack?.package_type || "free";
-  const permissions = courseTrack?.permissions || {};
+  const servicePlan = servicePlans?.course_learning?.plan || user?.service_plans?.course_learning?.plan || "free";
+  const pkgType = courseEntitlements?.plan || servicePlan || courseTrack?.package_type || "free";
+  const permissions = courseEntitlements?.permissions || courseTrack?.permissions || {};
   const onboardingDetail = (() => {
     try {
       if (courseTrack?.onboarding_detail) return courseTrack.onboarding_detail;
@@ -42,13 +44,14 @@ export default function CourseLearningProfile({ user, setPage, onLogout, API_BAS
     } catch { return null; }
   })();
 
-  const displayPkg = courseTrack?.package_display_name || PACKAGE_LABELS[pkgType] || "免费模式";
-  const chatLimit = permissions.ai_chat_daily_limit ?? quotaData?.feature_limits?.chat?.limit ?? 50;
-  const questionLimit = permissions.ai_question_daily_limit ?? quotaData?.feature_limits?.question_generate?.limit ?? 5;
-  const uploadLimitMb = permissions.material_upload_limit_mb ?? quotaData?.upload_limits?.single_file_size_mb ?? 100;
-  const chatUsed = quotaData?.feature_limits?.chat?.used ?? 0;
-  const questionUsed = quotaData?.feature_limits?.question_generate?.used ?? 0;
-  const uploadUsed = quotaData?.upload_limits?.material_upload_count?.used ?? 0;
+  const displayPkg = courseEntitlements?.plan_label || PACKAGE_LABELS[pkgType] || "免费模式";
+  const entitlementQuota = courseEntitlements || quotaData || {};
+  const chatLimit = permissions.ai_chat_daily_limit ?? entitlementQuota?.feature_limits?.chat?.limit ?? 50;
+  const questionLimit = permissions.ai_question_daily_limit ?? entitlementQuota?.feature_limits?.question_generate?.limit ?? 5;
+  const uploadLimitMb = permissions.material_upload_limit_mb ?? entitlementQuota?.upload_limits?.single_file_size_mb ?? 100;
+  const chatUsed = entitlementQuota?.feature_limits?.chat?.used ?? 0;
+  const questionUsed = entitlementQuota?.feature_limits?.question_generate?.used ?? 0;
+  const uploadUsed = entitlementQuota?.upload_limits?.material_upload_count?.used ?? 0;
   const formatUploadLimit = (mb) => Number(mb) >= 1024 ? `${Number(mb) / 1024}GB` : `${mb}MB`;
 
   const quotaItems = [
@@ -59,6 +62,20 @@ export default function CourseLearningProfile({ user, setPage, onLogout, API_BAS
     { icon: "🔄", label: "错题复盘", value: permissions.mistake_review ? "已解锁" : "未解锁", unit: "", sub: permissions.mistake_review ? "当前套餐可用" : "升级后可用" },
     { icon: "📊", label: "学习报告", value: permissions.learning_report ? "已解锁" : "未解锁", unit: "", sub: permissions.learning_report ? "当前套餐可用" : "升级后可用" },
   ];
+  const fallbackBenefits = [
+    { label: `AI 问答 ${chatLimit} 次 / 每天`, enabled: true },
+    { label: `AI 出题 ${questionLimit} 次 / 每天`, enabled: true },
+    { label: `资料上传限制 ${formatUploadLimit(uploadLimitMb)}`, enabled: true },
+    { label: "学习计划", enabled: Boolean(permissions.learning_plan) },
+    { label: "错题复盘", enabled: Boolean(permissions.mistake_review) },
+    { label: "学习报告", enabled: Boolean(permissions.learning_report) },
+  ];
+  const packageBenefits = (courseEntitlements?.benefits || []).length > 0
+    ? courseEntitlements.benefits.map((benefit) => ({
+        label: benefit.limit ? `${benefit.label} ${benefit.limit}${benefit.unit ? ` ${benefit.unit}` : ""}` : benefit.label,
+        enabled: Boolean(benefit.enabled),
+      }))
+    : fallbackBenefits;
 
   const fetchCourseAccountData = async () => {
     try {
@@ -71,6 +88,11 @@ export default function CourseLearningProfile({ user, setPage, onLogout, API_BAS
       const courses = detail?.selected_courses || [];
       setCourseCount(courses.length || 0);
     } catch { /* keep current value */ }
+    try {
+      const entitlementRes = await fetch(`${API_BASE}/course-learning/entitlements?username=${encodeURIComponent(user.username)}`);
+      const entitlementData = await entitlementRes.json().catch(() => ({}));
+      if (entitlementRes.ok) setCourseEntitlements(entitlementData);
+    } catch { /* keep current entitlements */ }
     try {
       const quotaRes = await fetch(`${API_BASE}/me/quota?username=${encodeURIComponent(user.username)}`);
       const quota = await quotaRes.json().catch(() => ({}));
@@ -398,16 +420,9 @@ export default function CourseLearningProfile({ user, setPage, onLogout, API_BAS
             <div className="ep-package-perks">
               <span className="ep-package-section-label">套餐权益</span>
               <ul className="ep-perks-list">
-                {[
-                  { label: `AI 问答 ${chatLimit} 次 / 每天`, ok: true },
-                  { label: `AI 出题 ${questionLimit} 次 / 每天`, ok: true },
-                  { label: `资料上传限制 ${formatUploadLimit(uploadLimitMb)}`, ok: true },
-                  { label: "学习计划", ok: Boolean(permissions.learning_plan) },
-                  { label: "错题复盘", ok: Boolean(permissions.mistake_review) },
-                  { label: "学习报告", ok: Boolean(permissions.learning_report) },
-                ].map((p, i) => (
-                  <li key={i} className={p.ok ? "" : "ep-perk--off"}>
-                    <span className="ep-perk-check">{p.ok ? "✓" : "✕"}</span> {p.label}
+                {packageBenefits.map((p, i) => (
+                  <li key={`${p.label}-${i}`} className={p.enabled ? "" : "ep-perk--off"}>
+                    <span className="ep-perk-check">{p.enabled ? "✓" : "✕"}</span> {p.label}
                   </li>
                 ))}
               </ul>
