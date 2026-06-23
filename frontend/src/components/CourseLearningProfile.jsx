@@ -86,6 +86,11 @@ export default function CourseLearningProfile({ user, setPage, onLogout, API_BAS
       const meData = await meRes.json().catch(() => ({}));
       if (meRes.ok && meData.user?.service_plans) {
         setServicePlans(meData.user.service_plans);
+        // Guard: if course_learning is not enabled, redirect to registration
+        if (!meData.user.service_plans?.["course_learning"]?.is_enabled) {
+          if (setPage) setPage("courseRegistration");
+          return;
+        }
       }
     } catch { /* keep existing plans */ }
   };
@@ -103,10 +108,23 @@ export default function CourseLearningProfile({ user, setPage, onLogout, API_BAS
   const courseSemester = onboardingDetail?.current_semester || "未设置";
 
   const switchTrack = async (targetTrack) => {
+    // Always refresh /me to get latest service_plans before switching
+    let plans = servicePlans;
+    try {
+      const meRes = await fetch(`${API_BASE}/me`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: user?.username }),
+      });
+      const meData = await meRes.json().catch(() => ({}));
+      if (meRes.ok && meData.user?.service_plans) {
+        plans = meData.user.service_plans;
+        setServicePlans(plans);
+      }
+    } catch { /* use existing plans */ }
+
     if (targetTrack === "exam_408") {
-      // Check exam_11408 status from service_plans (refreshed on mount)
-      const examPlan = servicePlans?.["exam_11408"];
-      const isEnabled = examPlan?.is_enabled;
+      const isEnabled = plans?.["exam_11408"]?.is_enabled;
       if (!isEnabled) {
         // Not registered — navigate to 11408 registration
         if (setPage) setPage("onboarding");
@@ -117,15 +135,14 @@ export default function CourseLearningProfile({ user, setPage, onLogout, API_BAS
       return;
     }
     if (targetTrack === "programming") {
-      const progPlan = servicePlans?.["programming"];
-      if (!progPlan?.is_enabled) {
+      const isEnabled = plans?.["programming"]?.is_enabled;
+      if (!isEnabled) {
         setActionErr("编程方向暂未开放注册，敬请期待");
         return;
       }
       if (setPage) setPage("codeStudio");
       return;
     }
-    setActionErr("未知方向");
   };
 
   // ── Avatar ──

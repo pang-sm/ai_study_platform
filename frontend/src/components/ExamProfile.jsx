@@ -73,6 +73,23 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
 
   const fetchExamAccountData = async () => {
     try {
+      const meRes = await fetch(`${API_BASE}/me`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: user.username }),
+      });
+      const meData = await meRes.json().catch(() => ({}));
+      if (meRes.ok && meData.user?.service_plans) {
+        const examEnabled = meData.user.service_plans?.["exam_11408"]?.is_enabled;
+        if (!examEnabled) {
+          // exam_11408 not enabled — redirect to registration
+          if (setPage) setPage("onboarding");
+          return;
+        }
+      }
+    } catch { /* continue */ }
+
+    try {
       const res = await fetch(`${API_BASE}/me/tracks?username=${encodeURIComponent(user.username)}`);
       const data = await res.json().catch(() => ({}));
       const tracks = data.tracks || [];
@@ -156,11 +173,23 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
   const hasCourseTrack = (user?.tracks || []).some((t) => t.track_type === "university_course");
   const hasCodeTrack = (user?.tracks || []).some((t) => t.track_type === "programming");
 
-  const switchTrack = (targetTrack) => {
+  const switchTrack = async (targetTrack) => {
+    // Always refresh /me to get latest service_plans before switching
+    let plans = user?.service_plans || {};
+    try {
+      const meRes = await fetch(`${API_BASE}/me`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: user?.username }),
+      });
+      const meData = await meRes.json().catch(() => ({}));
+      if (meRes.ok && meData.user?.service_plans) {
+        plans = meData.user.service_plans;
+      }
+    } catch { /* use existing plans */ }
+
     if (targetTrack === "university_course") {
-      // Check if course_learning is registered via service_plans
-      const coursePlan = user?.service_plans?.["course_learning"];
-      const isEnabled = coursePlan?.is_enabled;
+      const isEnabled = plans?.["course_learning"]?.is_enabled;
       if (!isEnabled) {
         if (setPage) setPage("courseRegistration");
         return;
@@ -169,19 +198,14 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
       return;
     }
     if (targetTrack === "programming") {
-      const progPlan = user?.service_plans?.["programming"];
-      if (!progPlan?.is_enabled) {
+      const isEnabled = plans?.["programming"]?.is_enabled;
+      if (!isEnabled) {
         setActionErr("编程方向暂未开放注册，敬请期待");
         return;
       }
       if (setPage) setPage("codeStudio");
       return;
     }
-    if (!(user?.tracks || []).some((t) => t.track_type === targetTrack)) {
-      setActionErr(`请先开通${targetTrack === "university_course" ? "课程学习" : "编程能力提升"}方向`);
-      return;
-    }
-    if (setPage) setPage(targetTrack === "university_course" ? "home" : "codeStudio");
   };
 
   // ── Avatar ──
