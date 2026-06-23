@@ -5,7 +5,7 @@ import ChatMessage from "./components/ChatMessage.jsx";
 import CourseDashboard from "./components/CourseDashboard.jsx";
 import KnowledgeLearningPage from "./components/KnowledgeLearningPage.jsx";
 import CourseMaterialsPage from "./components/CourseMaterialsPage.jsx";
-import HomePage from "./components/HomePage.jsx";
+import CourseLearningHome from "./components/CourseLearningHome.jsx";
 import CourseLearningOnboarding from "./components/CourseLearningOnboarding.jsx";
 import CourseLearningPackageStep from "./components/CourseLearningPackageStep.jsx";
 import AIQuestionPage from "./components/AIQuestionPage.jsx";
@@ -573,7 +573,7 @@ function App() {
   const [user, setUser] = useState(getSavedUser);
   const [courseOnboardingStatus, setCourseOnboardingStatus] = useState(null);
   const [courseOnboardingChecking, setCourseOnboardingChecking] = useState(false);
-  const [courseOnboardingTargetPage, setCourseOnboardingTargetPage] = useState("dashboard");
+  const [courseOnboardingTargetPage, setCourseOnboardingTargetPage] = useState("home");
   const [coursePackageSaving, setCoursePackageSaving] = useState(false);
   const [publicFeatures, setPublicFeatures] = useState(null);
   const [userAnnouncements, setUserAnnouncements] = useState([]);
@@ -2145,7 +2145,7 @@ function App() {
           setPage(hasSavedDetails ? "courseLearningPackageStep" : "courseLearningOnboarding");
         }
         if (status?.onboarding_completed && (isCourseOnboardingPage || isCoursePackagePage)) {
-          setPage(courseOnboardingTargetPage || "dashboard");
+          setPage(courseOnboardingTargetPage || "home");
         }
       } catch (error) {
         console.error("Failed to check course learning onboarding:", error);
@@ -3244,7 +3244,7 @@ function App() {
         }
         setTip("");
         setCourseOnboardingStatus(data?.onboarding || { onboarding_completed: true, plan });
-        setPage(courseOnboardingTargetPage || "dashboard");
+        setPage(courseOnboardingTargetPage || "home");
       } finally {
         setCoursePackageSaving(false);
       }
@@ -3548,23 +3548,17 @@ function App() {
   }
 
   if (page === "home") {
-    const avatarObj = AVATARS.find((a) => a.id === (user?.avatar || "")) || AVATARS[0];
-    const hasCustomAvatar = (user?.avatar_url || "").startsWith("/me/avatar/");
-
     return wrapPage(
-      <HomePage
+      <CourseLearningHome
         user={user}
-        page={page}
+        apiBase={API_BASE}
         setPage={setPage}
         subject={subject}
         setSubject={setSubject}
-        avatarObj={avatarObj}
-        hasCustomAvatar={hasCustomAvatar}
-        apiBase={API_BASE}
-        onLogout={logout}
-        isAdmin={!!user?.is_admin}
-        setSearchContext={setSearchContext}
-        setSearchNavigate={setSearchNavigate}
+        materials={materials}
+        loadMaterials={loadMaterials}
+        courseOptions={COURSE_OPTIONS}
+        getSubjectLabel={getSubjectLabel}
       />
     );
   }
