@@ -3098,6 +3098,14 @@ function App() {
     );
   }
 
+  // Filter materials for course_learning — MUST be before ALL conditional returns (React hooks rule)
+  const courseLearningMaterials = useMemo(() => {
+    return (Array.isArray(materials) ? materials : []).filter((item) => {
+      if (item.source_type === "reference_metadata" || item.visibility === "system_public_metadata") return false;
+      return true;
+    });
+  }, [materials]);
+
   // Admin login page — redirect to unified login
   if (page === "adminLogin") {
     setTip("管理员请使用统一登录入口登录。");
@@ -3502,15 +3510,6 @@ function App() {
       />
     </Suspense>
   );
-
-  // Filter materials for course_learning — exclude 11408 reference metadata
-  // MUST be before any conditional returns (React hooks rule)
-  const courseLearningMaterials = useMemo(() => {
-    return (Array.isArray(materials) ? materials : []).filter((item) => {
-      if (item.source_type === "reference_metadata" || item.visibility === "system_public_metadata") return false;
-      return true;
-    });
-  }, [materials]);
 
   // ── Independent 11408 past-paper attempt page ──
   const attemptMatch = window.location.pathname.match(/^\/exam\/11408\/([a-z_]+)\/past-paper\/attempt\/(\d+)/);
