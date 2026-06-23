@@ -4911,11 +4911,8 @@ def register_course_learning(req: CourseLearningRegisterRequest, db: Session = D
     # Also ensure a university_course track exists
     track = get_user_track(db, user.id, "university_course")
     if not track:
-        from backend.database import upsert_user_track
-        track = upsert_user_track(
-            db, user.id, "university_course",
-            {"track_type": "university_course", "is_active": True}
-        )
+        upsert_user_track(db, user.id, "university_course", plan="free")
+        track = get_user_track(db, user.id, "university_course")
 
     db.commit()
     db.refresh(user)
