@@ -23,29 +23,20 @@ export default function ExamStudyPlan({
 
   const fetchPlan = useCallback(async () => {
     if (!username) return;
+    if (isCourseMode) {
+      // course_learning: API endpoint not yet implemented — show empty state
+      setPlanData({ chapters: [], tasks: [] });
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError("");
     try {
-      if (isCourseMode) {
-        // course_learning: try the API, fallback to empty state
-        const apiPath = `/api/course-learning/study-plan?username=${encodeURIComponent(username)}&course_name=${encodeURIComponent(courseName || "")}`;
-        const res = await fetch(apiPath);
-        if (res.ok) {
-          const data = await res.json();
-          setPlanData(data);
-        } else if (res.status === 404) {
-          // API not yet available — show empty state, not error
-          setPlanData({ chapters: [], tasks: [] });
-        } else {
-          throw new Error(`HTTP ${res.status}`);
-        }
-      } else {
-        const apiPath = `/api/exam/11408/subjects/${encodeURIComponent(subjectKey)}/study-plan?username=${encodeURIComponent(username)}`;
-        const res = await fetch(apiPath);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        setPlanData(data);
-      }
+      const apiPath = `/api/exam/11408/subjects/${encodeURIComponent(subjectKey)}/study-plan?username=${encodeURIComponent(username)}`;
+      const res = await fetch(apiPath);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setPlanData(data);
     } catch (e) {
       setError(e.message || "加载学习计划失败");
     } finally {
@@ -57,10 +48,12 @@ export default function ExamStudyPlan({
 
   const deleteTask = async (taskId) => {
     if (!confirm("确定要删除这个任务吗？")) return;
+    if (isCourseMode) {
+      // course_learning: task API not yet implemented
+      return;
+    }
     try {
-      const apiPath = isCourseMode
-        ? `/api/course-learning/study-plan/tasks/${taskId}?username=${encodeURIComponent(username)}`
-        : `/api/exam/11408/subjects/${encodeURIComponent(subjectKey)}/study-plan/tasks/${taskId}?username=${encodeURIComponent(username)}`;
+      const apiPath = `/api/exam/11408/subjects/${encodeURIComponent(subjectKey)}/study-plan/tasks/${taskId}?username=${encodeURIComponent(username)}`;
       await fetch(apiPath, { method: "DELETE" });
       await fetchPlan();
     } catch (e) {

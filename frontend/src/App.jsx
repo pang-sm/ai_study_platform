@@ -533,6 +533,10 @@ function App() {
     }
 
     if (context?.subject) {
+      // Set the current subject/course — used by both exam_11408 and course_learning
+      setSubject(normalizeSubject(context.subject));
+      try { localStorage.setItem(CURRENT_SUBJECT_KEY, normalizeSubject(context.subject)); } catch { /* ignore */ }
+      // Also set examSubjectKey for 11408 backward compatibility
       setExamSubjectKey(context.subject);
       try { localStorage.setItem(CURRENT_EXAM_SUBJECT_KEY, context.subject); } catch { /* ignore */ }
     }
@@ -3493,6 +3497,15 @@ function App() {
     </Suspense>
   );
 
+  // Filter materials for course_learning — exclude 11408 reference metadata
+  // MUST be before any conditional returns (React hooks rule)
+  const courseLearningMaterials = useMemo(() => {
+    return (Array.isArray(materials) ? materials : []).filter((item) => {
+      if (item.source_type === "reference_metadata" || item.visibility === "system_public_metadata") return false;
+      return true;
+    });
+  }, [materials]);
+
   // ── Independent 11408 past-paper attempt page ──
   const attemptMatch = window.location.pathname.match(/^\/exam\/11408\/([a-z_]+)\/past-paper\/attempt\/(\d+)/);
   if (attemptMatch) {
@@ -3565,15 +3578,6 @@ function App() {
       />
     );
   }
-
-  // Filter materials for course_learning — exclude 11408 reference metadata
-  const courseLearningMaterials = useMemo(() => {
-    return (Array.isArray(materials) ? materials : []).filter((item) => {
-      // Exclude system reference metadata materials (11408 official references)
-      if (item.source_type === "reference_metadata" || item.visibility === "system_public_metadata") return false;
-      return true;
-    });
-  }, [materials]);
 
   if (page === "dashboard") {
     return (

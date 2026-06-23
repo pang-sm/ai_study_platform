@@ -71,14 +71,17 @@ export default function ExamStudyPlanTaskModal({
       body.subject_key = subjectKey;
     }
 
+    // course_learning: task API not yet implemented — show message instead of 404
+    if (isCourseMode) {
+      setError("课程学习计划任务功能即将上线，敬请期待");
+      setSaving(false);
+      return;
+    }
+
     try {
-      const url = isCourseMode
-        ? (isEdit
-            ? `/api/course-learning/study-plan/tasks/${editTask.id}`
-            : `/api/course-learning/study-plan/tasks`)
-        : (isEdit
-            ? `/api/exam/11408/subjects/${encodeURIComponent(subjectKey)}/study-plan/tasks/${editTask.id}`
-            : `/api/exam/11408/subjects/${encodeURIComponent(subjectKey)}/study-plan/tasks`);
+      const url = isEdit
+        ? `/api/exam/11408/subjects/${encodeURIComponent(subjectKey)}/study-plan/tasks/${editTask.id}`
+        : `/api/exam/11408/subjects/${encodeURIComponent(subjectKey)}/study-plan/tasks`;
       const method = isEdit ? "PATCH" : "POST";
       const res = await fetch(url, {
         method,
