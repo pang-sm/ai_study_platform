@@ -342,6 +342,25 @@
   gap: 0;
 }
 
+.clh-plan-empty {
+  min-height: 96px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  color: #6b638a;
+}
+
+.clh-plan-empty strong {
+  color: #302a55;
+  font-size: 17px;
+  font-weight: 850;
+}
+
+.clh-plan-empty span {
+  font-size: 14px;
+}
+
 .clh-plan-item {
   display: grid;
   grid-template-columns: 28px minmax(0, 1fr) auto;

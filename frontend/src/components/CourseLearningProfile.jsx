@@ -45,7 +45,7 @@ export default function CourseLearningProfile({ user, setPage, onLogout, API_BAS
   })();
 
   const displayPkg = courseEntitlements?.plan_label || PACKAGE_LABELS[pkgType] || "免费模式";
-  const entitlementQuota = courseEntitlements || quotaData || {};
+  const entitlementQuota = courseEntitlements || {};
   const chatLimit = permissions.ai_chat_daily_limit ?? entitlementQuota?.feature_limits?.chat?.limit ?? 50;
   const questionLimit = permissions.ai_question_daily_limit ?? entitlementQuota?.feature_limits?.question_generate?.limit ?? 5;
   const uploadLimitMb = permissions.material_upload_limit_mb ?? entitlementQuota?.upload_limits?.single_file_size_mb ?? 100;

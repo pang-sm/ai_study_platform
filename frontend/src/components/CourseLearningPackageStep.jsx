@@ -1,83 +1,35 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-const COURSE_PACKAGES = [
-  {
-    key: "free",
-    title: "免费模式",
-    subtitle: "基础体验",
-    price: "0",
-    period: "",
-    icon: "◇",
-    btnLabel: "免费体验",
-    features: [
-      "适合新用户体验",
-      "AI 问答次数：20 次 / 每天",
-      "AI 出题次数：5 次 / 每天",
-      "资料上传限制：50MB",
-      "学习计划",
-      "错题复盘",
-      "学习报告",
-    ],
-  },
-  {
-    key: "monthly",
-    title: "月课程包",
-    subtitle: "短期提升",
-    price: "29",
-    period: "/ 月",
-    icon: "◆",
-    btnLabel: "去支付",
-    features: [
-      "适合短期课程冲刺",
-      "AI 问答次数：200 次 / 每天",
-      "AI 出题次数：50 次 / 每天",
-      "资料上传限制：200MB",
-      "学习计划",
-      "错题复盘",
-      "学习报告",
-      "课程资料支持",
-    ],
-  },
-  {
-    key: "quarterly",
-    title: "季度课程包",
-    subtitle: "深度学习",
-    price: "79",
-    period: "/ 季度",
-    icon: "★",
-    btnLabel: "去支付",
-    recommended: true,
-    features: [
-      "适合阶段性系统学习",
-      "AI 问答次数：500 次 / 每天",
-      "AI 出题次数：100 次 / 每天",
-      "资料上传限制：500MB",
-      "学习计划",
-      "错题复盘",
-      "学习报告",
-      "课程资料支持",
-    ],
-  },
-  {
-    key: "full",
-    title: "全程课程包",
-    subtitle: "长期陪伴",
-    price: "149",
-    period: "/ 年",
-    icon: "✦",
-    btnLabel: "去支付",
-    features: [
-      "适合长期课程陪伴",
-      "AI 问答次数：不限次数",
-      "AI 出题次数：不限次数",
-      "资料上传限制：1GB",
-      "学习计划",
-      "错题复盘",
-      "学习报告",
-      "课程资料支持",
-    ],
-  },
-];
+const PACKAGE_META = {
+  free: { title: "免费模式", subtitle: "基础体验", price: "0", period: "", icon: "◇", btnLabel: "免费体验" },
+  monthly: { title: "月课程包", subtitle: "短期提升", price: "29", period: "/ 月", icon: "◆", btnLabel: "去支付" },
+  quarterly: { title: "季度课程包", subtitle: "深度学习", price: "79", period: "/ 季度", icon: "★", btnLabel: "去支付", recommended: true },
+  full: { title: "全程课程包", subtitle: "长期陪伴", price: "149", period: "/ 年", icon: "✦", btnLabel: "去支付" },
+};
+
+function formatBenefit(benefit) {
+  if (!benefit) return "";
+  const prefix = benefit.enabled === false ? "未解锁：" : "";
+  if (benefit.limit === null || benefit.limit === undefined || benefit.limit === "") {
+    return `${prefix}${benefit.label}`;
+  }
+  return `${prefix}${benefit.label}：${benefit.limit}${benefit.unit ? ` ${benefit.unit}` : ""}`;
+}
+
+function normalizePackage(plan) {
+  const meta = PACKAGE_META[plan.plan] || PACKAGE_META.free;
+  return {
+    key: plan.plan,
+    title: plan.plan_label || meta.title,
+    subtitle: meta.subtitle,
+    price: meta.price,
+    period: meta.period,
+    icon: meta.icon,
+    btnLabel: meta.btnLabel,
+    recommended: meta.recommended,
+    features: (plan.benefits || []).map(formatBenefit).filter(Boolean),
+  };
+}
 
 export default function CourseLearningPackageStep({
   initialPlan = "quarterly",
@@ -87,6 +39,20 @@ export default function CourseLearningPackageStep({
   onComplete,
 }) {
   const [selectedPlan, setSelectedPlan] = useState(initialPlan || "quarterly");
+  const [packages, setPackages] = useState([]);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/course-learning/packages")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!alive || !Array.isArray(data?.plans)) return;
+        const next = data.plans.map(normalizePackage);
+        if (next.length > 0) setPackages(next);
+      })
+      .catch(() => setPackages([]));
+    return () => { alive = false; };
+  }, []);
 
   const completeWithPlan = (plan = selectedPlan) => {
     if (saving) return;
@@ -106,7 +72,10 @@ export default function CourseLearningPackageStep({
         {error && <div className="ob-error">{error}</div>}
 
         <div className="ob-packages course-package-grid">
-          {COURSE_PACKAGES.map((pkg) => (
+          {packages.length === 0 && (
+            <div className="ob-error">课程学习套餐加载中，请稍候重试。</div>
+          )}
+          {packages.map((pkg) => (
             <div
               key={pkg.key}
               className={`ob-package-card${selectedPlan === pkg.key ? " active" : ""}${pkg.recommended ? " recommended" : ""}`}

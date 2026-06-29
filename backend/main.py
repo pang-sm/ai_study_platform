@@ -5380,6 +5380,49 @@ def get_course_learning_entitlements(username: str, db: Session = Depends(get_db
     }
 
 
+@app.get("/course-learning/packages")
+def get_course_learning_packages():
+    return {
+        "service_key": "course_learning",
+        "plans": [
+            get_course_package_entitlements(plan)
+            for plan in ["free", "monthly", "quarterly", "full"]
+        ],
+    }
+
+
+@app.get("/course-learning/study-plan")
+def get_course_learning_study_plan(username: str, course_id: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    normalized_course = re.sub(r"\s+", "_", (course_id or "").strip())
+    if not normalized_course:
+        raise HTTPException(status_code=400, detail="course_id is required")
+    materials_count = db.query(models.StudyMaterial).filter(
+        models.StudyMaterial.username == user.username,
+        models.StudyMaterial.subject == normalized_course,
+        models.StudyMaterial.is_deleted == False,
+    ).count()
+    practice_records_count = db.query(models.LearningRecord).filter(
+        models.LearningRecord.user_id == user.id,
+        models.LearningRecord.subject == normalized_course,
+        models.LearningRecord.record_type == "practice",
+        models.LearningRecord.is_deleted == False,
+    ).count()
+    return {
+        "success": True,
+        "service_key": "course_learning",
+        "course_id": normalized_course,
+        "course_name": normalized_course,
+        "summary": {
+            "task_count": 0,
+            "materials_count": materials_count,
+            "practice_records_count": practice_records_count,
+        },
+        "tasks": [],
+        "empty": True,
+    }
+
+
 @app.post("/me/avatar")
 async def upload_avatar(
     file: UploadFile = File(...),

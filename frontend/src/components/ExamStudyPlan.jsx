@@ -8,6 +8,7 @@ export default function ExamStudyPlan({
   onNavigate,
   mode = "exam_11408",       // "exam_11408" | "course_learning"
   courseName = "",            // used in course_learning mode
+  courseId = "",
 }) {
   const isCourseMode = mode === "course_learning";
   const config = isCourseMode
@@ -24,9 +25,20 @@ export default function ExamStudyPlan({
   const fetchPlan = useCallback(async () => {
     if (!username) return;
     if (isCourseMode) {
-      // course_learning: API endpoint not yet implemented — show empty state
-      setPlanData({ chapters: [], tasks: [] });
-      setLoading(false);
+      setLoading(true);
+      setError("");
+      try {
+        const targetCourse = courseId || courseName || "course";
+        const apiPath = `/api/course-learning/study-plan?username=${encodeURIComponent(username)}&course_id=${encodeURIComponent(targetCourse)}`;
+        const res = await fetch(apiPath);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        setPlanData(data);
+      } catch (e) {
+        setError(e.message || "加载课程学习计划失败");
+      } finally {
+        setLoading(false);
+      }
       return;
     }
     setLoading(true);
@@ -42,7 +54,7 @@ export default function ExamStudyPlan({
     } finally {
       setLoading(false);
     }
-  }, [username, subjectKey, isCourseMode, courseName]);
+  }, [username, subjectKey, isCourseMode, courseName, courseId]);
 
   useEffect(() => { fetchPlan(); }, [fetchPlan]);
 
@@ -81,6 +93,43 @@ export default function ExamStudyPlan({
 
   const chapters = planData?.chapters || [];
   const tasks = planData?.tasks || [];
+
+  if (isCourseMode) {
+    return (
+      <div className="exam-study-plan">
+        <header className="exam-subject-header">
+          <div>
+            <div className="exam-subject-title-row">
+              <span className="exam-subject-logo">CL</span>
+              <div>
+                <h1>{courseName || planData?.course_name || "课程学习"}</h1>
+                <p>课程学习计划 / 当前课程：{courseName || planData?.course_name || "课程学习"}</p>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <section className="esp-tasks-section">
+          <div className="esp-tasks-header">
+            <h2>今日学习任务</h2>
+          </div>
+          <div className="esp-tasks-empty">
+            <p>暂无学习计划</p>
+            <p>当前课程还没有计划任务。后续可基于资料学习、章节复习和课程练习生成课程学习计划。</p>
+          </div>
+        </section>
+
+        <section className="esp-tasks-section">
+          <div className="esp-tasks-header">
+            <h2>课程学习方向</h2>
+          </div>
+          <div className="esp-tasks-empty">
+            <p>资料学习、章节复习、课程练习暂无待办。</p>
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   const TASK_TYPE_LABELS = {
     knowledge: "知识点学习",

@@ -147,6 +147,7 @@ export default function CourseSubjectDashboard({
   const [activeSection, setActiveSection] = useState(() =>
     normalizePanel(panelIntent?.panel) || getSavedPanel()
   );
+  const [entitlements, setEntitlements] = useState(null);
   const stats = dashboard?.stats || {};
   const courseName = initialCourseName;
   const courseId = buildCourseId(courseName, initialCourseId);
@@ -165,13 +166,26 @@ export default function CourseSubjectDashboard({
     if (nextPanel) setActiveSection(nextPanel);
   }, [panelIntent?.nonce, panelIntent?.panel]);
 
+  useEffect(() => {
+    if (!user?.username) return;
+    let alive = true;
+    fetch(`/api/course-learning/entitlements?username=${encodeURIComponent(user.username)}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => { if (alive) setEntitlements(data); })
+      .catch(() => { if (alive) setEntitlements(null); });
+    return () => { alive = false; };
+  }, [user?.username]);
+
   const learnedPercent = Math.max(0, Math.min(100, numberValue(stats.progress_percent, 0)));
   const knowledgeCount = numberValue(stats.knowledge_points_count, 0);
   const chapterCount = numberValue(stats.chapter_count || stats.modules_count, 12);
   const studyMinutes = numberValue(stats.weekly_study_minutes || stats.total_study_minutes, 0);
-  const aiRemaining = numberValue(user?.ai_quota_remaining ?? user?.quota_remaining, 42);
-  const questionRemaining = numberValue(user?.question_quota_remaining ?? user?.exercise_quota_remaining, 8);
-  const uploadRemaining = numberValue(user?.upload_quota_remaining ?? user?.material_upload_remaining, 6);
+  const aiLimit = numberValue(entitlements?.feature_limits?.chat?.limit, 0);
+  const aiRemaining = numberValue(entitlements?.feature_limits?.chat?.remaining, 0);
+  const questionLimit = numberValue(entitlements?.feature_limits?.question_generate?.limit, 0);
+  const questionRemaining = numberValue(entitlements?.feature_limits?.question_generate?.remaining, 0);
+  const uploadLimitMb = numberValue(entitlements?.upload_limits?.single_file_size_mb || entitlements?.permissions?.material_upload_limit_mb, 0);
+  const uploadLimitText = uploadLimitMb ? (uploadLimitMb >= 1024 ? `${uploadLimitMb / 1024} GB` : `${uploadLimitMb} MB`) : "未获取";
   const preference = coursePreference || dashboard?.preference || {};
   const focusTag = preference.learning_goal || "平日学习";
   const activeLabel = NAV_ITEMS.find((item) => item.key === activeSection)?.label || "首页";
@@ -179,7 +193,7 @@ export default function CourseSubjectDashboard({
   const courseContextDisplay = `课程学习 / ${courseName}`;
 
   // Check course_learning membership plan — hide ad if full
-  const coursePlan = user?.service_plans?.["course_learning"]?.plan || "free";
+  const coursePlan = entitlements?.plan || user?.service_plans?.["course_learning"]?.plan || "free";
   const isCourseFullPlan = coursePlan === "full";
 
   // Materials for overview
@@ -191,11 +205,7 @@ export default function CourseSubjectDashboard({
     });
   })();
 
-  const planItems = [
-    { index: 1, title: `${courseName}课程导学`, desc: "梳理课程要求与本周重点", status: "已完成", done: true },
-    { index: 2, title: `${courseName}重点小节学习`, desc: "围绕当前课程资料推进", status: "继续学习", done: false },
-    { index: 3, title: `${courseName}练习与复盘`, desc: "整理课堂练习、作业与错题", status: "去学习", done: false },
-  ];
+  const planItems = [];
 
   const renderOverview = () => (
     <>
@@ -234,6 +244,12 @@ export default function CourseSubjectDashboard({
         <div className="csd-card csd-plan-card">
           <h3><span>▤</span> 今日学习计划</h3>
           <div className="csd-plan-list">
+            {planItems.length === 0 && (
+              <div className="csd-empty-state">
+                <strong>暂无今日学习计划</strong>
+                <p>当前课程还没有生成学习任务，可在学习计划页查看课程任务空状态。</p>
+              </div>
+            )}
             {planItems.map((item) => (
               <div className="csd-plan-item" key={item.title}>
                 <span className={item.done ? "is-done" : ""}>{item.done ? "✓" : item.index}</span>
@@ -280,14 +296,14 @@ export default function CourseSubjectDashboard({
         <div className="csd-card csd-quota-card">
           <h3><span>▧</span> 额度剩余</h3>
           {[
-            ["AI 问答剩余", aiRemaining, 50],
-            ["AI 出题剩余", questionRemaining, 10],
-            ["资料上传剩余", uploadRemaining, 10],
+            ["AI 问答剩余", aiRemaining, aiLimit],
+            ["AI 出题剩余", questionRemaining, questionLimit],
+            ["资料上传上限", uploadLimitText, ""],
           ].map(([label, value, total]) => (
             <div className="csd-quota-row" key={label}>
               <span>{label}</span>
-              <strong>{value} / {total}</strong>
-              <em><i style={{ width: `${Math.max(4, Math.min(100, (Number(value) / Number(total)) * 100))}%` }} /></em>
+              <strong>{total ? `${value} / ${total}` : value}</strong>
+              {total ? <em><i style={{ width: `${Math.max(4, Math.min(100, (Number(value) / Number(total || 1)) * 100))}%` }} /></em> : null}
             </div>
           ))}
           <div className="csd-course-task-tag">当前目标：{focusTag}</div>
@@ -369,6 +385,7 @@ export default function CourseSubjectDashboard({
         <ExamStudyPlan
           user={user}
           mode="course_learning"
+          courseId={courseId}
           courseName={courseName}
           onNavigate={(target) => {
             // Navigate within CourseSubjectDashboard

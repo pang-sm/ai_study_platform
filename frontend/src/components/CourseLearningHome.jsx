@@ -95,7 +95,7 @@ function getCourseInitials(course, index) {
   return known[course] || COURSE_THEMES[index % COURSE_THEMES.length].icon;
 }
 
-function UserCard({ user, apiBase, onProfile }) {
+function UserCard({ user, apiBase, onProfile, planLabel }) {
   const name = user?.nickname || user?.username || "同学";
   const hasAvatar = (user?.avatar_url || "").startsWith("/me/avatar/");
 
@@ -108,7 +108,7 @@ function UserCard({ user, apiBase, onProfile }) {
       )}
       <span className="clh-user-meta">
         <strong>{name}</strong>
-        <span>会员 Pro</span>
+        <span>{planLabel || "免费模式"}</span>
       </span>
     </button>
   );
@@ -131,6 +131,7 @@ export default function CourseLearningHome({
   const [pendingGoal, setPendingGoal] = useState("平日学习");
   const [saveError, setSaveError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [entitlements, setEntitlements] = useState(null);
   const loadMaterialsRef = useRef(loadMaterials);
 
   useEffect(() => {
@@ -145,6 +146,10 @@ export default function CourseLearningHome({
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => setOnboarding(data))
       .catch(() => setOnboarding(null));
+    fetch(`${apiBase}/course-learning/entitlements?username=${encodeURIComponent(user.username)}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => setEntitlements(data))
+      .catch(() => setEntitlements(null));
   }, [apiBase, user?.username]);
 
   useEffect(() => {
@@ -181,30 +186,11 @@ export default function CourseLearningHome({
     };
   });
 
-  const planItems = [
-    {
-      title: `完成${courseCards[0]?.name || "数据结构"}的重点小节`,
-      course: courseCards[0]?.name || "数据结构",
-      progress: "0/3 节",
-      done: false,
-    },
-    {
-      title: `复盘${courseCards[0]?.name || "数据结构"}课堂笔记`,
-      course: courseCards[0]?.name || "数据结构",
-      progress: "2/2 节",
-      done: true,
-    },
-    {
-      title: courseCards[1] ? `整理${courseCards[1].name}练习题` : "整理课程练习题",
-      course: courseCards[1]?.name || "课程学习",
-      progress: "0/2 节",
-      done: false,
-    },
-  ];
+  const planItems = [];
 
   const totalSize = materials.reduce((sum, item) => sum + Number(item.file_size || 0), 0);
-  const quotaBytes = 10 * 1024 * 1024 * 1024;
-  const usedPercent = Math.min(100, Math.round((totalSize / quotaBytes) * 100));
+  const uploadLimitMb = entitlements?.upload_limits?.single_file_size_mb || entitlements?.permissions?.material_upload_limit_mb || 0;
+  const uploadLimitText = uploadLimitMb ? (Number(uploadLimitMb) >= 1024 ? `${Number(uploadLimitMb) / 1024} GB` : `${uploadLimitMb} MB`) : "未获取";
 
   const openCourse = (course) => {
     const courseName = normalizeCourseName(course);
@@ -291,7 +277,7 @@ export default function CourseLearningHome({
             <h1>欢迎回来，开始今天的课程学习 <span>✦</span></h1>
             <p>保持专注，持续进步，每一天都比昨天更优秀！</p>
           </div>
-          <UserCard user={user} apiBase={apiBase} onProfile={() => setPage?.("courseProfile")} />
+          <UserCard user={user} apiBase={apiBase} planLabel={entitlements?.plan_label || "免费模式"} onProfile={() => setPage?.("courseProfile")} />
         </header>
 
         <section className="clh-card clh-courses-card">
@@ -330,6 +316,12 @@ export default function CourseLearningHome({
               <h2>今日学习计划</h2>
             </div>
             <div className="clh-plan-list">
+              {planItems.length === 0 && (
+                <div className="clh-plan-empty">
+                  <strong>暂无今日学习计划</strong>
+                  <span>进入具体课程后，可在学习计划中查看课程任务。</span>
+                </div>
+              )}
               {planItems.map((item) => (
                 <div className="clh-plan-item" key={`${item.title}-${item.progress}`}>
                   <span className={`clh-plan-dot${item.done ? " is-done" : ""}`}>{item.done ? "✓" : ""}</span>
@@ -368,9 +360,9 @@ export default function CourseLearningHome({
               })}
             </div>
             <div className="clh-storage">
-              <span>已用 {formatSize(totalSize)} / 共 10 GB</span>
+              <span>已上传 {materials.length} 份资料，合计 {formatSize(totalSize)}；单文件上限 {uploadLimitText}</span>
               <div className="clh-storage-track">
-                <span style={{ width: `${Math.max(usedPercent, totalSize > 0 ? 6 : 0)}%` }} />
+                <span style={{ width: `${materials.length > 0 ? 6 : 0}%` }} />
               </div>
             </div>
           </section>
