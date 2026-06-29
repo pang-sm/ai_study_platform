@@ -4878,6 +4878,8 @@ def save_course_learning_onboarding(
             value = (req.course_goals.get(course) or "").strip()
         course_goals[course] = value if value in allowed_course_goals else "平日学习"
 
+    track = get_user_track(db, user.id, "university_course")
+
     if track and _parse_track_onboarding_detail(track).get("course_learning_onboarding_completed"):
         # Already onboarded — allow plan-only upgrade without re-validating major/grade/courses
         existing_detail = _parse_track_onboarding_detail(track)
@@ -4904,7 +4906,6 @@ def save_course_learning_onboarding(
         user.default_course_id = selected_courses[0][:100]
     user.learning_direction = user.learning_direction or "大学课程学习"
 
-    track = get_user_track(db, user.id, "university_course")
     detail = _parse_track_onboarding_detail(track)
     now_text = serialize_datetime(utc_now())
     completed = bool(req.onboarding_completed)
