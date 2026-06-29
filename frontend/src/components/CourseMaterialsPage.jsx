@@ -37,9 +37,8 @@ const SORT_OPTIONS = [
 function getCourseDisplay(subject, getSubjectLabel, isCourseMode = false) {
   const raw = String(subject || "").trim();
   if (isCourseMode) {
-    // course_learning: no "11408" prefix
-    const label = getSubjectLabel?.(raw) || raw || "当前课程";
-    return { title: label, course: raw || label };
+    // course_learning: use raw course name directly — no alias mapping
+    return { title: raw || "当前课程", course: raw || "当前课程" };
   }
   const withoutPrefix = raw.replace(/^11408\s*/, "").trim();
   const label = raw.startsWith("11408 ")
@@ -476,8 +475,8 @@ export default function CourseMaterialsPage({
       <section className="cmp-main-panel">
         <header className="cmp-header">
           <div>
-            <h1>资料库 · {course.title}</h1>
-            <p>当前课程：{course.course}</p>
+            {!isCourseMode && <h1>资料库 · {course.title}</h1>}
+            <p>{isCourseMode ? "课程资料管理" : `当前课程：${course.course}`}</p>
           </div>
           <div className="cmp-header-actions">
             <button className="cmp-btn cmp-btn--primary" type="button" onClick={() => materialsFileInputRef.current?.click()}>

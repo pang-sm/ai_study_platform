@@ -199,12 +199,6 @@ export default function CourseSubjectDashboard({
           <div>
             <h2>开始今天的{courseName}学习</h2>
             <p>坚持学习，稳步提升，攻克每一个课程知识点！</p>
-            <div className="csd-hero-actions">
-              <button className="is-primary" type="button" onClick={() => setActiveSection("plan")}>课程导学</button>
-              <button type="button" onClick={() => setActiveSection("materials")}>课堂资料</button>
-              <button type="button" onClick={() => setActiveSection("practice")}>作业复盘</button>
-              <button type="button" onClick={() => setActiveSection("practice")}>阶段测验</button>
-            </div>
           </div>
           <div className="csd-hero-art" aria-hidden="true">
             <span />

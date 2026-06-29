@@ -558,12 +558,14 @@ export default function KnowledgeLearningPage({
 
   return (
     <div className="km-page">
-      <section className="km-hero-card">
-        <div>
-          <h1>知识脉络 · {displaySubjectName}</h1>
-          <p>当前课程：{data?.course_name || displayCourseName}</p>
-        </div>
-      </section>
+      {!isCourseMode && (
+        <section className="km-hero-card">
+          <div>
+            <h1>知识脉络 · {displaySubjectName}</h1>
+            <p>当前课程：{data?.course_name || displayCourseName}</p>
+          </div>
+        </section>
+      )}
 
       <section className="km-stats-row">
         <StatCard icon="◎" value={stats.total} label="知识点总数" />

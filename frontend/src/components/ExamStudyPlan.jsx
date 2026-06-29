@@ -97,17 +97,6 @@ export default function ExamStudyPlan({
   if (isCourseMode) {
     return (
       <div className="exam-study-plan">
-        <header className="exam-subject-header">
-          <div>
-            <div className="exam-subject-title-row">
-              <span className="exam-subject-logo">CL</span>
-              <div>
-                <h1>{courseName || planData?.course_name || "课程学习"}</h1>
-                <p>课程学习计划 / 当前课程：{courseName || planData?.course_name || "课程学习"}</p>
-              </div>
-            </div>
-          </div>
-        </header>
 
         <section className="esp-tasks-section">
           <div className="esp-tasks-header">
