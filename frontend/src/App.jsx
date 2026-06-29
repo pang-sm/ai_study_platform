@@ -9,6 +9,7 @@ import CourseLearningHome from "./components/CourseLearningHome.jsx";
 import CourseLearningOnboarding from "./components/CourseLearningOnboarding.jsx";
 import CourseLearningPackageStep from "./components/CourseLearningPackageStep.jsx";
 import CourseLearningProfile from "./components/CourseLearningProfile.jsx";
+import CourseLearningPlan from "./components/CourseLearningPlan.jsx";
 
 import AIQuestionPage from "./components/AIQuestionPage.jsx";
 import MaterialPickerModal from "./components/MaterialPickerModal.jsx";
@@ -441,7 +442,7 @@ const VALID_PAGES = new Set([
   "adminUsageCenter", "adminCenter",
   "materials", "workspaceMaterials", "chat", "records", "history",
   "knowledgeLearning", "searchResults",
-  "profileEdit", "onboarding", "courseLearningOnboarding", "courseLearningPackageStep", "courseLearningComplete", "courseProfile", "examHome", "examProfile", "examPlan", "examSubjectDashboard",
+  "profileEdit", "onboarding", "courseLearningOnboarding", "courseLearningPackageStep", "courseLearningComplete", "courseProfile", "coursePlan", "examHome", "examProfile", "examPlan", "examSubjectDashboard",
   "login", "adminLogin",
 ]);
 
@@ -3748,6 +3749,12 @@ function App() {
   if (page === "courseProfile") {
     return (
       <CourseLearningProfile user={user} setPage={setPage} onLogout={logout} API_BASE={API_BASE} />
+    );
+  }
+
+  if (page === "coursePlan") {
+    return (
+      <CourseLearningPlan user={user} setPage={setPage} API_BASE={API_BASE} />
     );
   }
 

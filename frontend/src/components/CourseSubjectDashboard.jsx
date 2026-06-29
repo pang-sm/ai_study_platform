@@ -45,20 +45,6 @@ function countMaterialType(materials, type) {
   }).length;
 }
 
-function getInitials(courseName) {
-  const known = {
-    离散数学: "DM",
-    软件工程: "SE",
-    高等数学: "MA",
-    线性代数: "LA",
-    数据库系统: "DB",
-    人工智能导论: "AI",
-    互联网计算: "IC",
-    计算机图形学: "CG",
-  };
-  return known[courseName] || String(courseName || "课程").slice(0, 2).toUpperCase();
-}
-
 function formatHours(minutes) {
   const mins = numberValue(minutes);
   if (mins <= 0) return "0 小时";
@@ -189,7 +175,6 @@ export default function CourseSubjectDashboard({
   const preference = coursePreference || dashboard?.preference || {};
   const focusTag = preference.learning_goal || "平日学习";
   const activeLabel = NAV_ITEMS.find((item) => item.key === activeSection)?.label || "首页";
-  const displayName = user?.nickname || user?.username || "同学";
   const courseContextDisplay = `课程学习 / ${courseName}`;
 
   // Check course_learning membership plan — hide ad if full
@@ -467,22 +452,6 @@ export default function CourseSubjectDashboard({
       </aside>
 
       <main className={`csd-main${activeSection === "chat" ? " csd-main--chat" : ""}${activeSection === "materials" ? " csd-main--materials" : ""}${activeSection === "knowledge" ? " csd-main--knowledge" : ""}${activeSection === "plan" ? " csd-main--plan" : ""}${activeSection === "practice" ? " csd-main--practice" : ""}${activeSection === "report" ? " csd-main--report" : ""}`}>
-        <header className="csd-header">
-          <div className="csd-title-block">
-            <span className="csd-course-mark">{getInitials(courseName)}</span>
-            <div>
-              <h1>{courseName}</h1>
-              <p>{courseContextDisplay}</p>
-            </div>
-          </div>
-          <div className="csd-header-right">
-            <button className="csd-profile" type="button" aria-label="个人主页" onClick={() => setPage?.("courseProfile")}>
-              <span>{displayName.charAt(0).toUpperCase()}</span>
-              个人主页
-            </button>
-          </div>
-        </header>
-
         {loading ? (
           <section className="csd-card csd-loading">课程工作台加载中...</section>
         ) : (

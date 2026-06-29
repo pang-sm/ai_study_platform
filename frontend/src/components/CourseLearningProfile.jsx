@@ -427,6 +427,9 @@ export default function CourseLearningProfile({ user, setPage, onLogout, API_BAS
                 ))}
               </ul>
             </div>
+            <div className="ep-package-action">
+              <button type="button" className="ep-outline-btn" onClick={() => setPage && setPage("coursePlan")}>查看套餐详情</button>
+            </div>
           </div>
         </div>
 
