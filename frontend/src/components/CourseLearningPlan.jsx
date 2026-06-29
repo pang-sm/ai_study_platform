@@ -170,7 +170,7 @@ export default function CourseLearningPlan({ user, setPage, API_BASE }) {
                       : isCurrent
                       ? "当前套餐"
                       : isLower
-                      ? "不可用"
+                      ? "不可降级"
                       : "立即升级"}
                   </button>
                 </div>

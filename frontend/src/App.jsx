@@ -3673,6 +3673,37 @@ function App() {
       track: "course_learning",
       serviceKey: "course_learning",
     };
+    const courseDashboardMaterials = (
+      <CourseMaterialsPage
+        user={user}
+        subject={activeCourseContext.courseId || activeCourseContext.subject}
+        getSubjectLabel={getSubjectLabel}
+        mode="course_learning"
+        courseName={activeCourseContext.courseName || activeCourseContext.subject}
+        materials={courseLearningMaterials}
+        materialsLoading={materialsLoading}
+        reindexLoading={reindexLoading}
+        materialSortMode={materialSortMode}
+        setMaterialSortMode={setMaterialSortMode}
+        materialCurrentPage={materialCurrentPage}
+        setMaterialCurrentPage={setMaterialCurrentPage}
+        materialSearchLoading={materialSearchLoading}
+        materialSearchResults={materialSearchResults}
+        selectedMaterialDetail={selectedMaterialDetail}
+        materialsFileInputRef={materialsFileInputRef}
+        handleFileChange={(event) => handleFileChange(event, activeCourseContext.courseId || activeCourseContext.subject)}
+        loadMaterials={loadMaterials}
+        searchMaterials={searchMaterials}
+        reindexLibrary={reindexLibrary}
+        openMaterialDetail={openMaterialDetail}
+        previewMaterial={previewMaterial}
+        downloadMaterial={downloadMaterial}
+        reparseMaterial={reparseMaterial}
+        setPage={setPage}
+        onQuoteMaterial={quoteMaterialFromLibrary}
+    />
+    );
+
     return (
       <CourseSubjectDashboard
         user={user}
@@ -3684,7 +3715,7 @@ function App() {
         getSubjectLabel={getSubjectLabel}
         materials={courseLearningMaterials}
         // Pass mature content components — same pattern as ExamSubjectDashboard
-        materialsContent={null}      // CourseSubjectDashboard builds its own materials page
+        materialsContent={courseDashboardMaterials}
         knowledgeContent={null}
         practiceContent={null}
         reportContent={null}

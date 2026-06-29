@@ -301,9 +301,9 @@ class OnboardingUpdateRequest(BaseModel):
 
 
 class CourseLearningOnboardingRequest(BaseModel):
-    major: str
-    grade: str
-    selected_courses: list[str]
+    major: str = ""
+    grade: str = ""
+    selected_courses: list[str] = []
     material_types: list[str] = []
     course_goals: dict[str, str] | None = None
     plan: str | None = None
@@ -795,7 +795,7 @@ def get_course_package_entitlements(plan: str | None) -> dict:
             {"key": "question_generate", "label": "AI 出题", "limit": quota["ai_question_daily_limit"], "unit": "次 / 每天", "enabled": True},
             {"key": "material_upload", "label": "资料上传限制", "limit": quota["material_upload_limit_mb"], "unit": "MB", "enabled": True},
             {"key": "learning_plan", "label": "学习计划", "limit": None, "unit": "", "enabled": bool(quota["learning_plan"])},
-            {"key": "mistake_review", "label": "错题复盘", "limit": None, "unit": "", "enabled": bool(quota["mistake_review"])},
+            {"key": "mistake_review", "label": "练习复盘", "limit": None, "unit": "", "enabled": bool(quota["mistake_review"])},
             {"key": "learning_report", "label": "学习报告", "limit": None, "unit": "", "enabled": bool(quota["learning_report"])},
         ],
     }
@@ -4878,6 +4878,18 @@ def save_course_learning_onboarding(
             value = (req.course_goals.get(course) or "").strip()
         course_goals[course] = value if value in allowed_course_goals else "平日学习"
 
+    if track and _parse_track_onboarding_detail(track).get("course_learning_onboarding_completed"):
+        # Already onboarded — allow plan-only upgrade without re-validating major/grade/courses
+        existing_detail = _parse_track_onboarding_detail(track)
+        major = major or existing_detail.get("major", "")
+        grade = grade or existing_detail.get("grade", "")
+        if not selected_courses:
+            selected_courses = existing_detail.get("selected_courses", [])
+        if not material_types:
+            material_types = existing_detail.get("material_types", [])
+        if not course_goals:
+            course_goals = existing_detail.get("course_goals", {})
+
     if not major:
         raise HTTPException(status_code=400, detail="请选择专业")
     if not grade:
@@ -4900,6 +4912,11 @@ def save_course_learning_onboarding(
     plan = (req.plan or (track.plan if track else None) or "free").strip()
     if plan not in allowed_plans:
         raise HTTPException(status_code=400, detail="invalid course learning plan")
+
+    # Downgrade protection
+    PLAN_TIER = {"free": 0, "monthly": 1, "quarterly": 2, "full": 3}
+    if track and track.plan and PLAN_TIER.get(plan, 0) < PLAN_TIER.get(track.plan, 0):
+        raise HTTPException(status_code=400, detail="课程学习套餐不支持降级，请保持当前套餐或升级")
     if completed:
         detail["course_learning_plan"] = plan
     detail.update({

@@ -441,7 +441,7 @@ export default function CourseSubjectDashboard({
                 <li>学习数据深度分析</li>
                 <li>更多高级功能</li>
               </ul>
-              <button type="button" onClick={() => setPage?.("membership")}>了解会员权益 →</button>
+              <button type="button" onClick={() => setPage?.("coursePlan")}>了解会员权益 →</button>
             </div>
           )}
 
