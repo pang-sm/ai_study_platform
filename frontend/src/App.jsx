@@ -2530,7 +2530,7 @@ function App() {
       const res = await fetch(`${API_BASE}/materials/upload`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${user.username}`,
+          Authorization: `Bearer ${encodeURIComponent(user.username)}`,
         },
         body: formData,
       });
