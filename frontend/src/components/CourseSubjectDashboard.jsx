@@ -352,6 +352,7 @@ export default function CourseSubjectDashboard({
         <KnowledgeLearningPage
           user={user}
           mode="course_learning"
+          courseId={courseId}
           courseName={courseName}
           onNavigateToAI={(ctx) => {
             // Navigate to AI chat within CourseSubjectDashboard
@@ -386,6 +387,7 @@ export default function CourseSubjectDashboard({
           <ExamPracticeCenter
             user={user}
             mode="course_learning"
+            courseId={courseId}
             courseName={courseName}
           />
         </Suspense>

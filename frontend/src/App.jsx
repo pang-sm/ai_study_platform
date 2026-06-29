@@ -441,7 +441,7 @@ const VALID_PAGES = new Set([
   "adminUsageCenter", "adminCenter",
   "materials", "workspaceMaterials", "chat", "records", "history",
   "knowledgeLearning", "searchResults",
-  "profileEdit", "onboarding", "courseLearningOnboarding", "courseLearningPackageStep", "courseProfile", "courseRegistration", "examHome", "examProfile", "examPlan", "examSubjectDashboard",
+  "profileEdit", "onboarding", "courseLearningOnboarding", "courseLearningPackageStep", "courseLearningComplete", "courseProfile", "courseRegistration", "examHome", "examProfile", "examPlan", "examSubjectDashboard",
   "login", "adminLogin",
 ]);
 
@@ -487,6 +487,24 @@ function saveCurrentPage(pageName) {
 
 function clearCurrentPage() {
   try { localStorage.removeItem(CURRENT_PAGE_KEY); } catch { /* ignore */ }
+}
+
+function CourseLearningCompletePage({ onEnter }) {
+  return (
+    <div className="onboarding-v2-page course-complete-page">
+      <div className="onboarding-v2-card course-complete-card">
+        <div className="course-complete-icon" aria-hidden="true">✓</div>
+        <p className="ob-subtitle">课程学习</p>
+        <h1 className="ob-title">课程学习空间已开通</h1>
+        <p className="ob-desc">你的课程、资料偏好和学习套餐已配置完成，可以开始进入课程学习主页。</p>
+        <div className="course-complete-actions">
+          <button type="button" className="ob-btn-primary" onClick={onEnter}>
+            进入课程学习主页
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function getInitialExamSubject() {
@@ -3316,8 +3334,9 @@ function App() {
         setTip("");
         setCourseOnboardingStatus(data?.onboarding || { onboarding_completed: true, plan });
         const nextPage = serviceSwitchOnboarding?.targetPage || courseOnboardingTargetPage || "home";
+        setCourseOnboardingTargetPage(nextPage);
         setServiceSwitchOnboarding(null);
-        setPage(nextPage);
+        setPage("courseLearningComplete");
       } finally {
         setCoursePackageSaving(false);
       }
@@ -3329,6 +3348,14 @@ function App() {
         error={tip}
         onBack={() => setPage("courseLearningOnboarding")}
         onComplete={handleCoursePackageComplete}
+      />
+    );
+  }
+
+  if (page === "courseLearningComplete") {
+    return (
+      <CourseLearningCompletePage
+        onEnter={() => setPage(courseOnboardingTargetPage || "home")}
       />
     );
   }

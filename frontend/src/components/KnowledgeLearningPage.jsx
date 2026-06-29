@@ -19,7 +19,7 @@ function getSubjectDisplayName(subjectKey) {
 }
 
 function buildCourseLearningId(courseName) {
-  return `course_${String(courseName || "course").trim().replace(/\s+/g, "_")}`;
+  return String(courseName || "course").trim().replace(/\s+/g, "_");
 }
 
 const STATUS_CONFIG = {
@@ -284,10 +284,11 @@ export default function KnowledgeLearningPage({
   subjectKey,
   mode = "exam_11408",         // "exam_11408" | "course_learning"
   courseName: courseNameProp,   // direct course name for course_learning mode
+  courseId: courseIdProp,
 }) {
   const isCourseMode = mode === "course_learning";
   const courseId = isCourseMode
-    ? buildCourseLearningId(courseNameProp || "course")
+    ? buildCourseLearningId(courseIdProp || courseNameProp || "course")
     : getCourseId(subjectKey);
   const displayCourseName = isCourseMode
     ? (courseNameProp || "课程学习")
@@ -343,7 +344,7 @@ export default function KnowledgeLearningPage({
     return () => {
       alive = false;
     };
-  }, [user?.username]);
+  }, [courseId, user?.username]);
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -361,7 +362,7 @@ export default function KnowledgeLearningPage({
       }
     };
     loadSettings();
-  }, [user?.username]);
+  }, [courseId, user?.username]);
 
   const chapters = data?.chapters || [];
   const activeChapter = chapters.find((chapter) => chapter.code === activeChapterCode) || chapters[0] || null;

@@ -12480,6 +12480,27 @@ def _get_review_interval_days(db: Session, username: str, course_id: str) -> int
     return min(max(value, 1), 365)
 
 
+def _empty_course_learning_knowledge_map(course_id: str, username: str = "", db: Session | None = None):
+    review_interval_days = 7
+    if username and db is not None:
+        user = get_user_by_username(username, db)
+        review_interval_days = _get_review_interval_days(db, user.username, course_id)
+    return {
+        "course_id": course_id,
+        "course_name": course_id,
+        "source": "course_learning_empty",
+        "stats": {
+            "total": 0,
+            "mastered": 0,
+            "learning": 0,
+            "review_due": 0,
+            "not_started": 0,
+        },
+        "review_interval_days": review_interval_days,
+        "chapters": [],
+    }
+
+
 @app.get("/knowledge-map")
 def get_knowledge_map(course_id: str, username: str = "", db: Session = Depends(get_db)):
     normalized_course = (course_id or "").strip()
@@ -12488,7 +12509,9 @@ def get_knowledge_map(course_id: str, username: str = "", db: Session = Depends(
 
     seed_path = _knowledge_map_seed_path(normalized_course)
     if not seed_path.exists():
-        raise HTTPException(status_code=404, detail="知识脉络数据不存在")
+        if normalized_course.endswith("_11408"):
+            raise HTTPException(status_code=404, detail="knowledge map not found")
+        return _empty_course_learning_knowledge_map(normalized_course, username, db)
 
     try:
         payload = json.loads(seed_path.read_text(encoding="utf-8"))
@@ -12657,7 +12680,7 @@ def get_knowledge_map_review_settings(course_id: str, username: str = "", db: Se
     course_id = (course_id or "").strip()
     if not course_id:
         raise HTTPException(status_code=400, detail="course_id is required")
-    if not _knowledge_map_seed_path(course_id).exists():
+    if course_id.endswith("_11408") and not _knowledge_map_seed_path(course_id).exists():
         raise HTTPException(status_code=404, detail="knowledge map not found")
     user = get_user_by_username(username, db) if username else None
     interval = _get_review_interval_days(db, user.username, course_id) if user else 7
@@ -12670,7 +12693,7 @@ def update_knowledge_map_review_settings(req: schemas.KnowledgeMapReviewSettings
     course_id = (req.course_id or "").strip()
     if not course_id:
         raise HTTPException(status_code=400, detail="course_id is required")
-    if not _knowledge_map_seed_path(course_id).exists():
+    if course_id.endswith("_11408") and not _knowledge_map_seed_path(course_id).exists():
         raise HTTPException(status_code=404, detail="knowledge map not found")
     try:
         interval = int(req.review_interval_days)
@@ -16359,6 +16382,67 @@ PRACTICE_QUESTION_TYPES = {
 
 def is_programming_question_type(value: str | None) -> bool:
     return (value or "").strip() in PROGRAMMING_QUESTION_TYPES
+
+
+@app.get("/learning/practice/stats")
+def get_course_learning_practice_stats(username: str, course_id: str = "", db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    normalized_course = re.sub(r"\s+", "_", (course_id or "").strip())
+
+    question_query = db.query(models.Question).filter(models.Question.username == user.username)
+    paper_query = db.query(models.PracticePaper).filter(models.PracticePaper.username == user.username)
+    attempt_query = db.query(models.QuestionAttempt).filter(models.QuestionAttempt.username == user.username)
+    record_query = db.query(models.LearningRecord).filter(
+        models.LearningRecord.user_id == user.id,
+        models.LearningRecord.record_type == "practice",
+        models.LearningRecord.is_deleted == False,
+    )
+
+    if normalized_course:
+        question_query = question_query.filter(models.Question.course_id == normalized_course)
+        paper_query = paper_query.filter(models.PracticePaper.course_id == normalized_course)
+        attempt_query = attempt_query.filter(models.QuestionAttempt.course_id == normalized_course)
+        record_query = record_query.filter(models.LearningRecord.subject == normalized_course)
+
+    question_count = question_query.filter(models.Question.type.notin_(PROGRAMMING_QUESTION_TYPES)).count()
+    paper_count = paper_query.count()
+    attempt_count = attempt_query.count()
+    correct_count = attempt_query.filter(models.QuestionAttempt.self_result.in_([
+        "correct", "right", "true", "yes", "1", "正确", "对",
+    ])).count()
+
+    records = record_query.order_by(models.LearningRecord.created_at.desc()).limit(1000).all()
+    total_duration_seconds = 0
+    for record in records:
+        if not record.tags:
+            continue
+        try:
+            tags = json.loads(record.tags)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            continue
+        try:
+            total_duration_seconds += int(tags.get("duration_seconds") or 0)
+        except (TypeError, ValueError):
+            pass
+
+    completed_practices = max(len(records), attempt_count)
+    total_practices = max(completed_practices, paper_count, question_count)
+    accuracy = round(correct_count / attempt_count * 100, 1) if attempt_count > 0 else 0
+
+    return {
+        "success": True,
+        "service_key": "course_learning",
+        "course_id": normalized_course,
+        "total_practices": total_practices,
+        "completed_practices": completed_practices,
+        "accuracy": accuracy,
+        "total_duration_minutes": round(total_duration_seconds / 60),
+        "question_count": question_count,
+        "paper_count": paper_count,
+        "attempt_count": attempt_count,
+        "correct_count": correct_count,
+        "empty": total_practices == 0,
+    }
 
 
 @app.get("/practice/questions")

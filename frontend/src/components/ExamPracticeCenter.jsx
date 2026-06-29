@@ -968,12 +968,15 @@ export default function ExamPracticeCenter({
   user,
   mode = "exam_11408",         // "exam_11408" | "course_learning"
   courseName = "",              // used in course_learning mode
+  courseId = "",
 }) {
   const isCourseMode = mode === "course_learning";
+  const resolvedCourseId = String(courseId || courseName || "course").trim().replace(/\s+/g, "_");
   const displayName = isCourseMode ? (courseName || "课程学习") : subjectName;
   const subjectInfo = isCourseMode
     ? { key: "course", label: courseName || "课程学习", shortLabel: courseName || "课程", courseId: `course_${(courseName || "course").replace(/\s+/g, "_")}` }
     : (EXAM_SUBJECTS[subjectKey] || EXAM_SUBJECTS.data_structure);
+  if (isCourseMode) subjectInfo.courseId = resolvedCourseId;
   const [practiceView, setPracticeView] = useState("dashboard");
   const [pastPaperConfig, setPastPaperConfig] = useState(null);
   const [pastPapers, setPastPapers] = useState(null);
@@ -1007,6 +1010,7 @@ export default function ExamPracticeCenter({
     setStatsLoading(true);
     setStatsError("");
     const params = new URLSearchParams({ username: user.username });
+    if (isCourseMode) params.set("course_id", resolvedCourseId);
     const apiPath = isCourseMode
       ? `${API_BASE}/learning/practice/stats`  // course_learning practice stats
       : `${API_BASE}/exam/11408/${subjectKey}/practice/stats`;
@@ -1017,7 +1021,7 @@ export default function ExamPracticeCenter({
         if (!isCourseMode) setStatsError(`练习数据加载失败：${err.message || "服务器错误"}`);
       })
       .finally(() => setStatsLoading(false));
-  }, [subjectKey, user?.username, isCourseMode]);
+  }, [subjectKey, user?.username, isCourseMode, resolvedCourseId]);
 
   const availableYears = [];
   if (pastPapers?.resource_files) {
