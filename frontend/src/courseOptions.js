@@ -46,6 +46,10 @@ export const SUBJECT_ALIASES = {
   "编译原理": "编译原理",
   "人机交互": "人机交互",
   "计算系统基础": DEFAULT_SUBJECT,
+
+  // course_learning self-aliases (override canonical remaps above for strict course name matching)
+  "数据结构": "数据结构",
+  "操作系统": "操作系统",
 };
 
 export function normalizeSubject(subject, fallback = DEFAULT_SUBJECT) {
