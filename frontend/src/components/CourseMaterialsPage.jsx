@@ -278,10 +278,19 @@ export default function CourseMaterialsPage({
 
   const course = getCourseDisplay(subject, getSubjectLabel, isCourseMode);
   const rawItems = Array.isArray(materials) ? materials : [];
-  // In course_learning mode, filter out 11408 reference metadata materials
-  const currentItems = isCourseMode
-    ? rawItems.filter((item) => !isReferenceMetadata(item))
-    : rawItems;
+  // In course_learning mode, filter to current course + exclude 11408 reference metadata
+  const currentItems = useMemo(() => {
+    if (!isCourseMode) return rawItems;
+    const courseSubject = String(subject || "").trim();
+    return rawItems.filter((item) => {
+      if (isReferenceMetadata(item)) return false;
+      if (!courseSubject) return true;
+      const itemSubject = String(item.subject || item.course_id || item.course_name || "").trim();
+      // 11408 materials use "11408 " prefix — exclude them
+      if (itemSubject.startsWith("11408 ")) return false;
+      return itemSubject === courseSubject;
+    });
+  }, [rawItems, isCourseMode, subject]);
 
   const matchedMaterialIds = useMemo(() => {
     if (!query.trim()) return new Set();
