@@ -497,9 +497,6 @@ export default function CourseMaterialsPage({
             <button className="cmp-btn cmp-btn--ghost" type="button" onClick={handleReindex} disabled={reindexLoading}>
               {reindexLoading ? "重建中..." : "重建索引"}
             </button>
-            <button className="cmp-btn cmp-btn--ghost cmp-btn--accent" type="button" onClick={openKnowledgeModal}>
-              从资料生成知识点
-            </button>
           </div>
           <input
             ref={materialsFileInputRef}
@@ -574,7 +571,7 @@ export default function CourseMaterialsPage({
                     <div className="cmp-empty-state">
                       <div className="cmp-empty-mark">▣</div>
                       <h3>{currentItems.length === 0 ? "当前科目还没有资料" : "没有符合条件的资料"}</h3>
-                      <p>上传课程资料后，可用于 AI 问答引用、知识点生成和学习。</p>
+                      <p>上传课程资料后，可用于 AI 问答引用和学习。</p>
                       <p className="cmp-empty-note">请上传你拥有合法使用权的学习资料；较大 PDF 会先入库，再由后台分批解析。</p>
                       <button className="cmp-btn cmp-btn--primary" type="button" onClick={() => materialsFileInputRef.current?.click()}>
                         上传课程资料
@@ -643,7 +640,7 @@ export default function CourseMaterialsPage({
           <div className="cmp-detail-empty">
             <div className="cmp-empty-mark">▣</div>
             <h3>请选择资料查看详情</h3>
-            <p>上传资料后可用于 AI 问答引用、知识点生成和学习。</p>
+            <p>上传资料后可用于 AI 问答引用和学习。</p>
           </div>
         ) : (
           <>

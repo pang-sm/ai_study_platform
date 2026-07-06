@@ -332,7 +332,7 @@ export default function CourseSubjectDashboard({
             ) : (
               <div className="csd-empty-state">
                 <strong>{courseName} 暂无课程资料</strong>
-                <p>上传课程资料后，可用于 AI 问答引用、知识点生成和学习。</p>
+                <p>上传课程资料后，可用于 AI 问答引用和学习。</p>
               </div>
             )}
           </div>

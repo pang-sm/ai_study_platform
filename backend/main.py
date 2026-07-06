@@ -21084,7 +21084,10 @@ JSON 格式：
 
 @app.post("/materials/analyze-knowledge-preview")
 def analyze_knowledge_preview(req: schemas.MaterialAnalyzeKnowledgeRequest, db: Session = Depends(get_db)):
-    """Analyze selected materials and return a knowledge tree preview (no DB writes)."""
+    """DEPRECATED: Knowledge脉络由系统预置维护，不支持从用户资料生成。"""
+    raise HTTPException(status_code=403, detail="知识脉络由系统预置维护，不支持从用户资料生成或写入。")
+# -- old analyze body removed --
+def _dead_analyze_knowledge_preview_old_body(req, db):
     user = get_user_by_username(req.username, db)
     course_id = normalize_subject(req.course_id)
 
@@ -21285,7 +21288,10 @@ def analyze_knowledge_preview(req: schemas.MaterialAnalyzeKnowledgeRequest, db: 
 
 @app.post("/materials/confirm-knowledge-tree")
 def confirm_knowledge_tree(req: schemas.MaterialConfirmKnowledgeTreeRequest, db: Session = Depends(get_db)):
-    """Write confirmed knowledge tree preview to knowledge_points with dedup."""
+    """DEPRECATED: Knowledge脉络由系统预置维护，不支持从用户资料写入。"""
+    raise HTTPException(status_code=403, detail="知识脉络由系统预置维护，不支持从用户资料生成或写入。")
+# -- old confirm body removed --
+def _dead_confirm_knowledge_tree_old_body(req, db):
     user = get_user_by_username(req.username, db)
     course_id = normalize_subject(req.course_id)
 
