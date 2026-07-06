@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import "./CourseLearningHome.css";
+import { COURSE_LEARNING_CATALOG, COURSE_DISPLAY_NAMES, normalizeCourseLearningName, resolveCourseId } from "../courseLearningCatalog.js";
 
 const COURSE_THEMES = [
   { icon: "DS", tone: "purple" },
@@ -8,27 +9,6 @@ const COURSE_THEMES = [
   { icon: "CN", tone: "cyan" },
   { icon: "DB", tone: "orange" },
   { icon: "AI", tone: "violet" },
-];
-
-const COURSE_CATALOG = [
-  "数据结构",
-  "离散数学",
-  "操作系统",
-  "计算机网络",
-  "计算机组成原理",
-  "C 语言程序设计",
-  "Python 程序设计",
-  "Java 程序设计",
-  "数据库系统",
-  "算法设计与分析",
-  "编译原理",
-  "软件工程",
-  "高等数学",
-  "线性代数",
-  "概率论与数理统计",
-  "互联网计算",
-  "计算机图形学",
-  "人工智能导论",
 ];
 
 const GOAL_OPTIONS = ["平日学习", "考试突击"];
@@ -47,14 +27,7 @@ function uniqueValues(values) {
 }
 
 function normalizeCourseName(course) {
-  const text = `${course || ""}`.trim();
-  const aliases = {
-    数据结构与算法: "数据结构",
-    C语言: "C 语言程序设计",
-    Python: "Python 程序设计",
-    Java: "Java 程序设计",
-  };
-  return aliases[text] || text;
+  return normalizeCourseLearningName(course) || `${course || ""}`.trim();
 }
 
 function formatSize(bytes) {
@@ -73,24 +46,23 @@ function getMaterialTypeCount(materials, type) {
 
 function getCourseInitials(course, index) {
   const known = {
+    计算机导论: "CI",
+    程序设计基础: "PF",
+    "C 语言程序设计": "C",
+    "Python 程序设计": "PY",
+    "Java 程序设计": "JA",
+    面向对象程序设计: "OO",
     数据结构: "DS",
     离散数学: "DM",
     操作系统: "OS",
     计算机网络: "CN",
     计算机组成原理: "CO",
-    "C 语言程序设计": "C",
-    "Python 程序设计": "PY",
-    "Java 程序设计": "JA",
     数据库系统: "DB",
     算法设计与分析: "AL",
     编译原理: "CP",
     软件工程: "SE",
-    高等数学: "MA",
-    线性代数: "LA",
-    概率论与数理统计: "PR",
-    互联网计算: "IC",
-    计算机图形学: "CG",
-    人工智能导论: "AI",
+    数字逻辑: "DL",
+    "Linux / Unix 系统基础": "LX",
   };
   return known[course] || COURSE_THEMES[index % COURSE_THEMES.length].icon;
 }
@@ -171,7 +143,7 @@ export default function CourseLearningHome({
 
   const availableCourses = useMemo(() => {
     const selected = new Set(selectedCourses.map(normalizeCourseName));
-    return COURSE_CATALOG.filter((course) => !selected.has(normalizeCourseName(course)));
+    return COURSE_DISPLAY_NAMES.filter((course) => !selected.has(normalizeCourseName(course)));
   }, [selectedCourses]);
 
   const courseCards = selectedCourses.map((course, index) => {

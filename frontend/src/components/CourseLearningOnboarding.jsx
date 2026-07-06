@@ -13,20 +13,10 @@ const MAJOR_OPTIONS = [
 
 const GRADE_OPTIONS = ["大一", "大二", "大三", "大四", "研究生", "已工作"];
 
-const COURSE_OPTIONS = [
-  "数据结构",
-  "操作系统",
-  "计算机网络",
-  "计算机组成原理",
-  "C 语言",
-  "Python",
-  "Java",
-  "离散数学",
-  "数据库系统",
-  "算法设计与分析",
-  "编译原理",
-  "软件工程",
-];
+import { COURSE_DISPLAY_NAMES } from "../courseLearningCatalog.js";
+
+// Onboarding shows the full standard catalog
+const COURSE_OPTIONS = COURSE_DISPLAY_NAMES;
 
 const MATERIAL_OPTIONS = ["PPT", "教材", "作业", "往年卷", "笔记", "暂时没有"];
 const EMPTY_MATERIAL = "暂时没有";

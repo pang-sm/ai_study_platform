@@ -53,6 +53,46 @@ SUBJECT_ALIASES = {
 }
 
 
+def normalize_subject_course_learning(raw: str) -> str:
+    """课程学习专用 normalize：统一历史/别名到标准 displayName。
+    不影响 11408 normalize_subject。
+    """
+    key = (raw or "").strip()
+    if not key:
+        return key
+    ALIASES = {
+        # 旧名 → 标准名
+        "C语言": "C 语言程序设计",
+        "C 语言": "C 语言程序设计",
+        "C语言程序设计": "C 语言程序设计",
+        "c语言": "C 语言程序设计",
+        "Python": "Python 程序设计",
+        "Python程序设计": "Python 程序设计",
+        "Java": "Java 程序设计",
+        "Java程序设计": "Java 程序设计",
+        "数据结构与算法": "数据结构",
+        "互联网计算": "计算机网络",
+        "网络": "计算机网络",
+        "计算机操作系统": "操作系统",
+        "计算机组成结构": "计算机组成原理",
+        "计算机组成": "计算机组成原理",
+        "数据管理": "数据库系统",
+        "数据库": "数据库系统",
+        "面向对象": "面向对象程序设计",
+        "OOP": "面向对象程序设计",
+        "Linux": "Linux / Unix 系统基础",
+        "Unix": "Linux / Unix 系统基础",
+        "Linux基础": "Linux / Unix 系统基础",
+        "Unix基础": "Linux / Unix 系统基础",
+    }
+    if key in ALIASES:
+        return ALIASES[key]
+    lowered = key.lower()
+    if lowered in ALIASES:
+        return ALIASES[lowered]
+    return key
+
+
 def normalize_subject(
     subject: str | None = None,
     course: str | None = None,

@@ -41,11 +41,10 @@ const COURSE_MAJORS = [
   "网络工程", "信息安全", "其他",
 ];
 const COURSE_GRADES = ["大一", "大二", "大三", "大四", "研究生", "其他"];
-const COURSE_OPTIONS = [
-  "数据结构", "操作系统", "计算机网络", "计算机组成原理",
-  "C 语言", "Python", "Java", "离散数学",
-  "数据库系统", "算法设计与分析", "编译原理", "软件工程",
-];
+import { COURSE_DISPLAY_NAMES } from "../courseLearningCatalog.js";
+
+// 热门课程子集（大学课程方向 onboarding 第二步）
+const COURSE_OPTIONS = COURSE_DISPLAY_NAMES;
 const COURSE_MATERIALS = ["PPT", "教材", "作业", "往年卷", "笔记", "暂时没有"];
 
 const CODE_LANGS = ["C", "Python", "Java", "C++", "暂时不确定"];
