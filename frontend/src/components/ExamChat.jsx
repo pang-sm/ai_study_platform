@@ -372,8 +372,12 @@ export default function ExamChat({
     setLibraryLoading(true);
     try {
       const query = new URLSearchParams({ username: user.username });
-      const materialSubject = courseName || courseId || (isCourseMode ? subjectLabel : "");
-      if (materialSubject) query.set("subject", materialSubject);
+      // Resolve subject for material filtering — try all available identifiers
+      const resolvedSubject = courseName || courseId || displayCourseName
+        || (typeof courseName === 'string' ? courseName : '')
+        || (typeof courseId === 'string' ? courseId : '')
+        || (isCourseMode ? subjectLabel : "");
+      if (resolvedSubject) query.set("subject", resolvedSubject);
       const res = await fetch(`${API_BASE}/materials?${query.toString()}`);
       const data = await res.json().catch(() => ({}));
       const materials = res.ok && Array.isArray(data.materials) ? data.materials : [];
@@ -385,7 +389,7 @@ export default function ExamChat({
     } finally {
       setLibraryLoading(false);
     }
-  }, [courseName, courseId, isCourseMode, subjectLabel, user?.username]);
+  }, [courseName, courseId, displayCourseName, isCourseMode, subjectLabel, user?.username]);
 
   const updateCurrentSessionId = useCallback((sessionId) => {
     const nextSessionId = sessionId === null || sessionId === undefined || sessionId === "" ? null : Number(sessionId);
