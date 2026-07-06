@@ -46,7 +46,6 @@ function getMaterialTypeCount(materials, type) {
 
 function getCourseInitials(course, index) {
   const known = {
-    计算机导论: "CI",
     程序设计基础: "PF",
     "C 语言程序设计": "C",
     "Python 程序设计": "PY",
@@ -62,7 +61,7 @@ function getCourseInitials(course, index) {
     编译原理: "CP",
     软件工程: "SE",
     数字逻辑: "DL",
-    "Linux / Unix 系统基础": "LX",
+    "Linux 系统基础": "LX",
   };
   return known[course] || COURSE_THEMES[index % COURSE_THEMES.length].icon;
 }

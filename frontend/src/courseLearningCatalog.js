@@ -4,7 +4,6 @@
  */
 
 export const COURSE_LEARNING_CATALOG = [
-  { displayName: "计算机导论",           courseId: "computer_intro" },
   { displayName: "程序设计基础",         courseId: "programming_fundamentals" },
   { displayName: "C 语言程序设计",       courseId: "c_programming" },
   { displayName: "Python 程序设计",      courseId: "python_programming" },
@@ -20,7 +19,7 @@ export const COURSE_LEARNING_CATALOG = [
   { displayName: "数据库系统",           courseId: "database_systems" },
   { displayName: "软件工程",             courseId: "software_engineering" },
   { displayName: "编译原理",             courseId: "compiler_principles" },
-  { displayName: "Linux / Unix 系统基础", courseId: "linux_unix_basics" },
+  { displayName: "Linux 系统基础",       courseId: "linux_basics" },
 ];
 
 /** 仅显示名列表（兼容旧代码 .map 直接取字符串） */
@@ -68,10 +67,13 @@ const COURSE_ALIAS_MAP = {
   "面向对象": "面向对象程序设计",
   "OOP": "面向对象程序设计",
   "oop": "面向对象程序设计",
-  "Linux": "Linux / Unix 系统基础",
-  "Unix": "Linux / Unix 系统基础",
-  "Linux基础": "Linux / Unix 系统基础",
-  "Unix基础": "Linux / Unix 系统基础",
+  "Linux": "Linux 系统基础",
+  "Unix": "Linux 系统基础",
+  "Linux基础": "Linux 系统基础",
+  "Unix基础": "Linux 系统基础",
+  "Linux / Unix 系统基础": "Linux 系统基础",
+  "linux_unix_basics": "Linux 系统基础",
+  "linux_basics": "Linux 系统基础",
 };
 
 export function normalizeCourseLearningName(raw) {

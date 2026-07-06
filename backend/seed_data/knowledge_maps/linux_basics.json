@@ -1,0 +1,122 @@
+{
+  "course_id": "linux_basics",
+  "course_name": "Linux 系统基础",
+  "source": "课程学习方向标准知识脉络第一版",
+  "chapters": [
+    {"code":"1","title":"Linux 概述","children":[
+      {"code":"1.1","title":"Linux 基础概念","children":[
+        {"code":null,"title":"Linux 的发展历史","children":[]},
+        {"code":null,"title":"常见 Linux 发行版","children":[]},
+        {"code":null,"title":"开源软件与 GPL","children":[]},
+        {"code":null,"title":"内核与用户空间","children":[]}
+      ]},
+      {"code":"1.2","title":"学习环境","children":[
+        {"code":null,"title":"Shell 的作用","children":[]},
+        {"code":null,"title":"虚拟机与 WSL","children":[]},
+        {"code":null,"title":"Linux 的典型使用场景","children":[]}
+      ]}
+    ]},
+    {"code":"2","title":"系统安装与登录基础","children":[
+      {"code":"2.1","title":"登录方式","children":[
+        {"code":null,"title":"本地登录与图形界面","children":[]},
+        {"code":null,"title":"SSH 远程登录","children":[]},
+        {"code":null,"title":"终端基础操作","children":[]}
+      ]},
+      {"code":"2.2","title":"安装入门","children":[
+        {"code":null,"title":"常见安装方式","children":[]},
+        {"code":null,"title":"虚拟机安装入门","children":[]}
+      ]}
+    ]},
+    {"code":"3","title":"文件系统与目录结构","children":[
+      {"code":"3.1","title":"目录结构","children":[
+        {"code":null,"title":"根目录与 FHS 标准","children":[]},
+        {"code":null,"title":"常见系统目录","children":[]},
+        {"code":null,"title":"绝对路径与相对路径","children":[]}
+      ]},
+      {"code":"3.2","title":"文件管理","children":[
+        {"code":null,"title":"文件类型","children":[]},
+        {"code":null,"title":"隐藏文件","children":[]},
+        {"code":null,"title":"硬链接与软链接","children":[]},
+        {"code":null,"title":"挂载基础","children":[]}
+      ]}
+    ]},
+    {"code":"4","title":"常用命令","children":[
+      {"code":"4.1","title":"目录与文件操作","children":[
+        {"code":null,"title":"pwd、ls、cd","children":[]},
+        {"code":null,"title":"cp、mv、rm","children":[]},
+        {"code":null,"title":"mkdir、rmdir","children":[]},
+        {"code":null,"title":"touch","children":[]}
+      ]},
+      {"code":"4.2","title":"查看与搜索","children":[
+        {"code":null,"title":"cat、less、head、tail","children":[]},
+        {"code":null,"title":"grep 基础","children":[]},
+        {"code":null,"title":"find 基础","children":[]},
+        {"code":null,"title":"wc、sort","children":[]}
+      ]}
+    ]},
+    {"code":"5","title":"文件权限与用户管理","children":[
+      {"code":"5.1","title":"用户与用户组","children":[
+        {"code":null,"title":"用户与用户组的概念","children":[]},
+        {"code":null,"title":"useradd、usermod、userdel","children":[]},
+        {"code":null,"title":"passwd","children":[]}
+      ]},
+      {"code":"5.2","title":"文件权限","children":[
+        {"code":null,"title":"rwx 权限模型","children":[]},
+        {"code":null,"title":"chmod 修改权限","children":[]},
+        {"code":null,"title":"chown 修改所有者","children":[]},
+        {"code":null,"title":"sudo 与权限提升","children":[]}
+      ]}
+    ]},
+    {"code":"6","title":"Shell 与脚本基础","children":[
+      {"code":"6.1","title":"Shell 基础","children":[
+        {"code":null,"title":"Shell 变量与环境变量","children":[]},
+        {"code":null,"title":"管道","children":[]},
+        {"code":null,"title":"重定向与命令替换","children":[]}
+      ]},
+      {"code":"6.2","title":"Shell 脚本","children":[
+        {"code":null,"title":"脚本结构与执行","children":[]},
+        {"code":null,"title":"条件语句 if","children":[]},
+        {"code":null,"title":"循环语句 for、while","children":[]}
+      ]}
+    ]},
+    {"code":"7","title":"进程与系统资源","children":[
+      {"code":"7.1","title":"进程管理","children":[
+        {"code":null,"title":"进程的概念与状态","children":[]},
+        {"code":null,"title":"ps 查看进程","children":[]},
+        {"code":null,"title":"top 实时监控","children":[]},
+        {"code":null,"title":"kill 终止进程","children":[]},
+        {"code":null,"title":"前台与后台任务","children":[]}
+      ]},
+      {"code":"7.2","title":"系统服务与日志","children":[
+        {"code":null,"title":"systemd 基础","children":[]},
+        {"code":null,"title":"journalctl 查看日志","children":[]},
+        {"code":null,"title":"资源监控工具","children":[]}
+      ]}
+    ]},
+    {"code":"8","title":"软件包与服务管理","children":[
+      {"code":"8.1","title":"软件包管理","children":[
+        {"code":null,"title":"apt 与 dpkg","children":[]},
+        {"code":null,"title":"yum / dnf 基础","children":[]},
+        {"code":null,"title":"软件安装、更新与卸载","children":[]}
+      ]},
+      {"code":"8.2","title":"服务与计划任务","children":[
+        {"code":null,"title":"服务的启动与停止","children":[]},
+        {"code":null,"title":"防火墙基础 ufw / firewalld","children":[]},
+        {"code":null,"title":"cron 定时任务","children":[]}
+      ]}
+    ]},
+    {"code":"9","title":"网络与综合运维基础","children":[
+      {"code":"9.1","title":"网络基础","children":[
+        {"code":null,"title":"IP 配置查看","children":[]},
+        {"code":null,"title":"ping 连通性测试","children":[]},
+        {"code":null,"title":"ssh 与 scp","children":[]},
+        {"code":null,"title":"curl 与 wget","children":[]}
+      ]},
+      {"code":"9.2","title":"故障排查","children":[
+        {"code":null,"title":"netstat 与 ss 查看连接","children":[]},
+        {"code":null,"title":"日志排查方法","children":[]},
+        {"code":null,"title":"常见故障定位思路","children":[]}
+      ]}
+    ]}
+  ]
+}

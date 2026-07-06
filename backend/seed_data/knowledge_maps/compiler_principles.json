@@ -1,0 +1,117 @@
+{
+  "course_id": "compiler_principles",
+  "course_name": "编译原理",
+  "source": "课程学习方向标准知识脉络第一版",
+  "chapters": [
+    {"code":"1","title":"编译系统概述","children":[
+      {"code":"1.1","title":"编译器基础","children":[
+        {"code":null,"title":"编译器的作用与地位","children":[]},
+        {"code":null,"title":"编译过程概述","children":[]},
+        {"code":null,"title":"解释器与编译器的比较","children":[]}
+      ]},
+      {"code":"1.2","title":"编译器的结构","children":[
+        {"code":null,"title":"编译器前端","children":[]},
+        {"code":null,"title":"编译器后端","children":[]},
+        {"code":null,"title":"中间表示 IR","children":[]},
+        {"code":null,"title":"遍与阶段","children":[]}
+      ]}
+    ]},
+    {"code":"2","title":"词法分析","children":[
+      {"code":"2.1","title":"词法分析基础","children":[
+        {"code":null,"title":"词法单元、模式与词素","children":[]},
+        {"code":null,"title":"正则表达式","children":[]},
+        {"code":null,"title":"词法分析器的任务","children":[]}
+      ]},
+      {"code":"2.2","title":"有限自动机","children":[
+        {"code":null,"title":"NFA 非确定有限自动机","children":[]},
+        {"code":null,"title":"DFA 确定有限自动机","children":[]},
+        {"code":null,"title":"NFA 到 DFA 的转换","children":[]},
+        {"code":null,"title":"词法分析器的自动生成","children":[]}
+      ]}
+    ]},
+    {"code":"3","title":"语法分析基础","children":[
+      {"code":"3.1","title":"上下文无关文法","children":[
+        {"code":null,"title":"文法的定义","children":[]},
+        {"code":null,"title":"推导与归约","children":[]},
+        {"code":null,"title":"语法树与二义性","children":[]}
+      ]},
+      {"code":"3.2","title":"文法分析工具","children":[
+        {"code":null,"title":"FIRST 集","children":[]},
+        {"code":null,"title":"FOLLOW 集","children":[]},
+        {"code":null,"title":"语法错误处理","children":[]}
+      ]}
+    ]},
+    {"code":"4","title":"自顶向下语法分析","children":[
+      {"code":"4.1","title":"递归下降分析","children":[
+        {"code":null,"title":"递归下降的基本思想","children":[]},
+        {"code":null,"title":"LL(1) 文法","children":[]}
+      ]},
+      {"code":"4.2","title":"预测分析","children":[
+        {"code":null,"title":"预测分析表的构造","children":[]},
+        {"code":null,"title":"左递归消除","children":[]},
+        {"code":null,"title":"提取左因子","children":[]}
+      ]}
+    ]},
+    {"code":"5","title":"自底向上语法分析","children":[
+      {"code":"5.1","title":"移进归约分析","children":[
+        {"code":null,"title":"移进与归约的基本操作","children":[]},
+        {"code":null,"title":"句柄的概念","children":[]}
+      ]},
+      {"code":"5.2","title":"LR 分析","children":[
+        {"code":null,"title":"LR 分析的基本思想","children":[]},
+        {"code":null,"title":"LR(0) 项目与自动机","children":[]},
+        {"code":null,"title":"SLR(1) 分析","children":[]},
+        {"code":null,"title":"LR(1) 与 LALR(1) 基础","children":[]}
+      ]}
+    ]},
+    {"code":"6","title":"语义分析","children":[
+      {"code":"6.1","title":"语法制导翻译","children":[
+        {"code":null,"title":"属性文法","children":[]},
+        {"code":null,"title":"S 属性与 L 属性定义","children":[]},
+        {"code":null,"title":"翻译方案","children":[]}
+      ]},
+      {"code":"6.2","title":"语义检查","children":[
+        {"code":null,"title":"符号表的组织","children":[]},
+        {"code":null,"title":"类型检查","children":[]},
+        {"code":null,"title":"作用域分析","children":[]}
+      ]}
+    ]},
+    {"code":"7","title":"运行时存储管理","children":[
+      {"code":"7.1","title":"运行时环境","children":[
+        {"code":null,"title":"活动记录与调用栈","children":[]},
+        {"code":null,"title":"参数传递方式","children":[]},
+        {"code":null,"title":"局部变量的存储","children":[]}
+      ]},
+      {"code":"7.2","title":"存储分配","children":[
+        {"code":null,"title":"静态分配","children":[]},
+        {"code":null,"title":"栈式分配","children":[]},
+        {"code":null,"title":"堆管理基础","children":[]}
+      ]}
+    ]},
+    {"code":"8","title":"中间代码与代码生成","children":[
+      {"code":"8.1","title":"中间代码","children":[
+        {"code":null,"title":"三地址码","children":[]},
+        {"code":null,"title":"四元式与三元式","children":[]},
+        {"code":null,"title":"基本块与控制流图","children":[]}
+      ]},
+      {"code":"8.2","title":"目标代码生成","children":[
+        {"code":null,"title":"目标代码生成的基本问题","children":[]},
+        {"code":null,"title":"寄存器分配基础","children":[]},
+        {"code":null,"title":"指令选择基础","children":[]}
+      ]}
+    ]},
+    {"code":"9","title":"代码优化基础","children":[
+      {"code":"9.1","title":"优化的概念","children":[
+        {"code":null,"title":"优化的目标与原则","children":[]},
+        {"code":null,"title":"局部优化与全局优化","children":[]}
+      ]},
+      {"code":"9.2","title":"常见优化技术","children":[
+        {"code":null,"title":"常量折叠与传播","children":[]},
+        {"code":null,"title":"公共子表达式消除","children":[]},
+        {"code":null,"title":"死代码删除","children":[]},
+        {"code":null,"title":"循环优化","children":[]},
+        {"code":null,"title":"优化安全性","children":[]}
+      ]}
+    ]}
+  ]
+}

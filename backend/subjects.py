@@ -55,7 +55,6 @@ SUBJECT_ALIASES = {
 
 # displayName → 稳定英文 course_id（用于 seed 文件命名和 API 兼容）
 COURSE_LEARNING_ID_MAP = {
-    "计算机导论": "computer_intro",
     "程序设计基础": "programming_fundamentals",
     "C 语言程序设计": "c_programming",
     "Python 程序设计": "python_programming",
@@ -71,7 +70,9 @@ COURSE_LEARNING_ID_MAP = {
     "数据库系统": "database_systems",
     "软件工程": "software_engineering",
     "编译原理": "compiler_principles",
-    "Linux / Unix 系统基础": "linux_unix_basics",
+    "Linux 系统基础": "linux_basics",
+    "Linux / Unix 系统基础": "linux_basics",
+    "linux_unix_basics": "linux_basics",
 }
 
 
@@ -118,10 +119,10 @@ def normalize_subject_course_learning(raw: str) -> str:
         "数据库": "数据库系统",
         "面向对象": "面向对象程序设计",
         "OOP": "面向对象程序设计",
-        "Linux": "Linux / Unix 系统基础",
-        "Unix": "Linux / Unix 系统基础",
-        "Linux基础": "Linux / Unix 系统基础",
-        "Unix基础": "Linux / Unix 系统基础",
+        "Linux": "Linux 系统基础",
+        "Unix": "Linux 系统基础",
+        "Linux基础": "Linux 系统基础",
+        "Unix基础": "Linux 系统基础",
     }
     if key in ALIASES:
         return ALIASES[key]
