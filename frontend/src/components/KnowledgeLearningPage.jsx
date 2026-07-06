@@ -18,7 +18,11 @@ function getSubjectDisplayName(subjectKey) {
   return names[subjectKey] || subjectKey || "数据结构";
 }
 
+import { resolveCourseId } from "../courseLearningCatalog.js";
+
 function buildCourseLearningId(courseName) {
+  const standard = resolveCourseId(courseName);
+  if (standard) return standard;
   return String(courseName || "course").trim().replace(/\s+/g, "_");
 }
 

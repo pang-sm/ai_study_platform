@@ -76,8 +76,15 @@ COURSE_LEARNING_ID_MAP = {
 
 
 def resolve_course_id_from_display(display_name: str) -> str:
-    """中文 displayName → 英文 course_id。未匹配返回空字符串。"""
-    return COURSE_LEARNING_ID_MAP.get((display_name or "").strip(), "")
+    """中文 displayName → 英文 course_id。未匹配返回空字符串。
+    同时处理带下划线的变体（如 Python_程序设计）。
+    """
+    key = (display_name or "").strip()
+    if key in COURSE_LEARNING_ID_MAP:
+        return COURSE_LEARNING_ID_MAP[key]
+    # Fallback: try replacing underscores with spaces
+    unescaped = key.replace("_", " ").strip()
+    return COURSE_LEARNING_ID_MAP.get(unescaped, "")
 
 
 def normalize_subject_course_learning(raw: str) -> str:
