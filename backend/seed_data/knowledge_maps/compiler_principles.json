@@ -15,7 +15,8 @@
         {"code":null,"title":"编译器后端","children":[]},
         {"code":null,"title":"中间表示 IR","children":[]},
         {"code":null,"title":"遍与阶段","children":[]},
-        {"code":null,"title":"编译器的生成工具","children":[]}
+        {"code":null,"title":"编译器的生成工具","children":[]},
+        {"code":null,"title":"Lex 与 Yacc 简介","children":[]}
       ]}
     ]},
     {"code":"2","title":"词法分析","children":[
@@ -35,6 +36,7 @@
       ]},
       {"code":"2.3","title":"词法错误处理","children":[
         {"code":null,"title":"词法错误类型","children":[]},
+        {"code":null,"title":"panic 模式恢复","children":[]},
         {"code":null,"title":"错误恢复策略","children":[]}
       ]}
     ]},

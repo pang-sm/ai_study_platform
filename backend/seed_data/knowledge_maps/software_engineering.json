@@ -13,6 +13,7 @@
       {"code":"1.2","title":"基本概念","children":[
         {"code":null,"title":"软件生命周期","children":[]},
         {"code":null,"title":"软件过程","children":[]},
+        {"code":null,"title":"过程改进与 CMMI 基础","children":[]},
         {"code":null,"title":"软件质量属性","children":[]},
         {"code":null,"title":"软件工程伦理","children":[]}
       ]}
@@ -130,7 +131,9 @@
       {"code":"9.2","title":"工程实践综合","children":[
         {"code":null,"title":"安全开发基础","children":[]},
         {"code":null,"title":"持续交付与持续部署","children":[]},
-        {"code":null,"title":"工程实践案例","children":[]}
+        {"code":null,"title":"工程实践案例","children":[]},
+        {"code":null,"title":"测试驱动开发 TDD","children":[]},
+        {"code":null,"title":"代码坏味道与重构时机","children":[]}
       ]}
     ]}
   ]

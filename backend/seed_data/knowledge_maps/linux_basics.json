@@ -136,7 +136,9 @@
         {"code":null,"title":"日志文件定位","children":[]},
         {"code":null,"title":"磁盘空间检查","children":[]},
         {"code":null,"title":"权限错误排查","children":[]},
-        {"code":null,"title":"常见故障定位思路","children":[]}
+        {"code":null,"title":"常见故障定位思路","children":[]},
+        {"code":null,"title":"环境变量配置","children":[]},
+        {"code":null,"title":"PATH 与库路径","children":[]}
       ]}
     ]}
   ]
