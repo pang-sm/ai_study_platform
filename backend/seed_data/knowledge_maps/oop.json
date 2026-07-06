@@ -1,0 +1,129 @@
+{
+  "course_id": "oop",
+  "course_name": "面向对象程序设计",
+  "source": "课程学习方向标准知识脉络第一版",
+  "chapters": [
+    {"code":"1","title":"面向对象思想概述","children":[
+      {"code":"1.1","title":"编程范式","children":[
+        {"code":null,"title":"面向过程与面向对象","children":[]},
+        {"code":null,"title":"面向对象的基本思想","children":[]}
+      ]},
+      {"code":"1.2","title":"核心概念","children":[
+        {"code":null,"title":"对象的概念","children":[]},
+        {"code":null,"title":"类的概念","children":[]},
+        {"code":null,"title":"抽象","children":[]},
+        {"code":null,"title":"封装","children":[]},
+        {"code":null,"title":"继承","children":[]},
+        {"code":null,"title":"多态","children":[]}
+      ]},
+      {"code":"1.3","title":"面向对象建模思想","children":[
+        {"code":null,"title":"现实世界到对象的映射","children":[]},
+        {"code":null,"title":"面向对象的优势","children":[]}
+      ]}
+    ]},
+    {"code":"2","title":"类与对象基础","children":[
+      {"code":"2.1","title":"类的定义与对象创建","children":[
+        {"code":null,"title":"类的定义","children":[]},
+        {"code":null,"title":"对象的创建与初始化","children":[]},
+        {"code":null,"title":"构造方法","children":[]}
+      ]},
+      {"code":"2.2","title":"成员","children":[
+        {"code":null,"title":"属性的定义与访问","children":[]},
+        {"code":null,"title":"方法的定义与调用","children":[]},
+        {"code":null,"title":"this / self 指针","children":[]},
+        {"code":null,"title":"对象生命周期与内存管理","children":[]}
+      ]}
+    ]},
+    {"code":"3","title":"封装与访问控制","children":[
+      {"code":"3.1","title":"封装的意义","children":[
+        {"code":null,"title":"数据隐藏","children":[]},
+        {"code":null,"title":"访问修饰符","children":[]},
+        {"code":null,"title":"getter 与 setter","children":[]}
+      ]},
+      {"code":"3.2","title":"类设计","children":[
+        {"code":null,"title":"类的接口设计","children":[]},
+        {"code":null,"title":"不变式与前置后置条件","children":[]},
+        {"code":null,"title":"高内聚与低耦合","children":[]}
+      ]}
+    ]},
+    {"code":"4","title":"继承","children":[
+      {"code":"4.1","title":"继承机制","children":[
+        {"code":null,"title":"父类与子类","children":[]},
+        {"code":null,"title":"继承的实现","children":[]},
+        {"code":null,"title":"方法重写","children":[]},
+        {"code":null,"title":"super 关键字","children":[]}
+      ]},
+      {"code":"4.2","title":"继承设计","children":[
+        {"code":null,"title":"继承层次的设计","children":[]},
+        {"code":null,"title":"组合优于继承","children":[]},
+        {"code":null,"title":"继承的优缺点","children":[]}
+      ]}
+    ]},
+    {"code":"5","title":"多态","children":[
+      {"code":"5.1","title":"多态基础","children":[
+        {"code":null,"title":"多态的概念","children":[]},
+        {"code":null,"title":"静态绑定与动态绑定","children":[]},
+        {"code":null,"title":"向上转型","children":[]}
+      ]},
+      {"code":"5.2","title":"多态实现","children":[
+        {"code":null,"title":"方法重载","children":[]},
+        {"code":null,"title":"方法重写与多态","children":[]},
+        {"code":null,"title":"运行时多态的应用","children":[]}
+      ]}
+    ]},
+    {"code":"6","title":"抽象类与接口","children":[
+      {"code":"6.1","title":"抽象类","children":[
+        {"code":null,"title":"抽象类的定义","children":[]},
+        {"code":null,"title":"抽象方法","children":[]},
+        {"code":null,"title":"抽象类的用途","children":[]}
+      ]},
+      {"code":"6.2","title":"接口","children":[
+        {"code":null,"title":"接口的定义与实现","children":[]},
+        {"code":null,"title":"接口与抽象类的比较","children":[]},
+        {"code":null,"title":"面向接口编程","children":[]},
+        {"code":null,"title":"依赖倒置思想","children":[]}
+      ]}
+    ]},
+    {"code":"7","title":"对象关系与 UML 基础","children":[
+      {"code":"7.1","title":"对象关系","children":[
+        {"code":null,"title":"关联关系","children":[]},
+        {"code":null,"title":"聚合关系","children":[]},
+        {"code":null,"title":"组合关系","children":[]},
+        {"code":null,"title":"依赖关系","children":[]}
+      ]},
+      {"code":"7.2","title":"UML 入门","children":[
+        {"code":null,"title":"类图基础","children":[]},
+        {"code":null,"title":"对象图基础","children":[]},
+        {"code":null,"title":"继承与实现关系的表示","children":[]}
+      ]}
+    ]},
+    {"code":"8","title":"常见设计原则","children":[
+      {"code":"8.1","title":"SOLID 原则","children":[
+        {"code":null,"title":"单一职责原则","children":[]},
+        {"code":null,"title":"开闭原则","children":[]},
+        {"code":null,"title":"里氏替换原则","children":[]},
+        {"code":null,"title":"接口隔离原则","children":[]},
+        {"code":null,"title":"依赖倒置原则","children":[]}
+      ]},
+      {"code":"8.2","title":"其他原则","children":[
+        {"code":null,"title":"迪米特法则","children":[]},
+        {"code":null,"title":"合成复用原则","children":[]}
+      ]}
+    ]},
+    {"code":"9","title":"简单设计模式与综合应用","children":[
+      {"code":"9.1","title":"创建型模式","children":[
+        {"code":null,"title":"单例模式","children":[]},
+        {"code":null,"title":"工厂方法基础","children":[]}
+      ]},
+      {"code":"9.2","title":"行为型与结构型","children":[
+        {"code":null,"title":"策略模式基础","children":[]},
+        {"code":null,"title":"观察者模式基础","children":[]}
+      ]},
+      {"code":"9.3","title":"综合应用","children":[
+        {"code":null,"title":"MVC 思想基础","children":[]},
+        {"code":null,"title":"面向对象重构","children":[]},
+        {"code":null,"title":"综合案例设计","children":[]}
+      ]}
+    ]}
+  ]
+}
