@@ -7,86 +7,102 @@
       {"code":"1.1","title":"软件与软件工程","children":[
         {"code":null,"title":"软件的概念与特点","children":[]},
         {"code":null,"title":"软件危机","children":[]},
-        {"code":null,"title":"软件工程的定义与目标","children":[]}
+        {"code":null,"title":"软件工程的定义与目标","children":[]},
+        {"code":null,"title":"软件工程的知识体系","children":[]}
       ]},
       {"code":"1.2","title":"基本概念","children":[
         {"code":null,"title":"软件生命周期","children":[]},
         {"code":null,"title":"软件过程","children":[]},
-        {"code":null,"title":"软件质量与软件工程伦理","children":[]}
+        {"code":null,"title":"软件质量属性","children":[]},
+        {"code":null,"title":"软件工程伦理","children":[]}
       ]}
     ]},
     {"code":"2","title":"软件过程模型","children":[
       {"code":"2.1","title":"传统模型","children":[
         {"code":null,"title":"瀑布模型","children":[]},
         {"code":null,"title":"原型模型","children":[]},
-        {"code":null,"title":"增量模型与螺旋模型","children":[]}
+        {"code":null,"title":"增量模型","children":[]},
+        {"code":null,"title":"螺旋模型","children":[]}
       ]},
       {"code":"2.2","title":"敏捷与 DevOps","children":[
         {"code":null,"title":"敏捷开发宣言与原则","children":[]},
-        {"code":null,"title":"Scrum 框架基础","children":[]},
-        {"code":null,"title":"DevOps 基础理念","children":[]}
+        {"code":null,"title":"Scrum 框架","children":[]},
+        {"code":null,"title":"用户故事与迭代计划","children":[]},
+        {"code":null,"title":"DevOps 与持续交付基础","children":[]}
       ]}
     ]},
     {"code":"3","title":"需求工程","children":[
       {"code":"3.1","title":"需求获取与分析","children":[
         {"code":null,"title":"需求获取的方法","children":[]},
         {"code":null,"title":"功能需求与非功能需求","children":[]},
-        {"code":null,"title":"需求分析与建模","children":[]}
+        {"code":null,"title":"用户故事与验收标准","children":[]},
+        {"code":null,"title":"需求优先级排序","children":[]}
       ]},
       {"code":"3.2","title":"需求管理","children":[
-        {"code":null,"title":"需求规格说明书","children":[]},
-        {"code":null,"title":"需求验证","children":[]},
-        {"code":null,"title":"需求变更管理","children":[]}
+        {"code":null,"title":"需求规格说明书 SRS","children":[]},
+        {"code":null,"title":"需求验证与评审","children":[]},
+        {"code":null,"title":"需求变更管理","children":[]},
+        {"code":null,"title":"需求可追溯性","children":[]}
       ]}
     ]},
     {"code":"4","title":"软件建模","children":[
-      {"code":"4.1","title":"UML 图","children":[
+      {"code":"4.1","title":"UML 结构图","children":[
         {"code":null,"title":"用例图","children":[]},
         {"code":null,"title":"类图","children":[]},
-        {"code":null,"title":"顺序图","children":[]},
-        {"code":null,"title":"活动图与状态图","children":[]}
+        {"code":null,"title":"对象图","children":[]}
       ]},
-      {"code":"4.2","title":"结构化建模","children":[
+      {"code":"4.2","title":"UML 行为图","children":[
+        {"code":null,"title":"顺序图","children":[]},
+        {"code":null,"title":"活动图","children":[]},
+        {"code":null,"title":"状态图","children":[]}
+      ]},
+      {"code":"4.3","title":"结构化建模","children":[
         {"code":null,"title":"数据流图","children":[]},
         {"code":null,"title":"E-R 图","children":[]}
       ]}
     ]},
     {"code":"5","title":"软件设计","children":[
       {"code":"5.1","title":"总体设计","children":[
-        {"code":null,"title":"软件体系结构","children":[]},
+        {"code":null,"title":"软件体系结构风格","children":[]},
+        {"code":null,"title":"分层架构与微服务基础","children":[]},
         {"code":null,"title":"模块化与信息隐藏","children":[]},
         {"code":null,"title":"高内聚低耦合","children":[]}
       ]},
       {"code":"5.2","title":"详细设计","children":[
         {"code":null,"title":"接口设计","children":[]},
         {"code":null,"title":"数据设计","children":[]},
-        {"code":null,"title":"设计模式基础","children":[]}
+        {"code":null,"title":"设计模式基础","children":[]},
+        {"code":null,"title":"设计评审","children":[]}
       ]}
     ]},
     {"code":"6","title":"软件实现","children":[
       {"code":"6.1","title":"编码实践","children":[
-        {"code":null,"title":"编码规范与风格","children":[]},
+        {"code":null,"title":"编码规范与风格指南","children":[]},
         {"code":null,"title":"代码复用","children":[]},
         {"code":null,"title":"异常处理策略","children":[]}
       ]},
       {"code":"6.2","title":"工程实践","children":[
-        {"code":null,"title":"版本控制 Git","children":[]},
-        {"code":null,"title":"代码评审","children":[]},
-        {"code":null,"title":"持续集成基础","children":[]}
+        {"code":null,"title":"版本控制 Git 工作流","children":[]},
+        {"code":null,"title":"代码评审与结对编程","children":[]},
+        {"code":null,"title":"持续集成 CI 基础","children":[]},
+        {"code":null,"title":"构建与自动化部署基础","children":[]}
       ]}
     ]},
     {"code":"7","title":"软件测试","children":[
       {"code":"7.1","title":"测试基础","children":[
         {"code":null,"title":"测试的目标与原则","children":[]},
         {"code":null,"title":"黑盒测试方法","children":[]},
-        {"code":null,"title":"白盒测试方法","children":[]}
+        {"code":null,"title":"等价类与边界值","children":[]},
+        {"code":null,"title":"判定表与因果图","children":[]},
+        {"code":null,"title":"白盒测试方法","children":[]},
+        {"code":null,"title":"语句覆盖与路径覆盖","children":[]}
       ]},
-      {"code":"7.2","title":"测试层次与策略","children":[
-        {"code":null,"title":"单元测试","children":[]},
+      {"code":"7.2","title":"测试层次","children":[
+        {"code":null,"title":"单元测试与 TDD","children":[]},
         {"code":null,"title":"集成测试","children":[]},
-        {"code":null,"title":"系统测试与验收测试","children":[]},
-        {"code":null,"title":"回归测试","children":[]},
-        {"code":null,"title":"测试用例设计","children":[]}
+        {"code":null,"title":"系统测试","children":[]},
+        {"code":null,"title":"验收测试","children":[]},
+        {"code":null,"title":"回归测试","children":[]}
       ]}
     ]},
     {"code":"8","title":"软件维护与项目管理","children":[
@@ -96,22 +112,25 @@
         {"code":null,"title":"版本管理策略","children":[]}
       ]},
       {"code":"8.2","title":"项目管理","children":[
-        {"code":null,"title":"项目计划与进度管理","children":[]},
+        {"code":null,"title":"项目计划与 WBS","children":[]},
+        {"code":null,"title":"甘特图与关键路径","children":[]},
         {"code":null,"title":"成本估算方法","children":[]},
-        {"code":null,"title":"风险管理","children":[]},
-        {"code":null,"title":"团队协作与文档管理","children":[]}
+        {"code":null,"title":"风险识别与风险矩阵","children":[]},
+        {"code":null,"title":"团队协作与沟通","children":[]},
+        {"code":null,"title":"文档管理","children":[]}
       ]}
     ]},
     {"code":"9","title":"软件质量与工程实践","children":[
       {"code":"9.1","title":"质量保证","children":[
         {"code":null,"title":"软件质量属性","children":[]},
-        {"code":null,"title":"质量度量与评估","children":[]},
-        {"code":null,"title":"重构","children":[]}
+        {"code":null,"title":"代码度量与缺陷管理","children":[]},
+        {"code":null,"title":"重构","children":[]},
+        {"code":null,"title":"可维护性与可测试性设计","children":[]}
       ]},
       {"code":"9.2","title":"工程实践综合","children":[
         {"code":null,"title":"安全开发基础","children":[]},
-        {"code":null,"title":"可维护性设计","children":[]},
-        {"code":null,"title":"工程实践综合案例","children":[]}
+        {"code":null,"title":"持续交付与持续部署","children":[]},
+        {"code":null,"title":"工程实践案例","children":[]}
       ]}
     ]}
   ]

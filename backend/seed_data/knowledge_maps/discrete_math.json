@@ -12,106 +12,135 @@
       ]},
       {"code":"1.2","title":"等值式与范式","children":[
         {"code":null,"title":"基本等值式","children":[]},
+        {"code":null,"title":"等值演算与置换规则","children":[]},
         {"code":null,"title":"蕴含式","children":[]},
         {"code":null,"title":"析取范式与合取范式","children":[]},
-        {"code":null,"title":"极小项与主析取范式","children":[]}
+        {"code":null,"title":"极小项与主析取范式","children":[]},
+        {"code":null,"title":"极大项与主合取范式","children":[]}
+      ]},
+      {"code":"1.3","title":"推理规则","children":[
+        {"code":null,"title":"推理的形式结构","children":[]},
+        {"code":null,"title":"常见推理规则","children":[]},
+        {"code":null,"title":"构造证明法","children":[]}
       ]}
     ]},
     {"code":"2","title":"谓词逻辑","children":[
       {"code":"2.1","title":"谓词与量词","children":[
         {"code":null,"title":"个体词与谓词","children":[]},
         {"code":null,"title":"全称量词与存在量词","children":[]},
-        {"code":null,"title":"谓词公式","children":[]}
+        {"code":null,"title":"谓词公式","children":[]},
+        {"code":null,"title":"量词辖域","children":[]},
+        {"code":null,"title":"自然语言到谓词公式的翻译","children":[]}
       ]},
       {"code":"2.2","title":"谓词逻辑推理","children":[
         {"code":null,"title":"约束变元与自由变元","children":[]},
-        {"code":null,"title":"量词否定与辖域","children":[]},
-        {"code":null,"title":"谓词逻辑推理规则基础","children":[]}
+        {"code":null,"title":"量词否定与辖域收缩","children":[]},
+        {"code":null,"title":"谓词逻辑推理规则","children":[]},
+        {"code":null,"title":"推理证明示例","children":[]}
       ]}
     ]},
     {"code":"3","title":"集合论基础","children":[
       {"code":"3.1","title":"集合的概念与运算","children":[
         {"code":null,"title":"集合的定义与表示","children":[]},
         {"code":null,"title":"子集与幂集","children":[]},
-        {"code":null,"title":"并、交、差、补、笛卡尔积","children":[]}
+        {"code":null,"title":"并、交、差、补、对称差","children":[]},
+        {"code":null,"title":"笛卡尔积","children":[]}
       ]},
       {"code":"3.2","title":"集合恒等式与容斥原理","children":[
         {"code":null,"title":"集合恒等式","children":[]},
-        {"code":null,"title":"容斥原理基础","children":[]},
-        {"code":null,"title":"集合证明方法","children":[]}
+        {"code":null,"title":"容斥原理","children":[]},
+        {"code":null,"title":"集合等式证明方法","children":[]},
+        {"code":null,"title":"基数与可数集概念","children":[]}
       ]}
     ]},
     {"code":"4","title":"关系","children":[
       {"code":"4.1","title":"关系的基本概念","children":[
         {"code":null,"title":"二元关系与表示","children":[]},
-        {"code":null,"title":"关系的性质","children":[]},
-        {"code":null,"title":"关系运算与闭包","children":[]}
+        {"code":null,"title":"关系的自反对称传递性质","children":[]},
+        {"code":null,"title":"关系矩阵与关系图","children":[]},
+        {"code":null,"title":"关系的运算：合成、逆、幂","children":[]}
       ]},
-      {"code":"4.2","title":"特殊关系","children":[
-        {"code":null,"title":"等价关系与划分","children":[]},
+      {"code":"4.2","title":"闭包与特殊关系","children":[
+        {"code":null,"title":"自反闭包、对称闭包、传递闭包","children":[]},
+        {"code":null,"title":"Warshall 算法","children":[]},
+        {"code":null,"title":"等价关系与等价类","children":[]},
+        {"code":null,"title":"划分与等价关系","children":[]},
         {"code":null,"title":"偏序关系与哈斯图","children":[]},
-        {"code":null,"title":"全序与良序","children":[]}
+        {"code":null,"title":"全序、极大元、极小元、上下界","children":[]}
       ]}
     ]},
     {"code":"5","title":"函数","children":[
       {"code":"5.1","title":"函数基础","children":[
         {"code":null,"title":"函数的定义","children":[]},
         {"code":null,"title":"单射、满射、双射","children":[]},
-        {"code":null,"title":"复合函数与反函数","children":[]}
+        {"code":null,"title":"函数的复合","children":[]},
+        {"code":null,"title":"反函数存在条件","children":[]}
       ]},
-      {"code":"5.2","title":"函数与关系","children":[
+      {"code":"5.2","title":"函数应用","children":[
         {"code":null,"title":"函数作为特殊的关系","children":[]},
-        {"code":null,"title":"函数性质的判断","children":[]}
+        {"code":null,"title":"函数的计数","children":[]},
+        {"code":null,"title":"特征函数","children":[]}
       ]}
     ]},
     {"code":"6","title":"代数系统","children":[
       {"code":"6.1","title":"代数结构基础","children":[
-        {"code":null,"title":"二元运算与性质","children":[]},
+        {"code":null,"title":"二元运算与运算性质","children":[]},
         {"code":null,"title":"半群与独异点","children":[]},
-        {"code":null,"title":"群的定义与基本性质","children":[]}
+        {"code":null,"title":"群的定义与基本性质","children":[]},
+        {"code":null,"title":"子群及其判定","children":[]}
       ]},
       {"code":"6.2","title":"群论进阶","children":[
-        {"code":null,"title":"子群与陪集基础","children":[]},
         {"code":null,"title":"循环群","children":[]},
-        {"code":null,"title":"环与域基础概念","children":[]}
+        {"code":null,"title":"置换群基础","children":[]},
+        {"code":null,"title":"群的同态与同构","children":[]},
+        {"code":null,"title":"环与域基础概念","children":[]},
+        {"code":null,"title":"格与布尔代数基础","children":[]}
       ]}
     ]},
     {"code":"7","title":"图论基础","children":[
       {"code":"7.1","title":"图的基本概念","children":[
-        {"code":null,"title":"图的定义","children":[]},
+        {"code":null,"title":"图的定义与表示","children":[]},
         {"code":null,"title":"顶点、边、度","children":[]},
-        {"code":null,"title":"路径与回路","children":[]},
-        {"code":null,"title":"连通性","children":[]},
-        {"code":null,"title":"图的矩阵表示","children":[]}
+        {"code":null,"title":"握手定理","children":[]},
+        {"code":null,"title":"路径、回路与连通性","children":[]},
+        {"code":null,"title":"图的矩阵表示","children":[]},
+        {"code":null,"title":"完全图、正则图、二分图","children":[]}
       ]},
-      {"code":"7.2","title":"特殊图","children":[
-        {"code":null,"title":"完全图与正则图","children":[]},
-        {"code":null,"title":"二分图","children":[]},
-        {"code":null,"title":"平面图基础","children":[]}
+      {"code":"7.2","title":"图的连通性与平面图","children":[
+        {"code":null,"title":"无向图的连通度","children":[]},
+        {"code":null,"title":"有向图的强连通","children":[]},
+        {"code":null,"title":"平面图与欧拉公式","children":[]},
+        {"code":null,"title":"图的着色","children":[]}
       ]}
     ]},
     {"code":"8","title":"树与图的应用","children":[
       {"code":"8.1","title":"树","children":[
-        {"code":null,"title":"树的定义与性质","children":[]},
+        {"code":null,"title":"树的定义与等价条件","children":[]},
         {"code":null,"title":"生成树与最小生成树","children":[]},
-        {"code":null,"title":"根树与二叉树基础","children":[]}
+        {"code":null,"title":"Kruskal 与 Prim 算法","children":[]},
+        {"code":null,"title":"根树与二叉树","children":[]},
+        {"code":null,"title":"最优二叉树与哈夫曼编码","children":[]}
       ]},
-      {"code":"8.2","title":"图的应用","children":[
-        {"code":null,"title":"欧拉图与哈密顿图","children":[]},
+      {"code":"8.2","title":"图的遍历与路径","children":[
+        {"code":null,"title":"欧拉图与欧拉回路","children":[]},
+        {"code":null,"title":"哈密顿图与充分条件","children":[]},
         {"code":null,"title":"最短路径问题","children":[]},
-        {"code":null,"title":"图的着色基础","children":[]}
+        {"code":null,"title":"Dijkstra 算法","children":[]}
       ]}
     ]},
     {"code":"9","title":"组合与递推基础","children":[
       {"code":"9.1","title":"基本计数原理","children":[
         {"code":null,"title":"加法原理与乘法原理","children":[]},
-        {"code":null,"title":"排列与组合","children":[]},
-        {"code":null,"title":"鸽巢原理","children":[]}
+        {"code":null,"title":"排列","children":[]},
+        {"code":null,"title":"组合","children":[]},
+        {"code":null,"title":"鸽巢原理","children":[]},
+        {"code":null,"title":"二项式定理","children":[]}
       ]},
       {"code":"9.2","title":"递推关系","children":[
         {"code":null,"title":"递推关系的建立","children":[]},
-        {"code":null,"title":"常见递推求解","children":[]},
-        {"code":null,"title":"递推与迭代","children":[]}
+        {"code":null,"title":"常系数线性递推","children":[]},
+        {"code":null,"title":"递推的迭代求解","children":[]},
+        {"code":null,"title":"生成函数基础","children":[]}
       ]}
     ]}
   ]

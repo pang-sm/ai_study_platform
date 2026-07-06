@@ -11,7 +11,7 @@
         {"code":null,"title":"内核与用户空间","children":[]}
       ]},
       {"code":"1.2","title":"学习环境","children":[
-        {"code":null,"title":"Shell 的作用","children":[]},
+        {"code":null,"title":"Shell 的作用与类型","children":[]},
         {"code":null,"title":"虚拟机与 WSL","children":[]},
         {"code":null,"title":"Linux 的典型使用场景","children":[]}
       ]}
@@ -20,6 +20,7 @@
       {"code":"2.1","title":"登录方式","children":[
         {"code":null,"title":"本地登录与图形界面","children":[]},
         {"code":null,"title":"SSH 远程登录","children":[]},
+        {"code":null,"title":"SSH 密钥认证","children":[]},
         {"code":null,"title":"终端基础操作","children":[]}
       ]},
       {"code":"2.2","title":"安装入门","children":[
@@ -34,10 +35,11 @@
         {"code":null,"title":"绝对路径与相对路径","children":[]}
       ]},
       {"code":"3.2","title":"文件管理","children":[
-        {"code":null,"title":"文件类型","children":[]},
+        {"code":null,"title":"文件类型与属性","children":[]},
         {"code":null,"title":"隐藏文件","children":[]},
         {"code":null,"title":"硬链接与软链接","children":[]},
-        {"code":null,"title":"挂载基础","children":[]}
+        {"code":null,"title":"inode 基础概念","children":[]},
+        {"code":null,"title":"挂载与卸载","children":[]}
       ]}
     ]},
     {"code":"4","title":"常用命令","children":[
@@ -49,72 +51,91 @@
       ]},
       {"code":"4.2","title":"查看与搜索","children":[
         {"code":null,"title":"cat、less、head、tail","children":[]},
-        {"code":null,"title":"grep 基础","children":[]},
-        {"code":null,"title":"find 基础","children":[]},
-        {"code":null,"title":"wc、sort","children":[]}
+        {"code":null,"title":"grep 与正则基础","children":[]},
+        {"code":null,"title":"find 查找文件","children":[]},
+        {"code":null,"title":"wc、sort、uniq","children":[]}
+      ]},
+      {"code":"4.3","title":"文本处理","children":[
+        {"code":null,"title":"sed 基础操作","children":[]},
+        {"code":null,"title":"awk 基础操作","children":[]},
+        {"code":null,"title":"tar 打包与压缩","children":[]}
       ]}
     ]},
     {"code":"5","title":"文件权限与用户管理","children":[
       {"code":"5.1","title":"用户与用户组","children":[
-        {"code":null,"title":"用户与用户组的概念","children":[]},
+        {"code":null,"title":"用户与组的概念","children":[]},
         {"code":null,"title":"useradd、usermod、userdel","children":[]},
-        {"code":null,"title":"passwd","children":[]}
+        {"code":null,"title":"passwd 密码管理","children":[]},
+        {"code":null,"title":"/etc/passwd 与 /etc/group","children":[]}
       ]},
       {"code":"5.2","title":"文件权限","children":[
         {"code":null,"title":"rwx 权限模型","children":[]},
         {"code":null,"title":"chmod 修改权限","children":[]},
         {"code":null,"title":"chown 修改所有者","children":[]},
-        {"code":null,"title":"sudo 与权限提升","children":[]}
+        {"code":null,"title":"sudo 与 sudoers","children":[]},
+        {"code":null,"title":"ACL 基础","children":[]},
+        {"code":null,"title":"umask 默认权限","children":[]}
       ]}
     ]},
     {"code":"6","title":"Shell 与脚本基础","children":[
       {"code":"6.1","title":"Shell 基础","children":[
         {"code":null,"title":"Shell 变量与环境变量","children":[]},
-        {"code":null,"title":"管道","children":[]},
-        {"code":null,"title":"重定向与命令替换","children":[]}
+        {"code":null,"title":"管道与重定向","children":[]},
+        {"code":null,"title":"命令替换","children":[]},
+        {"code":null,"title":"别名与快捷键","children":[]}
       ]},
       {"code":"6.2","title":"Shell 脚本","children":[
-        {"code":null,"title":"脚本结构与执行","children":[]},
-        {"code":null,"title":"条件语句 if","children":[]},
-        {"code":null,"title":"循环语句 for、while","children":[]}
+        {"code":null,"title":"脚本结构与执行权限","children":[]},
+        {"code":null,"title":"变量与参数","children":[]},
+        {"code":null,"title":"条件语句 if、case","children":[]},
+        {"code":null,"title":"循环语句 for、while","children":[]},
+        {"code":null,"title":"函数定义与调用","children":[]}
       ]}
     ]},
     {"code":"7","title":"进程与系统资源","children":[
       {"code":"7.1","title":"进程管理","children":[
         {"code":null,"title":"进程的概念与状态","children":[]},
         {"code":null,"title":"ps 查看进程","children":[]},
-        {"code":null,"title":"top 实时监控","children":[]},
-        {"code":null,"title":"kill 终止进程","children":[]},
-        {"code":null,"title":"前台与后台任务","children":[]}
+        {"code":null,"title":"top 与 htop 实时监控","children":[]},
+        {"code":null,"title":"kill 与信号","children":[]},
+        {"code":null,"title":"前台、后台与 nohup","children":[]},
+        {"code":null,"title":"jobs、fg、bg","children":[]}
       ]},
       {"code":"7.2","title":"系统服务与日志","children":[
-        {"code":null,"title":"systemd 基础","children":[]},
-        {"code":null,"title":"journalctl 查看日志","children":[]},
-        {"code":null,"title":"资源监控工具","children":[]}
+        {"code":null,"title":"systemd 与 systemctl","children":[]},
+        {"code":null,"title":"journalctl 日志查看","children":[]},
+        {"code":null,"title":"资源监控：df、du、free","children":[]}
       ]}
     ]},
     {"code":"8","title":"软件包与服务管理","children":[
       {"code":"8.1","title":"软件包管理","children":[
         {"code":null,"title":"apt 与 dpkg","children":[]},
-        {"code":null,"title":"yum / dnf 基础","children":[]},
+        {"code":null,"title":"yum / dnf","children":[]},
+        {"code":null,"title":"软件源配置","children":[]},
         {"code":null,"title":"软件安装、更新与卸载","children":[]}
       ]},
       {"code":"8.2","title":"服务与计划任务","children":[
-        {"code":null,"title":"服务的启动与停止","children":[]},
+        {"code":null,"title":"服务的启动、停止与启用","children":[]},
         {"code":null,"title":"防火墙基础 ufw / firewalld","children":[]},
         {"code":null,"title":"cron 定时任务","children":[]}
       ]}
     ]},
     {"code":"9","title":"网络与综合运维基础","children":[
       {"code":"9.1","title":"网络基础","children":[
-        {"code":null,"title":"IP 配置查看","children":[]},
+        {"code":null,"title":"IP 地址配置与查看","children":[]},
         {"code":null,"title":"ping 连通性测试","children":[]},
-        {"code":null,"title":"ssh 与 scp","children":[]},
+        {"code":null,"title":"ssh 远程连接","children":[]},
+        {"code":null,"title":"scp 文件传输","children":[]},
         {"code":null,"title":"curl 与 wget","children":[]}
       ]},
-      {"code":"9.2","title":"故障排查","children":[
-        {"code":null,"title":"netstat 与 ss 查看连接","children":[]},
-        {"code":null,"title":"日志排查方法","children":[]},
+      {"code":"9.2","title":"网络诊断","children":[
+        {"code":null,"title":"netstat 与 ss","children":[]},
+        {"code":null,"title":"端口占用检查","children":[]}
+      ]},
+      {"code":"9.3","title":"故障排查","children":[
+        {"code":null,"title":"日志文件定位","children":[]},
+        {"code":null,"title":"磁盘空间检查","children":[]},
+        {"code":null,"title":"权限错误排查","children":[]},
         {"code":null,"title":"常见故障定位思路","children":[]}
       ]}
     ]}
