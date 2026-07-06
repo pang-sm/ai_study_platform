@@ -1,0 +1,130 @@
+{
+  "course_id": "java_programming",
+  "course_name": "Java 程序设计",
+  "source": "课程学习方向标准知识脉络第一版",
+  "chapters": [
+    {"code":"1","title":"Java 基础与开发环境","children":[
+      {"code":"1.1","title":"Java 语言概述","children":[
+        {"code":null,"title":"Java 语言特点与平台无关性","children":[]},
+        {"code":null,"title":"JDK、JRE 与 JVM","children":[]},
+        {"code":null,"title":"Java 程序编译与运行流程","children":[]}
+      ]},
+      {"code":"1.2","title":"开发环境与项目结构","children":[
+        {"code":null,"title":"main 方法","children":[]},
+        {"code":null,"title":"包与目录结构","children":[]},
+        {"code":null,"title":"常用开发工具简介","children":[]},
+        {"code":null,"title":"代码规范与命名约定","children":[]}
+      ]}
+    ]},
+    {"code":"2","title":"基本语法与数据类型","children":[
+      {"code":"2.1","title":"标识符、变量与常量","children":[
+        {"code":null,"title":"标识符与关键字","children":[]},
+        {"code":null,"title":"变量的定义与初始化","children":[]},
+        {"code":null,"title":"常量的定义 final","children":[]}
+      ]},
+      {"code":"2.2","title":"基本数据类型与运算","children":[
+        {"code":null,"title":"整型、浮点型、字符型、布尔型","children":[]},
+        {"code":null,"title":"类型转换","children":[]},
+        {"code":null,"title":"算术、关系、逻辑运算符","children":[]},
+        {"code":null,"title":"运算符优先级","children":[]}
+      ]},
+      {"code":"2.3","title":"输入输出基础","children":[
+        {"code":null,"title":"System.out 输出","children":[]},
+        {"code":null,"title":"Scanner 输入","children":[]}
+      ]}
+    ]},
+    {"code":"3","title":"控制结构","children":[
+      {"code":"3.1","title":"条件语句","children":[
+        {"code":null,"title":"if、else if、else","children":[]},
+        {"code":null,"title":"switch 语句","children":[]}
+      ]},
+      {"code":"3.2","title":"循环语句","children":[
+        {"code":null,"title":"for 循环","children":[]},
+        {"code":null,"title":"while 循环","children":[]},
+        {"code":null,"title":"do while 循环","children":[]},
+        {"code":null,"title":"增强 for 循环","children":[]},
+        {"code":null,"title":"break 与 continue","children":[]}
+      ]}
+    ]},
+    {"code":"4","title":"数组与常用类","children":[
+      {"code":"4.1","title":"数组","children":[
+        {"code":null,"title":"一维数组的定义与遍历","children":[]},
+        {"code":null,"title":"二维数组","children":[]},
+        {"code":null,"title":"数组常见操作","children":[]}
+      ]},
+      {"code":"4.2","title":"常用类与工具","children":[
+        {"code":null,"title":"String 类","children":[]},
+        {"code":null,"title":"StringBuilder","children":[]},
+        {"code":null,"title":"Math 类","children":[]},
+        {"code":null,"title":"Arrays 工具类","children":[]}
+      ]}
+    ]},
+    {"code":"5","title":"面向对象基础","children":[
+      {"code":"5.1","title":"类与对象","children":[
+        {"code":null,"title":"类的定义","children":[]},
+        {"code":null,"title":"对象的创建与使用","children":[]},
+        {"code":null,"title":"构造方法","children":[]},
+        {"code":null,"title":"this 关键字","children":[]}
+      ]},
+      {"code":"5.2","title":"封装与 static","children":[
+        {"code":null,"title":"访问修饰符与封装","children":[]},
+        {"code":null,"title":"方法重载","children":[]},
+        {"code":null,"title":"static 变量与方法","children":[]}
+      ]}
+    ]},
+    {"code":"6","title":"面向对象进阶","children":[
+      {"code":"6.1","title":"继承","children":[
+        {"code":null,"title":"继承的基本语法","children":[]},
+        {"code":null,"title":"super 关键字","children":[]},
+        {"code":null,"title":"方法重写","children":[]},
+        {"code":null,"title":"final 关键字","children":[]}
+      ]},
+      {"code":"6.2","title":"多态与抽象","children":[
+        {"code":null,"title":"多态的概念与实现","children":[]},
+        {"code":null,"title":"抽象类","children":[]},
+        {"code":null,"title":"接口的定义与实现","children":[]},
+        {"code":null,"title":"内部类基础","children":[]}
+      ]}
+    ]},
+    {"code":"7","title":"异常处理与调试","children":[
+      {"code":"7.1","title":"异常处理","children":[
+        {"code":null,"title":"异常体系","children":[]},
+        {"code":null,"title":"try catch finally","children":[]},
+        {"code":null,"title":"throws 与 throw","children":[]},
+        {"code":null,"title":"自定义异常","children":[]},
+        {"code":null,"title":"常见运行时异常","children":[]}
+      ]},
+      {"code":"7.2","title":"调试基础","children":[
+        {"code":null,"title":"打印调试","children":[]},
+        {"code":null,"title":"断点调试","children":[]}
+      ]}
+    ]},
+    {"code":"8","title":"集合框架","children":[
+      {"code":"8.1","title":"Collection 与 List","children":[
+        {"code":null,"title":"Collection 接口","children":[]},
+        {"code":null,"title":"ArrayList","children":[]},
+        {"code":null,"title":"LinkedList 基础","children":[]},
+        {"code":null,"title":"Iterator 迭代器","children":[]}
+      ]},
+      {"code":"8.2","title":"Set 与 Map","children":[
+        {"code":null,"title":"HashSet","children":[]},
+        {"code":null,"title":"HashMap","children":[]},
+        {"code":null,"title":"泛型基础","children":[]}
+      ]}
+    ]},
+    {"code":"9","title":"文件、IO 与综合应用","children":[
+      {"code":"9.1","title":"文件与 IO","children":[
+        {"code":null,"title":"File 类","children":[]},
+        {"code":null,"title":"字节流 InputStream / OutputStream","children":[]},
+        {"code":null,"title":"字符流 Reader / Writer","children":[]},
+        {"code":null,"title":"缓冲流","children":[]},
+        {"code":null,"title":"序列化基础","children":[]}
+      ]},
+      {"code":"9.2","title":"综合应用","children":[
+        {"code":null,"title":"简单项目结构","children":[]},
+        {"code":null,"title":"单元测试基础","children":[]},
+        {"code":null,"title":"综合案例设计","children":[]}
+      ]}
+    ]}
+  ]
+}

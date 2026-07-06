@@ -1,0 +1,136 @@
+{
+  "course_id": "c_programming",
+  "course_name": "C 语言程序设计",
+  "source": "课程学习方向标准知识脉络第一版",
+  "chapters": [
+    {"code":"1","title":"C 语言基础与开发环境","children":[
+      {"code":"1.1","title":"C 语言概述","children":[
+        {"code":null,"title":"C 语言的历史与特点","children":[]},
+        {"code":null,"title":"C 语言的应用领域","children":[]}
+      ]},
+      {"code":"1.2","title":"程序基本结构与编译运行","children":[
+        {"code":null,"title":"程序的基本结构","children":[]},
+        {"code":null,"title":"头文件与 main 函数","children":[]},
+        {"code":null,"title":"编译、链接与运行流程","children":[]},
+        {"code":null,"title":"注释与代码风格","children":[]},
+        {"code":null,"title":"常见编译错误与警告","children":[]}
+      ]}
+    ]},
+    {"code":"2","title":"数据类型、变量与运算符","children":[
+      {"code":"2.1","title":"基本数据类型","children":[
+        {"code":null,"title":"整型 int、short、long","children":[]},
+        {"code":null,"title":"浮点型 float、double","children":[]},
+        {"code":null,"title":"字符型 char","children":[]},
+        {"code":null,"title":"sizeof 运算符","children":[]}
+      ]},
+      {"code":"2.2","title":"常量与变量","children":[
+        {"code":null,"title":"变量的定义与初始化","children":[]},
+        {"code":null,"title":"常量的定义","children":[]},
+        {"code":null,"title":"类型转换","children":[]}
+      ]},
+      {"code":"2.3","title":"运算符","children":[
+        {"code":null,"title":"算术运算符","children":[]},
+        {"code":null,"title":"关系运算符","children":[]},
+        {"code":null,"title":"逻辑运算符","children":[]},
+        {"code":null,"title":"位运算符","children":[]},
+        {"code":null,"title":"赋值运算符","children":[]},
+        {"code":null,"title":"运算符优先级与结合性","children":[]}
+      ]}
+    ]},
+    {"code":"3","title":"控制结构","children":[
+      {"code":"3.1","title":"条件语句","children":[
+        {"code":null,"title":"if、else if、else","children":[]},
+        {"code":null,"title":"条件嵌套","children":[]},
+        {"code":null,"title":"switch 语句","children":[]}
+      ]},
+      {"code":"3.2","title":"循环语句","children":[
+        {"code":null,"title":"for 循环","children":[]},
+        {"code":null,"title":"while 循环","children":[]},
+        {"code":null,"title":"do while 循环","children":[]},
+        {"code":null,"title":"break 与 continue","children":[]},
+        {"code":null,"title":"嵌套循环","children":[]}
+      ]}
+    ]},
+    {"code":"4","title":"数组与字符串","children":[
+      {"code":"4.1","title":"数组","children":[
+        {"code":null,"title":"一维数组的定义与引用","children":[]},
+        {"code":null,"title":"一维数组初始化","children":[]},
+        {"code":null,"title":"二维数组","children":[]},
+        {"code":null,"title":"数组作为函数参数","children":[]}
+      ]},
+      {"code":"4.2","title":"字符数组与字符串","children":[
+        {"code":null,"title":"字符数组与字符串的关系","children":[]},
+        {"code":null,"title":"常用字符串函数","children":[]}
+      ]}
+    ]},
+    {"code":"5","title":"函数","children":[
+      {"code":"5.1","title":"函数定义与调用","children":[
+        {"code":null,"title":"函数的定义","children":[]},
+        {"code":null,"title":"函数声明与调用","children":[]},
+        {"code":null,"title":"参数传递：值传递","children":[]},
+        {"code":null,"title":"返回值与 return","children":[]}
+      ]},
+      {"code":"5.2","title":"递归与作用域","children":[
+        {"code":null,"title":"递归函数","children":[]},
+        {"code":null,"title":"局部变量与全局变量","children":[]},
+        {"code":null,"title":"存储类别","children":[]},
+        {"code":null,"title":"多文件程序基础","children":[]}
+      ]}
+    ]},
+    {"code":"6","title":"指针","children":[
+      {"code":"6.1","title":"指针基础","children":[
+        {"code":null,"title":"指针的概念与定义","children":[]},
+        {"code":null,"title":"取地址与间接访问","children":[]},
+        {"code":null,"title":"空指针与野指针","children":[]}
+      ]},
+      {"code":"6.2","title":"指针与数组","children":[
+        {"code":null,"title":"指针与一维数组","children":[]},
+        {"code":null,"title":"指针与字符串","children":[]},
+        {"code":null,"title":"指针数组","children":[]}
+      ]},
+      {"code":"6.3","title":"指针进阶","children":[
+        {"code":null,"title":"指针作为函数参数","children":[]},
+        {"code":null,"title":"函数指针基础","children":[]}
+      ]}
+    ]},
+    {"code":"7","title":"结构体、联合体与枚举","children":[
+      {"code":"7.1","title":"结构体","children":[
+        {"code":null,"title":"结构体类型的定义","children":[]},
+        {"code":null,"title":"结构体变量的使用","children":[]},
+        {"code":null,"title":"结构体数组","children":[]},
+        {"code":null,"title":"结构体指针","children":[]},
+        {"code":null,"title":"typedef 关键字","children":[]}
+      ]},
+      {"code":"7.2","title":"联合体与枚举","children":[
+        {"code":null,"title":"联合体的定义与使用","children":[]},
+        {"code":null,"title":"枚举类型","children":[]}
+      ]}
+    ]},
+    {"code":"8","title":"文件操作","children":[
+      {"code":"8.1","title":"文件操作基础","children":[
+        {"code":null,"title":"文件指针 FILE","children":[]},
+        {"code":null,"title":"文件的打开与关闭","children":[]},
+        {"code":null,"title":"文件读写模式","children":[]}
+      ]},
+      {"code":"8.2","title":"文件读写","children":[
+        {"code":null,"title":"字符读写 fgetc / fputc","children":[]},
+        {"code":null,"title":"字符串读写 fgets / fputs","children":[]},
+        {"code":null,"title":"格式化读写 fprintf / fscanf","children":[]},
+        {"code":null,"title":"二进制文件读写","children":[]},
+        {"code":null,"title":"文件定位与错误处理","children":[]}
+      ]}
+    ]},
+    {"code":"9","title":"动态内存与综合应用","children":[
+      {"code":"9.1","title":"动态内存管理","children":[
+        {"code":null,"title":"malloc、calloc","children":[]},
+        {"code":null,"title":"realloc","children":[]},
+        {"code":null,"title":"free 与内存泄漏","children":[]}
+      ]},
+      {"code":"9.2","title":"综合应用","children":[
+        {"code":null,"title":"链表基础","children":[]},
+        {"code":null,"title":"简单项目结构","children":[]},
+        {"code":null,"title":"常见调试方法","children":[]}
+      ]}
+    ]}
+  ]
+}
