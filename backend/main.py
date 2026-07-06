@@ -74,7 +74,22 @@ from rag import (
     search_relevant_material_chunks,
     soft_delete_material_chunks,
 )
-from subjects import normalize_subject
+from subjects import normalize_subject, normalize_subject_course_learning
+
+
+def _normalize_course_or_11408(subject: str, default: str = "") -> str:
+    """选 normalize：11408 前缀走 legacy，否则走课程学习标准化。"""
+    raw = (subject or "").strip()
+    if raw.startswith("11408 "):
+        return normalize_subject(raw, default=default)
+    result = normalize_subject_course_learning(raw)
+    return result or default
+
+
+def _normalize_course_or_11408_optional(subject: str | None, default: str = "") -> str:
+    if not subject:
+        return default
+    return _normalize_course_or_11408(subject, default)
 
 load_dotenv()
 
@@ -5885,7 +5900,7 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
     ensure_feature_enabled(db, "feature_ai_chat_enabled", "AI 问答功能暂时维护中，请稍后再试")
 
     user = get_user_by_username(req.username, db)
-    subject = normalize_subject(req.subject, req.course)
+    subject = _normalize_course_or_11408_optional(req.subject or req.course)
     exam_subject = normalize_exam_subject_key(req.exam_subject, req.subject_key)
     material_ids = sorted({int(item) for item in (req.material_ids or []) if int(item) > 0})
     selected_materials: list[models.StudyMaterial] = []
@@ -6168,7 +6183,7 @@ async def upload_material(
     ensure_feature_enabled(db, "feature_material_upload_enabled", "资料上传功能暂时维护中，请稍后再试")
 
     user = get_user_by_username(upload_username, db)
-    normalized_subject = normalize_subject(subject)
+    normalized_subject = _normalize_course_or_11408(subject)
 
     # Upload quota checks
     plan_info = get_user_plan(user.username, db)
@@ -6668,7 +6683,7 @@ def get_materials(username: str, subject: str | None = None, db: Session = Depen
     user = get_user_by_username(username, db)
     query = query_accessible_materials(db, user.username)
 
-    normalized_subject = normalize_subject(subject, default="")
+    normalized_subject = _normalize_course_or_11408_optional(subject)
     if normalized_subject:
         query = query.filter(models.StudyMaterial.subject == normalized_subject)
 
