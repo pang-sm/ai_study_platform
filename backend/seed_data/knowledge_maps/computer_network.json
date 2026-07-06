@@ -1,0 +1,405 @@
+{
+  "course_id": "computer_network",
+  "course_name": "计算机网络",
+  "source": "课程学习方向标准知识脉络第一版",
+  "chapters": [
+    {
+      "code": "1",
+      "title": "计算机网络概述",
+      "children": [
+        {
+          "code": "1.1",
+          "title": "计算机网络的定义与组成",
+          "children": [
+            { "code": null, "title": "计算机网络的定义", "children": [] },
+            { "code": null, "title": "网络的组成：硬件、软件、协议", "children": [] },
+            { "code": null, "title": "边缘部分与核心部分", "children": [] }
+          ]
+        },
+        {
+          "code": "1.2",
+          "title": "网络的分类",
+          "children": [
+            { "code": null, "title": "按覆盖范围：LAN、MAN、WAN", "children": [] },
+            { "code": null, "title": "按拓扑结构", "children": [] }
+          ]
+        },
+        {
+          "code": "1.3",
+          "title": "性能指标",
+          "children": [
+            { "code": null, "title": "速率、带宽、吞吐量", "children": [] },
+            { "code": null, "title": "时延：发送时延、传播时延、处理时延", "children": [] },
+            { "code": null, "title": "时延带宽积与往返时间 RTT", "children": [] },
+            { "code": null, "title": "利用率", "children": [] }
+          ]
+        },
+        {
+          "code": "1.4",
+          "title": "网络体系结构",
+          "children": [
+            { "code": null, "title": "分层的好处与原则", "children": [] },
+            { "code": null, "title": "协议、接口、服务", "children": [] }
+          ]
+        },
+        {
+          "code": "1.5",
+          "title": "OSI 七层模型与 TCP/IP 四层模型",
+          "children": [
+            { "code": null, "title": "OSI 七层：物理层、数据链路层、网络层、传输层、会话层、表示层、应用层", "children": [] },
+            { "code": null, "title": "TCP/IP 四层：网络接口层、网际层、传输层、应用层", "children": [] },
+            { "code": null, "title": "OSI 与 TCP/IP 的对比", "children": [] }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "2",
+      "title": "物理层",
+      "children": [
+        {
+          "code": "2.1",
+          "title": "物理层基本概念",
+          "children": [
+            { "code": null, "title": "物理层的作用与接口特性", "children": [] },
+            { "code": null, "title": "数据通信系统模型", "children": [] }
+          ]
+        },
+        {
+          "code": "2.2",
+          "title": "信道、带宽与速率",
+          "children": [
+            { "code": null, "title": "信道与链路的概念", "children": [] },
+            { "code": null, "title": "带宽与信道容量的关系", "children": [] },
+            { "code": null, "title": "奈奎斯特定理与香农公式", "children": [] }
+          ]
+        },
+        {
+          "code": "2.3",
+          "title": "编码与调制",
+          "children": [
+            { "code": null, "title": "数字数据 → 数字信号（编码）", "children": [] },
+            { "code": null, "title": "数字数据 → 模拟信号（调制）", "children": [] },
+            { "code": null, "title": "常用编码方式：NRZ、曼彻斯特编码", "children": [] }
+          ]
+        },
+        {
+          "code": "2.4",
+          "title": "传输介质",
+          "children": [
+            { "code": null, "title": "双绞线", "children": [] },
+            { "code": null, "title": "同轴电缆", "children": [] },
+            { "code": null, "title": "光纤", "children": [] },
+            { "code": null, "title": "无线传输介质", "children": [] }
+          ]
+        },
+        {
+          "code": "2.5",
+          "title": "信道复用技术",
+          "children": [
+            { "code": null, "title": "频分复用 FDM", "children": [] },
+            { "code": null, "title": "时分复用 TDM", "children": [] },
+            { "code": null, "title": "波分复用 WDM", "children": [] },
+            { "code": null, "title": "码分复用 CDM / CDMA", "children": [] }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "3",
+      "title": "数据链路层",
+      "children": [
+        {
+          "code": "3.1",
+          "title": "数据链路层功能与封装成帧",
+          "children": [
+            { "code": null, "title": "数据链路层的地位", "children": [] },
+            { "code": null, "title": "帧定界：字符计数法、字节填充法、比特填充法", "children": [] },
+            { "code": null, "title": "MTU 的概念", "children": [] }
+          ]
+        },
+        {
+          "code": "3.2",
+          "title": "差错检测",
+          "children": [
+            { "code": null, "title": "差错产生的原因", "children": [] },
+            { "code": null, "title": "奇偶校验", "children": [] },
+            { "code": null, "title": "CRC 校验原理与计算", "children": [] }
+          ]
+        },
+        {
+          "code": "3.3",
+          "title": "可靠传输基础与流量控制",
+          "children": [
+            { "code": null, "title": "停等协议", "children": [] },
+            { "code": null, "title": "后退 N 帧协议 GBN", "children": [] },
+            { "code": null, "title": "选择重传协议 SR", "children": [] },
+            { "code": null, "title": "滑动窗口机制", "children": [] }
+          ]
+        },
+        {
+          "code": "3.4",
+          "title": "介质访问控制",
+          "children": [
+            { "code": null, "title": "信道划分：FDMA、TDMA", "children": [] },
+            { "code": null, "title": "随机接入：ALOHA", "children": [] },
+            { "code": null, "title": "CSMA/CD 协议", "children": [] },
+            { "code": null, "title": "CSMA/CA 协议", "children": [] }
+          ]
+        },
+        {
+          "code": "3.5",
+          "title": "以太网与交换机",
+          "children": [
+            { "code": null, "title": "以太网帧格式", "children": [] },
+            { "code": null, "title": "MAC 地址", "children": [] },
+            { "code": null, "title": "交换机自学习与转发", "children": [] },
+            { "code": null, "title": "广播风暴与生成树协议基础", "children": [] },
+            { "code": null, "title": "VLAN 基础", "children": [] }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "4",
+      "title": "网络层",
+      "children": [
+        {
+          "code": "4.1",
+          "title": "网络层功能与 IP 地址",
+          "children": [
+            { "code": null, "title": "网络层提供的两种服务", "children": [] },
+            { "code": null, "title": "IPv4 地址格式与分类", "children": [] },
+            { "code": null, "title": "私有地址与公网地址", "children": [] }
+          ]
+        },
+        {
+          "code": "4.2",
+          "title": "子网划分与 CIDR",
+          "children": [
+            { "code": null, "title": "子网掩码", "children": [] },
+            { "code": null, "title": "定长子网划分", "children": [] },
+            { "code": null, "title": "CIDR 与路由聚合", "children": [] }
+          ]
+        },
+        {
+          "code": "4.3",
+          "title": "ARP 与 ICMP",
+          "children": [
+            { "code": null, "title": "ARP 协议工作原理", "children": [] },
+            { "code": null, "title": "ICMP 报文类型", "children": [] },
+            { "code": null, "title": "ping 与 traceroute 原理", "children": [] }
+          ]
+        },
+        {
+          "code": "4.4",
+          "title": "路由选择",
+          "children": [
+            { "code": null, "title": "路由表与路由转发流程", "children": [] },
+            { "code": null, "title": "RIP 协议与距离向量算法", "children": [] },
+            { "code": null, "title": "OSPF 协议与链路状态算法", "children": [] },
+            { "code": null, "title": "BGP 基础", "children": [] }
+          ]
+        },
+        {
+          "code": "4.5",
+          "title": "NAT 与 IPv6",
+          "children": [
+            { "code": null, "title": "NAT 的工作原理", "children": [] },
+            { "code": null, "title": "IPv6 地址格式与类型", "children": [] },
+            { "code": null, "title": "IPv6 与 IPv4 的过渡技术", "children": [] }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "5",
+      "title": "传输层",
+      "children": [
+        {
+          "code": "5.1",
+          "title": "传输层功能与端口号",
+          "children": [
+            { "code": null, "title": "传输层的地位与功能", "children": [] },
+            { "code": null, "title": "端口号的分类", "children": [] },
+            { "code": null, "title": "套接字 Socket", "children": [] }
+          ]
+        },
+        {
+          "code": "5.2",
+          "title": "UDP 协议",
+          "children": [
+            { "code": null, "title": "UDP 报文格式", "children": [] },
+            { "code": null, "title": "UDP 的特点与适用场景", "children": [] },
+            { "code": null, "title": "UDP 校验和", "children": [] }
+          ]
+        },
+        {
+          "code": "5.3",
+          "title": "TCP 协议基础",
+          "children": [
+            { "code": null, "title": "TCP 报文段格式", "children": [] },
+            { "code": null, "title": "TCP 连接建立（三次握手）", "children": [] },
+            { "code": null, "title": "TCP 连接释放（四次挥手）", "children": [] }
+          ]
+        },
+        {
+          "code": "5.4",
+          "title": "TCP 可靠传输与流量控制",
+          "children": [
+            { "code": null, "title": "序号与确认", "children": [] },
+            { "code": null, "title": "超时重传机制", "children": [] },
+            { "code": null, "title": "滑动窗口流量控制", "children": [] }
+          ]
+        },
+        {
+          "code": "5.5",
+          "title": "TCP 拥塞控制",
+          "children": [
+            { "code": null, "title": "拥塞控制的基本原理", "children": [] },
+            { "code": null, "title": "慢启动与拥塞避免", "children": [] },
+            { "code": null, "title": "快重传与快恢复", "children": [] }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "6",
+      "title": "应用层",
+      "children": [
+        {
+          "code": "6.1",
+          "title": "DNS",
+          "children": [
+            { "code": null, "title": "DNS 的作用与域名结构", "children": [] },
+            { "code": null, "title": "域名解析过程（递归与迭代）", "children": [] },
+            { "code": null, "title": "DNS 缓存", "children": [] }
+          ]
+        },
+        {
+          "code": "6.2",
+          "title": "HTTP 与 HTTPS",
+          "children": [
+            { "code": null, "title": "HTTP 报文格式", "children": [] },
+            { "code": null, "title": "HTTP 请求方法与状态码", "children": [] },
+            { "code": null, "title": "HTTP/1.1 与 HTTP/2 基础", "children": [] },
+            { "code": null, "title": "HTTPS 基础：SSL/TLS", "children": [] }
+          ]
+        },
+        {
+          "code": "6.3",
+          "title": "文件传输与电子邮件",
+          "children": [
+            { "code": null, "title": "FTP 的工作原理", "children": [] },
+            { "code": null, "title": "SMTP", "children": [] },
+            { "code": null, "title": "POP3 与 IMAP", "children": [] }
+          ]
+        },
+        {
+          "code": "6.4",
+          "title": "DHCP",
+          "children": [
+            { "code": null, "title": "DHCP 的作用", "children": [] },
+            { "code": null, "title": "DHCP 工作流程", "children": [] }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "7",
+      "title": "网络安全基础",
+      "children": [
+        {
+          "code": "7.1",
+          "title": "网络安全基本概念",
+          "children": [
+            { "code": null, "title": "网络安全威胁", "children": [] },
+            { "code": null, "title": "安全服务的种类", "children": [] }
+          ]
+        },
+        {
+          "code": "7.2",
+          "title": "加密与认证",
+          "children": [
+            { "code": null, "title": "对称加密与非对称加密", "children": [] },
+            { "code": null, "title": "数字签名", "children": [] },
+            { "code": null, "title": "数字证书与 PKI", "children": [] }
+          ]
+        },
+        {
+          "code": "7.3",
+          "title": "防火墙与 VPN",
+          "children": [
+            { "code": null, "title": "防火墙的功能与类型", "children": [] },
+            { "code": null, "title": "VPN 的基本原理", "children": [] }
+          ]
+        },
+        {
+          "code": "7.4",
+          "title": "常见网络攻击",
+          "children": [
+            { "code": null, "title": "DoS / DDoS 攻击", "children": [] },
+            { "code": null, "title": "ARP 欺骗", "children": [] },
+            { "code": null, "title": "DNS 劫持基础", "children": [] }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "8",
+      "title": "无线网络与移动网络基础",
+      "children": [
+        {
+          "code": "8.1",
+          "title": "WLAN 与 Wi-Fi",
+          "children": [
+            { "code": null, "title": "WLAN 的组成", "children": [] },
+            { "code": null, "title": "CSMA/CA 与 RTS/CTS", "children": [] },
+            { "code": null, "title": "Wi-Fi 标准 802.11 系列基础", "children": [] }
+          ]
+        },
+        {
+          "code": "8.2",
+          "title": "蜂窝移动网络与移动 IP",
+          "children": [
+            { "code": null, "title": "蜂窝网络的代际演进（2G-5G 基础）", "children": [] },
+            { "code": null, "title": "移动 IP 的基本原理", "children": [] }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "9",
+      "title": "网络综合应用与故障排查",
+      "children": [
+        {
+          "code": "9.1",
+          "title": "常用网络命令",
+          "children": [
+            { "code": null, "title": "ping：测试连通性", "children": [] },
+            { "code": null, "title": "traceroute / tracert：路径追踪", "children": [] },
+            { "code": null, "title": "ipconfig / ifconfig：网络接口配置", "children": [] },
+            { "code": null, "title": "nslookup / dig：DNS 查询", "children": [] },
+            { "code": null, "title": "netstat：网络连接查看", "children": [] }
+          ]
+        },
+        {
+          "code": "9.2",
+          "title": "抓包基础",
+          "children": [
+            { "code": null, "title": "Wireshark 基础操作", "children": [] },
+            { "code": null, "title": "常见协议分析", "children": [] }
+          ]
+        },
+        {
+          "code": "9.3",
+          "title": "常见网络故障定位思路",
+          "children": [
+            { "code": null, "title": "自底向上的排查方法", "children": [] },
+            { "code": null, "title": "分段排查法", "children": [] }
+          ]
+        }
+      ]
+    }
+  ]
+}
