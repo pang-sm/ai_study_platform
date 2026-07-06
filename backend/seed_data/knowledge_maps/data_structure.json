@@ -1,0 +1,434 @@
+{
+  "course_id": "data_structure",
+  "course_name": "数据结构",
+  "source": "课程学习方向标准知识脉络第一版",
+  "chapters": [
+    {
+      "code": "1",
+      "title": "绪论与复杂度分析",
+      "children": [
+        {
+          "code": "1.1",
+          "title": "数据结构的基本概念",
+          "children": [
+            { "code": null, "title": "数据、数据元素、数据项", "children": [] },
+            { "code": null, "title": "数据结构的定义", "children": [] },
+            { "code": null, "title": "逻辑结构与物理结构", "children": [] }
+          ]
+        },
+        {
+          "code": "1.2",
+          "title": "抽象数据类型 ADT",
+          "children": [
+            { "code": null, "title": "ADT 的定义与表示", "children": [] },
+            { "code": null, "title": "ADT 与数据结构的关系", "children": [] }
+          ]
+        },
+        {
+          "code": "1.3",
+          "title": "时间复杂度",
+          "children": [
+            { "code": null, "title": "基本操作与频度", "children": [] },
+            { "code": null, "title": "大 O 记号的定义", "children": [] },
+            { "code": null, "title": "最坏、最好与平均时间复杂度", "children": [] }
+          ]
+        },
+        {
+          "code": "1.4",
+          "title": "空间复杂度",
+          "children": [
+            { "code": null, "title": "算法原地工作", "children": [] },
+            { "code": null, "title": "辅助空间分析", "children": [] }
+          ]
+        },
+        {
+          "code": "1.5",
+          "title": "常见复杂度阶",
+          "children": [
+            { "code": null, "title": "O(1)、O(log n)、O(n)、O(n log n)", "children": [] },
+            { "code": null, "title": "O(n²)、O(2ⁿ)、O(n!)", "children": [] },
+            { "code": null, "title": "复杂度的大小比较", "children": [] }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "2",
+      "title": "线性表",
+      "children": [
+        {
+          "code": "2.1",
+          "title": "线性表的定义与基本操作",
+          "children": [
+            { "code": null, "title": "线性表的逻辑结构", "children": [] },
+            { "code": null, "title": "InitList、DestroyList、ListEmpty", "children": [] },
+            { "code": null, "title": "GetElem、LocateElem、ListInsert、ListDelete", "children": [] }
+          ]
+        },
+        {
+          "code": "2.2",
+          "title": "顺序表",
+          "children": [
+            { "code": null, "title": "顺序存储结构", "children": [] },
+            { "code": null, "title": "插入与删除操作及时间复杂度", "children": [] },
+            { "code": null, "title": "按值查找与按位查找", "children": [] }
+          ]
+        },
+        {
+          "code": "2.3",
+          "title": "单链表",
+          "children": [
+            { "code": null, "title": "结点结构与头指针", "children": [] },
+            { "code": null, "title": "头插法与尾插法建表", "children": [] },
+            { "code": null, "title": "按位/按值查找", "children": [] },
+            { "code": null, "title": "插入与删除结点", "children": [] },
+            { "code": null, "title": "链表逆置", "children": [] }
+          ]
+        },
+        {
+          "code": "2.4",
+          "title": "双链表与循环链表",
+          "children": [
+            { "code": null, "title": "双链表结点结构与基本操作", "children": [] },
+            { "code": null, "title": "循环单链表", "children": [] },
+            { "code": null, "title": "循环双链表", "children": [] }
+          ]
+        },
+        {
+          "code": "2.5",
+          "title": "顺序存储与链式存储比较",
+          "children": [
+            { "code": null, "title": "存取方式与存储密度", "children": [] },
+            { "code": null, "title": "插入删除效率对比", "children": [] },
+            { "code": null, "title": "适用场景分析", "children": [] }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "3",
+      "title": "栈和队列",
+      "children": [
+        {
+          "code": "3.1",
+          "title": "栈的定义与操作",
+          "children": [
+            { "code": null, "title": "栈的逻辑结构与 ADT", "children": [] },
+            { "code": null, "title": "Push、Pop、GetTop", "children": [] },
+            { "code": null, "title": "栈的数学性质", "children": [] }
+          ]
+        },
+        {
+          "code": "3.2",
+          "title": "顺序栈与链栈",
+          "children": [
+            { "code": null, "title": "顺序栈的实现与栈满判定", "children": [] },
+            { "code": null, "title": "链栈的实现", "children": [] },
+            { "code": null, "title": "两种实现对比", "children": [] }
+          ]
+        },
+        {
+          "code": "3.3",
+          "title": "队列的定义与操作",
+          "children": [
+            { "code": null, "title": "队列的逻辑结构与 ADT", "children": [] },
+            { "code": null, "title": "EnQueue、DeQueue、GetHead", "children": [] }
+          ]
+        },
+        {
+          "code": "3.4",
+          "title": "循环队列与链队列",
+          "children": [
+            { "code": null, "title": "循环队列队空与队满判定", "children": [] },
+            { "code": null, "title": "链队列的实现", "children": [] },
+            { "code": null, "title": "双端队列基础", "children": [] }
+          ]
+        },
+        {
+          "code": "3.5",
+          "title": "栈和队列的典型应用",
+          "children": [
+            { "code": null, "title": "括号匹配", "children": [] },
+            { "code": null, "title": "表达式求值", "children": [] },
+            { "code": null, "title": "递归与非递归转换", "children": [] },
+            { "code": null, "title": "层次遍历与缓冲区", "children": [] }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "4",
+      "title": "串",
+      "children": [
+        {
+          "code": "4.1",
+          "title": "串的基本概念与存储",
+          "children": [
+            { "code": null, "title": "串的定义与基本操作", "children": [] },
+            { "code": null, "title": "定长顺序存储", "children": [] },
+            { "code": null, "title": "堆分配存储与块链存储", "children": [] }
+          ]
+        },
+        {
+          "code": "4.2",
+          "title": "模式匹配",
+          "children": [
+            { "code": null, "title": "简单模式匹配（BF 算法）", "children": [] },
+            { "code": null, "title": "KMP 算法中的 next 数组", "children": [] },
+            { "code": null, "title": "KMP 算法流程与时间复杂度", "children": [] },
+            { "code": null, "title": "nextval 数组优化", "children": [] }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "5",
+      "title": "数组、矩阵和广义表",
+      "children": [
+        {
+          "code": "5.1",
+          "title": "数组的存储",
+          "children": [
+            { "code": null, "title": "一维与多维数组存储映射", "children": [] },
+            { "code": null, "title": "按行优先与按列优先", "children": [] }
+          ]
+        },
+        {
+          "code": "5.2",
+          "title": "特殊矩阵压缩存储",
+          "children": [
+            { "code": null, "title": "对称矩阵压缩", "children": [] },
+            { "code": null, "title": "三角矩阵压缩", "children": [] },
+            { "code": null, "title": "三对角矩阵压缩", "children": [] }
+          ]
+        },
+        {
+          "code": "5.3",
+          "title": "稀疏矩阵",
+          "children": [
+            { "code": null, "title": "三元组表示法", "children": [] },
+            { "code": null, "title": "十字链表基础", "children": [] }
+          ]
+        },
+        {
+          "code": "5.4",
+          "title": "广义表基础",
+          "children": [
+            { "code": null, "title": "广义表定义与表头表尾", "children": [] },
+            { "code": null, "title": "广义表存储结构", "children": [] }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "6",
+      "title": "树与二叉树",
+      "children": [
+        {
+          "code": "6.1",
+          "title": "树的基本概念",
+          "children": [
+            { "code": null, "title": "结点、度、层次、深度", "children": [] },
+            { "code": null, "title": "有序树与无序树", "children": [] },
+            { "code": null, "title": "树的表示方法", "children": [] }
+          ]
+        },
+        {
+          "code": "6.2",
+          "title": "二叉树性质与存储",
+          "children": [
+            { "code": null, "title": "满二叉树与完全二叉树", "children": [] },
+            { "code": null, "title": "二叉树的 5 条基本性质", "children": [] },
+            { "code": null, "title": "顺序存储与链式存储", "children": [] }
+          ]
+        },
+        {
+          "code": "6.3",
+          "title": "二叉树遍历",
+          "children": [
+            { "code": null, "title": "先序、中序、后序遍历（递归与非递归）", "children": [] },
+            { "code": null, "title": "层次遍历", "children": [] },
+            { "code": null, "title": "由遍历序列构造二叉树", "children": [] }
+          ]
+        },
+        {
+          "code": "6.4",
+          "title": "线索二叉树",
+          "children": [
+            { "code": null, "title": "线索化的概念与意义", "children": [] },
+            { "code": null, "title": "中序线索二叉树", "children": [] },
+            { "code": null, "title": "线索二叉树的遍历", "children": [] }
+          ]
+        },
+        {
+          "code": "6.5",
+          "title": "树、森林与二叉树转换",
+          "children": [
+            { "code": null, "title": "树转二叉树", "children": [] },
+            { "code": null, "title": "森林转二叉树", "children": [] },
+            { "code": null, "title": "二叉树还原为树或森林", "children": [] }
+          ]
+        },
+        {
+          "code": "6.6",
+          "title": "哈夫曼树与哈夫曼编码",
+          "children": [
+            { "code": null, "title": "哈夫曼树的构造", "children": [] },
+            { "code": null, "title": "哈夫曼编码与 WPL", "children": [] },
+            { "code": null, "title": "前缀编码", "children": [] }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "7",
+      "title": "图",
+      "children": [
+        {
+          "code": "7.1",
+          "title": "图的基本概念",
+          "children": [
+            { "code": null, "title": "有向图、无向图、完全图", "children": [] },
+            { "code": null, "title": "度、入度、出度", "children": [] },
+            { "code": null, "title": "路径、回路、连通性", "children": [] }
+          ]
+        },
+        {
+          "code": "7.2",
+          "title": "图的存储结构",
+          "children": [
+            { "code": null, "title": "邻接矩阵", "children": [] },
+            { "code": null, "title": "邻接表", "children": [] },
+            { "code": null, "title": "十字链表与邻接多重表基础", "children": [] }
+          ]
+        },
+        {
+          "code": "7.3",
+          "title": "图的遍历",
+          "children": [
+            { "code": null, "title": "深度优先搜索 DFS", "children": [] },
+            { "code": null, "title": "广度优先搜索 BFS", "children": [] },
+            { "code": null, "title": "遍历的时间复杂度分析", "children": [] }
+          ]
+        },
+        {
+          "code": "7.4",
+          "title": "最小生成树",
+          "children": [
+            { "code": null, "title": "Prim 算法", "children": [] },
+            { "code": null, "title": "Kruskal 算法", "children": [] },
+            { "code": null, "title": "两种算法的比较", "children": [] }
+          ]
+        },
+        {
+          "code": "7.5",
+          "title": "最短路径",
+          "children": [
+            { "code": null, "title": "Dijkstra 算法", "children": [] },
+            { "code": null, "title": "Floyd 算法", "children": [] },
+            { "code": null, "title": "有向无环图与拓扑排序", "children": [] }
+          ]
+        },
+        {
+          "code": "7.6",
+          "title": "关键路径",
+          "children": [
+            { "code": null, "title": "AOE 网与关键活动", "children": [] },
+            { "code": null, "title": "最早开始时间与最晚开始时间", "children": [] }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "8",
+      "title": "查找",
+      "children": [
+        {
+          "code": "8.1",
+          "title": "顺序查找与折半查找",
+          "children": [
+            { "code": null, "title": "顺序查找与哨兵", "children": [] },
+            { "code": null, "title": "折半查找算法与判定树", "children": [] },
+            { "code": null, "title": "分块查找", "children": [] }
+          ]
+        },
+        {
+          "code": "8.2",
+          "title": "二叉排序树 BST",
+          "children": [
+            { "code": null, "title": "BST 的定义与性质", "children": [] },
+            { "code": null, "title": "插入、删除与查找操作", "children": [] },
+            { "code": null, "title": "BST 的效率分析", "children": [] }
+          ]
+        },
+        {
+          "code": "8.3",
+          "title": "平衡二叉树与 B 树",
+          "children": [
+            { "code": null, "title": "AVL 树平衡因子与旋转", "children": [] },
+            { "code": null, "title": "B 树定义与基本操作", "children": [] },
+            { "code": null, "title": "B+ 树基础", "children": [] }
+          ]
+        },
+        {
+          "code": "8.4",
+          "title": "哈希表",
+          "children": [
+            { "code": null, "title": "哈希函数构造方法", "children": [] },
+            { "code": null, "title": "开放定址法", "children": [] },
+            { "code": null, "title": "链地址法", "children": [] },
+            { "code": null, "title": "装填因子与平均查找长度", "children": [] }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "9",
+      "title": "排序",
+      "children": [
+        {
+          "code": "9.1",
+          "title": "插入排序",
+          "children": [
+            { "code": null, "title": "直接插入排序", "children": [] },
+            { "code": null, "title": "折半插入排序", "children": [] },
+            { "code": null, "title": "希尔排序", "children": [] }
+          ]
+        },
+        {
+          "code": "9.2",
+          "title": "交换排序",
+          "children": [
+            { "code": null, "title": "冒泡排序", "children": [] },
+            { "code": null, "title": "快速排序", "children": [] }
+          ]
+        },
+        {
+          "code": "9.3",
+          "title": "选择排序",
+          "children": [
+            { "code": null, "title": "简单选择排序", "children": [] },
+            { "code": null, "title": "堆排序", "children": [] }
+          ]
+        },
+        {
+          "code": "9.4",
+          "title": "归并排序与基数排序",
+          "children": [
+            { "code": null, "title": "二路归并排序", "children": [] },
+            { "code": null, "title": "基数排序", "children": [] }
+          ]
+        },
+        {
+          "code": "9.5",
+          "title": "排序算法综合比较",
+          "children": [
+            { "code": null, "title": "时间复杂度与空间复杂度汇总", "children": [] },
+            { "code": null, "title": "稳定性分析", "children": [] },
+            { "code": null, "title": "各类排序适用场景", "children": [] }
+          ]
+        }
+      ]
+    }
+  ]
+}

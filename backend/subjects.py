@@ -53,6 +53,33 @@ SUBJECT_ALIASES = {
 }
 
 
+# displayName → 稳定英文 course_id（用于 seed 文件命名和 API 兼容）
+COURSE_LEARNING_ID_MAP = {
+    "计算机导论": "computer_intro",
+    "程序设计基础": "programming_fundamentals",
+    "C 语言程序设计": "c_programming",
+    "Python 程序设计": "python_programming",
+    "Java 程序设计": "java_programming",
+    "面向对象程序设计": "oop",
+    "数据结构": "data_structure",
+    "算法设计与分析": "algorithm_design",
+    "离散数学": "discrete_math",
+    "数字逻辑": "digital_logic",
+    "计算机组成原理": "computer_organization",
+    "操作系统": "operating_system",
+    "计算机网络": "computer_network",
+    "数据库系统": "database_systems",
+    "软件工程": "software_engineering",
+    "编译原理": "compiler_principles",
+    "Linux / Unix 系统基础": "linux_unix_basics",
+}
+
+
+def resolve_course_id_from_display(display_name: str) -> str:
+    """中文 displayName → 英文 course_id。未匹配返回空字符串。"""
+    return COURSE_LEARNING_ID_MAP.get((display_name or "").strip(), "")
+
+
 def normalize_subject_course_learning(raw: str) -> str:
     """课程学习专用 normalize：统一历史/别名到标准 displayName。
     不影响 11408 normalize_subject。
@@ -60,6 +87,10 @@ def normalize_subject_course_learning(raw: str) -> str:
     key = (raw or "").strip()
     if not key:
         return key
+    # 已经是标准英文 course_id → 反查 displayName
+    for display, cid in COURSE_LEARNING_ID_MAP.items():
+        if key == cid or key.lower() == cid.lower():
+            return display
     ALIASES = {
         # 旧名 → 标准名
         "C语言": "C 语言程序设计",

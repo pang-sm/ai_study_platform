@@ -74,7 +74,7 @@ from rag import (
     search_relevant_material_chunks,
     soft_delete_material_chunks,
 )
-from subjects import normalize_subject, normalize_subject_course_learning
+from subjects import normalize_subject, normalize_subject_course_learning, resolve_course_id_from_display
 
 
 def _normalize_course_or_11408(subject: str, default: str = "") -> str:
@@ -12601,6 +12601,14 @@ def get_knowledge_map(course_id: str, username: str = "", db: Session = Depends(
 
     seed_path = _knowledge_map_seed_path(normalized_course)
     if not seed_path.exists():
+        # course_learning: Chinese display names get stripped by sanitizer.
+        # Try mapping to stable English course_id for seed lookup.
+        english_id = resolve_course_id_from_display(normalized_course)
+        if english_id:
+            alt_path = _knowledge_map_seed_path(english_id)
+            if alt_path.exists():
+                seed_path = alt_path
+    if not seed_path.exists():
         if normalized_course.endswith("_11408"):
             raise HTTPException(status_code=404, detail="knowledge map not found")
         return _empty_course_learning_knowledge_map(normalized_course, username, db)
@@ -12688,6 +12696,12 @@ def update_knowledge_map_progress(req: schemas.KnowledgeMapProgressUpdate, db: S
         raise HTTPException(status_code=400, detail="invalid status")
 
     seed_path = _knowledge_map_seed_path(course_id)
+    if not seed_path.exists():
+        english_id = resolve_course_id_from_display(course_id)
+        if english_id:
+            alt_path = _knowledge_map_seed_path(english_id)
+            if alt_path.exists():
+                seed_path = alt_path
     if not seed_path.exists():
         raise HTTPException(status_code=404, detail="knowledge map not found")
     payload = json.loads(seed_path.read_text(encoding="utf-8"))
