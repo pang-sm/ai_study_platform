@@ -385,7 +385,7 @@ export default function ExamChat({
     } finally {
       setLibraryLoading(false);
     }
-  }, [courseName, user?.username]);
+  }, [courseName, courseId, isCourseMode, subjectLabel, user?.username]);
 
   const updateCurrentSessionId = useCallback((sessionId) => {
     const nextSessionId = sessionId === null || sessionId === undefined || sessionId === "" ? null : Number(sessionId);
