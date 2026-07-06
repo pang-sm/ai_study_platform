@@ -123,7 +123,20 @@
       {"code":"9.2","title":"综合应用","children":[
         {"code":null,"title":"简单项目结构","children":[]},
         {"code":null,"title":"单元测试基础","children":[]},
-        {"code":null,"title":"综合案例设计","children":[]}
+        {"code":null,"title":"综合案例设计","children":[]},
+        {"code":null,"title":"类加载机制初步","children":[]},
+        {"code":null,"title":"字节码与 JIT 基础","children":[]},
+        {"code":null,"title":"面向对象三大特性回顾","children":[]},
+        {"code":null,"title":"向上转型与向下转型","children":[]},
+        {"code":null,"title":"匿名内部类","children":[]},
+        {"code":null,"title":"Lambda 表达式基础","children":[]},
+        {"code":null,"title":"线程基础","children":[]},
+        {"code":null,"title":"文件复制与字符编码","children":[]},
+        {"code":null,"title":"NIO 基础","children":[]},
+        {"code":null,"title":"Maven/Gradle 项目结构","children":[]},
+        {"code":null,"title":"包命名规范与实践","children":[]},
+        {"code":null,"title":"JAR 打包","children":[]},
+        {"code":null,"title":"简单控制台项目实战","children":[]}
       ]}
     ]}
   ]

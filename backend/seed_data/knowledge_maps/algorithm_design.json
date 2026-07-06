@@ -117,7 +117,23 @@
         {"code":null,"title":"正确性证明方法","children":[]},
         {"code":null,"title":"复杂度优化技巧","children":[]},
         {"code":null,"title":"边界条件处理","children":[]},
-        {"code":null,"title":"综合案例分析","children":[]}
+        {"code":null,"title":"综合案例分析","children":[]},
+        {"code":null,"title":"摊还分析基础","children":[]},
+        {"code":null,"title":"递归树方法","children":[]},
+        {"code":null,"title":"主定理的三个 case","children":[]},
+        {"code":null,"title":"快速选择算法","children":[]},
+        {"code":null,"title":"大整数乘法思想","children":[]},
+        {"code":null,"title":"区间调度与区间覆盖","children":[]},
+        {"code":null,"title":"最小生成树 Kruskal 实现","children":[]},
+        {"code":null,"title":"线性 DP：子序列问题","children":[]},
+        {"code":null,"title":"区间 DP 基本思想","children":[]},
+        {"code":null,"title":"背包 DP 的变体","children":[]},
+        {"code":null,"title":"Bellman-Ford 最短路径","children":[]},
+        {"code":null,"title":"并查集 Union-Find","children":[]},
+        {"code":null,"title":"DFS 与 BFS 的状态设计","children":[]},
+        {"code":null,"title":"记忆化搜索","children":[]},
+        {"code":null,"title":"贪心 vs DP vs 搜索的选择","children":[]},
+        {"code":null,"title":"排序算法选择决策","children":[]}
       ]}
     ]}
   ]

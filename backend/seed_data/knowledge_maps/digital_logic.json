@@ -115,7 +115,25 @@
       {"code":"9.2","title":"设计实践","children":[
         {"code":null,"title":"模块化设计方法","children":[]},
         {"code":null,"title":"时序约束基础","children":[]},
-        {"code":null,"title":"综合设计案例","children":[]}
+        {"code":null,"title":"综合设计案例","children":[]},
+        {"code":null,"title":"补码加减运算与溢出判断","children":[]},
+        {"code":null,"title":"奇偶校验码","children":[]},
+        {"code":null,"title":"格雷码","children":[]},
+        {"code":null,"title":"逻辑代数基本定律证明","children":[]},
+        {"code":null,"title":"吸收律与德摩根律","children":[]},
+        {"code":null,"title":"二变量卡诺图","children":[]},
+        {"code":null,"title":"三变量与四变量卡诺图","children":[]},
+        {"code":null,"title":"无关项的灵活运用","children":[]},
+        {"code":null,"title":"优先编码器","children":[]},
+        {"code":null,"title":"显示译码器","children":[]},
+        {"code":null,"title":"超前进位加法器","children":[]},
+        {"code":null,"title":"触发器特性表与状态方程","children":[]},
+        {"code":null,"title":"触发器之间的转换方法","children":[]},
+        {"code":null,"title":"同步计数器设计步骤","children":[]},
+        {"code":null,"title":"异步计数器的级联","children":[]},
+        {"code":null,"title":"任意进制计数器设计","children":[]},
+        {"code":null,"title":"序列信号发生器","children":[]},
+        {"code":null,"title":"Mealy 与 Moore 型状态机","children":[]}
       ]}
     ]}
   ]

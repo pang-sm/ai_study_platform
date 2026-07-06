@@ -122,7 +122,21 @@
       {"code":"9.3","title":"综合应用","children":[
         {"code":null,"title":"MVC 思想基础","children":[]},
         {"code":null,"title":"面向对象重构","children":[]},
-        {"code":null,"title":"综合案例设计","children":[]}
+        {"code":null,"title":"综合案例设计","children":[]},
+        {"code":null,"title":"职责驱动设计","children":[]},
+        {"code":null,"title":"CRC 卡片方法","children":[]},
+        {"code":null,"title":"类图：属性、方法、可见性","children":[]},
+        {"code":null,"title":"类图：关联、多重性、角色","children":[]},
+        {"code":null,"title":"顺序图：消息传递","children":[]},
+        {"code":null,"title":"适配器模式基础","children":[]},
+        {"code":null,"title":"组合模式基础","children":[]},
+        {"code":null,"title":"模板方法模式基础","children":[]},
+        {"code":null,"title":"提取类与提取方法重构","children":[]},
+        {"code":null,"title":"消除重复与降低耦合","children":[]},
+        {"code":null,"title":"面向对象设计评审","children":[]},
+        {"code":null,"title":"图书馆借阅系统建模","children":[]},
+        {"code":null,"title":"选课系统建模","children":[]},
+        {"code":null,"title":"订单系统建模","children":[]}
       ]}
     ]}
   ]
