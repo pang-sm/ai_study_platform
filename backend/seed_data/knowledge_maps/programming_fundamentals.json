@@ -27,7 +27,10 @@
         {"code":null,"title":"流程图","children":[]},
         {"code":null,"title":"伪代码","children":[]},
         {"code":null,"title":"程序执行过程模拟","children":[]},
-        {"code":null,"title":"简单算法效率直观理解","children":[]}
+        {"code":null,"title":"简单算法效率直观理解","children":[]},
+        {"code":null,"title":"简单排序算法思想","children":[]},
+        {"code":null,"title":"数据查找的直观方法","children":[]},
+        {"code":null,"title":"简单数据处理报告生成","children":[]}
       ]},
       {"code":"2.2","title":"算法分析初步","children":[
         {"code":null,"title":"算法的正确性","children":[]},

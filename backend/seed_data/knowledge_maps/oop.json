@@ -136,7 +136,9 @@
         {"code":null,"title":"面向对象设计评审","children":[]},
         {"code":null,"title":"图书馆借阅系统建模","children":[]},
         {"code":null,"title":"选课系统建模","children":[]},
-        {"code":null,"title":"订单系统建模","children":[]}
+        {"code":null,"title":"订单系统建模","children":[]},
+        {"code":null,"title":"包与命名空间组织","children":[]},
+        {"code":null,"title":"异常处理在 OOP 中的应用","children":[]}
       ]}
     ]}
   ]
