@@ -1,0 +1,224 @@
+{
+  "course_id": "python_programming",
+  "course_name": "Python 程序设计",
+  "source": "课程学习方向标准知识脉络第一版",
+  "chapters": [
+    {
+      "code": "1",
+      "title": "Python 基础与开发环境",
+      "children": [
+        {"code": "1.1", "title": "Python 语言概述", "children": [
+          {"code": null, "title": "Python 语言特点与设计哲学", "children": []},
+          {"code": null, "title": "Python 的应用领域", "children": []},
+          {"code": null, "title": "Python 2 与 Python 3 的差异", "children": []}
+        ]},
+        {"code": "1.2", "title": "解释器与运行方式", "children": [
+          {"code": null, "title": "交互式模式与脚本模式", "children": []},
+          {"code": null, "title": "py 文件执行流程", "children": []}
+        ]},
+        {"code": "1.3", "title": "IDE 与虚拟环境", "children": [
+          {"code": null, "title": "常用 IDE 简介", "children": []},
+          {"code": null, "title": "虚拟环境的作用与 venv", "children": []},
+          {"code": null, "title": "pip 与包管理", "children": []}
+        ]},
+        {"code": "1.4", "title": "程序基本结构与规范", "children": [
+          {"code": null, "title": "程序入口与缩进规则", "children": []},
+          {"code": null, "title": "PEP 8 代码风格基础", "children": []},
+          {"code": null, "title": "注释与文档字符串", "children": []}
+        ]}
+      ]
+    },
+    {
+      "code": "2",
+      "title": "基本语法与数据类型",
+      "children": [
+        {"code": "2.1", "title": "变量与命名", "children": [
+          {"code": null, "title": "变量的定义与赋值", "children": []},
+          {"code": null, "title": "命名规则与关键字", "children": []},
+          {"code": null, "title": "动态类型", "children": []}
+        ]},
+        {"code": "2.2", "title": "数值类型", "children": [
+          {"code": null, "title": "整数 int", "children": []},
+          {"code": null, "title": "浮点数 float", "children": []},
+          {"code": null, "title": "复数 complex", "children": []}
+        ]},
+        {"code": "2.3", "title": "字符串", "children": [
+          {"code": null, "title": "字符串定义与引号", "children": []},
+          {"code": null, "title": "转义字符", "children": []},
+          {"code": null, "title": "字符串常用方法", "children": []},
+          {"code": null, "title": "格式化输出", "children": []}
+        ]},
+        {"code": "2.4", "title": "布尔类型与运算符", "children": [
+          {"code": null, "title": "布尔值与 bool 类型", "children": []},
+          {"code": null, "title": "算术运算符", "children": []},
+          {"code": null, "title": "比较与逻辑运算符", "children": []},
+          {"code": null, "title": "赋值运算符", "children": []}
+        ]},
+        {"code": "2.5", "title": "输入与类型转换", "children": [
+          {"code": null, "title": "print 输出", "children": []},
+          {"code": null, "title": "input 输入", "children": []},
+          {"code": null, "title": "类型转换函数", "children": []}
+        ]}
+      ]
+    },
+    {
+      "code": "3",
+      "title": "控制结构",
+      "children": [
+        {"code": "3.1", "title": "条件语句", "children": [
+          {"code": null, "title": "if、elif、else", "children": []},
+          {"code": null, "title": "条件嵌套", "children": []},
+          {"code": null, "title": "match 语句基础", "children": []}
+        ]},
+        {"code": "3.2", "title": "循环结构", "children": [
+          {"code": null, "title": "for 循环", "children": []},
+          {"code": null, "title": "range 函数", "children": []},
+          {"code": null, "title": "while 循环", "children": []}
+        ]},
+        {"code": "3.3", "title": "循环控制", "children": [
+          {"code": null, "title": "break 与 continue", "children": []},
+          {"code": null, "title": "循环嵌套", "children": []},
+          {"code": null, "title": "else 子句与循环", "children": []}
+        ]}
+      ]
+    },
+    {
+      "code": "4",
+      "title": "常用数据结构",
+      "children": [
+        {"code": "4.1", "title": "列表 list", "children": [
+          {"code": null, "title": "列表的创建与访问", "children": []},
+          {"code": null, "title": "列表常用方法", "children": []},
+          {"code": null, "title": "列表推导式", "children": []},
+          {"code": null, "title": "切片操作", "children": []}
+        ]},
+        {"code": "4.2", "title": "元组 tuple", "children": [
+          {"code": null, "title": "元组的定义与特点", "children": []},
+          {"code": null, "title": "元组的解包", "children": []}
+        ]},
+        {"code": "4.3", "title": "字典 dict", "children": [
+          {"code": null, "title": "字典的创建与访问", "children": []},
+          {"code": null, "title": "字典常用方法", "children": []},
+          {"code": null, "title": "字典推导式", "children": []}
+        ]},
+        {"code": "4.4", "title": "集合 set", "children": [
+          {"code": null, "title": "集合的定义与特点", "children": []},
+          {"code": null, "title": "集合操作", "children": []}
+        ]},
+        {"code": "4.5", "title": "可变与不可变对象", "children": [
+          {"code": null, "title": "可变对象 vs 不可变对象", "children": []},
+          {"code": null, "title": "浅拷贝与深拷贝", "children": []}
+        ]}
+      ]
+    },
+    {
+      "code": "5",
+      "title": "函数",
+      "children": [
+        {"code": "5.1", "title": "函数定义与调用", "children": [
+          {"code": null, "title": "def 语句", "children": []},
+          {"code": null, "title": "形参与实参", "children": []},
+          {"code": null, "title": "返回值 return", "children": []}
+        ]},
+        {"code": "5.2", "title": "参数传递", "children": [
+          {"code": null, "title": "位置参数", "children": []},
+          {"code": null, "title": "默认参数", "children": []},
+          {"code": null, "title": "关键字参数", "children": []},
+          {"code": null, "title": "可变参数 *args 与 **kwargs", "children": []}
+        ]},
+        {"code": "5.3", "title": "作用域与进阶", "children": [
+          {"code": null, "title": "LEGB 作用域规则", "children": []},
+          {"code": null, "title": "global 与 nonlocal", "children": []},
+          {"code": null, "title": "lambda 表达式", "children": []},
+          {"code": null, "title": "递归基础", "children": []}
+        ]}
+      ]
+    },
+    {
+      "code": "6",
+      "title": "模块、包与文件操作",
+      "children": [
+        {"code": "6.1", "title": "模块与包", "children": [
+          {"code": null, "title": "import 机制", "children": []},
+          {"code": null, "title": "自定义模块", "children": []},
+          {"code": null, "title": "包结构与 __init__.py", "children": []},
+          {"code": null, "title": "常用标准库简介", "children": []}
+        ]},
+        {"code": "6.2", "title": "文件读写", "children": [
+          {"code": null, "title": "文本文件读写", "children": []},
+          {"code": null, "title": "with 语句与上下文管理器", "children": []},
+          {"code": null, "title": "CSV 文件处理", "children": []},
+          {"code": null, "title": "JSON 文件处理", "children": []}
+        ]},
+        {"code": "6.3", "title": "路径处理", "children": [
+          {"code": null, "title": "os.path 模块", "children": []},
+          {"code": null, "title": "pathlib 基础", "children": []}
+        ]}
+      ]
+    },
+    {
+      "code": "7",
+      "title": "异常处理与调试",
+      "children": [
+        {"code": "7.1", "title": "异常处理", "children": [
+          {"code": null, "title": "try / except 语句", "children": []},
+          {"code": null, "title": "else 与 finally", "children": []},
+          {"code": null, "title": "raise 抛出异常", "children": []},
+          {"code": null, "title": "常见异常类型", "children": []}
+        ]},
+        {"code": "7.2", "title": "调试与日志", "children": [
+          {"code": null, "title": "断点调试 pdb", "children": []},
+          {"code": null, "title": "logging 模块基础", "children": []},
+          {"code": null, "title": "assert 断言", "children": []}
+        ]}
+      ]
+    },
+    {
+      "code": "8",
+      "title": "面向对象基础",
+      "children": [
+        {"code": "8.1", "title": "类与对象", "children": [
+          {"code": null, "title": "class 定义", "children": []},
+          {"code": null, "title": "对象实例化", "children": []},
+          {"code": null, "title": "__init__ 构造方法", "children": []},
+          {"code": null, "title": "self 参数", "children": []}
+        ]},
+        {"code": "8.2", "title": "属性与方法", "children": [
+          {"code": null, "title": "实例变量与类变量", "children": []},
+          {"code": null, "title": "实例方法", "children": []},
+          {"code": null, "title": "类方法与静态方法", "children": []},
+          {"code": null, "title": "property 装饰器", "children": []}
+        ]},
+        {"code": "8.3", "title": "继承与多态", "children": [
+          {"code": null, "title": "继承的基本语法", "children": []},
+          {"code": null, "title": "方法重写", "children": []},
+          {"code": null, "title": "多态基础", "children": []},
+          {"code": null, "title": "魔术方法简介", "children": []}
+        ]}
+      ]
+    },
+    {
+      "code": "9",
+      "title": "Python 实用编程",
+      "children": [
+        {"code": "9.1", "title": "常用标准库", "children": [
+          {"code": null, "title": "datetime 时间处理", "children": []},
+          {"code": null, "title": "collections 模块", "children": []},
+          {"code": null, "title": "random 随机数", "children": []}
+        ]},
+        {"code": "9.2", "title": "正则表达式基础", "children": [
+          {"code": null, "title": "re 模块基础", "children": []},
+          {"code": null, "title": "常见正则模式", "children": []}
+        ]},
+        {"code": "9.3", "title": "简单网络与数据处理", "children": [
+          {"code": null, "title": "urllib / requests 基础", "children": []},
+          {"code": null, "title": "列表与字典综合处理", "children": []}
+        ]},
+        {"code": "9.4", "title": "测试与项目结构", "children": [
+          {"code": null, "title": "unittest 基础", "children": []},
+          {"code": null, "title": "项目目录建议", "children": []}
+        ]}
+      ]
+    }
+  ]
+}

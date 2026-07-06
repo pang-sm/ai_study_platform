@@ -1,0 +1,198 @@
+{
+  "course_id": "operating_system",
+  "course_name": "操作系统",
+  "source": "课程学习方向标准知识脉络第一版",
+  "chapters": [
+    {
+      "code": "1",
+      "title": "操作系统概述",
+      "children": [
+        {"code": "1.1", "title": "操作系统的定义与目标", "children": [
+          {"code": null, "title": "操作系统的定义", "children": []},
+          {"code": null, "title": "操作系统的目标", "children": []},
+          {"code": null, "title": "操作系统的主要功能", "children": []}
+        ]},
+        {"code": "1.2", "title": "操作系统的发展与类型", "children": [
+          {"code": null, "title": "操作系统的历史阶段", "children": []},
+          {"code": null, "title": "批处理系统", "children": []},
+          {"code": null, "title": "分时系统", "children": []},
+          {"code": null, "title": "实时系统", "children": []}
+        ]},
+        {"code": "1.3", "title": "运行环境与体系结构", "children": [
+          {"code": null, "title": "内核态与用户态", "children": []},
+          {"code": null, "title": "中断与异常", "children": []},
+          {"code": null, "title": "系统调用", "children": []},
+          {"code": null, "title": "操作系统体系结构", "children": []}
+        ]}
+      ]
+    },
+    {
+      "code": "2",
+      "title": "进程与线程",
+      "children": [
+        {"code": "2.1", "title": "进程的概念与状态", "children": [
+          {"code": null, "title": "进程的定义与特征", "children": []},
+          {"code": null, "title": "进程的状态与转换", "children": []},
+          {"code": null, "title": "进程控制块 PCB", "children": []},
+          {"code": null, "title": "进程的创建与终止", "children": []}
+        ]},
+        {"code": "2.2", "title": "线程", "children": [
+          {"code": null, "title": "线程的概念", "children": []},
+          {"code": null, "title": "用户级线程与内核级线程", "children": []},
+          {"code": null, "title": "多线程模型", "children": []},
+          {"code": null, "title": "进程与线程的比较", "children": []}
+        ]}
+      ]
+    },
+    {
+      "code": "3",
+      "title": "处理机调度",
+      "children": [
+        {"code": "3.1", "title": "调度的基本概念", "children": [
+          {"code": null, "title": "调度的层次", "children": []},
+          {"code": null, "title": "调度队列模型", "children": []},
+          {"code": null, "title": "CPU 调度时机", "children": []}
+        ]},
+        {"code": "3.2", "title": "调度算法", "children": [
+          {"code": null, "title": "先来先服务 FCFS", "children": []},
+          {"code": null, "title": "短作业优先 SJF", "children": []},
+          {"code": null, "title": "优先级调度", "children": []},
+          {"code": null, "title": "时间片轮转 RR", "children": []},
+          {"code": null, "title": "多级反馈队列", "children": []}
+        ]},
+        {"code": "3.3", "title": "调度性能指标", "children": [
+          {"code": null, "title": "周转时间与带权周转时间", "children": []},
+          {"code": null, "title": "等待时间", "children": []},
+          {"code": null, "title": "响应时间", "children": []}
+        ]}
+      ]
+    },
+    {
+      "code": "4",
+      "title": "进程同步与互斥",
+      "children": [
+        {"code": "4.1", "title": "基本概念", "children": [
+          {"code": null, "title": "临界资源与临界区", "children": []},
+          {"code": null, "title": "互斥原则", "children": []},
+          {"code": null, "title": "软件互斥方法", "children": []},
+          {"code": null, "title": "硬件互斥方法", "children": []}
+        ]},
+        {"code": "4.2", "title": "信号量机制", "children": [
+          {"code": null, "title": "信号量的定义", "children": []},
+          {"code": null, "title": "wait 与 signal 操作", "children": []},
+          {"code": null, "title": "信号量的应用", "children": []}
+        ]},
+        {"code": "4.3", "title": "管程", "children": [
+          {"code": null, "title": "管程的定义与组成", "children": []},
+          {"code": null, "title": "条件变量", "children": []}
+        ]},
+        {"code": "4.4", "title": "经典同步问题", "children": [
+          {"code": null, "title": "生产者消费者问题", "children": []},
+          {"code": null, "title": "读者写者问题", "children": []},
+          {"code": null, "title": "哲学家进餐问题", "children": []}
+        ]}
+      ]
+    },
+    {
+      "code": "5",
+      "title": "死锁",
+      "children": [
+        {"code": "5.1", "title": "死锁的基本概念", "children": [
+          {"code": null, "title": "死锁的定义", "children": []},
+          {"code": null, "title": "死锁产生的必要条件", "children": []},
+          {"code": null, "title": "死锁资源分配图", "children": []}
+        ]},
+        {"code": "5.2", "title": "死锁的处理", "children": [
+          {"code": null, "title": "死锁预防", "children": []},
+          {"code": null, "title": "死锁避免与银行家算法", "children": []},
+          {"code": null, "title": "死锁检测与解除", "children": []}
+        ]}
+      ]
+    },
+    {
+      "code": "6",
+      "title": "内存管理",
+      "children": [
+        {"code": "6.1", "title": "内存管理基础", "children": [
+          {"code": null, "title": "程序装入与链接", "children": []},
+          {"code": null, "title": "连续分配方式", "children": []},
+          {"code": null, "title": "动态分区分配算法", "children": []}
+        ]},
+        {"code": "6.2", "title": "分页管理", "children": [
+          {"code": null, "title": "分页的基本概念", "children": []},
+          {"code": null, "title": "页表与地址转换", "children": []},
+          {"code": null, "title": "快表 TLB", "children": []},
+          {"code": null, "title": "多级页表", "children": []}
+        ]},
+        {"code": "6.3", "title": "分段与段页式管理", "children": [
+          {"code": null, "title": "分段存储管理", "children": []},
+          {"code": null, "title": "段页式存储管理", "children": []},
+          {"code": null, "title": "分页与分段的比较", "children": []}
+        ]}
+      ]
+    },
+    {
+      "code": "7",
+      "title": "虚拟内存",
+      "children": [
+        {"code": "7.1", "title": "虚拟内存概念", "children": [
+          {"code": null, "title": "虚拟存储器的定义", "children": []},
+          {"code": null, "title": "局部性原理", "children": []},
+          {"code": null, "title": "请求分页系统", "children": []}
+        ]},
+        {"code": "7.2", "title": "页面置换算法", "children": [
+          {"code": null, "title": "最佳置换 OPT", "children": []},
+          {"code": null, "title": "先进先出 FIFO", "children": []},
+          {"code": null, "title": "最近最久未使用 LRU", "children": []},
+          {"code": null, "title": "Clock 算法", "children": []}
+        ]},
+        {"code": "7.3", "title": "页面分配与工作集", "children": [
+          {"code": null, "title": "驻留集与页面分配策略", "children": []},
+          {"code": null, "title": "工作集模型", "children": []},
+          {"code": null, "title": "抖动现象", "children": []}
+        ]}
+      ]
+    },
+    {
+      "code": "8",
+      "title": "文件系统",
+      "children": [
+        {"code": "8.1", "title": "文件与目录", "children": [
+          {"code": null, "title": "文件的概念与属性", "children": []},
+          {"code": null, "title": "文件逻辑结构", "children": []},
+          {"code": null, "title": "目录结构", "children": []},
+          {"code": null, "title": "文件共享与保护", "children": []}
+        ]},
+        {"code": "8.2", "title": "文件物理结构与存储", "children": [
+          {"code": null, "title": "连续分配与链接分配", "children": []},
+          {"code": null, "title": "索引分配", "children": []},
+          {"code": null, "title": "空闲空间管理", "children": []}
+        ]},
+        {"code": "8.3", "title": "磁盘调度", "children": [
+          {"code": null, "title": "磁盘结构与访问时间", "children": []},
+          {"code": null, "title": "先来先服务 FCFS", "children": []},
+          {"code": null, "title": "最短寻道时间 SSTF", "children": []},
+          {"code": null, "title": "SCAN 与 C-SCAN 算法", "children": []}
+        ]}
+      ]
+    },
+    {
+      "code": "9",
+      "title": "I/O 管理",
+      "children": [
+        {"code": "9.1", "title": "I/O 系统概述", "children": [
+          {"code": null, "title": "I/O 设备分类", "children": []},
+          {"code": null, "title": "I/O 控制方式：程序直接控制", "children": []},
+          {"code": null, "title": "中断驱动方式", "children": []},
+          {"code": null, "title": "DMA 方式", "children": []}
+        ]},
+        {"code": "9.2", "title": "I/O 软件与缓冲", "children": [
+          {"code": null, "title": "I/O 软件层次结构", "children": []},
+          {"code": null, "title": "缓冲技术", "children": []},
+          {"code": null, "title": "SPOOLing 技术", "children": []},
+          {"code": null, "title": "设备分配与虚拟设备", "children": []}
+        ]}
+      ]
+    }
+  ]
+}
