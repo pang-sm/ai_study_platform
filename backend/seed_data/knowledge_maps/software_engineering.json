@@ -133,6 +133,9 @@
         {"code":null,"title":"持续交付与持续部署","children":[]},
         {"code":null,"title":"工程实践案例","children":[]},
         {"code":null,"title":"测试驱动开发 TDD","children":[]},
+        {"code":null,"title":"代码审查流程与工具","children":[]},
+        {"code":null,"title":"缺陷跟踪与管理","children":[]},
+        {"code":null,"title":"发布与回滚策略","children":[]},
         {"code":null,"title":"代码坏味道与重构时机","children":[]}
       ]}
     ]}
