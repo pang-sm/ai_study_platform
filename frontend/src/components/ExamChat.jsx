@@ -372,7 +372,8 @@ export default function ExamChat({
     setLibraryLoading(true);
     try {
       const query = new URLSearchParams({ username: user.username });
-      if (courseName) query.set("subject", courseName);
+      const materialSubject = courseName || courseId || (isCourseMode ? subjectLabel : "");
+      if (materialSubject) query.set("subject", materialSubject);
       const res = await fetch(`${API_BASE}/materials?${query.toString()}`);
       const data = await res.json().catch(() => ({}));
       const materials = res.ok && Array.isArray(data.materials) ? data.materials : [];
