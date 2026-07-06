@@ -21162,8 +21162,11 @@ def analyze_knowledge_preview(req: schemas.MaterialAnalyzeKnowledgeRequest, db: 
 
     combined_content = "\n\n".join(content_parts)
 
-    if len(combined_content.strip()) < 100:
-        raise HTTPException(status_code=400, detail="资料内容不足，无法分析。请上传更多资料或等待资料解析完成后重试。")
+    # course_learning 资料可能较短（如课堂笔记），使用更低阈值
+    min_chars = 100 if course_id.startswith("11408 ") else 50
+    content_len = len(combined_content.strip())
+    if content_len < min_chars:
+        raise HTTPException(status_code=400, detail=f"资料内容不足，当前约 {content_len} 字符，至少需要 {min_chars} 字符。")
 
     # Build AI prompt
     user_prompt = f"""课程：{course_id}
