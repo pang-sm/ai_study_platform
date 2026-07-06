@@ -55,9 +55,17 @@ function nodeLabel(node) {
   return node?.title || "未命名知识点";
 }
 
-function chapterLabel(chapter) {
+function chapterLabel(chapter, fallbackIndex = 0) {
   if (!chapter) return "";
-  return `第${chapter.chapter_no}章 ${chapter.title}`;
+  const cn = chapter.chapter_no;
+  if (cn != null && cn !== "" && !Number.isNaN(Number(cn))) return `第${cn}章 ${chapter.title}`;
+  // course_learning seeds use "code" as numeric chapter identifier
+  const code = chapter.code;
+  if (code != null && code !== "" && !String(code).startsWith("_leaf:") && !Number.isNaN(Number(code))) return `第${code}章 ${chapter.title}`;
+  // final fallback: use array index
+  const idx = Number(fallbackIndex);
+  if (!Number.isNaN(idx) && idx >= 0) return `第${idx + 1}章 ${chapter.title}`;
+  return chapter.title;
 }
 
 function isInternalCode(code) {
@@ -440,7 +448,8 @@ export default function KnowledgeLearningPage({
     setSelectedNode((prev) => (prev?.code === code ? { ...prev, ...patch } : prev));
   };
 
-  const selectedChapterName = chapterLabel(activeChapter);
+  const activeChapterIndex = activeChapter ? chapters.indexOf(activeChapter) : -1;
+  const selectedChapterName = chapterLabel(activeChapter, activeChapterIndex);
   const detailNode = selectedNode || activeChapter;
   const detailIsLeaf = isLeaf(detailNode);
   const detailStatus = normalizeStatus(detailNode?.status);
@@ -647,15 +656,15 @@ export default function KnowledgeLearningPage({
       <section className="km-map-card">
         <aside className="km-chapter-list">
           <h2>章节目录</h2>
-          {chapters.map((chapter) => (
+          {chapters.map((chapter, idx) => (
             <button
-              key={chapter.code}
+              key={chapter.code || idx}
               type="button"
               className={`km-chapter-item${activeChapter?.code === chapter.code ? " km-chapter-item--active" : ""}`}
               onClick={() => handleChapterClick(chapter)}
             >
-              <span>{chapter.chapter_no}</span>
-              <strong>{chapterLabel(chapter)}</strong>
+              <span>{chapter.chapter_no || chapter.code || idx + 1}</span>
+              <strong>{chapterLabel(chapter, idx)}</strong>
             </button>
           ))}
         </aside>
