@@ -1759,6 +1759,22 @@ PLAN_LIMITS = {
         "material_upload_count": 999999,
         "single_file_size_mb": 500,
     },
+    "full": {
+        "chat": 999999,
+        "code_analyze": 999999,
+        "challenge_generate": 999999,
+        "learning_diagnosis": 999999,
+        "knowledge_generate": 999999,
+        "learning_plan_generate": 999999,
+        "material_link_recommend": 999999,
+        "question_generate": 999999,
+        "question_feedback": 999999,
+        "learning_report_generate": 999999,
+        "challenge_explain": 999999,
+        "challenge_test_gen": 999999,
+        "material_upload_count": 999999,
+        "single_file_size_mb": 500,
+    },
 }
 
 ALL_FEATURES = [
@@ -1772,7 +1788,7 @@ ALL_FEATURES = [
 def get_user_plan(username: str, db: Session):
     user = get_user_by_username(username, db)
     plan = (user.plan or "free").strip().lower()
-    if plan not in ("free", "pro", "admin"):
+    if plan not in ("free", "pro", "admin", "full"):
         plan = "free"
     is_admin = bool(user.is_admin)
     if is_admin:
