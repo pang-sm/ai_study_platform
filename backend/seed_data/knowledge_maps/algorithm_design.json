@@ -1,0 +1,124 @@
+{
+  "course_id": "algorithm_design",
+  "course_name": "算法设计与分析",
+  "source": "课程学习方向标准知识脉络第一版",
+  "chapters": [
+    {"code":"1","title":"算法分析基础","children":[
+      {"code":"1.1","title":"算法的基本概念","children":[
+        {"code":null,"title":"算法的定义与特征","children":[]},
+        {"code":null,"title":"算法的正确性","children":[]}
+      ]},
+      {"code":"1.2","title":"复杂度分析","children":[
+        {"code":null,"title":"时间复杂度","children":[]},
+        {"code":null,"title":"空间复杂度","children":[]},
+        {"code":null,"title":"渐进记号","children":[]},
+        {"code":null,"title":"最好最坏平均情况分析","children":[]}
+      ]}
+    ]},
+    {"code":"2","title":"递归与分治","children":[
+      {"code":"2.1","title":"递归","children":[
+        {"code":null,"title":"递归的定义与思想","children":[]},
+        {"code":null,"title":"递归式与求解","children":[]}
+      ]},
+      {"code":"2.2","title":"分治策略","children":[
+        {"code":null,"title":"分治的基本步骤","children":[]},
+        {"code":null,"title":"二分查找","children":[]},
+        {"code":null,"title":"归并排序","children":[]},
+        {"code":null,"title":"快速排序","children":[]},
+        {"code":null,"title":"主定理基础","children":[]}
+      ]}
+    ]},
+    {"code":"3","title":"贪心算法","children":[
+      {"code":"3.1","title":"贪心基础","children":[
+        {"code":null,"title":"贪心选择性质","children":[]},
+        {"code":null,"title":"最优子结构","children":[]}
+      ]},
+      {"code":"3.2","title":"经典问题","children":[
+        {"code":null,"title":"活动选择问题","children":[]},
+        {"code":null,"title":"区间调度","children":[]},
+        {"code":null,"title":"哈夫曼编码","children":[]},
+        {"code":null,"title":"最小生成树","children":[]},
+        {"code":null,"title":"贪心正确性证明方法","children":[]}
+      ]}
+    ]},
+    {"code":"4","title":"动态规划","children":[
+      {"code":"4.1","title":"DP 基础","children":[
+        {"code":null,"title":"重叠子问题","children":[]},
+        {"code":null,"title":"最优子结构","children":[]},
+        {"code":null,"title":"状态定义与转移","children":[]},
+        {"code":null,"title":"自顶向下与自底向上","children":[]}
+      ]},
+      {"code":"4.2","title":"经典 DP 问题","children":[
+        {"code":null,"title":"背包问题","children":[]},
+        {"code":null,"title":"最长公共子序列","children":[]},
+        {"code":null,"title":"矩阵链乘法基础","children":[]},
+        {"code":null,"title":"编辑距离基础","children":[]}
+      ]}
+    ]},
+    {"code":"5","title":"图算法","children":[
+      {"code":"5.1","title":"图的遍历","children":[
+        {"code":null,"title":"BFS 广度优先搜索","children":[]},
+        {"code":null,"title":"DFS 深度优先搜索","children":[]},
+        {"code":null,"title":"拓扑排序","children":[]}
+      ]},
+      {"code":"5.2","title":"图的最优路径","children":[
+        {"code":null,"title":"单源最短路径 Dijkstra","children":[]},
+        {"code":null,"title":"全源最短路径 Floyd-Warshall","children":[]},
+        {"code":null,"title":"Prim 与 Kruskal 最小生成树","children":[]},
+        {"code":null,"title":"连通分量与强连通分量","children":[]}
+      ]}
+    ]},
+    {"code":"6","title":"查找与排序算法","children":[
+      {"code":"6.1","title":"查找","children":[
+        {"code":null,"title":"顺序查找","children":[]},
+        {"code":null,"title":"二分查找","children":[]},
+        {"code":null,"title":"查找的性能比较","children":[]}
+      ]},
+      {"code":"6.2","title":"排序","children":[
+        {"code":null,"title":"比较排序：插入、冒泡、选择","children":[]},
+        {"code":null,"title":"高级排序：归并、快速、堆","children":[]},
+        {"code":null,"title":"非比较排序：计数排序、基数排序","children":[]},
+        {"code":null,"title":"排序下界","children":[]},
+        {"code":null,"title":"稳定性与算法选择","children":[]}
+      ]}
+    ]},
+    {"code":"7","title":"回溯法","children":[
+      {"code":"7.1","title":"回溯基础","children":[
+        {"code":null,"title":"状态空间树","children":[]},
+        {"code":null,"title":"约束条件与剪枝","children":[]},
+        {"code":null,"title":"回溯的一般框架","children":[]}
+      ]},
+      {"code":"7.2","title":"经典回溯问题","children":[
+        {"code":null,"title":"N 皇后问题","children":[]},
+        {"code":null,"title":"子集和问题","children":[]},
+        {"code":null,"title":"排列组合搜索","children":[]},
+        {"code":null,"title":"回溯复杂度分析","children":[]}
+      ]}
+    ]},
+    {"code":"8","title":"分支限界与搜索优化","children":[
+      {"code":"8.1","title":"分支限界","children":[
+        {"code":null,"title":"分支限界的基本思想","children":[]},
+        {"code":null,"title":"队列式分支限界","children":[]},
+        {"code":null,"title":"优先队列式分支限界","children":[]}
+      ]},
+      {"code":"8.2","title":"搜索优化","children":[
+        {"code":null,"title":"上界与下界估算","children":[]},
+        {"code":null,"title":"启发式搜索思想","children":[]},
+        {"code":null,"title":"旅行商问题基础","children":[]}
+      ]}
+    ]},
+    {"code":"9","title":"算法综合与问题建模","children":[
+      {"code":"9.1","title":"问题抽象","children":[
+        {"code":null,"title":"问题形式化","children":[]},
+        {"code":null,"title":"数据结构选择","children":[]},
+        {"code":null,"title":"算法策略选择","children":[]}
+      ]},
+      {"code":"9.2","title":"算法设计实践","children":[
+        {"code":null,"title":"正确性证明方法","children":[]},
+        {"code":null,"title":"复杂度优化技巧","children":[]},
+        {"code":null,"title":"边界条件处理","children":[]},
+        {"code":null,"title":"综合案例分析","children":[]}
+      ]}
+    ]}
+  ]
+}

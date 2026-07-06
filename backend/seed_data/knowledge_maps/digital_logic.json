@@ -1,0 +1,122 @@
+{
+  "course_id": "digital_logic",
+  "course_name": "数字逻辑",
+  "source": "课程学习方向标准知识脉络第一版",
+  "chapters": [
+    {"code":"1","title":"数制与编码","children":[
+      {"code":"1.1","title":"数制","children":[
+        {"code":null,"title":"二进制、八进制、十六进制","children":[]},
+        {"code":null,"title":"数制之间的转换","children":[]}
+      ]},
+      {"code":"1.2","title":"编码","children":[
+        {"code":null,"title":"原码、反码、补码基础","children":[]},
+        {"code":null,"title":"BCD 码","children":[]},
+        {"code":null,"title":"ASCII 码","children":[]},
+        {"code":null,"title":"校验码基础","children":[]}
+      ]}
+    ]},
+    {"code":"2","title":"逻辑代数基础","children":[
+      {"code":"2.1","title":"基本概念","children":[
+        {"code":null,"title":"逻辑变量与逻辑函数","children":[]},
+        {"code":null,"title":"与、或、非基本运算","children":[]},
+        {"code":null,"title":"真值表","children":[]}
+      ]},
+      {"code":"2.2","title":"运算规则","children":[
+        {"code":null,"title":"逻辑代数基本定律","children":[]},
+        {"code":null,"title":"代入规则","children":[]},
+        {"code":null,"title":"对偶规则","children":[]},
+        {"code":null,"title":"反演规则","children":[]}
+      ]}
+    ]},
+    {"code":"3","title":"逻辑函数化简","children":[
+      {"code":"3.1","title":"标准形式","children":[
+        {"code":null,"title":"最小项与标准与或式","children":[]},
+        {"code":null,"title":"最大项与标准或与式","children":[]},
+        {"code":null,"title":"代数化简法","children":[]}
+      ]},
+      {"code":"3.2","title":"卡诺图化简","children":[
+        {"code":null,"title":"卡诺图的构造","children":[]},
+        {"code":null,"title":"卡诺图化简步骤","children":[]},
+        {"code":null,"title":"无关项的处理","children":[]},
+        {"code":null,"title":"多输出函数化简基础","children":[]}
+      ]}
+    ]},
+    {"code":"4","title":"组合逻辑电路","children":[
+      {"code":"4.1","title":"组合电路基础","children":[
+        {"code":null,"title":"组合逻辑电路的特点","children":[]},
+        {"code":null,"title":"组合电路分析方法","children":[]},
+        {"code":null,"title":"组合电路设计方法","children":[]}
+      ]},
+      {"code":"4.2","title":"常用组合电路","children":[
+        {"code":null,"title":"编码器与优先编码器","children":[]},
+        {"code":null,"title":"译码器","children":[]},
+        {"code":null,"title":"数据选择器与分配器","children":[]},
+        {"code":null,"title":"加法器","children":[]},
+        {"code":null,"title":"数值比较器","children":[]}
+      ]}
+    ]},
+    {"code":"5","title":"触发器","children":[
+      {"code":"5.1","title":"触发器基础","children":[
+        {"code":null,"title":"时序逻辑与存储的概念","children":[]},
+        {"code":null,"title":"基本 RS 触发器","children":[]}
+      ]},
+      {"code":"5.2","title":"时钟触发器","children":[
+        {"code":null,"title":"同步 RS 触发器","children":[]},
+        {"code":null,"title":"D 触发器","children":[]},
+        {"code":null,"title":"JK 触发器","children":[]},
+        {"code":null,"title":"T 触发器","children":[]},
+        {"code":null,"title":"触发方式与触发器转换","children":[]}
+      ]}
+    ]},
+    {"code":"6","title":"时序逻辑电路","children":[
+      {"code":"6.1","title":"时序电路分析","children":[
+        {"code":null,"title":"时序电路的特点","children":[]},
+        {"code":null,"title":"状态表与状态图","children":[]},
+        {"code":null,"title":"同步时序电路分析","children":[]}
+      ]},
+      {"code":"6.2","title":"时序电路设计","children":[
+        {"code":null,"title":"同步时序电路设计方法","children":[]},
+        {"code":null,"title":"状态化简","children":[]},
+        {"code":null,"title":"异步时序电路基础","children":[]}
+      ]}
+    ]},
+    {"code":"7","title":"计数器与寄存器","children":[
+      {"code":"7.1","title":"寄存器","children":[
+        {"code":null,"title":"数据寄存器","children":[]},
+        {"code":null,"title":"移位寄存器","children":[]},
+        {"code":null,"title":"移位寄存器的应用","children":[]}
+      ]},
+      {"code":"7.2","title":"计数器","children":[
+        {"code":null,"title":"同步计数器","children":[]},
+        {"code":null,"title":"异步计数器","children":[]},
+        {"code":null,"title":"任意进制计数器设计","children":[]},
+        {"code":null,"title":"计数器级联","children":[]}
+      ]}
+    ]},
+    {"code":"8","title":"存储器与可编程逻辑","children":[
+      {"code":"8.1","title":"存储器","children":[
+        {"code":null,"title":"RAM 基础","children":[]},
+        {"code":null,"title":"ROM 基础","children":[]},
+        {"code":null,"title":"存储器扩展方法","children":[]}
+      ]},
+      {"code":"8.2","title":"可编程逻辑器件","children":[
+        {"code":null,"title":"PLA","children":[]},
+        {"code":null,"title":"PAL","children":[]},
+        {"code":null,"title":"FPGA 基础概念","children":[]},
+        {"code":null,"title":"可编程逻辑设计思想","children":[]}
+      ]}
+    ]},
+    {"code":"9","title":"数字系统综合设计","children":[
+      {"code":"9.1","title":"设计方法","children":[
+        {"code":null,"title":"数字系统设计流程","children":[]},
+        {"code":null,"title":"数据通路与控制器的划分","children":[]},
+        {"code":null,"title":"有限状态机 FSM 设计","children":[]}
+      ]},
+      {"code":"9.2","title":"设计实践","children":[
+        {"code":null,"title":"模块化设计方法","children":[]},
+        {"code":null,"title":"时序约束基础","children":[]},
+        {"code":null,"title":"综合设计案例","children":[]}
+      ]}
+    ]}
+  ]
+}
