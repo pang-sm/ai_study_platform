@@ -5446,29 +5446,140 @@ def get_course_learning_study_plan(username: str, course_id: str, db: Session = 
     normalized_course = re.sub(r"\s+", "_", (course_id or "").strip())
     if not normalized_course:
         raise HTTPException(status_code=400, detail="course_id is required")
+
+    seed_course_id = normalized_course
+    seed_path = _knowledge_map_seed_path(seed_course_id)
+    if not seed_path.exists():
+        english_id = resolve_course_id_from_display(normalized_course)
+        if english_id:
+            alt_path = _knowledge_map_seed_path(english_id)
+            if alt_path.exists():
+                seed_course_id = english_id
+                seed_path = alt_path
+
+    payload = {"chapters": [], "course_name": normalize_subject_course_learning(normalized_course) or normalized_course}
+    if seed_path.exists():
+        try:
+            payload = json.loads(seed_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=500, detail="course study plan data format error")
+
+    progress_rows = (
+        db.query(models.UserKnowledgeProgress)
+        .filter(
+            models.UserKnowledgeProgress.username == user.username,
+            models.UserKnowledgeProgress.course_id.in_(list({normalized_course, seed_course_id})),
+        )
+        .all()
+    )
+    progress_by_code = {
+        str(getattr(progress, "knowledge_point_code", "") or "").strip(): progress
+        for progress in progress_rows
+        if str(getattr(progress, "knowledge_point_code", "") or "").strip()
+    }
+    chapters = _attach_knowledge_map_status(
+        _clean_knowledge_map_titles(payload.get("chapters") or []),
+        progress_by_code,
+    )
+
+    def chapter_leaf_stats(chapter: dict) -> dict[str, int]:
+        counts = _collect_leaf_statuses(chapter)
+        mastered = counts.get("mastered", 0)
+        learning = counts.get("learning", 0)
+        review_due = counts.get("review_due", 0)
+        not_started = counts.get("not_started", 0)
+        total = mastered + learning + review_due + not_started
+        return {
+            "total": total,
+            "mastered": mastered,
+            "learning": learning,
+            "review_due": review_due,
+            "not_started": not_started,
+        }
+
+    plan_chapters = []
+    for index, chapter in enumerate(chapters, start=1):
+        stats = chapter_leaf_stats(chapter)
+        total = stats["total"]
+        mastered = stats["mastered"]
+        learning = stats["learning"]
+        status = "completed" if total > 0 and mastered == total else ("learning" if mastered > 0 or learning > 0 else "not_started")
+        plan_chapters.append({
+            "id": chapter.get("id") or f"chapter-{index}",
+            "code": chapter.get("code") or f"chapter-{index}",
+            "title": chapter.get("title") or chapter.get("name") or f"Chapter {index}",
+            "chapter_no": chapter.get("chapter_no") or chapter.get("chapterNo") or index,
+            "status": status,
+            "completion_rate": round(mastered / total * 100) if total > 0 else 0,
+            "leaf_stats": stats,
+            "children": chapter.get("children") or [],
+        })
+
     materials_count = db.query(models.StudyMaterial).filter(
         models.StudyMaterial.username == user.username,
         models.StudyMaterial.subject == normalized_course,
         models.StudyMaterial.is_deleted == False,
     ).count()
-    practice_records_count = db.query(models.LearningRecord).filter(
-        models.LearningRecord.user_id == user.id,
-        models.LearningRecord.subject == normalized_course,
-        models.LearningRecord.record_type == "practice",
-        models.LearningRecord.is_deleted == False,
-    ).count()
+    total_points = sum(item["leaf_stats"]["total"] for item in plan_chapters)
+    mastered_points = sum(item["leaf_stats"]["mastered"] for item in plan_chapters)
+    learning_points = sum(item["leaf_stats"]["learning"] for item in plan_chapters)
+    review_due_points = sum(item["leaf_stats"]["review_due"] for item in plan_chapters)
+    sections_completed = sum(1 for item in plan_chapters if item["status"] == "completed")
+    sections_learning = sum(1 for item in plan_chapters if item["status"] == "learning")
+    overall_progress = round(mastered_points / total_points * 100) if total_points > 0 else 0
+
+    tasks = []
+    for index, chapter in enumerate(plan_chapters[:5], start=1):
+        stats = chapter["leaf_stats"]
+        title = str(chapter.get("title") or f"Chapter {index}").strip()
+        if chapter["status"] == "completed":
+            task_title = f"复盘 {title}"
+            note = "本章知识点已完成，建议进行阶段复盘和资料回看。"
+        elif chapter["status"] == "learning":
+            task_title = f"继续学习 {title}"
+            note = "本章已有学习进度，继续推进未掌握知识点。"
+        else:
+            task_title = f"开始学习 {title}"
+            note = "根据课程知识脉络，从本章核心概念开始学习。"
+        tasks.append({
+            "id": f"{seed_course_id}-{chapter.get('code') or index}",
+            "title": task_title,
+            "task_type": "knowledge",
+            "status": chapter["status"],
+            "computed_status": "completed" if chapter["status"] == "completed" else ("in_progress" if chapter["status"] == "learning" else "not_started"),
+            "scope_type": "chapter",
+            "knowledge_point_name": title,
+            "note": note,
+            "completion_reason": f"{stats['mastered']} / {stats['total']} 个知识点已掌握" if stats["total"] else "等待补充课程知识脉络",
+        })
+
     return {
         "success": True,
         "service_key": "course_learning",
         "course_id": normalized_course,
-        "course_name": normalized_course,
+        "seed_course_id": seed_course_id,
+        "course_name": payload.get("course_name") or normalize_subject_course_learning(normalized_course) or normalized_course,
         "summary": {
-            "task_count": 0,
+            "task_count": len(tasks),
             "materials_count": materials_count,
-            "practice_records_count": practice_records_count,
+            "chapter_count": len(plan_chapters),
+            "knowledge_point_count": total_points,
         },
-        "tasks": [],
-        "empty": True,
+        "stats": {
+            "total_knowledge_points": total_points,
+            "mastered": mastered_points,
+            "learning": learning_points,
+            "review_due": review_due_points,
+            "total_sections": len(plan_chapters),
+            "sections_completed": sections_completed,
+            "sections_learning": sections_learning,
+            "sections_not_started": max(0, len(plan_chapters) - sections_completed - sections_learning),
+            "overall_progress": overall_progress,
+            "overall_status": "completed" if plan_chapters and sections_completed == len(plan_chapters) else ("learning" if sections_completed or sections_learning else "not_started"),
+        },
+        "chapters": plan_chapters,
+        "tasks": tasks,
+        "empty": len(plan_chapters) == 0 and len(tasks) == 0,
     }
 
 

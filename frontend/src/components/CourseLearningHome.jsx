@@ -270,7 +270,6 @@ export default function CourseLearningHome({
                   <small>{course.status}</small>
                   <em>{course.goal}</em>
                 </span>
-                {index === 0 && <span className="clh-course-check">✓</span>}
               </button>
             ))}
             <button className="clh-add-course" type="button" onClick={openAddModal}>

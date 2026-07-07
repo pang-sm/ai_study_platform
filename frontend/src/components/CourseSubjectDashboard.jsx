@@ -2,7 +2,6 @@ import { useEffect, useState, lazy, Suspense } from "react";
 import ExamChat from "./ExamChat.jsx";
 import ExamStudyPlan from "./ExamStudyPlan.jsx";
 import KnowledgeLearningPage from "./KnowledgeLearningPage.jsx";
-const ExamPracticeCenter = lazy(() => import("./ExamPracticeCenter.jsx"));
 const LearningReportCenter = lazy(() => import("./LearningReportCenter.jsx"));
 import "./CourseSubjectDashboard.css";
 
@@ -14,7 +13,6 @@ const NAV_ITEMS = [
   { key: "materials", label: "资料库", icon: "▣" },
   { key: "knowledge", label: "知识脉络", icon: "⌘" },
   { key: "plan", label: "学习计划", icon: "▤" },
-  { key: "practice", label: "练习中心", icon: "✎" },
   { key: "report", label: "学习报告", icon: "▧" },
 ];
 
@@ -102,7 +100,6 @@ export default function CourseSubjectDashboard({
   // Content props — if provided, render them; otherwise render fallback overview placeholders
   materialsContent = null,
   knowledgeContent = null,
-  practiceContent = null,
   reportContent = null,
   planContent = null,
   knowledgeContext = null,
@@ -115,7 +112,7 @@ export default function CourseSubjectDashboard({
   const panelStorageKey = `course_subject_active_panel_${buildCourseId(initialCourseName, initialCourseId)}`;
 
   const normalizePanel = (panel) =>
-    ["overview", "chat", "materials", "knowledge", "plan", "practice", "report"].includes(panel)
+    ["overview", "chat", "materials", "knowledge", "plan", "report"].includes(panel)
       ? panel
       : null;
 
@@ -263,7 +260,7 @@ export default function CourseSubjectDashboard({
           <h3><span>⌘</span> 知识脉络</h3>
           <div className="csd-orbit">
             <strong>{courseName}</strong>
-            {["课程概念", "课堂资料", "作业练习", "复盘报告"].map((label, index) => (
+            {["课程概念", "课堂资料", "阶段复盘", "学习报告"].map((label, index) => (
               <span className={`csd-node csd-node--${index}${index === 0 ? " is-active" : ""}`} key={label}>
                 {label}
               </span>
@@ -368,25 +365,9 @@ export default function CourseSubjectDashboard({
           courseName={courseName}
           onNavigate={(target) => {
             // Navigate within CourseSubjectDashboard
-            if (target === "practice") setActiveSection("practice");
-            else if (target === "knowledge") setActiveSection("knowledge");
+            if (target === "knowledge") setActiveSection("knowledge");
           }}
         />
-      );
-    }
-
-    // Practice Center — use content prop if available, else use ExamPracticeCenter with course_learning mode
-    if (activeSection === "practice") {
-      if (practiceContent) return practiceContent;
-      return (
-        <Suspense fallback={<div className="csd-loading">练习中心加载中...</div>}>
-          <ExamPracticeCenter
-            user={user}
-            mode="course_learning"
-            courseId={courseId}
-            courseName={courseName}
-          />
-        </Suspense>
       );
     }
 
@@ -445,7 +426,7 @@ export default function CourseSubjectDashboard({
         </div>
       </aside>
 
-      <main className={`csd-main${activeSection === "chat" ? " csd-main--chat" : ""}${activeSection === "materials" ? " csd-main--materials" : ""}${activeSection === "knowledge" ? " csd-main--knowledge" : ""}${activeSection === "plan" ? " csd-main--plan" : ""}${activeSection === "practice" ? " csd-main--practice" : ""}${activeSection === "report" ? " csd-main--report" : ""}`}>
+      <main className={`csd-main${activeSection === "chat" ? " csd-main--chat" : ""}${activeSection === "materials" ? " csd-main--materials" : ""}${activeSection === "knowledge" ? " csd-main--knowledge" : ""}${activeSection === "plan" ? " csd-main--plan" : ""}${activeSection === "report" ? " csd-main--report" : ""}`}>
         {loading ? (
           <section className="csd-card csd-loading">课程工作台加载中...</section>
         ) : (

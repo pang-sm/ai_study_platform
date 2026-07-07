@@ -20,6 +20,20 @@
   overflow: hidden;
 }
 
+.csd-main--materials .cmp-shell {
+  min-height: auto;
+  align-items: start;
+  padding-bottom: 48px;
+}
+
+.csd-main--materials .cmp-main-panel {
+  overflow: visible;
+}
+
+.csd-main--materials .cmp-table-card {
+  overflow-x: auto;
+}
+
 .cmp-header {
   display: flex;
   align-items: flex-start;
