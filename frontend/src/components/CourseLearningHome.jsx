@@ -13,15 +13,6 @@ const COURSE_THEMES = [
 
 const GOAL_OPTIONS = ["平日学习", "考试突击"];
 
-const MATERIAL_TYPES = [
-  { key: "slides", label: "课件讲义", hint: "份", tone: "blue", match: ["ppt", "课件", "讲义", "slides"] },
-  { key: "books", label: "教材电子书", hint: "本", tone: "orange", match: ["教材", "电子书", "book"] },
-  { key: "notes", label: "课堂笔记", hint: "份", tone: "indigo", match: ["笔记", "note"] },
-  { key: "exercises", label: "习题集", hint: "份", tone: "cyan", match: ["习题", "作业", "exercise", "homework"] },
-  { key: "labs", label: "实验报告", hint: "份", tone: "green", match: ["实验", "报告", "lab"] },
-  { key: "reading", label: "拓展阅读", hint: "篇", tone: "violet", match: ["阅读", "论文", "paper", "reference"] },
-];
-
 function uniqueValues(values) {
   return Array.from(new Set((values || []).map((item) => `${item || ""}`.trim()).filter(Boolean)));
 }
@@ -37,11 +28,27 @@ function formatSize(bytes) {
   return `${(value / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }
 
-function getMaterialTypeCount(materials, type) {
-  return (materials || []).filter((item) => {
-    const text = `${item.file_type || ""} ${item.file_name || ""} ${item.original_filename || ""} ${item.summary || ""}`.toLowerCase();
-    return type.match.some((keyword) => text.includes(keyword.toLowerCase()));
-  }).length;
+function getMaterialChunkCount(material) {
+  return Number(material?.chunk_count ?? material?.chunks ?? material?.chunkCount ?? 0) || 0;
+}
+
+function getMaterialTime(material) {
+  const value = material?.created_at || material?.uploaded_at || material?.upload_time || material?.updated_at || "";
+  const time = new Date(value).getTime();
+  return Number.isNaN(time) ? 0 : time;
+}
+
+function formatRecentUpload(materials) {
+  const latest = [...(materials || [])].sort((a, b) => getMaterialTime(b) - getMaterialTime(a))[0];
+  const time = getMaterialTime(latest);
+  if (!time) return "-";
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(time));
 }
 
 function getCourseInitials(course, index) {
@@ -160,8 +167,20 @@ export default function CourseLearningHome({
   const planItems = [];
 
   const totalSize = materials.reduce((sum, item) => sum + Number(item.file_size || 0), 0);
+  const indexedMaterialCount = materials.filter((item) => {
+    const status = String(item.parse_status || item.index_status || "").toLowerCase();
+    return Number(getMaterialChunkCount(item)) > 0 || status === "success" || status === "partial" || status === "indexed";
+  }).length;
+  const knowledgeChunkCount = materials.reduce((sum, item) => sum + getMaterialChunkCount(item), 0);
+  const recentUploadText = formatRecentUpload(materials);
   const uploadLimitMb = entitlements?.upload_limits?.single_file_size_mb || entitlements?.permissions?.material_upload_limit_mb || 0;
   const uploadLimitText = uploadLimitMb ? (Number(uploadLimitMb) >= 1024 ? `${Number(uploadLimitMb) / 1024} GB` : `${uploadLimitMb} MB`) : "未获取";
+  const overviewStats = [
+    { key: "total", label: "资料总数", value: `${materials.length}`, hint: "份" },
+    { key: "indexed", label: "AI 索引", value: `${indexedMaterialCount}`, hint: "份" },
+    { key: "chunks", label: "知识片段", value: knowledgeChunkCount.toLocaleString("zh-CN"), hint: "个" },
+    { key: "recent", label: "最近上传", value: recentUploadText, hint: "" },
+  ];
 
   const openCourse = (course) => {
     const courseName = normalizeCourseName(course);
@@ -310,27 +329,22 @@ export default function CourseLearningHome({
               <span className="clh-panel-icon clh-panel-icon--folder">▰</span>
               <h2>资料库概览</h2>
             </div>
-            <div className="clh-material-grid">
-              {MATERIAL_TYPES.map((type) => {
-                const count = getMaterialTypeCount(materials, type);
-                return (
-                  <button
-                    className="clh-material-item"
-                    type="button"
-                    key={type.key}
-                    onClick={() => setPage("workspaceMaterials")}
-                  >
-                    <span className={`clh-material-icon clh-material-icon--${type.tone}`}>■</span>
-                    <span>
-                      <strong>{type.label}</strong>
-                      <small>{count} {type.hint}</small>
-                    </span>
-                  </button>
-                );
-              })}
+            <div className="clh-material-overview">
+              <div className="clh-material-stats">
+                {overviewStats.map((item) => (
+                  <div className="clh-material-stat" key={item.key}>
+                    <span>{item.label}</span>
+                    <strong>{item.value}</strong>
+                    {item.hint && <em>{item.hint}</em>}
+                  </div>
+                ))}
+              </div>
+              <p className="clh-material-note">
+                当前课程资料已同步到资料库，可用于 AI 问答、知识整理与学习计划生成。
+              </p>
             </div>
             <div className="clh-storage">
-              <span>已上传 {materials.length} 份资料，合计 {formatSize(totalSize)}；单文件上限 {uploadLimitText}</span>
+              <span>已上传 {materials.length} 份资料 · 合计 {formatSize(totalSize)} · 单文件上限 {uploadLimitText}</span>
               <div className="clh-storage-track">
                 <span style={{ width: `${materials.length > 0 ? 6 : 0}%` }} />
               </div>
