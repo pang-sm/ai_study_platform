@@ -239,5 +239,24 @@ jobs:
           cd ..
           sudo systemctl restart ai-backend
 
-          curl -fsS http://127.0.0.1 >/dev/null
+          echo "=== Waiting for backend health ==="
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:8000/health >/dev/null; then
+              echo "[deploy] backend health ok"
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "[deploy] backend health failed after restart"
+              sudo systemctl status ai-backend --no-pager -l || true
+              sudo journalctl -u ai-backend -n 80 --no-pager || true
+              exit 1
+            fi
+            sleep 2
+          done
+
+          echo "=== Verifying nginx health ==="
+          for i in {1..10}; do
+            curl -fsS http://127.0.0.1/api/health >/dev/null
+            sleep 1
+          done
           DEPLOYEOF

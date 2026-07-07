@@ -4166,6 +4166,11 @@ def health():
     return {"status": "ok"}
 
 
+@app.get("/api/health")
+def api_health():
+    return health()
+
+
 @app.get("/home/summary")
 def get_home_summary(username: str, db: Session = Depends(get_db)):
     """Minimal dashboard summary for the homepage. Aggregates real data only."""
