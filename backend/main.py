@@ -12509,6 +12509,26 @@ def _serialize_map_progress(progress: models.UserKnowledgeProgress | None, displ
     }
 
 
+BAD_CHAPTER_TITLE_PREFIX_RE = re.compile(r"^第\s*(?:undefined|null|NaN)\s*章\s*", re.IGNORECASE)
+
+
+def _clean_bad_chapter_title_prefix(title: object) -> str:
+    return BAD_CHAPTER_TITLE_PREFIX_RE.sub("", str(title or "")).strip()
+
+
+def _clean_knowledge_map_titles(nodes: list[dict]) -> list[dict]:
+    cleaned = []
+    for node in nodes or []:
+        item = dict(node)
+        if "title" in item:
+            item["title"] = _clean_bad_chapter_title_prefix(item.get("title"))
+        if "name" in item:
+            item["name"] = _clean_bad_chapter_title_prefix(item.get("name"))
+        item["children"] = _clean_knowledge_map_titles(item.get("children") or [])
+        cleaned.append(item)
+    return cleaned
+
+
 def _attach_knowledge_map_status(nodes: list[dict], progress_by_code: dict[str, models.UserKnowledgeProgress], path_prefix: str = "") -> list[dict]:
     result = []
     now = utc_now()
@@ -12637,7 +12657,8 @@ def get_knowledge_map(course_id: str, username: str = "", db: Session = Depends(
             if str(getattr(progress, "knowledge_point_code", "") or "").strip()
         }
 
-    chapters = _attach_knowledge_map_status(payload.get("chapters") or [], progress_by_code)
+    raw_chapters = _clean_knowledge_map_titles(payload.get("chapters") or [])
+    chapters = _attach_knowledge_map_status(raw_chapters, progress_by_code)
     total = _count_knowledge_map_points(chapters)
     mastered = 0
     learning = 0

@@ -55,17 +55,52 @@ function nodeLabel(node) {
   return node?.title || "未命名知识点";
 }
 
-function chapterLabel(chapter, fallbackIndex = 0) {
-  if (!chapter) return "";
-  const cn = chapter.chapter_no;
-  if (cn != null && cn !== "" && !Number.isNaN(Number(cn))) return `第${cn}章 ${chapter.title}`;
-  // course_learning seeds use "code" as numeric chapter identifier
-  const code = chapter.code;
-  if (code != null && code !== "" && !String(code).startsWith("_leaf:") && !Number.isNaN(Number(code))) return `第${code}章 ${chapter.title}`;
-  // final fallback: use array index
+function cleanChapterTitle(title) {
+  return String(title || "")
+    .replace(/^第\s*(?:undefined|null|NaN|\d+)\s*章\s*/i, "")
+    .trim();
+}
+
+function parseChapterNumber(value) {
+  if (value == null || value === "") return null;
+  const text = String(value).trim();
+  if (!text || text.startsWith("_leaf:")) return null;
+  const direct = Number(text);
+  if (Number.isInteger(direct) && direct > 0) return direct;
+  const match = text.match(/^(?:chapter|chap|ch)?\s*0*(\d+)(?:\b|[._-])/i) || text.match(/^(?:chapter|chap|ch)\s*0*(\d+)$/i);
+  if (!match) return null;
+  const parsed = Number(match[1]);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function getChapterNumber(chapter, fallbackIndex) {
+  if (!chapter) return null;
+  const candidates = [
+    chapter.chapter_no,
+    chapter.chapterNo,
+    chapter.code,
+    chapter.order,
+    chapter.sort_order,
+    chapter.sortOrder,
+    chapter.index,
+    chapter.sequence,
+  ];
+  for (const candidate of candidates) {
+    const number = parseChapterNumber(candidate);
+    if (number != null) return number;
+  }
   const idx = Number(fallbackIndex);
-  if (!Number.isNaN(idx) && idx >= 0) return `第${idx + 1}章 ${chapter.title}`;
-  return chapter.title;
+  return Number.isInteger(idx) && idx >= 0 ? idx + 1 : null;
+}
+
+function formatChapterLabel(chapter, fallbackIndex = null) {
+  if (!chapter) return "";
+  const cleanTitle = cleanChapterTitle(chapter.title || chapter.name || chapter.chapter_name || "");
+  const chapterNumber = getChapterNumber(chapter, fallbackIndex);
+  const label = chapterNumber != null
+    ? `第${chapterNumber}章${cleanTitle ? ` ${cleanTitle}` : ""}`
+    : cleanTitle;
+  return label.replace(/\b(?:undefined|null|NaN)\b/gi, "").trim();
 }
 
 function isInternalCode(code) {
@@ -449,7 +484,7 @@ export default function KnowledgeLearningPage({
   };
 
   const activeChapterIndex = activeChapter ? chapters.indexOf(activeChapter) : -1;
-  const selectedChapterName = chapterLabel(activeChapter, activeChapterIndex);
+  const selectedChapterName = formatChapterLabel(activeChapter, activeChapterIndex);
   const detailNode = selectedNode || activeChapter;
   const detailIsLeaf = isLeaf(detailNode);
   const detailStatus = normalizeStatus(detailNode?.status);
@@ -663,8 +698,8 @@ export default function KnowledgeLearningPage({
               className={`km-chapter-item${activeChapter?.code === chapter.code ? " km-chapter-item--active" : ""}`}
               onClick={() => handleChapterClick(chapter)}
             >
-              <span>{chapter.chapter_no || chapter.code || idx + 1}</span>
-              <strong>{chapterLabel(chapter, idx)}</strong>
+              <span>{getChapterNumber(chapter, idx) || ""}</span>
+              <strong>{formatChapterLabel(chapter, idx)}</strong>
             </button>
           ))}
         </aside>
