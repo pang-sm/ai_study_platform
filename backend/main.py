@@ -5440,10 +5440,10 @@ def get_course_learning_packages():
     }
 
 
-@app.get("/course-learning/study-plan")
-def get_course_learning_study_plan(username: str, course_id: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def _resolve_course_learning_study_plan_context(course_id: str) -> tuple[str, str, Path, dict]:
     normalized_course = re.sub(r"\s+", "_", (course_id or "").strip())
+    if normalized_course.startswith("course_learning:"):
+        normalized_course = normalized_course.split(":", 1)[1].strip()
     if not normalized_course:
         raise HTTPException(status_code=400, detail="course_id is required")
 
@@ -5457,12 +5457,28 @@ def get_course_learning_study_plan(username: str, course_id: str, db: Session = 
                 seed_course_id = english_id
                 seed_path = alt_path
 
-    payload = {"chapters": [], "course_name": normalize_subject_course_learning(normalized_course) or normalized_course}
+    payload = {
+        "chapters": [],
+        "course_name": normalize_subject_course_learning(normalized_course) or normalized_course,
+    }
     if seed_path.exists():
         try:
             payload = json.loads(seed_path.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             raise HTTPException(status_code=500, detail="course study plan data format error")
+    return normalized_course, seed_course_id, seed_path, payload
+
+
+def _course_learning_task_subject_key(course_id: str) -> str:
+    _, seed_course_id, _, _ = _resolve_course_learning_study_plan_context(course_id)
+    return f"course_learning:{seed_course_id}"
+
+
+@app.get("/course-learning/study-plan")
+def get_course_learning_study_plan(username: str, course_id: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    normalized_course, seed_course_id, _seed_path, payload = _resolve_course_learning_study_plan_context(course_id)
+    task_subject_key = f"course_learning:{seed_course_id}"
 
     progress_rows = (
         db.query(models.UserKnowledgeProgress)
@@ -5528,36 +5544,18 @@ def get_course_learning_study_plan(username: str, course_id: str, db: Session = 
     sections_learning = sum(1 for item in plan_chapters if item["status"] == "learning")
     overall_progress = round(mastered_points / total_points * 100) if total_points > 0 else 0
 
-    tasks = []
-    for index, chapter in enumerate(plan_chapters[:5], start=1):
-        stats = chapter["leaf_stats"]
-        title = str(chapter.get("title") or f"Chapter {index}").strip()
-        if chapter["status"] == "completed":
-            task_title = f"复盘 {title}"
-            note = "本章知识点已完成，建议进行阶段复盘和资料回看。"
-        elif chapter["status"] == "learning":
-            task_title = f"继续学习 {title}"
-            note = "本章已有学习进度，继续推进未掌握知识点。"
-        else:
-            task_title = f"开始学习 {title}"
-            note = "根据课程知识脉络，从本章核心概念开始学习。"
-        tasks.append({
-            "id": f"{seed_course_id}-{chapter.get('code') or index}",
-            "title": task_title,
-            "task_type": "knowledge",
-            "status": chapter["status"],
-            "computed_status": "completed" if chapter["status"] == "completed" else ("in_progress" if chapter["status"] == "learning" else "not_started"),
-            "scope_type": "chapter",
-            "knowledge_point_name": title,
-            "note": note,
-            "completion_reason": f"{stats['mastered']} / {stats['total']} 个知识点已掌握" if stats["total"] else "等待补充课程知识脉络",
-        })
+    task_rows = db.query(models.ExamStudyPlanTask).filter(
+        models.ExamStudyPlanTask.username == user.username,
+        models.ExamStudyPlanTask.subject_key == task_subject_key,
+    ).order_by(models.ExamStudyPlanTask.created_at.desc()).all()
+    tasks = [_serialize_task(t, db) for t in task_rows]
 
     return {
         "success": True,
         "service_key": "course_learning",
         "course_id": normalized_course,
         "seed_course_id": seed_course_id,
+        "subject_key": task_subject_key,
         "course_name": payload.get("course_name") or normalize_subject_course_learning(normalized_course) or normalized_course,
         "summary": {
             "task_count": len(tasks),
@@ -5579,9 +5577,8 @@ def get_course_learning_study_plan(username: str, course_id: str, db: Session = 
         },
         "chapters": plan_chapters,
         "tasks": tasks,
-        "empty": len(plan_chapters) == 0 and len(tasks) == 0,
+        "empty": len(tasks) == 0,
     }
-
 
 @app.post("/me/avatar")
 async def upload_avatar(
@@ -13457,7 +13454,8 @@ def _compute_task_completion(
     """
     username = task.username
     subject_key = task.subject_key
-    course_id = f"{subject_key}_11408"
+    is_course_learning = subject_key.startswith("course_learning:")
+    course_id = subject_key.split(":", 1)[1] if is_course_learning else f"{subject_key}_11408"
     kp_name = (task.knowledge_point_name or "").strip()
     scope = (task.scope_type or "single").strip()
     task_type = (task.task_type or "knowledge").strip()
@@ -13477,12 +13475,8 @@ def _compute_task_completion(
         p_status = _display_map_progress_status(p)
         progress_by_code[code] = p_status
 
-    # Load chapter practice records
-    cp_rows = db.query(models.ExamStudyPlanChapterPractice).filter(
-        models.ExamStudyPlanChapterPractice.username == username,
-        models.ExamStudyPlanChapterPractice.subject_key == subject_key,
-    ).all()
-    cp_completed_codes = {r.section_code for r in cp_rows if r.completed}
+    if is_course_learning and task_type == "chapter_practice":
+        return ("not_started", "课程学习不使用章节练习任务", "knowledge_map")
 
     # Build knowledge map index to resolve scope
     seed_path = _knowledge_map_seed_path(course_id)
@@ -13649,12 +13643,16 @@ def _serialize_task(task: models.ExamStudyPlanTask, db: Session | None = None) -
     computed_status, reason, action_target = "not_started", "", "knowledge_map"
     if db is not None:
         computed_status, reason, action_target = _compute_task_completion(task, db)
+    subject_name = EXAM_SUBJECT_DIRS.get(task.subject_key, task.subject_key)
+    if task.subject_key.startswith("course_learning:"):
+        course_id = task.subject_key.split(":", 1)[1]
+        subject_name = normalize_subject_course_learning(course_id) or course_id
 
     return {
         "id": task.id,
         "username": task.username,
         "subject_key": task.subject_key,
-        "subject_name": EXAM_SUBJECT_DIRS.get(task.subject_key, task.subject_key),
+        "subject_name": subject_name,
         "title": task.title,
         "knowledge_point_name": task.knowledge_point_name or task.secondary_knowledge or "",
         "scope_type": task.scope_type or "single",
@@ -13763,6 +13761,103 @@ def delete_exam_study_plan_task(
     return {"success": True, "deleted_id": task_id}
 
 
+@app.post("/course-learning/study-plan/tasks")
+def create_course_learning_study_plan_task(
+    req: schemas.ExamStudyPlanTaskCreate,
+    db: Session = Depends(get_db),
+):
+    course_id = req.subject_key or ""
+    task_subject_key = _course_learning_task_subject_key(course_id)
+    if not (req.knowledge_point_name or "").strip() and (req.scope_type or "single") != "all":
+        raise HTTPException(status_code=400, detail="knowledge_point_name is required when scope_type is not 'all'")
+    task_type = req.task_type or "knowledge"
+    if task_type == "chapter_practice":
+        raise HTTPException(status_code=400, detail="chapter_practice is not available for course learning")
+    if task_type not in {"knowledge", "review"}:
+        raise HTTPException(status_code=400, detail=f"Invalid task_type: {task_type}")
+
+    user = get_user_by_username(req.username, db)
+    now = utc_now()
+    task = models.ExamStudyPlanTask(
+        username=user.username,
+        subject_key=task_subject_key,
+        title=req.title,
+        knowledge_point_name=req.knowledge_point_name or "",
+        scope_type=req.scope_type or "single",
+        task_type=task_type,
+        status="not_started",
+        due_date=req.due_date or "",
+        note=req.note or "",
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+    return {"success": True, "task": _serialize_task(task, db)}
+
+
+@app.patch("/course-learning/study-plan/tasks/{task_id}")
+def update_course_learning_study_plan_task(
+    task_id: int,
+    req: schemas.ExamStudyPlanTaskUpdate,
+    db: Session = Depends(get_db),
+):
+    course_id = req.subject_key or ""
+    task_subject_key = _course_learning_task_subject_key(course_id)
+    user = get_user_by_username(req.username, db)
+    task = db.query(models.ExamStudyPlanTask).filter(
+        models.ExamStudyPlanTask.id == task_id,
+        models.ExamStudyPlanTask.username == user.username,
+        models.ExamStudyPlanTask.subject_key == task_subject_key,
+    ).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    now = utc_now()
+    if req.title is not None:
+        task.title = req.title
+    if req.knowledge_point_name is not None:
+        task.knowledge_point_name = req.knowledge_point_name
+    if req.scope_type is not None:
+        task.scope_type = req.scope_type
+    if req.task_type is not None:
+        if req.task_type == "chapter_practice":
+            raise HTTPException(status_code=400, detail="chapter_practice is not available for course learning")
+        if req.task_type not in {"knowledge", "review"}:
+            raise HTTPException(status_code=400, detail=f"Invalid task_type: {req.task_type}")
+        task.task_type = req.task_type
+    if req.due_date is not None:
+        task.due_date = req.due_date
+    if req.note is not None:
+        task.note = req.note
+    task.updated_at = now
+    db.commit()
+    db.refresh(task)
+    return {"success": True, "task": _serialize_task(task, db)}
+
+
+@app.delete("/course-learning/study-plan/tasks/{task_id}")
+def delete_course_learning_study_plan_task(
+    task_id: int,
+    username: str = "",
+    course_id: str = "",
+    db: Session = Depends(get_db),
+):
+    task_subject_key = _course_learning_task_subject_key(course_id)
+    user = get_user_by_username(username, db)
+    task = db.query(models.ExamStudyPlanTask).filter(
+        models.ExamStudyPlanTask.id == task_id,
+        models.ExamStudyPlanTask.username == user.username,
+        models.ExamStudyPlanTask.subject_key == task_subject_key,
+    ).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    db.delete(task)
+    db.commit()
+    return {"success": True, "deleted_id": task_id}
+
+
 @app.get("/exam/11408/study-plan/tasks/summary")
 def get_exam_study_plan_tasks_summary(username: str = "", db: Session = Depends(get_db)):
     """Get all current-stage tasks across all four 11408 subjects for the home page."""
@@ -13772,6 +13867,7 @@ def get_exam_study_plan_tasks_summary(username: str = "", db: Session = Depends(
     user = get_user_by_username(username, db)
     tasks = db.query(models.ExamStudyPlanTask).filter(
         models.ExamStudyPlanTask.username == user.username,
+        models.ExamStudyPlanTask.subject_key.in_(list(EXAM_SUBJECT_DIRS.keys())),
     ).order_by(models.ExamStudyPlanTask.created_at.desc()).all()
 
     task_list = [_serialize_task(t, db) for t in tasks]

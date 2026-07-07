@@ -8,8 +8,9 @@ export default function ExamStudyPlanTaskModal({
   editTask,
   onSaved,
   onClose,
-  mode = "exam_11408",        // "exam_11408" | "course_learning"
-  courseName = "",             // used in course_learning mode
+  mode = "exam_11408",
+  courseName = "",
+  courseId = "",
 }) {
   const isCourseMode = mode === "course_learning";
   const config = isCourseMode
@@ -23,13 +24,14 @@ export default function ExamStudyPlanTaskModal({
     editTask?.knowledge_point_name || editTask?.secondary_knowledge || ""
   );
   const [scopeType, setScopeType] = useState(editTask?.scope_type || "single");
-  const [taskType, setTaskType] = useState(editTask?.task_type || "knowledge");
+  const [taskType, setTaskType] = useState(
+    isCourseMode && editTask?.task_type === "chapter_practice" ? "knowledge" : editTask?.task_type || "knowledge"
+  );
   const [dueDate, setDueDate] = useState(editTask?.due_date || "");
   const [note, setNote] = useState(editTask?.note || "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  // Gather all section (二级知识点) names for dropdown
   const allSections = useMemo(() => {
     const result = [];
     for (const ch of (chapters || [])) {
@@ -43,6 +45,15 @@ export default function ExamStudyPlanTaskModal({
     return result;
   }, [chapters]);
 
+  const taskTypes = useMemo(() => {
+    const types = [
+      { value: "knowledge", label: "知识点学习" },
+      { value: "chapter_practice", label: "章节练习" },
+      { value: "review", label: "阶段复习" },
+    ];
+    return isCourseMode ? types.filter((item) => item.value !== "chapter_practice") : types;
+  }, [isCourseMode]);
+
   const handleSave = async () => {
     if (!title.trim()) {
       setError("请输入任务标题");
@@ -55,33 +66,26 @@ export default function ExamStudyPlanTaskModal({
     setSaving(true);
     setError("");
 
+    const targetCourse = courseId || courseName || "course";
     const body = {
       username,
       title: title.trim(),
       knowledge_point_name: scopeType === "all" ? "全部范围" : kpName,
       scope_type: scopeType,
-      task_type: taskType,
+      task_type: isCourseMode && taskType === "chapter_practice" ? "knowledge" : taskType,
       due_date: dueDate,
       note: note.trim(),
+      subject_key: isCourseMode ? `course_learning:${targetCourse}` : subjectKey,
     };
-    if (isCourseMode) {
-      body.mode = "course_learning";
-      body.course_name = courseName || "";
-    } else {
-      body.subject_key = subjectKey;
-    }
-
-    // course_learning: task API not yet implemented — show message instead of 404
-    if (isCourseMode) {
-      setError("课程学习计划任务功能即将上线，敬请期待");
-      setSaving(false);
-      return;
-    }
 
     try {
-      const url = isEdit
-        ? `/api/exam/11408/subjects/${encodeURIComponent(subjectKey)}/study-plan/tasks/${editTask.id}`
-        : `/api/exam/11408/subjects/${encodeURIComponent(subjectKey)}/study-plan/tasks`;
+      const url = isCourseMode
+        ? (isEdit
+          ? `/api/course-learning/study-plan/tasks/${editTask.id}`
+          : "/api/course-learning/study-plan/tasks")
+        : (isEdit
+          ? `/api/exam/11408/subjects/${encodeURIComponent(subjectKey)}/study-plan/tasks/${editTask.id}`
+          : `/api/exam/11408/subjects/${encodeURIComponent(subjectKey)}/study-plan/tasks`);
       const method = isEdit ? "PATCH" : "POST";
       const res = await fetch(url, {
         method,
@@ -101,12 +105,6 @@ export default function ExamStudyPlanTaskModal({
     }
   };
 
-  const TASK_TYPES = [
-    { value: "knowledge", label: "知识点学习" },
-    { value: "chapter_practice", label: "章节练习" },
-    { value: "review", label: "阶段复习" },
-  ];
-
   return (
     <div className="esp-modal-overlay" onClick={onClose}>
       <div className="esp-modal" onClick={(e) => e.stopPropagation()}>
@@ -119,14 +117,18 @@ export default function ExamStudyPlanTaskModal({
 
           <div className="esp-form-group">
             <label>任务标题 *</label>
-            <input type="text" value={title}
+            <input
+              type="text"
+              value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="例如：完成线性表知识点学习" />
+              placeholder="例如：完成线性表知识点学习"
+            />
           </div>
 
           <div className="esp-form-group">
             <label>知识点 *</label>
-            <select value={scopeType === "all" ? "__all__" : kpName}
+            <select
+              value={scopeType === "all" ? "__all__" : kpName}
               onChange={(e) => {
                 const val = e.target.value;
                 if (val === "__all__") {
@@ -137,7 +139,8 @@ export default function ExamStudyPlanTaskModal({
                   setKpName(val);
                 }
               }}
-              required>
+              required
+            >
               <option value="__all__">📚 全部范围</option>
               <option value="" disabled>—— 选择具体知识点 ——</option>
               {allSections.map((s) => (
@@ -149,7 +152,7 @@ export default function ExamStudyPlanTaskModal({
           <div className="esp-form-group">
             <label>任务类型</label>
             <select value={taskType} onChange={(e) => setTaskType(e.target.value)}>
-              {TASK_TYPES.map((t) => (
+              {taskTypes.map((t) => (
                 <option key={t.value} value={t.value}>{t.label}</option>
               ))}
             </select>
@@ -157,17 +160,22 @@ export default function ExamStudyPlanTaskModal({
 
           <div className="esp-form-group">
             <label>计划完成日期</label>
-            <input type="date" value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)} />
+            <input
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+            />
           </div>
 
           <div className="esp-form-group">
             <label>备注（可选）</label>
-            <textarea value={note}
+            <textarea
+              value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="补充说明..."
               rows={3}
-              style={{ resize: "vertical", padding: "10px 14px", borderRadius: "10px", border: "1px solid #d1d5db", fontSize: "14px", outline: "none", fontFamily: "inherit" }} />
+              style={{ resize: "vertical", padding: "10px 14px", borderRadius: "10px", border: "1px solid #d1d5db", fontSize: "14px", outline: "none", fontFamily: "inherit" }}
+            />
           </div>
 
           <p style={{ fontSize: "12px", color: "#6b7280", margin: 0 }}>
