@@ -41,6 +41,14 @@ const STATUS_OPTIONS = [
   { value: "review_due", label: "待复习" },
 ];
 
+const EXAM_VALUE_OPTIONS = [
+  { value: "all", label: "全部" },
+  { value: "learning", label: "高频" },
+  { value: "mastered", label: "必背" },
+  { value: "review_due", label: "计算题" },
+  { value: "not_started", label: "简答题" },
+];
+
 const MANUAL_STATUS_OPTIONS = [
   { value: "not_started", label: "未学习" },
   { value: "learning", label: "学习中" },
@@ -332,6 +340,7 @@ export default function KnowledgeLearningPage({
   mode = "exam_11408",         // "exam_11408" | "course_learning"
   courseName: courseNameProp,   // direct course name for course_learning mode
   courseId: courseIdProp,
+  examCramMode = false,
 }) {
   const isCourseMode = mode === "course_learning";
   const courseId = isCourseMode
@@ -605,8 +614,15 @@ export default function KnowledgeLearningPage({
   }
 
   return (
-    <div className="km-page">
-      {!isCourseMode && (
+    <div className={`km-page${examCramMode ? " km-page--cram" : ""}`}>
+      {examCramMode ? (
+        <section className="km-hero-card">
+          <div>
+            <h1>{displaySubjectName}</h1>
+            <p>考试突击 · 高频考点脉络</p>
+          </div>
+        </section>
+      ) : !isCourseMode && (
         <section className="km-hero-card">
           <div>
             <h1>知识脉络 · {displaySubjectName}</h1>
@@ -617,8 +633,8 @@ export default function KnowledgeLearningPage({
 
       <section className="km-stats-row">
         <StatCard icon="◎" value={stats.total} label="知识点总数" />
-        <StatCard icon="✓" value={stats.mastered} label="已学习" />
-        <StatCard icon="◐" value={stats.learning} label="学习中" />
+        <StatCard icon="✓" value={stats.mastered} label={examCramMode ? "已掌握" : "已学习"} />
+        <StatCard icon="◐" value={stats.learning} label={examCramMode ? "高频考点" : "学习中"} />
         <StatCard icon="!" value={stats.review_due} label="待复习" />
       </section>
 
@@ -639,16 +655,16 @@ export default function KnowledgeLearningPage({
               onKeyDown={(event) => {
                 if (event.key === "Enter") handleSearch();
               }}
-              placeholder="在当前课程中搜索知识点、章节或编号..."
+              placeholder={examCramMode ? "搜索知识点、章节或关键词，如 “ARP” “拥塞控制”" : "在当前课程中搜索知识点、章节或编号..."}
             />
           </div>
           <button type="button" className="km-primary-button" onClick={handleSearch}>搜索</button>
         </div>
 
         <div className="km-filter-row km-filter-row--inline">
-          <span className="km-filter-label">掌握状态</span>
+          <span className="km-filter-label">{examCramMode ? "按考试价值筛选" : "掌握状态"}</span>
           <div className="km-chip-group">
-            {STATUS_OPTIONS.map((option) => (
+            {(examCramMode ? EXAM_VALUE_OPTIONS : STATUS_OPTIONS).map((option) => (
               <button
                 key={option.value}
                 type="button"
@@ -659,25 +675,28 @@ export default function KnowledgeLearningPage({
               </button>
             ))}
           </div>
+          {!examCramMode && (
+            <>
+              <span className="km-filter-sep" />
 
-          <span className="km-filter-sep" />
-
-          <span className="km-filter-label">复习规则</span>
-          <div className="km-review-setting">
-            <span>已学习后</span>
-            <input
-              type="number"
-              min="1"
-              max="365"
-              value={reviewInput}
-              onChange={(event) => setReviewInput(event.target.value)}
-              className="km-review-input"
-            />
-            <span>天转为待复习</span>
-            <button type="button" className="km-secondary-button" onClick={saveReviewSettings} disabled={reviewSaving}>
-              {reviewSaving ? "保存中..." : "保存"}
-            </button>
-          </div>
+              <span className="km-filter-label">复习规则</span>
+              <div className="km-review-setting">
+                <span>已学习后</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="365"
+                  value={reviewInput}
+                  onChange={(event) => setReviewInput(event.target.value)}
+                  className="km-review-input"
+                />
+                <span>天转为待复习</span>
+                <button type="button" className="km-secondary-button" onClick={saveReviewSettings} disabled={reviewSaving}>
+                  {reviewSaving ? "保存中..." : "保存"}
+                </button>
+              </div>
+            </>
+          )}
 
         </div>
       </section>
@@ -754,6 +773,18 @@ export default function KnowledgeLearningPage({
               <dt>当前状态</dt>
               <dd>{STATUS_CONFIG[detailStatus].shortLabel}</dd>
             </div>
+            {examCramMode && (
+              <>
+                <div>
+                  <dt>题型标签</dt>
+                  <dd>{detailIsLeaf ? "简答题 / 高频" : "章节汇总"}</dd>
+                </div>
+                <div>
+                  <dt>高频程度</dt>
+                  <dd>{detailStatus === "review_due" ? "最高" : detailStatus === "learning" ? "较高" : "中等"}</dd>
+                </div>
+              </>
+            )}
             {!detailIsLeaf && (
               <div>
                 <dt>下级知识点</dt>
@@ -774,7 +805,7 @@ export default function KnowledgeLearningPage({
             </div>
           )}
 
-          {detailIsLeaf ? (
+          {!examCramMode && detailIsLeaf ? (
             <div className="km-status-manager">
               <h3>状态管理</h3>
               <div className="km-status-actions">
@@ -791,14 +822,21 @@ export default function KnowledgeLearningPage({
                 ))}
               </div>
             </div>
-          ) : (
+          ) : !examCramMode ? (
             <div className="km-status-manager km-status-manager--disabled">
               <h3>状态管理</h3>
               <p className="km-parent-hint">该节点状态由下级知识点自动汇总，不能手动设置。</p>
             </div>
+          ) : null}
+
+          {examCramMode && (
+            <div className="km-review-hint km-review-hint--cram">
+              <h3>考试答题提醒</h3>
+              <p>先写关键词，再补充协议流程或计算步骤；遇到对比题要从作用层次、典型场景和优缺点三方面作答。</p>
+            </div>
           )}
 
-          <div className="km-review-hint">
+          {!examCramMode && <div className="km-review-hint">
             <h3>复习提示</h3>
             {detailIsLeaf && detailStatus === "review_due" ? (
               <p>该知识点已到复习时间，复习完成后请点击"已学习"开启下一轮复习。</p>
@@ -809,7 +847,7 @@ export default function KnowledgeLearningPage({
             ) : (
               <p>父级节点的复习状态由下级叶子知识点自动决定。</p>
             )}
-          </div>
+          </div>}
 
           <div className="km-actions">
             <button type="button" onClick={openAI}>AI问答</button>

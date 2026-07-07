@@ -259,6 +259,7 @@ export default function CourseMaterialsPage({
   setPage,
   onQuoteMaterial,
   initialSearchQuery = "",
+  examCramMode = false,
 }) {
   const isCourseMode = mode === "course_learning";
   const [query, setQuery] = useState("");
@@ -484,12 +485,12 @@ export default function CourseMaterialsPage({
       <section className="cmp-main-panel">
         <header className="cmp-header">
           <div>
-            {!isCourseMode && <h1>资料库 · {course.title}</h1>}
-            <p>{isCourseMode ? "课程资料管理" : `当前课程：${course.course}`}</p>
+            {(!isCourseMode || examCramMode) && <h1>{examCramMode ? course.title : `资料库 · ${course.title}`}</h1>}
+            <p>{examCramMode ? "考试突击 · 复习资料管理" : (isCourseMode ? "课程资料管理" : `当前课程：${course.course}`)}</p>
           </div>
           <div className="cmp-header-actions">
             <button className="cmp-btn cmp-btn--primary" type="button" onClick={() => materialsFileInputRef.current?.click()}>
-              上传课程资料
+              {examCramMode ? "上传复习资料" : "上传课程资料"}
             </button>
             <button className="cmp-btn cmp-btn--ghost" type="button" onClick={refreshAll} disabled={materialsLoading}>
               刷新
@@ -508,8 +509,14 @@ export default function CourseMaterialsPage({
           />
         </header>
         <div className="cmp-upload-notice">
-          <span>请上传你拥有合法使用权的学习资料。上传内容仅用于你的个人学习、AI 问答和知识点整理，不会公开给其他用户。</span>
-          <span>支持较大 PDF 上传；文本型 PDF 会尽量全文解析，扫描型 PDF 的 OCR 页数按套餐控制，普通套餐默认最多识别 20 页，全程考包支持更大规模 OCR。</span>
+          {examCramMode ? (
+            <span>优先上传复习范围、往年题、重点 PPT 和课堂笔记，便于 AI 提炼考试重点。</span>
+          ) : (
+            <>
+              <span>请上传你拥有合法使用权的学习资料。上传内容仅用于你的个人学习、AI 问答和知识点整理，不会公开给其他用户。</span>
+              <span>支持较大 PDF 上传；文本型 PDF 会尽量全文解析，扫描型 PDF 的 OCR 页数按套餐控制，普通套餐默认最多识别 20 页，全程考包支持更大规模 OCR。</span>
+            </>
+          )}
         </div>
 
         <div className="cmp-stats-row">
@@ -529,7 +536,7 @@ export default function CourseMaterialsPage({
                 onKeyDown={(event) => {
                   if (event.key === "Enter") runSearch();
                 }}
-                placeholder="在当前科目中搜索文件名、章节或知识点…"
+                placeholder={examCramMode ? "搜索文件名、章节或考试范围…" : "在当前科目中搜索文件名、章节或知识点…"}
               />
             </div>
             <button className="cmp-btn cmp-btn--primary" type="button" onClick={runSearch} disabled={materialSearchLoading}>
@@ -639,8 +646,16 @@ export default function CourseMaterialsPage({
         {!selected ? (
           <div className="cmp-detail-empty">
             <div className="cmp-empty-mark">▣</div>
-            <h3>请选择资料查看详情</h3>
-            <p>上传资料后可用于 AI 问答引用和学习。</p>
+            <h3>{examCramMode ? "推荐优先复习" : "请选择资料查看详情"}</h3>
+            {examCramMode ? (
+              <div className="cmp-cram-recommend-list">
+                <span>复习范围说明或考试大纲</span>
+                <span>近年真题与参考答案</span>
+                <span>重点 PPT 和课堂笔记</span>
+              </div>
+            ) : (
+              <p>上传资料后可用于 AI 问答引用和学习。</p>
+            )}
           </div>
         ) : (
           <>

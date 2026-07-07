@@ -570,12 +570,15 @@ function App() {
     }
     if (nextPage === "dashboard") {
       const rawCourseName = context?.courseName || context?.courseTitle || context?.name || context?.title || context?.subject || context?.courseId;
+      const rawLearningGoal = context?.learningGoal || context?.learning_goal || context?.study_goal || context?.mode || "";
       setCourseSubjectContext({
         ...(context || {}),
         courseId: context?.courseId || rawCourseName,
         courseName: rawCourseName,
         courseTitle: context?.courseTitle || rawCourseName,
         subject: rawCourseName,
+        learningGoal: rawLearningGoal,
+        learning_goal: rawLearningGoal,
         track: "course_learning",
         serviceKey: "course_learning",
       });
@@ -3665,6 +3668,11 @@ function App() {
   }
 
   if (page === "dashboard") {
+    const getCourseLearningGoal = (courseName) => {
+      const goals = courseOnboardingStatus?.course_goals;
+      if (!goals || typeof goals !== "object") return "";
+      return goals[courseName] || goals[getSubjectLabel?.(courseName)] || "";
+    };
     const activeCourseContext = courseSubjectContext || {
       courseId: subject,
       courseName: getSubjectLabel?.(subject) || subject,
@@ -3673,6 +3681,13 @@ function App() {
       track: "course_learning",
       serviceKey: "course_learning",
     };
+    const activeCourseLearningGoal =
+      activeCourseContext.learningGoal ||
+      activeCourseContext.learning_goal ||
+      coursePreference?.learning_goal ||
+      getCourseLearningGoal(activeCourseContext.courseName || activeCourseContext.subject) ||
+      "";
+    const isExamCramCourse = activeCourseLearningGoal === "考试突击";
     const courseDashboardMaterials = (
       <CourseMaterialsPage
         user={user}
@@ -3680,6 +3695,7 @@ function App() {
         getSubjectLabel={getSubjectLabel}
         mode="course_learning"
         courseName={activeCourseContext.courseName || activeCourseContext.subject}
+        examCramMode={isExamCramCourse}
         materials={courseLearningMaterials}
         materialsLoading={materialsLoading}
         reindexLoading={reindexLoading}
@@ -3714,6 +3730,7 @@ function App() {
         setPage={setPage}
         getSubjectLabel={getSubjectLabel}
         materials={courseLearningMaterials}
+        learningGoal={activeCourseLearningGoal}
         // Pass mature content components — same pattern as ExamSubjectDashboard
         materialsContent={courseDashboardMaterials}
         knowledgeContent={null}

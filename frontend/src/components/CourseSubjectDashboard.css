@@ -927,6 +927,256 @@
   font-weight: 900;
 }
 
+/* ── Exam cram course mode ── */
+.csd-main--cram {
+  background:
+    radial-gradient(circle at 16% 0%, rgba(139, 92, 246, 0.1), transparent 28%),
+    linear-gradient(135deg, #fbfaff 0%, #f5f0ff 48%, #fff 100%);
+}
+
+.csd-cram-page {
+  display: grid;
+  gap: 20px;
+  padding-bottom: 16px;
+}
+
+.csd-cram-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 22px 24px;
+  border: 1px solid rgba(168, 140, 255, 0.2);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 18px 46px rgba(95, 76, 148, 0.09);
+}
+
+.csd-cram-title-block {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+
+.csd-cram-logo {
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: linear-gradient(145deg, #8b5cf6, #c084fc);
+  box-shadow: inset 0 -10px 20px rgba(67, 56, 202, 0.14), 0 16px 30px rgba(124, 58, 237, 0.2);
+  font-weight: 950;
+}
+
+.csd-cram-title-block h1 {
+  margin: 0;
+  color: #15172f;
+  font-size: 28px;
+  line-height: 1.2;
+  font-weight: 950;
+}
+
+.csd-cram-title-block p {
+  margin: 6px 0 0;
+  color: #6d6387;
+  font-size: 14px;
+  font-weight: 820;
+}
+
+.csd-cram-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.csd-cram-badges span,
+.csd-cram-card-head span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  color: #6d28d9;
+  background: #f1eaff;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.csd-cram-grid {
+  display: grid;
+  gap: 18px;
+}
+
+.csd-cram-grid--top {
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.48fr);
+}
+
+.csd-cram-card {
+  padding: 22px;
+  border: 1px solid rgba(168, 140, 255, 0.18);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 18px 46px rgba(95, 76, 148, 0.08);
+}
+
+.csd-cram-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.csd-cram-card-head h2 {
+  margin: 0;
+  color: #171a35;
+  font-size: 20px;
+  font-weight: 950;
+}
+
+.csd-cram-info-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.csd-cram-info-grid div,
+.csd-cram-type-card,
+.csd-cram-task {
+  border: 1px solid #eee7ff;
+  border-radius: 14px;
+  background: #fbfaff;
+}
+
+.csd-cram-info-grid div {
+  min-height: 92px;
+  padding: 16px;
+}
+
+.csd-cram-info-grid span,
+.csd-cram-task em,
+.csd-cram-type-card span {
+  color: #76708f;
+  font-size: 13px;
+  font-weight: 760;
+}
+
+.csd-cram-info-grid strong {
+  display: block;
+  margin-top: 10px;
+  color: #1f1b46;
+  font-size: 22px;
+  font-weight: 950;
+}
+
+.csd-cram-self-test {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+
+.csd-cram-self-test button {
+  min-height: 46px;
+  border: 0;
+  border-radius: 13px;
+  color: #fff;
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+  box-shadow: 0 13px 26px rgba(109, 40, 217, 0.18);
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.csd-cram-self-test button + button {
+  color: #6d28d9;
+  background: #f1eaff;
+  box-shadow: none;
+}
+
+.csd-cram-task-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.csd-cram-task {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 76px;
+  padding: 14px 16px;
+}
+
+.csd-cram-task input {
+  width: 18px;
+  height: 18px;
+  accent-color: #7c3aed;
+}
+
+.csd-cram-task strong {
+  display: block;
+  color: #202243;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.csd-cram-task em {
+  display: block;
+  margin-top: 4px;
+  font-style: normal;
+}
+
+.csd-cram-task b {
+  padding: 6px 10px;
+  border-radius: 999px;
+  color: #6d28d9;
+  background: #f1eaff;
+  font-size: 12px;
+}
+
+.csd-cram-type-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.csd-cram-type-card {
+  min-height: 150px;
+  padding: 16px;
+  display: grid;
+  align-content: start;
+  gap: 9px;
+}
+
+.csd-cram-type-card strong {
+  color: #202243;
+  font-size: 16px;
+  font-weight: 950;
+}
+
+.csd-cram-type-card span {
+  display: block;
+  padding-left: 12px;
+  position: relative;
+}
+
+.csd-cram-type-card span::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.65em;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: #8b5cf6;
+}
+
 /* ── Main area overrides when rendering mature components ── */
 .csd-main--chat,
 .csd-main--materials,
@@ -973,6 +1223,16 @@
   .csd-material-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .csd-cram-grid--top,
+  .csd-cram-task-list,
+  .csd-cram-type-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .csd-cram-info-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 760px) {
@@ -1009,5 +1269,15 @@
 
   .csd-hero-art {
     display: none;
+  }
+
+  .csd-cram-header,
+  .csd-cram-card-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .csd-cram-info-grid {
+    grid-template-columns: 1fr;
   }
 }

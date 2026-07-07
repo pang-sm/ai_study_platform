@@ -578,6 +578,24 @@
   text-align: center;
 }
 
+.cmp-cram-recommend-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.cmp-cram-recommend-list span {
+  display: block;
+  padding: 12px 14px;
+  border: 1px solid #eee7ff;
+  border-radius: 12px;
+  color: #4b3f72;
+  background: #fbfaff;
+  font-size: 13px;
+  font-weight: 850;
+  text-align: left;
+}
+
 .cmp-detail-file-card {
   display: flex;
   flex-direction: column;

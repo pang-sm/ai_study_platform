@@ -19037,6 +19037,23 @@ select.field:focus {
   color: #6d28d9;
 }
 
+.examchat-cram-tips {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.examchat-cram-tips span {
+  display: block;
+  padding: 9px 11px;
+  border: 1px solid #eee7ff;
+  border-radius: 12px;
+  color: #6d28d9;
+  background: #fbfaff;
+  font-size: 12px;
+  font-weight: 850;
+}
+
 .examchat-input-area {
   display: flex;
   align-items: flex-end;
@@ -23513,6 +23530,70 @@ body.exam-attempt-body #root {
 }
 .esp-task-goto-btn:hover {
   background: #ede9fe;
+}
+
+.exam-study-plan--cram {
+  display: grid;
+  gap: 18px;
+}
+
+.exam-study-plan--cram .exam-subject-header,
+.exam-study-plan--cram .esp-tasks-section {
+  border: 1px solid rgba(168, 140, 255, 0.16);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 18px 46px rgba(95, 76, 148, 0.08);
+}
+
+.exam-study-plan--cram .exam-subject-header {
+  padding: 22px 24px;
+}
+
+.exam-study-plan--cram .esp-tasks-section {
+  padding: 22px;
+}
+
+.exam-study-plan--cram .esp-tasks-header h2 {
+  color: #171a35;
+  font-size: 22px;
+}
+
+.esp-cram-table {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+  overflow-x: auto;
+}
+
+.esp-cram-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.35fr) minmax(150px, 0.9fr) minmax(110px, 0.65fr) minmax(120px, 0.7fr) minmax(92px, 0.55fr) minmax(180px, 1fr);
+  gap: 12px;
+  align-items: center;
+  min-width: 940px;
+  padding: 14px 16px;
+  border: 1px solid #eee7ff;
+  border-radius: 14px;
+  background: #fbfaff;
+  color: #4b5563;
+  font-size: 13px;
+}
+
+.esp-cram-row--head {
+  min-height: 42px;
+  color: #6d5bd0;
+  background: #f1eaff;
+  font-weight: 900;
+}
+
+.esp-cram-row strong {
+  color: #1f1b46;
+  font-size: 14px;
+}
+
+.esp-cram-row .esp-task-computed-status.review_due {
+  color: #92400e;
+  background: #fffbeb;
 }
 
 /* ── AI Report Generate Button & Modal ── */

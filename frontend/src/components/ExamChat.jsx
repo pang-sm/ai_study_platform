@@ -246,6 +246,7 @@ export default function ExamChat({
   knowledgeContext = null,
   initialMaterialToReference = null,
   onInitialMaterialReferenced = null,
+  examCramMode = false,
 }) {
   const isCourseMode = mode === "course_learning";
   const subjectLabel = isCourseMode
@@ -281,6 +282,9 @@ export default function ExamChat({
   const shouldScrollToLatestUserRef = useRef(false);
 
   const recommendations = useMemo(() => {
+    if (examCramMode) {
+      return ["三次握手速记", "子网划分怎么做", "TCP/UDP 区别", "高频简答题"];
+    }
     if (isCourseMode) {
       return [
         `《${courseName}》的核心知识点有哪些？`,
@@ -291,7 +295,7 @@ export default function ExamChat({
       ];
     }
     return getRecommendations(subjectKey).slice(0, 5);
-  }, [isCourseMode, courseName, subjectKey]);
+  }, [examCramMode, isCourseMode, courseName, subjectKey]);
   const lastUserMessageId = useMemo(() => {
     for (let index = messages.length - 1; index >= 0; index -= 1) {
       if (messages[index]?.role === "user") return messages[index].id;
@@ -912,7 +916,7 @@ export default function ExamChat({
       <section className="examchat-main-panel">
         <header className="examchat-header">
           <div>
-            <h2 className="examchat-title">AI 问答 · {subjectLabel}</h2>
+            <h2 className="examchat-title">{examCramMode ? subjectLabel : `AI 问答 · ${subjectLabel}`}</h2>
             <p className="examchat-subtitle">{subtitleText}</p>
           </div>
         </header>
@@ -1070,7 +1074,9 @@ export default function ExamChat({
               value={inputText}
               onChange={(event) => setInputText(event.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={`向 AI 提问${isCourseMode ? `《${courseName}》` : " " + subjectLabel}相关问题...`}
+              placeholder={examCramMode
+                ? "输入你的问题，例如：TCP 三次握手为什么不是两次？"
+                : `向 AI 提问${isCourseMode ? `《${courseName}》` : " " + subjectLabel}相关问题...`}
               rows={2}
               disabled={loading}
             />
@@ -1124,13 +1130,32 @@ export default function ExamChat({
         </div>
 
         <div className="examchat-side-card">
-          <h4>推荐提问</h4>
+          <h4>{examCramMode ? "冲刺问答建议" : "推荐提问"}</h4>
+          {examCramMode && (
+            <div className="examchat-cram-tips">
+              <span>5 天内最值得问</span>
+              <span>高频考点</span>
+              <span>可追问方向</span>
+            </div>
+          )}
           {recommendations.map((question) => (
             <button key={question} type="button" className="examchat-rec-btn" onClick={() => setInputText(question)}>
               {question}
             </button>
           ))}
         </div>
+
+        {examCramMode && (
+          <div className="examchat-side-card">
+            <h4>AI 速记模式</h4>
+            <button type="button" className="examchat-rec-btn" onClick={() => setInputText("请生成本课程考前速记卡，优先覆盖高频简答和计算题。")}>
+              生成考前速记
+            </button>
+            <button type="button" className="examchat-rec-btn" onClick={() => setInputText("请总结本页对话中的考试重点和可复盘清单。")}>
+              总结本页重点
+            </button>
+          </div>
+        )}
       </aside>
 
       <MaterialPickerModal

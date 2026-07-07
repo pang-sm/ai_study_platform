@@ -184,6 +184,7 @@ export default function CourseLearningHome({
 
   const openCourse = (course) => {
     const courseName = normalizeCourseName(course);
+    const learningGoal = courseGoals[courseName] || courseGoals[course] || "平日学习";
     const courseContext = {
       id: courseName,
       courseId: courseName,
@@ -192,6 +193,8 @@ export default function CourseLearningHome({
       courseName,
       courseTitle: courseName,
       subject: courseName,
+      learningGoal,
+      learning_goal: learningGoal,
       track: "course_learning",
       serviceKey: "course_learning",
     };

@@ -5,6 +5,25 @@
   color: #182033;
 }
 
+.km-page--cram {
+  display: grid;
+  gap: 10px;
+}
+
+.km-page--cram .km-hero-card {
+  padding: 16px 20px;
+}
+
+.km-page--cram .km-hero-card h1 {
+  font-size: 1.35rem;
+}
+
+.km-page--cram .km-hero-card p {
+  margin-top: 4px;
+  color: #6d28d9;
+  font-weight: 800;
+}
+
 .km-hero-card,
 .km-filter-card,
 .km-map-card,
@@ -613,6 +632,19 @@
   background: #fffbeb;
   border: 1px solid #fde68a;
   border-radius: 10px;
+}
+
+.km-review-hint--cram {
+  background: #f4efff;
+  border-color: #ddd6fe;
+}
+
+.km-review-hint--cram h3 {
+  color: #5b21b6;
+}
+
+.km-review-hint--cram p {
+  color: #4c3a8e;
 }
 
 .km-review-hint h3 {

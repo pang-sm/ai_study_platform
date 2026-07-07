@@ -9,6 +9,7 @@ export default function ExamStudyPlan({
   mode = "exam_11408",
   courseName = "",
   courseId = "",
+  examCramMode = false,
 }) {
   const isCourseMode = mode === "course_learning";
   const config = isCourseMode
@@ -80,25 +81,33 @@ export default function ExamStudyPlan({
   const chapters = planData?.chapters || [];
   const tasks = planData?.tasks || [];
   const TASK_TYPE_LABELS = {
-    knowledge: "知识点学习",
+    knowledge: examCramMode ? "知识整理" : "知识点学习",
     chapter_practice: "章节练习",
-    review: "阶段复习",
+    review: examCramMode ? "冲刺复盘" : "阶段复习",
   };
   const STATUS_LABELS = {
     completed: "已完成",
     in_progress: "进行中",
     not_started: "未开始",
+    review_due: "待复盘",
   };
 
+  const displayTasks = tasks.length > 0 ? tasks : (examCramMode ? [
+    { id: "demo-1", title: "完成 TCP 三次握手简答整理", knowledge_point_name: "传输层 / TCP", task_type: "knowledge", due_date: "5天内", status: "not_started", note: "按关键词、流程、原因三段整理。" },
+    { id: "demo-2", title: "练习 5 道子网划分计算题", knowledge_point_name: "网络层 / 子网划分", task_type: "knowledge", due_date: "3天内", status: "in_progress", note: "重点复盘掩码、主机数和广播地址。" },
+    { id: "demo-3", title: "复习第4章网络层核心概念", knowledge_point_name: "第4章 网络层", task_type: "review", due_date: "2天内", status: "review_due", note: "IP、ARP、路由选择一起过。" },
+    { id: "demo-4", title: "整理应用层高频协议对比", knowledge_point_name: "应用层", task_type: "review", due_date: "考前", status: "not_started", note: "DNS、HTTP、SMTP、FTP 对比。" },
+  ] : []);
+
   return (
-    <div className="exam-study-plan">
+    <div className={`exam-study-plan${examCramMode ? " exam-study-plan--cram" : ""}`}>
       <header className="exam-subject-header">
         <div>
           <div className="exam-subject-title-row">
             <span className="exam-subject-logo">{config.icon}</span>
             <div>
               <h1>{config.title}</h1>
-              <p>学习计划 / 知识点联动任务</p>
+              <p>{examCramMode ? "学习计划 / 冲刺任务" : "学习计划 / 知识点联动任务"}</p>
             </div>
           </div>
         </div>
@@ -106,7 +115,7 @@ export default function ExamStudyPlan({
 
       <section className="esp-tasks-section">
         <div className="esp-tasks-header">
-          <h2>📋 阶段学习任务</h2>
+          <h2>阶段学习任务</h2>
           <button
             type="button"
             className="esp-add-task-btn"
@@ -116,7 +125,7 @@ export default function ExamStudyPlan({
           </button>
         </div>
 
-        {tasks.length === 0 ? (
+        {displayTasks.length === 0 ? (
           <div className="esp-tasks-empty">
             <p>还没有阶段学习任务</p>
             <button
@@ -127,12 +136,34 @@ export default function ExamStudyPlan({
             </button>
           </div>
         ) : (
-          <div className="esp-tasks-list">
-            {tasks.map((task) => {
+          <div className={examCramMode ? "esp-cram-table" : "esp-tasks-list"}>
+            {examCramMode && (
+              <div className="esp-cram-row esp-cram-row--head">
+                <span>任务标题</span>
+                <span>关联知识点或章节</span>
+                <span>任务类型</span>
+                <span>计划完成日期</span>
+                <span>状态</span>
+                <span>备注</span>
+              </div>
+            )}
+            {displayTasks.map((task) => {
               const cs = task.computed_status || task.status || "not_started";
               const isChapterPractice = task.task_type === "chapter_practice";
               const actionLabel = !isCourseMode && isChapterPractice ? "前往练习中心" : "前往知识脉络";
               const actionTarget = !isCourseMode && isChapterPractice ? "practice" : "knowledge";
+              if (examCramMode) {
+                return (
+                  <div key={task.id} className="esp-cram-row">
+                    <strong>{task.title}</strong>
+                    <span>{task.knowledge_point_name || task.secondary_knowledge || "未指定"}</span>
+                    <span>{TASK_TYPE_LABELS[task.task_type] || task.task_type}</span>
+                    <span>{task.due_date || "-"}</span>
+                    <span><b className={`esp-task-computed-status ${cs}`}>{STATUS_LABELS[cs] || cs}</b></span>
+                    <span>{task.note || "-"}</span>
+                  </div>
+                );
+              }
               return (
                 <div key={task.id} className={`esp-task-card ${cs}`}>
                   <div className="esp-task-main">
@@ -195,6 +226,7 @@ export default function ExamStudyPlan({
           chapters={chapters}
           editTask={editingTask}
           mode={mode}
+          examCramMode={examCramMode}
           courseName={courseName}
           courseId={courseId}
           onSaved={() => { setTaskModalOpen(false); setEditingTask(null); fetchPlan(); }}

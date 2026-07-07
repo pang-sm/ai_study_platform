@@ -11,6 +11,7 @@ export default function ExamStudyPlanTaskModal({
   mode = "exam_11408",
   courseName = "",
   courseId = "",
+  examCramMode = false,
 }) {
   const isCourseMode = mode === "course_learning";
   const config = isCourseMode
@@ -47,12 +48,12 @@ export default function ExamStudyPlanTaskModal({
 
   const taskTypes = useMemo(() => {
     const types = [
-      { value: "knowledge", label: "知识点学习" },
+      { value: "knowledge", label: examCramMode ? "知识整理" : "知识点学习" },
       { value: "chapter_practice", label: "章节练习" },
-      { value: "review", label: "阶段复习" },
+      { value: "review", label: examCramMode ? "冲刺复盘" : "阶段复习" },
     ];
     return isCourseMode ? types.filter((item) => item.value !== "chapter_practice") : types;
-  }, [isCourseMode]);
+  }, [examCramMode, isCourseMode]);
 
   const handleSave = async () => {
     if (!title.trim()) {
@@ -109,7 +110,7 @@ export default function ExamStudyPlanTaskModal({
     <div className="esp-modal-overlay" onClick={onClose}>
       <div className="esp-modal" onClick={(e) => e.stopPropagation()}>
         <div className="esp-modal-header">
-          <h2>{isEdit ? "✏️ 编辑任务" : "➕ 新建阶段任务"} — {config.title}</h2>
+          <h2>{isEdit ? "编辑任务" : "新建任务"} — {config.title}</h2>
           <button type="button" className="esp-modal-close" onClick={onClose}>✕</button>
         </div>
         <div className="esp-modal-body">
@@ -121,7 +122,7 @@ export default function ExamStudyPlanTaskModal({
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="例如：完成线性表知识点学习"
+              placeholder={examCramMode ? "例如：完成 TCP 三次握手简答整理" : "例如：完成线性表知识点学习"}
             />
           </div>
 
@@ -178,9 +179,11 @@ export default function ExamStudyPlanTaskModal({
             />
           </div>
 
-          <p style={{ fontSize: "12px", color: "#6b7280", margin: 0 }}>
-            💡 任务完成状态由系统自动计算，无需手动设置。
-          </p>
+          {!examCramMode && (
+            <p style={{ fontSize: "12px", color: "#6b7280", margin: 0 }}>
+              任务完成状态由系统自动计算，无需手动设置。
+            </p>
+          )}
         </div>
         <div className="esp-modal-footer">
           <button type="button" className="esp-modal-cancel" onClick={onClose} disabled={saving}>取消</button>
