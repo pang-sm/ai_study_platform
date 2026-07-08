@@ -246,6 +246,7 @@ export default function ExamChat({
   knowledgeContext = null,
   initialMaterialToReference = null,
   onInitialMaterialReferenced = null,
+  initialPrompt = null,
   examCramMode = false,
 }) {
   const isCourseMode = mode === "course_learning";
@@ -283,7 +284,13 @@ export default function ExamChat({
 
   const recommendations = useMemo(() => {
     if (examCramMode) {
-      return ["三次握手速记", "子网划分怎么做", "TCP/UDP 区别", "高频简答题"];
+      const target = courseName || subjectLabel || "当前课程";
+      return [
+        `${target} 10 分钟自测`,
+        `${target} 高频考点`,
+        `${target} 易错点整理`,
+        `${target} 考前复盘清单`,
+      ];
     }
     if (isCourseMode) {
       return [
@@ -295,7 +302,7 @@ export default function ExamChat({
       ];
     }
     return getRecommendations(subjectKey).slice(0, 5);
-  }, [examCramMode, isCourseMode, courseName, subjectKey]);
+  }, [examCramMode, isCourseMode, courseName, subjectKey, subjectLabel]);
   const lastUserMessageId = useMemo(() => {
     for (let index = messages.length - 1; index >= 0; index -= 1) {
       if (messages[index]?.role === "user") return messages[index].id;
@@ -468,6 +475,12 @@ export default function ExamChat({
     setNotice("已将资料加入本轮引用");
     onInitialMaterialReferenced?.();
   }, [initialMaterialToReference?.nonce, initialMaterialToReference?.material, onInitialMaterialReferenced]);
+
+  useEffect(() => {
+    const promptText = (initialPrompt?.text || "").trim();
+    if (!promptText) return;
+    setInputText(promptText);
+  }, [initialPrompt?.nonce, initialPrompt?.text]);
 
   useEffect(() => {
     const title = knowledgeContext?.knowledgePointTitle || knowledgeContext?.knowledge_point_title || knowledgeContext?.title || "";
@@ -1075,7 +1088,7 @@ export default function ExamChat({
               onChange={(event) => setInputText(event.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={examCramMode
-                ? "输入你的问题，例如：TCP 三次握手为什么不是两次？"
+                ? `输入你的问题，例如：《${courseName || subjectLabel}》哪些考点最容易失分？`
                 : `向 AI 提问${isCourseMode ? `《${courseName}》` : " " + subjectLabel}相关问题...`}
               rows={2}
               disabled={loading}
@@ -1133,7 +1146,7 @@ export default function ExamChat({
           <h4>{examCramMode ? "冲刺问答建议" : "推荐提问"}</h4>
           {examCramMode && (
             <div className="examchat-cram-tips">
-              <span>5 天内最值得问</span>
+              <span>考前最值得问</span>
               <span>高频考点</span>
               <span>可追问方向</span>
             </div>

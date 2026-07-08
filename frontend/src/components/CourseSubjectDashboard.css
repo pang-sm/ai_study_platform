@@ -1104,6 +1104,54 @@
   gap: 12px;
 }
 
+.csd-cram-empty-state {
+  grid-column: 1 / -1;
+  min-height: 120px;
+  padding: 18px;
+  border: 1px dashed #d8ccff;
+  border-radius: 14px;
+  background: #fbfaff;
+}
+
+.csd-cram-empty-state strong {
+  display: block;
+  color: #202243;
+  font-size: 16px;
+  font-weight: 950;
+}
+
+.csd-cram-empty-state p {
+  margin: 8px 0 0;
+  color: #76708f;
+  font-size: 14px;
+  font-weight: 760;
+}
+
+.csd-cram-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.csd-cram-empty-actions button {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 11px;
+  color: #fff;
+  background: #6d28d9;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.csd-cram-empty-actions button + button {
+  color: #6d28d9;
+  background: #f1eaff;
+}
+
 .csd-cram-task {
   display: grid;
   grid-template-columns: 22px minmax(0, 1fr) auto;
