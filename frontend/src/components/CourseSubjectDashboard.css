@@ -994,8 +994,7 @@
   gap: 10px;
 }
 
-.csd-cram-badges span,
-.csd-cram-card-head span {
+.csd-cram-badges span {
   display: inline-flex;
   align-items: center;
   min-height: 30px;

@@ -606,7 +606,6 @@ export default function CourseSubjectDashboard({
       <section className="csd-cram-grid csd-cram-grid--top">
         <div className="csd-cram-card">
           <div className="csd-cram-card-head">
-            <span>考试信息</span>
             <h2>考试信息</h2>
             <p>用于生成倒计时、复习范围和冲刺建议</p>
           </div>
@@ -634,7 +633,6 @@ export default function CourseSubjectDashboard({
 
         <div className="csd-cram-card csd-cram-self-test">
           <div className="csd-cram-card-head">
-            <span>考前自测</span>
             <h2>考前自测入口</h2>
             <p>基于当前课程与考试范围生成快速自测</p>
           </div>
@@ -657,7 +655,6 @@ export default function CourseSubjectDashboard({
 
       <section className="csd-cram-card">
         <div className="csd-cram-card-head">
-          <span>冲刺任务</span>
           <h2>考前冲刺清单</h2>
           <p>从学习计划中同步你的冲刺任务</p>
         </div>
@@ -702,7 +699,6 @@ export default function CourseSubjectDashboard({
 
       <section className="csd-cram-card">
         <div className="csd-cram-card-head">
-          <span>高频题型</span>
           <h2>高频题型</h2>
           <p>按当前课程整理常见考试题型</p>
         </div>
