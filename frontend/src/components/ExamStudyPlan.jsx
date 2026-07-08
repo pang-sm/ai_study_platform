@@ -10,6 +10,7 @@ export default function ExamStudyPlan({
   courseName = "",
   courseId = "",
   examCramMode = false,
+  createTaskIntent = null,
 }) {
   const isCourseMode = mode === "course_learning";
   const config = isCourseMode
@@ -44,6 +45,12 @@ export default function ExamStudyPlan({
   }, [username, subjectKey, isCourseMode, courseName, courseId]);
 
   useEffect(() => { fetchPlan(); }, [fetchPlan]);
+
+  useEffect(() => {
+    if (!createTaskIntent?.nonce) return;
+    setEditingTask(null);
+    setTaskModalOpen(true);
+  }, [createTaskIntent?.nonce]);
 
   const deleteTask = async (taskId) => {
     if (!confirm("确定要删除这个任务吗？")) return;
@@ -92,12 +99,7 @@ export default function ExamStudyPlan({
     review_due: "待复盘",
   };
 
-  const displayTasks = tasks.length > 0 ? tasks : (examCramMode ? [
-    { id: "demo-1", title: "完成 TCP 三次握手简答整理", knowledge_point_name: "传输层 / TCP", task_type: "knowledge", due_date: "5天内", status: "not_started", note: "按关键词、流程、原因三段整理。" },
-    { id: "demo-2", title: "练习 5 道子网划分计算题", knowledge_point_name: "网络层 / 子网划分", task_type: "knowledge", due_date: "3天内", status: "in_progress", note: "重点复盘掩码、主机数和广播地址。" },
-    { id: "demo-3", title: "复习第4章网络层核心概念", knowledge_point_name: "第4章 网络层", task_type: "review", due_date: "2天内", status: "review_due", note: "IP、ARP、路由选择一起过。" },
-    { id: "demo-4", title: "整理应用层高频协议对比", knowledge_point_name: "应用层", task_type: "review", due_date: "考前", status: "not_started", note: "DNS、HTTP、SMTP、FTP 对比。" },
-  ] : []);
+  const displayTasks = tasks;
 
   return (
     <div className={`exam-study-plan${examCramMode ? " exam-study-plan--cram" : ""}`}>

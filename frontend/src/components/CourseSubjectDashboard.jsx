@@ -161,12 +161,18 @@ function buildExamInfo(dashboard, preference, course, stats) {
   const readinessText = textValue(raw.readiness, raw.ready_status, raw.readyStatus, raw.evaluation);
   const readinessPercent = normalizeProgressValue(raw.readiness_percent ?? raw.readinessPercent ?? raw.progress_percent);
   return {
-    examDate: examDate || "未设置考试日期",
+    examDate: examDate || "未设置",
     target: target || "未设置目标",
-    reviewScope: reviewScope || "暂无范围",
+    reviewScope: reviewScope || "暂未选择",
     dailyReview: dailyReview || "未填写",
     readiness: readinessText || (readinessPercent === null ? "暂无评估" : `${readinessPercent}%`),
     daysLeft: formatDaysLeft(examDate),
+    configured: {
+      examDate: Boolean(examDate),
+      target: Boolean(target),
+      reviewScope: Boolean(reviewScope),
+      dailyReview: Boolean(dailyReview),
+    },
   };
 }
 
@@ -189,12 +195,29 @@ function buildCramPrompt(kind, courseName, questionTypes) {
   const topics = questionTypes
     .flatMap((type) => [type.title, ...(type.examples || [])])
     .filter(Boolean)
-    .slice(0, 8)
+    .slice(0, 10)
     .join("、");
   if (kind === "prediction") {
-    return `请基于《${courseName}》的考试突击复习目标，结合这些题型方向：${topics}，帮我预测高频重点、易错点和最后复习优先级。`;
+    return `请根据${courseName}课程的考试突击场景，总结最值得优先复习的高频考点、典型题型和易错点，覆盖${topics}，并按优先级输出。`;
   }
-  return `请围绕《${courseName}》做一次 10 分钟考前自测。题目要覆盖这些方向：${topics}。请先出题，不要立即给答案，等我作答后再批改。`;
+  return `请根据${courseName}课程的期末考试突击场景，生成一套 10 分钟考前自测题，覆盖${topics}，并附参考答案。`;
+}
+
+function enrichQuestionType(type) {
+  const title = type.title || "";
+  if (title.includes("语言基础") || title.includes("协议分层")) {
+    return { ...type, tags: ["必背", "简答"], hint: "常考基础概念" };
+  }
+  if (title.includes("词法") || title.includes("流程")) {
+    return { ...type, tags: ["高频", "应用"], hint: "建议优先复习" };
+  }
+  if (title.includes("语法") || title.includes("计算") || title.includes("推导")) {
+    return { ...type, tags: ["高频", "推导"], hint: "常考计算/推导" };
+  }
+  if (title.includes("语义") || title.includes("综合") || title.includes("代码")) {
+    return { ...type, tags: ["综合", "应用"], hint: "常见综合题" };
+  }
+  return { ...type, tags: ["高频", "简答"], hint: "建议优先复习" };
 }
 
 function numberValue(value, fallback = 0) {
@@ -331,6 +354,8 @@ export default function CourseSubjectDashboard({
   const [cramPlanLoading, setCramPlanLoading] = useState(false);
   const [cramPlanError, setCramPlanError] = useState("");
   const [chatPromptIntent, setChatPromptIntent] = useState(null);
+  const [examConfigNoticeOpen, setExamConfigNoticeOpen] = useState(false);
+  const [planCreateIntent, setPlanCreateIntent] = useState(null);
   const stats = dashboard?.stats || {};
   const courseName = initialCourseName;
   const courseId = buildCourseId(courseName, initialCourseId);
@@ -375,8 +400,9 @@ export default function CourseSubjectDashboard({
   const courseContextDisplay = `课程学习 / ${courseName}`;
   const examInfo = buildExamInfo(dashboard, preference, course, stats);
   const questionTemplateKey = resolveQuestionTemplateKey(courseName, courseId, initialCourseId);
-  const questionTypes = COURSE_QUESTION_TYPE_TEMPLATES[questionTemplateKey] || GENERAL_QUESTION_TYPES;
+  const questionTypes = (COURSE_QUESTION_TYPE_TEMPLATES[questionTemplateKey] || GENERAL_QUESTION_TYPES).map(enrichQuestionType);
   const realSprintTasks = Array.isArray(cramPlanData?.tasks) ? cramPlanData.tasks.slice(0, 4) : [];
+  const hasPreciseExamInfo = Boolean(examInfo.configured.examDate && examInfo.configured.reviewScope);
 
   // Check course_learning membership plan — hide ad if full
   const coursePlan = entitlements?.plan || user?.service_plans?.["course_learning"]?.plan || "free";
@@ -428,6 +454,13 @@ export default function CourseSubjectDashboard({
 
   const openPlan = () => setActiveSection("plan");
 
+  const openPlanCreate = () => {
+    setPlanCreateIntent({ nonce: Date.now() });
+    setActiveSection("plan");
+  };
+
+  const openExamSettingsNotice = () => setExamConfigNoticeOpen(true);
+
   const openAiWithPrompt = (kind) => {
     setChatPromptIntent({
       nonce: Date.now(),
@@ -459,8 +492,9 @@ export default function CourseSubjectDashboard({
       <section className="csd-cram-grid csd-cram-grid--top">
         <div className="csd-cram-card">
           <div className="csd-cram-card-head">
-            <span>Exam Info</span>
+            <span>考试信息</span>
             <h2>考试信息</h2>
+            <p>用于生成倒计时、复习范围和冲刺建议</p>
           </div>
           <div className="csd-cram-info-grid">
             <div><span>考试日期</span><strong>{examInfo.examDate}</strong></div>
@@ -468,22 +502,45 @@ export default function CourseSubjectDashboard({
             <div><span>每日复习</span><strong>{examInfo.dailyReview}</strong></div>
             <div><span>当前准备度</span><strong>{examInfo.readiness}</strong></div>
           </div>
+          {!hasPreciseExamInfo && (
+            <div className="csd-cram-config-callout">
+              <div>
+                <strong>建议先设置考试信息</strong>
+                <p>补充考试日期和复习范围后，首页倒计时、冲刺建议和 AI 自测会更准确。</p>
+              </div>
+              <button type="button" onClick={openExamSettingsNotice}>设置考试信息</button>
+            </div>
+          )}
         </div>
 
         <div className="csd-cram-card csd-cram-self-test">
           <div className="csd-cram-card-head">
-            <span>Quick Check</span>
+            <span>考前自测</span>
             <h2>考前自测入口</h2>
+            <p>基于当前课程与考试范围生成快速自测</p>
           </div>
-          <button type="button" onClick={() => openAiWithPrompt("selfTest")}>生成 10 分钟自测</button>
-          <button type="button" onClick={() => openAiWithPrompt("prediction")}>AI 预测重点</button>
+          {!hasPreciseExamInfo && (
+            <p className="csd-cram-self-test-note">建议先设置考试日期和复习范围，AI 自测会更准确。</p>
+          )}
+          {hasPreciseExamInfo ? (
+            <>
+              <button type="button" onClick={() => openAiWithPrompt("selfTest")}>生成 10 分钟自测</button>
+              <button type="button" onClick={() => openAiWithPrompt("prediction")}>AI 预测重点</button>
+            </>
+          ) : (
+            <>
+              <button type="button" onClick={openExamSettingsNotice}>去设置考试信息</button>
+              <button type="button" onClick={() => openAiWithPrompt("selfTest")}>仍然生成通用自测</button>
+            </>
+          )}
         </div>
       </section>
 
       <section className="csd-cram-card">
         <div className="csd-cram-card-head">
-          <span>Sprint Tasks</span>
+          <span>冲刺任务</span>
           <h2>考前冲刺清单</h2>
+          <p>从学习计划中同步你的冲刺任务</p>
         </div>
         <div className="csd-cram-task-list">
           {cramPlanLoading && (
@@ -504,10 +561,10 @@ export default function CourseSubjectDashboard({
           {!cramPlanLoading && !cramPlanError && realSprintTasks.length === 0 && (
             <div className="csd-cram-empty-state">
               <strong>还没有冲刺任务</strong>
-              <p>当前课程暂无真实学习计划任务，可进入学习计划页创建或安排考前冲刺任务。</p>
+              <p>当前首页会同步展示学习计划中的冲刺任务。你可以先创建 2-4 个阶段任务，用来安排考前复习。</p>
               <div className="csd-cram-empty-actions">
                 <button type="button" onClick={openPlan}>去学习计划</button>
-                <button type="button" onClick={openPlan}>新建任务</button>
+                <button type="button" onClick={openPlanCreate}>新建任务</button>
               </div>
             </div>
           )}
@@ -526,18 +583,44 @@ export default function CourseSubjectDashboard({
 
       <section className="csd-cram-card">
         <div className="csd-cram-card-head">
-          <span>High Frequency</span>
+          <span>高频题型</span>
           <h2>高频题型</h2>
+          <p>按当前课程整理常见考试题型</p>
         </div>
         <div className="csd-cram-type-grid">
           {questionTypes.map((type) => (
             <article className="csd-cram-type-card" key={type.title}>
+              <div className="csd-cram-type-tags">
+                {(type.tags || []).map((tag) => <em key={tag}>{tag}</em>)}
+              </div>
               <strong>{type.title}</strong>
               {type.examples.map((example) => <span key={example}>{example}</span>)}
+              <small>{type.hint}</small>
             </article>
           ))}
         </div>
       </section>
+
+      {examConfigNoticeOpen && (
+        <div className="csd-cram-modal-backdrop" role="presentation" onMouseDown={() => setExamConfigNoticeOpen(false)}>
+          <section
+            className="csd-cram-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="csd-cram-config-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <button type="button" className="csd-cram-modal-close" onClick={() => setExamConfigNoticeOpen(false)} aria-label="关闭">×</button>
+            <span>考试信息</span>
+            <h2 id="csd-cram-config-title">先完善考试日期和复习范围</h2>
+            <p>当前还没有可保存考试配置的独立入口。你可以先到学习计划中创建阶段任务，首页会同步展示任务摘要；后续接入考试设置后，这里会直接保存考试日期、目标和复习范围。</p>
+            <div className="csd-cram-modal-actions">
+              <button type="button" onClick={() => { setExamConfigNoticeOpen(false); openPlan(); }}>去学习计划</button>
+              <button type="button" onClick={() => setExamConfigNoticeOpen(false)}>稍后设置</button>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 
@@ -719,6 +802,7 @@ export default function CourseSubjectDashboard({
           examCramMode={isExamCramMode}
           courseId={courseId}
           courseName={courseName}
+          createTaskIntent={planCreateIntent}
           onNavigate={(target) => {
             // Navigate within CourseSubjectDashboard
             if (target === "knowledge") setActiveSection("knowledge");
