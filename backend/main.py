@@ -33,6 +33,7 @@ from pydantic import BaseModel
 from pypdf import PdfReader
 import pytesseract
 from sqlalchemy import func, or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from course_workbench import (
@@ -770,8 +771,19 @@ def get_or_create_course_learning_preference(db: Session, username: str, course_
         updated_at=utc_now(),
     )
     db.add(record)
-    db.flush()
-    return record
+    try:
+        db.flush()
+        return record
+    except IntegrityError:
+        db.rollback()
+        return (
+            db.query(models.CourseLearningPreference)
+            .filter(
+                models.CourseLearningPreference.username == username,
+                models.CourseLearningPreference.course_id == normalized_course,
+            )
+            .first()
+        )
 
 
 def course_learning_exam_settings_for(detail: dict, course_id: str) -> dict:
