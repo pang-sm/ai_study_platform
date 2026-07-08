@@ -1122,6 +1122,18 @@
   cursor: pointer;
 }
 
+.csd-cram-config-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.csd-cram-config-actions .csd-cram-secondary-button {
+  color: #6d28d9;
+  background: #f1eaff;
+}
+
 .csd-cram-self-test {
   display: grid;
   align-content: start;
@@ -1362,6 +1374,52 @@
   line-height: 1.65;
 }
 
+.csd-cram-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.csd-cram-form label {
+  display: grid;
+  gap: 7px;
+}
+
+.csd-cram-form label > span {
+  color: #343653;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.csd-cram-form input,
+.csd-cram-form select {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid #ded3ff;
+  border-radius: 11px;
+  color: #1f1b46;
+  background: #fff;
+  font: inherit;
+  font-size: 14px;
+  outline: 0;
+}
+
+.csd-cram-form input:focus,
+.csd-cram-form select:focus {
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.12);
+}
+
+.csd-cram-modal-error {
+  margin-top: 12px !important;
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: #b91c1c !important;
+  background: #fef2f2;
+  font-size: 13px !important;
+}
+
 .csd-cram-modal-close {
   position: absolute;
   top: 12px;
@@ -1397,9 +1455,19 @@
   cursor: pointer;
 }
 
-.csd-cram-modal-actions button + button {
+.csd-cram-modal-actions button:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+}
+
+.csd-cram-modal-actions .csd-cram-modal-ghost {
   color: #6d28d9;
   background: #f1eaff;
+}
+
+.csd-cram-modal-actions .csd-cram-modal-primary {
+  color: #fff;
+  background: #6d28d9;
 }
 
 /* ── Main area overrides when rendering mature components ── */

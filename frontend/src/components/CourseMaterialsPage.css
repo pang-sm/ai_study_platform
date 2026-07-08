@@ -135,6 +135,121 @@
   padding: 22px 26px;
 }
 
+.cmp-exam-materials {
+  margin: 0 26px 18px;
+  padding: 18px;
+  border: 1px solid #e8ddff;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #fbf8ff, #fff);
+}
+
+.cmp-section-title {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.cmp-section-title > span {
+  width: fit-content;
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  color: #6d28d9;
+  background: #f1eaff;
+  font-size: 12px;
+  font-weight: 900;
+  display: inline-flex;
+  align-items: center;
+}
+
+.cmp-section-title h2 {
+  margin: 0;
+  color: #171a35;
+  font-size: 19px;
+  font-weight: 900;
+}
+
+.cmp-section-title p {
+  margin: 0;
+  color: #6f6686;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.cmp-exam-material-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.cmp-exam-material-card {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid #eee7ff;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(109, 40, 217, 0.06);
+}
+
+.cmp-exam-material-card h3 {
+  margin: 8px 0 6px;
+  color: #1f1b46;
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.cmp-exam-material-card div > span {
+  display: inline-flex;
+  min-height: 24px;
+  padding: 0 9px;
+  align-items: center;
+  border-radius: 999px;
+  color: #7c3aed;
+  background: #f4efff;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.cmp-exam-material-card p {
+  margin: 0;
+  color: #6b5b95;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.cmp-exam-material-card dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.cmp-exam-material-card dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #fbfaff;
+}
+
+.cmp-exam-material-card dt,
+.cmp-exam-material-card dd {
+  margin: 0;
+  font-size: 12px;
+}
+
+.cmp-exam-material-card dt {
+  color: #746a8d;
+  font-weight: 800;
+}
+
+.cmp-exam-material-card dd {
+  color: #312e81;
+  font-weight: 900;
+  text-align: right;
+}
+
 .cmp-stat-card {
   display: flex;
   align-items: center;
@@ -446,6 +561,16 @@
   background: #ecfdf5;
 }
 
+.cmp-source-badge--exam-scope {
+  color: #6d28d9;
+  background: #f1eaff;
+}
+
+.cmp-source-badge--past-paper {
+  color: #be123c;
+  background: #fff1f2;
+}
+
 .cmp-table-actions {
   display: flex;
   align-items: center;
@@ -669,6 +794,18 @@
   color: #047857;
   background: #ecfdf5;
   border: 1px solid #bbf7d0;
+}
+
+.cmp-permission-notice--exam-scope {
+  color: #5b21b6;
+  background: #f4efff;
+  border: 1px solid #e6ddff;
+}
+
+.cmp-permission-notice--past-paper {
+  color: #be123c;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
 }
 
 .cmp-permission-notice--partial {
@@ -978,8 +1115,13 @@
     padding: 16px;
   }
 
+  .cmp-exam-material-grid {
+    grid-template-columns: 1fr;
+  }
+
   .cmp-filter-card,
-  .cmp-table-card {
+  .cmp-table-card,
+  .cmp-exam-materials {
     margin-left: 14px;
     margin-right: 14px;
   }

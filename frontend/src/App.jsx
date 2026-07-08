@@ -2521,13 +2521,14 @@ function App() {
     materialStatusPollersRef.current[localId] = window.setInterval(refreshStatus, 2000);
   };
 
-  const uploadSelectedFile = async (file, localId, fileSubject) => {
+  const uploadSelectedFile = async (file, localId, fileSubject, sourceType = "user_upload") => {
     if (!guardFeature("feature_material_upload_enabled", "资料上传功能暂时维护中，请稍后再试")) return;
     const formData = new FormData();
     formData.append("file", file);
     formData.append("username", user.username);
     const uploadSubject = fileSubject || normalizeSubject(currentChatSubject);
     formData.append("subject", normalizeSubject(uploadSubject));
+    formData.append("source_type", sourceType || "user_upload");
 
     try {
       const res = await fetch(`${API_BASE}/materials/upload`, {
@@ -2584,7 +2585,7 @@ function App() {
     }
   };
 
-  const handleFileChange = (event, explicitSubject = null) => {
+  const handleFileChange = (event, explicitSubject = null, sourceType = "user_upload") => {
     const files = Array.from(event.target.files || []);
     event.target.value = "";
 
@@ -2644,7 +2645,7 @@ function App() {
       const upSubject = explicitSubject
         ? normalizeSubject(explicitSubject)
         : null;
-      uploadSelectedFile(file, entry.localId, upSubject);
+      uploadSelectedFile(file, entry.localId, upSubject, sourceType);
     }
   };
 
@@ -3707,7 +3708,7 @@ function App() {
         materialSearchResults={materialSearchResults}
         selectedMaterialDetail={selectedMaterialDetail}
         materialsFileInputRef={materialsFileInputRef}
-        handleFileChange={(event) => handleFileChange(event, activeCourseContext.courseId || activeCourseContext.subject)}
+        handleFileChange={(event, sourceType) => handleFileChange(event, activeCourseContext.courseId || activeCourseContext.subject, sourceType)}
         loadMaterials={loadMaterials}
         searchMaterials={searchMaterials}
         reindexLibrary={reindexLibrary}

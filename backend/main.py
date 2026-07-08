@@ -325,6 +325,14 @@ class CourseLearningOnboardingRequest(BaseModel):
     onboarding_completed: bool = True
 
 
+class CourseLearningExamSettingsRequest(BaseModel):
+    username: str
+    course_id: str
+    exam_date: str | None = ""
+    target: str | None = ""
+    daily_review: str | None = ""
+
+
 class AddMaterialFromMessageRequest(BaseModel):
     username: str
     message_id: int
@@ -640,6 +648,21 @@ def _parse_track_onboarding_detail(track) -> dict:
 
 
 # ── 11408 School Whitelist ──
+
+def normalize_course_learning_key(course_id: str | None) -> str:
+    return (course_id or "").strip()[:100]
+
+
+def serialize_course_exam_settings(settings: dict | None, course_id: str = "") -> dict:
+    data = settings if isinstance(settings, dict) else {}
+    return {
+        "course_id": normalize_course_learning_key(data.get("course_id") or course_id),
+        "exam_date": (data.get("exam_date") or "").strip(),
+        "target": (data.get("target") or "").strip(),
+        "daily_review": (data.get("daily_review") or "").strip(),
+        "updated_at": data.get("updated_at") or "",
+    }
+
 
 EXAM_408_SCHOOLS = [
     "北京大学",
@@ -1487,10 +1510,20 @@ SYSTEM_METADATA_VISIBILITY = "system_public_metadata"
 SYSTEM_FULLTEXT_VISIBILITY = "system_public_fulltext"
 USER_UPLOAD_SOURCE = "user_upload"
 REFERENCE_METADATA_SOURCE = "reference_metadata"
+EXAM_SCOPE_SOURCE = "exam_scope"
+PAST_PAPER_SOURCE = "past_paper"
+USER_MANAGED_MATERIAL_SOURCES = {USER_UPLOAD_SOURCE, EXAM_SCOPE_SOURCE, PAST_PAPER_SOURCE}
 
 
 def material_source_type(material: models.StudyMaterial) -> str:
     return (getattr(material, "source_type", None) or USER_UPLOAD_SOURCE).strip() or USER_UPLOAD_SOURCE
+
+
+def normalize_material_source_type(source_type: str | None) -> str:
+    value = (source_type or "").strip()
+    if value in USER_MANAGED_MATERIAL_SOURCES:
+        return value
+    return USER_UPLOAD_SOURCE
 
 
 def material_visibility(material: models.StudyMaterial) -> str:
@@ -1510,7 +1543,7 @@ def is_user_private_material(material: models.StudyMaterial, username: str) -> b
 
 
 def can_user_modify_material(material: models.StudyMaterial, username: str) -> bool:
-    return is_user_private_material(material, username) and material_source_type(material) == USER_UPLOAD_SOURCE
+    return is_user_private_material(material, username) and material_source_type(material) in USER_MANAGED_MATERIAL_SOURCES
 
 
 def accessible_material_filter(username: str):
@@ -2973,6 +3006,7 @@ def create_pending_material(
     file_size: int = 0,
     total_pages: int = 0,
     source_message_id: int | None = None,
+    source_type: str | None = None,
 ):
     material = models.StudyMaterial(
         username=(username or "").strip(),
@@ -2986,7 +3020,7 @@ def create_pending_material(
         extracted_text="",
         summary="资料已上传，等待后台解析。",
         source_message_id=source_message_id,
-        source_type=USER_UPLOAD_SOURCE,
+        source_type=normalize_material_source_type(source_type),
         visibility=PRIVATE_VISIBILITY,
         copyright_status="user_responsibility",
         allow_download=True,
@@ -5008,6 +5042,66 @@ def save_course_learning_onboarding(
 
 # ── Course Learning Registration ──
 
+@app.get("/course-learning/exam-settings")
+def get_course_learning_exam_settings(
+    username: str,
+    course_id: str,
+    db: Session = Depends(get_db),
+):
+    user = get_user_by_username(username, db)
+    course_key = normalize_course_learning_key(course_id)
+    if not course_key:
+        raise HTTPException(status_code=400, detail="course_id is required")
+    track = get_user_track(db, user.id, "university_course")
+    detail = _parse_track_onboarding_detail(track)
+    settings_map = detail.get("exam_cram_settings") if isinstance(detail.get("exam_cram_settings"), dict) else {}
+    return {
+        "settings": serialize_course_exam_settings(settings_map.get(course_key), course_key),
+    }
+
+
+@app.post("/course-learning/exam-settings")
+def save_course_learning_exam_settings(
+    req: CourseLearningExamSettingsRequest,
+    db: Session = Depends(get_db),
+):
+    user = get_user_by_username(req.username, db)
+    course_key = normalize_course_learning_key(req.course_id)
+    if not course_key:
+        raise HTTPException(status_code=400, detail="course_id is required")
+
+    track = get_user_track(db, user.id, "university_course")
+    detail = _parse_track_onboarding_detail(track)
+    settings_map = detail.get("exam_cram_settings") if isinstance(detail.get("exam_cram_settings"), dict) else {}
+    settings = {
+        "course_id": course_key,
+        "exam_date": (req.exam_date or "").strip()[:30],
+        "target": (req.target or "").strip()[:80],
+        "daily_review": (req.daily_review or "").strip()[:40],
+        "updated_at": serialize_datetime(utc_now()),
+    }
+    settings_map[course_key] = settings
+    detail["exam_cram_settings"] = settings_map
+    detail["course_learning_updated_at"] = serialize_datetime(utc_now())
+
+    existing_plan = (track.plan if track else None) or "free"
+    existing_package = (track.package_type if track else None) or existing_plan
+    track = upsert_user_track(
+        db,
+        user.id,
+        "university_course",
+        plan=existing_plan,
+        package_type=existing_package,
+        onboarding_detail=detail,
+    )
+    db.commit()
+    db.refresh(track)
+    return {
+        "message": "exam settings saved",
+        "settings": serialize_course_exam_settings(settings, course_key),
+    }
+
+
 class CourseLearningRegisterRequest(BaseModel):
     username: str
     plan: str = "free"
@@ -6286,6 +6380,7 @@ async def upload_material(
     question: str = Form(""),
     conversation_id: int | None = Form(None),
     save_to_materials: bool = Form(False),
+    source_type: str | None = Form(None),
     authorization: str | None = Header(None),
     db: Session = Depends(get_db),
 ):
@@ -6297,6 +6392,7 @@ async def upload_material(
 
     user = get_user_by_username(upload_username, db)
     normalized_subject = _normalize_course_or_11408(subject)
+    normalized_source_type = normalize_material_source_type(source_type)
 
     # Upload quota checks
     plan_info = get_user_plan(user.username, db)
@@ -6349,6 +6445,12 @@ async def upload_material(
             file_hash,
             file.content_type,
         )
+        if normalized_source_type != USER_UPLOAD_SOURCE and existing_material.source_type != normalized_source_type:
+            existing_material.source_type = normalized_source_type
+            existing_material.subject = normalized_subject
+            existing_material.updated_at = utc_now()
+            db.commit()
+            db.refresh(existing_material)
         return {
             "success": True,
             "material_id": existing_material.id,
@@ -6368,6 +6470,12 @@ async def upload_material(
             file_hash,
             file.content_type,
         )
+        if normalized_source_type != USER_UPLOAD_SOURCE and existing_material.source_type != normalized_source_type:
+            existing_material.source_type = normalized_source_type
+            existing_material.subject = normalized_subject
+            existing_material.updated_at = utc_now()
+            db.commit()
+            db.refresh(existing_material)
         return {
             "success": True,
             "material_id": existing_material.id,
@@ -6389,6 +6497,7 @@ async def upload_material(
         file_hash=file_hash,
         mime_type=file.content_type,
         file_size=len(file_bytes),
+        source_type=normalized_source_type,
     )
 
     total_pages = 0

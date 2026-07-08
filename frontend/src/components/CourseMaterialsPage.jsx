@@ -34,6 +34,28 @@ const SORT_OPTIONS = [
   { value: "chunksDesc", label: "片段 ↓" },
 ];
 
+const SOURCE_FILTERS = [
+  { value: "all", label: "全部" },
+  { value: "normal", label: "普通课程资料" },
+  { value: "exam_scope", label: "考试范围" },
+  { value: "past_paper", label: "往年卷" },
+];
+
+const EXAM_MATERIAL_TYPES = [
+  {
+    key: "exam_scope",
+    title: "考试范围",
+    desc: "期末复习范围、老师划重点、考试说明、考纲或复习提纲",
+    action: "上传考试范围",
+  },
+  {
+    key: "past_paper",
+    title: "往年卷",
+    desc: "往年期末试卷、真题、样卷、题型示例或历年考题整理",
+    action: "上传往年卷",
+  },
+];
+
 function getCourseDisplay(subject, getSubjectLabel, isCourseMode = false) {
   const raw = String(subject || "").trim();
   if (isCourseMode) {
@@ -162,7 +184,28 @@ function isReferenceMetadata(material) {
   return material?.source_type === "reference_metadata" || material?.visibility === "system_public_metadata";
 }
 
+function getMaterialSourceType(material) {
+  return String(material?.source_type || material?.sourceType || "user_upload").trim() || "user_upload";
+}
+
 function getSourceMeta(material) {
+  const sourceType = getMaterialSourceType(material);
+  if (sourceType === "exam_scope") {
+    return {
+      label: "考试范围",
+      detail: "考试突击资料",
+      className: "exam-scope",
+      notice: "该资料会优先用于考试突击首页、AI 自测和重点预测。",
+    };
+  }
+  if (sourceType === "past_paper") {
+    return {
+      label: "往年卷",
+      detail: "考试突击资料",
+      className: "past-paper",
+      notice: "该资料会优先用于识别常考题型、出题风格和重点预测。",
+    };
+  }
   if (isReferenceMetadata(material)) {
     return {
       label: "官方参考",
@@ -177,6 +220,16 @@ function getSourceMeta(material) {
     className: "private",
     notice: "该资料由你上传，仅你可见。请确保你拥有该资料的合法使用权。系统仅用于个人学习、AI 问答和知识点整理。",
   };
+}
+
+function getExamMaterialStatus(items) {
+  if (!items.length) return "未上传";
+  const indexed = items.filter((item) => getStatusKind(item.parse_status) === "indexed").length;
+  if (indexed === items.length) return "已生成 AI 索引";
+  if (indexed > 0) return `部分已索引 ${indexed}/${items.length}`;
+  if (items.some((item) => getStatusKind(item.parse_status) === "parsing")) return "解析中";
+  if (items.some((item) => getStatusKind(item.parse_status) === "failed")) return "解析失败";
+  return "等待解析";
 }
 
 function sortMaterials(items, sortMode) {
@@ -265,6 +318,8 @@ export default function CourseMaterialsPage({
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [sourceFilter, setSourceFilter] = useState("all");
+  const [pendingUploadSource, setPendingUploadSource] = useState("user_upload");
   const [showSummary, setShowSummary] = useState(false);
   const [showKnowledgeModal, setShowKnowledgeModal] = useState(false);
   const [selectedMaterialIds, setSelectedMaterialIds] = useState(new Set());
@@ -313,11 +368,29 @@ export default function CourseMaterialsPage({
     };
   }, [currentItems]);
 
+  const examMaterialStats = useMemo(() => {
+    return EXAM_MATERIAL_TYPES.reduce((acc, type) => {
+      const items = currentItems.filter((item) => getMaterialSourceType(item) === type.key);
+      const latest = items.reduce((max, item) => Math.max(max, createdTimeOf(item)), 0);
+      acc[type.key] = {
+        ...type,
+        items,
+        count: items.length,
+        latest: latest ? formatDateTime(latest) : "-",
+        status: getExamMaterialStatus(items),
+      };
+      return acc;
+    }, {});
+  }, [currentItems]);
+
   const filteredItems = useMemo(() => {
     const needle = query.trim().toLowerCase();
     let items = currentItems.filter((item) => {
       if (typeFilter !== "all" && getTypeGroup(item) !== typeFilter) return false;
       if (statusFilter !== "all" && getStatusKind(item.parse_status) !== statusFilter) return false;
+      const sourceType = getMaterialSourceType(item);
+      if (sourceFilter === "normal" && (sourceType === "exam_scope" || sourceType === "past_paper")) return false;
+      if (sourceFilter !== "all" && sourceFilter !== "normal" && sourceType !== sourceFilter) return false;
       if (!needle) return true;
       const localText = [
         filenameOf(item),
@@ -332,7 +405,7 @@ export default function CourseMaterialsPage({
     });
     items = sortMaterials(items, materialSortMode);
     return items;
-  }, [currentItems, matchedMaterialIds, materialSortMode, query, statusFilter, typeFilter]);
+  }, [currentItems, matchedMaterialIds, materialSortMode, query, sourceFilter, statusFilter, typeFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredItems.length / PAGE_SIZE));
   const currentPage = Math.min(Math.max(1, materialCurrentPage || 1), totalPages);
@@ -340,7 +413,7 @@ export default function CourseMaterialsPage({
 
   useEffect(() => {
     setMaterialCurrentPage(1);
-  }, [subject, query, typeFilter, statusFilter, materialSortMode, setMaterialCurrentPage]);
+  }, [subject, query, typeFilter, statusFilter, sourceFilter, materialSortMode, setMaterialCurrentPage]);
 
   useEffect(() => {
     const nextQuery = String(initialSearchQuery || "").trim();
@@ -373,6 +446,21 @@ export default function CourseMaterialsPage({
   const handleReindex = async () => {
     await reindexLibrary?.(subject);
     await loadMaterials?.(subject);
+  };
+
+  const triggerUpload = (sourceType = "user_upload") => {
+    setPendingUploadSource(sourceType);
+    materialsFileInputRef.current?.click();
+  };
+
+  const onMaterialFileChange = (event) => {
+    const sourceType = pendingUploadSource || "user_upload";
+    setPendingUploadSource("user_upload");
+    if (isCourseMode) {
+      handleFileChange?.(event, sourceType);
+    } else {
+      handleFileChange?.(event);
+    }
   };
 
   const openKnowledgeModal = () => {
@@ -489,7 +577,7 @@ export default function CourseMaterialsPage({
             <p>{examCramMode ? "考试突击 · 复习资料管理" : (isCourseMode ? "课程资料管理" : `当前课程：${course.course}`)}</p>
           </div>
           <div className="cmp-header-actions">
-            <button className="cmp-btn cmp-btn--primary" type="button" onClick={() => materialsFileInputRef.current?.click()}>
+            <button className="cmp-btn cmp-btn--primary" type="button" onClick={() => triggerUpload("user_upload")}>
               {examCramMode ? "上传复习资料" : "上传课程资料"}
             </button>
             <button className="cmp-btn cmp-btn--ghost" type="button" onClick={refreshAll} disabled={materialsLoading}>
@@ -505,7 +593,7 @@ export default function CourseMaterialsPage({
             type="file"
             multiple
             accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.pptx,.txt,.md,.markdown,.py,.java,.c,.cpp,.h,.hpp,.js,.jsx,.ts,.tsx,.html,.htm,.css,.json,.xml,.yaml,.yml,.sql,.sh,.bash,.go,.rs,.php,.rb"
-            onChange={handleFileChange}
+            onChange={onMaterialFileChange}
           />
         </header>
         <div className="cmp-upload-notice">
@@ -526,6 +614,38 @@ export default function CourseMaterialsPage({
           <StatCard icon="◴" value={stats.latest} label="最近上传时间" />
         </div>
 
+        {examCramMode && (
+          <section className="cmp-exam-materials">
+            <div className="cmp-section-title">
+              <span>考试突击资料</span>
+              <h2>考试资料专区</h2>
+              <p>考试范围和往年卷会优先用于首页考试信息、AI 自测和重点预测。</p>
+            </div>
+            <div className="cmp-exam-material-grid">
+              {EXAM_MATERIAL_TYPES.map((type) => {
+                const item = examMaterialStats[type.key];
+                return (
+                  <article className="cmp-exam-material-card" key={type.key}>
+                    <div>
+                      <span>{type.title}</span>
+                      <h3>{type.title}</h3>
+                      <p>{type.desc}</p>
+                    </div>
+                    <dl>
+                      <div><dt>已上传数量</dt><dd>{item.count} 份</dd></div>
+                      <div><dt>最近上传时间</dt><dd>{item.latest}</dd></div>
+                      <div><dt>AI 索引状态</dt><dd>{item.status}</dd></div>
+                    </dl>
+                    <button className="cmp-btn cmp-btn--primary" type="button" onClick={() => triggerUpload(type.key)}>
+                      {type.action}
+                    </button>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
         <div className="cmp-filter-card">
           <div className="cmp-search-row">
             <div className="cmp-search-box">
@@ -544,6 +664,7 @@ export default function CourseMaterialsPage({
             </button>
           </div>
           <ChipGroup label="类型" options={FILE_TYPES} value={typeFilter} onChange={setTypeFilter} />
+          {examCramMode && <ChipGroup label="来源/用途" options={SOURCE_FILTERS} value={sourceFilter} onChange={setSourceFilter} />}
           <ChipGroup label="索引状态" options={INDEX_STATUSES} value={statusFilter} onChange={setStatusFilter} />
           <div className="cmp-filter-group">
             <span className="cmp-filter-label">排序</span>
@@ -580,7 +701,7 @@ export default function CourseMaterialsPage({
                       <h3>{currentItems.length === 0 ? "当前科目还没有资料" : "没有符合条件的资料"}</h3>
                       <p>上传课程资料后，可用于 AI 问答引用和学习。</p>
                       <p className="cmp-empty-note">请上传你拥有合法使用权的学习资料；较大 PDF 会先入库，再由后台分批解析。</p>
-                      <button className="cmp-btn cmp-btn--primary" type="button" onClick={() => materialsFileInputRef.current?.click()}>
+                      <button className="cmp-btn cmp-btn--primary" type="button" onClick={() => triggerUpload("user_upload")}>
                         上传课程资料
                       </button>
                     </div>
@@ -727,7 +848,7 @@ export default function CourseMaterialsPage({
                   {currentItems.length === 0 ? (
                     <div className="kam-empty">
                       <p>当前科目暂无资料，请先上传课程资料。</p>
-                      <button className="cmp-btn cmp-btn--primary" type="button" onClick={() => { closeKnowledgeModal(); materialsFileInputRef.current?.click(); }}>
+                      <button className="cmp-btn cmp-btn--primary" type="button" onClick={() => { closeKnowledgeModal(); triggerUpload("user_upload"); }}>
                         上传课程资料
                       </button>
                     </div>

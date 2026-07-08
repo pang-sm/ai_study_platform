@@ -6,6 +6,7 @@ const LearningReportCenter = lazy(() => import("./LearningReportCenter.jsx"));
 import "./CourseSubjectDashboard.css";
 
 const COURSE_TRACK = "course_learning";
+const EXAM_TARGET_OPTIONS = ["及格", "稳过", "高分", "自定义"];
 
 const NAV_ITEMS = [
   { key: "overview", label: "首页", icon: "◆" },
@@ -152,25 +153,26 @@ function resolveQuestionTemplateKey(courseName, courseId, initialCourseId) {
   return alias?.key || "";
 }
 
-function buildExamInfo(dashboard, preference, course, stats) {
+function buildExamInfo(dashboard, preference, course, stats, examSettings = {}, examMaterialSummary = {}) {
   const raw = dashboard?.exam_info || dashboard?.examInfo || preference?.exam_info || preference?.examInfo || course?.exam_info || course?.examInfo || {};
-  const examDate = textValue(raw.exam_date, raw.examDate, raw.date, raw.target_date, raw.targetDate);
-  const target = textValue(raw.target, raw.goal, raw.target_score, raw.targetScore, preference?.target, course?.target);
-  const reviewScope = textValue(raw.review_scope, raw.reviewScope, raw.scope, raw.exam_scope, raw.examScope);
-  const dailyReview = textValue(raw.daily_review, raw.dailyReview, raw.daily_minutes, raw.dailyMinutes);
+  const examDate = textValue(examSettings.exam_date, examSettings.examDate, raw.exam_date, raw.examDate, raw.date, raw.target_date, raw.targetDate);
+  const target = textValue(examSettings.target, raw.target, raw.goal, raw.target_score, raw.targetScore, preference?.target, course?.target);
+  const rawReviewScope = textValue(raw.review_scope, raw.reviewScope, raw.scope, raw.exam_scope, raw.examScope);
+  const reviewScope = examMaterialSummary.scopeText || rawReviewScope;
+  const dailyReview = textValue(examSettings.daily_review, examSettings.dailyReview, raw.daily_review, raw.dailyReview, raw.daily_minutes, raw.dailyMinutes);
   const readinessText = textValue(raw.readiness, raw.ready_status, raw.readyStatus, raw.evaluation);
   const readinessPercent = normalizeProgressValue(raw.readiness_percent ?? raw.readinessPercent ?? raw.progress_percent);
   return {
     examDate: examDate || "未设置",
     target: target || "未设置目标",
-    reviewScope: reviewScope || "暂未选择",
+    reviewScope: reviewScope || "暂未上传考试范围",
     dailyReview: dailyReview || "未填写",
     readiness: readinessText || (readinessPercent === null ? "暂无评估" : `${readinessPercent}%`),
     daysLeft: formatDaysLeft(examDate),
     configured: {
       examDate: Boolean(examDate),
       target: Boolean(target),
-      reviewScope: Boolean(reviewScope),
+      reviewScope: Boolean(reviewScope && reviewScope !== "暂未上传考试范围"),
       dailyReview: Boolean(dailyReview),
     },
   };
@@ -191,16 +193,19 @@ function getTaskStatus(task) {
   return STATUS_LABELS[task.status] || textValue(task.status_label, task.statusLabel, task.status, "待安排");
 }
 
-function buildCramPrompt(kind, courseName, questionTypes) {
+function buildCramPrompt(kind, courseName, questionTypes, hasExamMaterials = false) {
   const topics = questionTypes
     .flatMap((type) => [type.title, ...(type.examples || [])])
     .filter(Boolean)
     .slice(0, 10)
     .join("、");
+  const materialHint = hasExamMaterials
+    ? "请优先结合已上传的考试范围和往年卷；如果资料不足，再按课程常见期末题型补充。"
+    : "";
   if (kind === "prediction") {
-    return `请根据${courseName}课程的考试突击场景，总结最值得优先复习的高频考点、典型题型和易错点，覆盖${topics}，并按优先级输出。`;
+    return `${materialHint}请根据${courseName}课程的考试突击场景，总结最值得优先复习的高频考点、典型题型和易错点，覆盖${topics}，并按优先级输出。`;
   }
-  return `请根据${courseName}课程的期末考试突击场景，生成一套 10 分钟考前自测题，覆盖${topics}，并附参考答案。`;
+  return `${materialHint}请根据${courseName}课程的期末考试突击场景，生成一套 10 分钟考前自测题，覆盖${topics}，并附参考答案。`;
 }
 
 function enrichQuestionType(type) {
@@ -238,6 +243,36 @@ function countMaterialType(materials, type) {
     const text = `${item.file_type || ""} ${item.file_name || ""} ${item.original_filename || ""} ${item.summary || ""}`.toLowerCase();
     return type.match.some((keyword) => text.includes(keyword.toLowerCase()));
   }).length;
+}
+
+function getMaterialSourceType(material) {
+  return String(material?.source_type || material?.sourceType || "user_upload").trim();
+}
+
+function isIndexedMaterial(material) {
+  const status = String(material?.parse_status || "").trim();
+  return status === "success" || status === "partial" || Number(material?.chunk_count || 0) > 0;
+}
+
+function buildExamMaterialSummary(materials, courseName, subject, getSubjectLabel) {
+  const courseMaterials = getCourseMaterials(materials, courseName, subject, getSubjectLabel);
+  const examScopes = courseMaterials.filter((item) => getMaterialSourceType(item) === "exam_scope");
+  const pastPapers = courseMaterials.filter((item) => getMaterialSourceType(item) === "past_paper");
+  const hasIndexedScope = examScopes.some(isIndexedMaterial);
+  let scopeText = "暂未上传考试范围";
+  if (examScopes.length > 0) {
+    scopeText = hasIndexedScope ? "已上传考试范围" : "考试范围已上传，等待解析";
+  }
+  return {
+    examScopes,
+    pastPapers,
+    scopeCount: examScopes.length,
+    pastPaperCount: pastPapers.length,
+    total: examScopes.length + pastPapers.length,
+    hasExamMaterials: examScopes.length + pastPapers.length > 0,
+    hasIndexedScope,
+    scopeText,
+  };
 }
 
 function formatHours(minutes) {
@@ -355,6 +390,15 @@ export default function CourseSubjectDashboard({
   const [cramPlanError, setCramPlanError] = useState("");
   const [chatPromptIntent, setChatPromptIntent] = useState(null);
   const [examConfigNoticeOpen, setExamConfigNoticeOpen] = useState(false);
+  const [examSettings, setExamSettings] = useState({});
+  const [examSettingsForm, setExamSettingsForm] = useState({
+    exam_date: "",
+    target: "",
+    custom_target: "",
+    daily_review: "",
+  });
+  const [examSettingsSaving, setExamSettingsSaving] = useState(false);
+  const [examSettingsError, setExamSettingsError] = useState("");
   const [planCreateIntent, setPlanCreateIntent] = useState(null);
   const stats = dashboard?.stats || {};
   const courseName = initialCourseName;
@@ -384,6 +428,31 @@ export default function CourseSubjectDashboard({
     return () => { alive = false; };
   }, [user?.username]);
 
+  useEffect(() => {
+    if (!isExamCramMode || !user?.username || !courseId) {
+      setExamSettings({});
+      return;
+    }
+    const controller = new AbortController();
+    setExamSettingsError("");
+    fetch(`/api/course-learning/exam-settings?username=${encodeURIComponent(user.username)}&course_id=${encodeURIComponent(courseId)}`, {
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((data) => {
+        setExamSettings(data?.settings || {});
+      })
+      .catch((err) => {
+        if (err?.name === "AbortError") return;
+        setExamSettings({});
+        setExamSettingsError(err?.message || "考试信息读取失败");
+      });
+    return () => controller.abort();
+  }, [isExamCramMode, user?.username, courseId]);
+
   const learnedPercent = Math.max(0, Math.min(100, numberValue(stats.progress_percent, 0)));
   const knowledgeCount = numberValue(stats.knowledge_points_count, 0);
   const chapterCount = numberValue(stats.chapter_count || stats.modules_count, 12);
@@ -398,11 +467,9 @@ export default function CourseSubjectDashboard({
   const focusTag = learningGoal || preference.learning_goal || "平日学习";
   const activeLabel = navItems.find((item) => item.key === activeSection)?.label || "首页";
   const courseContextDisplay = `课程学习 / ${courseName}`;
-  const examInfo = buildExamInfo(dashboard, preference, course, stats);
   const questionTemplateKey = resolveQuestionTemplateKey(courseName, courseId, initialCourseId);
   const questionTypes = (COURSE_QUESTION_TYPE_TEMPLATES[questionTemplateKey] || GENERAL_QUESTION_TYPES).map(enrichQuestionType);
   const realSprintTasks = Array.isArray(cramPlanData?.tasks) ? cramPlanData.tasks.slice(0, 4) : [];
-  const hasPreciseExamInfo = Boolean(examInfo.configured.examDate && examInfo.configured.reviewScope);
 
   // Check course_learning membership plan — hide ad if full
   const coursePlan = entitlements?.plan || user?.service_plans?.["course_learning"]?.plan || "free";
@@ -416,6 +483,10 @@ export default function CourseSubjectDashboard({
       return targetNames.has(item.subject) || targetNames.has(itemName);
     });
   })();
+  const examMaterialSummary = buildExamMaterialSummary(materials, courseName, courseId, getSubjectLabel);
+  const examInfo = buildExamInfo(dashboard, preference, course, stats, examSettings, examMaterialSummary);
+  const hasExamMaterials = examMaterialSummary.hasExamMaterials;
+  const hasPreciseExamInfo = Boolean(examInfo.configured.examDate && examInfo.configured.reviewScope);
 
   const planItems = [];
 
@@ -459,12 +530,55 @@ export default function CourseSubjectDashboard({
     setActiveSection("plan");
   };
 
-  const openExamSettingsNotice = () => setExamConfigNoticeOpen(true);
+  const openMaterials = () => setActiveSection("materials");
+
+  const openExamSettingsNotice = () => {
+    const target = textValue(examSettings.target);
+    const isPresetTarget = EXAM_TARGET_OPTIONS.includes(target) && target !== "自定义";
+    setExamSettingsForm({
+      exam_date: textValue(examSettings.exam_date, examSettings.examDate),
+      target: isPresetTarget || !target ? target : "自定义",
+      custom_target: isPresetTarget ? "" : target,
+      daily_review: textValue(examSettings.daily_review, examSettings.dailyReview),
+    });
+    setExamSettingsError("");
+    setExamConfigNoticeOpen(true);
+  };
+
+  const saveExamSettings = async () => {
+    if (!user?.username) return;
+    const target = examSettingsForm.target === "自定义"
+      ? examSettingsForm.custom_target.trim()
+      : examSettingsForm.target.trim();
+    setExamSettingsSaving(true);
+    setExamSettingsError("");
+    try {
+      const res = await fetch("/api/course-learning/exam-settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: user.username,
+          course_id: courseId,
+          exam_date: examSettingsForm.exam_date,
+          target,
+          daily_review: examSettingsForm.daily_review,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+      setExamSettings(data?.settings || {});
+      setExamConfigNoticeOpen(false);
+    } catch (error) {
+      setExamSettingsError(error?.message || "考试信息保存失败");
+    } finally {
+      setExamSettingsSaving(false);
+    }
+  };
 
   const openAiWithPrompt = (kind) => {
     setChatPromptIntent({
       nonce: Date.now(),
-      text: buildCramPrompt(kind, courseName, questionTypes),
+      text: buildCramPrompt(kind, courseName, questionTypes, hasExamMaterials),
     });
     setActiveSection("chat");
   };
@@ -506,9 +620,14 @@ export default function CourseSubjectDashboard({
             <div className="csd-cram-config-callout">
               <div>
                 <strong>建议先设置考试信息</strong>
-                <p>补充考试日期和复习范围后，首页倒计时、冲刺建议和 AI 自测会更准确。</p>
+                <p>补充考试日期、目标，并上传考试范围后，首页倒计时、冲刺建议和 AI 自测会更准确。</p>
               </div>
-              <button type="button" onClick={openExamSettingsNotice}>设置考试信息</button>
+              <div className="csd-cram-config-actions">
+                <button type="button" onClick={openExamSettingsNotice}>设置考试信息</button>
+                {!examMaterialSummary.scopeCount && (
+                  <button type="button" className="csd-cram-secondary-button" onClick={openMaterials}>去资料库上传</button>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -519,18 +638,18 @@ export default function CourseSubjectDashboard({
             <h2>考前自测入口</h2>
             <p>基于当前课程与考试范围生成快速自测</p>
           </div>
-          {!hasPreciseExamInfo && (
-            <p className="csd-cram-self-test-note">建议先设置考试日期和复习范围，AI 自测会更准确。</p>
+          {!hasExamMaterials && (
+            <p className="csd-cram-self-test-note">建议先上传考试范围或往年卷，AI 自测会更贴近考试。</p>
           )}
-          {hasPreciseExamInfo ? (
+          {hasExamMaterials ? (
             <>
-              <button type="button" onClick={() => openAiWithPrompt("selfTest")}>生成 10 分钟自测</button>
-              <button type="button" onClick={() => openAiWithPrompt("prediction")}>AI 预测重点</button>
+              <button type="button" onClick={() => openAiWithPrompt("selfTest")}>基于考试资料生成自测</button>
+              <button type="button" onClick={() => openAiWithPrompt("prediction")}>基于考试资料预测重点</button>
             </>
           ) : (
             <>
-              <button type="button" onClick={openExamSettingsNotice}>去设置考试信息</button>
-              <button type="button" onClick={() => openAiWithPrompt("selfTest")}>仍然生成通用自测</button>
+              <button type="button" onClick={() => openAiWithPrompt("selfTest")}>生成通用自测</button>
+              <button type="button" onClick={openMaterials}>去上传考试资料</button>
             </>
           )}
         </div>
@@ -612,11 +731,58 @@ export default function CourseSubjectDashboard({
           >
             <button type="button" className="csd-cram-modal-close" onClick={() => setExamConfigNoticeOpen(false)} aria-label="关闭">×</button>
             <span>考试信息</span>
-            <h2 id="csd-cram-config-title">先完善考试日期和复习范围</h2>
-            <p>当前还没有可保存考试配置的独立入口。你可以先到学习计划中创建阶段任务，首页会同步展示任务摘要；后续接入考试设置后，这里会直接保存考试日期、目标和复习范围。</p>
+            <h2 id="csd-cram-config-title">设置考试信息</h2>
+            <p>设置会按当前课程保存，不会影响其它课程。复习范围请在资料库的考试资料专区上传。</p>
+            <div className="csd-cram-form">
+              <label>
+                <span>考试日期</span>
+                <input
+                  type="date"
+                  value={examSettingsForm.exam_date}
+                  onChange={(event) => setExamSettingsForm((prev) => ({ ...prev, exam_date: event.target.value }))}
+                />
+              </label>
+              <label>
+                <span>目标</span>
+                <select
+                  value={examSettingsForm.target}
+                  onChange={(event) => setExamSettingsForm((prev) => ({ ...prev, target: event.target.value }))}
+                >
+                  <option value="">未设置目标</option>
+                  {EXAM_TARGET_OPTIONS.map((option) => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+              </label>
+              {examSettingsForm.target === "自定义" && (
+                <label>
+                  <span>自定义目标</span>
+                  <input
+                    type="text"
+                    value={examSettingsForm.custom_target}
+                    maxLength={40}
+                    placeholder="例如：85 分以上"
+                    onChange={(event) => setExamSettingsForm((prev) => ({ ...prev, custom_target: event.target.value }))}
+                  />
+                </label>
+              )}
+              <label>
+                <span>每日复习时间（可选）</span>
+                <input
+                  type="text"
+                  value={examSettingsForm.daily_review}
+                  maxLength={30}
+                  placeholder="例如：1.5 小时"
+                  onChange={(event) => setExamSettingsForm((prev) => ({ ...prev, daily_review: event.target.value }))}
+                />
+              </label>
+            </div>
+            {examSettingsError && <p className="csd-cram-modal-error">{examSettingsError}</p>}
             <div className="csd-cram-modal-actions">
-              <button type="button" onClick={() => { setExamConfigNoticeOpen(false); openPlan(); }}>去学习计划</button>
-              <button type="button" onClick={() => setExamConfigNoticeOpen(false)}>稍后设置</button>
+              <button type="button" className="csd-cram-modal-ghost" onClick={() => setExamConfigNoticeOpen(false)} disabled={examSettingsSaving}>取消</button>
+              <button type="button" className="csd-cram-modal-primary" onClick={saveExamSettings} disabled={examSettingsSaving}>
+                {examSettingsSaving ? "保存中..." : "保存设置"}
+              </button>
             </div>
           </section>
         </div>
