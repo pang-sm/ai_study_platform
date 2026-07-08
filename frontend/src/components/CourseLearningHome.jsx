@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import "./CourseLearningHome.css";
-import { COURSE_LEARNING_CATALOG, COURSE_DISPLAY_NAMES, normalizeCourseLearningName, resolveCourseId } from "../courseLearningCatalog.js";
+import { COURSE_DISPLAY_NAMES, normalizeCourseLearningName } from "../courseLearningCatalog.js";
+
+const MODE_LABELS = {
+  daily: "平日学习",
+  exam: "考前突击",
+};
 
 const COURSE_THEMES = [
   { icon: "DS", tone: "purple" },
@@ -11,8 +16,6 @@ const COURSE_THEMES = [
   { icon: "AI", tone: "violet" },
 ];
 
-const GOAL_OPTIONS = ["平日学习", "考试突击"];
-
 function uniqueValues(values) {
   return Array.from(new Set((values || []).map((item) => `${item || ""}`.trim()).filter(Boolean)));
 }
@@ -21,15 +24,24 @@ function normalizeCourseName(course) {
   return normalizeCourseLearningName(course) || `${course || ""}`.trim();
 }
 
+function getCourseInitials(course, index) {
+  const ascii = `${course || ""}`.match(/[A-Za-z]+/g)?.join("") || "";
+  if (ascii) return ascii.slice(0, 2).toUpperCase();
+  return COURSE_THEMES[index % COURSE_THEMES.length].icon;
+}
+
+function formatDate(value) {
+  if (!value) return "无日期";
+  const time = new Date(value);
+  if (Number.isNaN(time.getTime())) return `${value}`.slice(0, 10);
+  return new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit" }).format(time);
+}
+
 function formatSize(bytes) {
   const value = Number(bytes || 0);
   if (value <= 0) return "0 MB";
   if (value < 1024 * 1024 * 1024) return `${(value / 1024 / 1024).toFixed(2)} MB`;
   return `${(value / 1024 / 1024 / 1024).toFixed(2)} GB`;
-}
-
-function getMaterialChunkCount(material) {
-  return Number(material?.chunk_count ?? material?.chunks ?? material?.chunkCount ?? 0) || 0;
 }
 
 function getMaterialTime(material) {
@@ -49,28 +61,6 @@ function formatRecentUpload(materials) {
     minute: "2-digit",
     hour12: false,
   }).format(new Date(time));
-}
-
-function getCourseInitials(course, index) {
-  const known = {
-    程序设计基础: "PF",
-    "C 语言程序设计": "C",
-    "Python 程序设计": "PY",
-    "Java 程序设计": "JA",
-    面向对象程序设计: "OO",
-    数据结构: "DS",
-    离散数学: "DM",
-    操作系统: "OS",
-    计算机网络: "CN",
-    计算机组成原理: "CO",
-    数据库系统: "DB",
-    算法设计与分析: "AL",
-    编译原理: "CP",
-    软件工程: "SE",
-    数字逻辑: "DL",
-    "Linux 系统基础": "LX",
-  };
-  return known[course] || COURSE_THEMES[index % COURSE_THEMES.length].icon;
 }
 
 function UserCard({ user, apiBase, onProfile, planLabel }) {
@@ -100,15 +90,23 @@ export default function CourseLearningHome({
   setPage,
   materials = [],
   loadMaterials,
-  courseOptions = [],
-  getSubjectLabel,
 }) {
   const [onboarding, setOnboarding] = useState(null);
+  const [courses, setCourses] = useState([]);
+  const [coursesLoading, setCoursesLoading] = useState(false);
+  const [coursesError, setCoursesError] = useState("");
+  const [todayPlan, setTodayPlan] = useState([]);
+  const [planLoading, setPlanLoading] = useState(false);
+  const [planError, setPlanError] = useState("");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [pendingCourse, setPendingCourse] = useState("");
-  const [pendingGoal, setPendingGoal] = useState("平日学习");
+  const [pendingGoal, setPendingGoal] = useState("daily");
   const [saveError, setSaveError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [settingsCourse, setSettingsCourse] = useState(null);
+  const [settingsForm, setSettingsForm] = useState({ display_name: "", note: "", default_mode: "daily", primary_mode: "daily", show_mode_priority: true });
+  const [settingsError, setSettingsError] = useState("");
+  const [settingsSaving, setSettingsSaving] = useState(false);
   const [entitlements, setEntitlements] = useState(null);
   const loadMaterialsRef = useRef(loadMaterials);
 
@@ -116,95 +114,125 @@ export default function CourseLearningHome({
     loadMaterialsRef.current = loadMaterials;
   }, [loadMaterials]);
 
+  const authHeaders = useMemo(() => ({
+    Authorization: `Bearer ${encodeURIComponent(user?.username || "")}`,
+  }), [user?.username]);
+
+  const loadOnboarding = async () => {
+    if (!user?.username) return null;
+    const res = await fetch(`${apiBase}/course-learning/onboarding`, { headers: authHeaders });
+    if (!res.ok) throw new Error("课程选择信息读取失败");
+    const data = await res.json();
+    setOnboarding(data);
+    return data;
+  };
+
+  const loadCourses = async () => {
+    if (!user?.username) return;
+    setCoursesLoading(true);
+    setCoursesError("");
+    try {
+      const res = await fetch(`${apiBase}/course-learning/courses?username=${encodeURIComponent(user.username)}`, { headers: authHeaders });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "我的课程读取失败");
+      setCourses(Array.isArray(data.courses) ? data.courses : []);
+    } catch (error) {
+      setCourses([]);
+      setCoursesError(error.message || "我的课程读取失败");
+    } finally {
+      setCoursesLoading(false);
+    }
+  };
+
+  const loadTodayPlan = async () => {
+    if (!user?.username) return;
+    setPlanLoading(true);
+    setPlanError("");
+    try {
+      const res = await fetch(`${apiBase}/course-learning/today-plan?username=${encodeURIComponent(user.username)}`, { headers: authHeaders });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "今日计划读取失败");
+      setTodayPlan(Array.isArray(data.items) ? data.items : []);
+    } catch (error) {
+      setTodayPlan([]);
+      setPlanError(error.message || "今日计划读取失败");
+    } finally {
+      setPlanLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!user?.username) return;
-    fetch(`${apiBase}/course-learning/onboarding`, {
-      headers: { Authorization: `Bearer ${encodeURIComponent(user.username)}` },
-    })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => setOnboarding(data))
-      .catch(() => setOnboarding(null));
+    loadOnboarding().catch(() => setOnboarding(null));
+    loadCourses();
+    loadTodayPlan();
     fetch(`${apiBase}/course-learning/entitlements?username=${encodeURIComponent(user.username)}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => setEntitlements(data))
       .catch(() => setEntitlements(null));
-  }, [apiBase, user?.username]);
+  }, [apiBase, authHeaders, user?.username]);
 
   useEffect(() => {
     if (!user?.username || !loadMaterialsRef.current) return;
     loadMaterialsRef.current("");
   }, [user?.username]);
 
-  const courseGoals = useMemo(() => {
-    const raw = onboarding?.course_goals;
-    return raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
-  }, [onboarding?.course_goals]);
-
-  const selectedCourses = useMemo(() => {
-    const fromOnboarding = uniqueValues(onboarding?.selected_courses).map(normalizeCourseName);
-    const fallbacks = uniqueValues([subject, ...courseOptions]).map((course) => normalizeCourseName(getSubjectLabel ? getSubjectLabel(course) : course));
-    const base = fromOnboarding.length > 0 ? fromOnboarding : fallbacks;
-    return uniqueValues(base).slice(0, 8);
-  }, [onboarding?.selected_courses, subject, courseOptions, getSubjectLabel]);
+  const selectedCourseNames = useMemo(() => new Set(courses.map((course) => normalizeCourseName(course.name || course.display_name || course.course_id))), [courses]);
 
   const availableCourses = useMemo(() => {
-    const selected = new Set(selectedCourses.map(normalizeCourseName));
-    return COURSE_DISPLAY_NAMES.filter((course) => !selected.has(normalizeCourseName(course)));
-  }, [selectedCourses]);
+    return COURSE_DISPLAY_NAMES.filter((course) => !selectedCourseNames.has(normalizeCourseName(course)));
+  }, [selectedCourseNames]);
 
-  const courseCards = selectedCourses.map((course, index) => {
+  const courseCards = courses.map((course, index) => {
     const theme = COURSE_THEMES[index % COURSE_THEMES.length];
     return {
-      name: course,
-      value: course,
-      icon: getCourseInitials(course, index),
+      ...course,
+      icon: getCourseInitials(course.display_name || course.name || course.course_id, index),
       tone: theme.tone,
-      status: index === 0 ? "正在学习" : "尚未开始",
-      goal: courseGoals[course] || "平日学习",
+      displayName: course.display_name || course.name || course.course_id,
+      primaryMode: course.primary_mode || "daily",
+      defaultMode: course.default_mode || "daily",
     };
   });
 
-  const planItems = [];
-
   const totalSize = materials.reduce((sum, item) => sum + Number(item.file_size || 0), 0);
-  const indexedMaterialCount = materials.filter((item) => {
-    const status = String(item.parse_status || item.index_status || "").toLowerCase();
-    return Number(getMaterialChunkCount(item)) > 0 || status === "success" || status === "partial" || status === "indexed";
-  }).length;
-  const knowledgeChunkCount = materials.reduce((sum, item) => sum + getMaterialChunkCount(item), 0);
   const recentUploadText = formatRecentUpload(materials);
   const uploadLimitMb = entitlements?.upload_limits?.single_file_size_mb || entitlements?.permissions?.material_upload_limit_mb || 0;
   const uploadLimitText = uploadLimitMb ? (Number(uploadLimitMb) >= 1024 ? `${Number(uploadLimitMb) / 1024} GB` : `${uploadLimitMb} MB`) : "未获取";
   const overviewStats = [
     { key: "total", label: "资料总数", value: `${materials.length}`, hint: "份" },
-    { key: "indexed", label: "AI 索引", value: `${indexedMaterialCount}`, hint: "份" },
-    { key: "chunks", label: "知识片段", value: knowledgeChunkCount.toLocaleString("zh-CN"), hint: "个" },
+    { key: "courses", label: "已选课程", value: `${courses.length}`, hint: "门" },
+    { key: "plans", label: "今日计划", value: `${todayPlan.length}`, hint: "项" },
     { key: "recent", label: "最近上传", value: recentUploadText, hint: "" },
   ];
 
-  const openCourse = (course) => {
-    const courseName = normalizeCourseName(course);
-    const learningGoal = courseGoals[courseName] || courseGoals[course] || "平日学习";
-    const courseContext = {
+  const buildCourseContext = (course, mode = course?.default_mode || "daily") => {
+    const courseName = course?.course_id || course?.subject || course?.displayName || course?.name;
+    const learningGoal = MODE_LABELS[mode] || "平日学习";
+    return {
       id: courseName,
       courseId: courseName,
-      name: courseName,
-      title: courseName,
-      courseName,
-      courseTitle: courseName,
+      name: course.displayName || course.name || courseName,
+      title: course.displayName || course.name || courseName,
+      courseName: course.displayName || course.name || courseName,
+      courseTitle: course.displayName || course.name || courseName,
       subject: courseName,
       learningGoal,
       learning_goal: learningGoal,
       track: "course_learning",
       serviceKey: "course_learning",
     };
+  };
+
+  const openCourse = (course, mode = course?.default_mode || "daily") => {
+    const courseName = course?.course_id || course?.subject || course?.displayName || course?.name;
     if (courseName && setSubject) setSubject(courseName);
-    setPage("dashboard", courseContext);
+    setPage("dashboard", buildCourseContext(course, mode));
   };
 
   const openAddModal = () => {
     setPendingCourse(availableCourses[0] || "");
-    setPendingGoal("平日学习");
+    setPendingGoal("daily");
     setSaveError("");
     setIsAddModalOpen(true);
   };
@@ -217,49 +245,110 @@ export default function CourseLearningHome({
 
   const saveAddedCourse = async () => {
     if (!pendingCourse) {
-      setSaveError("请选择一门要加入主页的课程");
+      setSaveError("请选择一门课程");
       return;
     }
-    if (!GOAL_OPTIONS.includes(pendingGoal)) {
-      setSaveError("请选择学习目标");
-      return;
-    }
-
-    const nextCourses = uniqueValues([...selectedCourses, pendingCourse]);
-    const nextGoals = { ...courseGoals, [pendingCourse]: pendingGoal };
     setIsSaving(true);
     setSaveError("");
     try {
+      const current = onboarding || await loadOnboarding();
+      const existingCourses = Array.isArray(current?.selected_courses) ? current.selected_courses : [];
+      const nextCourses = uniqueValues([...existingCourses, pendingCourse]);
+      const nextGoals = { ...(current?.course_goals || {}), [pendingCourse]: MODE_LABELS[pendingGoal] || "平日学习" };
       const res = await fetch(`${apiBase}/course-learning/onboarding`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${encodeURIComponent(user?.username || "")}`,
+          ...authHeaders,
         },
         body: JSON.stringify({
-          major: onboarding?.major || user?.major || "其他专业",
-          grade: onboarding?.grade || user?.grade || "暂不确定",
+          major: current?.major || user?.major || "其他专业",
+          grade: current?.grade || user?.grade || "暂不确定",
           selected_courses: nextCourses,
-          material_types: Array.isArray(onboarding?.material_types) ? onboarding.material_types : [],
-          plan: onboarding?.plan || "free",
+          material_types: Array.isArray(current?.material_types) ? current.material_types : [],
+          plan: current?.plan || "free",
           onboarding_completed: true,
           course_goals: nextGoals,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.detail || "课程加入失败，请稍后重试");
-      setOnboarding(data?.onboarding || {
-        ...onboarding,
-        selected_courses: nextCourses,
-        course_goals: nextGoals,
-        onboarding_completed: true,
-      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "课程加入失败");
+      setOnboarding(data?.onboarding || null);
       setIsAddModalOpen(false);
+      await loadCourses();
+      await loadTodayPlan();
     } catch (error) {
-      setSaveError(error.message || "课程加入失败，请稍后重试");
+      setSaveError(error.message || "课程加入失败");
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const openSettings = (event, course) => {
+    event.stopPropagation();
+    setSettingsCourse(course);
+    setSettingsForm({
+      display_name: course.display_name || course.name || "",
+      note: course.note || "",
+      default_mode: course.default_mode || "daily",
+      primary_mode: course.primary_mode || "daily",
+      show_mode_priority: course.show_mode_priority !== false,
+    });
+    setSettingsError("");
+  };
+
+  const saveSettings = async () => {
+    if (!settingsCourse) return;
+    setSettingsSaving(true);
+    setSettingsError("");
+    try {
+      const res = await fetch(`${apiBase}/course-learning/courses/${encodeURIComponent(settingsCourse.course_id)}/settings?username=${encodeURIComponent(user.username)}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders,
+        },
+        body: JSON.stringify(settingsForm),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "课程设置保存失败");
+      setSettingsCourse(null);
+      await loadCourses();
+      await loadTodayPlan();
+    } catch (error) {
+      setSettingsError(error.message || "课程设置保存失败");
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
+
+  const savePlanOrder = async (items) => {
+    setTodayPlan(items);
+    try {
+      const res = await fetch(`${apiBase}/course-learning/today-plan/order`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders,
+        },
+        body: JSON.stringify({ username: user.username, ordered_ids: items.map((item) => item.id) }),
+      });
+      if (!res.ok) throw new Error("order save failed");
+    } catch {
+      setPlanError("顺序保存失败，请刷新后重试");
+    }
+  };
+
+  const movePlanItem = (index, direction) => {
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= todayPlan.length) return;
+    const current = todayPlan[index];
+    const target = todayPlan[nextIndex];
+    if (current.urgency_rank !== target.urgency_rank) return;
+    const next = [...todayPlan];
+    next[index] = target;
+    next[nextIndex] = current;
+    savePlanOrder(next);
   };
 
   return (
@@ -267,8 +356,8 @@ export default function CourseLearningHome({
       <div className="clh-shell">
         <header className="clh-hero">
           <div>
-            <h1>欢迎回来，开始今天的课程学习 <span>✦</span></h1>
-            <p>保持专注，持续进步，每一天都比昨天更优秀！</p>
+            <h1>课程学习首页</h1>
+            <p>按课程整理资料、计划和学习入口，今天先做最重要的一项。</p>
           </div>
           <UserCard user={user} apiBase={apiBase} planLabel={entitlements?.plan_label || "免费模式"} onProfile={() => setPage?.("courseProfile")} />
         </header>
@@ -279,23 +368,35 @@ export default function CourseLearningHome({
             <span />
           </div>
           <div className="clh-course-row">
+            {coursesLoading && <div className="clh-inline-state">正在读取你的课程...</div>}
+            {coursesError && <div className="clh-inline-error">{coursesError}</div>}
+            {!coursesLoading && !coursesError && courseCards.length === 0 && (
+              <div className="clh-empty-course">
+                <strong>还没有已选课程</strong>
+                <span>从 onboarding 或“添加课程”选择后，这里会显示真实后端课程。</span>
+              </div>
+            )}
             {courseCards.map((course, index) => (
-              <button
-                key={`${course.value}-${index}`}
+              <article
+                key={course.course_id}
                 className={`clh-course-card clh-course-card--${course.tone}${index === 0 ? " is-active" : ""}`}
-                type="button"
-                onClick={() => openCourse(course.value)}
               >
-                <span className="clh-course-visual">{course.icon}</span>
-                <span className="clh-course-text">
-                  <strong>{course.name}</strong>
-                  <small>{course.status}</small>
-                  <em>{course.goal}</em>
-                </span>
-              </button>
+                <button className="clh-course-main" type="button" onClick={() => openCourse(course, course.defaultMode)}>
+                  <span className="clh-course-visual">{course.icon}</span>
+                  <span className="clh-course-text">
+                    <strong>{course.displayName}</strong>
+                    <small>{course.note || `${course.material_count || 0} 份资料 · ${course.pending_task_count || 0} 个计划`}</small>
+                  </span>
+                </button>
+                <div className="clh-mode-actions">
+                  <button type="button" className={course.primaryMode === "daily" ? "is-primary" : ""} onClick={() => openCourse(course, "daily")}>平日学习</button>
+                  <button type="button" className={course.primaryMode === "exam" ? "is-primary" : ""} onClick={() => openCourse(course, "exam")}>考前突击</button>
+                </div>
+                <button className="clh-course-settings" type="button" onClick={(event) => openSettings(event, course)}>设置</button>
+              </article>
             ))}
             <button className="clh-add-course" type="button" onClick={openAddModal}>
-              <span>＋</span>
+              <span>+</span>
               <strong>添加课程</strong>
             </button>
           </div>
@@ -304,32 +405,42 @@ export default function CourseLearningHome({
         <div className="clh-main-grid">
           <section className="clh-card clh-plan-card">
             <div className="clh-panel-heading">
-              <span className="clh-panel-icon clh-panel-icon--calendar">▣</span>
-              <h2>今日学习计划</h2>
+              <span className="clh-panel-icon clh-panel-icon--calendar">日</span>
+              <h2>今日计划</h2>
             </div>
             <div className="clh-plan-list">
-              {planItems.length === 0 && (
+              {planLoading && <div className="clh-plan-empty"><strong>正在读取真实计划...</strong></div>}
+              {planError && <div className="clh-inline-error">{planError}</div>}
+              {!planLoading && !planError && todayPlan.length === 0 && (
                 <div className="clh-plan-empty">
-                  <strong>暂无今日学习计划</strong>
-                  <span>进入具体课程后，可在学习计划中查看课程任务。</span>
+                  <strong>暂无今日计划</strong>
+                  <span>进入具体课程后创建学习计划，这里会按紧急程度汇总。</span>
                 </div>
               )}
-              {planItems.map((item) => (
-                <div className="clh-plan-item" key={`${item.title}-${item.progress}`}>
-                  <span className={`clh-plan-dot${item.done ? " is-done" : ""}`}>{item.done ? "✓" : ""}</span>
-                  <div className="clh-plan-body">
-                    <strong>{item.title}</strong>
-                    <span>{item.course}</span>
+              {todayPlan.map((item, index) => {
+                const canMoveUp = index > 0 && todayPlan[index - 1]?.urgency_rank === item.urgency_rank;
+                const canMoveDown = index < todayPlan.length - 1 && todayPlan[index + 1]?.urgency_rank === item.urgency_rank;
+                return (
+                  <div className="clh-plan-item" key={item.id}>
+                    <span className={`clh-urgency-rank clh-urgency-rank--${item.urgency_rank}`}>{item.urgency_rank}</span>
+                    <div className="clh-plan-body">
+                      <strong>{item.title}</strong>
+                      <span>{item.course_name}</span>
+                      <em>{item.mode_label} · {formatDate(item.due_date)} · {item.urgency_label}</em>
+                    </div>
+                    <div className="clh-plan-actions">
+                      <button type="button" disabled={!canMoveUp} onClick={() => movePlanItem(index, -1)}>上移</button>
+                      <button type="button" disabled={!canMoveDown} onClick={() => movePlanItem(index, 1)}>下移</button>
+                    </div>
                   </div>
-                  <em>{item.progress}</em>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </section>
 
           <section className="clh-card clh-material-card">
             <div className="clh-panel-heading">
-              <span className="clh-panel-icon clh-panel-icon--folder">▰</span>
+              <span className="clh-panel-icon clh-panel-icon--folder">库</span>
               <h2>资料库概览</h2>
             </div>
             <div className="clh-material-overview">
@@ -342,9 +453,7 @@ export default function CourseLearningHome({
                   </div>
                 ))}
               </div>
-              <p className="clh-material-note">
-                当前课程资料已同步到资料库，可用于 AI 问答、知识整理与学习计划生成。
-              </p>
+              <p className="clh-material-note">旧资料保留在资料库中；通用资料会同时服务平日学习和考前突击。</p>
             </div>
             <div className="clh-storage">
               <span>已上传 {materials.length} 份资料 · 合计 {formatSize(totalSize)} · 单文件上限 {uploadLimitText}</span>
@@ -354,75 +463,94 @@ export default function CourseLearningHome({
             </div>
           </section>
         </div>
-
-        <footer className="clh-tip">
-          <span>★</span>
-          <strong>小贴士：</strong>
-          <p>制定学习计划，合理安排时间，坚持学习会让你收获更大进步！</p>
-          <div className="clh-tip-books" aria-hidden="true" />
-        </footer>
       </div>
 
       {isAddModalOpen && (
         <div className="clh-modal-backdrop" role="presentation" onMouseDown={closeAddModal}>
-          <section
-            className="clh-add-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="clh-add-course-title"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <button className="clh-modal-close" type="button" onClick={closeAddModal} aria-label="关闭">×</button>
+          <section className="clh-add-modal" role="dialog" aria-modal="true" aria-labelledby="clh-add-course-title" onMouseDown={(event) => event.stopPropagation()}>
+            <button className="clh-modal-close" type="button" onClick={closeAddModal} aria-label="关闭">x</button>
             <div className="clh-modal-header">
               <span>添加课程</span>
-              <h2 id="clh-add-course-title">选择你想加入学习主页的课程</h2>
-              <p>已加入的课程不会重复出现，确认后会保存到你的课程主页。</p>
+              <h2 id="clh-add-course-title">选择要加入“我的课程”的课程</h2>
+              <p>保存后会写入后端 onboarding 数据，刷新后仍然保留。</p>
             </div>
-
             <div className="clh-modal-section">
               <h3>可选课程</h3>
               {availableCourses.length > 0 ? (
                 <div className="clh-course-picker">
                   {availableCourses.map((course) => (
-                    <button
-                      className={`clh-picker-item${pendingCourse === course ? " is-selected" : ""}`}
-                      type="button"
-                      key={course}
-                      onClick={() => setPendingCourse(course)}
-                    >
+                    <button className={`clh-picker-item${pendingCourse === course ? " is-selected" : ""}`} type="button" key={course} onClick={() => setPendingCourse(course)}>
                       {course}
                     </button>
                   ))}
                 </div>
               ) : (
-                <p className="clh-empty-picker">所有示例课程都已经加入主页了。</p>
+                <p className="clh-empty-picker">当前目录课程都已加入。</p>
               )}
             </div>
-
             <div className="clh-modal-section">
-              <h3>学习目标</h3>
-              <div className="clh-goal-toggle" role="radiogroup" aria-label="学习目标">
-                {GOAL_OPTIONS.map((goal) => (
-                  <button
-                    className={`clh-goal-option${pendingGoal === goal ? " is-selected" : ""}`}
-                    type="button"
-                    role="radio"
-                    aria-checked={pendingGoal === goal}
-                    key={goal}
-                    onClick={() => setPendingGoal(goal)}
-                  >
-                    {goal}
+              <h3>默认模式</h3>
+              <div className="clh-goal-toggle" role="radiogroup" aria-label="默认模式">
+                {Object.entries(MODE_LABELS).map(([mode, label]) => (
+                  <button className={`clh-goal-option${pendingGoal === mode ? " is-selected" : ""}`} type="button" role="radio" aria-checked={pendingGoal === mode} key={mode} onClick={() => setPendingGoal(mode)}>
+                    {label}
                   </button>
                 ))}
               </div>
             </div>
-
             {saveError && <p className="clh-modal-error">{saveError}</p>}
-
             <div className="clh-modal-actions">
               <button className="clh-modal-secondary" type="button" onClick={closeAddModal} disabled={isSaving}>取消</button>
               <button className="clh-modal-primary" type="button" onClick={saveAddedCourse} disabled={isSaving || !pendingCourse}>
                 {isSaving ? "保存中..." : "确认加入"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {settingsCourse && (
+        <div className="clh-modal-backdrop" role="presentation" onMouseDown={() => !settingsSaving && setSettingsCourse(null)}>
+          <section className="clh-add-modal" role="dialog" aria-modal="true" aria-labelledby="clh-settings-title" onMouseDown={(event) => event.stopPropagation()}>
+            <button className="clh-modal-close" type="button" onClick={() => setSettingsCourse(null)} aria-label="关闭">x</button>
+            <div className="clh-modal-header">
+              <span>课程设置</span>
+              <h2 id="clh-settings-title">{settingsCourse.displayName}</h2>
+              <p>只调整显示和模式优先级，不删除资料、计划或学习记录。</p>
+            </div>
+            <div className="clh-settings-grid">
+              <label>
+                显示名称
+                <input value={settingsForm.display_name} onChange={(event) => setSettingsForm((prev) => ({ ...prev, display_name: event.target.value }))} />
+              </label>
+              <label>
+                课程备注
+                <textarea value={settingsForm.note} onChange={(event) => setSettingsForm((prev) => ({ ...prev, note: event.target.value }))} rows={3} />
+              </label>
+              <label>
+                默认进入模式
+                <select value={settingsForm.default_mode} onChange={(event) => setSettingsForm((prev) => ({ ...prev, default_mode: event.target.value }))}>
+                  <option value="daily">平日学习</option>
+                  <option value="exam">考前突击</option>
+                </select>
+              </label>
+              <label>
+                当前主模式
+                <select value={settingsForm.primary_mode} onChange={(event) => setSettingsForm((prev) => ({ ...prev, primary_mode: event.target.value }))}>
+                  <option value="daily">平日学习</option>
+                  <option value="exam">考前突击</option>
+                </select>
+              </label>
+              <label className="clh-checkbox-row">
+                <input type="checkbox" checked={settingsForm.show_mode_priority} onChange={(event) => setSettingsForm((prev) => ({ ...prev, show_mode_priority: event.target.checked }))} />
+                显示主模式优先级
+              </label>
+            </div>
+            {settingsError && <p className="clh-modal-error">{settingsError}</p>}
+            <div className="clh-modal-actions">
+              <button className="clh-modal-secondary" type="button" onClick={() => setSettingsCourse(null)} disabled={settingsSaving}>取消</button>
+              <button className="clh-modal-primary" type="button" onClick={saveSettings} disabled={settingsSaving}>
+                {settingsSaving ? "保存中..." : "保存设置"}
               </button>
             </div>
           </section>

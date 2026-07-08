@@ -333,6 +333,19 @@ class CourseLearningExamSettingsRequest(BaseModel):
     daily_review: str | None = ""
 
 
+class CourseLearningSettingsRequest(BaseModel):
+    display_name: str | None = None
+    note: str | None = None
+    default_mode: str | None = None
+    primary_mode: str | None = None
+    show_mode_priority: bool | None = None
+
+
+class CourseLearningTodayPlanOrderRequest(BaseModel):
+    username: str | None = None
+    ordered_ids: list[str] = []
+
+
 class AddMaterialFromMessageRequest(BaseModel):
     username: str
     message_id: int
@@ -662,6 +675,138 @@ def serialize_course_exam_settings(settings: dict | None, course_id: str = "") -
         "daily_review": (data.get("daily_review") or "").strip(),
         "updated_at": data.get("updated_at") or "",
     }
+
+
+COURSE_LEARNING_MODES = {"daily", "exam", "general"}
+COURSE_LEARNING_MODE_LABELS = {
+    "daily": "平日学习",
+    "exam": "考前突击",
+    "general": "通用资料",
+}
+
+
+def normalize_course_learning_mode(value: str | None, default: str = "daily") -> str:
+    mode = (value or "").strip()
+    return mode if mode in COURSE_LEARNING_MODES else default
+
+
+def course_learning_goal_to_mode(value: str | None) -> str:
+    text = (value or "").strip()
+    if text in {"exam", "考前突击", "考试突击"}:
+        return "exam"
+    return "daily"
+
+
+def course_learning_mode_to_goal(value: str | None) -> str:
+    return "考前突击" if normalize_course_learning_mode(value, "daily") == "exam" else "平日学习"
+
+
+def parse_course_learning_date(value) -> datetime | None:
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+    except ValueError:
+        try:
+            parsed_date = date.fromisoformat(text[:10])
+            return datetime(parsed_date.year, parsed_date.month, parsed_date.day, tzinfo=timezone.utc)
+        except ValueError:
+            return None
+
+
+def course_learning_subject_variants(course_id: str) -> set[str]:
+    raw = normalize_course_learning_key(course_id)
+    normalized = normalize_subject_course_learning(raw) or raw
+    variants = {item for item in [raw, normalized, resolve_course_id_from_display(raw), resolve_course_id_from_display(normalized)] if item}
+    return variants
+
+
+def get_course_learning_selected_courses(user: models.User, track: models.UserLearningTrack | None) -> list[str]:
+    detail = _parse_track_onboarding_detail(track)
+    selected = detail.get("selected_courses") if isinstance(detail.get("selected_courses"), list) else []
+    courses: list[str] = []
+    for item in selected:
+        value = normalize_subject_course_learning(str(item or "").strip()) or str(item or "").strip()
+        if value and value not in courses:
+            courses.append(value[:100])
+    if not courses and user.focus_courses:
+        for item in re.split(r"[、,，\n]+", user.focus_courses):
+            value = normalize_subject_course_learning(item.strip()) or item.strip()
+            if value and value not in courses:
+                courses.append(value[:100])
+    if not courses and user.default_course_id:
+        value = normalize_subject_course_learning(user.default_course_id) or user.default_course_id.strip()
+        if value:
+            courses.append(value[:100])
+    return courses
+
+
+def get_or_create_course_learning_preference(db: Session, username: str, course_id: str):
+    normalized_course = normalize_subject_course_learning(course_id) or normalize_course_learning_key(course_id)
+    record = (
+        db.query(models.CourseLearningPreference)
+        .filter(
+            models.CourseLearningPreference.username == username,
+            models.CourseLearningPreference.course_id == normalized_course,
+        )
+        .first()
+    )
+    if record:
+        return record
+    record = models.CourseLearningPreference(
+        username=username,
+        course_id=normalized_course,
+        learning_goal="平日学习",
+        default_mode="daily",
+        primary_mode="daily",
+        show_mode_priority=True,
+        created_at=utc_now(),
+        updated_at=utc_now(),
+    )
+    db.add(record)
+    db.flush()
+    return record
+
+
+def course_learning_exam_settings_for(detail: dict, course_id: str) -> dict:
+    settings_map = detail.get("exam_cram_settings") if isinstance(detail.get("exam_cram_settings"), dict) else {}
+    for key in course_learning_subject_variants(course_id):
+        if key in settings_map:
+            return serialize_course_exam_settings(settings_map.get(key), key)
+    return serialize_course_exam_settings(None, course_id)
+
+
+def course_learning_urgency_rank(due_dt: datetime | None, mode: str, exam_dt: datetime | None = None) -> tuple[int, str]:
+    now = utc_now()
+    today = now.date()
+    rank = 7
+    label = "无日期"
+    if due_dt:
+        days = (due_dt.date() - today).days
+        if days < 0:
+            rank, label = 1, "已逾期"
+        elif days == 0:
+            rank, label = 2, "今天截止"
+        elif days == 1:
+            rank, label = 3, "明天截止"
+        elif days <= 3:
+            rank, label = 4, "3 天内"
+        elif days <= 7:
+            rank, label = 5, "7 天内"
+        else:
+            rank, label = 6, "更远日期"
+    if mode == "exam" and exam_dt:
+        days_to_exam = (exam_dt.date() - today).days
+        if days_to_exam <= 7:
+            rank = max(1, rank - 1)
+            label = f"{label} · 临近考试"
+    return rank, label
 
 
 EXAM_408_SCHOOLS = [
@@ -2238,6 +2383,7 @@ def serialize_material_list_item(material: models.StudyMaterial):
         "updated_at": serialize_datetime(material.updated_at),
         "source_message_id": material.source_message_id,
         "source_type": material_source_type(material),
+        "study_mode": normalize_course_learning_mode(getattr(material, "study_mode", ""), "general"),
         "visibility": material_visibility(material),
         "copyright_status": getattr(material, "copyright_status", None) or "user_responsibility",
         "allow_download": bool(getattr(material, "allow_download", True)),
@@ -2262,6 +2408,7 @@ def serialize_material_detail(material: models.StudyMaterial):
         "original_filename": material.original_filename,
         "mime_type": material.mime_type,
         "file_size": material.file_size or 0,
+        "study_mode": normalize_course_learning_mode(getattr(material, "study_mode", ""), "general"),
         "extracted_text": material.extracted_text,
         "summary": material.summary,
         "extract_method": material.extract_method or "local",
@@ -2443,6 +2590,11 @@ def serialize_course_preference(record: models.CourseLearningPreference | None, 
             "subject": course_id,
             "mastery_level": "",
             "learning_goal": "",
+            "display_name": "",
+            "note": "",
+            "default_mode": "daily",
+            "primary_mode": "daily",
+            "show_mode_priority": True,
             "is_started": False,
             "started_at": None,
             "created_at": None,
@@ -2454,6 +2606,11 @@ def serialize_course_preference(record: models.CourseLearningPreference | None, 
         "subject": record.course_id,
         "mastery_level": record.mastery_level or "",
         "learning_goal": record.learning_goal or "",
+        "display_name": getattr(record, "display_name", "") or "",
+        "note": getattr(record, "note", None) or "",
+        "default_mode": normalize_course_learning_mode(getattr(record, "default_mode", ""), "daily"),
+        "primary_mode": normalize_course_learning_mode(getattr(record, "primary_mode", ""), "daily"),
+        "show_mode_priority": bool(getattr(record, "show_mode_priority", True)),
         "is_started": bool(record.is_started),
         "started_at": serialize_datetime(record.started_at) if record.started_at else None,
         "created_at": serialize_datetime(record.created_at) if record.created_at else None,
@@ -2462,7 +2619,7 @@ def serialize_course_preference(record: models.CourseLearningPreference | None, 
 
 
 def get_course_preference_record(db: Session, username: str, course_id: str):
-    normalized_course = normalize_subject(course_id, default="")
+    normalized_course = normalize_subject_course_learning(course_id) or normalize_subject(course_id, default="")
     if not username or not normalized_course:
         return None
     return (
@@ -2476,7 +2633,7 @@ def get_course_preference_record(db: Session, username: str, course_id: str):
 
 
 def get_course_preference_payload(db: Session, username: str, course_id: str):
-    normalized_course = normalize_subject(course_id, default="")
+    normalized_course = normalize_subject_course_learning(course_id) or normalize_subject(course_id, default="")
     return serialize_course_preference(
         get_course_preference_record(db, username, normalized_course),
         normalized_course,
@@ -4940,13 +5097,13 @@ def save_course_learning_onboarding(
         value = (item or "").strip()
         if value and value not in material_types:
             material_types.append(value[:30])
-    allowed_course_goals = {"平日学习", "考试突击"}
+    allowed_course_goals = {"daily", "exam", "平日学习", "考前突击", "考试突击"}
     course_goals = {}
     for course in selected_courses:
         value = ""
         if isinstance(req.course_goals, dict):
             value = (req.course_goals.get(course) or "").strip()
-        course_goals[course] = value if value in allowed_course_goals else "平日学习"
+        course_goals[course] = course_learning_mode_to_goal(course_learning_goal_to_mode(value)) if value in allowed_course_goals else "平日学习"
 
     track = get_user_track(db, user.id, "university_course")
 
@@ -5011,6 +5168,16 @@ def save_course_learning_onboarding(
         package_type=plan,
         onboarding_detail=detail,
     )
+    for course in selected_courses:
+        pref = get_or_create_course_learning_preference(db, user.username, course)
+        mode = course_learning_goal_to_mode(course_goals.get(course))
+        if not pref.learning_goal:
+            pref.learning_goal = course_learning_mode_to_goal(mode)
+        if not pref.default_mode or pref.default_mode == "daily":
+            pref.default_mode = mode
+        if not pref.primary_mode or pref.primary_mode == "daily":
+            pref.primary_mode = mode
+        pref.updated_at = utc_now()
     if completed:
         membership = get_user_service_membership(db, user.id, "course_learning")
         if membership:
@@ -5041,6 +5208,223 @@ def save_course_learning_onboarding(
 
 
 # ── Course Learning Registration ──
+
+@app.get("/course-learning/courses")
+def get_course_learning_courses(
+    username: str = "",
+    authorization: str | None = Header(None),
+    db: Session = Depends(get_db),
+):
+    user = get_current_user_from_bearer(authorization, db) if authorization else get_user_by_username(username, db)
+    track = get_user_track(db, user.id, "university_course")
+    detail = _parse_track_onboarding_detail(track)
+    selected_courses = get_course_learning_selected_courses(user, track)
+
+    result = []
+    for course in selected_courses:
+        pref = get_or_create_course_learning_preference(db, user.username, course)
+        exam_settings = course_learning_exam_settings_for(detail, course)
+        variants = course_learning_subject_variants(course)
+        material_query = db.query(models.StudyMaterial).filter(
+            models.StudyMaterial.username == user.username,
+            models.StudyMaterial.subject.in_(list(variants)),
+            models.StudyMaterial.is_deleted.is_(False),
+        )
+        material_count = material_query.count()
+        exam_material_count = material_query.filter(
+            or_(
+                models.StudyMaterial.study_mode == "exam",
+                models.StudyMaterial.file_type.in_(["exam", "past_paper", "exam_scope"]),
+                models.StudyMaterial.source_type.in_(["exam", "past_paper", "exam_scope"]),
+                models.StudyMaterial.original_filename.ilike("%exam%"),
+                models.StudyMaterial.original_filename.ilike("%paper%"),
+            )
+        ).count()
+        try:
+            subject_key = _course_learning_task_subject_key(course)
+        except Exception:
+            subject_key = f"course_learning:{course}"
+        pending_task_count = db.query(models.ExamStudyPlanTask).filter(
+            models.ExamStudyPlanTask.username == user.username,
+            models.ExamStudyPlanTask.subject_key == subject_key,
+            models.ExamStudyPlanTask.status != "completed",
+        ).count()
+        result.append({
+            "course_id": pref.course_id,
+            "subject": pref.course_id,
+            "display_name": pref.display_name or course,
+            "name": pref.display_name or course,
+            "note": pref.note or "",
+            "default_mode": normalize_course_learning_mode(pref.default_mode, "daily"),
+            "primary_mode": normalize_course_learning_mode(pref.primary_mode, "daily"),
+            "show_mode_priority": bool(pref.show_mode_priority),
+            "modes": [
+                {"key": "daily", "label": "平日学习", "enabled": True},
+                {"key": "exam", "label": "考前突击", "enabled": True, "configured": bool(exam_settings.get("exam_date") or exam_settings.get("target"))},
+            ],
+            "exam_settings": exam_settings,
+            "material_count": material_count,
+            "exam_material_count": exam_material_count,
+            "pending_task_count": pending_task_count,
+            "updated_at": serialize_datetime(pref.updated_at) if pref.updated_at else None,
+        })
+    db.commit()
+    return {"courses": result, "total": len(result), "empty": len(result) == 0}
+
+
+@app.patch("/course-learning/courses/{course_id}/settings")
+def update_course_learning_course_settings(
+    course_id: str,
+    req: CourseLearningSettingsRequest,
+    username: str = "",
+    authorization: str | None = Header(None),
+    db: Session = Depends(get_db),
+):
+    user = get_current_user_from_bearer(authorization, db) if authorization else get_user_by_username(username, db)
+    track = get_user_track(db, user.id, "university_course")
+    selected = set(get_course_learning_selected_courses(user, track))
+    normalized_course = normalize_subject_course_learning(course_id) or normalize_course_learning_key(course_id)
+    if normalized_course not in selected and course_id not in selected:
+        raise HTTPException(status_code=404, detail="course is not selected by current user")
+
+    pref = get_or_create_course_learning_preference(db, user.username, normalized_course)
+    if req.display_name is not None:
+        pref.display_name = (req.display_name or "").strip()[:100]
+    if req.note is not None:
+        pref.note = (req.note or "").strip()[:500] or None
+    if req.default_mode is not None:
+        pref.default_mode = normalize_course_learning_mode(req.default_mode, "daily")
+    if req.primary_mode is not None:
+        pref.primary_mode = normalize_course_learning_mode(req.primary_mode, "daily")
+        pref.learning_goal = course_learning_mode_to_goal(pref.primary_mode)
+    if req.show_mode_priority is not None:
+        pref.show_mode_priority = bool(req.show_mode_priority)
+    pref.updated_at = utc_now()
+
+    detail = _parse_track_onboarding_detail(track)
+    goals = detail.get("course_goals") if isinstance(detail.get("course_goals"), dict) else {}
+    goals[normalized_course] = course_learning_mode_to_goal(pref.primary_mode)
+    detail["course_goals"] = goals
+    detail["course_learning_updated_at"] = serialize_datetime(utc_now())
+    if track:
+        track.onboarding_detail_json = json.dumps(detail, ensure_ascii=False)
+        track.updated_at = utc_now()
+    db.commit()
+    db.refresh(pref)
+    return {"success": True, "course": serialize_course_preference(pref, pref.course_id)}
+
+
+@app.get("/course-learning/today-plan")
+def get_course_learning_today_plan(
+    username: str = "",
+    authorization: str | None = Header(None),
+    db: Session = Depends(get_db),
+):
+    user = get_current_user_from_bearer(authorization, db) if authorization else get_user_by_username(username, db)
+    track = get_user_track(db, user.id, "university_course")
+    detail = _parse_track_onboarding_detail(track)
+    selected_courses = get_course_learning_selected_courses(user, track)
+    selected_set = set(selected_courses)
+    manual_order = detail.get("today_plan_order") if isinstance(detail.get("today_plan_order"), dict) else {}
+
+    items: list[dict] = []
+    for course in selected_courses:
+        pref = get_or_create_course_learning_preference(db, user.username, course)
+        try:
+            subject_key = _course_learning_task_subject_key(course)
+        except Exception:
+            subject_key = f"course_learning:{course}"
+        exam_settings = course_learning_exam_settings_for(detail, course)
+        exam_dt = parse_course_learning_date(exam_settings.get("exam_date"))
+        rows = db.query(models.ExamStudyPlanTask).filter(
+            models.ExamStudyPlanTask.username == user.username,
+            models.ExamStudyPlanTask.subject_key == subject_key,
+        ).all()
+        for task in rows:
+            serialized = _serialize_task(task, db)
+            status = (serialized.get("computed_status") or serialized.get("status") or "").strip()
+            if status in {"completed", "done", "finished"}:
+                continue
+            mode = normalize_course_learning_mode(getattr(pref, "primary_mode", "") or "daily", "daily")
+            if task.task_type == "review" and (exam_settings.get("exam_date") or exam_settings.get("target")):
+                mode = "exam"
+            due_dt = parse_course_learning_date(task.due_date)
+            rank, label = course_learning_urgency_rank(due_dt, mode, exam_dt)
+            item_id = f"exam_task:{task.id}"
+            items.append({
+                "id": item_id,
+                "raw_id": task.id,
+                "source": "course_study_plan",
+                "course_id": pref.course_id,
+                "course_name": pref.display_name or course,
+                "title": task.title,
+                "mode": mode,
+                "mode_label": COURSE_LEARNING_MODE_LABELS.get(mode, "平日学习"),
+                "due_date": task.due_date or "",
+                "urgency_rank": rank,
+                "urgency_label": label,
+                "user_order": int(manual_order.get(item_id, 9999)) if str(manual_order.get(item_id, "")).isdigit() else 9999,
+                "status": status or "not_started",
+                "task_type": task.task_type or "knowledge",
+            })
+
+    generic_rows = db.query(models.LearningTask).filter(
+        models.LearningTask.username == user.username,
+        models.LearningTask.status != "done",
+    ).all()
+    for task in generic_rows:
+        course = normalize_subject_course_learning(task.course_id or "") or (task.course_id or "")
+        if not course or course not in selected_set:
+            continue
+        due_dt = parse_course_learning_date(task.due_date)
+        rank, label = course_learning_urgency_rank(due_dt, "daily", None)
+        item_id = f"task:{task.id}"
+        items.append({
+            "id": item_id,
+            "raw_id": task.id,
+            "source": "learning_tasks",
+            "course_id": course,
+            "course_name": course,
+            "title": task.title,
+            "mode": "daily",
+            "mode_label": "平日学习",
+            "due_date": serialize_datetime(task.due_date) if task.due_date else "",
+            "urgency_rank": rank,
+            "urgency_label": label,
+            "user_order": int(manual_order.get(item_id, 9999)) if str(manual_order.get(item_id, "")).isdigit() else 9999,
+            "status": task.status or "todo",
+            "task_type": task.task_type or "custom",
+        })
+
+    items.sort(key=lambda item: (
+        item["urgency_rank"],
+        item["user_order"],
+        parse_course_learning_date(item.get("due_date")) or datetime.max.replace(tzinfo=timezone.utc),
+        item["id"],
+    ))
+    db.commit()
+    return {"items": items, "total": len(items), "empty": len(items) == 0}
+
+
+@app.patch("/course-learning/today-plan/order")
+def update_course_learning_today_plan_order(
+    req: CourseLearningTodayPlanOrderRequest,
+    authorization: str | None = Header(None),
+    db: Session = Depends(get_db),
+):
+    user = get_current_user_from_bearer(authorization, db) if authorization else get_user_by_username(req.username or "", db)
+    track = get_user_track(db, user.id, "university_course")
+    if not track:
+        raise HTTPException(status_code=404, detail="course learning track not found")
+    detail = _parse_track_onboarding_detail(track)
+    valid_ids = [str(item).strip() for item in (req.ordered_ids or []) if str(item).strip()]
+    detail["today_plan_order"] = {item_id: index for index, item_id in enumerate(valid_ids)}
+    detail["course_learning_updated_at"] = serialize_datetime(utc_now())
+    track.onboarding_detail_json = json.dumps(detail, ensure_ascii=False)
+    track.updated_at = utc_now()
+    db.commit()
+    return {"success": True, "today_plan_order": detail["today_plan_order"]}
+
 
 @app.get("/course-learning/exam-settings")
 def get_course_learning_exam_settings(

@@ -87,6 +87,7 @@ STUDY_MATERIAL_COLUMNS = {
     "file_path": "TEXT",
     "source_message_id": "INTEGER",
     "source_type": "VARCHAR(50) NOT NULL DEFAULT 'user_upload'",
+    "study_mode": "VARCHAR(20) NOT NULL DEFAULT 'general'",
     "visibility": "VARCHAR(50) NOT NULL DEFAULT 'private'",
     "copyright_status": "VARCHAR(50) NOT NULL DEFAULT 'user_responsibility'",
     "allow_download": "BOOLEAN NOT NULL DEFAULT 1",
@@ -157,6 +158,11 @@ COURSE_LEARNING_PREFERENCES_COLUMNS = {
     "course_id": "VARCHAR(100) NOT NULL",
     "mastery_level": "VARCHAR(50) NOT NULL DEFAULT ''",
     "learning_goal": "VARCHAR(50) NOT NULL DEFAULT ''",
+    "display_name": "VARCHAR(100) NOT NULL DEFAULT ''",
+    "note": "TEXT",
+    "default_mode": "VARCHAR(20) NOT NULL DEFAULT 'daily'",
+    "primary_mode": "VARCHAR(20) NOT NULL DEFAULT 'daily'",
+    "show_mode_priority": "BOOLEAN NOT NULL DEFAULT 1",
     "is_started": "BOOLEAN NOT NULL DEFAULT 0",
     "started_at": "DATETIME",
     "created_at": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
@@ -596,6 +602,7 @@ def backfill_study_material_permissions(conn):
             UPDATE study_materials
             SET
               source_type = COALESCE(NULLIF(source_type, ''), 'user_upload'),
+              study_mode = COALESCE(NULLIF(study_mode, ''), 'general'),
               visibility = COALESCE(NULLIF(visibility, ''), 'private'),
               copyright_status = COALESCE(NULLIF(copyright_status, ''), 'user_responsibility'),
               allow_download = COALESCE(allow_download, 1),

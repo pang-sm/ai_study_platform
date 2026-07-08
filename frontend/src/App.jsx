@@ -3688,7 +3688,7 @@ function App() {
       coursePreference?.learning_goal ||
       getCourseLearningGoal(activeCourseContext.courseName || activeCourseContext.subject) ||
       "";
-    const isExamCramCourse = activeCourseLearningGoal === "考试突击";
+    const isExamCramCourse = activeCourseLearningGoal === "考前突击" || activeCourseLearningGoal === "考试突击";
     const courseDashboardMaterials = (
       <CourseMaterialsPage
         user={user}
