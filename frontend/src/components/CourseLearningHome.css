@@ -242,9 +242,7 @@
 }
 
 .clh-mode-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  display: block;
 }
 
 .clh-mode-actions button,
@@ -255,6 +253,7 @@
 }
 
 .clh-mode-actions button {
+  width: 100%;
   min-height: 42px;
   border: 1px solid #ded8ec;
   border-radius: 12px;
@@ -830,13 +829,44 @@
   gap: 16px;
 }
 
-.clh-settings-grid label {
+.clh-settings-grid label,
+.clh-mode-setting {
   display: flex;
   flex-direction: column;
   gap: 8px;
   color: #2f314b;
   font-size: 14px;
   font-weight: 850;
+}
+
+.clh-mode-setting > span {
+  color: #2f314b;
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.clh-settings-mode-toggle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.clh-settings-mode-toggle button {
+  min-height: 48px;
+  border: 1px solid #e2def0;
+  border-radius: 12px;
+  background: #fff;
+  color: #30324b;
+  font: inherit;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.clh-settings-mode-toggle button.is-selected {
+  border-color: #8b5cf6;
+  background: #f4efff;
+  color: #6d28d9;
+  box-shadow: 0 10px 24px rgba(124, 58, 237, 0.1);
 }
 
 .clh-settings-grid input,
@@ -851,15 +881,6 @@
   padding: 11px 12px;
 }
 
-.clh-checkbox-row {
-  flex-direction: row !important;
-  align-items: center;
-}
-
-.clh-checkbox-row input {
-  width: 18px;
-  height: 18px;
-}
 
 .clh-modal-secondary,
 .clh-modal-primary {

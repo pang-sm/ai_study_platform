@@ -104,7 +104,7 @@ export default function CourseLearningHome({
   const [saveError, setSaveError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [settingsCourse, setSettingsCourse] = useState(null);
-  const [settingsForm, setSettingsForm] = useState({ display_name: "", note: "", default_mode: "daily", primary_mode: "daily", show_mode_priority: true });
+  const [settingsForm, setSettingsForm] = useState({ primary_mode: "daily" });
   const [settingsError, setSettingsError] = useState("");
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [entitlements, setEntitlements] = useState(null);
@@ -191,7 +191,7 @@ export default function CourseLearningHome({
       tone: theme.tone,
       displayName: course.display_name || course.name || course.course_id,
       primaryMode: course.primary_mode || "daily",
-      defaultMode: course.default_mode || "daily",
+      primaryModeLabel: course.primary_mode_label || MODE_LABELS[course.primary_mode || "daily"] || "平日学习",
     };
   });
 
@@ -206,7 +206,7 @@ export default function CourseLearningHome({
     { key: "recent", label: "最近上传", value: recentUploadText, hint: "" },
   ];
 
-  const buildCourseContext = (course, mode = course?.default_mode || "daily") => {
+  const buildCourseContext = (course, mode = course?.primary_mode || "daily") => {
     const courseName = course?.course_id || course?.subject || course?.displayName || course?.name;
     const learningGoal = MODE_LABELS[mode] || "平日学习";
     return {
@@ -217,6 +217,10 @@ export default function CourseLearningHome({
       courseName: course.displayName || course.name || courseName,
       courseTitle: course.displayName || course.name || courseName,
       subject: courseName,
+      mode,
+      studyMode: mode,
+      primaryMode: mode,
+      primary_mode: mode,
       learningGoal,
       learning_goal: learningGoal,
       track: "course_learning",
@@ -224,9 +228,7 @@ export default function CourseLearningHome({
     };
   };
 
-  const openCourse = (course, mode = course?.default_mode || "daily") => {
-    const courseName = course?.course_id || course?.subject || course?.displayName || course?.name;
-    if (courseName && setSubject) setSubject(courseName);
+  const openCourse = (course, mode = course?.primary_mode || "daily") => {
     setPage("dashboard", buildCourseContext(course, mode));
   };
 
@@ -288,11 +290,7 @@ export default function CourseLearningHome({
     event.stopPropagation();
     setSettingsCourse(course);
     setSettingsForm({
-      display_name: course.display_name || course.name || "",
-      note: course.note || "",
-      default_mode: course.default_mode || "daily",
       primary_mode: course.primary_mode || "daily",
-      show_mode_priority: course.show_mode_priority !== false,
     });
     setSettingsError("");
   };
@@ -308,7 +306,7 @@ export default function CourseLearningHome({
           "Content-Type": "application/json",
           ...authHeaders,
         },
-        body: JSON.stringify(settingsForm),
+        body: JSON.stringify({ primary_mode: settingsForm.primary_mode }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || "课程设置保存失败");
@@ -381,7 +379,7 @@ export default function CourseLearningHome({
                 key={course.course_id}
                 className={`clh-course-card clh-course-card--${course.tone}${index === 0 ? " is-active" : ""}`}
               >
-                <button className="clh-course-main" type="button" onClick={() => openCourse(course, course.defaultMode)}>
+                <button className="clh-course-main" type="button" onClick={() => openCourse(course, course.primaryMode)}>
                   <span className="clh-course-visual">{course.icon}</span>
                   <span className="clh-course-text">
                     <strong>{course.displayName}</strong>
@@ -389,8 +387,7 @@ export default function CourseLearningHome({
                   </span>
                 </button>
                 <div className="clh-mode-actions">
-                  <button type="button" className={course.primaryMode === "daily" ? "is-primary" : ""} onClick={() => openCourse(course, "daily")}>平日学习</button>
-                  <button type="button" className={course.primaryMode === "exam" ? "is-primary" : ""} onClick={() => openCourse(course, "exam")}>考前突击</button>
+                  <button type="button" className="is-primary" onClick={() => openCourse(course, course.primaryMode)}>{course.primaryModeLabel}</button>
                 </div>
                 <button className="clh-course-settings" type="button" onClick={(event) => openSettings(event, course)}>设置</button>
               </article>
@@ -516,35 +513,26 @@ export default function CourseLearningHome({
             <div className="clh-modal-header">
               <span>课程设置</span>
               <h2 id="clh-settings-title">{settingsCourse.displayName}</h2>
-              <p>只调整显示和模式优先级，不删除资料、计划或学习记录。</p>
+              <p>只调整该课程首页展示的学习模式，不删除资料、计划或学习记录。</p>
             </div>
             <div className="clh-settings-grid">
-              <label>
-                显示名称
-                <input value={settingsForm.display_name} onChange={(event) => setSettingsForm((prev) => ({ ...prev, display_name: event.target.value }))} />
-              </label>
-              <label>
-                课程备注
-                <textarea value={settingsForm.note} onChange={(event) => setSettingsForm((prev) => ({ ...prev, note: event.target.value }))} rows={3} />
-              </label>
-              <label>
-                默认进入模式
-                <select value={settingsForm.default_mode} onChange={(event) => setSettingsForm((prev) => ({ ...prev, default_mode: event.target.value }))}>
-                  <option value="daily">平日学习</option>
-                  <option value="exam">考前突击</option>
-                </select>
-              </label>
-              <label>
-                当前主模式
-                <select value={settingsForm.primary_mode} onChange={(event) => setSettingsForm((prev) => ({ ...prev, primary_mode: event.target.value }))}>
-                  <option value="daily">平日学习</option>
-                  <option value="exam">考前突击</option>
-                </select>
-              </label>
-              <label className="clh-checkbox-row">
-                <input type="checkbox" checked={settingsForm.show_mode_priority} onChange={(event) => setSettingsForm((prev) => ({ ...prev, show_mode_priority: event.target.checked }))} />
-                显示主模式优先级
-              </label>
+              <div className="clh-mode-setting">
+                <span>学习模式</span>
+                <div className="clh-settings-mode-toggle" role="radiogroup" aria-label="学习模式">
+                  {Object.entries(MODE_LABELS).map(([mode, label]) => (
+                    <button
+                      className={settingsForm.primary_mode === mode ? "is-selected" : ""}
+                      type="button"
+                      role="radio"
+                      aria-checked={settingsForm.primary_mode === mode}
+                      key={mode}
+                      onClick={() => setSettingsForm({ primary_mode: mode })}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
             {settingsError && <p className="clh-modal-error">{settingsError}</p>}
             <div className="clh-modal-actions">

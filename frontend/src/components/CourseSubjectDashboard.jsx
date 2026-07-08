@@ -356,9 +356,19 @@ export default function CourseSubjectDashboard({
   const initialCourseId = resolveCourseId(course, initialCourseName);
   const panelStorageKey = `course_subject_active_panel_${buildCourseId(initialCourseName, initialCourseId)}`;
 
-  const isExamCramMode = learningGoal === "考试突击" ||
+  const isExamModeKey = course?.primary_mode === "exam" ||
+    course?.primaryMode === "exam" ||
+    course?.studyMode === "exam" ||
+    course?.mode === "exam" ||
+    coursePreference?.primary_mode === "exam";
+  const isExamCramMode = isExamModeKey ||
+    learningGoal === "考前突击" ||
+    learningGoal === "考试突击" ||
+    course?.learningGoal === "考前突击" ||
     course?.learningGoal === "考试突击" ||
+    course?.learning_goal === "考前突击" ||
     course?.learning_goal === "考试突击" ||
+    coursePreference?.learning_goal === "考前突击" ||
     coursePreference?.learning_goal === "考试突击";
   const navItems = isExamCramMode ? EXAM_CRAM_NAV_ITEMS : NAV_ITEMS;
   const allowedPanels = isExamCramMode

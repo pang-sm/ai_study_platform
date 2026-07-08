@@ -335,11 +335,7 @@ class CourseLearningExamSettingsRequest(BaseModel):
 
 
 class CourseLearningSettingsRequest(BaseModel):
-    display_name: str | None = None
-    note: str | None = None
-    default_mode: str | None = None
     primary_mode: str | None = None
-    show_mode_priority: bool | None = None
 
 
 class CourseLearningTodayPlanOrderRequest(BaseModel):
@@ -5263,12 +5259,14 @@ def get_course_learning_courses(
         ).count()
         result.append({
             "course_id": pref.course_id,
+            "course_name": pref.display_name or course,
             "subject": pref.course_id,
             "display_name": pref.display_name or course,
             "name": pref.display_name or course,
             "note": pref.note or "",
             "default_mode": normalize_course_learning_mode(pref.default_mode, "daily"),
             "primary_mode": normalize_course_learning_mode(pref.primary_mode, "daily"),
+            "primary_mode_label": COURSE_LEARNING_MODE_LABELS.get(normalize_course_learning_mode(pref.primary_mode, "daily"), "平日学习"),
             "show_mode_priority": bool(pref.show_mode_priority),
             "modes": [
                 {"key": "daily", "label": "平日学习", "enabled": True},
@@ -5300,17 +5298,9 @@ def update_course_learning_course_settings(
         raise HTTPException(status_code=404, detail="course is not selected by current user")
 
     pref = get_or_create_course_learning_preference(db, user.username, normalized_course)
-    if req.display_name is not None:
-        pref.display_name = (req.display_name or "").strip()[:100]
-    if req.note is not None:
-        pref.note = (req.note or "").strip()[:500] or None
-    if req.default_mode is not None:
-        pref.default_mode = normalize_course_learning_mode(req.default_mode, "daily")
     if req.primary_mode is not None:
         pref.primary_mode = normalize_course_learning_mode(req.primary_mode, "daily")
         pref.learning_goal = course_learning_mode_to_goal(pref.primary_mode)
-    if req.show_mode_priority is not None:
-        pref.show_mode_priority = bool(req.show_mode_priority)
     pref.updated_at = utc_now()
 
     detail = _parse_track_onboarding_detail(track)
