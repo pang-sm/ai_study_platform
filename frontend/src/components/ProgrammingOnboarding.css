@@ -1,0 +1,410 @@
+.programming-onboarding-page {
+  min-height: 100vh;
+  padding: 28px 32px;
+  background: linear-gradient(135deg, #eee3ff 0%, #f8f3ff 45%, #eee5ff 100%);
+  color: #111247;
+  overflow-x: hidden;
+}
+
+.programming-onboarding-card,
+.programming-package-card {
+  width: min(1200px, 100%);
+  margin: 0 auto;
+  padding: 34px 88px 38px;
+  border-radius: 26px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 20px 58px rgba(100, 70, 160, 0.14);
+  border: 1px solid rgba(159, 122, 234, 0.12);
+}
+
+.programming-package-card {
+  padding-left: 38px;
+  padding-right: 38px;
+}
+
+.programming-onboarding-header {
+  text-align: center;
+  margin-bottom: 46px;
+}
+
+.programming-onboarding-header span {
+  color: #6d28d9;
+  font-size: 19px;
+  font-weight: 900;
+}
+
+.programming-onboarding-header h1 {
+  margin: 16px 0 10px;
+  color: #111247;
+  font-size: 48px;
+  line-height: 1.1;
+  font-weight: 950;
+  letter-spacing: 0;
+}
+
+.programming-package-header h1 {
+  font-size: 46px;
+}
+
+.programming-onboarding-header p {
+  margin: 0;
+  color: #565681;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.programming-question {
+  margin-top: 42px;
+}
+
+.programming-question h2 {
+  margin: 0 0 22px;
+  color: #111247;
+  font-size: 23px;
+  font-weight: 900;
+}
+
+.programming-language-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(120px, 1fr));
+  gap: 22px;
+}
+
+.programming-language-grid button,
+.programming-level-grid button,
+.programming-problem-grid button {
+  font: inherit;
+  cursor: pointer;
+  color: #15164f;
+  border: 2px solid #d9cdfb;
+  background: #fff;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease, color 0.16s ease, transform 0.16s ease;
+}
+
+.programming-language-grid button {
+  min-height: 64px;
+  border-radius: 12px;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.programming-language-grid button.is-selected,
+.programming-level-grid button.is-selected,
+.programming-problem-grid button.is-selected {
+  border-color: #7c3aed;
+  background: #fbf8ff;
+  color: #6d28d9;
+  box-shadow: 0 12px 30px rgba(124, 58, 237, 0.12);
+}
+
+.programming-level-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 26px;
+}
+
+.programming-level-grid button {
+  min-height: 80px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.programming-problem-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.programming-problem-grid button {
+  min-height: 112px;
+  padding: 24px 18px;
+  border-radius: 13px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  text-align: left;
+}
+
+.programming-problem-grid strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #29205c;
+  font-size: 16px;
+  font-weight: 950;
+}
+
+.programming-problem-grid small {
+  display: block;
+  color: #77749b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.programming-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 10px;
+  background: #efe7ff;
+  color: #6d28d9;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.programming-icon svg,
+.programming-plan-icon svg {
+  width: 27px;
+  height: 27px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.programming-onboarding-error {
+  width: fit-content;
+  max-width: 100%;
+  margin: 24px auto 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-weight: 800;
+}
+
+.programming-onboarding-actions {
+  margin-top: 56px;
+  display: flex;
+  justify-content: center;
+  gap: 30px;
+}
+
+.programming-btn-primary,
+.programming-btn-secondary,
+.programming-btn-outline {
+  min-width: 184px;
+  min-height: 54px;
+  border-radius: 12px;
+  font: inherit;
+  font-size: 18px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.programming-btn-primary {
+  border: 0;
+  color: #fff;
+  background: linear-gradient(135deg, #7c3aed, #5b21e6);
+  box-shadow: 0 18px 32px rgba(91, 33, 230, 0.24);
+}
+
+.programming-btn-secondary,
+.programming-btn-outline {
+  border: 2px solid #7c3aed;
+  color: #6d28d9;
+  background: #fff;
+}
+
+.programming-btn-primary:disabled,
+.programming-btn-secondary:disabled,
+.programming-btn-outline:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.programming-package-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 22px;
+  align-items: stretch;
+}
+
+.programming-plan-card {
+  position: relative;
+  min-height: 560px;
+  padding: 26px 20px 22px;
+  border: 2px solid #e1d7f8;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 16px 36px rgba(83, 58, 133, 0.09);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.programming-plan-card:hover {
+  transform: translateY(-2px);
+}
+
+.programming-plan-card.is-recommended,
+.programming-plan-card.is-selected {
+  border-color: #6d28d9;
+}
+
+.programming-plan-card.is-recommended {
+  box-shadow: 0 22px 46px rgba(91, 33, 230, 0.14);
+}
+
+.programming-plan-badge {
+  position: absolute;
+  top: -15px;
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 120px;
+  height: 30px;
+  border-radius: 0 0 12px 12px;
+  background: linear-gradient(135deg, #7c3aed, #5b21e6);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.programming-plan-icon {
+  width: 64px;
+  height: 64px;
+  margin-top: 2px;
+  border-radius: 999px;
+  background: #eee7ff;
+  color: #6d28d9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.programming-plan-card h2 {
+  margin: 22px 0 10px;
+  color: #111247;
+  font-size: 24px;
+  font-weight: 950;
+  text-align: center;
+}
+
+.programming-plan-subtitle {
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: #f0e9ff;
+  color: #6d28d9;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.programming-plan-price {
+  margin: 26px 0 18px;
+  color: #5b21e6;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.programming-plan-price span {
+  font-size: 24px;
+  font-weight: 900;
+}
+
+.programming-plan-price strong {
+  font-size: 46px;
+  line-height: 1;
+  font-weight: 950;
+}
+
+.programming-plan-price em {
+  color: #1d1954;
+  font-size: 18px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.programming-plan-card ul {
+  width: 100%;
+  margin: 0 0 24px;
+  padding: 22px 0 0;
+  border-top: 1px solid #ddd6ef;
+  list-style: none;
+  display: grid;
+  gap: 15px;
+}
+
+.programming-plan-card li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #47416e;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.programming-plan-card li span {
+  color: #5b21e6;
+  font-weight: 950;
+}
+
+.programming-plan-card li.is-disabled,
+.programming-plan-card li.is-disabled span {
+  color: #ef4444;
+}
+
+.programming-plan-card button {
+  margin-top: auto;
+  width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 1100px) {
+  .programming-onboarding-card {
+    padding: 30px 36px;
+  }
+
+  .programming-package-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .programming-language-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .programming-onboarding-page {
+    padding: 18px;
+  }
+
+  .programming-onboarding-card,
+  .programming-package-card {
+    padding: 24px 18px;
+  }
+
+  .programming-onboarding-header h1,
+  .programming-package-header h1 {
+    font-size: 34px;
+  }
+
+  .programming-language-grid,
+  .programming-level-grid,
+  .programming-problem-grid,
+  .programming-package-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .programming-onboarding-actions {
+    flex-direction: column-reverse;
+    gap: 14px;
+  }
+
+  .programming-btn-primary,
+  .programming-btn-secondary,
+  .programming-btn-outline {
+    width: 100%;
+  }
+}

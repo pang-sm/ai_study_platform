@@ -10,6 +10,10 @@ import CourseLearningOnboarding from "./components/CourseLearningOnboarding.jsx"
 import CourseLearningPackageStep from "./components/CourseLearningPackageStep.jsx";
 import CourseLearningProfile from "./components/CourseLearningProfile.jsx";
 import CourseLearningPlan from "./components/CourseLearningPlan.jsx";
+import ProgrammingOnboardingStep from "./components/ProgrammingOnboardingStep.jsx";
+import ProgrammingPackageStep from "./components/ProgrammingPackageStep.jsx";
+import ProgrammingHome from "./components/ProgrammingHome.jsx";
+import ProgrammingProfile from "./components/ProgrammingProfile.jsx";
 
 import AIQuestionPage from "./components/AIQuestionPage.jsx";
 import MaterialPickerModal from "./components/MaterialPickerModal.jsx";
@@ -442,7 +446,7 @@ const VALID_PAGES = new Set([
   "adminUsageCenter", "adminCenter",
   "materials", "workspaceMaterials", "chat", "records", "history",
   "knowledgeLearning", "searchResults",
-  "profileEdit", "onboarding", "courseLearningOnboarding", "courseLearningPackageStep", "courseLearningComplete", "courseProfile", "coursePlan", "examHome", "examProfile", "examPlan", "examSubjectDashboard",
+  "profileEdit", "onboarding", "courseLearningOnboarding", "courseLearningPackageStep", "courseLearningComplete", "courseProfile", "coursePlan", "programmingOnboarding", "programmingPackageStep", "programmingHome", "programmingProfile", "examHome", "examProfile", "examPlan", "examSubjectDashboard",
   "login", "adminLogin",
 ]);
 
@@ -596,6 +600,8 @@ function App() {
     } else if (
       nextPage !== "courseLearningOnboarding" &&
       nextPage !== "courseLearningPackageStep" &&
+      nextPage !== "programmingOnboarding" &&
+      nextPage !== "programmingPackageStep" &&
       nextPage !== "onboarding"
     ) {
       setServiceSwitchOnboarding(null);
@@ -642,6 +648,7 @@ function App() {
   const [courseOnboardingChecking, setCourseOnboardingChecking] = useState(false);
   const [courseOnboardingTargetPage, setCourseOnboardingTargetPage] = useState("home");
   const [coursePackageSaving, setCoursePackageSaving] = useState(false);
+  const [programmingOnboardingStatus, setProgrammingOnboardingStatus] = useState(null);
   const [serviceSwitchOnboarding, setServiceSwitchOnboarding] = useState(null);
   const [publicFeatures, setPublicFeatures] = useState(null);
   const [userAnnouncements, setUserAnnouncements] = useState([]);
@@ -1049,7 +1056,7 @@ function App() {
     // Route users based on tracks data (new system) or learning_goal_type (legacy)
     const activeTrack = loginUser?.active_track_type || loginUser?.learning_goal_type || "";
     if (activeTrack === "exam_408") return "examHome";
-    if (activeTrack === "programming") return "codeStudio";
+    if (activeTrack === "programming") return "programmingHome";
     // university_course → home (course dashboard) is the default
     return "home";
   };
@@ -3272,15 +3279,59 @@ function App() {
       }
       setPage("home");
     };
+    const handleProgrammingSelected = () => {
+      setProgrammingOnboardingStatus(null);
+      setPage("programmingOnboarding");
+    };
     return (
       <Onboarding
         user={user}
         onComplete={handleOnboardingComplete}
+        onProgrammingSelected={handleProgrammingSelected}
         API_BASE={API_BASE}
         initialStep={serviceSwitchOnboarding?.initialStep}
         initialGoalType={serviceSwitchOnboarding?.goalType}
         fromServiceSwitch={Boolean(serviceSwitchOnboarding?.fromServiceSwitch)}
         hideBackButton={Boolean(serviceSwitchOnboarding?.fromServiceSwitch)}
+      />
+    );
+  }
+
+  if (page === "programmingOnboarding") {
+    const handleProgrammingNext = (data) => {
+      if (data?.profile) {
+        saveLoginUser(data.profile);
+      }
+      setProgrammingOnboardingStatus(data?.onboarding || null);
+      setPage("programmingPackageStep");
+    };
+    return (
+      <ProgrammingOnboardingStep
+        user={user}
+        apiBase={API_BASE}
+        initialData={programmingOnboardingStatus}
+        onBack={() => setPage("onboarding")}
+        onNext={handleProgrammingNext}
+      />
+    );
+  }
+
+  if (page === "programmingPackageStep") {
+    const handleProgrammingComplete = (data) => {
+      if (data?.profile) {
+        saveLoginUser(data.profile);
+      }
+      setProgrammingOnboardingStatus(data?.onboarding || { onboarding_completed: true, plan: "free" });
+      setPage("programmingHome");
+    };
+    return (
+      <ProgrammingPackageStep
+        user={user}
+        apiBase={API_BASE}
+        initialPlan={programmingOnboardingStatus?.onboarding_completed ? programmingOnboardingStatus?.plan : "quarterly"}
+        initialDetails={programmingOnboardingStatus}
+        onBack={() => setPage("programmingOnboarding")}
+        onComplete={handleProgrammingComplete}
       />
     );
   }
@@ -3668,6 +3719,27 @@ function App() {
     );
   }
 
+  if (page === "programmingHome") {
+    return (
+      <ProgrammingHome
+        user={user}
+        apiBase={API_BASE}
+        setPage={setPage}
+      />
+    );
+  }
+
+  if (page === "programmingProfile") {
+    return (
+      <ProgrammingProfile
+        user={user}
+        apiBase={API_BASE}
+        setPage={setPage}
+        onLogout={logout}
+      />
+    );
+  }
+
   if (page === "dashboard") {
     const getCourseLearningGoal = (courseName) => {
       const goals = courseOnboardingStatus?.course_goals;
@@ -3817,7 +3889,7 @@ function App() {
   const activeTrackType = user?.active_track_type || "";
   const currentProfilePage = activeTrackType === "exam_408" ? "examProfile"
     : activeTrackType === "university_course" ? "courseProfile"
-    : activeTrackType === "programming" ? "codeStudio"
+    : activeTrackType === "programming" ? "programmingProfile"
     : "examProfile"; // fallback
 
   if (page === "profile") {

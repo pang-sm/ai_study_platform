@@ -326,6 +326,14 @@ class CourseLearningOnboardingRequest(BaseModel):
     onboarding_completed: bool = True
 
 
+class ProgrammingOnboardingRequest(BaseModel):
+    main_language: str = ""
+    level: str = ""
+    problems: list[str] = []
+    plan: str | None = None
+    onboarding_completed: bool = False
+
+
 class CourseLearningExamSettingsRequest(BaseModel):
     username: str
     course_id: str
@@ -511,6 +519,44 @@ COURSE_PACKAGE_QUOTA = {
     },
 }
 
+PROGRAMMING_PACKAGE_NAMES = {
+    "free": "免费模式",
+    "monthly": "编程练习月卡",
+    "quarterly": "编程进阶训练包",
+    "full": "实验与算法强化包",
+}
+
+PROGRAMMING_PACKAGE_QUOTA = {
+    "free": {
+        "ai_chat_daily_limit": 50,
+        "ai_question_daily_limit": 5,
+        "material_upload_limit_mb": 0,
+        "problem_records": False,
+        "file_library": False,
+    },
+    "monthly": {
+        "ai_chat_daily_limit": 300,
+        "ai_question_daily_limit": 30,
+        "material_upload_limit_mb": 1024,
+        "problem_records": True,
+        "file_library": True,
+    },
+    "quarterly": {
+        "ai_chat_daily_limit": 300,
+        "ai_question_daily_limit": 30,
+        "material_upload_limit_mb": 1024,
+        "problem_records": True,
+        "file_library": True,
+    },
+    "full": {
+        "ai_chat_daily_limit": 1000,
+        "ai_question_daily_limit": 100,
+        "material_upload_limit_mb": 2048,
+        "problem_records": True,
+        "file_library": True,
+    },
+}
+
 # Normalize legacy/Chinese package values to English enum.
 PACKAGE_NORMALIZE_MAP = {
     "免费模式": "free", "free": "free",
@@ -597,6 +643,12 @@ def upsert_user_track(db: Session, user_id: int, track_type: str, plan: str = "f
         track.plan = EXAM_PACKAGE_PLANS[package]
         perms = get_exam_package_permissions(package)
         track.quota_json = json.dumps(get_exam_package_quota(package), ensure_ascii=False)
+    elif track_type == "programming":
+        package = normalize_programming_plan(normalized_package or plan or track.package_type)
+        track.package_type = package
+        track.plan = package
+        perms.update(PROGRAMMING_PACKAGE_QUOTA[package])
+        track.quota_json = json.dumps(get_programming_package_quota(package), ensure_ascii=False)
     track.permissions_json = json.dumps(perms, ensure_ascii=False)
     if onboarding_detail:
         track.onboarding_detail_json = json.dumps(onboarding_detail, ensure_ascii=False)
@@ -629,6 +681,15 @@ def serialize_track(track):
         default_quota = get_exam_package_quota(package)
         default_perms.update(perms or {})
         perms = default_perms
+        default_quota.update(quota or {})
+        quota = default_quota
+    elif track.track_type == "programming":
+        package = normalize_programming_plan(package)
+        default_perms = dict(TRACK_PERMISSIONS.get("programming", {}))
+        default_perms.update(PROGRAMMING_PACKAGE_QUOTA[package])
+        default_perms.update(perms or {})
+        perms = default_perms
+        default_quota = get_programming_package_quota(package)
         default_quota.update(quota or {})
         quota = default_quota
     return {
@@ -989,6 +1050,38 @@ def get_course_package_entitlements(plan: str | None) -> dict:
             {"key": "mistake_review", "label": "练习复盘", "limit": None, "unit": "", "enabled": bool(quota["mistake_review"])},
             {"key": "learning_report", "label": "学习报告", "limit": None, "unit": "", "enabled": bool(quota["learning_report"])},
         ],
+    }
+
+
+def normalize_programming_plan(raw: str | None) -> str:
+    plan = (raw or "free").strip().lower()
+    return plan if plan in PROGRAMMING_PACKAGE_QUOTA else "free"
+
+
+def get_programming_package_entitlements(plan: str | None) -> dict:
+    normalized = normalize_programming_plan(plan)
+    quota = PROGRAMMING_PACKAGE_QUOTA[normalized]
+    return {
+        "service_key": "programming",
+        "plan": normalized,
+        "plan_label": PROGRAMMING_PACKAGE_NAMES[normalized],
+        "permissions": quota,
+        "benefits": [
+            {"key": "chat", "label": "AI问答/纠错", "limit": quota["ai_chat_daily_limit"], "unit": "次/每天", "enabled": True},
+            {"key": "question_generate", "label": "AI出题次数", "limit": quota["ai_question_daily_limit"], "unit": "次/每天", "enabled": True},
+            {"key": "problem_records", "label": "题目记录", "limit": None, "unit": "", "enabled": bool(quota["problem_records"])},
+            {"key": "file_library", "label": "文件库", "limit": quota["material_upload_limit_mb"], "unit": "MB", "enabled": bool(quota["file_library"])},
+        ],
+    }
+
+
+def get_programming_package_quota(plan: str | None) -> dict:
+    normalized = normalize_programming_plan(plan)
+    return {
+        "package_type": normalized,
+        "package_display_name": PROGRAMMING_PACKAGE_NAMES[normalized],
+        "plan": normalized,
+        **PROGRAMMING_PACKAGE_QUOTA[normalized],
     }
 
 
@@ -5212,6 +5305,199 @@ def save_course_learning_onboarding(
         "onboarding": _course_learning_onboarding_payload(user, track),
         "user": profile,
         "profile": profile,
+    }
+
+
+def _programming_onboarding_payload(user: models.User, track: models.UserLearningTrack | None, db: Session):
+    detail = _parse_track_onboarding_detail(track)
+    plan = normalize_programming_plan(
+        detail.get("programming_plan")
+        or (track.package_type if track else None)
+        or get_effective_service_plan(db, user.id, "programming")
+    )
+    return {
+        "service_key": "programming",
+        "onboarding_completed": bool(detail.get("programming_onboarding_completed")),
+        "plan": plan,
+        "main_language": detail.get("main_language") or "",
+        "level": detail.get("level") or "",
+        "problems": detail.get("problems") if isinstance(detail.get("problems"), list) else [],
+        "created_at": detail.get("programming_created_at") or (serialize_datetime(track.created_at) if track else None),
+        "updated_at": detail.get("programming_updated_at") or (serialize_datetime(track.updated_at) if track else None),
+    }
+
+
+@app.get("/programming/onboarding")
+def get_programming_onboarding(
+    authorization: str | None = Header(None),
+    username: str = "",
+    db: Session = Depends(get_db),
+):
+    user = get_current_user_from_bearer(authorization, db) if authorization else get_user_by_username(username, db)
+    track = get_user_track(db, user.id, "programming")
+    return _programming_onboarding_payload(user, track, db)
+
+
+@app.post("/programming/onboarding")
+def save_programming_onboarding(
+    req: ProgrammingOnboardingRequest,
+    authorization: str | None = Header(None),
+    db: Session = Depends(get_db),
+):
+    user = get_current_user_from_bearer(authorization, db)
+    language = (req.main_language or "").strip()[:30]
+    level = (req.level or "").strip()[:30]
+    if not language:
+        raise HTTPException(status_code=400, detail="请选择主要练习语言")
+    if not level:
+        raise HTTPException(status_code=400, detail="请选择当前水平")
+    problems = []
+    for item in req.problems or []:
+        value = (item or "").strip()
+        if value and value not in problems:
+            problems.append(value[:60])
+
+    requested_plan = normalize_programming_plan(req.plan)
+    if req.onboarding_completed and requested_plan != "free":
+        raise HTTPException(status_code=400, detail="当前未接入支付系统，暂不支持直接开通付费编程套餐")
+
+    track = get_user_track(db, user.id, "programming")
+    detail = _parse_track_onboarding_detail(track)
+    now_text = serialize_datetime(utc_now())
+    completed = bool(req.onboarding_completed)
+    plan = "free" if completed else normalize_programming_plan(detail.get("programming_plan") or requested_plan)
+    detail.update({
+        "service_key": "programming",
+        "main_language": language,
+        "level": level,
+        "problems": problems,
+        "programming_plan": plan,
+        "programming_onboarding_completed": completed,
+        "programming_updated_at": now_text,
+    })
+    if not detail.get("programming_created_at"):
+        detail["programming_created_at"] = now_text
+
+    user.learning_direction = "编程能力提升"
+    user.default_course_id = language
+    if completed:
+        user.onboarding_completed = True
+    user.onboarding_detail = json.dumps({**detail, "learning_goal_type": "programming"}, ensure_ascii=False)
+
+    track = upsert_user_track(
+        db,
+        user.id,
+        "programming",
+        plan=plan,
+        package_type=plan,
+        onboarding_detail=detail,
+    )
+    for t in get_user_tracks(db, user.id):
+        t.is_active = t.track_type == "programming"
+
+    if completed:
+        membership = get_user_service_membership(db, user.id, "programming")
+        if membership:
+            membership.is_enabled = True
+            membership.plan = plan
+            membership.updated_at = utc_now()
+        else:
+            db.add(models.UserServiceMembership(
+                user_id=user.id,
+                service_key="programming",
+                is_enabled=True,
+                plan=plan,
+            ))
+
+    db.commit()
+    db.refresh(user)
+    db.refresh(track)
+    profile = user_profile(user)
+    tracks = [serialize_track(t) for t in get_user_tracks(db, user.id)]
+    profile["tracks"] = tracks
+    profile["active_track_type"] = "programming"
+    return {
+        "message": "programming onboarding saved",
+        "onboarding": _programming_onboarding_payload(user, track, db),
+        "user": profile,
+        "profile": profile,
+    }
+
+
+@app.get("/programming/packages")
+def get_programming_packages():
+    return {
+        "service_key": "programming",
+        "plans": [get_programming_package_entitlements(plan) for plan in ["free", "monthly", "quarterly", "full"]],
+        "payment_available": False,
+    }
+
+
+@app.get("/programming/entitlements")
+def get_programming_entitlements(username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    plan = get_effective_service_plan(db, user.id, "programming")
+    entitlements = get_programming_package_entitlements(plan)
+    entitlements["upload_limits"] = {
+        "single_file_size_mb": entitlements["permissions"].get("material_upload_limit_mb", 0),
+    }
+    return entitlements
+
+
+@app.get("/programming/home")
+def get_programming_home(username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    track = get_user_track(db, user.id, "programming")
+    payload = _programming_onboarding_payload(user, track, db)
+    plan = normalize_programming_plan(get_effective_service_plan(db, user.id, "programming"))
+    quota = PROGRAMMING_PACKAGE_QUOTA[plan]
+    chat_used = get_today_usage(user.username, "code_analyze", db)
+    question_used = get_today_usage(user.username, "challenge_generate", db)
+    materials = (
+        db.query(models.StudyMaterial)
+        .filter(
+            models.StudyMaterial.username == user.username,
+            models.StudyMaterial.is_deleted.is_(False),
+        )
+        .order_by(models.StudyMaterial.created_at.desc())
+        .limit(5)
+        .all()
+    )
+    material_bytes = sum(int(item.file_size or 0) for item in materials)
+    storage_limit_bytes = int(quota.get("material_upload_limit_mb") or 0) * 1024 * 1024
+    tasks = [
+        {"id": "practice-array-list", "title": "练习数组与链表", "completed": False},
+        {"id": "solve-medium-problem", "title": "完成一道编程题（中等难度）", "completed": False},
+        {"id": "review-function-recursion", "title": "复习函数与递归", "completed": False},
+        {"id": "read-solution-summary", "title": "阅读算法题解并总结", "completed": False},
+    ]
+    return {
+        "onboarding": payload,
+        "plan": plan,
+        "plan_label": PROGRAMMING_PACKAGE_NAMES[plan],
+        "quota": {
+            "ai_chat": {
+                "used": chat_used,
+                "limit": quota["ai_chat_daily_limit"],
+                "remaining": max(0, quota["ai_chat_daily_limit"] - chat_used),
+            },
+            "ai_question": {
+                "used": question_used,
+                "limit": quota["ai_question_daily_limit"],
+                "remaining": max(0, quota["ai_question_daily_limit"] - question_used),
+            },
+            "file_library": {
+                "used_bytes": material_bytes,
+                "limit_bytes": storage_limit_bytes,
+                "enabled": bool(quota["file_library"]),
+            },
+        },
+        "tasks": tasks,
+        "files": [serialize_material_list_item(item) for item in materials] if quota["file_library"] else [],
+        "stats": {
+            "streak_days": 0,
+            "momentum": "初始状态",
+        },
     }
 
 
@@ -23767,7 +24053,7 @@ def admin_update_user_plan(
     }
 
 
-SERVICE_KEYS = ["exam_11408", "course", "programming"]
+SERVICE_KEYS = ["exam_11408", "course_learning", "programming"]
 VALID_PLANS = ["free", "monthly", "quarterly", "full"]
 SERVICE_PLAN_LABELS = {
     "exam_11408": {"free": "普通用户", "monthly": "月度冲刺包", "quarterly": "季度强化包", "full": "全程备考包"},

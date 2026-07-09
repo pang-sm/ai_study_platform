@@ -137,6 +137,7 @@ const EXAM_PACKAGES = [
 export default function Onboarding({
   user,
   onComplete,
+  onProgrammingSelected,
   API_BASE,
   initialStep,
   initialGoalType,
@@ -228,6 +229,10 @@ export default function Onboarding({
     setError("");
     if (goalType === "university_course") {
       completeCourseDirectionSelection();
+      return;
+    }
+    if (goalType === "programming" && onProgrammingSelected) {
+      onProgrammingSelected();
       return;
     }
     setStep(2);
