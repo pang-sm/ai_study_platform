@@ -84,15 +84,15 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
   const files = homeData?.files || [];
   const plan = homeData?.plan || "free";
 
+  const openWorkbench = () => {
+    setPage?.("codeStudio", {
+      source: "programming",
+      returnPage: "programmingHome",
+      subject: user?.default_course_id || homeData?.onboarding?.main_language || "Python",
+    });
+  };
+
   const navContent = useMemo(() => {
-    if (activeNav === "workbench") {
-      return (
-        <section className="ph-placeholder-panel">
-          <h2>编程工作台</h2>
-          <p>编程工作台将保留在编程学习方向内接入，不会跳转到旧版页面。</p>
-        </section>
-      );
-    }
     if (activeNav !== "home") {
       const item = NAV_ITEMS.find((nav) => nav.key === activeNav);
       return (
@@ -118,7 +118,7 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
               type="button"
               key={item.key}
               className={activeNav === item.key ? "is-active" : ""}
-              onClick={() => setActiveNav(item.key)}
+              onClick={() => (item.key === "workbench" ? openWorkbench() : setActiveNav(item.key))}
             >
               <Icon type={item.icon} />
               <span>{item.label}</span>

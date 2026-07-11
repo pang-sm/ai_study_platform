@@ -347,6 +347,7 @@ export default function CodeStudio({
   formatDate,
   searchNavigate,
   onClearSearchNavigate = () => {},
+  onBack = null,
 }) {
   const [sessions, setSessions] = useState([]);
   const [selectedSession, setSelectedSession] = useState(null);
@@ -2493,6 +2494,16 @@ export default function CodeStudio({
         {/* Status Bar */}
         <div className="code-status-bar">
           <div className="code-status-bar-left">
+            {onBack && (
+              <button
+                type="button"
+                className="code-layout-btn"
+                onClick={onBack}
+                title="返回编程学习首页"
+              >
+                返回
+              </button>
+            )}
             <span className="code-status-title" title={title}>
               {title}
             </span>

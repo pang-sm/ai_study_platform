@@ -632,6 +632,15 @@ function App() {
     } else {
       setPracticeContext(null);
     }
+    if (nextPage === "codeStudio" && context?.source === "programming") {
+      setCodeStudioNavigationContext({
+        source: "programming",
+        returnPage: context.returnPage || "programmingHome",
+        subject: context.subject || user?.default_course_id || "Python",
+      });
+    } else if (nextPage !== "codeStudio") {
+      setCodeStudioNavigationContext(null);
+    }
     saveCurrentPage(nextPage);
     setPageRaw(nextPage);
   };
@@ -649,6 +658,7 @@ function App() {
   const [courseOnboardingTargetPage, setCourseOnboardingTargetPage] = useState("home");
   const [coursePackageSaving, setCoursePackageSaving] = useState(false);
   const [programmingOnboardingStatus, setProgrammingOnboardingStatus] = useState(null);
+  const [codeStudioNavigationContext, setCodeStudioNavigationContext] = useState(null);
   const [serviceSwitchOnboarding, setServiceSwitchOnboarding] = useState(null);
   const [publicFeatures, setPublicFeatures] = useState(null);
   const [userAnnouncements, setUserAnnouncements] = useState([]);
@@ -3918,22 +3928,28 @@ function App() {
     if (!isFeatureEnabled("feature_code_studio_enabled")) {
       return wrapPage(<FeatureUnavailable featureName="编程助手" onGoHome={() => setPage("home")} />);
     }
-    return wrapPage(
+    const isProgrammingCodeStudio = codeStudioNavigationContext?.source === "programming";
+    const codeStudioSubject = isProgrammingCodeStudio
+      ? (codeStudioNavigationContext.subject || user?.default_course_id || "Python")
+      : subject;
+    const codeStudioContent = (
       <div className="app-shell">
         <Suspense fallback={<div className="empty-state">编程学习助手加载中...</div>}>
           <CodeStudio
             user={user}
-            subject={subject}
+            subject={codeStudioSubject}
             courseOptions={COURSE_OPTIONS}
             getSubjectLabel={getSubjectLabel}
             normalizeSubject={normalizeSubject}
             formatDate={formatDate}
             searchNavigate={searchNavigate}
             onClearSearchNavigate={() => setSearchNavigate(null)}
+            onBack={isProgrammingCodeStudio ? () => setPage(codeStudioNavigationContext.returnPage || "programmingHome") : null}
           />
         </Suspense>
       </div>
     );
+    return isProgrammingCodeStudio ? codeStudioContent : wrapPage(codeStudioContent);
   }
 
   if (isExamCourseTaskCenter) {
