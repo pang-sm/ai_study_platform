@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import hashlib
+import shutil
 import asyncio
 import threading
 import time
@@ -19,6 +20,7 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeou
 from datetime import date, datetime, timedelta, timezone
 from io import BytesIO, StringIO
 from pathlib import Path
+from pathlib import PurePosixPath
 from urllib.parse import quote, unquote
 
 import fitz
@@ -8238,6 +8240,7 @@ def serialize_knowledge_point(point, progress_info=None):
 CODE_TEMPLATES = {
     "Python": 'def main():\n    print("Hello, World!")\n\nif __name__ == "__main__":\n    main()',
     "C": '#include <stdio.h>\n\nint main() {\n    printf("Hello, World!\\n");\n    return 0;\n}',
+    "C++": '#include <iostream>\n\nint main() {\n    std::cout << "Hello, World!" << std::endl;\n    return 0;\n}',
     "Java": 'public class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello, World!");\n    }\n}',
 }
 
@@ -8421,6 +8424,545 @@ def delete_code_session(session_id: int, username: str, db: Session = Depends(ge
     db.delete(session)
     db.commit()
     return {"success": True, "message": "代码练习已删除"}
+
+
+PROJECT_LANGUAGE_DEFAULT_ENTRY = {
+    "C": "main.c",
+    "C++": "main.cpp",
+    "Python": "main.py",
+    "Java": "Main.java",
+}
+
+PROJECT_FILE_EXTENSIONS = {
+    ".c", ".h", ".cpp", ".cc", ".cxx", ".hpp", ".py", ".java", ".txt", ".json", ".md"
+}
+
+
+def normalize_project_language(language: str | None) -> str:
+    raw = (language or "").strip().lower()
+    if raw in ("c++", "cpp", "cplusplus") or "c++" in raw:
+        return "C++"
+    if raw == "c" or raw == "c语言":
+        return "C"
+    if raw in ("python", "py") or "python" in raw:
+        return "Python"
+    if raw == "java" or "java" in raw:
+        return "Java"
+    return "Python"
+
+
+def default_project_code(language: str) -> str:
+    if language == "C":
+        return '#include <stdio.h>\n\nint main(void) {\n    printf("hello from c\\n");\n    return 0;\n}\n'
+    if language == "C++":
+        return '#include <iostream>\n\nint main() {\n    std::cout << "hello from cpp" << std::endl;\n    return 0;\n}\n'
+    if language == "Java":
+        return 'public class Main {\n    public static void main(String[] args) {\n        System.out.println("hello from java");\n    }\n}\n'
+    return 'print("hello from python")\n'
+
+
+def safe_project_path(relative_path: str) -> str:
+    raw = (relative_path or "").strip().replace("\\", "/")
+    if not raw:
+        raise HTTPException(status_code=400, detail="文件路径不能为空")
+    if raw.startswith("/") or re.match(r"^[A-Za-z]:", raw):
+        raise HTTPException(status_code=400, detail="文件路径不能是绝对路径")
+    path = PurePosixPath(raw)
+    parts = [part for part in path.parts if part not in ("", ".")]
+    if not parts or any(part == ".." for part in parts):
+        raise HTTPException(status_code=400, detail="文件路径不能包含 ../")
+    normalized = "/".join(parts)
+    if len(normalized) > 500:
+        raise HTTPException(status_code=400, detail="文件路径过长")
+    suffix = PurePosixPath(normalized).suffix.lower()
+    if suffix and suffix not in PROJECT_FILE_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="暂不支持该文件类型")
+    return normalized
+
+
+def infer_project_file_type(relative_path: str, file_type: str | None = None) -> str:
+    if file_type:
+        return str(file_type).strip()[:30] or "text"
+    suffix = PurePosixPath(relative_path).suffix.lower()
+    return {
+        ".c": "c",
+        ".h": "c-header",
+        ".cpp": "cpp",
+        ".cc": "cpp",
+        ".cxx": "cpp",
+        ".hpp": "cpp-header",
+        ".py": "python",
+        ".java": "java",
+        ".json": "json",
+        ".md": "markdown",
+    }.get(suffix, "text")
+
+
+def get_code_project_or_404(project_id: int, username: str, db: Session):
+    project = (
+        db.query(models.CodeProject)
+        .filter(
+            models.CodeProject.id == project_id,
+            models.CodeProject.username == username,
+            models.CodeProject.is_deleted.is_(False),
+        )
+        .first()
+    )
+    if not project:
+        raise HTTPException(status_code=404, detail="编程项目不存在")
+    return project
+
+
+def serialize_code_project_file(file: models.CodeProjectFile):
+    return {
+        "id": file.id,
+        "project_id": file.project_id,
+        "relative_path": file.relative_path,
+        "filename": file.filename,
+        "content": file.content,
+        "file_type": file.file_type,
+        "created_at": serialize_datetime(file.created_at) if file.created_at else None,
+        "updated_at": serialize_datetime(file.updated_at) if file.updated_at else None,
+    }
+
+
+def serialize_code_project(project: models.CodeProject, files: list[models.CodeProjectFile] | None = None):
+    payload = {
+        "id": project.id,
+        "username": project.username,
+        "course_id": project.course_id,
+        "name": project.name,
+        "language": project.language,
+        "entry_file": project.entry_file,
+        "main_class": project.main_class,
+        "created_at": serialize_datetime(project.created_at) if project.created_at else None,
+        "updated_at": serialize_datetime(project.updated_at) if project.updated_at else None,
+    }
+    if files is not None:
+        payload["files"] = [serialize_code_project_file(file) for file in files]
+        payload["file_count"] = len(files)
+    return payload
+
+
+def list_project_files(project_id: int, db: Session):
+    return (
+        db.query(models.CodeProjectFile)
+        .filter(
+            models.CodeProjectFile.project_id == project_id,
+            models.CodeProjectFile.is_deleted.is_(False),
+        )
+        .order_by(models.CodeProjectFile.relative_path.asc())
+        .all()
+    )
+
+
+def create_default_project_file(project: models.CodeProject, db: Session):
+    path = safe_project_path(project.entry_file)
+    file = models.CodeProjectFile(
+        project_id=project.id,
+        username=project.username,
+        relative_path=path,
+        filename=PurePosixPath(path).name,
+        content=default_project_code(project.language),
+        file_type=infer_project_file_type(path),
+    )
+    db.add(file)
+    return file
+
+
+@app.get("/code/projects")
+def get_code_projects(username: str, course_id: str = "programming", db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    query = db.query(models.CodeProject).filter(
+        models.CodeProject.username == user.username,
+        models.CodeProject.is_deleted.is_(False),
+    )
+    normalized_course_id = normalize_subject(course_id, default="programming")
+    if normalized_course_id:
+        query = query.filter(models.CodeProject.course_id == normalized_course_id)
+    projects = query.order_by(models.CodeProject.updated_at.desc()).all()
+    counts = {}
+    if projects:
+        project_ids = [project.id for project in projects]
+        rows = (
+            db.query(models.CodeProjectFile.project_id, func.count(models.CodeProjectFile.id))
+            .filter(
+                models.CodeProjectFile.project_id.in_(project_ids),
+                models.CodeProjectFile.is_deleted.is_(False),
+            )
+            .group_by(models.CodeProjectFile.project_id)
+            .all()
+        )
+        counts = {project_id: count for project_id, count in rows}
+    return {
+        "projects": [
+            {**serialize_code_project(project), "file_count": counts.get(project.id, 0)}
+            for project in projects
+        ]
+    }
+
+
+@app.post("/code/projects")
+def create_code_project(req: schemas.CodeProjectCreate, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+    language = normalize_project_language(req.language)
+    entry_file = PROJECT_LANGUAGE_DEFAULT_ENTRY[language]
+    project = models.CodeProject(
+        username=user.username,
+        course_id=normalize_subject(req.course_id, default="programming") or "programming",
+        name=(req.name or "未命名项目").strip()[:255] or "未命名项目",
+        language=language,
+        entry_file=entry_file,
+        main_class="Main" if language == "Java" else None,
+    )
+    db.add(project)
+    db.flush()
+    create_default_project_file(project, db)
+    db.commit()
+    db.refresh(project)
+    files = list_project_files(project.id, db)
+    return {"success": True, "project": serialize_code_project(project, files)}
+
+
+@app.get("/code/projects/{project_id}")
+def get_code_project(project_id: int, username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    project = get_code_project_or_404(project_id, user.username, db)
+    files = list_project_files(project.id, db)
+    if not files:
+        create_default_project_file(project, db)
+        project.updated_at = utc_now()
+        db.commit()
+        files = list_project_files(project.id, db)
+    return {"project": serialize_code_project(project, files)}
+
+
+@app.put("/code/projects/{project_id}")
+def update_code_project(project_id: int, req: schemas.CodeProjectUpdate, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+    project = get_code_project_or_404(project_id, user.username, db)
+    if req.name is not None:
+        project.name = (req.name or "未命名项目").strip()[:255] or "未命名项目"
+    if req.language is not None:
+        project.language = normalize_project_language(req.language)
+    if req.entry_file is not None:
+        project.entry_file = safe_project_path(req.entry_file)
+    if req.main_class is not None:
+        project.main_class = (req.main_class or "").strip()[:255] or None
+    project.updated_at = utc_now()
+    db.commit()
+    db.refresh(project)
+    return {"success": True, "project": serialize_code_project(project, list_project_files(project.id, db))}
+
+
+@app.delete("/code/projects/{project_id}")
+def delete_code_project(project_id: int, username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    project = get_code_project_or_404(project_id, user.username, db)
+    now = utc_now()
+    project.is_deleted = True
+    project.deleted_at = now
+    db.query(models.CodeProjectFile).filter(
+        models.CodeProjectFile.project_id == project.id,
+    ).update(
+        {
+            models.CodeProjectFile.is_deleted: True,
+            models.CodeProjectFile.deleted_at: now,
+            models.CodeProjectFile.updated_at: now,
+        },
+        synchronize_session=False,
+    )
+    db.commit()
+    return {"success": True, "message": "编程项目已删除"}
+
+
+@app.post("/code/projects/{project_id}/files")
+def create_code_project_file(project_id: int, req: schemas.CodeProjectFileCreate, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+    project = get_code_project_or_404(project_id, user.username, db)
+    relative_path = safe_project_path(req.relative_path)
+    existing = (
+        db.query(models.CodeProjectFile)
+        .filter(
+            models.CodeProjectFile.project_id == project.id,
+            models.CodeProjectFile.relative_path == relative_path,
+            models.CodeProjectFile.is_deleted.is_(False),
+        )
+        .first()
+    )
+    if existing:
+        raise HTTPException(status_code=409, detail="该路径下已存在文件")
+    file = models.CodeProjectFile(
+        project_id=project.id,
+        username=user.username,
+        relative_path=relative_path,
+        filename=PurePosixPath(relative_path).name,
+        content=req.content or "",
+        file_type=infer_project_file_type(relative_path, req.file_type),
+    )
+    project.updated_at = utc_now()
+    db.add(file)
+    db.commit()
+    db.refresh(file)
+    return {"success": True, "file": serialize_code_project_file(file), "project": serialize_code_project(project)}
+
+
+@app.put("/code/projects/{project_id}/files/{file_id}")
+def update_code_project_file(project_id: int, file_id: int, req: schemas.CodeProjectFileUpdate, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+    project = get_code_project_or_404(project_id, user.username, db)
+    file = (
+        db.query(models.CodeProjectFile)
+        .filter(
+            models.CodeProjectFile.id == file_id,
+            models.CodeProjectFile.project_id == project.id,
+            models.CodeProjectFile.is_deleted.is_(False),
+        )
+        .first()
+    )
+    if not file:
+        raise HTTPException(status_code=404, detail="项目文件不存在")
+    if req.relative_path is not None:
+        old_path = file.relative_path
+        next_path = safe_project_path(req.relative_path)
+        duplicate = (
+            db.query(models.CodeProjectFile)
+            .filter(
+                models.CodeProjectFile.project_id == project.id,
+                models.CodeProjectFile.relative_path == next_path,
+                models.CodeProjectFile.id != file.id,
+                models.CodeProjectFile.is_deleted.is_(False),
+            )
+            .first()
+        )
+        if duplicate:
+            raise HTTPException(status_code=409, detail="该路径下已存在文件")
+        file.relative_path = next_path
+        file.filename = PurePosixPath(next_path).name
+        file.file_type = infer_project_file_type(next_path, req.file_type)
+        if project.entry_file == old_path:
+            project.entry_file = next_path
+    if req.content is not None:
+        file.content = req.content
+    if req.file_type is not None:
+        file.file_type = infer_project_file_type(file.relative_path, req.file_type)
+    now = utc_now()
+    file.updated_at = now
+    project.updated_at = now
+    db.commit()
+    db.refresh(file)
+    return {"success": True, "file": serialize_code_project_file(file), "project": serialize_code_project(project)}
+
+
+@app.delete("/code/projects/{project_id}/files/{file_id}")
+def delete_code_project_file(project_id: int, file_id: int, username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    project = get_code_project_or_404(project_id, user.username, db)
+    file = (
+        db.query(models.CodeProjectFile)
+        .filter(
+            models.CodeProjectFile.id == file_id,
+            models.CodeProjectFile.project_id == project.id,
+            models.CodeProjectFile.is_deleted.is_(False),
+        )
+        .first()
+    )
+    if not file:
+        raise HTTPException(status_code=404, detail="项目文件不存在")
+    active_file_count = (
+        db.query(models.CodeProjectFile)
+        .filter(
+            models.CodeProjectFile.project_id == project.id,
+            models.CodeProjectFile.is_deleted.is_(False),
+        )
+        .count()
+    )
+    if active_file_count <= 1:
+        raise HTTPException(status_code=400, detail="项目至少需要保留一个文件")
+    now = utc_now()
+    file.is_deleted = True
+    file.deleted_at = now
+    file.updated_at = now
+    if project.entry_file == file.relative_path:
+        replacement = (
+            db.query(models.CodeProjectFile)
+            .filter(
+                models.CodeProjectFile.project_id == project.id,
+                models.CodeProjectFile.id != file.id,
+                models.CodeProjectFile.is_deleted.is_(False),
+            )
+            .order_by(models.CodeProjectFile.relative_path.asc())
+            .first()
+        )
+        if replacement:
+            project.entry_file = replacement.relative_path
+    project.updated_at = now
+    db.commit()
+    return {"success": True, "message": "项目文件已删除", "project": serialize_code_project(project)}
+
+
+def _write_project_files(tmp_dir: str, files: list[models.CodeProjectFile]) -> None:
+    root = Path(tmp_dir).resolve()
+    for file in files:
+        relative_path = safe_project_path(file.relative_path)
+        target = (root / Path(relative_path)).resolve()
+        if root != target and root not in target.parents:
+            raise HTTPException(status_code=400, detail="文件路径越界")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(file.content or "", encoding="utf-8")
+
+
+def _truncate_output(text: str) -> tuple[str, bool]:
+    value = text or ""
+    if len(value) <= MAX_OUTPUT_CHARS:
+        return value, False
+    return value[:MAX_OUTPUT_CHARS], True
+
+
+def _run_project_command(args: list[str], cwd: str, stdin: str = "", timeout: int = 6) -> dict:
+    start = time.time()
+    try:
+        proc = subprocess.run(
+            args,
+            cwd=cwd,
+            input=stdin or None,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            shell=False,
+        )
+        elapsed_ms = int((time.time() - start) * 1000)
+        stdout, stdout_truncated = _truncate_output(proc.stdout or "")
+        stderr, stderr_truncated = _truncate_output(proc.stderr or "")
+        return {
+            "stdout": stdout,
+            "stderr": stderr,
+            "exit_code": proc.returncode,
+            "duration_ms": elapsed_ms,
+            "timed_out": False,
+            "error_message": None,
+            "compile_error": None,
+            "compiled": True,
+            "stdout_truncated": stdout_truncated,
+            "stderr_truncated": stderr_truncated,
+        }
+    except subprocess.TimeoutExpired as exc:
+        elapsed_ms = int((time.time() - start) * 1000)
+        stdout, stdout_truncated = _truncate_output(exc.stdout or "")
+        stderr, stderr_truncated = _truncate_output(exc.stderr or "")
+        return {
+            "stdout": stdout,
+            "stderr": stderr or f"执行超时（超过 {timeout} 秒），您的代码可能包含死循环或复杂度过高的算法。",
+            "exit_code": -1,
+            "duration_ms": elapsed_ms,
+            "timed_out": True,
+            "error_message": None,
+            "compile_error": None,
+            "compiled": False,
+            "stdout_truncated": stdout_truncated,
+            "stderr_truncated": stderr_truncated,
+        }
+
+
+def _get_python_project_runner() -> str:
+    python3 = shutil.which("python3")
+    if python3 and "WindowsApps" not in python3:
+        return python3
+    return sys.executable
+
+
+def _project_binary_path(tmp_dir: str) -> str:
+    name = "app.exe" if os.name == "nt" else "app"
+    return str(Path(tmp_dir) / name)
+
+
+@app.post("/code/projects/{project_id}/execute")
+def execute_code_project(project_id: int, req: schemas.CodeProjectExecuteRequest, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+    project = get_code_project_or_404(project_id, user.username, db)
+    files = list_project_files(project.id, db)
+    if not files:
+        raise HTTPException(status_code=400, detail="项目没有可运行文件")
+    if not _check_code_run_rate(user.username, CODE_RUN_RATE_EXECUTE):
+        raise HTTPException(status_code=429, detail="运行过于频繁，每分钟最多运行 10 次，请稍后再试。")
+
+    acquired = DOCKER_SEMAPHORE.acquire(timeout=DOCKER_SEMAPHORE_TIMEOUT)
+    if not acquired:
+        raise HTTPException(status_code=503, detail="当前代码运行任务较多，请稍后重试。")
+
+    tmp_dir = tempfile.mkdtemp(prefix="code_project_")
+    try:
+        _write_project_files(tmp_dir, files)
+        language = normalize_project_language(project.language)
+        entry_file = safe_project_path(project.entry_file)
+        stdin = (req.stdin or "")[:MAX_STDIN_CHARS]
+        source_paths = [file.relative_path for file in files]
+
+        if language == "Python":
+            runner = _get_python_project_runner()
+            entry = Path(tmp_dir) / Path(entry_file)
+            if not entry.exists():
+                raise HTTPException(status_code=400, detail="入口文件不存在")
+            return {**_run_project_command([runner, str(entry.relative_to(tmp_dir))], tmp_dir, stdin, EXECUTE_TIMEOUT_SECONDS), "success": True}
+
+        if language == "C":
+            gcc = shutil.which("gcc")
+            if not gcc:
+                return {"success": True, "stdout": "", "stderr": "", "exit_code": -1, "duration_ms": 0, "timed_out": False, "error_message": "服务器未安装 gcc，无法运行 C 项目。", "compile_error": None, "compiled": False, "stdout_truncated": False, "stderr_truncated": False}
+            c_files = sorted(path for path in source_paths if PurePosixPath(path).suffix.lower() == ".c")
+            if not c_files:
+                raise HTTPException(status_code=400, detail="C 项目没有 .c 源文件")
+            app_path = _project_binary_path(tmp_dir)
+            compile_result = _run_project_command([gcc, *c_files, "-std=c11", "-Wall", "-Wextra", "-o", app_path], tmp_dir, "", EXECUTE_TIMEOUT_SECONDS_C)
+            if compile_result["exit_code"] != 0:
+                compile_result["compile_error"] = compile_result["stderr"]
+                compile_result["stderr"] = ""
+                compile_result["compiled"] = False
+                compile_result["success"] = True
+                return compile_result
+            return {**_run_project_command([app_path], tmp_dir, stdin, EXECUTE_TIMEOUT_SECONDS_C), "success": True}
+
+        if language == "C++":
+            gpp = shutil.which("g++")
+            if not gpp:
+                return {"success": True, "stdout": "", "stderr": "", "exit_code": -1, "duration_ms": 0, "timed_out": False, "error_message": "服务器未安装 g++，无法运行 C++ 项目。", "compile_error": None, "compiled": False, "stdout_truncated": False, "stderr_truncated": False}
+            cpp_files = sorted(path for path in source_paths if PurePosixPath(path).suffix.lower() in (".cpp", ".cc", ".cxx"))
+            if not cpp_files:
+                raise HTTPException(status_code=400, detail="C++ 项目没有 .cpp/.cc/.cxx 源文件")
+            app_path = _project_binary_path(tmp_dir)
+            compile_result = _run_project_command([gpp, *cpp_files, "-std=c++17", "-Wall", "-Wextra", "-o", app_path], tmp_dir, "", EXECUTE_TIMEOUT_SECONDS_C)
+            if compile_result["exit_code"] != 0:
+                compile_result["compile_error"] = compile_result["stderr"]
+                compile_result["stderr"] = ""
+                compile_result["compiled"] = False
+                compile_result["success"] = True
+                return compile_result
+            return {**_run_project_command([app_path], tmp_dir, stdin, EXECUTE_TIMEOUT_SECONDS_C), "success": True}
+
+        if language == "Java":
+            javac = shutil.which("javac")
+            java = shutil.which("java")
+            if not javac or not java:
+                return {"success": True, "stdout": "", "stderr": "", "exit_code": -1, "duration_ms": 0, "timed_out": False, "error_message": "服务器未安装 javac/java，无法运行 Java 项目。", "compile_error": None, "compiled": False, "stdout_truncated": False, "stderr_truncated": False}
+            java_files = sorted(path for path in source_paths if PurePosixPath(path).suffix.lower() == ".java")
+            if not java_files:
+                raise HTTPException(status_code=400, detail="Java 项目没有 .java 源文件")
+            classes_dir = Path(tmp_dir) / "classes"
+            classes_dir.mkdir(exist_ok=True)
+            compile_result = _run_project_command([javac, "-encoding", "UTF-8", "-d", str(classes_dir), *java_files], tmp_dir, "", EXECUTE_TIMEOUT_SECONDS_C)
+            if compile_result["exit_code"] != 0:
+                compile_result["compile_error"] = compile_result["stderr"]
+                compile_result["stderr"] = ""
+                compile_result["compiled"] = False
+                compile_result["success"] = True
+                return compile_result
+            main_class = (project.main_class or PurePosixPath(entry_file).stem or "Main").strip()
+            return {**_run_project_command([java, "-cp", str(classes_dir), main_class], tmp_dir, stdin, EXECUTE_TIMEOUT_SECONDS_C), "success": True}
+
+        raise HTTPException(status_code=400, detail="不支持的项目语言")
+    finally:
+        DOCKER_SEMAPHORE.release()
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 MAX_CODE_EXECUTE_CHARS = 20000

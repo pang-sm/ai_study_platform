@@ -211,6 +211,32 @@ CODE_SESSIONS_COLUMNS = {
     "updated_at": "DATETIME",
 }
 
+CODE_PROJECTS_COLUMNS = {
+    "username": "VARCHAR(50) NOT NULL",
+    "course_id": "VARCHAR(100) NOT NULL DEFAULT 'programming'",
+    "name": "VARCHAR(255) NOT NULL DEFAULT '未命名项目'",
+    "language": "VARCHAR(20) NOT NULL DEFAULT 'Python'",
+    "entry_file": "VARCHAR(500) NOT NULL DEFAULT 'main.py'",
+    "main_class": "VARCHAR(255)",
+    "created_at": "DATETIME",
+    "updated_at": "DATETIME",
+    "is_deleted": "INTEGER NOT NULL DEFAULT 0",
+    "deleted_at": "DATETIME",
+}
+
+CODE_PROJECT_FILES_COLUMNS = {
+    "project_id": "INTEGER NOT NULL",
+    "username": "VARCHAR(50) NOT NULL",
+    "relative_path": "VARCHAR(500) NOT NULL",
+    "filename": "VARCHAR(255) NOT NULL",
+    "content": "TEXT NOT NULL DEFAULT ''",
+    "file_type": "VARCHAR(30) NOT NULL DEFAULT 'text'",
+    "created_at": "DATETIME",
+    "updated_at": "DATETIME",
+    "is_deleted": "INTEGER NOT NULL DEFAULT 0",
+    "deleted_at": "DATETIME",
+}
+
 PAST_PAPER_WRONG_QUESTIONS_COLUMNS = {
     "source": "VARCHAR(50) NOT NULL DEFAULT 'past_paper'",
     "year": "INTEGER NOT NULL DEFAULT 0",
@@ -815,6 +841,68 @@ def ensure_code_sessions_schema(conn):
         )
     )
     ensure_columns(conn, "code_sessions", CODE_SESSIONS_COLUMNS)
+
+
+def ensure_code_projects_schema(conn):
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS code_projects (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username VARCHAR(50) NOT NULL,
+                course_id VARCHAR(100) NOT NULL DEFAULT 'programming',
+                name VARCHAR(255) NOT NULL DEFAULT '未命名项目',
+                language VARCHAR(20) NOT NULL DEFAULT 'Python',
+                entry_file VARCHAR(500) NOT NULL DEFAULT 'main.py',
+                main_class VARCHAR(255),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                is_deleted INTEGER NOT NULL DEFAULT 0,
+                deleted_at DATETIME
+            )
+            """
+        )
+    )
+    ensure_columns(conn, "code_projects", CODE_PROJECTS_COLUMNS)
+    conn.execute(
+        text(
+            """
+            CREATE INDEX IF NOT EXISTS idx_code_projects_user_updated
+            ON code_projects (username, updated_at)
+            """
+        )
+    )
+
+
+def ensure_code_project_files_schema(conn):
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS code_project_files (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id INTEGER NOT NULL,
+                username VARCHAR(50) NOT NULL,
+                relative_path VARCHAR(500) NOT NULL,
+                filename VARCHAR(255) NOT NULL,
+                content TEXT NOT NULL DEFAULT '',
+                file_type VARCHAR(30) NOT NULL DEFAULT 'text',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                is_deleted INTEGER NOT NULL DEFAULT 0,
+                deleted_at DATETIME
+            )
+            """
+        )
+    )
+    ensure_columns(conn, "code_project_files", CODE_PROJECT_FILES_COLUMNS)
+    conn.execute(
+        text(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_code_project_files_project_path
+            ON code_project_files (project_id, relative_path)
+            """
+        )
+    )
 
 
 def ensure_code_ai_messages_schema(conn):
@@ -1587,6 +1675,8 @@ def init_user_profile_schema():
         ensure_course_progress_schema(conn)
         ensure_course_learning_preferences_schema(conn)
         ensure_code_sessions_schema(conn)
+        ensure_code_projects_schema(conn)
+        ensure_code_project_files_schema(conn)
         ensure_code_ai_messages_schema(conn)
         ensure_code_challenges_schema(conn)
         ensure_code_challenge_attempts_schema(conn)

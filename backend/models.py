@@ -212,6 +212,44 @@ class CodeSession(Base):
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
 
+class CodeProject(Base):
+    __tablename__ = "code_projects"
+    __table_args__ = (
+        Index("idx_code_projects_user_updated", "username", "updated_at"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), index=True, nullable=False)
+    course_id = Column(String(100), index=True, nullable=False, default="programming")
+    name = Column(String(255), nullable=False, default="未命名项目")
+    language = Column(String(20), nullable=False, default="Python")
+    entry_file = Column(String(500), nullable=False, default="main.py")
+    main_class = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+    is_deleted = Column(Boolean, nullable=False, default=False)
+    deleted_at = Column(DateTime, nullable=True)
+
+
+class CodeProjectFile(Base):
+    __tablename__ = "code_project_files"
+    __table_args__ = (
+        Index("idx_code_project_files_project_path", "project_id", "relative_path", unique=True),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("code_projects.id"), index=True, nullable=False)
+    username = Column(String(50), index=True, nullable=False)
+    relative_path = Column(String(500), nullable=False)
+    filename = Column(String(255), nullable=False)
+    content = Column(Text, nullable=False, default="")
+    file_type = Column(String(30), nullable=False, default="text")
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+    is_deleted = Column(Boolean, nullable=False, default=False)
+    deleted_at = Column(DateTime, nullable=True)
+
+
 class CodeChallenge(Base):
     __tablename__ = "code_challenges"
 

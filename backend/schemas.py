@@ -54,6 +54,40 @@ class CodeSessionUpdate(BaseModel):
     code: str | None = None
 
 
+class CodeProjectCreate(BaseModel):
+    username: str
+    course_id: str = "programming"
+    name: str = "未命名项目"
+    language: str = "Python"
+
+
+class CodeProjectUpdate(BaseModel):
+    username: str
+    name: str | None = None
+    language: str | None = None
+    entry_file: str | None = None
+    main_class: str | None = None
+
+
+class CodeProjectFileCreate(BaseModel):
+    username: str
+    relative_path: str
+    content: str = ""
+    file_type: str | None = None
+
+
+class CodeProjectFileUpdate(BaseModel):
+    username: str
+    relative_path: str | None = None
+    content: str | None = None
+    file_type: str | None = None
+
+
+class CodeProjectExecuteRequest(BaseModel):
+    username: str
+    stdin: str = ""
+
+
 class CodeAnalyzeRequest(BaseModel):
     username: str
     course_id: str = ""
