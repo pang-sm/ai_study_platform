@@ -65,7 +65,6 @@ export default function ProgrammingPackageStep({
 }) {
   const [selectedPlan, setSelectedPlan] = useState(initialPlan || "quarterly");
   const [plans, setPlans] = useState([]);
-  const [paymentAvailable, setPaymentAvailable] = useState(false);
   const [savedDetails, setSavedDetails] = useState(initialDetails || null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -97,7 +96,6 @@ export default function ProgrammingPackageStep({
       .then((data) => {
         if (!alive || !Array.isArray(data?.plans)) return;
         setPlans(data.plans.map(normalizePackage));
-        setPaymentAvailable(Boolean(data.payment_available));
       })
       .catch(() => {
         if (alive) setPlans([]);
@@ -122,10 +120,6 @@ export default function ProgrammingPackageStep({
   const completeWithPlan = async (plan = selectedPlan) => {
     setSelectedPlan(plan);
     setMessage("");
-    if (plan !== "free" && !paymentAvailable) {
-      setMessage("当前项目尚未接入支付系统，付费套餐暂不能直接开通。请先选择免费体验。");
-      return;
-    }
     if (!user?.username) {
       setMessage("登录状态已失效，请重新登录后再试");
       return;

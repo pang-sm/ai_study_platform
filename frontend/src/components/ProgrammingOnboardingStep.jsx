@@ -142,7 +142,7 @@ export default function ProgrammingOnboardingStep({
         </div>
 
         <div className="programming-question">
-          <h2>1. 你主要想练哪门语言？</h2>
+          <h2>1. 你想要练习什么编程语言？</h2>
           <div className="programming-language-grid" role="radiogroup" aria-label="主要练习语言">
             {LANGUAGE_OPTIONS.map((item) => (
               <button

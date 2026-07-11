@@ -5358,14 +5358,12 @@ def save_programming_onboarding(
             problems.append(value[:60])
 
     requested_plan = normalize_programming_plan(req.plan)
-    if req.onboarding_completed and requested_plan != "free":
-        raise HTTPException(status_code=400, detail="当前未接入支付系统，暂不支持直接开通付费编程套餐")
 
     track = get_user_track(db, user.id, "programming")
     detail = _parse_track_onboarding_detail(track)
     now_text = serialize_datetime(utc_now())
     completed = bool(req.onboarding_completed)
-    plan = "free" if completed else normalize_programming_plan(detail.get("programming_plan") or requested_plan)
+    plan = requested_plan if completed else normalize_programming_plan(detail.get("programming_plan") or requested_plan)
     detail.update({
         "service_key": "programming",
         "main_language": language,
