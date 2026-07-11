@@ -3305,6 +3305,7 @@ function App() {
       setProgrammingOnboardingStatus(data?.onboarding || null);
       setPage("programmingPackageStep");
     };
+    const isServiceSwitchProgrammingOnboarding = Boolean(serviceSwitchOnboarding?.fromServiceSwitch);
     return (
       <ProgrammingOnboardingStep
         user={user}
@@ -3312,6 +3313,7 @@ function App() {
         initialData={programmingOnboardingStatus}
         onBack={() => setPage("onboarding")}
         onNext={handleProgrammingNext}
+        hideBackButton={isServiceSwitchProgrammingOnboarding}
       />
     );
   }
@@ -3322,7 +3324,9 @@ function App() {
         saveLoginUser(data.profile);
       }
       setProgrammingOnboardingStatus(data?.onboarding || { onboarding_completed: true, plan: "free" });
-      setPage("programmingHome");
+      const nextPage = serviceSwitchOnboarding?.targetPage || "programmingHome";
+      setServiceSwitchOnboarding(null);
+      setPage(nextPage);
     };
     return (
       <ProgrammingPackageStep

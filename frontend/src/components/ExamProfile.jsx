@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { switchLearningDirection } from "../utils/serviceSwitch.js";
 
 const EXAM_408_SCHOOLS = [
   "北京大学", "南京大学", "浙江大学", "上海交通大学",
@@ -157,48 +158,17 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
   const hasCodeTrack = (user?.tracks || []).some((t) => t.track_type === "programming");
 
   const switchTrack = async (targetTrack) => {
-    // Always refresh /me to get latest service_plans before switching
-    let plans = user?.service_plans || {};
-    try {
-      const meRes = await fetch(`${API_BASE}/me`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: user?.username }),
-      });
-      const meData = await meRes.json().catch(() => ({}));
-      if (meRes.ok && meData.user?.service_plans) {
-        plans = meData.user.service_plans;
-      }
-    } catch { /* use existing plans */ }
-
-    if (targetTrack === "university_course") {
-      const isEnabled = plans?.["course_learning"]?.is_enabled;
-      if (!isEnabled) {
-        if (setPage) {
-          setPage("courseLearningOnboarding", {
-            fromServiceSwitch: true,
-            targetServiceKey: "course_learning",
-            initialStep: 2,
-            targetPage: "courseProfile",
-          });
-        }
-        return;
-      }
-      if (setPage) setPage("courseProfile");
-      return;
-    }
-    if (targetTrack === "programming") {
-      const isEnabled = plans?.["programming"]?.is_enabled;
-      if (!isEnabled) {
-        setActionErr("编程方向暂未开放注册，敬请期待");
-        return;
-      }
-      if (setPage) setPage("codeStudio");
-      return;
-    }
+    setActionErr("");
+    await switchLearningDirection({
+      targetTrack,
+      user,
+      apiBase: API_BASE,
+      setPage,
+      onError: setActionErr,
+    });
   };
 
-  // ── Avatar ──
+  // Avatar
   const uploadAvatar = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;

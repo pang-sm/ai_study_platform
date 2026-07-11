@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { switchLearningDirection } from "../utils/serviceSwitch.js";
 
 const PACKAGE_LABELS = {
   free: "免费模式",
@@ -125,52 +126,18 @@ export default function CourseLearningProfile({ user, setPage, onLogout, API_BAS
   const courseSemester = onboardingDetail?.current_semester || "未设置";
 
   const switchTrack = async (targetTrack) => {
-    // Always refresh /me to get latest service_plans before switching
-    let plans = servicePlans;
-    try {
-      const meRes = await fetch(`${API_BASE}/me`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: user?.username }),
-      });
-      const meData = await meRes.json().catch(() => ({}));
-      if (meRes.ok && meData.user?.service_plans) {
-        plans = meData.user.service_plans;
-        setServicePlans(plans);
-      }
-    } catch { /* use existing plans */ }
-
-    if (targetTrack === "exam_408") {
-      const isEnabled = plans?.["exam_11408"]?.is_enabled;
-      if (!isEnabled) {
-        // Not registered: enter the target direction's detail step directly.
-        if (setPage) {
-          setPage("onboarding", {
-            fromServiceSwitch: true,
-            targetServiceKey: "exam_11408",
-            goalType: "exam_408",
-            initialStep: 2,
-            targetPage: "examProfile",
-          });
-        }
-        return;
-      }
-      // Registered — enter 11408 profile
-      if (setPage) setPage("examProfile");
-      return;
-    }
-    if (targetTrack === "programming") {
-      const isEnabled = plans?.["programming"]?.is_enabled;
-      if (!isEnabled) {
-        setActionErr("编程方向暂未开放注册，敬请期待");
-        return;
-      }
-      if (setPage) setPage("codeStudio");
-      return;
-    }
+    setActionErr("");
+    await switchLearningDirection({
+      targetTrack,
+      user,
+      apiBase: API_BASE,
+      setPage,
+      onError: setActionErr,
+      onPlansUpdate: setServicePlans,
+    });
   };
 
-  // ── Avatar ──
+  // Avatar
   const uploadAvatar = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;

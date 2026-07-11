@@ -55,6 +55,7 @@ export default function ProgrammingOnboardingStep({
   initialData,
   onBack,
   onNext,
+  hideBackButton = false,
 }) {
   const [language, setLanguage] = useState("Python");
   const [level, setLevel] = useState("零基础");
@@ -201,7 +202,9 @@ export default function ProgrammingOnboardingStep({
         {message && <div className="programming-onboarding-error">{message}</div>}
 
         <div className="programming-onboarding-actions">
-          <button type="button" className="programming-btn-secondary" onClick={onBack} disabled={saving}>上一步</button>
+          {!hideBackButton && (
+            <button type="button" className="programming-btn-secondary" onClick={onBack} disabled={saving}>上一步</button>
+          )}
           <button type="button" className="programming-btn-primary" onClick={handleNext} disabled={saving}>
             {saving ? "保存中..." : "下一步"}
           </button>
