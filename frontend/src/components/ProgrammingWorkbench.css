@@ -1,0 +1,477 @@
+.pw-shell {
+  min-height: calc(100vh - 48px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 16px;
+  color: #17133f;
+}
+
+.pw-center,
+.pw-coach {
+  border: 1px solid rgba(173, 151, 230, 0.22);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 18px 42px rgba(77, 57, 126, 0.08);
+}
+
+.pw-center {
+  min-width: 0;
+  padding: 18px 16px 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+.pw-mode-tabs {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #ece8f7;
+}
+
+.pw-mode-tabs button,
+.pw-language-tabs button,
+.pw-save-btn,
+.pw-editor-controls button,
+.pw-actions button,
+.pw-result-tabs button,
+.pw-bottom-row button,
+.pw-quick-list button,
+.pw-chat-input button {
+  font: inherit;
+  cursor: pointer;
+}
+
+.pw-mode-tabs button {
+  min-width: 96px;
+  height: 42px;
+  border: 1px solid #e5def5;
+  border-radius: 8px;
+  background: #fff;
+  color: #474061;
+  font-size: 15px;
+  font-weight: 850;
+}
+
+.pw-mode-tabs button.is-active,
+.pw-language-tabs button.is-active,
+.pw-editor-controls button.is-active {
+  border-color: #8b5cf6;
+  background: #f2ebff;
+  color: #6d28d9;
+  box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.12) inset;
+}
+
+.pw-mode-tabs .pw-save-btn {
+  margin-left: auto;
+  min-width: 76px;
+  height: 36px;
+  font-size: 13px;
+}
+
+.pw-mode-tabs .pw-save-btn + .pw-save-btn {
+  margin-left: 0;
+}
+
+.pw-language-tabs {
+  display: flex;
+  gap: 10px;
+  margin: 14px 0 12px;
+}
+
+.pw-language-tabs button {
+  min-width: 82px;
+  height: 34px;
+  border: 1px solid #e5def5;
+  border-radius: 8px;
+  background: #fff;
+  color: #4f4a68;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.pw-challenge {
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border: 1px solid #eadfff;
+  border-radius: 8px;
+  background: #fbf8ff;
+}
+
+.pw-challenge strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #2c245a;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.pw-challenge span,
+.pw-challenge p {
+  margin: 0;
+  color: #716b8e;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.pw-challenge p {
+  margin-top: 6px;
+  line-height: 1.55;
+}
+
+.pw-editor-card {
+  position: relative;
+  min-height: 430px;
+  height: clamp(390px, 52vh, 560px);
+  overflow: hidden;
+  border: 1px solid #ebe6f5;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.pw-shell--fullscreen {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  padding: 14px;
+  background: #f8f5ff;
+  grid-template-columns: minmax(0, 1fr) 330px;
+}
+
+.pw-shell--fullscreen .pw-editor-card {
+  height: calc(100vh - 260px);
+}
+
+.pw-editor-controls {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 2;
+  min-height: 42px;
+  padding: 6px 8px;
+  border: 1px solid #eee8f8;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 10px 24px rgba(42, 32, 80, 0.08);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #615a7b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.pw-editor-controls button {
+  min-width: 34px;
+  height: 30px;
+  border: 1px solid #e6dff4;
+  border-radius: 7px;
+  background: #fff;
+  color: #5b4d83;
+  font-weight: 850;
+}
+
+.pw-editor-controls strong {
+  min-width: 42px;
+  text-align: center;
+}
+
+.pw-actions {
+  display: flex;
+  gap: 14px;
+  padding: 16px 0 12px;
+}
+
+.pw-actions button {
+  min-width: 104px;
+  height: 46px;
+  border: 1px solid #8b5cf6;
+  border-radius: 9px;
+  background: #fff;
+  color: #6d28d9;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.pw-actions button:first-child {
+  border: 0;
+  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+  color: #fff;
+  box-shadow: 0 14px 28px rgba(109, 40, 217, 0.22);
+}
+
+.pw-actions button:disabled,
+.pw-chat-input button:disabled {
+  cursor: progress;
+  opacity: 0.72;
+}
+
+.pw-results {
+  min-height: 170px;
+  border: 1px solid #ebe6f5;
+  border-radius: 10px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.pw-result-tabs {
+  display: flex;
+  gap: 24px;
+  padding: 0 18px;
+  border-bottom: 1px solid #ece8f7;
+}
+
+.pw-result-tabs button {
+  height: 48px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #57516f;
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.pw-result-tabs button.is-active {
+  color: #6d28d9;
+  border-bottom-color: #6d28d9;
+}
+
+.pw-results pre {
+  min-height: 106px;
+  max-height: 210px;
+  margin: 0;
+  padding: 14px 18px;
+  overflow: auto;
+  white-space: pre-wrap;
+  color: #28223f;
+  font-family: Consolas, "JetBrains Mono", monospace;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.pw-bottom-row {
+  min-height: 34px;
+  padding-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #766f91;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.pw-bottom-row button {
+  border: 1px solid #e4daf7;
+  border-radius: 8px;
+  background: #fff;
+  color: #6d28d9;
+  height: 30px;
+  padding: 0 12px;
+  font-weight: 850;
+}
+
+.pw-bottom-row span {
+  flex: 1;
+}
+
+.pw-bottom-row em {
+  font-style: normal;
+}
+
+.pw-coach {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.pw-coach-head {
+  height: 66px;
+  padding: 0 20px;
+  border-bottom: 1px solid #ece8f7;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pw-coach-head strong {
+  color: #6d28d9;
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.pw-coach-head button {
+  border: 0;
+  background: transparent;
+  color: #776d98;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.pw-coach-body {
+  flex: 1;
+  min-height: 0;
+  padding: 54px 18px 12px;
+  overflow: auto;
+  text-align: center;
+}
+
+.pw-bot {
+  width: 104px;
+  height: 86px;
+  margin: 0 auto 18px;
+  border-radius: 42px 42px 30px 30px;
+  background: linear-gradient(135deg, #e7ddff, #cbb8ff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  box-shadow: 0 18px 34px rgba(127, 94, 220, 0.2);
+}
+
+.pw-bot span {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: #fff;
+}
+
+.pw-coach h2 {
+  margin: 0 0 10px;
+  color: #25204c;
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.pw-coach p {
+  margin: 0 auto 22px;
+  max-width: 260px;
+  color: #77708e;
+  font-size: 13px;
+  line-height: 1.7;
+  font-weight: 750;
+}
+
+.pw-quick-list {
+  display: grid;
+  gap: 10px;
+}
+
+.pw-quick-list button {
+  min-height: 46px;
+  padding: 0 12px;
+  border: 1px solid #ece6f6;
+  border-radius: 8px;
+  background: #fff;
+  color: #4d4664;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.pw-quick-list b {
+  color: #7c3aed;
+  font-size: 18px;
+}
+
+.pw-chat-log {
+  margin-top: 16px;
+  display: grid;
+  gap: 10px;
+  text-align: left;
+}
+
+.pw-chat-msg {
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.pw-chat-msg--user {
+  margin-left: 24px;
+  background: #6d28d9;
+  color: #fff;
+}
+
+.pw-chat-msg--assistant {
+  margin-right: 24px;
+  background: #f3effc;
+  color: #2f2850;
+}
+
+.pw-chat-input {
+  margin: 12px 14px 8px;
+  min-height: 62px;
+  padding: 8px 8px 8px 14px;
+  border: 1px solid #cdbcf9;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff;
+}
+
+.pw-chat-input input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  color: #28223f;
+  font: inherit;
+  font-size: 13px;
+}
+
+.pw-chat-input button {
+  width: 42px;
+  height: 42px;
+  border: 0;
+  border-radius: 999px;
+  background: #b8a2f4;
+  color: #fff;
+  font-size: 17px;
+}
+
+.pw-coach small {
+  padding: 0 14px 14px;
+  color: #9a92ad;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+@media (max-width: 1180px) {
+  .pw-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .pw-coach {
+    min-height: 520px;
+  }
+}
+
+@media (max-width: 760px) {
+  .pw-center {
+    padding: 14px 12px;
+  }
+
+  .pw-mode-tabs,
+  .pw-language-tabs,
+  .pw-actions,
+  .pw-editor-controls,
+  .pw-bottom-row {
+    flex-wrap: wrap;
+  }
+
+  .pw-mode-tabs .pw-save-btn {
+    margin-left: 0;
+  }
+
+  .pw-editor-card {
+    height: 420px;
+  }
+}

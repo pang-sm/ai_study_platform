@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import "./ProgrammingHome.css";
+import ProgrammingWorkbench from "./ProgrammingWorkbench.jsx";
 
 const NAV_ITEMS = [
   { key: "home", label: "首页", icon: "home" },
@@ -8,6 +9,8 @@ const NAV_ITEMS = [
   { key: "questions", label: "题库", icon: "list" },
   { key: "files", label: "文件库", icon: "folder" },
 ];
+
+const PROGRAMMING_NAV_KEY = "ai_study_programming_active_nav";
 
 function Icon({ type }) {
   const common = { viewBox: "0 0 24 24", "aria-hidden": "true" };
@@ -55,7 +58,13 @@ function ProfileButton({ user, apiBase, onClick }) {
 }
 
 export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
-  const [activeNav, setActiveNav] = useState("home");
+  const [activeNav, setActiveNav] = useState(() => {
+    try {
+      return localStorage.getItem(PROGRAMMING_NAV_KEY) || "home";
+    } catch {
+      return "home";
+    }
+  });
   const [homeData, setHomeData] = useState(null);
   const [error, setError] = useState("");
 
@@ -75,6 +84,14 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
     return () => { alive = false; };
   }, [apiBase, user?.username]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(PROGRAMMING_NAV_KEY, activeNav);
+    } catch {
+      // ignore
+    }
+  }, [activeNav]);
+
   const tasks = homeData?.tasks || [];
   const completed = tasks.filter((task) => task.completed).length;
   const total = tasks.length || 4;
@@ -84,15 +101,18 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
   const files = homeData?.files || [];
   const plan = homeData?.plan || "free";
 
-  const openWorkbench = () => {
-    setPage?.("codeStudio", {
-      source: "programming",
-      returnPage: "programmingHome",
-      subject: user?.default_course_id || homeData?.onboarding?.main_language || "Python",
-    });
-  };
-
   const navContent = useMemo(() => {
+    if (activeNav === "workbench") {
+      return (
+        <ProgrammingWorkbench
+          user={user}
+          apiBase={apiBase}
+          homeData={homeData}
+          setPage={setPage}
+          onGoHome={() => setActiveNav("home")}
+        />
+      );
+    }
     if (activeNav !== "home") {
       const item = NAV_ITEMS.find((nav) => nav.key === activeNav);
       return (
@@ -103,7 +123,7 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
       );
     }
     return null;
-  }, [activeNav]);
+  }, [activeNav, apiBase, homeData, setPage, user]);
 
   return (
     <div className="ph-page">
@@ -118,7 +138,7 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
               type="button"
               key={item.key}
               className={activeNav === item.key ? "is-active" : ""}
-              onClick={() => (item.key === "workbench" ? openWorkbench() : setActiveNav(item.key))}
+              onClick={() => setActiveNav(item.key)}
             >
               <Icon type={item.icon} />
               <span>{item.label}</span>
@@ -140,7 +160,9 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
       </aside>
 
       <main className="ph-main">
-        <ProfileButton user={user} apiBase={apiBase} onClick={() => setPage?.("programmingProfile")} />
+        {activeNav !== "workbench" && (
+          <ProfileButton user={user} apiBase={apiBase} onClick={() => setPage?.("programmingProfile")} />
+        )}
 
         {activeNav !== "home" ? navContent : (
           <>
