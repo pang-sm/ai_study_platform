@@ -32,6 +32,15 @@ function normalizeLanguage(value) {
   return "Python";
 }
 
+function inferLanguageFromCode(fallback, code) {
+  const text = String(code || "").trim();
+  if (/^#include\s*<iostream>/m.test(text) || /\bstd::/.test(text)) return "C++";
+  if (/public\s+class\s+\w+/.test(text) || /\bSystem\.out\.println\b/.test(text)) return "Java";
+  if (/^#include\s*<stdio\.h>/m.test(text) || /\bprintf\s*\(/.test(text)) return "C";
+  if (/^print\s*\(/m.test(text) || /^def\s+\w+\s*\(/m.test(text) || /^import\s+\w+/m.test(text)) return "Python";
+  return fallback || "Python";
+}
+
 function formatRunResult(result) {
   if (!result) return "点击运行后，真实输出会显示在这里。";
   const lines = [];
@@ -171,8 +180,8 @@ export default function ProgrammingWorkbench({ user, apiBase = "/api", homeData,
   const ensureSessionSaved = useCallback(async (override = {}) => {
     if (!user?.username) return null;
     setSaveState("保存中...");
-    const requestLanguage = override.language || languageRef.current;
     const requestCode = override.code ?? readEditorCode();
+    const requestLanguage = inferLanguageFromCode(override.language || languageRef.current, requestCode);
     const requestSession = override.session ?? sessionRef.current;
     const requestChallenge = override.challenge ?? challengeRef.current;
     const payload = {
@@ -231,8 +240,8 @@ export default function ProgrammingWorkbench({ user, apiBase = "/api", homeData,
     setActiveResultTab("run");
     setRunResult(null);
     try {
-      const requestLanguage = languageRef.current;
       const requestCode = readEditorCode();
+      const requestLanguage = inferLanguageFromCode(languageRef.current, requestCode);
       const saved = await ensureSessionSaved({ language: requestLanguage, code: requestCode });
       const res = await fetch(`${apiBase}/code/execute`, {
         method: "POST",
@@ -268,8 +277,8 @@ export default function ProgrammingWorkbench({ user, apiBase = "/api", homeData,
     setActiveResultTab("problems");
     setTestResults(null);
     try {
-      const requestLanguage = languageRef.current;
       const requestCode = readEditorCode();
+      const requestLanguage = inferLanguageFromCode(languageRef.current, requestCode);
       const saved = await ensureSessionSaved({ language: requestLanguage, code: requestCode });
       const challengeId = saved?.challenge_id || challengeRef.current?.id;
       if (!challengeId) {
@@ -305,8 +314,8 @@ export default function ProgrammingWorkbench({ user, apiBase = "/api", homeData,
     setActiveResultTab("feedback");
     setFeedback("");
     try {
-      const requestLanguage = languageRef.current;
       const requestCode = readEditorCode();
+      const requestLanguage = inferLanguageFromCode(languageRef.current, requestCode);
       const saved = await ensureSessionSaved({ language: requestLanguage, code: requestCode });
       const challengeId = saved?.challenge_id || challengeRef.current?.id;
       if (challengeId && saved?.id) {
@@ -389,8 +398,8 @@ export default function ProgrammingWorkbench({ user, apiBase = "/api", homeData,
     setCoachQuestion("");
     setMessages((prev) => [...prev, { role: "user", content: text }]);
     try {
-      const requestLanguage = languageRef.current;
       const requestCode = readEditorCode();
+      const requestLanguage = inferLanguageFromCode(languageRef.current, requestCode);
       const saved = await ensureSessionSaved({ language: requestLanguage, code: requestCode });
       const res = await fetch(`${apiBase}/code/analyze`, {
         method: "POST",
