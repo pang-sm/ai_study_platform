@@ -86,6 +86,10 @@ export default function ProgrammingWorkbench({ user, apiBase = "/api", homeData,
   const [saveState, setSaveState] = useState("");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const editorRef = useRef(null);
+  const codeRef = useRef(code);
+  const languageRef = useRef(language);
+  const sessionRef = useRef(selectedSession);
+  const challengeRef = useRef(currentChallenge);
 
   const courseId = useMemo(() => {
     return user?.default_course_id || homeData?.onboarding?.main_language || language || "Python";
@@ -103,6 +107,15 @@ export default function ProgrammingWorkbench({ user, apiBase = "/api", homeData,
     }
     return null;
   }, [apiBase, user?.username]);
+
+  useEffect(() => { codeRef.current = code; }, [code]);
+  useEffect(() => { languageRef.current = language; }, [language]);
+  useEffect(() => { sessionRef.current = selectedSession; }, [selectedSession]);
+  useEffect(() => { challengeRef.current = currentChallenge; }, [currentChallenge]);
+
+  const readEditorCode = useCallback(() => {
+    return editorRef.current?.getValue?.() ?? codeRef.current ?? "";
+  }, []);
 
   const selectSession = useCallback((session) => {
     if (!session) return;
@@ -155,22 +168,26 @@ export default function ProgrammingWorkbench({ user, apiBase = "/api", homeData,
     loadProgress();
   }, [loadProgress, loadSessions]);
 
-  const ensureSessionSaved = useCallback(async () => {
+  const ensureSessionSaved = useCallback(async (override = {}) => {
     if (!user?.username) return null;
     setSaveState("保存中...");
+    const requestLanguage = override.language || languageRef.current;
+    const requestCode = override.code ?? readEditorCode();
+    const requestSession = override.session ?? sessionRef.current;
+    const requestChallenge = override.challenge ?? challengeRef.current;
     const payload = {
       username: user.username,
       course_id: courseId,
-      title: selectedSession?.title || `${language} 编程练习`,
-      language,
-      code,
-      challenge_id: selectedSession?.challenge_id || currentChallenge?.id || null,
+      title: requestSession?.title || `${requestLanguage} 编程练习`,
+      language: requestLanguage,
+      code: requestCode,
+      challenge_id: requestSession?.challenge_id || requestChallenge?.id || null,
     };
-    const url = selectedSession?.id
-      ? `${apiBase}/code/sessions/${selectedSession.id}`
+    const url = requestSession?.id
+      ? `${apiBase}/code/sessions/${requestSession.id}`
       : `${apiBase}/code/sessions`;
     const res = await fetch(url, {
-      method: selectedSession?.id ? "PUT" : "POST",
+      method: requestSession?.id ? "PUT" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
@@ -188,9 +205,13 @@ export default function ProgrammingWorkbench({ user, apiBase = "/api", homeData,
     setSaveState("已保存");
     setTimeout(() => setSaveState(""), 1600);
     return data.session;
-  }, [apiBase, code, courseId, currentChallenge?.id, language, selectedSession, user?.username]);
+  }, [apiBase, courseId, readEditorCode, user?.username]);
 
   const changeLanguage = (nextLanguage) => {
+    languageRef.current = nextLanguage;
+    codeRef.current = CODE_TEMPLATES[nextLanguage] || "";
+    sessionRef.current = null;
+    challengeRef.current = null;
     setLanguage(nextLanguage);
     setCode(CODE_TEMPLATES[nextLanguage] || "");
     setSelectedSession(null);
@@ -201,7 +222,8 @@ export default function ProgrammingWorkbench({ user, apiBase = "/api", homeData,
   };
 
   const runCode = async () => {
-    if (!code.trim()) {
+    const currentCode = readEditorCode();
+    if (!currentCode.trim()) {
       setStatus("请先输入代码。");
       return;
     }
@@ -209,15 +231,17 @@ export default function ProgrammingWorkbench({ user, apiBase = "/api", homeData,
     setActiveResultTab("run");
     setRunResult(null);
     try {
-      const saved = await ensureSessionSaved();
+      const requestLanguage = languageRef.current;
+      const requestCode = readEditorCode();
+      const saved = await ensureSessionSaved({ language: requestLanguage, code: requestCode });
       const res = await fetch(`${apiBase}/code/execute`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           username: user.username,
           session_id: saved?.id || 0,
-          language,
-          code,
+          language: requestLanguage,
+          code: requestCode,
           stdin: "",
         }),
       });
@@ -231,7 +255,7 @@ export default function ProgrammingWorkbench({ user, apiBase = "/api", homeData,
         error_message: res.ok ? data.error_message || null : data.detail || "运行请求失败",
         compile_error: data.compile_error || null,
       });
-      setStatus(RUNNABLE_LANGUAGES.has(language) ? "" : "当前后端未声明支持该语言执行，结果以真实接口返回为准。");
+      setStatus(RUNNABLE_LANGUAGES.has(requestLanguage) ? "" : "当前后端未声明支持该语言执行，结果以真实接口返回为准。");
     } catch (error) {
       setRunResult({ stdout: "", stderr: "", exit_code: -1, error_message: "无法连接后端服务。" });
     } finally {
@@ -244,8 +268,10 @@ export default function ProgrammingWorkbench({ user, apiBase = "/api", homeData,
     setActiveResultTab("problems");
     setTestResults(null);
     try {
-      const saved = await ensureSessionSaved();
-      const challengeId = saved?.challenge_id || currentChallenge?.id;
+      const requestLanguage = languageRef.current;
+      const requestCode = readEditorCode();
+      const saved = await ensureSessionSaved({ language: requestLanguage, code: requestCode });
+      const challengeId = saved?.challenge_id || challengeRef.current?.id;
       if (!challengeId) {
         setTestResults({ total: 0, passed: 0, results: [], error_message: "当前练习没有关联编程题，无法运行题目测试。" });
         return;
@@ -256,8 +282,8 @@ export default function ProgrammingWorkbench({ user, apiBase = "/api", homeData,
         body: JSON.stringify({
           username: user.username,
           session_id: saved?.id || 0,
-          language,
-          code,
+          language: requestLanguage,
+          code: requestCode,
         }),
       });
       const data = await safeJson(res);
@@ -270,7 +296,8 @@ export default function ProgrammingWorkbench({ user, apiBase = "/api", homeData,
   };
 
   const submitForAi = async () => {
-    if (!code.trim()) {
+    const currentCode = readEditorCode();
+    if (!currentCode.trim()) {
       setStatus("请先输入代码。");
       return;
     }
@@ -278,8 +305,10 @@ export default function ProgrammingWorkbench({ user, apiBase = "/api", homeData,
     setActiveResultTab("feedback");
     setFeedback("");
     try {
-      const saved = await ensureSessionSaved();
-      const challengeId = saved?.challenge_id || currentChallenge?.id;
+      const requestLanguage = languageRef.current;
+      const requestCode = readEditorCode();
+      const saved = await ensureSessionSaved({ language: requestLanguage, code: requestCode });
+      const challengeId = saved?.challenge_id || challengeRef.current?.id;
       if (challengeId && saved?.id) {
         const res = await fetch(`${apiBase}/code/challenges/${challengeId}/submit`, {
           method: "POST",
@@ -287,8 +316,8 @@ export default function ProgrammingWorkbench({ user, apiBase = "/api", homeData,
           body: JSON.stringify({
             username: user.username,
             session_id: saved.id,
-            code,
-            language,
+            code: requestCode,
+            language: requestLanguage,
           }),
         });
         const data = await safeJson(res);
@@ -302,8 +331,8 @@ export default function ProgrammingWorkbench({ user, apiBase = "/api", homeData,
             course_id: courseId,
             session_id: saved?.id || null,
             challenge_id: null,
-            language,
-            code,
+            language: requestLanguage,
+            code: requestCode,
             question: "请基于当前代码进行判题式分析，指出错误、可改进点和下一步建议。",
             last_run_result: runResult,
             last_test_results: testResults,
@@ -360,7 +389,9 @@ export default function ProgrammingWorkbench({ user, apiBase = "/api", homeData,
     setCoachQuestion("");
     setMessages((prev) => [...prev, { role: "user", content: text }]);
     try {
-      const saved = await ensureSessionSaved();
+      const requestLanguage = languageRef.current;
+      const requestCode = readEditorCode();
+      const saved = await ensureSessionSaved({ language: requestLanguage, code: requestCode });
       const res = await fetch(`${apiBase}/code/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -368,9 +399,9 @@ export default function ProgrammingWorkbench({ user, apiBase = "/api", homeData,
           username: user.username,
           course_id: courseId,
           session_id: saved?.id || null,
-          challenge_id: currentChallenge?.id || saved?.challenge_id || null,
-          language,
-          code,
+          challenge_id: challengeRef.current?.id || saved?.challenge_id || null,
+          language: requestLanguage,
+          code: requestCode,
           question: text,
           last_run_result: runResult,
           last_test_results: testResults,
@@ -428,7 +459,11 @@ export default function ProgrammingWorkbench({ user, apiBase = "/api", homeData,
             language={MONACO_LANGUAGE[language] || "plaintext"}
             value={code}
             theme={theme === "dark" ? "vs-dark" : "light"}
-            onChange={(value) => setCode(value || "")}
+            onChange={(value) => {
+              const nextCode = value || "";
+              codeRef.current = nextCode;
+              setCode(nextCode);
+            }}
             onMount={(editor) => { editorRef.current = editor; }}
             options={{
               fontSize,
