@@ -189,7 +189,7 @@ function ProgrammingFileLibrary({ user, apiBase, onOpenProject }) {
                       <em>入口：{project.entry_file}</em>
                       <b>更新于：{formatDate(project.updated_at)}</b>
                     </button>
-                    <button type="button" className="ph-open-workbench" onClick={() => onOpenProject(project.id)}>
+                    <button type="button" className="ph-open-workbench" onClick={() => onOpenProject(project.id, project.language)}>
                       打开工作台
                     </button>
                   </article>
@@ -237,7 +237,7 @@ function ProgrammingFileLibrary({ user, apiBase, onOpenProject }) {
               <div className="ph-lib-tree">
                 {detailLoading ? <div className="ph-lib-empty">详情读取中...</div> : <LibraryTree node={tree} />}
               </div>
-              <button type="button" className="ph-detail-open" onClick={() => onOpenProject(selectedProject.id)}>
+              <button type="button" className="ph-detail-open" onClick={() => onOpenProject(selectedProject.id, selectedProject.language)}>
                 在编程工作台打开
               </button>
             </>
@@ -258,6 +258,7 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
   });
   const [homeData, setHomeData] = useState(null);
   const [workbenchProjectId, setWorkbenchProjectId] = useState(null);
+  const [workbenchLanguage, setWorkbenchLanguage] = useState("");
   const [error, setError] = useState("");
 
   const loadHomeData = useCallback(() => {
@@ -283,9 +284,18 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
     }
   }, [activeNav]);
 
-  const openProjectInWorkbench = useCallback((projectId) => {
+  const openProjectInWorkbench = useCallback((projectId, language = "") => {
     setWorkbenchProjectId(projectId);
+    setWorkbenchLanguage(language);
     setActiveNav("workbench");
+  }, []);
+
+  const activateNav = useCallback((key) => {
+    if (key === "workbench") {
+      setWorkbenchProjectId(null);
+      setWorkbenchLanguage("");
+    }
+    setActiveNav(key);
   }, []);
 
   const tasks = homeData?.tasks || [];
@@ -305,6 +315,7 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
           apiBase={apiBase}
           homeData={homeData}
           initialProjectId={workbenchProjectId}
+          initialLanguageSelection={workbenchLanguage}
           onProjectChanged={loadHomeData}
           setPage={setPage}
           onGoHome={() => {
@@ -333,7 +344,7 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
       );
     }
     return null;
-  }, [activeNav, apiBase, homeData, loadHomeData, openProjectInWorkbench, setPage, user, workbenchProjectId]);
+  }, [activeNav, apiBase, homeData, loadHomeData, openProjectInWorkbench, setPage, user, workbenchLanguage, workbenchProjectId]);
 
   return (
     <div className="ph-page">
@@ -348,7 +359,7 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
               type="button"
               key={item.key}
               className={activeNav === item.key ? "is-active" : ""}
-              onClick={() => setActiveNav(item.key)}
+              onClick={() => activateNav(item.key)}
             >
               <Icon type={item.icon} />
               <span>{item.label}</span>
