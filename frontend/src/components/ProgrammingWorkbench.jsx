@@ -5,7 +5,7 @@ import "./ProgrammingWorkbench.css";
 const LANGUAGE_TABS = ["C", "C++", "Python", "Java"];
 const DEFAULT_FILE = { C: "main.c", "C++": "main.cpp", Python: "main.py", Java: "Main.java" };
 const PROJECT_COURSE_ID = "programming";
-const UI_STORAGE_KEY = "ai_study_programming_workbench_ui";
+const UI_STORAGE_KEY = "ai_study_programming_workbench_ui_v2";
 
 const LANGUAGE_META = {
   C: { mark: "C", description: "贴近系统底层，适合指针、结构体和多文件练习。" },
@@ -230,7 +230,7 @@ export default function ProgrammingWorkbench({
 }) {
   const onboardingLanguage = normalizeLanguage(homeData?.onboarding?.main_language || user?.default_course_id || "");
   const [projects, setProjects] = useState([]);
-  const [selectedLanguage, setSelectedLanguage] = useState(() => normalizeLanguage(initialLanguageSelection));
+  const [selectedLanguage, setSelectedLanguage] = useState(() => normalizeLanguage(initialLanguageSelection) || onboardingLanguage || "Python");
   const [project, setProject] = useState(null);
   const [files, setFiles] = useState([]);
   const [activeFileId, setActiveFileId] = useState(null);
@@ -238,12 +238,12 @@ export default function ProgrammingWorkbench({
   const [dirtyFiles, setDirtyFiles] = useState(() => new Set());
   const [collapsedFolders, setCollapsedFolders] = useState(() => new Set());
   const [explorerCollapsed, setExplorerCollapsedState] = useState(() => readUiPreference("explorerCollapsed", false));
-  const [coachCollapsed, setCoachCollapsedState] = useState(() => readUiPreference("coachCollapsed", false));
-  const [outputCollapsed, setOutputCollapsedState] = useState(() => readUiPreference("outputCollapsed", false));
+  const [coachCollapsed, setCoachCollapsedState] = useState(() => readUiPreference("coachCollapsed", true));
+  const [outputCollapsed, setOutputCollapsedState] = useState(() => readUiPreference("outputCollapsed", true));
   const [fontSize, setFontSize] = useState(16);
   const [theme, setTheme] = useState("light");
   const [activeResultTab, setActiveResultTab] = useState("run");
-  const [bottomHeight, setBottomHeight] = useState(210);
+  const [bottomHeight, setBottomHeight] = useState(200);
   const [cursorPosition, setCursorPosition] = useState({ lineNumber: 1, column: 1 });
   const [focusMode, setFocusMode] = useState(false);
   const [runResult, setRunResult] = useState(null);
@@ -316,15 +316,6 @@ export default function ProgrammingWorkbench({
     () => projects.filter((item) => normalizeLanguage(item.language) === language),
     [language, projects],
   );
-
-  const languageCounts = useMemo(() => {
-    const counts = Object.fromEntries(LANGUAGE_TABS.map((item) => [item, 0]));
-    projects.forEach((item) => {
-      const key = normalizeLanguage(item.language);
-      if (key) counts[key] = (counts[key] || 0) + 1;
-    });
-    return counts;
-  }, [projects]);
 
   const loadProject = useCallback(async (projectId) => {
     if (!user?.username || !projectId) return null;
@@ -911,13 +902,19 @@ export default function ProgrammingWorkbench({
     relayoutEditor();
   };
 
-  const switchLanguage = () => {
-    setSelectedLanguage("");
+  const changeLanguageInIde = (nextLanguage) => {
+    const normalized = normalizeLanguage(nextLanguage);
+    if (!normalized || normalized === language) return;
+    setSelectedLanguage(normalized);
     setProject(null);
     setFiles([]);
     setOpenTabs([]);
     setActiveFileId(null);
+    setRunResult(null);
+    setFeedback("");
     setStatus("");
+    setOutputCollapsed(true);
+    relayoutEditor();
   };
 
   const resultText = activeResultTab === "run"
@@ -930,7 +927,7 @@ export default function ProgrammingWorkbench({
   const tabFiles = openTabs.map((id) => files.find((file) => file.id === id)).filter(Boolean);
   const shellClassName = [
     "pw-shell",
-    selectedLanguage ? "pw-shell--workspace" : "pw-shell--chooser",
+    "pw-shell--workspace",
     explorerCollapsed ? "pw-shell--explorer-collapsed" : "",
     coachCollapsed ? "pw-shell--coach-collapsed" : "",
     outputCollapsed ? "pw-shell--output-collapsed" : "",
@@ -939,39 +936,26 @@ export default function ProgrammingWorkbench({
     fullscreenFallback ? "pw-shell--fullscreen-fallback" : "",
   ].filter(Boolean).join(" ");
 
-  if (!selectedLanguage) {
-    return (
-      <section className={shellClassName} ref={shellRef}>
-        <div className="pw-language-picker">
-          <div className="pw-language-picker-head">
-            <button type="button" onClick={onGoHome}>返回首页</button>
-            <div>
-              <h2>选择编程语言工作区</h2>
-              <p>先选择 C / C++ / Python / Java，再进入对应 IDE 工作区管理项目。</p>
-            </div>
-          </div>
-          <div className="pw-language-grid">
-            {LANGUAGE_TABS.map((item) => (
-              <button key={item} type="button" className="pw-language-card" data-language={item} onClick={() => setSelectedLanguage(item)}>
-                <span>{LANGUAGE_META[item].mark}</span>
-                <strong>{item}</strong>
-                <small>{LANGUAGE_META[item].description}</small>
-                <b>{languageCounts[item] || 0} 个项目</b>
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
-    );
-  }
-
   return (
     <section className={shellClassName} ref={shellRef} data-workspace-language={selectedLanguage || ""}>
       <div className="pw-center">
         <div className="pw-topbar">
           <div className="pw-brand-mark" aria-hidden="true">◇</div>
           <div className="pw-title-block">
-            <strong title={project?.name || ""}>{project?.name || ("No " + language + " Project")}</strong>
+            <strong title={project?.name || language}>{project?.name || language}</strong>
+          </div>
+          <div className="pw-language-segment" aria-label="Programming language">
+            {LANGUAGE_TABS.map((item) => (
+              <button
+                key={item}
+                type="button"
+                className={language === item ? "is-active" : ""}
+                onClick={() => changeLanguageInIde(item)}
+                data-language={item}
+              >
+                {item}
+              </button>
+            ))}
           </div>
           <div className="pw-run-cluster">
             <label className="pw-run-combo" title="Run Configuration">
@@ -1007,7 +991,6 @@ export default function ProgrammingWorkbench({
           </div>
           <div className="pw-top-actions">
             <span className="pw-save-chip">{saveState}</span>
-            <button type="button" data-action="switch-language" onClick={switchLanguage}>切换语言</button>
             <button type="button" data-action="fullscreen" onClick={toggleFullscreen}>{isFullscreen || fullscreenFallback ? "退出全屏" : "全屏"}</button>
           </div>
         </div>
@@ -1015,14 +998,7 @@ export default function ProgrammingWorkbench({
         <div className="pw-workbench-body">
           <nav className="pw-tool-rail pw-tool-rail--left" aria-label="Tool windows">
             <button type="button" className={explorerCollapsed ? "" : "is-active"} onClick={() => setExplorerCollapsed(!explorerCollapsed)} title="Project">
-              <span className="pw-rail-icon">□</span>
-              <span>Project</span>
-            </button>
-            <button type="button" onClick={() => selectResultTab("run")} title="Run">
-              <span className="pw-rail-icon">▷</span>
-            </button>
-            <button type="button" onClick={() => selectResultTab("feedback")} title="AI Feedback">
-              <span className="pw-rail-icon">AI</span>
+              <span className="pw-rail-icon" aria-hidden="true">▣</span>
             </button>
           </nav>
 
@@ -1034,22 +1010,6 @@ export default function ProgrammingWorkbench({
                   <button type="button" onClick={(event) => openContextMenu(event, { type: "project-new", path: "" })} title="New">+</button>
                   <button type="button" onClick={(event) => openContextMenu(event, { type: "project-actions", path: "" })} disabled={!project} title="Project actions">...</button>
                 </div>
-              </div>
-              <div className="pw-project-switcher">
-                {filteredProjects.length === 0 ? (
-                  <em>暂无项目</em>
-                ) : (
-                  filteredProjects.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      className={project?.id === item.id ? "is-active" : ""}
-                      onClick={() => loadProject(item.id)}
-                    >
-                      {item.name}
-                    </button>
-                  ))
-                )}
               </div>
               {project ? (
                 <div className="pw-tree-shell">
@@ -1170,13 +1130,12 @@ export default function ProgrammingWorkbench({
 
           <nav className="pw-tool-rail pw-tool-rail--right" aria-label="Right tool windows">
             <button type="button" className={coachCollapsed ? "" : "is-active"} onClick={() => setCoachCollapsed(!coachCollapsed)} title="AI Coach">
-              <span className="pw-rail-icon">◇</span>
-              <span>AI Coach</span>
+              <span className="pw-rail-icon" aria-hidden="true">AI</span>
             </button>
           </nav>
         </div>
 
-        <div className="pw-bottom-toolwindow" style={{ height: outputCollapsed ? 34 : bottomHeight }}>
+        <div className="pw-bottom-toolwindow" style={{ height: outputCollapsed ? 32 : bottomHeight }}>
           {!outputCollapsed && <div className="pw-bottom-resizer" onMouseDown={startBottomResize} />}
           <div className="pw-result-tabs">
             <button type="button" className={activeResultTab === "run" && !outputCollapsed ? "is-active" : ""} onClick={() => selectResultTab("run")}>
