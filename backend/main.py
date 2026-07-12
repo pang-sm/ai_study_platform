@@ -5453,18 +5453,33 @@ def get_programming_home(username: str, db: Session = Depends(get_db)):
     quota = PROGRAMMING_PACKAGE_QUOTA[plan]
     chat_used = get_today_usage(user.username, "code_analyze", db)
     question_used = get_today_usage(user.username, "challenge_generate", db)
-    materials = (
-        db.query(models.StudyMaterial)
+    projects = (
+        db.query(models.CodeProject)
         .filter(
-            models.StudyMaterial.username == user.username,
-            models.StudyMaterial.is_deleted.is_(False),
+            models.CodeProject.username == user.username,
+            models.CodeProject.course_id == "programming",
+            models.CodeProject.is_deleted.is_(False),
         )
-        .order_by(models.StudyMaterial.created_at.desc())
+        .order_by(models.CodeProject.updated_at.desc())
         .limit(5)
         .all()
     )
-    material_bytes = sum(int(item.file_size or 0) for item in materials)
+    materials_query = query_programming_materials(db, user.username)
+    materials = materials_query.order_by(models.StudyMaterial.updated_at.desc()).limit(5).all()
+    material_bytes = sum(int(item.file_size or 0) for item in materials_query.all())
     storage_limit_bytes = int(quota.get("material_upload_limit_mb") or 0) * 1024 * 1024
+    project_counts = get_programming_project_file_counts(db, [project.id for project in projects])
+    recent_files = [
+        serialize_programming_recent_item(
+            "project",
+            {**serialize_code_project(project), "file_count": project_counts.get(project.id, 0)},
+        )
+        for project in projects
+    ] + [
+        serialize_programming_recent_item("material", serialize_material_list_item(material))
+        for material in materials
+    ]
+    recent_files.sort(key=lambda item: item.get("updated_at") or item.get("created_at") or "", reverse=True)
     tasks = [
         {"id": "practice-array-list", "title": "练习数组与链表", "completed": False},
         {"id": "solve-medium-problem", "title": "完成一道编程题（中等难度）", "completed": False},
@@ -5493,7 +5508,7 @@ def get_programming_home(username: str, db: Session = Depends(get_db)):
             },
         },
         "tasks": tasks,
-        "files": [serialize_material_list_item(item) for item in materials] if quota["file_library"] else [],
+        "files": recent_files[:5] if quota["file_library"] else [],
         "stats": {
             "streak_days": 0,
             "momentum": "初始状态",
@@ -5502,6 +5517,39 @@ def get_programming_home(username: str, db: Session = Depends(get_db)):
 
 
 # ── Course Learning Registration ──
+
+@app.get("/programming/file-library")
+def get_programming_file_library(username: str, db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    projects = (
+        db.query(models.CodeProject)
+        .filter(
+            models.CodeProject.username == user.username,
+            models.CodeProject.course_id == "programming",
+            models.CodeProject.is_deleted.is_(False),
+        )
+        .order_by(models.CodeProject.updated_at.desc())
+        .all()
+    )
+    counts = get_programming_project_file_counts(db, [project.id for project in projects])
+    materials = (
+        query_programming_materials(db, user.username)
+        .order_by(models.StudyMaterial.updated_at.desc())
+        .all()
+    )
+    return {
+        "projects": [
+            {**serialize_code_project(project), "file_count": counts.get(project.id, 0)}
+            for project in projects
+        ],
+        "materials": [serialize_material_list_item(material) for material in materials],
+        "source": {
+            "projects": "code_projects/code_project_files",
+            "materials": "study_materials",
+            "subject": "programming",
+        },
+    }
+
 
 @app.get("/course-learning/courses")
 def get_course_learning_courses(
@@ -8570,6 +8618,37 @@ def create_default_project_file(project: models.CodeProject, db: Session):
     return file
 
 
+def get_programming_project_file_counts(db: Session, project_ids: list[int]) -> dict[int, int]:
+    if not project_ids:
+        return {}
+    rows = (
+        db.query(models.CodeProjectFile.project_id, func.count(models.CodeProjectFile.id))
+        .filter(
+            models.CodeProjectFile.project_id.in_(project_ids),
+            models.CodeProjectFile.is_deleted.is_(False),
+        )
+        .group_by(models.CodeProjectFile.project_id)
+        .all()
+    )
+    return {project_id: count for project_id, count in rows}
+
+
+def query_programming_materials(db: Session, username: str):
+    return query_accessible_materials(db, username).filter(
+        models.StudyMaterial.username == username,
+        models.StudyMaterial.subject == "programming",
+        models.StudyMaterial.visibility == PRIVATE_VISIBILITY,
+        models.StudyMaterial.source_type.in_(list(USER_MANAGED_MATERIAL_SOURCES)),
+    )
+
+
+def serialize_programming_recent_item(item_type: str, payload: dict):
+    return {
+        "item_type": item_type,
+        **payload,
+    }
+
+
 @app.get("/code/projects")
 def get_code_projects(username: str, course_id: str = "programming", db: Session = Depends(get_db)):
     user = get_user_by_username(username, db)
@@ -8581,19 +8660,7 @@ def get_code_projects(username: str, course_id: str = "programming", db: Session
     if normalized_course_id:
         query = query.filter(models.CodeProject.course_id == normalized_course_id)
     projects = query.order_by(models.CodeProject.updated_at.desc()).all()
-    counts = {}
-    if projects:
-        project_ids = [project.id for project in projects]
-        rows = (
-            db.query(models.CodeProjectFile.project_id, func.count(models.CodeProjectFile.id))
-            .filter(
-                models.CodeProjectFile.project_id.in_(project_ids),
-                models.CodeProjectFile.is_deleted.is_(False),
-            )
-            .group_by(models.CodeProjectFile.project_id)
-            .all()
-        )
-        counts = {project_id: count for project_id, count in rows}
+    counts = get_programming_project_file_counts(db, [project.id for project in projects])
     return {
         "projects": [
             {**serialize_code_project(project), "file_count": counts.get(project.id, 0)}

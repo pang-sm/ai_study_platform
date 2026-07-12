@@ -119,7 +119,7 @@ function TreeNode({ node, activeFileId, collapsedFolders, onToggleFolder, onOpen
   );
 }
 
-export default function ProgrammingWorkbench({ user, apiBase = "/api", homeData, onGoHome }) {
+export default function ProgrammingWorkbench({ user, apiBase = "/api", homeData, initialProjectId = null, onProjectChanged, onGoHome }) {
   const initialLanguage = normalizeLanguage(homeData?.onboarding?.main_language || user?.default_course_id || "Python");
   const [projects, setProjects] = useState([]);
   const [project, setProject] = useState(null);
@@ -145,12 +145,12 @@ export default function ProgrammingWorkbench({ user, apiBase = "/api", homeData,
   const language = project?.language || initialLanguage;
 
   const loadProject = useCallback(async (projectId) => {
-    if (!user?.username || !projectId) return;
+    if (!user?.username || !projectId) return null;
     const res = await fetch(`${apiBase}/code/projects/${projectId}?username=${encodeURIComponent(user.username)}`);
     const data = await safeJson(res);
     if (!res.ok || !data.project) {
       setStatus(data.detail || "项目读取失败");
-      return;
+      return null;
     }
     setProject(data.project);
     setFiles(data.project.files || []);
@@ -159,6 +159,7 @@ export default function ProgrammingWorkbench({ user, apiBase = "/api", homeData,
     setOpenTabs(firstFile ? [firstFile.id] : []);
     setDirtyFiles(new Set());
     setSaveState("已保存");
+    return data.project;
   }, [apiBase, user?.username]);
 
   const createProject = useCallback(async (preferredLanguage = initialLanguage, askName = true) => {
@@ -186,7 +187,8 @@ export default function ProgrammingWorkbench({ user, apiBase = "/api", homeData,
     const firstFile = data.project.files?.[0];
     setActiveFileId(firstFile?.id || null);
     setOpenTabs(firstFile ? [firstFile.id] : []);
-  }, [apiBase, initialLanguage, user?.username]);
+    onProjectChanged?.();
+  }, [apiBase, initialLanguage, onProjectChanged, user?.username]);
 
   const loadProjects = useCallback(async () => {
     if (!user?.username) return;
@@ -199,9 +201,13 @@ export default function ProgrammingWorkbench({ user, apiBase = "/api", homeData,
     }
     const items = data.projects || [];
     setProjects(items);
+    if (initialProjectId && items.some((item) => item.id === Number(initialProjectId))) {
+      await loadProject(Number(initialProjectId));
+      return;
+    }
     if (items[0]) await loadProject(items[0].id);
     if (!items[0]) await createProject(initialLanguage, false);
-  }, [apiBase, createProject, initialLanguage, loadProject, user?.username]);
+  }, [apiBase, createProject, initialLanguage, initialProjectId, loadProject, user?.username]);
 
   useEffect(() => { loadProjects(); }, [loadProjects]);
 
@@ -226,8 +232,9 @@ export default function ProgrammingWorkbench({ user, apiBase = "/api", homeData,
       return next;
     });
     setSaveState("已保存");
+    onProjectChanged?.();
     return data.file;
-  }, [apiBase, project?.id, user?.username]);
+  }, [apiBase, onProjectChanged, project?.id, user?.username]);
 
   const scheduleAutosave = useCallback((fileId, content) => {
     window.clearTimeout(saveTimerRef.current);
@@ -268,6 +275,7 @@ export default function ProgrammingWorkbench({ user, apiBase = "/api", homeData,
     }
     setFiles((prev) => [...prev, data.file].sort((a, b) => a.relative_path.localeCompare(b.relative_path)));
     openFile(data.file.id);
+    onProjectChanged?.();
   };
 
   const createFolder = async () => {
@@ -292,6 +300,7 @@ export default function ProgrammingWorkbench({ user, apiBase = "/api", homeData,
     }
     setFiles((prev) => [...prev, data.file].sort((a, b) => a.relative_path.localeCompare(b.relative_path)));
     openFile(data.file.id);
+    onProjectChanged?.();
   };
 
   const renameFile = async (file) => {
@@ -314,6 +323,7 @@ export default function ProgrammingWorkbench({ user, apiBase = "/api", homeData,
     }
     setFiles((prev) => prev.filter((item) => item.id !== file.id));
     closeTab(file.id);
+    onProjectChanged?.();
   };
 
   const manualSave = async () => {
@@ -333,6 +343,7 @@ export default function ProgrammingWorkbench({ user, apiBase = "/api", homeData,
     if (res.ok && data.project) {
       setProject(data.project);
       if (data.project.files) setFiles(data.project.files);
+      onProjectChanged?.();
     } else {
       setStatus(data.detail || "项目设置保存失败");
     }
