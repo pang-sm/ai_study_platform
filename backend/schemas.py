@@ -86,6 +86,10 @@ class CodeProjectFileUpdate(BaseModel):
 class CodeProjectExecuteRequest(BaseModel):
     username: str
     stdin: str = ""
+    run_mode: str | None = None
+    entry_file: str | None = None
+    main_class: str | None = None
+    source_files: list[str] | None = None
 
 
 class CodeAnalyzeRequest(BaseModel):

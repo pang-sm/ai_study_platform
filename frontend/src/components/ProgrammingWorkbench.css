@@ -28,6 +28,11 @@
   gap: 18px;
 }
 
+.pw-language-picker-head > button,
+.pw-back-btn {
+  display: none;
+}
+
 .pw-language-picker-head button,
 .pw-back-btn,
 .pw-top-actions button,
@@ -195,6 +200,20 @@
   font-size: 12px;
 }
 
+.pw-language-back-btn {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid #e5def5;
+  border-radius: 8px;
+  background: #fff;
+  color: #6d28d9;
+  font-weight: 850;
+}
+
+.pw-top-actions button:nth-child(6) {
+  display: none;
+}
+
 .pw-top-actions button:disabled,
 .pw-actions button:disabled {
   cursor: not-allowed;
@@ -211,15 +230,15 @@
 }
 
 .pw-shell--explorer-collapsed .pw-workbench-body {
-  grid-template-columns: 18px minmax(0, 1fr) 330px;
+  grid-template-columns: 0 minmax(0, 1fr) 330px;
 }
 
 .pw-shell--coach-collapsed .pw-workbench-body {
-  grid-template-columns: 248px minmax(0, 1fr) 18px;
+  grid-template-columns: 248px minmax(0, 1fr) 0;
 }
 
 .pw-shell--explorer-collapsed.pw-shell--coach-collapsed .pw-workbench-body {
-  grid-template-columns: 18px minmax(0, 1fr) 18px;
+  grid-template-columns: 0 minmax(0, 1fr) 0;
 }
 
 .pw-explorer,
@@ -260,6 +279,21 @@
   background: #fff;
   color: #6d28d9;
   font-weight: 950;
+}
+
+.pw-explorer-head button,
+.pw-coach-head button {
+  display: none;
+}
+
+.pw-rail {
+  width: 0;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .pw-explorer-head strong,
@@ -823,16 +857,132 @@
   border-radius: 0;
 }
 
+.pw-run-popover {
+  position: fixed;
+  z-index: 1200;
+  top: 86px;
+  right: 24px;
+  width: min(360px, calc(100vw - 32px));
+  padding: 14px;
+  border: 1px solid #d8cdf2;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 22px 48px rgba(42, 32, 80, 0.18);
+  display: grid;
+  gap: 12px;
+}
+
+.pw-run-popover-head,
+.pw-run-popover-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.pw-run-popover-head strong {
+  color: #211a4d;
+  font-size: 15px;
+  font-weight: 950;
+}
+
+.pw-run-popover button,
+.pw-context-menu button {
+  border: 1px solid #e5def5;
+  border-radius: 7px;
+  background: #fff;
+  color: #514968;
+  font-weight: 850;
+}
+
+.pw-run-popover label {
+  display: grid;
+  gap: 6px;
+  color: #746d8d;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.pw-run-popover select {
+  min-width: 0;
+  height: 34px;
+  border: 1px solid #e5def5;
+  border-radius: 7px;
+  background: #fff;
+  color: #2f2850;
+  font: inherit;
+}
+
+.pw-run-popover p {
+  margin: 0;
+  color: #6d28d9;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.pw-run-source-list {
+  max-height: 96px;
+  overflow: auto;
+  display: grid;
+  gap: 4px;
+}
+
+.pw-run-source-list span {
+  color: #5f5872;
+  font-size: 12px;
+  font-family: Consolas, "JetBrains Mono", monospace;
+}
+
+.pw-run-popover-actions button {
+  min-height: 32px;
+  padding: 0 12px;
+}
+
+.pw-run-popover-actions button:last-child {
+  border-color: #5b21e6;
+  background: #5b21e6;
+  color: #fff;
+}
+
+.pw-context-menu {
+  position: fixed;
+  z-index: 1300;
+  width: 210px;
+  padding: 6px;
+  border: 1px solid #d8cdf2;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 18px 42px rgba(42, 32, 80, 0.18);
+  display: grid;
+  gap: 4px;
+}
+
+.pw-context-menu button {
+  min-height: 30px;
+  padding: 0 10px;
+  text-align: left;
+  font-size: 12px;
+}
+
+.pw-context-menu button:hover {
+  border-color: #8b5cf6;
+  background: #f2ebff;
+  color: #6d28d9;
+}
+
 @media (max-width: 1180px) {
   .pw-language-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .pw-workbench-body,
-  .pw-shell--coach-collapsed .pw-workbench-body,
+  .pw-shell--coach-collapsed .pw-workbench-body {
+    grid-template-columns: 220px minmax(0, 1fr);
+  }
+
   .pw-shell--explorer-collapsed .pw-workbench-body,
   .pw-shell--explorer-collapsed.pw-shell--coach-collapsed .pw-workbench-body {
-    grid-template-columns: 220px minmax(0, 1fr);
+    grid-template-columns: 0 minmax(0, 1fr);
   }
 
   .pw-coach,
@@ -870,11 +1020,15 @@
   }
 
   .pw-workbench-body,
-  .pw-shell--coach-collapsed .pw-workbench-body,
-  .pw-shell--explorer-collapsed .pw-workbench-body,
-  .pw-shell--explorer-collapsed.pw-shell--coach-collapsed .pw-workbench-body {
+  .pw-shell--coach-collapsed .pw-workbench-body {
     grid-template-columns: 1fr;
     grid-template-rows: auto minmax(420px, 1fr);
+  }
+
+  .pw-shell--explorer-collapsed .pw-workbench-body,
+  .pw-shell--explorer-collapsed.pw-shell--coach-collapsed .pw-workbench-body {
+    grid-template-columns: 0 minmax(0, 1fr);
+    grid-template-rows: minmax(420px, 1fr);
   }
 
   .pw-explorer {

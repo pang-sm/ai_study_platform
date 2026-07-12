@@ -8943,6 +8943,29 @@ def _project_binary_path(tmp_dir: str) -> str:
     return str(Path(tmp_dir) / name)
 
 
+def _detect_java_main_class(file_path: str, content: str) -> str | None:
+    if "public static void main" not in content and "static void main" not in content:
+        return None
+    package_match = re.search(r"^\s*package\s+([A-Za-z_][\w.]*)\s*;", content, re.MULTILINE)
+    class_match = re.search(r"\b(?:public\s+)?(?:class|record|enum)\s+([A-Za-z_]\w*)\b", content)
+    class_name = class_match.group(1) if class_match else PurePosixPath(file_path).stem
+    if not class_name:
+        return None
+    return f"{package_match.group(1)}.{class_name}" if package_match else class_name
+
+
+def _detect_project_java_main_classes(files: list[models.CodeProjectFile]) -> list[str]:
+    detected: list[str] = []
+    for file in files:
+        path = str(file.relative_path or "")
+        if PurePosixPath(path).suffix.lower() != ".java":
+            continue
+        main_class = _detect_java_main_class(path, file.content or "")
+        if main_class and main_class not in detected:
+            detected.append(main_class)
+    return detected
+
+
 @app.post("/code/projects/{project_id}/execute")
 def execute_code_project(project_id: int, req: schemas.CodeProjectExecuteRequest, db: Session = Depends(get_db)):
     user = get_user_by_username(req.username, db)
@@ -8961,9 +8984,17 @@ def execute_code_project(project_id: int, req: schemas.CodeProjectExecuteRequest
     try:
         _write_project_files(tmp_dir, files)
         language = normalize_project_language(project.language)
-        entry_file = safe_project_path(project.entry_file)
+        requested_entry = (req.entry_file or "").strip()
+        entry_file = safe_project_path(requested_entry or project.entry_file)
+        requested_sources = [
+            safe_project_path(path)
+            for path in (req.source_files or [])
+            if str(path or "").strip()
+        ]
         stdin = (req.stdin or "")[:MAX_STDIN_CHARS]
         source_paths = [file.relative_path for file in files]
+        source_path_set = set(source_paths)
+        requested_sources = [path for path in requested_sources if path in source_path_set]
 
         if language == "Python":
             runner = _get_python_project_runner()
@@ -8976,7 +9007,10 @@ def execute_code_project(project_id: int, req: schemas.CodeProjectExecuteRequest
             gcc = shutil.which("gcc")
             if not gcc:
                 return {"success": True, "stdout": "", "stderr": "", "exit_code": -1, "duration_ms": 0, "timed_out": False, "error_message": "服务器未安装 gcc，无法运行 C 项目。", "compile_error": None, "compiled": False, "stdout_truncated": False, "stderr_truncated": False}
-            c_files = sorted(path for path in source_paths if PurePosixPath(path).suffix.lower() == ".c")
+            c_files = sorted(
+                path for path in (requested_sources or source_paths)
+                if PurePosixPath(path).suffix.lower() == ".c"
+            )
             if not c_files:
                 raise HTTPException(status_code=400, detail="C 项目没有 .c 源文件")
             app_path = _project_binary_path(tmp_dir)
@@ -8993,7 +9027,10 @@ def execute_code_project(project_id: int, req: schemas.CodeProjectExecuteRequest
             gpp = shutil.which("g++")
             if not gpp:
                 return {"success": True, "stdout": "", "stderr": "", "exit_code": -1, "duration_ms": 0, "timed_out": False, "error_message": "服务器未安装 g++，无法运行 C++ 项目。", "compile_error": None, "compiled": False, "stdout_truncated": False, "stderr_truncated": False}
-            cpp_files = sorted(path for path in source_paths if PurePosixPath(path).suffix.lower() in (".cpp", ".cc", ".cxx"))
+            cpp_files = sorted(
+                path for path in (requested_sources or source_paths)
+                if PurePosixPath(path).suffix.lower() in (".cpp", ".cc", ".cxx")
+            )
             if not cpp_files:
                 raise HTTPException(status_code=400, detail="C++ 项目没有 .cpp/.cc/.cxx 源文件")
             app_path = _project_binary_path(tmp_dir)
@@ -9011,7 +9048,10 @@ def execute_code_project(project_id: int, req: schemas.CodeProjectExecuteRequest
             java = shutil.which("java")
             if not javac or not java:
                 return {"success": True, "stdout": "", "stderr": "", "exit_code": -1, "duration_ms": 0, "timed_out": False, "error_message": "服务器未安装 javac/java，无法运行 Java 项目。", "compile_error": None, "compiled": False, "stdout_truncated": False, "stderr_truncated": False}
-            java_files = sorted(path for path in source_paths if PurePosixPath(path).suffix.lower() == ".java")
+            java_files = sorted(
+                path for path in (requested_sources or source_paths)
+                if PurePosixPath(path).suffix.lower() == ".java"
+            )
             if not java_files:
                 raise HTTPException(status_code=400, detail="Java 项目没有 .java 源文件")
             classes_dir = Path(tmp_dir) / "classes"
@@ -9023,7 +9063,17 @@ def execute_code_project(project_id: int, req: schemas.CodeProjectExecuteRequest
                 compile_result["compiled"] = False
                 compile_result["success"] = True
                 return compile_result
-            main_class = (project.main_class or PurePosixPath(entry_file).stem or "Main").strip()
+            main_class = (req.main_class or project.main_class or "").strip()
+            if not main_class:
+                entry_model = next((file for file in files if file.relative_path == entry_file), None)
+                if entry_model:
+                    main_class = _detect_java_main_class(entry_model.relative_path, entry_model.content or "") or ""
+            if not main_class:
+                detected_main_classes = _detect_project_java_main_classes(files)
+                if len(detected_main_classes) == 1:
+                    main_class = detected_main_classes[0]
+            if not main_class:
+                raise HTTPException(status_code=400, detail="请先在运行配置中选择 Java 运行主类。")
             return {**_run_project_command([java, "-cp", str(classes_dir), main_class], tmp_dir, stdin, EXECUTE_TIMEOUT_SECONDS_C), "success": True}
 
         raise HTTPException(status_code=400, detail="不支持的项目语言")

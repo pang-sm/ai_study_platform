@@ -28,6 +28,15 @@ const MONACO_BY_EXT = {
   ".txt": "plaintext",
 };
 
+const SOURCE_EXTENSIONS = {
+  C: [".c"],
+  "C++": [".cpp", ".cc", ".cxx"],
+  Python: [".py"],
+  Java: [".java"],
+};
+
+const HEADER_EXTENSIONS = new Set([".h", ".hpp"]);
+
 function safeJson(res) {
   return res.json().catch(() => ({}));
 }
@@ -95,7 +104,47 @@ function buildTree(files) {
   return root;
 }
 
-function TreeNode({ node, activeFileId, collapsedFolders, onToggleFolder, onOpenFile, onRenameFile, onDeleteFile, depth = 0 }) {
+function joinPath(parentPath, name) {
+  const parent = String(parentPath || "").replace(/\/+$/, "");
+  const child = String(name || "").replace(/^\/+/, "");
+  return parent ? `${parent}/${child}` : child;
+}
+
+function isSourceFileForLanguage(path, language) {
+  const ext = getExt(path);
+  return (SOURCE_EXTENSIONS[language] || []).includes(ext);
+}
+
+function detectJavaMainClass(file) {
+  if (!file || getExt(file.relative_path) !== ".java") return "";
+  const content = file.content || "";
+  if (!/public\s+static\s+void\s+main\s*\(\s*String\s*\[\]\s+\w+\s*\)|static\s+void\s+main\s*\(/.test(content)) return "";
+  const packageName = content.match(/^\s*package\s+([A-Za-z_][\w.]*)\s*;/m)?.[1] || "";
+  const className = content.match(/\b(?:public\s+)?(?:class|record|enum)\s+([A-Za-z_]\w*)\b/)?.[1]
+    || String(file.filename || file.relative_path || "").replace(/\.java$/i, "");
+  return packageName ? `${packageName}.${className}` : className;
+}
+
+function clampMenuPosition(x, y) {
+  const width = 210;
+  const height = 280;
+  return {
+    x: Math.max(8, Math.min(x, window.innerWidth - width - 8)),
+    y: Math.max(8, Math.min(y, window.innerHeight - height - 8)),
+  };
+}
+
+function TreeNode({
+  node,
+  activeFileId,
+  collapsedFolders,
+  onToggleFolder,
+  onOpenFile,
+  onRenameFile,
+  onDeleteFile,
+  onContextMenu,
+  depth = 0,
+}) {
   const folders = [...node.folders.values()].sort((a, b) => a.name.localeCompare(b.name));
   const files = [...node.files].sort((a, b) => a.relative_path.localeCompare(b.relative_path));
   return (
@@ -109,6 +158,7 @@ function TreeNode({ node, activeFileId, collapsedFolders, onToggleFolder, onOpen
               className="pw-tree-folder"
               style={{ paddingLeft: 10 + depth * 14 }}
               onClick={() => onToggleFolder(folder.path)}
+              onContextMenu={(event) => onContextMenu(event, { type: "folder", path: folder.path, name: folder.name })}
             >
               <span>{collapsed ? "▸" : "▾"}</span>
               <strong>{folder.name}</strong>
@@ -122,6 +172,7 @@ function TreeNode({ node, activeFileId, collapsedFolders, onToggleFolder, onOpen
                 onOpenFile={onOpenFile}
                 onRenameFile={onRenameFile}
                 onDeleteFile={onDeleteFile}
+                onContextMenu={onContextMenu}
                 depth={depth + 1}
               />
             )}
@@ -133,6 +184,7 @@ function TreeNode({ node, activeFileId, collapsedFolders, onToggleFolder, onOpen
           key={file.id}
           className={`pw-tree-file${activeFileId === file.id ? " is-active" : ""}`}
           style={{ paddingLeft: 24 + depth * 14 }}
+          onContextMenu={(event) => onContextMenu(event, { type: "file", file })}
         >
           <button type="button" onClick={() => onOpenFile(file.id)} title={file.relative_path}>
             <span>{getExt(file.relative_path).replace(".", "") || "txt"}</span>
@@ -179,11 +231,38 @@ export default function ProgrammingWorkbench({
   const [saveState, setSaveState] = useState("已保存");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [fullscreenFallback, setFullscreenFallback] = useState(false);
+  const [runConfigOpen, setRunConfigOpen] = useState(false);
+  const [runMode, setRunMode] = useState("project");
+  const [draftEntryFile, setDraftEntryFile] = useState("");
+  const [draftMainClass, setDraftMainClass] = useState("");
+  const [contextMenu, setContextMenu] = useState(null);
   const saveTimerRef = useRef(null);
   const shellRef = useRef(null);
   const editorRef = useRef(null);
   const activeFile = files.find((file) => file.id === activeFileId) || files[0] || null;
   const language = selectedLanguage || project?.language || onboardingLanguage || "Python";
+  const sourceFiles = useMemo(
+    () => files.filter((file) => isSourceFileForLanguage(file.relative_path, language)),
+    [files, language],
+  );
+  const javaMainClasses = useMemo(
+    () => files.map(detectJavaMainClass).filter(Boolean),
+    [files],
+  );
+  const uniqueJavaMainClasses = useMemo(() => [...new Set(javaMainClasses)], [javaMainClasses]);
+  const activeJavaMainClass = useMemo(() => detectJavaMainClass(activeFile), [activeFile]);
+  const runTargetLabel = useMemo(() => {
+    if (!project) return "运行：未选择项目";
+    if (language === "Java") return `运行：${project.main_class || uniqueJavaMainClasses[0] || "请选择主类"}`;
+    return `运行：${project.entry_file || activeFile?.relative_path || DEFAULT_FILE[language]}`;
+  }, [activeFile?.relative_path, language, project, uniqueJavaMainClasses]);
+  const runScopeLabel = useMemo(() => {
+    if (!project) return "";
+    if (language === "C") return `范围：项目内 ${sourceFiles.length} 个 .c 源文件`;
+    if (language === "C++") return `范围：项目内 ${sourceFiles.length} 个 C++ 源文件`;
+    if (language === "Java") return `范围：全部 ${sourceFiles.length} 个 Java 源文件`;
+    return runMode === "current-file" ? "范围：当前文件" : "范围：项目根目录";
+  }, [language, project, runMode, sourceFiles.length]);
 
   const relayoutEditor = useCallback(() => {
     window.requestAnimationFrame(() => {
@@ -324,6 +403,29 @@ export default function ProgrammingWorkbench({
     relayoutEditor();
   }, [coachCollapsed, explorerCollapsed, outputCollapsed, isFullscreen, fullscreenFallback, selectedLanguage, relayoutEditor]);
 
+  useEffect(() => {
+    setDraftEntryFile(project?.entry_file || activeFile?.relative_path || DEFAULT_FILE[language] || "");
+    setDraftMainClass(project?.main_class || uniqueJavaMainClasses[0] || "");
+  }, [activeFile?.relative_path, language, project?.entry_file, project?.main_class, uniqueJavaMainClasses]);
+
+  useEffect(() => {
+    const closeMenu = () => setContextMenu(null);
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") {
+        setContextMenu(null);
+        setRunConfigOpen(false);
+      }
+    };
+    window.addEventListener("click", closeMenu);
+    window.addEventListener("scroll", closeMenu, true);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.removeEventListener("click", closeMenu);
+      window.removeEventListener("scroll", closeMenu, true);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, []);
+
   const createProject = useCallback(async (preferredLanguage = language, askName = true) => {
     if (!user?.username) return;
     const lockedLanguage = normalizeLanguage(preferredLanguage) || language;
@@ -418,6 +520,7 @@ export default function ProgrammingWorkbench({
     setFiles((prev) => [...prev, data.file].sort((a, b) => a.relative_path.localeCompare(b.relative_path)));
     openFile(data.file.id);
     onProjectChanged?.();
+    return data.file;
   };
 
   const createFile = async () => {
@@ -454,6 +557,14 @@ export default function ProgrammingWorkbench({
     }
     setFiles((prev) => prev.filter((item) => item.id !== file.id));
     closeTab(file.id);
+    if (project.entry_file === file.relative_path) {
+      const nextEntry = files.find((item) => item.id !== file.id && isSourceFileForLanguage(item.relative_path, language))?.relative_path || "";
+      await updateProjectMeta({ entry_file: nextEntry });
+    }
+    if (language === "Java" && project.main_class && detectJavaMainClass(file) === project.main_class) {
+      await updateProjectMeta({ main_class: "" });
+      setStatus("当前 Java 主类已删除，请重新选择运行配置。");
+    }
     onProjectChanged?.();
   };
 
@@ -471,6 +582,8 @@ export default function ProgrammingWorkbench({
   };
 
   const editEntryFile = async () => {
+    setRunConfigOpen(true);
+    return;
     if (!project) return;
     const entryFile = window.prompt("入口文件", project.entry_file);
     if (!entryFile || entryFile === project.entry_file) return;
@@ -495,8 +608,103 @@ export default function ProgrammingWorkbench({
     }
   };
 
-  const runProject = async () => {
+  const saveRunConfig = async () => {
+    if (!project) return;
+    const patch = {
+      entry_file: draftEntryFile || project.entry_file || activeFile?.relative_path || DEFAULT_FILE[language],
+    };
+    if (language === "Java") patch.main_class = draftMainClass || uniqueJavaMainClasses[0] || "";
+    await updateProjectMeta(patch);
+    setRunConfigOpen(false);
+    setStatus("运行配置已保存");
+  };
+
+  const openContextMenu = (event, target) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setContextMenu({ ...target, ...clampMenuPosition(event.clientX, event.clientY) });
+  };
+
+  const createFileInFolder = async (folderPath = "") => {
+    const name = window.prompt("新建文件名", language === "Java" ? "Student.java" : DEFAULT_FILE[language] || "main.py");
+    if (!name) return;
+    await createFileWithPath(joinPath(folderPath, name));
+    setContextMenu(null);
+  };
+
+  const createFolderInFolder = async (folderPath = "") => {
+    const name = window.prompt("新建文件夹名", "models");
+    if (!name) return;
+    await createFileWithPath(joinPath(joinPath(folderPath, name), ".keep"));
+    setContextMenu(null);
+  };
+
+  const renameFolder = async (folderPath) => {
+    const nextName = window.prompt("新的文件夹路径", folderPath);
+    if (!nextName || nextName === folderPath) return;
+    const prefix = `${folderPath.replace(/\/+$/, "")}/`;
+    const nextPrefix = `${nextName.replace(/\/+$/, "")}/`;
+    const folderFiles = files.filter((file) => file.relative_path.startsWith(prefix));
+    for (const file of folderFiles) {
+      await updateProjectFile(file.id, { relative_path: file.relative_path.replace(prefix, nextPrefix) });
+    }
+    setStatus("文件夹已重命名");
+    setContextMenu(null);
+  };
+
+  const deleteFolder = async (folderPath) => {
+    const prefix = `${folderPath.replace(/\/+$/, "")}/`;
+    const folderFiles = files.filter((file) => file.relative_path.startsWith(prefix));
+    if (!folderFiles.length) return;
+    if (!window.confirm(`确认删除文件夹 ${folderPath} 及其中 ${folderFiles.length} 个文件吗？`)) return;
+    for (const file of folderFiles) {
+      await fetch(`${apiBase}/code/projects/${project.id}/files/${file.id}?username=${encodeURIComponent(user.username)}`, { method: "DELETE" });
+    }
+    setFiles((prev) => prev.filter((file) => !file.relative_path.startsWith(prefix)));
+    setOpenTabs((prev) => prev.filter((id) => !folderFiles.some((file) => file.id === id)));
+    if (project.entry_file?.startsWith(prefix)) await updateProjectMeta({ entry_file: "" });
+    if (language === "Java" && folderFiles.some((file) => detectJavaMainClass(file) === project.main_class)) {
+      await updateProjectMeta({ main_class: "" });
+    }
+    setStatus("文件夹已删除");
+    setContextMenu(null);
+    onProjectChanged?.();
+  };
+
+  const setFileAsRunTarget = async (file) => {
+    const patch = { entry_file: file.relative_path };
+    const javaMain = detectJavaMainClass(file);
+    if (language === "Java" && javaMain) patch.main_class = javaMain;
+    await updateProjectMeta(patch);
+    setDraftEntryFile(file.relative_path);
+    if (javaMain) setDraftMainClass(javaMain);
+    setStatus(language === "Java" ? "Java 主类已设置" : "入口文件已设置");
+    setContextMenu(null);
+  };
+
+  const runFile = async (file) => {
+    if (!file) return;
+    const javaMain = detectJavaMainClass(file);
+    if (language === "Java" && !javaMain) {
+      setStatus("该 Java 文件没有 main 方法，不能作为运行目标。");
+      setContextMenu(null);
+      return;
+    }
+    await setFileAsRunTarget(file);
+    await runProject({ entryFile: file.relative_path, mainClass: javaMain || project.main_class });
+  };
+
+  const runProject = async (override = {}) => {
     if (!project?.id) return;
+    if (language === "Java" && uniqueJavaMainClasses.length > 1 && !project.main_class && !override.mainClass) {
+      setRunConfigOpen(true);
+      setStatus("检测到多个 Java main class，请先选择运行主类。");
+      return;
+    }
+    if (language === "Java" && runMode === "current-file" && activeFile && !activeJavaMainClass && !override.mainClass) {
+      setStatus("当前 Java 文件没有 main 方法，不能直接运行。");
+      return;
+    }
     await manualSave();
     setBusy("run");
     setOutputCollapsed(false);
@@ -506,7 +714,14 @@ export default function ProgrammingWorkbench({
       const res = await fetch(`${apiBase}/code/projects/${project.id}/execute`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: user.username, stdin: "" }),
+        body: JSON.stringify({
+          username: user.username,
+          stdin: "",
+          run_mode: runMode,
+          entry_file: override.entryFile || (runMode === "current-file" ? activeFile?.relative_path : project.entry_file),
+          main_class: override.mainClass || project.main_class || uniqueJavaMainClasses[0] || "",
+          source_files: sourceFiles.map((file) => file.relative_path),
+        }),
       });
       const data = await safeJson(res);
       setRunResult(res.ok ? data : { exit_code: -1, error_message: data.detail || "运行失败" });
@@ -640,6 +855,7 @@ export default function ProgrammingWorkbench({
     <section className={shellClassName} ref={shellRef} data-workspace-language={selectedLanguage || ""}>
       <div className="pw-center">
         <div className="pw-topbar">
+          <button type="button" className="pw-language-back-btn" onClick={switchLanguage}>返回语言选择</button>
           <button type="button" className="pw-back-btn" onClick={onGoHome}>返回首页</button>
           <div className="pw-title-block">
             <span>{language} 工作区</span>
@@ -647,6 +863,13 @@ export default function ProgrammingWorkbench({
             <small>{project ? `入口：${project.entry_file}` : "选择或新建项目后开始编码"}</small>
           </div>
           <div className="pw-top-actions">
+            <button type="button" data-action="run-config" onClick={editEntryFile} disabled={!project}>{runTargetLabel}</button>
+            <button type="button" data-action="toggle-explorer" onClick={() => setExplorerCollapsed(!explorerCollapsed)}>
+              {explorerCollapsed ? "展开项目文件" : "收起项目文件"}
+            </button>
+            <button type="button" data-action="toggle-coach" onClick={() => setCoachCollapsed(!coachCollapsed)}>
+              {coachCollapsed ? "展开 AI 教练" : "收起 AI 教练"}
+            </button>
             <button type="button" onClick={() => createProject(language, true)}>新建项目</button>
             <button type="button" onClick={renameProject} disabled={!project}>重命名</button>
             <button type="button" onClick={editEntryFile} disabled={!project}>入口文件</button>
@@ -682,7 +905,7 @@ export default function ProgrammingWorkbench({
               </div>
               {project ? (
                 <>
-                  <div className="pw-explorer-project">
+                  <div className="pw-explorer-project" onContextMenu={(event) => openContextMenu(event, { type: "root", path: "" })}>
                     <strong title={project.name}>{project.name}</strong>
                     <span>{language} · {files.length} 文件</span>
                   </div>
@@ -704,6 +927,7 @@ export default function ProgrammingWorkbench({
                       onOpenFile={openFile}
                       onRenameFile={renameFile}
                       onDeleteFile={deleteFile}
+                      onContextMenu={openContextMenu}
                     />
                   </div>
                 </>
@@ -833,6 +1057,91 @@ export default function ProgrammingWorkbench({
           </div>
         )}
       </div>
+
+      {runConfigOpen && (
+        <div className="pw-run-popover" role="dialog" aria-label="运行配置" onClick={(event) => event.stopPropagation()}>
+          <div className="pw-run-popover-head">
+            <strong>运行配置</strong>
+            <button type="button" onClick={() => setRunConfigOpen(false)}>×</button>
+          </div>
+          <label>
+            <span>运行模式</span>
+            <select value={runMode} onChange={(event) => setRunMode(event.target.value)}>
+              <option value="project">当前项目</option>
+              <option value="current-file">当前文件</option>
+              <option value="entry">指定入口</option>
+            </select>
+          </label>
+          {language !== "Java" && (
+            <label>
+              <span>入口文件</span>
+              <select value={draftEntryFile} onChange={(event) => setDraftEntryFile(event.target.value)}>
+                {sourceFiles.map((file) => (
+                  <option key={file.id} value={file.relative_path}>{file.relative_path}</option>
+                ))}
+              </select>
+            </label>
+          )}
+          {language === "Java" && (
+            <label>
+              <span>运行主类</span>
+              <select value={draftMainClass} onChange={(event) => setDraftMainClass(event.target.value)}>
+                <option value="">请选择 Java main class</option>
+                {uniqueJavaMainClasses.map((mainClass) => (
+                  <option key={mainClass} value={mainClass}>{mainClass}</option>
+                ))}
+              </select>
+            </label>
+          )}
+          <p>{runScopeLabel}</p>
+          <div className="pw-run-source-list">
+            {sourceFiles.map((file) => (
+              <span key={file.id}>{file.relative_path}</span>
+            ))}
+          </div>
+          <div className="pw-run-popover-actions">
+            <button type="button" onClick={() => setRunConfigOpen(false)}>取消</button>
+            <button type="button" onClick={saveRunConfig}>保存配置</button>
+          </div>
+        </div>
+      )}
+
+      {contextMenu && (
+        <div
+          className="pw-context-menu"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(event) => event.stopPropagation()}
+          onContextMenu={(event) => event.preventDefault()}
+        >
+          {contextMenu.type !== "file" && (
+            <>
+              <button type="button" onClick={() => createFileInFolder(contextMenu.path)}>新建文件</button>
+              <button type="button" onClick={() => createFolderInFolder(contextMenu.path)}>新建文件夹</button>
+            </>
+          )}
+          {contextMenu.type === "folder" && (
+            <>
+              <button type="button" onClick={() => renameFolder(contextMenu.path)}>重命名</button>
+              <button type="button" onClick={() => deleteFolder(contextMenu.path)}>删除</button>
+            </>
+          )}
+          {contextMenu.type === "file" && (
+            <>
+              <button type="button" onClick={() => { openFile(contextMenu.file.id); setContextMenu(null); }}>打开</button>
+              <button type="button" onClick={() => { renameFile(contextMenu.file); setContextMenu(null); }}>重命名</button>
+              <button type="button" onClick={() => { deleteFile(contextMenu.file); setContextMenu(null); }}>删除</button>
+              {isSourceFileForLanguage(contextMenu.file.relative_path, language) && (
+                <button type="button" onClick={() => setFileAsRunTarget(contextMenu.file)}>
+                  {language === "Java" ? "设为运行主类" : "设为入口文件"}
+                </button>
+              )}
+              {isSourceFileForLanguage(contextMenu.file.relative_path, language) && !HEADER_EXTENSIONS.has(getExt(contextMenu.file.relative_path)) && (
+                <button type="button" onClick={() => runFile(contextMenu.file)}>运行此文件</button>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </section>
   );
 }
