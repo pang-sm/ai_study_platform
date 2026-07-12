@@ -986,6 +986,9 @@ export default function ProgrammingWorkbench({
                 {language === "Java" ? (
                   <>
                     <option value="">Select main class</option>
+                    {project?.main_class && !uniqueJavaMainClasses.includes(project.main_class) && (
+                      <option value={project.main_class}>{project.main_class}</option>
+                    )}
                     {uniqueJavaMainClasses.map((mainClass) => (
                       <option key={mainClass} value={mainClass}>{mainClass}</option>
                     ))}
@@ -1240,6 +1243,9 @@ export default function ProgrammingWorkbench({
               <span>运行主类</span>
               <select value={draftMainClass} onChange={(event) => setDraftMainClass(event.target.value)}>
                 <option value="">请选择 Java main class</option>
+                {project?.main_class && !uniqueJavaMainClasses.includes(project.main_class) && (
+                  <option value={project.main_class}>{project.main_class}</option>
+                )}
                 {uniqueJavaMainClasses.map((mainClass) => (
                   <option key={mainClass} value={mainClass}>{mainClass}</option>
                 ))}
