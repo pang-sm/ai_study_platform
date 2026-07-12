@@ -581,6 +581,24 @@ export default function ProgrammingWorkbench({
     await updateProjectMeta({ name: name.trim() });
   };
 
+  const deleteProject = async () => {
+    if (!project?.id || !user?.username) return;
+    if (!window.confirm(`Confirm delete project ${project.name}?`)) return;
+    const res = await fetch(`${apiBase}/code/projects/${project.id}?username=${encodeURIComponent(user.username)}`, { method: "DELETE" });
+    const data = await safeJson(res);
+    if (!res.ok) {
+      setStatus(data.detail || "Project delete failed");
+      return;
+    }
+    setProjects((prev) => prev.filter((item) => item.id !== project.id));
+    setProject(null);
+    setFiles([]);
+    setOpenTabs([]);
+    setActiveFileId(null);
+    setStatus("Project deleted");
+    onProjectChanged?.();
+  };
+
   const editEntryFile = async () => {
     setRunConfigOpen(true);
     return;
@@ -617,6 +635,32 @@ export default function ProgrammingWorkbench({
     await updateProjectMeta(patch);
     setRunConfigOpen(false);
     setStatus("运行配置已保存");
+  };
+
+  const changeRunTarget = async (value) => {
+    if (!project) return;
+    if (language === "Java") {
+      setDraftMainClass(value);
+      await updateProjectMeta({ main_class: value });
+      return;
+    }
+    setDraftEntryFile(value);
+    await updateProjectMeta({ entry_file: value });
+  };
+
+  const openTopMenu = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setContextMenu({ type: "top", ...clampMenuPosition(event.clientX, event.clientY) });
+  };
+
+  const selectResultTab = (tab) => {
+    if (activeResultTab === tab && !outputCollapsed) {
+      setOutputCollapsed(true);
+      return;
+    }
+    setActiveResultTab(tab);
+    setOutputCollapsed(false);
   };
 
   const openContextMenu = (event, target) => {
@@ -863,6 +907,29 @@ export default function ProgrammingWorkbench({
             <small>{project ? `入口：${project.entry_file}` : "选择或新建项目后开始编码"}</small>
           </div>
           <div className="pw-top-actions">
+            <select
+              className="pw-run-select"
+              value={language === "Java" ? (project?.main_class || uniqueJavaMainClasses[0] || "") : (project?.entry_file || draftEntryFile || "")}
+              onChange={(event) => changeRunTarget(event.target.value)}
+              disabled={!project}
+              title="Run Configuration"
+            >
+              {language === "Java" ? (
+                <>
+                  <option value="">Select main class</option>
+                  {uniqueJavaMainClasses.map((mainClass) => (
+                    <option key={mainClass} value={mainClass}>{mainClass}</option>
+                  ))}
+                </>
+              ) : (
+                sourceFiles.map((file) => (
+                  <option key={file.id} value={file.relative_path}>{file.relative_path}</option>
+                ))
+              )}
+            </select>
+            <button type="button" data-action="top-run" onClick={runProject} disabled={!project || busy === "run"}>{busy === "run" ? "Running" : "▶"}</button>
+            <button type="button" data-action="top-more" onClick={openTopMenu}>⋯</button>
+            <span className="pw-save-chip">{saveState}</span>
             <button type="button" data-action="run-config" onClick={editEntryFile} disabled={!project}>{runTargetLabel}</button>
             <button type="button" data-action="toggle-explorer" onClick={() => setExplorerCollapsed(!explorerCollapsed)}>
               {explorerCollapsed ? "展开项目文件" : "收起项目文件"}
@@ -883,6 +950,11 @@ export default function ProgrammingWorkbench({
           {!explorerCollapsed && (
             <aside className="pw-explorer">
               <div className="pw-explorer-head">
+                <span className="pw-tool-title">Project</span>
+                <div className="pw-project-tools">
+                  <button type="button" onClick={(event) => openContextMenu(event, { type: "root", path: "" })} disabled={!project} title="New">+</button>
+                  <button type="button" onClick={() => setExplorerCollapsed(true)} title="Collapse Project">‹</button>
+                </div>
                 <button type="button" onClick={() => setExplorerCollapsed(true)} title="折叠项目树">‹</button>
                 <strong>项目文件</strong>
               </div>
@@ -982,6 +1054,7 @@ export default function ProgrammingWorkbench({
                 />
               ) : (
                 <div className="pw-editor-empty">
+                  {!project && <button type="button" onClick={() => createProject(language, true)}>+ New {language} Project</button>}
                   <strong>{language} 工作区</strong>
                   <p>从左侧打开项目，或新建一个 {language} 项目。</p>
                 </div>
@@ -1000,6 +1073,10 @@ export default function ProgrammingWorkbench({
           {!coachCollapsed && (
             <aside className="pw-coach">
               <div className="pw-coach-head">
+                <span className="pw-tool-title">AI Coach</span>
+                <div className="pw-project-tools">
+                  <button type="button" onClick={() => setCoachCollapsed(true)} title="Collapse AI">›</button>
+                </div>
                 <strong>AI 教练</strong>
                 <button type="button" aria-label="收起 AI 教练" onClick={() => setCoachCollapsed(true)}>›</button>
               </div>
@@ -1113,6 +1190,14 @@ export default function ProgrammingWorkbench({
           onClick={(event) => event.stopPropagation()}
           onContextMenu={(event) => event.preventDefault()}
         >
+          {contextMenu.type === "top" && (
+            <>
+              <button type="button" onClick={() => { createProject(language, true); setContextMenu(null); }}>New Project</button>
+              <button type="button" onClick={() => { renameProject(); setContextMenu(null); }} disabled={!project}>Rename Project</button>
+              <button type="button" onClick={() => { manualSave(); setContextMenu(null); }} disabled={!activeFile}>Save Now</button>
+              <button type="button" onClick={() => { setRunConfigOpen(true); setContextMenu(null); }} disabled={!project}>Edit Run Configuration</button>
+            </>
+          )}
           {contextMenu.type !== "file" && (
             <>
               <button type="button" onClick={() => createFileInFolder(contextMenu.path)}>新建文件</button>
@@ -1123,6 +1208,12 @@ export default function ProgrammingWorkbench({
             <>
               <button type="button" onClick={() => renameFolder(contextMenu.path)}>重命名</button>
               <button type="button" onClick={() => deleteFolder(contextMenu.path)}>删除</button>
+            </>
+          )}
+          {contextMenu.type === "root" && (
+            <>
+              <button type="button" onClick={() => { renameProject(); setContextMenu(null); }} disabled={!project}>Rename Project</button>
+              <button type="button" onClick={() => { deleteProject(); setContextMenu(null); }} disabled={!project}>Delete Project</button>
             </>
           )}
           {contextMenu.type === "file" && (

@@ -189,8 +189,8 @@
 .pw-top-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: 6px;
+  flex-wrap: nowrap;
   justify-content: flex-end;
 }
 
@@ -201,6 +201,7 @@
 }
 
 .pw-language-back-btn {
+  display: none;
   min-height: 38px;
   padding: 0 14px;
   border: 1px solid #e5def5;
@@ -210,8 +211,42 @@
   font-weight: 850;
 }
 
-.pw-top-actions button:nth-child(6) {
+.pw-top-actions > button:not([data-action="top-run"]):not([data-action="top-more"]):not([data-action="switch-language"]):not([data-action="fullscreen"]) {
   display: none;
+}
+
+.pw-run-select {
+  width: clamp(132px, 18vw, 240px);
+  height: 32px;
+  border: 1px solid #d8d2e8;
+  border-radius: 6px;
+  background: #fff;
+  color: #25204c;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.pw-top-actions [data-action="top-run"] {
+  width: 34px;
+  min-width: 34px;
+  padding: 0;
+  border-color: #5b21e6;
+  background: #5b21e6;
+  color: #fff;
+}
+
+.pw-top-actions [data-action="top-more"],
+.pw-top-actions [data-action="fullscreen"] {
+  min-width: 34px;
+  padding: 0 8px;
+}
+
+.pw-save-chip {
+  color: #8a829d;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
 }
 
 .pw-top-actions button:disabled,
@@ -230,15 +265,15 @@
 }
 
 .pw-shell--explorer-collapsed .pw-workbench-body {
-  grid-template-columns: 0 minmax(0, 1fr) 330px;
+  grid-template-columns: 28px minmax(0, 1fr) 330px;
 }
 
 .pw-shell--coach-collapsed .pw-workbench-body {
-  grid-template-columns: 248px minmax(0, 1fr) 0;
+  grid-template-columns: 248px minmax(0, 1fr) 28px;
 }
 
 .pw-shell--explorer-collapsed.pw-shell--coach-collapsed .pw-workbench-body {
-  grid-template-columns: 0 minmax(0, 1fr) 0;
+  grid-template-columns: 28px minmax(0, 1fr) 28px;
 }
 
 .pw-explorer,
@@ -287,18 +322,59 @@
 }
 
 .pw-rail {
-  width: 0;
-  min-width: 0;
+  width: 28px;
+  min-width: 28px;
   padding: 0;
   border: 0;
   overflow: hidden;
-  opacity: 0;
-  pointer-events: none;
+  opacity: 1;
+  pointer-events: auto;
+  background: #f4f1fa;
+  color: #5b4d83;
+  font-size: 0;
+  writing-mode: vertical-rl;
+  display: grid;
+  place-items: center;
+}
+
+.pw-rail--left::after {
+  content: "Project";
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.pw-rail--right::after {
+  content: "AI Coach";
+  font-size: 11px;
+  font-weight: 900;
 }
 
 .pw-explorer-head strong,
 .pw-coach-head strong {
+  display: none;
+}
+
+.pw-tool-title {
   color: #332c58;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.pw-project-tools {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+}
+
+.pw-project-tools button {
+  width: 24px;
+  height: 24px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid #e5def5;
+  border-radius: 5px;
+  background: #fff;
+  color: #6d28d9;
   font-size: 13px;
   font-weight: 950;
 }
@@ -367,8 +443,8 @@
 }
 
 .pw-explorer-actions {
+  display: none;
   padding: 8px;
-  display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 6px;
 }
@@ -463,6 +539,7 @@
 }
 
 .pw-empty-project {
+  display: none;
   margin: 12px;
   min-height: 170px;
   border: 1px dashed #d7cbf2;
@@ -495,9 +572,13 @@
   border-color: #5b21e6;
 }
 
+.pw-empty-project {
+  display: none;
+}
+
 .pw-rail {
   align-self: stretch;
-  width: 18px;
+  width: 28px;
   height: auto;
   min-height: 0;
   border: 0;
@@ -581,6 +662,18 @@
 .pw-editor-empty p {
   margin: 0;
   font-size: 13px;
+}
+
+.pw-editor-empty button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid #5b21e6;
+  border-radius: 7px;
+  background: #5b21e6;
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 850;
 }
 
 .pw-editor-controls {
@@ -754,30 +847,35 @@
 }
 
 .pw-actions {
-  min-height: 48px;
-  padding: 6px 10px;
+  min-height: 34px;
+  padding: 0 10px;
   border-top: 1px solid #ece8f7;
-  background: #fff;
+  background: #fbfaff;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 4px;
 }
 
 .pw-actions button {
-  min-width: 76px;
-  height: 34px;
-  color: #6d28d9;
-  font-size: 13px;
+  min-width: 0;
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #5f5872;
+  font-size: 12px;
+  font-weight: 850;
 }
 
 .pw-actions button:first-child {
-  border: 0;
-  background: #5b21e6;
-  color: #fff;
+  background: transparent;
+  color: #6d28d9;
 }
 
 .pw-actions .pw-output-toggle {
   margin-left: auto;
+  color: #8a829d;
 }
 
 .pw-actions span {
@@ -788,6 +886,7 @@
 }
 
 .pw-actions em {
+  margin-left: 6px;
   color: #766f91;
   font-size: 12px;
   font-style: normal;
@@ -982,11 +1081,10 @@
 
   .pw-shell--explorer-collapsed .pw-workbench-body,
   .pw-shell--explorer-collapsed.pw-shell--coach-collapsed .pw-workbench-body {
-    grid-template-columns: 0 minmax(0, 1fr);
+    grid-template-columns: 28px minmax(0, 1fr);
   }
 
-  .pw-coach,
-  .pw-rail--right {
+  .pw-coach {
     display: none;
   }
 }
@@ -1027,7 +1125,7 @@
 
   .pw-shell--explorer-collapsed .pw-workbench-body,
   .pw-shell--explorer-collapsed.pw-shell--coach-collapsed .pw-workbench-body {
-    grid-template-columns: 0 minmax(0, 1fr);
+    grid-template-columns: 28px minmax(0, 1fr);
     grid-template-rows: minmax(420px, 1fr);
   }
 
