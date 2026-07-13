@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Editor from "@monaco-editor/react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import "./ProgrammingWorkbench.css";
 
 const LANGUAGE_TABS = ["C", "C++", "Python", "Java"];
@@ -36,6 +38,13 @@ const SOURCE_EXTENSIONS = {
 };
 
 const HEADER_EXTENSIONS = new Set([".h", ".hpp"]);
+const CODE_RESOURCE_EXTENSIONS = new Set([".c", ".h", ".cpp", ".hpp", ".cc", ".cxx", ".py", ".java", ".js", ".ts", ".json", ".xml", ".yaml", ".yml", ".sh"]);
+const TEXT_RESOURCE_EXTENSIONS = new Set([".txt", ".log", ".csv"]);
+const MARKDOWN_EXTENSIONS = new Set([".md", ".markdown"]);
+const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"]);
+const PDF_EXTENSIONS = new Set([".pdf"]);
+const OFFICE_EXTENSIONS = new Set([".docx", ".xlsx", ".pptx"]);
+const ARCHIVE_EXTENSIONS = new Set([".zip", ".rar", ".tar", ".gz", ".tgz", ".7z"]);
 
 function safeJson(res) {
   return res.json().catch(() => ({}));
@@ -50,6 +59,45 @@ function getMonacoLanguage(file) {
   return MONACO_BY_EXT[getExt(file?.relative_path)] || "plaintext";
 }
 
+function getDisplayFilename(item = {}) {
+  return item.relative_path?.split("/").pop()
+    || item.filename
+    || item.original_filename
+    || item.file_name
+    || "resource";
+}
+
+function getMaterialPath(material = {}) {
+  return material.relative_path || material.original_filename || material.file_name || `material-${material.id}`;
+}
+
+function getResourceKind(item = {}) {
+  const ext = getExt(getMaterialPath(item));
+  const fileType = String(item.file_type || item.mime_type || "").toLowerCase();
+  if (MARKDOWN_EXTENSIONS.has(ext) || fileType.includes("markdown")) return "markdown";
+  if (PDF_EXTENSIONS.has(ext) || fileType === "pdf" || fileType.includes("pdf")) return "pdf";
+  if (IMAGE_EXTENSIONS.has(ext) || fileType === "image" || fileType.startsWith("image/")) return "image";
+  if (CODE_RESOURCE_EXTENSIONS.has(ext) || fileType === "code") return "code";
+  if (TEXT_RESOURCE_EXTENSIONS.has(ext) || fileType === "text" || fileType === "txt") return "text";
+  if (OFFICE_EXTENSIONS.has(ext)) return "office";
+  if (ARCHIVE_EXTENSIONS.has(ext)) return "archive";
+  return "binary";
+}
+
+function getMaterialPreviewUrl(apiBase, material, username) {
+  if (!material?.id || !username) return "";
+  const raw = material.preview_url || `/materials/${material.id}/preview`;
+  const joiner = raw.includes("?") ? "&" : "?";
+  return `${apiBase}${raw}${joiner}username=${encodeURIComponent(username)}`;
+}
+
+function getMaterialDownloadUrl(apiBase, material, username) {
+  if (!material?.id || !username) return "";
+  const raw = material.download_url || `/materials/${material.id}/download`;
+  const joiner = raw.includes("?") ? "&" : "?";
+  return `${apiBase}${raw}${joiner}username=${encodeURIComponent(username)}`;
+}
+
 function getFileIcon(path = "") {
   const ext = getExt(path);
   if (ext === ".py") return "Py";
@@ -61,6 +109,17 @@ function getFileIcon(path = "") {
   if (ext === ".md") return "Md";
   if (ext === ".txt") return "Txt";
   return ext.replace(".", "").slice(0, 3) || "File";
+}
+
+function getResourceIcon(item = {}) {
+  const kind = getResourceKind(item);
+  if (kind === "markdown") return "Md";
+  if (kind === "pdf") return "PDF";
+  if (kind === "image") return "Img";
+  if (kind === "office") return "Doc";
+  if (kind === "archive") return "Zip";
+  if (kind === "code" || kind === "text") return getFileIcon(getMaterialPath(item));
+  return "Bin";
 }
 
 function getRuntimeLabel(language) {
@@ -219,6 +278,127 @@ function TreeNode({
   );
 }
 
+function LibraryResourceTree({
+  materials,
+  activeResourceKey,
+  collapsed,
+  onToggle,
+  onOpen,
+  onContextMenu,
+}) {
+  const grouped = useMemo(() => {
+    const buckets = {
+      code: [],
+      markdown: [],
+      text: [],
+      pdf: [],
+      image: [],
+      office: [],
+      archive: [],
+      binary: [],
+    };
+    materials.forEach((item) => {
+      const kind = getResourceKind(item);
+      (buckets[kind] || buckets.binary).push(item);
+    });
+    return buckets;
+  }, [materials]);
+  const groups = [
+    ["code", "Code"],
+    ["markdown", "Markdown"],
+    ["text", "Text"],
+    ["pdf", "PDF"],
+    ["image", "Images"],
+    ["office", "Office"],
+    ["archive", "Archives"],
+    ["binary", "Other"],
+  ].filter(([key]) => grouped[key]?.length);
+
+  if (!materials.length) {
+    return <div className="pw-project-empty-line">No programming library resources</div>;
+  }
+
+  return (
+    <div className="pw-library-tree">
+      {groups.map(([key, label]) => {
+        const isCollapsed = collapsed.has(`library:${key}`);
+        return (
+          <div key={key}>
+            <button
+              type="button"
+              className="pw-tree-folder"
+              style={{ paddingLeft: 10 }}
+              onClick={() => onToggle(`library:${key}`)}
+            >
+              <span>{isCollapsed ? ">" : "v"}</span>
+              <strong>{label}</strong>
+              <em>{grouped[key].length}</em>
+            </button>
+            {!isCollapsed && grouped[key].map((item) => {
+              const resourceKey = `library-${item.id}`;
+              const name = getDisplayFilename(item);
+              return (
+                <div
+                  key={resourceKey}
+                  className={`pw-tree-file pw-tree-file--library${activeResourceKey === resourceKey ? " is-active" : ""}`}
+                  style={{ paddingLeft: 24 }}
+                  onContextMenu={(event) => onContextMenu(event, { type: "library-file", material: item })}
+                >
+                  <button type="button" onClick={() => onOpen(item)} title={name}>
+                    <span>{getResourceIcon(item)}</span>
+                    <strong>{name}</strong>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function MarkdownResourceView({ value, mode, onModeChange }) {
+  return (
+    <div className={`pw-markdown-view pw-markdown-view--${mode}`}>
+      <div className="pw-resource-modebar">
+        {["edit", "preview", "split"].map((item) => (
+          <button key={item} type="button" className={mode === item ? "is-active" : ""} onClick={() => onModeChange(item)}>
+            {item === "edit" ? "Edit" : item === "preview" ? "Preview" : "Split"}
+          </button>
+        ))}
+      </div>
+      <div className="pw-markdown-body">
+        {(mode === "edit" || mode === "split") && (
+          <div className="pw-markdown-source">
+            <Editor
+              height="100%"
+              language="markdown"
+              value={value || ""}
+              theme="light"
+              options={{
+                readOnly: true,
+                minimap: { enabled: false },
+                lineNumbers: "on",
+                wordWrap: "on",
+                scrollBeyondLastLine: false,
+                automaticLayout: true,
+              }}
+            />
+          </div>
+        )}
+        {(mode === "preview" || mode === "split") && (
+          <div className="pw-markdown-preview">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {value || "_Empty markdown resource._"}
+            </ReactMarkdown>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function ProgrammingWorkbench({
   user,
   apiBase = "/api",
@@ -230,6 +410,7 @@ export default function ProgrammingWorkbench({
 }) {
   const onboardingLanguage = normalizeLanguage(homeData?.onboarding?.main_language || user?.default_course_id || "");
   const [projects, setProjects] = useState([]);
+  const [libraryMaterials, setLibraryMaterials] = useState([]);
   const [selectedLanguage, setSelectedLanguage] = useState(() => normalizeLanguage(initialLanguageSelection) || onboardingLanguage || "Python");
   const [project, setProject] = useState(null);
   const [files, setFiles] = useState([]);
@@ -257,13 +438,18 @@ export default function ProgrammingWorkbench({
   const [fullscreenFallback, setFullscreenFallback] = useState(false);
   const [runConfigOpen, setRunConfigOpen] = useState(false);
   const [runMode, setRunMode] = useState("project");
+  const [resourceContents, setResourceContents] = useState({});
+  const [markdownMode, setMarkdownMode] = useState("split");
   const [draftEntryFile, setDraftEntryFile] = useState("");
   const [draftMainClass, setDraftMainClass] = useState("");
   const [contextMenu, setContextMenu] = useState(null);
   const saveTimerRef = useRef(null);
   const shellRef = useRef(null);
   const editorRef = useRef(null);
-  const activeFile = files.find((file) => file.id === activeFileId) || files[0] || null;
+  const activeResource = String(activeFileId || "").startsWith("library-")
+    ? libraryMaterials.find((item) => `library-${item.id}` === activeFileId)
+    : null;
+  const activeFile = activeResource ? null : (files.find((file) => file.id === activeFileId) || files[0] || null);
   const language = selectedLanguage || project?.language || onboardingLanguage || "Python";
   const sourceFiles = useMemo(
     () => files.filter((file) => isSourceFileForLanguage(file.relative_path, language)),
@@ -362,6 +548,24 @@ export default function ProgrammingWorkbench({
   }, [apiBase, initialLanguageSelection, initialProjectId, loadProject, user?.username]);
 
   useEffect(() => { loadProjects(); }, [loadProjects]);
+
+  const loadFileLibrary = useCallback(async () => {
+    if (!user?.username) return;
+    const res = await fetch(`${apiBase}/programming/file-library?username=${encodeURIComponent(user.username)}`);
+    const data = await safeJson(res);
+    if (!res.ok) {
+      setStatus(data.detail || "Programming library load failed");
+      return;
+    }
+    setLibraryMaterials(data.materials || []);
+  }, [apiBase, user?.username]);
+
+  const refreshWorkspace = useCallback(async () => {
+    await Promise.all([loadProjects(), loadFileLibrary()]);
+    setContextMenu(null);
+  }, [loadFileLibrary, loadProjects]);
+
+  useEffect(() => { loadFileLibrary(); }, [loadFileLibrary]);
 
   useEffect(() => {
     if (!selectedLanguage || initialProjectId) return;
@@ -512,6 +716,51 @@ export default function ProgrammingWorkbench({
     setOpenTabs((prev) => (prev.includes(fileId) ? prev : [...prev, fileId]));
   };
 
+  const openLibraryResource = async (material) => {
+    if (!material?.id || !user?.username) return;
+    const key = `library-${material.id}`;
+    setActiveFileId(key);
+    setOpenTabs((prev) => (prev.includes(key) ? prev : [...prev, key]));
+    if (resourceContents[key]?.loaded) return;
+    const kind = getResourceKind(material);
+    setResourceContents((prev) => ({ ...prev, [key]: { loading: true, loaded: false } }));
+    try {
+      const detailRes = await fetch(`${apiBase}/materials/${material.id}?username=${encodeURIComponent(user.username)}`);
+      const detailData = await safeJson(detailRes);
+      const detail = detailData.material || material;
+      let content = detail.extracted_text || "";
+      if (["code", "text", "markdown"].includes(kind)) {
+        const previewUrl = getMaterialPreviewUrl(apiBase, material, user.username);
+        const previewRes = await fetch(previewUrl);
+        if (previewRes.ok) content = await previewRes.text();
+      }
+      setResourceContents((prev) => ({
+        ...prev,
+        [key]: {
+          loading: false,
+          loaded: true,
+          material: detail,
+          content,
+          previewUrl: getMaterialPreviewUrl(apiBase, material, user.username),
+          downloadUrl: getMaterialDownloadUrl(apiBase, material, user.username),
+        },
+      }));
+    } catch {
+      setResourceContents((prev) => ({
+        ...prev,
+        [key]: {
+          loading: false,
+          loaded: true,
+          material,
+          content: "",
+          error: "Resource preview failed",
+          previewUrl: getMaterialPreviewUrl(apiBase, material, user.username),
+          downloadUrl: getMaterialDownloadUrl(apiBase, material, user.username),
+        },
+      }));
+    }
+  };
+
   const closeTab = (fileId) => {
     setOpenTabs((prev) => {
       const next = prev.filter((id) => id !== fileId);
@@ -536,6 +785,63 @@ export default function ProgrammingWorkbench({
     openFile(data.file.id);
     onProjectChanged?.();
     return data.file;
+  };
+
+  const addLibraryResourceToProject = async (material) => {
+    if (!project?.id || !material?.id || !user?.username) return;
+    const kind = getResourceKind(material);
+    if (!["code", "text", "markdown"].includes(kind)) {
+      setStatus("Only text-like resources can be added to the current project.");
+      setContextMenu(null);
+      return;
+    }
+    const filename = getDisplayFilename(material);
+    const targetPath = window.prompt("Add to project as", filename);
+    if (!targetPath) return;
+    let content = resourceContents[`library-${material.id}`]?.content || "";
+    try {
+      const previewRes = await fetch(getMaterialPreviewUrl(apiBase, material, user.username));
+      if (previewRes.ok) content = await previewRes.text();
+    } catch {
+      // Keep the already loaded extracted text fallback when preview fetch fails.
+    }
+    const res = await fetch(`${apiBase}/code/projects/${project.id}/files`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: user.username, relative_path: targetPath.trim(), content }),
+    });
+    const data = await safeJson(res);
+    if (!res.ok || !data.file) {
+      setStatus(data.detail || "Add to project failed");
+      return;
+    }
+    setFiles((prev) => [...prev, data.file].sort((a, b) => a.relative_path.localeCompare(b.relative_path)));
+    openFile(data.file.id);
+    setStatus("Resource copied into current project.");
+    setContextMenu(null);
+    onProjectChanged?.();
+  };
+
+  const downloadLibraryResource = (material) => {
+    const url = getMaterialDownloadUrl(apiBase, material, user?.username);
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
+    setContextMenu(null);
+  };
+
+  const deleteLibraryResource = async (material) => {
+    if (!material?.id || !user?.username) return;
+    if (!window.confirm(`Delete ${getDisplayFilename(material)} from programming library?`)) return;
+    const res = await fetch(`${apiBase}/materials/${material.id}?username=${encodeURIComponent(user.username)}`, { method: "DELETE" });
+    const data = await safeJson(res);
+    if (!res.ok) {
+      setStatus(data.detail || "Delete library resource failed");
+      return;
+    }
+    setLibraryMaterials((prev) => prev.filter((item) => item.id !== material.id));
+    closeTab(`library-${material.id}`);
+    setContextMenu(null);
+    setStatus("Library resource deleted.");
+    onProjectChanged?.();
   };
 
   const createFile = async () => {
@@ -585,7 +891,7 @@ export default function ProgrammingWorkbench({
 
   const manualSave = async () => {
     window.clearTimeout(saveTimerRef.current);
-    if (!activeFile) return;
+    if (!activeFile && !activeResource) return;
     await updateProjectFile(activeFile.id, { content: activeFile.content || "" });
   };
 
@@ -845,7 +1151,31 @@ export default function ProgrammingWorkbench({
     if (question) setMessages((prev) => [...prev, { role: "user", content: question }]);
     try {
       await manualSave();
-      const treeText = files.map((file) => `- ${file.relative_path}${file.relative_path === project.entry_file ? " (entry)" : ""}`).join("\n");
+      const treeText = files.map((file) => `- ${file.relative_path}${file.relative_path === project?.entry_file ? " (entry)" : ""}`).join("\n");
+      if (activeResource) {
+        const resourceText = activeResourceContent.content || activeResource.summary || "";
+        const resourceContext = `Resource: ${getDisplayFilename(activeResource)}\nType: ${getResourceKind(activeResource)}\nReadonly StudyMaterial from programming library.\n\n--- Resource text ---\n${resourceText || "No extracted text is available for this resource."}`;
+        const res = await fetch(`${apiBase}/code/analyze`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: user.username,
+            course_id: PROJECT_COURSE_ID,
+            session_id: null,
+            challenge_id: null,
+            language,
+            code: resourceContext,
+            question: text,
+            last_run_result: runResult,
+            last_test_results: null,
+          }),
+        });
+        const data = await safeJson(res);
+        const answer = res.ok ? data.answer || "AI analysis complete." : data.detail || "AI analysis failed.";
+        if (question) setMessages((prev) => [...prev, { role: "assistant", content: answer }]);
+        else setFeedback(answer);
+        return;
+      }
       const related = files
         .filter((file) => file.id !== activeFile.id)
         .slice(0, 5)
@@ -924,7 +1254,18 @@ export default function ProgrammingWorkbench({
       : feedback || "点击 AI 判题后，项目上下文反馈会显示在这里。";
 
   const tree = useMemo(() => buildTree(files), [files]);
-  const tabFiles = openTabs.map((id) => files.find((file) => file.id === id)).filter(Boolean);
+  const projectTabs = openTabs
+    .filter((id) => !String(id).startsWith("library-"))
+    .map((id) => files.find((file) => file.id === id))
+    .filter(Boolean);
+  const resourceTabs = openTabs
+    .filter((id) => String(id).startsWith("library-"))
+    .map((id) => {
+      const material = libraryMaterials.find((item) => `library-${item.id}` === id);
+      return material ? { key: id, material } : null;
+    })
+    .filter(Boolean);
+  const activeResourceContent = activeResource ? resourceContents[`library-${activeResource.id}`] || {} : {};
   const shellClassName = [
     "pw-shell",
     "pw-shell--workspace",
@@ -1039,12 +1380,32 @@ export default function ProgrammingWorkbench({
               ) : (
                 <div className="pw-project-empty-line">暂无项目</div>
               )}
+              <div className="pw-library-root">
+                <button className="pw-tree-root pw-tree-root--library" type="button" onContextMenu={(event) => openContextMenu(event, { type: "library-actions" })}>
+                  <span>v</span>
+                  <i aria-hidden="true" />
+                  <strong>编程文件库</strong>
+                </button>
+                <LibraryResourceTree
+                  materials={libraryMaterials}
+                  activeResourceKey={activeResource ? `library-${activeResource.id}` : ""}
+                  collapsed={collapsedFolders}
+                  onToggle={(path) => setCollapsedFolders((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(path)) next.delete(path);
+                    else next.add(path);
+                    return next;
+                  })}
+                  onOpen={openLibraryResource}
+                  onContextMenu={openContextMenu}
+                />
+              </div>
             </aside>
           )}
 
           <div className="pw-editor-area">
             <div className="pw-file-tabs">
-              {tabFiles.map((file) => (
+              {projectTabs.map((file) => (
                 <button key={file.id} type="button" className={file.id === activeFileId ? "is-active" : ""} onClick={() => setActiveFileId(file.id)} title={file.relative_path}>
                   <span className={"pw-tab-icon pw-tab-icon--" + (getExt(file.relative_path).replace(".", "") || "txt")}>{getFileIcon(file.relative_path)}</span>
                   <span className={dirtyFiles.has(file.id) ? "pw-dirty-dot is-dirty" : "pw-dirty-dot"} />
@@ -1052,10 +1413,59 @@ export default function ProgrammingWorkbench({
                   <b onClick={(event) => { event.stopPropagation(); closeTab(file.id); }}>×</b>
                 </button>
               ))}
+              {resourceTabs.map(({ key, material }) => (
+                <button key={key} type="button" className={key === activeFileId ? "is-active is-readonly" : "is-readonly"} onClick={() => openLibraryResource(material)} title={getDisplayFilename(material)}>
+                  <span className="pw-tab-icon pw-tab-icon--library">{getResourceIcon(material)}</span>
+                  <strong>{getDisplayFilename(material)}</strong>
+                  <em>read-only</em>
+                  <b onClick={(event) => { event.stopPropagation(); closeTab(key); }}>x</b>
+                </button>
+              ))}
               {project && <button type="button" className="pw-tab-add" onClick={createFile}>+</button>}
             </div>
             <div className="pw-editor-card">
-              {activeFile ? (
+              {activeResource ? (
+                <div className="pw-resource-viewer">
+                  <div className="pw-resource-header">
+                    <div>
+                      <strong>{getDisplayFilename(activeResource)}</strong>
+                      <span>{getResourceKind(activeResource)} · readonly · StudyMaterial</span>
+                    </div>
+                    <div className="pw-resource-actions">
+                      {["code", "text", "markdown"].includes(getResourceKind(activeResource)) && project && (
+                        <button type="button" onClick={() => addLibraryResourceToProject(activeResource)}>添加到当前项目</button>
+                      )}
+                      {activeResource.can_download !== false && (
+                        <button type="button" onClick={() => downloadLibraryResource(activeResource)}>下载</button>
+                      )}
+                    </div>
+                  </div>
+                  {activeResourceContent.loading ? (
+                    <div className="pw-resource-empty">Loading resource...</div>
+                  ) : getResourceKind(activeResource) === "markdown" ? (
+                    <MarkdownResourceView value={activeResourceContent.content || activeResource.summary || ""} mode={markdownMode} onModeChange={setMarkdownMode} />
+                  ) : ["code", "text"].includes(getResourceKind(activeResource)) ? (
+                    <Editor
+                      height="100%"
+                      path={"library://" + activeResource.id + "/" + getDisplayFilename(activeResource)}
+                      language={getMonacoLanguage({ relative_path: getMaterialPath(activeResource) })}
+                      value={activeResourceContent.content || activeResource.summary || ""}
+                      theme={theme === "dark" ? "vs-dark" : "light"}
+                      options={{ readOnly: true, minimap: { enabled: false }, lineNumbers: "on", wordWrap: "on", scrollBeyondLastLine: false, automaticLayout: true }}
+                    />
+                  ) : getResourceKind(activeResource) === "pdf" ? (
+                    <iframe className="pw-resource-frame" title={getDisplayFilename(activeResource)} src={activeResourceContent.previewUrl || getMaterialPreviewUrl(apiBase, activeResource, user?.username)} />
+                  ) : getResourceKind(activeResource) === "image" ? (
+                    <div className="pw-image-preview"><img src={activeResourceContent.previewUrl || getMaterialPreviewUrl(apiBase, activeResource, user?.username)} alt={getDisplayFilename(activeResource)} /></div>
+                  ) : (
+                    <div className="pw-resource-empty">
+                      <strong>当前文件类型暂不支持在线预览</strong>
+                      <span>{getDisplayFilename(activeResource)}</span>
+                      {activeResource.can_download !== false && <button type="button" onClick={() => downloadLibraryResource(activeResource)}>下载原文件</button>}
+                    </div>
+                  )}
+                </div>
+              ) : activeFile ? (
                 <Editor
                   height="100%"
                   path={"project://" + project?.id + "/" + activeFile.relative_path}
@@ -1168,7 +1578,7 @@ export default function ProgrammingWorkbench({
             <span>Ln {cursorPosition.lineNumber || 1}, Col {cursorPosition.column || 1}</span>
             <span>UTF-8</span>
             <span>LF</span>
-            <span>{getMonacoLanguage(activeFile) || language}</span>
+            <span>{activeResource ? getResourceKind(activeResource) : getMonacoLanguage(activeFile) || language}</span>
           </div>
         </div>
       </div>
@@ -1234,9 +1644,10 @@ export default function ProgrammingWorkbench({
           {contextMenu.type === "top" && (
             <>
               <button type="button" onClick={() => { selectResultTab("problems"); setContextMenu(null); }}>Problems</button>
-              <button type="button" onClick={() => { analyzeProject(); setContextMenu(null); }} disabled={!activeFile}>AI Feedback</button>
+              <button type="button" onClick={() => { analyzeProject(); setContextMenu(null); }} disabled={!activeFile && !activeResource}>AI Feedback</button>
               <button type="button" onClick={() => { createProject(language, true); setContextMenu(null); }}>New Project</button>
               <button type="button" onClick={() => { setRunConfigOpen(true); setContextMenu(null); }} disabled={!project}>Edit Run Configuration</button>
+              <button type="button" onClick={refreshWorkspace}>Refresh Project Tree</button>
               <button type="button" onClick={() => setFontSize((size) => Math.max(12, size - 1))}>Font Size -</button>
               <button type="button" onClick={() => setFontSize((size) => Math.min(24, size + 1))}>Font Size +</button>
               <button type="button" onClick={() => { setTheme("light"); setContextMenu(null); }}>Light Mode</button>
@@ -1251,7 +1662,7 @@ export default function ProgrammingWorkbench({
               <button type="button" onClick={() => { createProject(language, true); setContextMenu(null); }}>新建项目</button>
             </>
           )}
-          {contextMenu.type !== "file" && contextMenu.type !== "top" && contextMenu.type !== "project-actions" && contextMenu.type !== "project-new" && (
+          {contextMenu.type !== "file" && contextMenu.type !== "top" && contextMenu.type !== "project-actions" && contextMenu.type !== "project-new" && contextMenu.type !== "library-actions" && contextMenu.type !== "library-file" && (
             <>
               <button type="button" onClick={() => createFileInFolder(contextMenu.path)}>新建文件</button>
               <button type="button" onClick={() => createFolderInFolder(contextMenu.path)}>新建文件夹</button>
@@ -1274,6 +1685,24 @@ export default function ProgrammingWorkbench({
               <button type="button" onClick={() => { renameProject(); setContextMenu(null); }} disabled={!project}>重命名项目</button>
               <button type="button" onClick={() => { deleteProject(); setContextMenu(null); }} disabled={!project}>删除项目</button>
               <button type="button" onClick={collapseAllFolders}>折叠全部</button>
+            </>
+          )}
+          {contextMenu.type === "library-actions" && (
+            <>
+              <button type="button" onClick={refreshWorkspace}>Refresh</button>
+              <button type="button" onClick={collapseAllFolders}>Collapse All</button>
+            </>
+          )}
+          {contextMenu.type === "library-file" && (
+            <>
+              <button type="button" onClick={() => { openLibraryResource(contextMenu.material); setContextMenu(null); }}>Open</button>
+              {contextMenu.material?.can_download !== false && (
+                <button type="button" onClick={() => downloadLibraryResource(contextMenu.material)}>Download</button>
+              )}
+              {["code", "text", "markdown"].includes(getResourceKind(contextMenu.material)) && project && (
+                <button type="button" onClick={() => addLibraryResourceToProject(contextMenu.material)}>Add to current project</button>
+              )}
+              <button type="button" onClick={() => deleteLibraryResource(contextMenu.material)}>Delete</button>
             </>
           )}
           {contextMenu.type === "file" && (
