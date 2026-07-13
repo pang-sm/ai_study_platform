@@ -1377,8 +1377,8 @@
   }
 
   .pw-topbar {
-    gap: 5px;
-    padding: 0 6px;
+    gap: 4px;
+    padding: 0 4px;
   }
 
   .pw-run-combo {
@@ -1392,11 +1392,6 @@
 
   .pw-primary-tools button {
     padding: 0 5px;
-  }
-
-  .pw-primary-tools button:nth-child(2),
-  .pw-primary-tools button:nth-child(4) {
-    display: none;
   }
 
   .pw-save-chip {
