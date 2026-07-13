@@ -485,6 +485,7 @@ export default function ProgrammingWorkbench({
   const saveTimerRef = useRef(null);
   const shellRef = useRef(null);
   const editorRef = useRef(null);
+  const focusLayoutRef = useRef(null);
   const activeResource = String(activeFileId || "").startsWith("library-")
     ? libraryMaterials.find((item) => `library-${item.id}` === activeFileId)
     : null;
@@ -725,7 +726,11 @@ export default function ProgrammingWorkbench({
   }, [activeFile?.relative_path, language, project?.entry_file, project?.main_class, uniqueJavaMainClasses]);
 
   useEffect(() => {
-    const closeMenu = () => setContextMenu(null);
+    const closeMenu = (event) => {
+      const target = event.target;
+      if (target?.closest?.("[data-action='top-more'], .pw-context-menu")) return;
+      setContextMenu(null);
+    };
     const closeOnEscape = (event) => {
       if (event.key === "Escape") {
         setContextMenu(null);
@@ -1081,6 +1086,29 @@ export default function ProgrammingWorkbench({
     setOutputCollapsed(false);
   };
 
+  const openFeedback = () => {
+    analyzeProject();
+  };
+
+  const openCoach = () => {
+    setCoachCollapsed(false);
+  };
+
+  const openRunConfig = () => {
+    setRunConfigOpen(true);
+    setContextMenu(null);
+  };
+
+  const adjustFontSize = (delta) => {
+    setFontSize((size) => Math.max(12, Math.min(24, size + delta)));
+    setContextMenu(null);
+  };
+
+  const switchTheme = (nextTheme) => {
+    setTheme(nextTheme);
+    setContextMenu(null);
+  };
+
   const startBottomResize = (event) => {
     event.preventDefault();
     const startY = event.clientY;
@@ -1102,12 +1130,16 @@ export default function ProgrammingWorkbench({
     const next = !focusMode;
     setFocusMode(next);
     if (next) {
+      focusLayoutRef.current = { explorerCollapsed, coachCollapsed, outputCollapsed };
       setExplorerCollapsed(true);
       setCoachCollapsed(true);
       setOutputCollapsed(true);
     } else {
-      setExplorerCollapsed(false);
-      setCoachCollapsed(false);
+      const previous = focusLayoutRef.current;
+      setExplorerCollapsed(previous?.explorerCollapsed ?? false);
+      setCoachCollapsed(previous?.coachCollapsed ?? false);
+      setOutputCollapsed(previous?.outputCollapsed ?? false);
+      focusLayoutRef.current = null;
     }
     relayoutEditor();
     setContextMenu(null);
@@ -1430,13 +1462,13 @@ export default function ProgrammingWorkbench({
             ))}
           </div>
           <div className="pw-run-cluster">
-            <label className="pw-run-combo" title="Run Configuration">
+            <label className="pw-run-combo" title="当前运行配置">
               <select
                 className="pw-run-select"
                 value={language === "Java" ? (project?.main_class || uniqueJavaMainClasses[0] || "") : (project?.entry_file || draftEntryFile || "")}
                 onChange={(event) => changeRunTarget(event.target.value)}
                 disabled={!project}
-                title="Run Configuration"
+                title="当前运行配置"
               >
                 {language === "Java" ? (
                   <>
@@ -1455,22 +1487,37 @@ export default function ProgrammingWorkbench({
                 )}
               </select>
             </label>
-            <button type="button" className="pw-icon-button pw-run-button" data-action="top-run" onClick={runProject} disabled={!project || busy === "run"} title="Run">
-              {busy === "run" ? "..." : "▶"}
+            <button type="button" className="pw-icon-button pw-run-button" data-action="top-run" onClick={runProject} disabled={!project || busy === "run"} title="运行">
+              {busy === "run" ? "..." : "运行"}
             </button>
-            <button type="button" className="pw-icon-button" data-action="top-more" onClick={openTopMenu} title="More">...</button>
+          </div>
+          <div className="pw-toolbar-group pw-primary-tools" aria-label="诊断与 AI">
+            <button type="button" onClick={openProblems} title="打开底部问题窗口">问题</button>
+            <button type="button" onClick={openFeedback} disabled={!activeFile && !activeResource} title="打开底部 AI 判题反馈">AI 判题反馈</button>
+            <button type="button" onClick={openCoach} title="展开 AI 教练">AI 教练</button>
+            <button type="button" onClick={() => createProject(language, true)} title={`新建 ${language} 项目`}>新建项目</button>
+          </div>
+          <div className="pw-toolbar-group pw-secondary-tools" aria-label="项目与编辑器显示">
+            <button type="button" onClick={openRunConfig} disabled={!project} title="编辑运行配置">编辑运行配置</button>
+            <button type="button" onClick={refreshWorkspace} title="刷新项目树">刷新项目树</button>
+            <button type="button" onClick={() => adjustFontSize(-1)} title="缩小字体">A-</button>
+            <button type="button" onClick={() => adjustFontSize(1)} title="放大字体">A+</button>
+            <button type="button" onClick={() => switchTheme("light")} title="浅色模式">浅色</button>
+            <button type="button" onClick={() => switchTheme("dark")} title="深色模式">深色</button>
+            <button type="button" onClick={toggleFocusMode} title={focusMode ? "退出专注编辑" : "专注编辑"}>{focusMode ? "退出专注" : "专注编辑"}</button>
           </div>
           <div className="pw-top-actions">
-            <button type="button" className="pw-diagnostic-chip pw-diagnostic-chip--error" onClick={openProblems} title="打开 Problems 查看错误">
+            <button type="button" className="pw-diagnostic-chip pw-diagnostic-chip--error" onClick={openProblems} title="打开问题查看错误">
               <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5" /></svg>
               <span>{diagnosticSummary.errors}</span>
             </button>
-            <button type="button" className="pw-diagnostic-chip pw-diagnostic-chip--warning" onClick={openProblems} title="打开 Problems 查看警告">
+            <button type="button" className="pw-diagnostic-chip pw-diagnostic-chip--warning" onClick={openProblems} title="打开问题查看警告">
               <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2 14 13H2L8 2Z" /></svg>
               <span>{diagnosticSummary.warnings}</span>
             </button>
             <span className="pw-save-chip">{saveState}</span>
             <button type="button" data-action="fullscreen" onClick={toggleFullscreen}>{isFullscreen || fullscreenFallback ? "退出全屏" : "全屏"}</button>
+            <button type="button" className="pw-icon-button pw-more-button" data-action="top-more" onClick={openTopMenu} title="更多">...</button>
           </div>
         </div>
 
@@ -1637,9 +1684,9 @@ export default function ProgrammingWorkbench({
           {!coachCollapsed && (
             <aside className="pw-coach">
               <div className="pw-coach-head">
-                <span className="pw-tool-title">AI Coach</span>
+                <span className="pw-tool-title">AI 教练</span>
                 <div className="pw-project-tools">
-                  <button type="button" onClick={() => setCoachCollapsed(true)} title="Collapse AI">×</button>
+                  <button type="button" onClick={() => setCoachCollapsed(true)} title="收起 AI 教练">×</button>
                 </div>
               </div>
               <div className="pw-coach-body">
@@ -1674,17 +1721,17 @@ export default function ProgrammingWorkbench({
           {!outputCollapsed && <div className="pw-bottom-resizer" onMouseDown={startBottomResize} />}
           <div className="pw-result-tabs">
             <button type="button" className={activeResultTab === "run" && !outputCollapsed ? "is-active" : ""} onClick={() => selectResultTab("run")}>
-              <span>▷</span> Run
+              <span>▷</span> 运行
             </button>
             <button type="button" className={activeResultTab === "problems" && !outputCollapsed ? "is-active" : ""} onClick={() => selectResultTab("problems")}>
-              <span>!</span> Problems
+              <span>!</span> 问题
             </button>
             <button type="button" className={activeResultTab === "feedback" && !outputCollapsed ? "is-active" : ""} onClick={() => selectResultTab("feedback")}>
-              <span>AI</span> AI Feedback
+              <span>AI</span> AI 判题反馈
             </button>
             <div className="pw-bottom-tools">
-              <button type="button" onClick={() => setRunConfigOpen(true)} title="Edit run configuration">...</button>
-              <button type="button" data-action="toggle-output" onClick={() => setOutputCollapsed(!outputCollapsed)} title={outputCollapsed ? "Expand" : "Collapse"}>{outputCollapsed ? "^" : "×"}</button>
+              <button type="button" onClick={() => setRunConfigOpen(true)} title="编辑运行配置">...</button>
+              <button type="button" data-action="toggle-output" onClick={() => setOutputCollapsed(!outputCollapsed)} title={outputCollapsed ? "展开" : "收起"}>{outputCollapsed ? "^" : "×"}</button>
             </div>
           </div>
           {!outputCollapsed && (
@@ -1692,8 +1739,8 @@ export default function ProgrammingWorkbench({
               {activeResultTab === "problems" ? (
                 <div className="pw-problems-list">
                   <div className="pw-problems-summary">
-                    <span className="pw-problems-error">{diagnosticSummary.errors} errors</span>
-                    <span className="pw-problems-warning">{diagnosticSummary.warnings} warnings</span>
+                    <span className="pw-problems-error">{diagnosticSummary.errors} 个错误</span>
+                    <span className="pw-problems-warning">{diagnosticSummary.warnings} 个警告</span>
                   </div>
                   {activeDiagnostics.length ? activeDiagnostics.map((item, index) => (
                     <button
@@ -1792,17 +1839,13 @@ export default function ProgrammingWorkbench({
         >
           {contextMenu.type === "top" && (
             <>
-              <button type="button" onClick={() => { selectResultTab("problems"); setContextMenu(null); }}>Problems</button>
-              <button type="button" onClick={() => { analyzeProject(); setContextMenu(null); }} disabled={!activeFile && !activeResource}>AI Feedback</button>
-              <button type="button" onClick={() => { setCoachCollapsed(false); setContextMenu(null); }}>AI Coach</button>
-              <button type="button" onClick={() => { createProject(language, true); setContextMenu(null); }}>New Project</button>
-              <button type="button" onClick={() => { setRunConfigOpen(true); setContextMenu(null); }} disabled={!project}>Edit Run Configuration</button>
-              <button type="button" onClick={refreshWorkspace}>Refresh Project Tree</button>
-              <button type="button" onClick={() => setFontSize((size) => Math.max(12, size - 1))}>Font Size -</button>
-              <button type="button" onClick={() => setFontSize((size) => Math.min(24, size + 1))}>Font Size +</button>
-              <button type="button" onClick={() => { setTheme("light"); setContextMenu(null); }}>Light Mode</button>
-              <button type="button" onClick={() => { setTheme("dark"); setContextMenu(null); }}>Dark Mode</button>
-              <button type="button" onClick={toggleFocusMode}>{focusMode ? "Exit Focus Editing" : "Focus Editing"}</button>
+              <button type="button" onClick={openRunConfig} disabled={!project}>编辑运行配置</button>
+              <button type="button" onClick={refreshWorkspace}>刷新项目树</button>
+              <button type="button" onClick={() => adjustFontSize(-1)}>缩小字体</button>
+              <button type="button" onClick={() => adjustFontSize(1)}>放大字体</button>
+              <button type="button" onClick={() => switchTheme("light")}>浅色模式</button>
+              <button type="button" onClick={() => switchTheme("dark")}>深色模式</button>
+              <button type="button" onClick={toggleFocusMode}>{focusMode ? "退出专注编辑" : "专注编辑"}</button>
             </>
           )}
           {contextMenu.type === "project-new" && (
