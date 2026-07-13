@@ -26,7 +26,14 @@ const MONACO_BY_EXT = {
   ".py": "python",
   ".java": "java",
   ".json": "json",
+  ".xml": "xml",
+  ".yaml": "yaml",
+  ".yml": "yaml",
+  ".toml": "ini",
   ".md": "markdown",
+  ".markdown": "markdown",
+  ".csv": "plaintext",
+  ".sh": "shell",
   ".txt": "plaintext",
 };
 
@@ -38,13 +45,21 @@ const SOURCE_EXTENSIONS = {
 };
 
 const HEADER_EXTENSIONS = new Set([".h", ".hpp"]);
-const CODE_RESOURCE_EXTENSIONS = new Set([".c", ".h", ".cpp", ".hpp", ".cc", ".cxx", ".py", ".java", ".js", ".ts", ".json", ".xml", ".yaml", ".yml", ".sh"]);
-const TEXT_RESOURCE_EXTENSIONS = new Set([".txt", ".log", ".csv"]);
+const CODE_RESOURCE_EXTENSIONS = new Set([".c", ".h", ".cpp", ".hpp", ".cc", ".cxx", ".py", ".java", ".js", ".ts", ".sh"]);
+const TEXT_RESOURCE_EXTENSIONS = new Set([".txt", ".csv", ".json", ".xml", ".yaml", ".yml", ".toml"]);
 const MARKDOWN_EXTENSIONS = new Set([".md", ".markdown"]);
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"]);
 const PDF_EXTENSIONS = new Set([".pdf"]);
-const OFFICE_EXTENSIONS = new Set([".docx", ".xlsx", ".pptx"]);
+const OFFICE_EXTENSIONS = new Set([".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx"]);
 const ARCHIVE_EXTENSIONS = new Set([".zip", ".rar", ".tar", ".gz", ".tgz", ".7z"]);
+const IDE_TEXT_RESOURCE_EXTENSIONS = new Set([...CODE_RESOURCE_EXTENSIONS, ...TEXT_RESOURCE_EXTENSIONS, ...MARKDOWN_EXTENSIONS]);
+const LANGUAGE_RESOURCE_EXTENSIONS = {
+  C: new Set([".c", ".h"]),
+  "C++": new Set([".cpp", ".hpp", ".cc", ".cxx", ".h"]),
+  Python: new Set([".py"]),
+  Java: new Set([".java"]),
+};
+const COMMON_DEV_TEXT_EXTENSIONS = new Set([".md", ".markdown", ".csv", ".json", ".xml", ".yaml", ".yml", ".toml", ".txt", ".sh", ".js", ".ts"]);
 
 function safeJson(res) {
   return res.json().catch(() => ({}));
@@ -82,6 +97,77 @@ function getResourceKind(item = {}) {
   if (OFFICE_EXTENSIONS.has(ext)) return "office";
   if (ARCHIVE_EXTENSIONS.has(ext)) return "archive";
   return "binary";
+}
+
+function isIdeTextResource(item = {}) {
+  const ext = getExt(getMaterialPath(item));
+  return IDE_TEXT_RESOURCE_EXTENSIONS.has(ext);
+}
+
+function isResourceForLanguage(item = {}, language = "") {
+  const ext = getExt(getMaterialPath(item));
+  if (!isIdeTextResource(item)) return false;
+  if (COMMON_DEV_TEXT_EXTENSIONS.has(ext)) return true;
+  return LANGUAGE_RESOURCE_EXTENSIONS[language]?.has(ext) || false;
+}
+
+function getProblemText(result) {
+  return [result?.compile_error, result?.stderr, result?.error_message].filter(Boolean).join("\n");
+}
+
+function parseCompilerDiagnostics(result, activeProject) {
+  const text = getProblemText(result);
+  if (!text.trim()) return [];
+  const lines = text.split(/\r?\n/);
+  const items = [];
+  const pushItem = (item) => {
+    const message = String(item.message || "").trim();
+    if (!message) return;
+    items.push({
+      severity: item.severity || (/warning/i.test(message) ? "warning" : "error"),
+      file: item.file || activeProject?.entry_file || "",
+      line: item.line || null,
+      column: item.column || null,
+      message,
+      source: "compiler",
+    });
+  };
+
+  for (const line of lines) {
+    const gcc = /^(.*?):(\d+):(\d+):\s+(fatal error|error|warning):\s+(.*)$/i.exec(line);
+    if (gcc) {
+      pushItem({ file: gcc[1], line: Number(gcc[2]), column: Number(gcc[3]), severity: gcc[4].toLowerCase().includes("warning") ? "warning" : "error", message: gcc[5] });
+      continue;
+    }
+    const javac = /^(.*?\.java):(\d+):\s+(error|warning):\s+(.*)$/i.exec(line);
+    if (javac) {
+      pushItem({ file: javac[1], line: Number(javac[2]), severity: javac[3].toLowerCase(), message: javac[4] });
+      continue;
+    }
+    const pythonFile = /^\s*File\s+"([^"]+)",\s+line\s+(\d+)/.exec(line);
+    if (pythonFile) {
+      pushItem({ file: pythonFile[1], line: Number(pythonFile[2]), severity: "error", message: lines[lines.indexOf(line) + 1] || "Python syntax error" });
+      continue;
+    }
+    if (/\b(error|warning)\b/i.test(line)) {
+      pushItem({ message: line });
+    }
+  }
+  if (!items.length && result?.exit_code && result.exit_code !== 0) {
+    pushItem({ message: text.split(/\r?\n/).find(Boolean) || "运行或编译失败" });
+  }
+  return items;
+}
+
+function markerToProblem(marker, file) {
+  return {
+    severity: marker.severity === 8 ? "error" : "warning",
+    file: file?.relative_path || "",
+    line: marker.startLineNumber || null,
+    column: marker.startColumn || null,
+    message: marker.message || "Monaco diagnostic",
+    source: "monaco",
+  };
 }
 
 function getMaterialPreviewUrl(apiBase, material, username) {
@@ -281,80 +367,29 @@ function TreeNode({
 function LibraryResourceTree({
   materials,
   activeResourceKey,
-  collapsed,
-  onToggle,
   onOpen,
   onContextMenu,
 }) {
-  const grouped = useMemo(() => {
-    const buckets = {
-      code: [],
-      markdown: [],
-      text: [],
-      pdf: [],
-      image: [],
-      office: [],
-      archive: [],
-      binary: [],
-    };
-    materials.forEach((item) => {
-      const kind = getResourceKind(item);
-      (buckets[kind] || buckets.binary).push(item);
-    });
-    return buckets;
-  }, [materials]);
-  const groups = [
-    ["code", "Code"],
-    ["markdown", "Markdown"],
-    ["text", "Text"],
-    ["pdf", "PDF"],
-    ["image", "Images"],
-    ["office", "Office"],
-    ["archive", "Archives"],
-    ["binary", "Other"],
-  ].filter(([key]) => grouped[key]?.length);
-
-  if (!materials.length) {
-    return <div className="pw-project-empty-line">No programming library resources</div>;
-  }
-
   return (
-    <div className="pw-library-tree">
-      {groups.map(([key, label]) => {
-        const isCollapsed = collapsed.has(`library:${key}`);
+    <>
+      {materials.map((item) => {
+        const resourceKey = `library-${item.id}`;
+        const name = getDisplayFilename(item);
         return (
-          <div key={key}>
-            <button
-              type="button"
-              className="pw-tree-folder"
-              style={{ paddingLeft: 10 }}
-              onClick={() => onToggle(`library:${key}`)}
-            >
-              <span>{isCollapsed ? ">" : "v"}</span>
-              <strong>{label}</strong>
-              <em>{grouped[key].length}</em>
+          <div
+            key={resourceKey}
+            className={`pw-tree-file pw-tree-file--library${activeResourceKey === resourceKey ? " is-active" : ""}`}
+            style={{ paddingLeft: 12 }}
+            onContextMenu={(event) => onContextMenu(event, { type: "library-file", material: item })}
+          >
+            <button type="button" onClick={() => onOpen(item)} title={name}>
+              <span>{getResourceIcon(item)}</span>
+              <strong>{name}</strong>
             </button>
-            {!isCollapsed && grouped[key].map((item) => {
-              const resourceKey = `library-${item.id}`;
-              const name = getDisplayFilename(item);
-              return (
-                <div
-                  key={resourceKey}
-                  className={`pw-tree-file pw-tree-file--library${activeResourceKey === resourceKey ? " is-active" : ""}`}
-                  style={{ paddingLeft: 24 }}
-                  onContextMenu={(event) => onContextMenu(event, { type: "library-file", material: item })}
-                >
-                  <button type="button" onClick={() => onOpen(item)} title={name}>
-                    <span>{getResourceIcon(item)}</span>
-                    <strong>{name}</strong>
-                  </button>
-                </div>
-              );
-            })}
           </div>
         );
       })}
-    </div>
+    </>
   );
 }
 
@@ -411,6 +446,8 @@ export default function ProgrammingWorkbench({
   const onboardingLanguage = normalizeLanguage(homeData?.onboarding?.main_language || user?.default_course_id || "");
   const [projects, setProjects] = useState([]);
   const [libraryMaterials, setLibraryMaterials] = useState([]);
+  const [projectFileCache, setProjectFileCache] = useState({});
+  const [expandedProjectIds, setExpandedProjectIds] = useState(() => new Set());
   const [selectedLanguage, setSelectedLanguage] = useState(() => normalizeLanguage(initialLanguageSelection) || onboardingLanguage || "Python");
   const [project, setProject] = useState(null);
   const [files, setFiles] = useState([]);
@@ -428,6 +465,8 @@ export default function ProgrammingWorkbench({
   const [cursorPosition, setCursorPosition] = useState({ lineNumber: 1, column: 1 });
   const [focusMode, setFocusMode] = useState(false);
   const [runResult, setRunResult] = useState(null);
+  const [compileDiagnostics, setCompileDiagnostics] = useState([]);
+  const [monacoDiagnostics, setMonacoDiagnostics] = useState([]);
   const [feedback, setFeedback] = useState("");
   const [messages, setMessages] = useState([]);
   const [coachQuestion, setCoachQuestion] = useState("");
@@ -502,6 +541,20 @@ export default function ProgrammingWorkbench({
     () => projects.filter((item) => normalizeLanguage(item.language) === language),
     [language, projects],
   );
+  const visibleLibraryMaterials = useMemo(
+    () => libraryMaterials
+      .filter((item) => isResourceForLanguage(item, language))
+      .sort((a, b) => getDisplayFilename(a).localeCompare(getDisplayFilename(b), "zh-CN")),
+    [language, libraryMaterials],
+  );
+  const activeDiagnostics = compileDiagnostics.length
+    ? compileDiagnostics
+    : monacoDiagnostics.filter((marker) => marker.severity === 8 || marker.severity === 4).map((marker) => markerToProblem(marker, activeFile));
+  const diagnosticSummary = activeDiagnostics.reduce((acc, item) => {
+    if (item.severity === "warning") acc.warnings += 1;
+    else acc.errors += 1;
+    return acc;
+  }, { errors: 0, warnings: 0 });
 
   const loadProject = useCallback(async (projectId) => {
     if (!user?.username || !projectId) return null;
@@ -515,14 +568,58 @@ export default function ProgrammingWorkbench({
     setSelectedLanguage(normalizeLanguage(nextProject.language));
     setProject(nextProject);
     setFiles(nextProject.files || []);
+    setProjectFileCache((prev) => ({ ...prev, [nextProject.id]: nextProject.files || [] }));
+    setExpandedProjectIds((prev) => new Set(prev).add(nextProject.id));
     const firstFile = nextProject.files?.find((file) => file.relative_path === nextProject.entry_file) || nextProject.files?.[0];
     setActiveFileId(firstFile?.id || null);
     setOpenTabs(firstFile ? [firstFile.id] : []);
     setDirtyFiles(new Set());
     setSaveState("已保存");
+    setCompileDiagnostics([]);
+    setMonacoDiagnostics([]);
     relayoutEditor();
     return nextProject;
   }, [apiBase, relayoutEditor, user?.username]);
+
+  const ensureProjectFiles = useCallback(async (projectId) => {
+    if (!user?.username || !projectId) return [];
+    if (projectFileCache[projectId]) return projectFileCache[projectId];
+    const res = await fetch(`${apiBase}/code/projects/${projectId}?username=${encodeURIComponent(user.username)}`);
+    const data = await safeJson(res);
+    if (!res.ok || !data.project) {
+      setStatus(data.detail || "项目文件读取失败");
+      return [];
+    }
+    const nextFiles = data.project.files || [];
+    setProjectFileCache((prev) => ({ ...prev, [projectId]: nextFiles }));
+    return nextFiles;
+  }, [apiBase, projectFileCache, user?.username]);
+
+  const toggleProjectExpanded = useCallback(async (item) => {
+    if (!item?.id) return;
+    const isExpanded = expandedProjectIds.has(item.id);
+    if (isExpanded) {
+      setExpandedProjectIds((prev) => {
+        const next = new Set(prev);
+        next.delete(item.id);
+        return next;
+      });
+      return;
+    }
+    setExpandedProjectIds((prev) => new Set(prev).add(item.id));
+    await ensureProjectFiles(item.id);
+  }, [ensureProjectFiles, expandedProjectIds]);
+
+  const activateProject = useCallback(async (item) => {
+    if (!item?.id) return;
+    await loadProject(item.id);
+  }, [loadProject]);
+
+  const openProjectFile = useCallback(async (projectId, fileId) => {
+    if (project?.id !== projectId) await loadProject(projectId);
+    setActiveFileId(fileId);
+    setOpenTabs((prev) => (prev.includes(fileId) ? prev : [...prev, fileId]));
+  }, [loadProject, project?.id]);
 
   const loadProjects = useCallback(async () => {
     if (!user?.username) return;
@@ -891,7 +988,7 @@ export default function ProgrammingWorkbench({
 
   const manualSave = async () => {
     window.clearTimeout(saveTimerRef.current);
-    if (!activeFile && !activeResource) return;
+    if (!activeFile) return;
     await updateProjectFile(activeFile.id, { content: activeFile.content || "" });
   };
 
@@ -1104,6 +1201,26 @@ export default function ProgrammingWorkbench({
     await runProject({ entryFile: file.relative_path, mainClass: javaMain || project.main_class });
   };
 
+  const openProblem = async (item) => {
+    if (!item?.file) return;
+    const normalizedFile = String(item.file).replace(/\\/g, "/").replace(/^\.?\//, "");
+    const matched = files.find((file) => file.relative_path === normalizedFile || file.relative_path.endsWith(`/${normalizedFile}`) || normalizedFile.endsWith(file.relative_path));
+    if (!matched) return;
+    openFile(matched.id);
+    window.requestAnimationFrame(() => {
+      if (item.line && editorRef.current?.revealLineInCenter) {
+        editorRef.current.revealLineInCenter(Number(item.line));
+        editorRef.current.setPosition?.({ lineNumber: Number(item.line), column: Number(item.column || 1) });
+        editorRef.current.focus?.();
+      }
+    });
+  };
+
+  const openProblems = () => {
+    setActiveResultTab("problems");
+    setOutputCollapsed(false);
+  };
+
   const runProject = async (override = {}) => {
     if (!project?.id) return;
     if (language === "Java" && uniqueJavaMainClasses.length > 1 && !project.main_class && !override.mainClass) {
@@ -1120,6 +1237,7 @@ export default function ProgrammingWorkbench({
     setOutputCollapsed(false);
     setActiveResultTab("run");
     setRunResult(null);
+    setCompileDiagnostics([]);
     try {
       const res = await fetch(`${apiBase}/code/projects/${project.id}/execute`, {
         method: "POST",
@@ -1134,9 +1252,13 @@ export default function ProgrammingWorkbench({
         }),
       });
       const data = await safeJson(res);
-      setRunResult(res.ok ? data : { exit_code: -1, error_message: data.detail || "运行失败" });
+      const nextResult = res.ok ? data : { exit_code: -1, error_message: data.detail || "运行失败" };
+      setRunResult(nextResult);
+      setCompileDiagnostics(parseCompilerDiagnostics(nextResult, project));
     } catch {
-      setRunResult({ exit_code: -1, error_message: "无法连接后端服务。" });
+      const nextResult = { exit_code: -1, error_message: "无法连接后端服务。" };
+      setRunResult(nextResult);
+      setCompileDiagnostics(parseCompilerDiagnostics(nextResult, project));
     } finally {
       setBusy("");
     }
@@ -1144,7 +1266,7 @@ export default function ProgrammingWorkbench({
 
   const analyzeProject = async (question) => {
     const text = question || "请基于当前项目上下文进行判题式分析，指出错误、可改进点和下一步建议。";
-    if (!activeFile) return;
+    if (!activeFile && !activeResource) return;
     setBusy(question ? "coach" : "feedback");
     setOutputCollapsed(false);
     setActiveResultTab(question ? activeResultTab : "feedback");
@@ -1241,6 +1363,8 @@ export default function ProgrammingWorkbench({
     setOpenTabs([]);
     setActiveFileId(null);
     setRunResult(null);
+    setCompileDiagnostics([]);
+    setMonacoDiagnostics([]);
     setFeedback("");
     setStatus("");
     setOutputCollapsed(true);
@@ -1250,7 +1374,7 @@ export default function ProgrammingWorkbench({
   const resultText = activeResultTab === "run"
     ? formatRunResult(runResult)
     : activeResultTab === "problems"
-      ? "当前普通项目暂无测试配置。关联 AI 编程题后可运行 challenge tests。"
+      ? ""
       : feedback || "点击 AI 判题后，项目上下文反馈会显示在这里。";
 
   const tree = useMemo(() => buildTree(files), [files]);
@@ -1281,11 +1405,18 @@ export default function ProgrammingWorkbench({
     <section className={shellClassName} ref={shellRef} data-workspace-language={selectedLanguage || ""}>
       <div className="pw-center">
         <div className="pw-topbar">
-          <div className="pw-brand-mark" aria-hidden="true">◇</div>
-          <div className="pw-title-block">
-            <strong title={project?.name || language}>{project?.name || language}</strong>
-          </div>
           <div className="pw-language-segment" aria-label="Programming language">
+            {explorerCollapsed && (
+              <button
+                type="button"
+                className="pw-tree-restore"
+                onClick={() => setExplorerCollapsed(false)}
+                title="显示文件树"
+                aria-label="显示文件树"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h7l2 3h9v9H3V7Z" /></svg>
+              </button>
+            )}
             {LANGUAGE_TABS.map((item) => (
               <button
                 key={item}
@@ -1300,7 +1431,6 @@ export default function ProgrammingWorkbench({
           </div>
           <div className="pw-run-cluster">
             <label className="pw-run-combo" title="Run Configuration">
-              <span className={"pw-lang-badge pw-lang-badge--" + language.toLowerCase().replace(/[^a-z0-9]+/g, "-")}>{LANGUAGE_META[language]?.mark || language}</span>
               <select
                 className="pw-run-select"
                 value={language === "Java" ? (project?.main_class || uniqueJavaMainClasses[0] || "") : (project?.entry_file || draftEntryFile || "")}
@@ -1326,76 +1456,79 @@ export default function ProgrammingWorkbench({
               </select>
             </label>
             <button type="button" className="pw-icon-button pw-run-button" data-action="top-run" onClick={runProject} disabled={!project || busy === "run"} title="Run">
-              {busy === "run" ? "..." : "▷"}
+              {busy === "run" ? "..." : "▶"}
             </button>
             <button type="button" className="pw-icon-button" data-action="top-more" onClick={openTopMenu} title="More">...</button>
           </div>
           <div className="pw-top-actions">
+            <button type="button" className="pw-diagnostic-chip pw-diagnostic-chip--error" onClick={openProblems} title="打开 Problems 查看错误">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5" /></svg>
+              <span>{diagnosticSummary.errors}</span>
+            </button>
+            <button type="button" className="pw-diagnostic-chip pw-diagnostic-chip--warning" onClick={openProblems} title="打开 Problems 查看警告">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2 14 13H2L8 2Z" /></svg>
+              <span>{diagnosticSummary.warnings}</span>
+            </button>
             <span className="pw-save-chip">{saveState}</span>
             <button type="button" data-action="fullscreen" onClick={toggleFullscreen}>{isFullscreen || fullscreenFallback ? "退出全屏" : "全屏"}</button>
           </div>
         </div>
 
         <div className="pw-workbench-body">
-          <nav className="pw-tool-rail pw-tool-rail--left" aria-label="Tool windows">
-            <button type="button" className={explorerCollapsed ? "" : "is-active"} onClick={() => setExplorerCollapsed(!explorerCollapsed)} title="Project">
-              <span className="pw-rail-icon" aria-hidden="true">▣</span>
-            </button>
-          </nav>
-
           {!explorerCollapsed && (
             <aside className="pw-explorer">
-              <div className="pw-explorer-head">
-                <span className="pw-tool-title">Project</span>
-                <div className="pw-project-tools">
-                  <button type="button" onClick={(event) => openContextMenu(event, { type: "project-new", path: "" })} title="New">+</button>
-                  <button type="button" onClick={(event) => openContextMenu(event, { type: "project-actions", path: "" })} disabled={!project} title="Project actions">...</button>
-                </div>
+              <div className="pw-floating-tools">
+                <button type="button" onClick={(event) => openContextMenu(event, { type: "project-new", path: "" })} title="新建">+</button>
+                <button type="button" onClick={() => setExplorerCollapsed(true)} title="折叠文件树">‹</button>
               </div>
-              {project ? (
-                <div className="pw-tree-shell">
-                  <button className="pw-tree-root" type="button" onContextMenu={(event) => openContextMenu(event, { type: "root", path: "" })}>
-                    <span>v</span>
-                    <i aria-hidden="true" />
-                    <strong title={project.name}>{project.name}</strong>
-                  </button>
-                  <div className="pw-tree">
-                    <TreeNode
-                      node={tree}
-                      activeFileId={activeFileId}
-                      collapsedFolders={collapsedFolders}
-                      onToggleFolder={(path) => setCollapsedFolders((prev) => {
-                        const next = new Set(prev);
-                        if (next.has(path)) next.delete(path);
-                        else next.add(path);
-                        return next;
-                      })}
-                      onOpenFile={openFile}
-                      onRenameFile={renameFile}
-                      onDeleteFile={deleteFile}
-                      onContextMenu={openContextMenu}
-                    />
-                  </div>
-                </div>
-              ) : (
-                <div className="pw-project-empty-line">暂无项目</div>
-              )}
-              <div className="pw-library-root">
-                <button className="pw-tree-root pw-tree-root--library" type="button" onContextMenu={(event) => openContextMenu(event, { type: "library-actions" })}>
-                  <span>v</span>
-                  <i aria-hidden="true" />
-                  <strong>编程文件库</strong>
-                </button>
+              <div className="pw-tree">
+                {filteredProjects.map((item) => {
+                  const isExpanded = expandedProjectIds.has(item.id);
+                  const isActiveProject = project?.id === item.id;
+                  const projectFiles = isActiveProject ? files : (projectFileCache[item.id] || []);
+                  const projectTree = buildTree(projectFiles);
+                  return (
+                    <div key={item.id} className="pw-tree-shell">
+                      <button
+                        className={`pw-tree-root${isActiveProject ? " is-active" : ""}`}
+                        type="button"
+                        onClick={() => toggleProjectExpanded(item)}
+                        onDoubleClick={() => activateProject(item)}
+                        onContextMenu={(event) => {
+                          if (isActiveProject) openContextMenu(event, { type: "root", path: "" });
+                          else openContextMenu(event, { type: "project-switch", project: item });
+                        }}
+                      >
+                        <span>{isExpanded ? "▾" : "▸"}</span>
+                        <i aria-hidden="true" />
+                        <strong title={item.name}>{item.name}</strong>
+                      </button>
+                      {isExpanded && (
+                        <TreeNode
+                          node={projectTree}
+                          activeFileId={isActiveProject ? activeFileId : null}
+                          collapsedFolders={collapsedFolders}
+                          onToggleFolder={(path) => setCollapsedFolders((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(path)) next.delete(path);
+                            else next.add(path);
+                            return next;
+                          })}
+                          onOpenFile={(fileId) => openProjectFile(item.id, fileId)}
+                          onRenameFile={isActiveProject ? renameFile : () => activateProject(item)}
+                          onDeleteFile={isActiveProject ? deleteFile : () => activateProject(item)}
+                          onContextMenu={(event, target) => {
+                            if (isActiveProject) openContextMenu(event, target);
+                            else openContextMenu(event, { type: "project-switch", project: item });
+                          }}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
                 <LibraryResourceTree
-                  materials={libraryMaterials}
+                  materials={visibleLibraryMaterials}
                   activeResourceKey={activeResource ? `library-${activeResource.id}` : ""}
-                  collapsed={collapsedFolders}
-                  onToggle={(path) => setCollapsedFolders((prev) => {
-                    const next = new Set(prev);
-                    if (next.has(path)) next.delete(path);
-                    else next.add(path);
-                    return next;
-                  })}
                   onOpen={openLibraryResource}
                   onContextMenu={openContextMenu}
                 />
@@ -1453,13 +1586,9 @@ export default function ProgrammingWorkbench({
                       theme={theme === "dark" ? "vs-dark" : "light"}
                       options={{ readOnly: true, minimap: { enabled: false }, lineNumbers: "on", wordWrap: "on", scrollBeyondLastLine: false, automaticLayout: true }}
                     />
-                  ) : getResourceKind(activeResource) === "pdf" ? (
-                    <iframe className="pw-resource-frame" title={getDisplayFilename(activeResource)} src={activeResourceContent.previewUrl || getMaterialPreviewUrl(apiBase, activeResource, user?.username)} />
-                  ) : getResourceKind(activeResource) === "image" ? (
-                    <div className="pw-image-preview"><img src={activeResourceContent.previewUrl || getMaterialPreviewUrl(apiBase, activeResource, user?.username)} alt={getDisplayFilename(activeResource)} /></div>
                   ) : (
                     <div className="pw-resource-empty">
-                      <strong>当前文件类型暂不支持在线预览</strong>
+                      <strong>此资源不适合在 IDE 工作台中打开</strong>
                       <span>{getDisplayFilename(activeResource)}</span>
                       {activeResource.can_download !== false && <button type="button" onClick={() => downloadLibraryResource(activeResource)}>下载原文件</button>}
                     </div>
@@ -1482,8 +1611,10 @@ export default function ProgrammingWorkbench({
                     const nextContent = value || "";
                     setFiles((prev) => prev.map((file) => (file.id === activeFile.id ? { ...file, content: nextContent } : file)));
                     setDirtyFiles((prev) => new Set(prev).add(activeFile.id));
+                    setCompileDiagnostics([]);
                     scheduleAutosave(activeFile.id, nextContent);
                   }}
+                  onValidate={(markers) => setMonacoDiagnostics(markers || [])}
                   options={{
                     fontSize,
                     minimap: { enabled: false },
@@ -1537,12 +1668,6 @@ export default function ProgrammingWorkbench({
               <small>AI 生成的内容仅供参考，请结合自身思考。</small>
             </aside>
           )}
-
-          <nav className="pw-tool-rail pw-tool-rail--right" aria-label="Right tool windows">
-            <button type="button" className={coachCollapsed ? "" : "is-active"} onClick={() => setCoachCollapsed(!coachCollapsed)} title="AI Coach">
-              <span className="pw-rail-icon" aria-hidden="true">AI</span>
-            </button>
-          </nav>
         </div>
 
         <div className="pw-bottom-toolwindow" style={{ height: outputCollapsed ? 32 : bottomHeight }}>
@@ -1564,7 +1689,31 @@ export default function ProgrammingWorkbench({
           </div>
           {!outputCollapsed && (
             <div className="pw-results">
-              <pre>{resultText}</pre>
+              {activeResultTab === "problems" ? (
+                <div className="pw-problems-list">
+                  <div className="pw-problems-summary">
+                    <span className="pw-problems-error">{diagnosticSummary.errors} errors</span>
+                    <span className="pw-problems-warning">{diagnosticSummary.warnings} warnings</span>
+                  </div>
+                  {activeDiagnostics.length ? activeDiagnostics.map((item, index) => (
+                    <button
+                      key={`${item.source}-${item.file}-${item.line}-${index}`}
+                      type="button"
+                      className={`pw-problem-row pw-problem-row--${item.severity}`}
+                      onClick={() => openProblem(item)}
+                    >
+                      <span>{item.severity}</span>
+                      <strong>{item.file || "当前项目"}</strong>
+                      <em>{item.line ? `${item.line}${item.column ? `:${item.column}` : ""}` : "-"}</em>
+                      <b>{item.message}</b>
+                    </button>
+                  )) : (
+                    <div className="pw-problems-empty">当前项目没有真实诊断问题。</div>
+                  )}
+                </div>
+              ) : (
+                <pre>{resultText}</pre>
+              )}
             </div>
           )}
         </div>
@@ -1645,6 +1794,7 @@ export default function ProgrammingWorkbench({
             <>
               <button type="button" onClick={() => { selectResultTab("problems"); setContextMenu(null); }}>Problems</button>
               <button type="button" onClick={() => { analyzeProject(); setContextMenu(null); }} disabled={!activeFile && !activeResource}>AI Feedback</button>
+              <button type="button" onClick={() => { setCoachCollapsed(false); setContextMenu(null); }}>AI Coach</button>
               <button type="button" onClick={() => { createProject(language, true); setContextMenu(null); }}>New Project</button>
               <button type="button" onClick={() => { setRunConfigOpen(true); setContextMenu(null); }} disabled={!project}>Edit Run Configuration</button>
               <button type="button" onClick={refreshWorkspace}>Refresh Project Tree</button>
@@ -1685,6 +1835,11 @@ export default function ProgrammingWorkbench({
               <button type="button" onClick={() => { renameProject(); setContextMenu(null); }} disabled={!project}>重命名项目</button>
               <button type="button" onClick={() => { deleteProject(); setContextMenu(null); }} disabled={!project}>删除项目</button>
               <button type="button" onClick={collapseAllFolders}>折叠全部</button>
+            </>
+          )}
+          {contextMenu.type === "project-switch" && (
+            <>
+              <button type="button" onClick={() => { activateProject(contextMenu.project); setContextMenu(null); }}>切换到此项目</button>
             </>
           )}
           {contextMenu.type === "library-actions" && (
