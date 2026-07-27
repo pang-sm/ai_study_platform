@@ -239,13 +239,10 @@ jobs:
           git clone --depth 1 https://github.com/exercism/c.git "$EXERCISM_SOURCE_ROOT/c"
           git clone --depth 1 https://github.com/exercism/cpp.git "$EXERCISM_SOURCE_ROOT/cpp"
           git clone --depth 1 https://github.com/exercism/python.git "$EXERCISM_SOURCE_ROOT/python"
+          git clone --depth 1 https://github.com/exercism/java.git "$EXERCISM_SOURCE_ROOT/java"
           DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python scripts/import_exercism_exercises.py \
             --source-root "$EXERCISM_SOURCE_ROOT" \
-            --languages Python \
-            --max-per-language 25
-          DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python scripts/import_exercism_exercises.py \
-            --source-root "$EXERCISM_SOURCE_ROOT" \
-            --languages C++ \
+            --languages C,C++,Python,Java \
             --max-per-language 25
           rm -rf "$EXERCISM_SOURCE_ROOT"
           DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python exam_resources/11408/data_structure/chapter_questions/build_data_structure_chapter_questions.py || echo "[deploy] WARN: DS build failed"

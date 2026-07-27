@@ -117,7 +117,6 @@ def audit_reference(language: str, exercise_dir: Path, reference_files: list[dic
             "Python": ["python", "-m", "unittest", "discover", "-v", "-p", "*_test.py"],
             "C": ["gcc", "-std=c99", "-DUNITY_SUPPORT_64", "-DUNITY_OUTPUT_COLOR", "test-framework/unity.c", "-o", "tests.exe"],
             "C++": ["cmake", "-S", ".", "-B", "build", "-DEXERCISM_RUN_ALL_TESTS=ON"],
-            "Java": ["cmd", "/c", str(temp / "gradlew.bat"), "test", "--no-daemon"],
         }
         if language == "C++":
             ok, output = run(commands[language], temp)
@@ -137,6 +136,14 @@ def audit_reference(language: str, exercise_dir: Path, reference_files: list[dic
             ok, output = run(commands[language] + [str(path.name) for path in temp.glob("*.c")], temp)
             if ok:
                 ok, output = run([str(temp / "tests.exe")], temp)
+        elif language == "Java":
+            gradle_wrapper = temp / ("gradlew.bat" if os.name == "nt" else "gradlew")
+            if gradle_wrapper.is_file():
+                if os.name != "nt":
+                    gradle_wrapper.chmod(gradle_wrapper.stat().st_mode | 0o111)
+                ok, output = run([str(gradle_wrapper), "test", "--no-daemon"], temp)
+            else:
+                ok, output = run(["gradle", "test", "--no-daemon"], temp)
         else:
             ok, output = run(commands[language], temp)
         return ok, {"reference": "pass" if ok else "fail", "output": output}
