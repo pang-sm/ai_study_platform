@@ -227,14 +227,17 @@ function normalizeLanguage(value) {
 
 function formatRunResult(result) {
   if (!result) return "点击运行后，当前项目入口文件的真实输出会显示在这里。";
-  const lines = [];
-  if (result.stdout) lines.push(result.stdout.trimEnd());
-  if (result.stderr) lines.push(result.stderr.trimEnd());
-  if (result.compile_error) lines.push(result.compile_error.trimEnd());
-  if (result.error_message) lines.push(result.error_message);
-  lines.push(`exit_code: ${result.exit_code ?? "-"}`);
+  return result.stdout?.trimEnd() || (result.exit_code === 0 ? "程序已运行完成，无输出。" : "程序运行失败，请展开运行详情查看错误信息。");
+}
+
+function formatRunDetails(result) {
+  if (!result) return "";
+  const lines = [`exit_code: ${result.exit_code ?? "-"}`];
   if (result.duration_ms != null) lines.push(`duration: ${result.duration_ms}ms`);
-  return lines.filter(Boolean).join("\n") || "程序已运行完成，无输出。";
+  if (result.stderr) lines.push(`stderr\n${result.stderr.trimEnd()}`);
+  if (result.compile_error) lines.push(`编译信息\n${result.compile_error.trimEnd()}`);
+  if (result.error_message) lines.push(`错误信息\n${result.error_message}`);
+  return lines.join("\n");
 }
 
 function readUiPreference(key, fallback) {
@@ -465,10 +468,12 @@ export default function ProgrammingWorkbench({
   const [cursorPosition, setCursorPosition] = useState({ lineNumber: 1, column: 1 });
   const [focusMode, setFocusMode] = useState(false);
   const [runResult, setRunResult] = useState(null);
+  const [runDetailsOpen, setRunDetailsOpen] = useState(false);
   const [compileDiagnostics, setCompileDiagnostics] = useState([]);
   const [monacoDiagnostics, setMonacoDiagnostics] = useState([]);
   const [feedback, setFeedback] = useState("");
   const [messages, setMessages] = useState([]);
+  const [coachSuggestionsVisible, setCoachSuggestionsVisible] = useState(true);
   const [coachQuestion, setCoachQuestion] = useState("");
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState("");
@@ -1277,6 +1282,7 @@ export default function ProgrammingWorkbench({
     setOutputCollapsed(false);
     setActiveResultTab("run");
     setRunResult(null);
+    setRunDetailsOpen(false);
     setCompileDiagnostics([]);
     try {
       const res = await fetch(`${apiBase}/code/projects/${project.id}/execute`, {
@@ -1294,10 +1300,12 @@ export default function ProgrammingWorkbench({
       const data = await safeJson(res);
       const nextResult = res.ok ? data : { exit_code: -1, error_message: data.detail || "运行失败" };
       setRunResult(nextResult);
+      setRunDetailsOpen(nextResult.exit_code !== 0 || Boolean(nextResult.stderr || nextResult.compile_error || nextResult.error_message));
       setCompileDiagnostics(parseCompilerDiagnostics(nextResult, project));
     } catch {
       const nextResult = { exit_code: -1, error_message: "无法连接后端服务。" };
       setRunResult(nextResult);
+      setRunDetailsOpen(true);
       setCompileDiagnostics(parseCompilerDiagnostics(nextResult, project));
     } finally {
       setBusy("");
@@ -1310,7 +1318,10 @@ export default function ProgrammingWorkbench({
     setBusy(question ? "coach" : "feedback");
     setOutputCollapsed(false);
     setActiveResultTab(question ? activeResultTab : "feedback");
-    if (question) setMessages((prev) => [...prev, { role: "user", content: question }]);
+    if (question) {
+      setCoachSuggestionsVisible(false);
+      setMessages((prev) => [...prev, { role: "user", content: question }]);
+    }
     try {
       await manualSave();
       const treeText = files.map((file) => `- ${file.relative_path}${file.relative_path === project?.entry_file ? " (entry)" : ""}`).join("\n");
@@ -1370,6 +1381,12 @@ export default function ProgrammingWorkbench({
       setBusy("");
       setCoachQuestion("");
     }
+  };
+
+  const resetCoach = () => {
+    setMessages([]);
+    setCoachQuestion("");
+    setCoachSuggestionsVisible(true);
   };
 
   const toggleFullscreen = async () => {
@@ -1685,20 +1702,25 @@ export default function ProgrammingWorkbench({
               <div className="pw-coach-head">
                 <span className="pw-tool-title">AI 教练</span>
                 <div className="pw-project-tools">
+                  <button type="button" onClick={resetCoach} title="重置 AI 教练">↻</button>
                   <button type="button" onClick={() => setCoachCollapsed(true)} title="收起 AI 教练">×</button>
                 </div>
               </div>
               <div className="pw-coach-body">
                 <h2>你好！我是你的 AI 助手</h2>
                 <p>我可以结合当前项目、当前文件、运行结果和相关文件帮助你分析代码。</p>
-                <strong className="pw-coach-section-title">建议操作</strong>
-                <div className="pw-quick-list">
-                  {["解释这段代码的作用", "分析代码的时间复杂度", "优化这段代码", "生成单元测试", "查找潜在问题"].map((item) => (
-                    <button key={item} type="button" onClick={() => analyzeProject(item)}>
-                      <span>{item}</span><b>›</b>
-                    </button>
-                  ))}
-                </div>
+                {coachSuggestionsVisible && (
+                  <>
+                    <strong className="pw-coach-section-title">建议操作</strong>
+                    <div className="pw-quick-list">
+                      {["解释这段代码的作用", "分析代码的时间复杂度", "优化这段代码", "生成单元测试", "查找潜在问题"].map((item) => (
+                        <button key={item} type="button" onClick={() => analyzeProject(item)}>
+                          <span>{item}</span><b>›</b>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
                 <div className="pw-chat-log">
                   {messages.slice(-6).map((message, index) => (
                     <div key={message.role + "-" + index} className={"pw-chat-msg pw-chat-msg--" + message.role}>
@@ -1755,6 +1777,18 @@ export default function ProgrammingWorkbench({
                     </button>
                   )) : (
                     <div className="pw-problems-empty">当前项目没有真实诊断问题。</div>
+                  )}
+                </div>
+              ) : activeResultTab === "run" ? (
+                <div className="pw-run-result">
+                  <pre>{resultText}</pre>
+                  {runResult && (
+                    <>
+                      <button type="button" className="pw-run-details-toggle" onClick={() => setRunDetailsOpen((open) => !open)} aria-expanded={runDetailsOpen}>
+                        [{runDetailsOpen ? "收起" : "展开"}运行详情]
+                      </button>
+                      {runDetailsOpen && <pre className="pw-run-details">{formatRunDetails(runResult)}</pre>}
+                    </>
                   )}
                 </div>
               ) : (

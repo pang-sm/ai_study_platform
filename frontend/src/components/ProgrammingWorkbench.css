@@ -1025,6 +1025,19 @@
   line-height: 1.65;
 }
 
+.pw-run-result { height: 100%; overflow: auto; }
+.pw-run-result > pre { height: auto; min-height: 48px; }
+.pw-run-details-toggle {
+  margin: 0 80px 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #5b28e8;
+  cursor: pointer;
+  font: inherit;
+}
+.pw-run-details { min-height: 0 !important; color: #6b6675 !important; font-size: 12px !important; }
+
 .pw-problems-list {
   height: 100%;
   overflow: auto;

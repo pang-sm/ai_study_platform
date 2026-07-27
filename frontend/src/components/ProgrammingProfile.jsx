@@ -32,6 +32,10 @@ function formatMb(mb) {
   return `${value} MB`;
 }
 
+function formatAiQuota(remaining, limit) {
+  return Number(limit) >= 999999 ? "无限" : `${remaining ?? 0} / ${limit ?? 0}`;
+}
+
 function getAvatarSrc(apiBase, user) {
   const avatarUrl = user?.avatar_url || "";
   if (!avatarUrl) return "";
@@ -109,7 +113,7 @@ export default function ProgrammingProfile({ user, apiBase = "/api", setPage, on
   const quotaItems = [
     {
       label: "AI 问答 / 纠错额度",
-      value: `${quota.ai_chat?.remaining ?? 0} / ${quota.ai_chat?.limit ?? permissions.ai_chat_daily_limit ?? 0}`,
+      value: formatAiQuota(quota.ai_chat?.remaining, quota.ai_chat?.limit ?? permissions.ai_chat_daily_limit),
       unit: "次 / 每天",
       sub: `今日已使用 ${quota.ai_chat?.used ?? 0} 次`,
     },

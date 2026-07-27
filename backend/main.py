@@ -551,7 +551,7 @@ PROGRAMMING_PACKAGE_QUOTA = {
         "file_library": True,
     },
     "full": {
-        "ai_chat_daily_limit": 1000,
+        "ai_chat_daily_limit": 999999,
         "ai_question_daily_limit": 100,
         "material_upload_limit_mb": 2048,
         "problem_records": True,
@@ -2158,6 +2158,25 @@ def check_usage_limit(username: str, feature: str, db: Session):
         "remaining": remaining,
         "plan": plan,
     }
+
+
+def check_programming_usage_limit(user: models.User, feature: str, db: Session):
+    """Enforce Programming quotas from the service membership source of truth."""
+    plan = normalize_programming_plan(get_effective_service_plan(db, user.id, "programming"))
+    quota = PROGRAMMING_PACKAGE_QUOTA[plan]
+    feature_limits = {
+        "code_analyze": quota["ai_chat_daily_limit"],
+        "chat": quota["ai_chat_daily_limit"],
+        "challenge_generate": quota["ai_question_daily_limit"],
+    }
+    limit = int(feature_limits.get(feature, 999999))
+    used = get_today_usage(user.username, feature, db)
+    if used >= limit:
+        raise HTTPException(
+            status_code=429,
+            detail=f"今日编程学习 {feature} 使用次数已达上限（{used}/{limit}），请明天再试或升级会员。",
+        )
+    return {"allowed": True, "used": used, "limit": limit, "remaining": max(0, limit - used), "plan": plan}
 
 
 EXAM_408_SUBJECT_KEYWORDS = ("11408", "数据结构", "计算机组成原理", "操作系统", "计算机网络")
@@ -9987,7 +10006,10 @@ def analyze_code(req: schemas.CodeAnalyzeRequest, db: Session = Depends(get_db))
 
 用户问题：{question}"""
 
-    check_usage_limit(user.username, "code_analyze", db)
+    if str(req.course_id or "").strip().lower() in {"programming", "编程", "编程学习"}:
+        check_programming_usage_limit(user, "code_analyze", db)
+    else:
+        check_usage_limit(user.username, "code_analyze", db)
 
     answer = call_deepseek(
         [

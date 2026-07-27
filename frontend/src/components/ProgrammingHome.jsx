@@ -36,6 +36,10 @@ function formatBytes(bytes) {
   return `${(value / 1024 / 1024 / 1024).toFixed(1)} GB`;
 }
 
+function formatAiQuota(remaining, limit) {
+  return Number(limit) >= 999999 ? "无限" : `${remaining ?? 0} / ${limit ?? 0} 次`;
+}
+
 function formatDate(value) {
   if (!value) return "暂无";
   const date = new Date(value);
@@ -433,7 +437,7 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
                   <h2>今日额度剩余</h2>
                 </div>
                 <div className="ph-quota-list">
-                  <div><span>AI问答 / 纠错剩余额度</span><strong>{quota.ai_chat?.remaining ?? 0} / {quota.ai_chat?.limit ?? 0} 次</strong></div>
+                  <div><span>AI问答 / 纠错剩余额度</span><strong>{formatAiQuota(quota.ai_chat?.remaining, quota.ai_chat?.limit)}</strong></div>
                   <div><span>AI出题剩余额度</span><strong>{quota.ai_question?.remaining ?? 0} / {quota.ai_question?.limit ?? 0} 次</strong></div>
                   <div><span>文件库剩余额度</span><strong>{formatBytes((quota.file_library?.limit_bytes || 0) - (quota.file_library?.used_bytes || 0))} / {formatBytes(quota.file_library?.limit_bytes)} </strong></div>
                 </div>
