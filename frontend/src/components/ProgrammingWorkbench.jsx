@@ -461,7 +461,7 @@ export default function ProgrammingWorkbench({
   const [fontSize, setFontSize] = useState(16);
   const [theme, setTheme] = useState("light");
   const [activeResultTab, setActiveResultTab] = useState("run");
-  const [bottomHeight, setBottomHeight] = useState(200);
+  const [bottomHeight, setBottomHeight] = useState(250);
   const [cursorPosition, setCursorPosition] = useState({ lineNumber: 1, column: 1 });
   const [focusMode, setFocusMode] = useState(false);
   const [runResult, setRunResult] = useState(null);
@@ -750,7 +750,15 @@ export default function ProgrammingWorkbench({
   const createProject = useCallback(async (preferredLanguage = language, askName = true) => {
     if (!user?.username) return;
     const lockedLanguage = normalizeLanguage(preferredLanguage) || language;
-    const name = askName ? window.prompt("项目名称", `${lockedLanguage} 项目`) : `${lockedLanguage} 项目`;
+    const defaultName = `${lockedLanguage} 项目`;
+    let name = defaultName;
+    if (askName) {
+      try {
+        name = window.prompt("项目名称", defaultName);
+      } catch {
+        name = defaultName;
+      }
+    }
     if (name === null) return;
     const res = await fetch(`${apiBase}/code/projects`, {
       method: "POST",
@@ -1437,7 +1445,8 @@ export default function ProgrammingWorkbench({
     <section className={shellClassName} ref={shellRef} data-workspace-language={selectedLanguage || ""}>
       <div className="pw-center">
         <div className="pw-topbar">
-          <div className="pw-language-segment" aria-label="Programming language">
+          <div className="pw-toolbar-left">
+            <div className="pw-language-segment" aria-label="Programming language">
             {explorerCollapsed && (
               <button
                 type="button"
@@ -1449,7 +1458,7 @@ export default function ProgrammingWorkbench({
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h7l2 3h9v9H3V7Z" /></svg>
               </button>
             )}
-            {LANGUAGE_TABS.map((item) => (
+              {LANGUAGE_TABS.map((item) => (
               <button
                 key={item}
                 type="button"
@@ -1459,54 +1468,43 @@ export default function ProgrammingWorkbench({
               >
                 {item}
               </button>
-            ))}
+              ))}
+            </div>
           </div>
-          <div className="pw-run-cluster">
-            <label className="pw-run-combo" title="当前运行配置">
-              <select
-                className="pw-run-select"
-                value={language === "Java" ? (project?.main_class || uniqueJavaMainClasses[0] || "") : (project?.entry_file || draftEntryFile || "")}
-                onChange={(event) => changeRunTarget(event.target.value)}
-                disabled={!project}
-                title="当前运行配置"
-              >
-                {language === "Java" ? (
-                  <>
-                    <option value="">Select main class</option>
-                    {project?.main_class && !uniqueJavaMainClasses.includes(project.main_class) && (
-                      <option value={project.main_class}>{project.main_class}</option>
-                    )}
-                    {uniqueJavaMainClasses.map((mainClass) => (
-                      <option key={mainClass} value={mainClass}>{mainClass}</option>
-                    ))}
-                  </>
-                ) : (
-                  sourceFiles.map((file) => (
-                    <option key={file.id} value={file.relative_path}>{file.relative_path}</option>
-                  ))
-                )}
-              </select>
-            </label>
-            <button type="button" className="pw-icon-button pw-run-button" data-action="top-run" onClick={runProject} disabled={!project || busy === "run"} title="运行">
-              {busy === "run" ? "..." : "运行"}
-            </button>
+          <div className="pw-toolbar-center">
+            <div className="pw-run-cluster">
+              <label className="pw-run-combo" title="当前运行配置">
+                <select
+                  className="pw-run-select"
+                  value={language === "Java" ? (project?.main_class || uniqueJavaMainClasses[0] || "") : (project?.entry_file || draftEntryFile || "")}
+                  onChange={(event) => changeRunTarget(event.target.value)}
+                  disabled={!project}
+                  title="当前运行配置"
+                >
+                  {language === "Java" ? (
+                    <>
+                      <option value="">选择主类</option>
+                      {project?.main_class && !uniqueJavaMainClasses.includes(project.main_class) && (
+                        <option value={project.main_class}>{project.main_class}</option>
+                      )}
+                      {uniqueJavaMainClasses.map((mainClass) => (
+                        <option key={mainClass} value={mainClass}>{mainClass}</option>
+                      ))}
+                    </>
+                  ) : (
+                    sourceFiles.map((file) => (
+                      <option key={file.id} value={file.relative_path}>{file.relative_path}</option>
+                    ))
+                  )}
+                </select>
+              </label>
+              <button type="button" className="run-btn pw-icon-button pw-run-button" data-action="top-run" onClick={runProject} disabled={!project || busy === "run"} title="运行">
+                {busy === "run" ? "..." : "▶ 运行"}
+              </button>
+            </div>
           </div>
-          <div className="pw-toolbar-group pw-primary-tools" aria-label="诊断与 AI">
-            <button type="button" onClick={openProblems} title="打开底部问题窗口">问题</button>
-            <button type="button" onClick={openFeedback} disabled={!activeFile && !activeResource} title="打开底部 AI 判题反馈">AI 判题反馈</button>
-            <button type="button" onClick={openCoach} title="展开 AI 教练">AI 教练</button>
-            <button type="button" onClick={() => createProject(language, true)} title={`新建 ${language} 项目`}>新建项目</button>
-          </div>
-          <div className="pw-toolbar-group pw-secondary-tools" aria-label="项目与编辑器显示">
-            <button type="button" onClick={openRunConfig} disabled={!project} title="编辑运行配置">编辑运行配置</button>
-            <button type="button" onClick={refreshWorkspace} title="刷新项目树">刷新项目树</button>
-            <button type="button" onClick={() => adjustFontSize(-1)} title="缩小字体">A-</button>
-            <button type="button" onClick={() => adjustFontSize(1)} title="放大字体">A+</button>
-            <button type="button" onClick={() => switchTheme("light")} title="浅色模式">浅色</button>
-            <button type="button" onClick={() => switchTheme("dark")} title="深色模式">深色</button>
-            <button type="button" onClick={toggleFocusMode} title={focusMode ? "退出专注编辑" : "专注编辑"}>{focusMode ? "退出专注" : "专注编辑"}</button>
-          </div>
-          <div className="pw-top-actions">
+          <div className="pw-toolbar-right">
+            <div className="pw-top-actions">
             <button type="button" className="pw-diagnostic-chip pw-diagnostic-chip--error" onClick={openProblems} title="打开问题查看错误">
               <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5" /></svg>
               <span>{diagnosticSummary.errors}</span>
@@ -1518,6 +1516,7 @@ export default function ProgrammingWorkbench({
             <span className="pw-save-chip">{saveState}</span>
             <button type="button" data-action="fullscreen" onClick={toggleFullscreen}>{isFullscreen || fullscreenFallback ? "退出全屏" : "全屏"}</button>
             <button type="button" className="pw-icon-button pw-more-button" data-action="top-more" onClick={openTopMenu} title="更多">...</button>
+            </div>
           </div>
         </div>
 
@@ -1846,6 +1845,9 @@ export default function ProgrammingWorkbench({
               <button type="button" onClick={() => switchTheme("light")}>浅色模式</button>
               <button type="button" onClick={() => switchTheme("dark")}>深色模式</button>
               <button type="button" onClick={toggleFocusMode}>{focusMode ? "退出专注编辑" : "专注编辑"}</button>
+              <button type="button" onClick={openCoach}>打开 AI 教练</button>
+              <button type="button" onClick={() => createProject(language, true)}>新建项目</button>
+              <button type="button" onClick={openFeedback} disabled={!activeFile && !activeResource}>打开 AI 判题反馈</button>
             </>
           )}
           {contextMenu.type === "project-new" && (
