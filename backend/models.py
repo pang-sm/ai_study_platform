@@ -225,6 +225,7 @@ class CodeProject(Base):
     language = Column(String(20), nullable=False, default="Python")
     entry_file = Column(String(500), nullable=False, default="main.py")
     main_class = Column(String(255), nullable=True)
+    programming_exercise_id = Column(Integer, index=True, nullable=True)
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
     is_deleted = Column(Boolean, nullable=False, default=False)
@@ -248,6 +249,34 @@ class CodeProjectFile(Base):
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
     is_deleted = Column(Boolean, nullable=False, default=False)
     deleted_at = Column(DateTime, nullable=True)
+
+
+class ProgrammingExercise(Base):
+    __tablename__ = "programming_exercises"
+
+    id = Column(Integer, primary_key=True, index=True)
+    slug = Column(String(160), unique=True, nullable=False, index=True)
+    language = Column(String(20), nullable=False, index=True)
+    title = Column(String(255), nullable=False)
+    difficulty = Column(String(20), nullable=False, index=True)
+    tags_json = Column(Text, nullable=False, default="[]")
+    description = Column(Text, nullable=False)
+    starter_files_json = Column(Text, nullable=False, default="[]")
+    reference_files_json = Column(Text, nullable=False, default="[]")
+    public_tests_json = Column(Text, nullable=False, default="[]")
+    hidden_tests_json = Column(Text, nullable=False, default="[]")
+    official_test_files_json = Column(Text, nullable=False, default="[]")
+    source_repo = Column(String(255), nullable=False)
+    source_path = Column(String(500), nullable=False)
+    source_commit = Column(String(64), nullable=False)
+    license = Column(String(50), nullable=False, default="MIT")
+    license_text = Column(Text, nullable=False)
+    attribution = Column(Text, nullable=False)
+    reference_verified = Column(Boolean, nullable=False, default=False)
+    starter_verified = Column(Boolean, nullable=False, default=False)
+    audit_report_json = Column(Text, nullable=False, default="{}")
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
 
 class CodeChallenge(Base):

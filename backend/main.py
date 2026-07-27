@@ -8575,6 +8575,7 @@ def get_code_project_or_404(project_id: int, username: str, db: Session):
         )
         .first()
     )
+    resumed = bool(project)
     if not project:
         raise HTTPException(status_code=404, detail="编程项目不存在")
     return project
@@ -8602,12 +8603,42 @@ def serialize_code_project(project: models.CodeProject, files: list[models.CodeP
         "language": project.language,
         "entry_file": project.entry_file,
         "main_class": project.main_class,
+        "programming_exercise_id": project.programming_exercise_id,
         "created_at": serialize_datetime(project.created_at) if project.created_at else None,
         "updated_at": serialize_datetime(project.updated_at) if project.updated_at else None,
     }
     if files is not None:
         payload["files"] = [serialize_code_project_file(file) for file in files]
         payload["file_count"] = len(files)
+    return payload
+
+
+def _exercise_json(value, fallback):
+    try:
+        parsed = json.loads(value or "")
+        return parsed if isinstance(parsed, type(fallback)) else fallback
+    except (TypeError, ValueError):
+        return fallback
+
+
+def serialize_programming_exercise(exercise: models.ProgrammingExercise, include_starter: bool = False):
+    payload = {
+        "id": exercise.id,
+        "slug": exercise.slug,
+        "language": exercise.language,
+        "title": exercise.title,
+        "difficulty": exercise.difficulty,
+        "tags": _exercise_json(exercise.tags_json, []),
+        "description": exercise.description,
+        "public_tests": _exercise_json(exercise.public_tests_json, []),
+        "source_repo": exercise.source_repo,
+        "source_path": exercise.source_path,
+        "source_commit": exercise.source_commit,
+        "license": exercise.license,
+        "attribution": exercise.attribution,
+    }
+    if include_starter:
+        payload["starter_files"] = _exercise_json(exercise.starter_files_json, [])
     return payload
 
 
@@ -8666,6 +8697,197 @@ def serialize_programming_recent_item(item_type: str, payload: dict):
         "item_type": item_type,
         **payload,
     }
+
+
+@app.get("/programming/exercises")
+def list_programming_exercises(language: str | None = None, difficulty: str | None = None, tag: str | None = None, db: Session = Depends(get_db)):
+    query = db.query(models.ProgrammingExercise).filter(
+        models.ProgrammingExercise.reference_verified.is_(True),
+        models.ProgrammingExercise.starter_verified.is_(True),
+    )
+    if language:
+        query = query.filter(models.ProgrammingExercise.language == normalize_project_language(language))
+    if difficulty:
+        query = query.filter(models.ProgrammingExercise.difficulty == difficulty)
+    exercises = [serialize_programming_exercise(item) for item in query.order_by(models.ProgrammingExercise.language, models.ProgrammingExercise.id).all()]
+    if tag:
+        exercises = [item for item in exercises if tag in item["tags"]]
+    return {"exercises": exercises}
+
+
+@app.get("/programming/exercises/{exercise_id}")
+def get_programming_exercise(exercise_id: int, db: Session = Depends(get_db)):
+    exercise = db.query(models.ProgrammingExercise).filter_by(id=exercise_id).first()
+    if not exercise or not exercise.reference_verified or not exercise.starter_verified:
+        raise HTTPException(status_code=404, detail="题目不存在")
+    return {"exercise": serialize_programming_exercise(exercise)}
+
+
+@app.post("/programming/exercises/{exercise_id}/start")
+def start_programming_exercise(exercise_id: int, req: schemas.ProgrammingExerciseStartRequest, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+    exercise = db.query(models.ProgrammingExercise).filter_by(id=exercise_id).first()
+    if not exercise or not exercise.reference_verified or not exercise.starter_verified:
+        raise HTTPException(status_code=404, detail="题目不存在")
+    resumed = False
+    project = db.query(models.CodeProject).filter(
+        models.CodeProject.username == user.username,
+        models.CodeProject.course_id == "programming",
+        models.CodeProject.programming_exercise_id == exercise.id,
+        models.CodeProject.is_deleted.is_(False),
+    ).order_by(models.CodeProject.updated_at.desc()).first()
+    if not project:
+        starter_files = _exercise_json(exercise.starter_files_json, [])
+        source_paths = [str(item.get("path") or "") for item in starter_files if item.get("path")]
+        entry_file = source_paths[0] if source_paths else PROJECT_LANGUAGE_DEFAULT_ENTRY[normalize_project_language(exercise.language)]
+        project = models.CodeProject(
+            username=user.username,
+            course_id="programming",
+            name=f"{exercise.title} · 练习",
+            language=normalize_project_language(exercise.language),
+            entry_file=entry_file,
+            main_class="Main" if normalize_project_language(exercise.language) == "Java" else None,
+            programming_exercise_id=exercise.id,
+        )
+        db.add(project)
+        db.flush()
+        for item in starter_files:
+            path = safe_project_path(item.get("path") or entry_file)
+            db.add(models.CodeProjectFile(
+                project_id=project.id,
+                username=user.username,
+                relative_path=path,
+                filename=PurePosixPath(path).name,
+                content=str(item.get("content") or ""),
+                file_type=infer_project_file_type(path),
+            ))
+        db.commit()
+        db.refresh(project)
+    else:
+        resumed = True
+    files = list_project_files(project.id, db)
+    return {"exercise": serialize_programming_exercise(exercise, include_starter=True), "project": serialize_code_project(project, files), "resumed": resumed}
+
+
+def _exercise_run_summary(result: dict, exercise: models.ProgrammingExercise, submission: bool):
+    passed = bool(result.get("passed"))
+    return {
+        "success": result.get("success", True),
+        "submission": submission,
+        "passed": passed,
+        "passed_count": result.get("passed_count", 0),
+        "total_count": result.get("total_count", 0),
+        "failed_categories": result.get("failed_categories", []),
+        "duration_ms": result.get("duration_ms", 0),
+        "ai_explanation": "代码通过当前练习运行校验。" if passed else "代码未通过当前练习运行校验，请先查看 Problems 中的诊断。",
+        "result": {
+            "stdout": result.get("stdout", ""),
+            "exit_code": result.get("exit_code"),
+            "compile_error": result.get("compile_error"),
+            "stderr": result.get("stderr", ""),
+        },
+        "exercise_id": exercise.id,
+    }
+
+
+def _count_exercise_tests(language: str, test_files: list[dict]) -> int:
+    source_files = [item for item in test_files if not str(item.get("path") or "").startswith(("test/", "test-framework/"))]
+    text = "\n".join(str(item.get("content") or "") for item in source_files)
+    patterns = {"Python": r"^\s*def\s+test\w*\s*\(", "C": r"\bstatic\s+void\s+test_[A-Za-z0-9_]+\s*\(", "C++": r"\bTEST_CASE\s*\(", "Java": r"@Test\b"}
+    return max(1, len(re.findall(patterns.get(language, r"\btest\b"), text, re.MULTILINE)))
+
+
+def _parse_exercise_test_counts(language: str, output: str, total: int, exit_code: int) -> tuple[int, int]:
+    if language == "Python":
+        match = re.search(r"Ran\s+(\d+)\s+tests?", output)
+        if match:
+            total = int(match.group(1))
+        failed_match = re.search(r"FAILED\s+\(([^)]*)\)", output)
+        failed = sum(int(value) for value in re.findall(r"(?:failures|errors)=(\d+)", failed_match.group(1))) if failed_match else 0
+        return max(0, total - failed), total
+    if language == "C":
+        match = re.search(r"(\d+)\s+Tests\s+(\d+)\s+Failures", output)
+        if match:
+            total, failed = int(match.group(1)), int(match.group(2))
+            return max(0, total - failed), total
+    if language == "C++":
+        match = re.search(r"test cases:\s*(\d+)\s*\|\s*(\d+)\s*passed", output, re.IGNORECASE)
+        if match:
+            return int(match.group(2)), int(match.group(1))
+    return (total, total) if exit_code == 0 else (0, total)
+
+
+def _run_official_exercise_tests(project: models.CodeProject, exercise: models.ProgrammingExercise, files: list[models.CodeProjectFile], submission: bool) -> dict:
+    language = normalize_project_language(exercise.language)
+    bundle = _exercise_json(exercise.official_test_files_json if submission else exercise.public_tests_json, [])
+    if not bundle:
+        return {"success": False, "passed": False, "passed_count": 0, "total_count": 0, "failed_categories": ["tests"], "duration_ms": 0, "stderr": "官方测试文件不存在。", "exit_code": -1}
+    total = _count_exercise_tests(language, bundle)
+    started = time.time()
+    with tempfile.TemporaryDirectory(prefix="exercise-tests-") as raw:
+        temp = Path(raw)
+        for file in files:
+            target = temp / safe_project_path(file.relative_path)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(file.content or "", encoding="utf-8")
+        for item in bundle:
+            target = temp / safe_project_path(item.get("path") or "")
+            if target.name:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(str(item.get("content") or ""), encoding="utf-8")
+        if language == "Python":
+            command = [sys.executable, "-m", "unittest", "discover", "-v", "-p", "*_test.py"]
+        elif language == "C":
+            sources = [str(Path(file.relative_path)) for file in files if PurePosixPath(file.relative_path).suffix.lower() == ".c"]
+            tests = [str(Path(item["path"])) for item in bundle if str(item.get("path", "")).endswith(".c") and "test-framework" not in str(item.get("path", ""))]
+            framework = [str(Path(item["path"])) for item in bundle if str(item.get("path", "")).startswith("test-framework/") and str(item.get("path", "")).endswith(".c")]
+            command = [shutil.which("gcc") or "gcc", "-std=c11", "-I.", *sources, *tests, *framework, "-o", "exercise-tests.exe"]
+        elif language == "C++":
+            sources = [str(Path(file.relative_path)) for file in files if PurePosixPath(file.relative_path).suffix.lower() in (".cpp", ".cc", ".cxx")]
+            tests = [str(Path(item["path"])) for item in bundle if str(item.get("path", "")).endswith((".cpp", ".cc", ".cxx"))]
+            command = [shutil.which("g++") or "g++", "-std=c++17", "-I.", *sources, *tests, "-o", "exercise-tests.exe"]
+        else:
+            return {"success": False, "passed": False, "passed_count": 0, "total_count": total, "failed_categories": ["unsupported"], "duration_ms": 0, "stderr": "Java 题目尚未通过官方测试验证。", "exit_code": -1}
+        if language == "Python":
+            compile_proc = None
+            run_proc = subprocess.run(command, cwd=temp, capture_output=True, text=True, timeout=max(30, EXECUTE_TIMEOUT_SECONDS_C))
+            output = (run_proc.stdout or "") + (run_proc.stderr or "")
+            exit_code = run_proc.returncode
+        else:
+            compile_proc = subprocess.run(command, cwd=temp, capture_output=True, text=True, timeout=max(30, EXECUTE_TIMEOUT_SECONDS_C))
+            output = (compile_proc.stdout or "") + (compile_proc.stderr or "")
+            if compile_proc.returncode == 0:
+                run_proc = subprocess.run([str(temp / "exercise-tests.exe")], cwd=temp, capture_output=True, text=True, timeout=max(30, EXECUTE_TIMEOUT_SECONDS_C))
+                output = (run_proc.stdout or "") + (run_proc.stderr or "")
+                exit_code = run_proc.returncode
+            else:
+                exit_code = compile_proc.returncode
+        passed_count, total = _parse_exercise_test_counts(language, output, total, exit_code)
+        compile_failed = compile_proc is not None and compile_proc.returncode != 0
+        failed_categories = [] if passed_count == total and exit_code == 0 else (["compile"] if compile_failed else ["tests"])
+        return {"success": True, "passed": not failed_categories, "passed_count": passed_count, "total_count": total, "failed_categories": failed_categories, "duration_ms": int((time.time() - started) * 1000), "stdout": output if not submission else "", "stderr": "" if submission else output, "exit_code": exit_code, "compile_error": output if compile_failed else None}
+
+
+@app.post("/programming/exercises/{exercise_id}/test")
+def test_programming_exercise(exercise_id: int, req: schemas.ProgrammingExerciseRunRequest, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+    exercise = db.query(models.ProgrammingExercise).filter_by(id=exercise_id).first()
+    project = get_code_project_or_404(req.project_id, user.username, db)
+    if not exercise or project.programming_exercise_id != exercise.id:
+        raise HTTPException(status_code=404, detail="题目项目不存在")
+    result = _run_official_exercise_tests(project, exercise, list_project_files(project.id, db), submission=False)
+    return _exercise_run_summary(result, exercise, submission=False)
+
+
+@app.post("/programming/exercises/{exercise_id}/submit")
+def submit_programming_exercise(exercise_id: int, req: schemas.ProgrammingExerciseRunRequest, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+    exercise = db.query(models.ProgrammingExercise).filter_by(id=exercise_id).first()
+    project = get_code_project_or_404(req.project_id, user.username, db)
+    if not exercise or project.programming_exercise_id != exercise.id:
+        raise HTTPException(status_code=404, detail="题目项目不存在")
+    result = _run_official_exercise_tests(project, exercise, list_project_files(project.id, db), submission=True)
+    return _exercise_run_summary(result, exercise, submission=True)
 
 
 @app.get("/code/projects")

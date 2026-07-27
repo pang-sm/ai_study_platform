@@ -61,6 +61,15 @@ class CodeProjectCreate(BaseModel):
     language: str = "Python"
 
 
+class ProgrammingExerciseStartRequest(BaseModel):
+    username: str
+
+
+class ProgrammingExerciseRunRequest(BaseModel):
+    username: str
+    project_id: int
+
+
 class CodeProjectUpdate(BaseModel):
     username: str
     name: str | None = None

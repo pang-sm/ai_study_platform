@@ -252,6 +252,79 @@ function ProgrammingFileLibrary({ user, apiBase, onOpenProject }) {
   );
 }
 
+function ExerciseLibrary({ user, apiBase, onStart }) {
+  const [language, setLanguage] = useState("Python");
+  const [difficulty, setDifficulty] = useState("");
+  const [tag, setTag] = useState("");
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const query = new URLSearchParams({ language });
+      if (difficulty) query.set("difficulty", difficulty);
+      if (tag.trim()) query.set("tag", tag.trim());
+      const res = await fetch(`${apiBase}/programming/exercises?${query}`);
+      const data = await safeJson(res);
+      if (!res.ok) throw new Error(data.detail || "题库加载失败");
+      setItems(data.exercises || []);
+    } catch (err) {
+      setError(err.message || "题库加载失败");
+    } finally {
+      setLoading(false);
+    }
+  }, [apiBase, difficulty, language, tag]);
+  useEffect(() => { load(); }, [load]);
+  const start = async (exercise) => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`${apiBase}/programming/exercises/${exercise.id}/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: user.username }),
+      });
+      const data = await safeJson(res);
+      if (!res.ok || !data.project) throw new Error(data.detail || "练习项目创建失败");
+      onStart(data.project.id, data.project.language, exercise.id);
+    } catch (err) {
+      setError(err.message || "练习项目创建失败");
+    } finally {
+      setLoading(false);
+    }
+  };
+  return (
+    <section className="ph-exercise-panel">
+      <div className="ph-library-head">
+        <div><h2>编程题库</h2><p>来自 Exercism 官方 MIT 许可练习，做题后直接进入对应 Workbench。</p></div>
+        <button type="button" onClick={load} disabled={loading}>刷新</button>
+      </div>
+      <div className="ph-exercise-filters">
+        {['C', 'C++', 'Python', 'Java'].map((item) => <button key={item} type="button" className={language === item ? 'is-active' : ''} onClick={() => setLanguage(item)}>{item}</button>)}
+        <select value={difficulty} onChange={(event) => setDifficulty(event.target.value)} aria-label="difficulty">
+          <option value="">All</option><option value="入门">入门</option><option value="简单">简单</option><option value="中等">中等</option><option value="困难">困难</option>
+        </select>
+        <input value={tag} onChange={(event) => setTag(event.target.value)} placeholder="知识点标签" />
+      </div>
+      {error && <div className="ph-error">{error}</div>}
+      <div className="ph-exercise-grid">
+        {items.map((exercise) => (
+          <article key={exercise.id} className="ph-exercise-card">
+            <div className="ph-exercise-card-top"><span>{exercise.language}</span><em>{exercise.difficulty}</em></div>
+            <h3>{exercise.title}</h3>
+            <p>{String(exercise.description || '').replace(/\s+/g, ' ').slice(0, 150)}</p>
+            <div className="ph-exercise-tags">{(exercise.tags || []).slice(0, 5).map((item) => <span key={item}>{item}</span>)}</div>
+            <button type="button" onClick={() => start(exercise)} disabled={loading}>做题</button>
+          </article>
+        ))}
+      </div>
+      {!loading && !items.length && <div className="ph-lib-empty">暂无符合筛选条件的已审计题目。</div>}
+    </section>
+  );
+}
+
 export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
   const [activeNav, setActiveNav] = useState(() => {
     try {
@@ -263,6 +336,7 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
   const [homeData, setHomeData] = useState(null);
   const [workbenchProjectId, setWorkbenchProjectId] = useState(null);
   const [workbenchLanguage, setWorkbenchLanguage] = useState("");
+  const [workbenchExerciseId, setWorkbenchExerciseId] = useState(null);
   const [error, setError] = useState("");
 
   const loadHomeData = useCallback(() => {
@@ -291,6 +365,7 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
   const openProjectInWorkbench = useCallback((projectId, language = "") => {
     setWorkbenchProjectId(projectId);
     setWorkbenchLanguage(language);
+    setWorkbenchExerciseId(null);
     setActiveNav("workbench");
   }, []);
 
@@ -298,6 +373,7 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
     if (key === "workbench") {
       setWorkbenchProjectId(null);
       setWorkbenchLanguage("");
+      setWorkbenchExerciseId(null);
     }
     setActiveNav(key);
   }, []);
@@ -320,6 +396,7 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
           homeData={homeData}
           initialProjectId={workbenchProjectId}
           initialLanguageSelection={workbenchLanguage}
+          initialExerciseId={workbenchExerciseId}
           onProjectChanged={loadHomeData}
           setPage={setPage}
           onGoHome={() => {
@@ -338,6 +415,9 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
         />
       );
     }
+    if (activeNav === "questions") {
+      return <ExerciseLibrary user={user} apiBase={apiBase} onStart={(projectId, language, exerciseId) => { setWorkbenchProjectId(projectId); setWorkbenchLanguage(language); setWorkbenchExerciseId(exerciseId); setActiveNav("workbench"); }} />;
+    }
     if (activeNav !== "home") {
       const item = NAV_ITEMS.find((nav) => nav.key === activeNav);
       return (
@@ -348,7 +428,7 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
       );
     }
     return null;
-  }, [activeNav, apiBase, homeData, loadHomeData, openProjectInWorkbench, setPage, user, workbenchLanguage, workbenchProjectId]);
+  }, [activeNav, apiBase, homeData, loadHomeData, openProjectInWorkbench, setPage, user, workbenchExerciseId, workbenchLanguage, workbenchProjectId]);
 
   return (
     <div className="ph-page">

@@ -442,6 +442,7 @@ export default function ProgrammingWorkbench({
   apiBase = "/api",
   homeData,
   initialProjectId = null,
+  initialExerciseId = null,
   initialLanguageSelection = "",
   onProjectChanged,
   onGoHome,
@@ -476,6 +477,8 @@ export default function ProgrammingWorkbench({
   const [coachSuggestionsVisible, setCoachSuggestionsVisible] = useState(true);
   const [coachQuestion, setCoachQuestion] = useState("");
   const [status, setStatus] = useState("");
+  const [exercise, setExercise] = useState(null);
+  const [exerciseResult, setExerciseResult] = useState(null);
   const [busy, setBusy] = useState("");
   const [saveState, setSaveState] = useState("已保存");
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -651,6 +654,20 @@ export default function ProgrammingWorkbench({
   }, [apiBase, initialLanguageSelection, initialProjectId, loadProject, user?.username]);
 
   useEffect(() => { loadProjects(); }, [loadProjects]);
+
+  useEffect(() => {
+    if (!initialExerciseId) {
+      setExercise(null);
+      setExerciseResult(null);
+      return undefined;
+    }
+    let cancelled = false;
+    fetch(`${apiBase}/programming/exercises/${initialExerciseId}`)
+      .then(safeJson)
+      .then((data) => { if (!cancelled) setExercise(data.exercise || null); })
+      .catch(() => { if (!cancelled) setExercise(null); });
+    return () => { cancelled = true; };
+  }, [apiBase, initialExerciseId]);
 
   const loadFileLibrary = useCallback(async () => {
     if (!user?.username) return;
@@ -1312,6 +1329,32 @@ export default function ProgrammingWorkbench({
     }
   };
 
+  const runExerciseCheck = async (submission) => {
+    if (!exercise?.id || !project?.id) return;
+    setBusy(submission ? "submit" : "test");
+    setOutputCollapsed(false);
+    setActiveResultTab(submission ? "feedback" : "run");
+    try {
+      await manualSave();
+      const res = await fetch(`${apiBase}/programming/exercises/${exercise.id}/${submission ? "submit" : "test"}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: user.username, project_id: project.id }),
+      });
+      const data = await safeJson(res);
+      if (!res.ok) throw new Error(data.detail || "题目校验失败");
+      setExerciseResult(data);
+      setRunResult(data.result || null);
+      setRunDetailsOpen(data.passed !== true);
+      setFeedback(`通过 ${data.passed_count}/${data.total_count}\n${data.ai_explanation || ""}`);
+      setStatus(data.passed ? "题目校验通过" : "题目校验未通过");
+    } catch (err) {
+      setStatus(err.message || "题目校验失败");
+    } finally {
+      setBusy("");
+    }
+  };
+
   const analyzeProject = async (question) => {
     const text = question || "请基于当前项目上下文进行判题式分析，指出错误、可改进点和下一步建议。";
     if (!activeFile && !activeResource) return;
@@ -1600,6 +1643,17 @@ export default function ProgrammingWorkbench({
           )}
 
           <div className="pw-editor-area">
+            {exercise && (
+              <section className="pw-exercise-context">
+                <div><span>{exercise.language} · {exercise.difficulty}</span><h2>{exercise.title}</h2></div>
+                <p>{exercise.description}</p>
+                <div className="pw-exercise-actions">
+                  <button type="button" onClick={() => runExerciseCheck(false)} disabled={!project || busy === "test"}>测试</button>
+                  <button type="button" onClick={() => runExerciseCheck(true)} disabled={!project || busy === "submit"}>提交 / AI 判题</button>
+                  {exerciseResult && <strong>{exerciseResult.passed_count}/{exerciseResult.total_count} {exerciseResult.passed ? "通过" : "未通过"}</strong>}
+                </div>
+              </section>
+            )}
             <div className="pw-file-tabs">
               {projectTabs.map((file) => (
                 <button key={file.id} type="button" className={file.id === activeFileId ? "is-active" : ""} onClick={() => setActiveFileId(file.id)} title={file.relative_path}>

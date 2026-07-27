@@ -1659,3 +1659,12 @@
   .pw-shell--coach-collapsed .pw-workbench-body { grid-template-columns: 0 minmax(0, 1fr) 0; }
   .pw-save-chip { max-width: 46px; overflow: hidden; text-overflow: ellipsis; }
 }
+.pw-exercise-context { display: flex; align-items: flex-start; gap: 18px; padding: 14px 18px; border-bottom: 1px solid #e9e3f8; background: #fbfaff; }
+.pw-exercise-context h2 { margin: 3px 0; font-size: 16px; color: #16123d; }
+.pw-exercise-context span { color: #6d28d9; font-size: 12px; font-weight: 800; }
+.pw-exercise-context p { flex: 1; max-height: 48px; overflow: auto; margin: 4px 0 0; color: #67618b; font-size: 13px; line-height: 1.45; }
+.pw-exercise-actions { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.pw-exercise-actions button { min-height: 34px; border: 0; border-radius: 8px; padding: 0 12px; background: #ede9fe; color: #5b21e6; font-weight: 850; cursor: pointer; }
+.pw-exercise-actions button:last-of-type { background: #5b21e6; color: #fff; }
+.pw-exercise-actions button:disabled { opacity: .5; cursor: not-allowed; }
+.pw-exercise-actions strong { color: #15803d; font-size: 12px; }

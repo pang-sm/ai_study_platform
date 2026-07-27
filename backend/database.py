@@ -218,6 +218,7 @@ CODE_PROJECTS_COLUMNS = {
     "language": "VARCHAR(20) NOT NULL DEFAULT 'Python'",
     "entry_file": "VARCHAR(500) NOT NULL DEFAULT 'main.py'",
     "main_class": "VARCHAR(255)",
+    "programming_exercise_id": "INTEGER",
     "created_at": "DATETIME",
     "updated_at": "DATETIME",
     "is_deleted": "INTEGER NOT NULL DEFAULT 0",
