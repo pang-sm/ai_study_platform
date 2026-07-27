@@ -242,8 +242,13 @@ jobs:
           git clone --depth 1 https://github.com/exercism/java.git "$EXERCISM_SOURCE_ROOT/java"
           DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python scripts/import_exercism_exercises.py \
             --source-root "$EXERCISM_SOURCE_ROOT" \
-            --languages C,C++,Python \
+            --languages Python \
             --max-per-language 25
+          DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python scripts/import_exercism_exercises.py \
+            --source-root "$EXERCISM_SOURCE_ROOT" \
+            --languages C++ \
+            --slugs hello-world \
+            --max-per-language 1
           DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python scripts/import_exercism_exercises.py \
             --source-root "$EXERCISM_SOURCE_ROOT" \
             --languages Java \
