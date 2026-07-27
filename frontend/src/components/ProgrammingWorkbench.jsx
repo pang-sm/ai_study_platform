@@ -3,6 +3,7 @@ import Editor from "@monaco-editor/react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import "./ProgrammingWorkbench.css";
+import { getExerciseDescription, getExerciseTitle } from "./programmingExerciseCopy.js";
 
 const LANGUAGE_TABS = ["C", "C++", "Python", "Java"];
 const DEFAULT_FILE = { C: "main.c", "C++": "main.cpp", Python: "main.py", Java: "Main.java" };
@@ -226,7 +227,7 @@ function normalizeLanguage(value) {
 }
 
 function formatRunResult(result) {
-  if (!result) return "点击运行后，当前项目入口文件的真实输出会显示在这里。";
+  if (!result) return "点击运行后，当前练习入口文件的真实输出会显示在这里。";
   return result.stdout?.trimEnd() || (result.exit_code === 0 ? "程序已运行完成，无输出。" : "程序运行失败，请展开运行详情查看错误信息。");
 }
 
@@ -445,6 +446,7 @@ export default function ProgrammingWorkbench({
   initialExerciseId = null,
   initialLanguageSelection = "",
   onProjectChanged,
+  onOpenQuestions,
   onGoHome,
 }) {
   const onboardingLanguage = normalizeLanguage(homeData?.onboarding?.main_language || user?.default_course_id || "");
@@ -510,16 +512,16 @@ export default function ProgrammingWorkbench({
   const uniqueJavaMainClasses = useMemo(() => [...new Set(javaMainClasses)], [javaMainClasses]);
   const activeJavaMainClass = useMemo(() => detectJavaMainClass(activeFile), [activeFile]);
   const runTargetLabel = useMemo(() => {
-    if (!project) return "运行：未选择项目";
+    if (!project) return "运行：未选择练习";
     if (language === "Java") return `运行：${project.main_class || uniqueJavaMainClasses[0] || "请选择主类"}`;
     return `运行：${project.entry_file || activeFile?.relative_path || DEFAULT_FILE[language]}`;
   }, [activeFile?.relative_path, language, project, uniqueJavaMainClasses]);
   const runScopeLabel = useMemo(() => {
     if (!project) return "";
-    if (language === "C") return `范围：项目内 ${sourceFiles.length} 个 .c 源文件`;
-    if (language === "C++") return `范围：项目内 ${sourceFiles.length} 个 C++ 源文件`;
+    if (language === "C") return `范围：练习内 ${sourceFiles.length} 个 .c 源文件`;
+    if (language === "C++") return `范围：练习内 ${sourceFiles.length} 个 C++ 源文件`;
     if (language === "Java") return `范围：全部 ${sourceFiles.length} 个 Java 源文件`;
-    return runMode === "current-file" ? "范围：当前文件" : "范围：项目根目录";
+    return runMode === "current-file" ? "范围：当前文件" : "范围：练习全部文件";
   }, [language, project, runMode, sourceFiles.length]);
 
   const relayoutEditor = useCallback(() => {
@@ -656,36 +658,24 @@ export default function ProgrammingWorkbench({
   useEffect(() => { loadProjects(); }, [loadProjects]);
 
   useEffect(() => {
-    if (!initialExerciseId) {
+    const exerciseId = initialExerciseId || project?.programming_exercise_id;
+    if (!exerciseId) {
       setExercise(null);
       setExerciseResult(null);
       return undefined;
     }
     let cancelled = false;
-    fetch(`${apiBase}/programming/exercises/${initialExerciseId}`)
+    fetch(`${apiBase}/programming/exercises/${exerciseId}`)
       .then(safeJson)
       .then((data) => { if (!cancelled) setExercise(data.exercise || null); })
       .catch(() => { if (!cancelled) setExercise(null); });
     return () => { cancelled = true; };
-  }, [apiBase, initialExerciseId]);
-
-  const loadFileLibrary = useCallback(async () => {
-    if (!user?.username) return;
-    const res = await fetch(`${apiBase}/programming/file-library?username=${encodeURIComponent(user.username)}`);
-    const data = await safeJson(res);
-    if (!res.ok) {
-      setStatus(data.detail || "Programming library load failed");
-      return;
-    }
-    setLibraryMaterials(data.materials || []);
-  }, [apiBase, user?.username]);
+  }, [apiBase, initialExerciseId, project?.programming_exercise_id]);
 
   const refreshWorkspace = useCallback(async () => {
-    await Promise.all([loadProjects(), loadFileLibrary()]);
+    await loadProjects();
     setContextMenu(null);
-  }, [loadFileLibrary, loadProjects]);
-
-  useEffect(() => { loadFileLibrary(); }, [loadFileLibrary]);
+  }, [loadProjects]);
 
   useEffect(() => {
     if (!selectedLanguage || initialProjectId) return;
@@ -1512,8 +1502,8 @@ export default function ProgrammingWorkbench({
                 type="button"
                 className="pw-tree-restore"
                 onClick={() => setExplorerCollapsed(false)}
-                title="显示文件树"
-                aria-label="显示文件树"
+                title="显示题目"
+                aria-label="显示题目"
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h7l2 3h9v9H3V7Z" /></svg>
               </button>
@@ -1582,78 +1572,46 @@ export default function ProgrammingWorkbench({
 
         <div className="pw-workbench-body">
           {!explorerCollapsed && (
-            <aside className="pw-explorer">
-              <div className="pw-floating-tools">
-                <button type="button" onClick={(event) => openContextMenu(event, { type: "project-new", path: "" })} title="新建">+</button>
-                <button type="button" onClick={() => setExplorerCollapsed(true)} title="折叠文件树">‹</button>
+            <aside className="pw-explorer pw-exercise-sidebar">
+              <div className="pw-exercise-sidebar-head">
+                <span className="pw-tool-title">题目</span>
+                <button type="button" onClick={() => setExplorerCollapsed(true)} title="折叠题目">‹</button>
               </div>
-              <div className="pw-tree">
-                {filteredProjects.map((item) => {
-                  const isExpanded = expandedProjectIds.has(item.id);
-                  const isActiveProject = project?.id === item.id;
-                  const projectFiles = isActiveProject ? files : (projectFileCache[item.id] || []);
-                  const projectTree = buildTree(projectFiles);
-                  return (
-                    <div key={item.id} className="pw-tree-shell">
-                      <button
-                        className={`pw-tree-root${isActiveProject ? " is-active" : ""}`}
-                        type="button"
-                        onClick={() => toggleProjectExpanded(item)}
-                        onDoubleClick={() => activateProject(item)}
-                        onContextMenu={(event) => {
-                          if (isActiveProject) openContextMenu(event, { type: "root", path: "" });
-                          else openContextMenu(event, { type: "project-switch", project: item });
-                        }}
-                      >
-                        <span>{isExpanded ? "▾" : "▸"}</span>
-                        <i aria-hidden="true" />
-                        <strong title={item.name}>{item.name}</strong>
-                      </button>
-                      {isExpanded && (
-                        <TreeNode
-                          node={projectTree}
-                          activeFileId={isActiveProject ? activeFileId : null}
-                          collapsedFolders={collapsedFolders}
-                          onToggleFolder={(path) => setCollapsedFolders((prev) => {
-                            const next = new Set(prev);
-                            if (next.has(path)) next.delete(path);
-                            else next.add(path);
-                            return next;
-                          })}
-                          onOpenFile={(fileId) => openProjectFile(item.id, fileId)}
-                          onRenameFile={isActiveProject ? renameFile : () => activateProject(item)}
-                          onDeleteFile={isActiveProject ? deleteFile : () => activateProject(item)}
-                          onContextMenu={(event, target) => {
-                            if (isActiveProject) openContextMenu(event, target);
-                            else openContextMenu(event, { type: "project-switch", project: item });
-                          }}
-                        />
-                      )}
-                    </div>
-                  );
-                })}
-                <LibraryResourceTree
-                  materials={visibleLibraryMaterials}
-                  activeResourceKey={activeResource ? `library-${activeResource.id}` : ""}
-                  onOpen={openLibraryResource}
-                  onContextMenu={openContextMenu}
-                />
-              </div>
+              {exercise ? (
+                <div className="pw-exercise-sidebar-body">
+                  <div className="pw-exercise-sidebar-meta">
+                    <span>{exercise.language}</span>
+                    <strong>{exercise.difficulty}</strong>
+                  </div>
+                  <h1>{getExerciseTitle(exercise)}</h1>
+                  <div className="pw-exercise-sidebar-tags">
+                    {(exercise.tags || []).map((tag) => <span key={tag}>{tag}</span>)}
+                  </div>
+                  <div className="pw-exercise-sidebar-copy">{getExerciseDescription(exercise)}</div>
+                  {exercise.public_tests?.length > 0 && (
+                    <section className="pw-exercise-sidebar-section">
+                      <h2>示例</h2>
+                      {exercise.public_tests.slice(0, 3).map((test, index) => (
+                        <div className="pw-exercise-example" key={`${test.input}-${index}`}>
+                          <span>示例 {index + 1}</span>
+                          {test.input != null && <code>输入：{String(test.input)}</code>}
+                          {test.expected_output != null && <code>输出：{String(test.expected_output)}</code>}
+                        </div>
+                      ))}
+                    </section>
+                  )}
+                </div>
+              ) : (
+                <div className="pw-exercise-sidebar-empty">
+                  <strong>选择一道练习开始</strong>
+                  <p>这里会显示中文题目、知识点、示例和约束。代码会自动保存，刷新后可继续。</p>
+                  <button type="button" onClick={onOpenQuestions}>从题库选题</button>
+                </div>
+              )}
             </aside>
           )}
 
           <div className="pw-editor-area">
-            {exercise && (
-              <section className="pw-exercise-context">
-                <div><span>{exercise.language} · {exercise.difficulty}</span><h2>{exercise.title}</h2></div>
-                <p>{exercise.description}</p>
-                <div className="pw-exercise-actions">
-                  <button type="button" onClick={() => runExerciseCheck(false)} disabled={!project || busy === "test"}>测试</button>
-                  <button type="button" onClick={() => runExerciseCheck(true)} disabled={!project || busy === "submit"}>提交 / AI 判题</button>
-                  {exerciseResult && <strong>{exerciseResult.passed_count}/{exerciseResult.total_count} {exerciseResult.passed ? "通过" : "未通过"}</strong>}
-                </div>
-              </section>
-            )}
             <div className="pw-file-tabs">
               {projectTabs.map((file) => (
                 <button key={file.id} type="button" className={file.id === activeFileId ? "is-active" : ""} onClick={() => setActiveFileId(file.id)} title={file.relative_path}>
@@ -1663,15 +1621,6 @@ export default function ProgrammingWorkbench({
                   <b onClick={(event) => { event.stopPropagation(); closeTab(file.id); }}>×</b>
                 </button>
               ))}
-              {resourceTabs.map(({ key, material }) => (
-                <button key={key} type="button" className={key === activeFileId ? "is-active is-readonly" : "is-readonly"} onClick={() => openLibraryResource(material)} title={getDisplayFilename(material)}>
-                  <span className="pw-tab-icon pw-tab-icon--library">{getResourceIcon(material)}</span>
-                  <strong>{getDisplayFilename(material)}</strong>
-                  <em>read-only</em>
-                  <b onClick={(event) => { event.stopPropagation(); closeTab(key); }}>x</b>
-                </button>
-              ))}
-              {project && <button type="button" className="pw-tab-add" onClick={createFile}>+</button>}
             </div>
             <div className="pw-editor-card">
               {activeResource ? (
@@ -1744,8 +1693,8 @@ export default function ProgrammingWorkbench({
                 />
               ) : (
                 <div className="pw-editor-empty">
-                  <strong>还没有 {language} 项目</strong>
-                  <button type="button" onClick={() => createProject(language, true)}>新建 {language} 项目</button>
+                  <strong>从题库选择练习后开始编码</strong>
+                  <button type="button" onClick={onOpenQuestions}>打开题库</button>
                 </div>
               )}
             </div>
@@ -1762,7 +1711,7 @@ export default function ProgrammingWorkbench({
               </div>
               <div className="pw-coach-body">
                 <h2>你好！我是你的 AI 助手</h2>
-                <p>我可以结合当前项目、当前文件、运行结果和相关文件帮助你分析代码。</p>
+                <p>我可以结合当前练习、代码和运行结果帮助你分析问题。</p>
                 {coachSuggestionsVisible && (
                   <>
                     <strong className="pw-coach-section-title">建议操作</strong>
@@ -1805,6 +1754,12 @@ export default function ProgrammingWorkbench({
               <span>AI</span> AI 判题反馈
             </button>
             <div className="pw-bottom-tools">
+              {exercise && (
+                <>
+                  <button type="button" onClick={() => runExerciseCheck(false)} disabled={!project || busy === "test" || busy === "submit"} title="运行公开测试">测试</button>
+                  <button type="button" onClick={() => runExerciseCheck(true)} disabled={!project || busy === "test" || busy === "submit"} title="提交并运行隐藏测试">提交 / AI 判题</button>
+                </>
+              )}
               <button type="button" onClick={() => setRunConfigOpen(true)} title="编辑运行配置">...</button>
               <button type="button" data-action="toggle-output" onClick={() => setOutputCollapsed(!outputCollapsed)} title={outputCollapsed ? "展开" : "收起"}>{outputCollapsed ? "^" : "×"}</button>
             </div>
@@ -1825,12 +1780,12 @@ export default function ProgrammingWorkbench({
                       onClick={() => openProblem(item)}
                     >
                       <span>{item.severity}</span>
-                      <strong>{item.file || "当前项目"}</strong>
+                      <strong>{item.file || "当前练习"}</strong>
                       <em>{item.line ? `${item.line}${item.column ? `:${item.column}` : ""}` : "-"}</em>
                       <b>{item.message}</b>
                     </button>
                   )) : (
-                    <div className="pw-problems-empty">当前项目没有真实诊断问题。</div>
+                    <div className="pw-problems-empty">当前练习没有真实诊断问题。</div>
                   )}
                 </div>
               ) : activeResultTab === "run" ? (
@@ -1875,7 +1830,7 @@ export default function ProgrammingWorkbench({
           <label>
             <span>运行模式</span>
             <select value={runMode} onChange={(event) => setRunMode(event.target.value)}>
-              <option value="project">当前项目</option>
+              <option value="project">当前练习</option>
               <option value="current-file">当前文件</option>
               <option value="entry">指定入口</option>
             </select>
@@ -1927,85 +1882,14 @@ export default function ProgrammingWorkbench({
           {contextMenu.type === "top" && (
             <>
               <button type="button" onClick={openRunConfig} disabled={!project}>编辑运行配置</button>
-              <button type="button" onClick={refreshWorkspace}>刷新项目树</button>
+              <button type="button" onClick={refreshWorkspace}>刷新练习</button>
               <button type="button" onClick={() => adjustFontSize(-1)}>缩小字体</button>
               <button type="button" onClick={() => adjustFontSize(1)}>放大字体</button>
               <button type="button" onClick={() => switchTheme("light")}>浅色模式</button>
               <button type="button" onClick={() => switchTheme("dark")}>深色模式</button>
               <button type="button" onClick={toggleFocusMode}>{focusMode ? "退出专注编辑" : "专注编辑"}</button>
               <button type="button" onClick={openCoach}>打开 AI 教练</button>
-              <button type="button" onClick={() => createProject(language, true)}>新建项目</button>
               <button type="button" onClick={openFeedback} disabled={!activeFile && !activeResource}>打开 AI 判题反馈</button>
-            </>
-          )}
-          {contextMenu.type === "project-new" && (
-            <>
-              <button type="button" onClick={() => createFileInFolder(contextMenu.path)}>新建文件</button>
-              <button type="button" onClick={() => createFolderInFolder(contextMenu.path)}>新建文件夹</button>
-              <button type="button" onClick={() => { createProject(language, true); setContextMenu(null); }}>新建项目</button>
-            </>
-          )}
-          {contextMenu.type !== "file" && contextMenu.type !== "top" && contextMenu.type !== "project-actions" && contextMenu.type !== "project-new" && contextMenu.type !== "library-actions" && contextMenu.type !== "library-file" && (
-            <>
-              <button type="button" onClick={() => createFileInFolder(contextMenu.path)}>新建文件</button>
-              <button type="button" onClick={() => createFolderInFolder(contextMenu.path)}>新建文件夹</button>
-            </>
-          )}
-          {contextMenu.type === "folder" && (
-            <>
-              <button type="button" onClick={() => renameFolder(contextMenu.path)}>重命名</button>
-              <button type="button" onClick={() => deleteFolder(contextMenu.path)}>删除</button>
-            </>
-          )}
-          {contextMenu.type === "root" && (
-            <>
-              <button type="button" onClick={() => { renameProject(); setContextMenu(null); }} disabled={!project}>Rename Project</button>
-              <button type="button" onClick={() => { deleteProject(); setContextMenu(null); }} disabled={!project}>Delete Project</button>
-            </>
-          )}
-          {contextMenu.type === "project-actions" && (
-            <>
-              <button type="button" onClick={() => { renameProject(); setContextMenu(null); }} disabled={!project}>重命名项目</button>
-              <button type="button" onClick={() => { deleteProject(); setContextMenu(null); }} disabled={!project}>删除项目</button>
-              <button type="button" onClick={collapseAllFolders}>折叠全部</button>
-            </>
-          )}
-          {contextMenu.type === "project-switch" && (
-            <>
-              <button type="button" onClick={() => { activateProject(contextMenu.project); setContextMenu(null); }}>切换到此项目</button>
-            </>
-          )}
-          {contextMenu.type === "library-actions" && (
-            <>
-              <button type="button" onClick={refreshWorkspace}>Refresh</button>
-              <button type="button" onClick={collapseAllFolders}>Collapse All</button>
-            </>
-          )}
-          {contextMenu.type === "library-file" && (
-            <>
-              <button type="button" onClick={() => { openLibraryResource(contextMenu.material); setContextMenu(null); }}>Open</button>
-              {contextMenu.material?.can_download !== false && (
-                <button type="button" onClick={() => downloadLibraryResource(contextMenu.material)}>Download</button>
-              )}
-              {["code", "text", "markdown"].includes(getResourceKind(contextMenu.material)) && project && (
-                <button type="button" onClick={() => addLibraryResourceToProject(contextMenu.material)}>Add to current project</button>
-              )}
-              <button type="button" onClick={() => deleteLibraryResource(contextMenu.material)}>Delete</button>
-            </>
-          )}
-          {contextMenu.type === "file" && (
-            <>
-              <button type="button" onClick={() => { openFile(contextMenu.file.id); setContextMenu(null); }}>打开</button>
-              <button type="button" onClick={() => { renameFile(contextMenu.file); setContextMenu(null); }}>重命名</button>
-              <button type="button" onClick={() => { deleteFile(contextMenu.file); setContextMenu(null); }}>删除</button>
-              {isSourceFileForLanguage(contextMenu.file.relative_path, language) && (
-                <button type="button" onClick={() => setFileAsRunTarget(contextMenu.file)}>
-                  {language === "Java" ? "设为运行主类" : "设为入口文件"}
-                </button>
-              )}
-              {isSourceFileForLanguage(contextMenu.file.relative_path, language) && !HEADER_EXTENSIONS.has(getExt(contextMenu.file.relative_path)) && (
-                <button type="button" onClick={() => runFile(contextMenu.file)}>运行此文件</button>
-              )}
             </>
           )}
         </div>

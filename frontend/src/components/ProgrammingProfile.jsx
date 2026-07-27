@@ -19,19 +19,6 @@ function maskEmail(email) {
   return `${name.slice(0, 3)}***${domain}`;
 }
 
-function formatBytes(bytes) {
-  const value = Number(bytes || 0);
-  if (value <= 0) return "0 GB";
-  if (value >= 1024 * 1024 * 1024) return `${(value / 1024 / 1024 / 1024).toFixed(1)} GB`;
-  return `${Math.round(value / 1024 / 1024)} MB`;
-}
-
-function formatMb(mb) {
-  const value = Number(mb || 0);
-  if (value >= 1024) return `${value / 1024} GB`;
-  return `${value} MB`;
-}
-
 function formatAiQuota(remaining, limit) {
   return Number(limit) >= 999999 ? "无限" : `${remaining ?? 0} / ${limit ?? 0}`;
 }
@@ -105,9 +92,6 @@ export default function ProgrammingProfile({ user, apiBase = "/api", setPage, on
   const emailDisplay = realEmail ? maskEmail(realEmail) : "未绑定";
   const emailBtnLabel = realEmail ? "修改" : "绑定";
   const avatarSrc = getAvatarSrc(apiBase, user);
-  const fileLimitBytes = quota.file_library?.limit_bytes ?? Number(permissions.material_upload_limit_mb || 0) * 1024 * 1024;
-  const fileUsedBytes = quota.file_library?.used_bytes ?? 0;
-  const fileEnabled = Boolean(quota.file_library?.enabled ?? permissions.file_library);
   const problemRecordsEnabled = Boolean(permissions.problem_records);
 
   const quotaItems = [
@@ -122,12 +106,6 @@ export default function ProgrammingProfile({ user, apiBase = "/api", setPage, on
       value: `${quota.ai_question?.remaining ?? 0} / ${quota.ai_question?.limit ?? permissions.ai_question_daily_limit ?? 0}`,
       unit: "次 / 每天",
       sub: `今日已使用 ${quota.ai_question?.used ?? 0} 次`,
-    },
-    {
-      label: "文件库容量",
-      value: fileEnabled ? `${formatBytes(Math.max(0, fileLimitBytes - fileUsedBytes))} / ${formatBytes(fileLimitBytes)}` : "未开通",
-      unit: "",
-      sub: fileEnabled ? `已使用 ${formatBytes(fileUsedBytes)}` : "当前套餐暂不支持文件库",
     },
     {
       label: "题目记录",
@@ -150,14 +128,13 @@ export default function ProgrammingProfile({ user, apiBase = "/api", setPage, on
   ];
 
   const packageBenefits = entitlements?.benefits?.length
-    ? entitlements.benefits.map((benefit) => ({
+    ? entitlements.benefits.filter((benefit) => !/文件库|file library/i.test(benefit.label || "")).map((benefit) => ({
         label: benefit.limit ? `${benefit.label} ${benefit.limit}${benefit.unit ? ` ${benefit.unit}` : ""}` : benefit.label,
         enabled: Boolean(benefit.enabled),
       }))
     : [
         { label: `AI 问答 / 纠错 ${quota.ai_chat?.limit ?? permissions.ai_chat_daily_limit ?? 0} 次 / 每天`, enabled: true },
         { label: `AI 出题 ${quota.ai_question?.limit ?? permissions.ai_question_daily_limit ?? 0} 次 / 每天`, enabled: true },
-        { label: `文件库 ${formatMb(permissions.material_upload_limit_mb ?? fileLimitBytes / 1024 / 1024)}`, enabled: fileEnabled },
         { label: "题目记录", enabled: problemRecordsEnabled },
       ];
 

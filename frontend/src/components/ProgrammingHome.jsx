@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import "./ProgrammingHome.css";
 import ProgrammingWorkbench from "./ProgrammingWorkbench.jsx";
+import { getExerciseDescription, getExerciseTitle } from "./programmingExerciseCopy.js";
 
 const NAV_ITEMS = [
   { key: "home", label: "首页", icon: "home" },
   { key: "status", label: "学习情况", icon: "chart" },
   { key: "workbench", label: "编程工作台", icon: "terminal" },
   { key: "questions", label: "题库", icon: "list" },
-  { key: "files", label: "文件库", icon: "folder" },
 ];
 
 const PROGRAMMING_NAV_KEY = "ai_study_programming_active_nav";
@@ -28,74 +28,8 @@ function safeJson(res) {
   return res.json().catch(() => ({}));
 }
 
-function formatBytes(bytes) {
-  const value = Number(bytes || 0);
-  if (!value) return "0 MB";
-  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
-  if (value < 1024 * 1024 * 1024) return `${(value / 1024 / 1024).toFixed(1)} MB`;
-  return `${(value / 1024 / 1024 / 1024).toFixed(1)} GB`;
-}
-
 function formatAiQuota(remaining, limit) {
   return Number(limit) >= 999999 ? "无限" : `${remaining ?? 0} / ${limit ?? 0} 次`;
-}
-
-function formatDate(value) {
-  if (!value) return "暂无";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "暂无";
-  return date.toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
-}
-
-function getFileTypeLabel(file) {
-  const type = String(file?.file_type || file?.mime_type || "").toLowerCase();
-  const name = String(file?.original_filename || file?.filename || file?.name || file?.file_name || "").toLowerCase();
-  if (type.includes("pdf") || name.endsWith(".pdf")) return "PDF";
-  if (name.endsWith(".cpp") || name.endsWith(".c") || name.endsWith(".h") || name.endsWith(".py") || name.endsWith(".java")) return "代码";
-  if (name.endsWith(".xlsx")) return "Excel";
-  if (name.endsWith(".zip")) return "ZIP";
-  if (name.endsWith(".md")) return "Markdown";
-  return type || "文件";
-}
-
-function buildFileTree(files = []) {
-  const root = { name: "", path: "", folders: new Map(), files: [] };
-  files.forEach((file) => {
-    const parts = String(file.relative_path || file.filename || "").split("/").filter(Boolean);
-    let node = root;
-    parts.slice(0, -1).forEach((part, index) => {
-      const path = parts.slice(0, index + 1).join("/");
-      if (!node.folders.has(part)) node.folders.set(part, { name: part, path, folders: new Map(), files: [] });
-      node = node.folders.get(part);
-    });
-    node.files.push(file);
-  });
-  return root;
-}
-
-function LibraryTree({ node, depth = 0 }) {
-  const folders = [...node.folders.values()].sort((a, b) => a.name.localeCompare(b.name));
-  const files = [...node.files].sort((a, b) => a.relative_path.localeCompare(b.relative_path));
-  return (
-    <>
-      {folders.map((folder) => (
-        <div key={folder.path}>
-          <div className="ph-lib-tree-folder" style={{ paddingLeft: 10 + depth * 16 }}>
-            <span>▸</span>
-            <strong>{folder.name}/</strong>
-          </div>
-          <LibraryTree node={folder} depth={depth + 1} />
-        </div>
-      ))}
-      {files.map((file) => (
-        <div key={file.id} className="ph-lib-tree-file" style={{ paddingLeft: 28 + depth * 16 }} title={file.relative_path}>
-          <span>{getFileTypeLabel(file)}</span>
-          <strong>{file.filename}</strong>
-          <small>{formatDate(file.updated_at)}</small>
-        </div>
-      ))}
-    </>
-  );
 }
 
 function ProfileButton({ user, apiBase, onClick }) {
@@ -111,144 +45,6 @@ function ProfileButton({ user, apiBase, onClick }) {
       <strong>个人资料</strong>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5" /></svg>
     </button>
-  );
-}
-
-function ProgrammingFileLibrary({ user, apiBase, onOpenProject }) {
-  const [library, setLibrary] = useState({ projects: [], materials: [] });
-  const [selectedProject, setSelectedProject] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [detailLoading, setDetailLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const loadLibrary = useCallback(async () => {
-    if (!user?.username) return;
-    setLoading(true);
-    setError("");
-    try {
-      const res = await fetch(`${apiBase}/programming/file-library?username=${encodeURIComponent(user.username)}`);
-      const data = await safeJson(res);
-      if (!res.ok) throw new Error(data.detail || "文件库读取失败");
-      setLibrary({ projects: data.projects || [], materials: data.materials || [] });
-      if (selectedProject?.id) {
-        const latest = (data.projects || []).find((item) => item.id === selectedProject.id);
-        if (!latest) setSelectedProject(null);
-      }
-    } catch (err) {
-      setError(err.message || "文件库读取失败");
-    } finally {
-      setLoading(false);
-    }
-  }, [apiBase, selectedProject?.id, user?.username]);
-
-  const loadProjectDetail = useCallback(async (projectId) => {
-    if (!user?.username || !projectId) return;
-    setDetailLoading(true);
-    setError("");
-    try {
-      const res = await fetch(`${apiBase}/code/projects/${projectId}?username=${encodeURIComponent(user.username)}`);
-      const data = await safeJson(res);
-      if (!res.ok || !data.project) throw new Error(data.detail || "项目详情读取失败");
-      setSelectedProject(data.project);
-    } catch (err) {
-      setError(err.message || "项目详情读取失败");
-    } finally {
-      setDetailLoading(false);
-    }
-  }, [apiBase, user?.username]);
-
-  useEffect(() => { loadLibrary(); }, [loadLibrary]);
-
-  const tree = useMemo(() => buildFileTree(selectedProject?.files || []), [selectedProject?.files]);
-
-  return (
-    <section className="ph-library-panel">
-      <div className="ph-library-head">
-        <div>
-          <h2>编程文件库</h2>
-          <p>项目来自 code_projects / code_project_files，普通文件来自 subject=programming 的 materials。</p>
-        </div>
-        <button type="button" onClick={loadLibrary} disabled={loading}>{loading ? "刷新中" : "刷新"}</button>
-      </div>
-
-      {error && <div className="ph-error">{error}</div>}
-
-      <div className="ph-library-layout">
-        <div className="ph-library-sections">
-          <section className="ph-library-section">
-            <div className="ph-library-section-title">
-              <h3>我的编程项目</h3>
-              <span>{library.projects.length} 个项目</span>
-            </div>
-            {library.projects.length === 0 ? (
-              <div className="ph-lib-empty">还没有项目。从编程工作台新建后会立即出现在这里。</div>
-            ) : (
-              <div className="ph-project-grid">
-                {library.projects.map((project) => (
-                  <article key={project.id} className="ph-project-card">
-                    <button type="button" onClick={() => loadProjectDetail(project.id)}>
-                      <span>编程项目</span>
-                      <strong>{project.name}</strong>
-                      <small>{project.language} · {project.file_count || 0} 个文件</small>
-                      <em>入口：{project.entry_file}</em>
-                      <b>更新于：{formatDate(project.updated_at)}</b>
-                    </button>
-                    <button type="button" className="ph-open-workbench" onClick={() => onOpenProject(project.id, project.language)}>
-                      打开工作台
-                    </button>
-                  </article>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section className="ph-library-section">
-            <div className="ph-library-section-title">
-              <h3>普通文件</h3>
-              <span>{library.materials.length} 个文件</span>
-            </div>
-            {library.materials.length === 0 ? (
-              <div className="ph-lib-empty">暂无 programming 方向普通文件。</div>
-            ) : (
-              <div className="ph-material-list">
-                {library.materials.map((file) => (
-                  <div key={file.id}>
-                    <span>{getFileTypeLabel(file)}</span>
-                    <strong>{file.original_filename || file.file_name}</strong>
-                    <small>{formatBytes(file.file_size)} · {formatDate(file.updated_at || file.created_at)}</small>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-        </div>
-
-        <aside className="ph-project-detail">
-          {!selectedProject ? (
-            <div className="ph-lib-empty">选择一个项目查看真实文件树。</div>
-          ) : (
-            <>
-              <div className="ph-project-detail-head">
-                <span>{selectedProject.language}</span>
-                <h3>{selectedProject.name}</h3>
-                <p>入口文件：{selectedProject.entry_file}</p>
-              </div>
-              <dl className="ph-project-meta">
-                <div><dt>文件数量</dt><dd>{selectedProject.files?.length || 0}</dd></div>
-                <div><dt>创建时间</dt><dd>{formatDate(selectedProject.created_at)}</dd></div>
-                <div><dt>更新时间</dt><dd>{formatDate(selectedProject.updated_at)}</dd></div>
-              </dl>
-              <div className="ph-lib-tree">
-                {detailLoading ? <div className="ph-lib-empty">详情读取中...</div> : <LibraryTree node={tree} />}
-              </div>
-              <button type="button" className="ph-detail-open" onClick={() => onOpenProject(selectedProject.id, selectedProject.language)}>
-                在编程工作台打开
-              </button>
-            </>
-          )}
-        </aside>
-      </div>
-    </section>
   );
 }
 
@@ -287,10 +83,10 @@ function ExerciseLibrary({ user, apiBase, onStart }) {
         body: JSON.stringify({ username: user.username }),
       });
       const data = await safeJson(res);
-      if (!res.ok || !data.project) throw new Error(data.detail || "练习项目创建失败");
+      if (!res.ok || !data.project) throw new Error(data.detail || "练习初始化失败");
       onStart(data.project.id, data.project.language, exercise.id);
     } catch (err) {
-      setError(err.message || "练习项目创建失败");
+      setError(err.message || "练习初始化失败");
     } finally {
       setLoading(false);
     }
@@ -313,8 +109,8 @@ function ExerciseLibrary({ user, apiBase, onStart }) {
         {items.map((exercise) => (
           <article key={exercise.id} className="ph-exercise-card">
             <div className="ph-exercise-card-top"><span>{exercise.language}</span><em>{exercise.difficulty}</em></div>
-            <h3>{exercise.title}</h3>
-            <p>{String(exercise.description || '').replace(/\s+/g, ' ').slice(0, 150)}</p>
+            <h3>{getExerciseTitle(exercise)}</h3>
+            <p>{getExerciseDescription(exercise)}</p>
             <div className="ph-exercise-tags">{(exercise.tags || []).slice(0, 5).map((item) => <span key={item}>{item}</span>)}</div>
             <button type="button" onClick={() => start(exercise)} disabled={loading}>做题</button>
           </article>
@@ -362,13 +158,6 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
     }
   }, [activeNav]);
 
-  const openProjectInWorkbench = useCallback((projectId, language = "") => {
-    setWorkbenchProjectId(projectId);
-    setWorkbenchLanguage(language);
-    setWorkbenchExerciseId(null);
-    setActiveNav("workbench");
-  }, []);
-
   const activateNav = useCallback((key) => {
     if (key === "workbench") {
       setWorkbenchProjectId(null);
@@ -384,7 +173,6 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
   const progressText = `${completed}/${total}`;
   const progressPercent = total ? Math.round((completed / total) * 100) : 0;
   const quota = homeData?.quota || {};
-  const files = homeData?.files || [];
   const plan = homeData?.plan || "free";
 
   const navContent = useMemo(() => {
@@ -398,20 +186,12 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
           initialLanguageSelection={workbenchLanguage}
           initialExerciseId={workbenchExerciseId}
           onProjectChanged={loadHomeData}
+          onOpenQuestions={() => setActiveNav("questions")}
           setPage={setPage}
           onGoHome={() => {
             loadHomeData();
             setActiveNav("home");
           }}
-        />
-      );
-    }
-    if (activeNav === "files") {
-      return (
-        <ProgrammingFileLibrary
-          user={user}
-          apiBase={apiBase}
-          onOpenProject={openProjectInWorkbench}
         />
       );
     }
@@ -428,7 +208,7 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
       );
     }
     return null;
-  }, [activeNav, apiBase, homeData, loadHomeData, openProjectInWorkbench, setPage, user, workbenchExerciseId, workbenchLanguage, workbenchProjectId]);
+  }, [activeNav, apiBase, homeData, loadHomeData, setPage, user, workbenchExerciseId, workbenchLanguage, workbenchProjectId]);
 
   return (
     <div className="ph-page">
@@ -519,32 +299,19 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
                 <div className="ph-quota-list">
                   <div><span>AI问答 / 纠错剩余额度</span><strong>{formatAiQuota(quota.ai_chat?.remaining, quota.ai_chat?.limit)}</strong></div>
                   <div><span>AI出题剩余额度</span><strong>{quota.ai_question?.remaining ?? 0} / {quota.ai_question?.limit ?? 0} 次</strong></div>
-                  <div><span>文件库剩余额度</span><strong>{formatBytes((quota.file_library?.limit_bytes || 0) - (quota.file_library?.used_bytes || 0))} / {formatBytes(quota.file_library?.limit_bytes)} </strong></div>
                 </div>
               </section>
 
-              <section className="ph-card ph-file-card">
+              <section className="ph-card ph-learning-entry-card">
                 <div className="ph-card-title">
-                  <span><Icon type="folder" /></span>
-                  <h2>文件库</h2>
+                  <span><Icon type="code" /></span>
+                  <h2>开始练习</h2>
                 </div>
-                {files.length === 0 ? (
-                  <div className="ph-empty-files">当前暂无编程项目或 programming 普通文件。</div>
-                ) : (
-                  <div className="ph-file-list">
-                    {files.map((file) => {
-                      const isProject = file.item_type === "project";
-                      return (
-                        <button key={`${file.item_type}-${file.id}`} type="button" onClick={() => (isProject ? openProjectInWorkbench(file.id) : setActiveNav("files"))}>
-                          <span>{isProject ? "项目" : getFileTypeLabel(file)}</span>
-                          <strong>{isProject ? file.name : file.original_filename || file.file_name}</strong>
-                          <small>{isProject ? `${file.language} · ${file.file_count || 0} 个文件` : `${getFileTypeLabel(file)} · ${formatBytes(file.file_size)}`}</small>
-                          <em>›</em>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+                <p className="ph-learning-entry-copy">从一道真实题目开始，AI 教练会陪你完成理解、编码、测试和提交。</p>
+                <div className="ph-learning-entry-actions">
+                  <button type="button" onClick={() => activateNav("workbench")}>继续上次练习</button>
+                  <button type="button" onClick={() => activateNav("questions")}>从题库选题</button>
+                </div>
               </section>
             </div>
           </>

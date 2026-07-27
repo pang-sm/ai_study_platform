@@ -1668,3 +1668,62 @@
 .pw-exercise-actions button:last-of-type { background: #5b21e6; color: #fff; }
 .pw-exercise-actions button:disabled { opacity: .5; cursor: not-allowed; }
 .pw-exercise-actions strong { color: #15803d; font-size: 12px; }
+
+/* Focused exercise layout: the left rail describes the challenge; files stay
+   available through editor tabs without exposing project management. */
+.pw-workbench-body { grid-template-columns: 292px minmax(0, 1fr) 300px; }
+.pw-shell--explorer-collapsed .pw-workbench-body { grid-template-columns: 0 minmax(0, 1fr) 300px; }
+.pw-shell--coach-collapsed .pw-workbench-body { grid-template-columns: 292px minmax(0, 1fr) 0; }
+.pw-shell--explorer-collapsed.pw-shell--coach-collapsed .pw-workbench-body,
+.pw-shell--focus-mode .pw-workbench-body { grid-template-columns: 0 minmax(0, 1fr) 0; }
+
+.pw-exercise-sidebar { overflow: hidden; }
+.pw-exercise-sidebar-head {
+  height: 40px;
+  flex: 0 0 40px;
+  padding: 0 10px 0 14px;
+  border-bottom: 1px solid #ebe7f3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.pw-exercise-sidebar-head button {
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #5f596b;
+  font-size: 20px;
+  line-height: 1;
+}
+.pw-exercise-sidebar-head button:hover { background: #f0eaff; color: #5b28e8; }
+.pw-exercise-sidebar-body { min-height: 0; overflow: auto; padding: 18px 16px 28px; }
+.pw-exercise-sidebar-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.pw-exercise-sidebar-meta span,
+.pw-exercise-sidebar-meta strong { padding: 4px 8px; border-radius: 999px; background: #f0eaff; color: #5b28e8; font-size: 11px; font-weight: 800; }
+.pw-exercise-sidebar-meta strong { background: #fff4d9; color: #9a6900; }
+.pw-exercise-sidebar-body h1 { margin: 0 0 12px; color: #211b38; font-size: 21px; line-height: 1.28; }
+.pw-exercise-sidebar-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 16px; }
+.pw-exercise-sidebar-tags span { padding: 3px 7px; border: 1px solid #e6ddfa; border-radius: 999px; color: #685a91; font-size: 11px; }
+.pw-exercise-sidebar-copy { color: #57516a; font-size: 13px; line-height: 1.7; white-space: pre-wrap; }
+.pw-exercise-sidebar-section { margin-top: 22px; }
+.pw-exercise-sidebar-section h2 { margin: 0 0 10px; color: #28223d; font-size: 14px; }
+.pw-exercise-example { display: grid; gap: 5px; margin-bottom: 10px; padding: 10px; border: 1px solid #ebe5f6; border-radius: 7px; background: #fbfaff; }
+.pw-exercise-example span { color: #766b91; font-size: 11px; font-weight: 800; }
+.pw-exercise-example code { color: #31284d; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.pw-exercise-sidebar-empty { padding: 22px 16px; color: #68617b; font-size: 13px; line-height: 1.65; }
+.pw-exercise-sidebar-empty strong { display: block; margin-bottom: 8px; color: #28223d; font-size: 16px; }
+.pw-exercise-sidebar-empty p { margin: 0 0 16px; }
+.pw-exercise-sidebar-empty button { min-height: 34px; padding: 0 12px; border: 0; border-radius: 6px; background: #5b28e8; color: #fff; font-weight: 750; }
+
+@media (max-width: 1180px) {
+  .pw-workbench-body,
+  .pw-shell--coach-collapsed .pw-workbench-body { grid-template-columns: 220px minmax(0, 1fr) 0; }
+}
+
+@media (max-width: 760px) {
+  .pw-workbench-body,
+  .pw-shell--explorer-collapsed .pw-workbench-body,
+  .pw-shell--coach-collapsed .pw-workbench-body { grid-template-columns: 0 minmax(0, 1fr) 0; }
+}
