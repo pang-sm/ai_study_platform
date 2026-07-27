@@ -114,7 +114,7 @@ def audit_reference(language: str, exercise_dir: Path, reference_files: list[dic
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(item["content"], encoding="utf-8")
         commands = {
-            "Python": ["python", "-m", "unittest", "discover", "-v", "-p", "*_test.py"],
+            "Python": [sys.executable, "-m", "unittest", "discover", "-v", "-p", "*_test.py"],
             "C": ["gcc", "-std=c99", "-DUNITY_SUPPORT_64", "-DUNITY_OUTPUT_COLOR", "test-framework/unity.c", "-o", "tests.exe"],
             "C++": ["cmake", "-S", ".", "-B", "build", "-DEXERCISM_RUN_ALL_TESTS=ON"],
         }
@@ -158,7 +158,7 @@ def starter_compile(language: str, starter_files: list[dict], exercise_dir: Path
             target.write_text(item["content"], encoding="utf-8")
         source_paths = [str(temp / item["path"]) for item in starter_files]
         if language == "Python":
-            return run(["python", "-m", "py_compile", *source_paths], temp)
+            return run([sys.executable, "-m", "py_compile", *source_paths], temp)
         if language == "C":
             return run(["gcc", "-fsyntax-only", *source_paths], temp)
         if language == "C++":
