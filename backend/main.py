@@ -8820,6 +8820,9 @@ def _parse_exercise_test_counts(language: str, output: str, total: int, exit_cod
 def _run_official_exercise_tests(project: models.CodeProject, exercise: models.ProgrammingExercise, files: list[models.CodeProjectFile], submission: bool) -> dict:
     language = normalize_project_language(exercise.language)
     bundle = _exercise_json(exercise.official_test_files_json if submission else exercise.public_tests_json, [])
+    if not submission:
+        official_bundle = _exercise_json(exercise.official_test_files_json, [])
+        bundle.extend(item for item in official_bundle if str(item.get("path") or "").startswith(("test/", "test-framework/")))
     if not bundle:
         return {"success": False, "passed": False, "passed_count": 0, "total_count": 0, "failed_categories": ["tests"], "duration_ms": 0, "stderr": "官方测试文件不存在。", "exit_code": -1}
     total = _count_exercise_tests(language, bundle)

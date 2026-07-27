@@ -209,7 +209,7 @@ def import_language(db, source_root: Path, language: str, max_count: int, reques
             "description": description,
             "starter_files_json": json.dumps(starter, ensure_ascii=False),
             "reference_files_json": json.dumps(reference, ensure_ascii=False),
-            "public_tests_json": json.dumps(official_tests, ensure_ascii=False),
+            "public_tests_json": json.dumps(public_tests, ensure_ascii=False),
             "hidden_tests_json": json.dumps(tests, ensure_ascii=False),
             "official_test_files_json": json.dumps(official_tests, ensure_ascii=False),
             "source_repo": f"https://github.com/exercism/{repo}",
