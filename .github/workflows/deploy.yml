@@ -131,6 +131,10 @@ jobs:
       - name: Create deployment Git bundle
         run: git bundle create "$RUNNER_TEMP/ai_study_platform.bundle" main
 
+      - name: Create deployment source archive
+        shell: bash
+        run: git archive --format=tar main | gzip -n > "$RUNNER_TEMP/ai_study_platform.tar.gz"
+
       - name: Prepare audited Exercism source bundle
         shell: bash
         run: |
@@ -164,11 +168,16 @@ jobs:
           HOST_CLEAN="${HOST_CLEAN%%:*}"
 
           DEPLOY_BUNDLE="/tmp/ai_study_platform-${GITHUB_SHA}.bundle"
+          DEPLOY_ARCHIVE="/tmp/ai_study_platform-${GITHUB_SHA}.tar.gz"
           EXERCISM_ARCHIVE="/tmp/exercism_sources-${GITHUB_SHA}.tar.gz"
           echo "[deploy] Uploading Git bundle to $HOST_CLEAN:$DEPLOY_BUNDLE"
           scp -i "$HOME/.ssh/tencent_deploy_key" -P "$SSH_PORT" \
             "$RUNNER_TEMP/ai_study_platform.bundle" \
             "$TENCENT_USER@$HOST_CLEAN:$DEPLOY_BUNDLE"
+          echo "[deploy] Uploading source archive to $HOST_CLEAN:$DEPLOY_ARCHIVE"
+          scp -i "$HOME/.ssh/tencent_deploy_key" -P "$SSH_PORT" \
+            "$RUNNER_TEMP/ai_study_platform.tar.gz" \
+            "$TENCENT_USER@$HOST_CLEAN:$DEPLOY_ARCHIVE"
           echo "[deploy] Uploading audited Exercism sources to $HOST_CLEAN:$EXERCISM_ARCHIVE"
           scp -i "$HOME/.ssh/tencent_deploy_key" -P "$SSH_PORT" \
             "$RUNNER_TEMP/exercism_sources.tar.gz" \
@@ -177,6 +186,7 @@ jobs:
           # Pass ADMIN_LOGIN_CODE as env var to the remote session
           ssh -i "$HOME/.ssh/tencent_deploy_key" -p "$SSH_PORT" "$TENCENT_USER@$HOST_CLEAN" \
             DEPLOY_BUNDLE="$DEPLOY_BUNDLE" \
+            DEPLOY_ARCHIVE="$DEPLOY_ARCHIVE" \
             EXERCISM_ARCHIVE="$EXERCISM_ARCHIVE" \
             ADMIN_LOGIN_CODE="${ADMIN_LOGIN_CODE:-}" \
             SMTP_HOST="${SMTP_HOST:-}" \
@@ -187,16 +197,34 @@ jobs:
             'bash -se' <<'DEPLOYEOF'
           set -euo pipefail
 
-          cd ~/ai_study_platform
+          REPO_ROOT="$HOME/ai_study_platform"
+          cd "$REPO_ROOT"
 
           export GIT_TERMINAL_PROMPT=0
           echo "[deploy] repository: $(pwd)"
           git remote -v
           echo "[deploy] Updating repository from uploaded Git bundle"
-          git fetch "$DEPLOY_BUNDLE" main
-          git checkout main
-          git reset --hard FETCH_HEAD
+          if git fetch "$DEPLOY_BUNDLE" main 2>&1; then
+            git checkout main
+            git reset --hard FETCH_HEAD
+          else
+            echo "[deploy] Existing Git worktree could not consume bundle; rebuilding it from the same bundle"
+            DEPLOY_TREE=$(mktemp -d)
+            if git clone "$DEPLOY_BUNDLE" "$DEPLOY_TREE" 2>&1; then
+              rsync -a --delete --exclude='.git/' --exclude='backend/app.db' --exclude='backend/backups/' --exclude='backend/uploads/' "$DEPLOY_TREE/" "$REPO_ROOT/"
+              mv "$REPO_ROOT/.git" "$DEPLOY_TREE/.git.previous"
+              mv "$DEPLOY_TREE/.git" "$REPO_ROOT/.git"
+            else
+              echo "[deploy] Bundle clone also failed; syncing the verified runner source archive"
+              rm -rf "$DEPLOY_TREE"
+              DEPLOY_TREE=$(mktemp -d)
+              tar -xzf "$DEPLOY_ARCHIVE" -C "$DEPLOY_TREE"
+              rsync -a --delete --exclude='.git/' --exclude='backend/app.db' --exclude='backend/backups/' --exclude='backend/uploads/' "$DEPLOY_TREE/" "$REPO_ROOT/"
+            fi
+            rm -rf "$DEPLOY_TREE"
+          fi
           rm -f "$DEPLOY_BUNDLE"
+          rm -f "$DEPLOY_ARCHIVE"
 
           if ! command -v tesseract >/dev/null 2>&1; then
             sudo apt-get update
