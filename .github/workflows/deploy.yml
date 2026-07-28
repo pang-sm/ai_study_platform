@@ -161,11 +161,12 @@ jobs:
           set -euo pipefail
 
           DEPLOY_LOG="/tmp/ai-study-platform-deploy-${GITHUB_SHA}.log"
-          DEPLOY_DIAGNOSTIC="/var/www/ai_study_platform/deploy-diagnostic.txt"
+          DEPLOY_DIAGNOSTIC="/var/www/ai_study_platform/assets/deploy-diagnostic.txt"
           exec > >(tee "$DEPLOY_LOG") 2>&1
           deployment_exit() {
             local rc=$?
             if [ "$rc" -ne 0 ]; then
+              sudo mkdir -p "$(dirname "$DEPLOY_DIAGNOSTIC")" || true
               {
                 echo "exit_code=$rc"
                 echo "last_command=${BASH_COMMAND}"
