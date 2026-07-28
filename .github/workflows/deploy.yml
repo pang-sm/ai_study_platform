@@ -166,13 +166,23 @@ jobs:
           export GIT_TERMINAL_PROMPT=0
           echo "[deploy] repository: $(pwd)"
           git remote -v
-          git fetch origin main 2>&1 || {
+          fetch_with_retry() {
+            local attempt
+            for attempt in 1 2 3; do
+              echo "[deploy] git fetch attempt ${attempt}/3"
+              if git -c http.version=HTTP/1.1 fetch --prune origin main 2>&1; then
+                return 0
+              fi
+              echo "[deploy] git fetch failed on attempt ${attempt}"
+              if [ "$attempt" -lt 3 ]; then sleep 10; fi
+            done
             echo "[deploy] git fetch failed; repository diagnostics:"
             git status --short || true
             git rev-parse --show-toplevel || true
             git rev-parse HEAD || true
-            exit 1
+            return 1
           }
+          fetch_with_retry
           git checkout main
           git reset --hard origin/main
 
