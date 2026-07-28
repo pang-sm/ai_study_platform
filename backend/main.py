@@ -8948,9 +8948,13 @@ def _parse_exercise_test_counts(language: str, output: str, total: int, exit_cod
             failed = sum(int(failed_count or 0) for failed_count, _, _ in pytest_counts)
             errors = sum(int(error_count or 0) for _, error_count, _ in pytest_counts)
             passed = sum(int(passed_count or 0) for _, _, passed_count in pytest_counts)
+            if exit_code != 0 and failed == 0 and errors == 0:
+                return 0, total
             return passed, max(total, passed + failed + errors)
         failed_match = re.search(r"FAILED\s+\(([^)]*)\)", output)
         failed = sum(int(value) for value in re.findall(r"(?:failures|errors)=(\d+)", failed_match.group(1))) if failed_match else 0
+        if exit_code != 0:
+            return 0, total
         return max(0, total - failed), total
     if language == "C":
         match = re.search(r"(\d+)\s+Tests\s+(\d+)\s+Failures", output)
