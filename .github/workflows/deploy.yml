@@ -227,7 +227,7 @@ jobs:
             "$TENCENT_USER@$HOST_CLEAN:$EXERCISM_ARCHIVE"
 
           # Pass ADMIN_LOGIN_CODE as env var to the remote session
-          ssh -i "$HOME/.ssh/tencent_deploy_key" -p "$SSH_PORT" "$TENCENT_USER@$HOST_CLEAN" \
+          ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=20 -i "$HOME/.ssh/tencent_deploy_key" -p "$SSH_PORT" "$TENCENT_USER@$HOST_CLEAN" \
             DEPLOY_BUNDLE="$DEPLOY_BUNDLE" \
             DEPLOY_ARCHIVE="$DEPLOY_ARCHIVE" \
             EXERCISM_ARCHIVE="$EXERCISM_ARCHIVE" \
