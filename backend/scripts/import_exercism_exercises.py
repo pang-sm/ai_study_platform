@@ -8,8 +8,10 @@ server-side reference/hidden data are copied into the database.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -35,6 +37,14 @@ def run(command: list[str], cwd: Path, timeout: int = 90) -> tuple[bool, str]:
     return result.returncode == 0, output[-4000:]
 
 
+def python_test_command() -> list[str]:
+    if importlib.util.find_spec("pytest") is not None:
+        return [sys.executable, "-m", "pytest", "-q"]
+    if os.name == "nt":
+        return ["py", "-3.13", "-m", "pytest", "-q"]
+    return [sys.executable, "-m", "unittest", "discover", "-v", "-p", "*_test.py"]
+
+
 def read_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -49,9 +59,21 @@ def files_from_config(exercise_dir: Path, config: dict, key: str) -> list[dict]:
     return result
 
 
+def normalize_test_files(language: str, test_files: list[dict]) -> list[dict]:
+    if language != "C":
+        return test_files
+    return [
+        {
+            **item,
+            "content": re.sub(r"(?m)^\s*TEST_IGNORE\(\);[^\n]*\n?", "", str(item.get("content") or "")),
+        }
+        for item in test_files
+    ]
+
+
 def official_test_bundle(language: str, exercise_dir: Path, test_files: list[dict]) -> list[dict]:
     """Include the track's test runner support without exposing it as starter code."""
-    result = list(test_files)
+    result = normalize_test_files(language, test_files)
     support_dir = exercise_dir / ("test-framework" if language == "C" else "test" if language == "C++" else "__missing__")
     if support_dir.is_dir():
         for path in sorted(support_dir.rglob("*")):
@@ -103,19 +125,27 @@ def find_exercise(repo_dir: Path, slug: str) -> tuple[Path | None, str | None]:
     return None, None
 
 
-def audit_reference(language: str, exercise_dir: Path, reference_files: list[dict], test_files: list[dict]) -> tuple[bool, dict]:
+def audit_reference(language: str, exercise_dir: Path, starter_files: list[dict], reference_files: list[dict], test_files: list[dict]) -> tuple[bool, dict]:
     if not reference_files or not test_files:
         return False, {"reference": "missing reference or official tests"}
     with tempfile.TemporaryDirectory(prefix="exercism-audit-") as raw:
         temp = Path(raw) / exercise_dir.name
         shutil.copytree(exercise_dir, temp)
+        for item in starter_files:
+            target = temp / item["path"]
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(item["content"], encoding="utf-8")
         for item in reference_files:
             target = temp / item["path"]
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(item["content"], encoding="utf-8")
+        for item in test_files:
+            target = temp / item["path"]
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(item["content"], encoding="utf-8")
         commands = {
-            "Python": [sys.executable, "-m", "unittest", "discover", "-v", "-p", "*_test.py"],
-            "C": ["gcc", "-std=c99", "-DUNITY_SUPPORT_64", "-DUNITY_OUTPUT_COLOR", "test-framework/unity.c", "-o", "tests.exe"],
+            "Python": python_test_command(),
+            "C": ["gcc", "-std=c99", "-DEXERCISM_RUN_ALL_TESTS", "-DUNITY_SUPPORT_64", "-DUNITY_OUTPUT_COLOR", "test-framework/unity.c", "-o", "tests.exe"],
             "C++": ["cmake", "-S", ".", "-B", "build", "-DEXERCISM_RUN_ALL_TESTS=ON"],
         }
         if language == "C++":
@@ -125,15 +155,23 @@ def audit_reference(language: str, exercise_dir: Path, reference_files: list[dic
                 if ok:
                     ok, output = run(["ctest", "--test-dir", "build", "--output-on-failure"], temp)
                     if ok and "No tests were found" in output:
-                        cpp_sources = [
-                            str(path.relative_to(temp)) for path in temp.rglob("*.cpp")
-                            if ".meta" not in path.parts and "build" not in path.parts
-                        ]
+                        cpp_sources = [str(item["path"]) for item in reference_files if str(item.get("path", "")).endswith(".cpp")]
+                        test_contents = [item for item in test_files if str(item.get("path", "")).endswith(".cpp")]
+                        included_sources = {
+                            match.group(1).replace("\\", "/")
+                            for item in test_contents
+                            for match in re.finditer(r'#include\s+"([^" ]+\.c(?:pp|cxx)?)"', str(item.get("content") or ""))
+                        }
+                        cpp_sources = [path for path in cpp_sources if Path(path).name not in {Path(item).name for item in included_sources}]
+                        cpp_sources.extend(str(path.relative_to(temp)) for path in temp.glob("*_test.cpp"))
+                        cpp_sources.extend(str(path.relative_to(temp)) for path in (temp / "test").glob("*.cpp"))
                         ok, output = run(["g++", "-std=c++17", "-I.", *cpp_sources, "-o", "exercise-tests.exe"], temp)
                         if ok:
                             ok, output = run([str(temp / "exercise-tests.exe")], temp)
         elif language == "C":
-            ok, output = run(commands[language] + [str(path.name) for path in temp.glob("*.c")], temp)
+            sources = [str(item["path"]) for item in reference_files if str(item.get("path", "")).endswith(".c")]
+            tests = [str(item["path"]) for item in test_files if str(item.get("path", "")).startswith("test_") and str(item.get("path", "")).endswith(".c")]
+            ok, output = run(["gcc", "-std=c99", "-DEXERCISM_RUN_ALL_TESTS", "-I.", *sources, *tests, "test-framework/unity.c", "-o", "tests.exe"], temp)
             if ok:
                 ok, output = run([str(temp / "tests.exe")], temp)
         elif language == "Java":
@@ -192,13 +230,14 @@ def import_language(db, source_root: Path, language: str, max_count: int, reques
             continue
         config = read_json(config_path)
         starter = files_from_config(exercise_dir, config, "solution")
+        starter.extend(files_from_config(exercise_dir, config, "editor"))
         reference = reference_files_from_config(exercise_dir, config)
         tests = files_from_config(exercise_dir, config, "test")
         if not starter or not reference or not tests:
             continue
         official_tests = official_test_bundle(language, exercise_dir, tests)
         compile_ok, compile_output = starter_compile(language, starter, exercise_dir)
-        reference_ok, reference_report = audit_reference(language, exercise_dir, reference, tests)
+        reference_ok, reference_report = audit_reference(language, exercise_dir, starter, reference, normalize_test_files(language, tests))
         audit = {"starter_compile": "pass" if compile_ok else "fail", "reference_tests": reference_report, "ai_hidden_tests": 0}
         audited.append({"slug": item["slug"], "audit": audit})
         if not compile_ok or not reference_ok:
@@ -206,6 +245,7 @@ def import_language(db, source_root: Path, language: str, max_count: int, reques
         instructions = exercise_dir / ".docs" / "instructions.md"
         description = instructions.read_text(encoding="utf-8") if instructions.is_file() else config.get("blurb", "")
         tags = sorted(set((item.get("concepts") or []) + (item.get("practices") or []) + (item.get("prerequisites") or [])))
+        hidden_tests = normalize_test_files(language, tests)
         public_tests = [{"path": test["path"], "content": test["content"]} for test in tests]
         payload = {
             "slug": f"{language.lower().replace('+', 'p')}-{item['slug']}",
@@ -217,7 +257,7 @@ def import_language(db, source_root: Path, language: str, max_count: int, reques
             "starter_files_json": json.dumps(starter, ensure_ascii=False),
             "reference_files_json": json.dumps(reference, ensure_ascii=False),
             "public_tests_json": json.dumps(public_tests, ensure_ascii=False),
-            "hidden_tests_json": json.dumps(tests, ensure_ascii=False),
+            "hidden_tests_json": json.dumps(hidden_tests, ensure_ascii=False),
             "official_test_files_json": json.dumps(official_tests, ensure_ascii=False),
             "source_repo": f"https://github.com/exercism/{repo}",
             "source_path": f"exercises/{track}/{item['slug']}",

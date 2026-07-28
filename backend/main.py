@@ -8802,6 +8802,11 @@ def _parse_exercise_test_counts(language: str, output: str, total: int, exit_cod
         match = re.search(r"Ran\s+(\d+)\s+tests?", output)
         if match:
             total = int(match.group(1))
+        pytest_match = re.search(r"(?:(\d+)\s+failed,\s+)?(?:(\d+)\s+passed)", output, re.IGNORECASE)
+        if pytest_match:
+            failed = int(pytest_match.group(1) or 0)
+            passed = int(pytest_match.group(2) or 0)
+            return passed, passed + failed
         failed_match = re.search(r"FAILED\s+\(([^)]*)\)", output)
         failed = sum(int(value) for value in re.findall(r"(?:failures|errors)=(\d+)", failed_match.group(1))) if failed_match else 0
         return max(0, total - failed), total
@@ -8814,6 +8819,9 @@ def _parse_exercise_test_counts(language: str, output: str, total: int, exit_cod
         match = re.search(r"test cases:\s*(\d+)\s*\|\s*(\d+)\s*passed", output, re.IGNORECASE)
         if match:
             return int(match.group(2)), int(match.group(1))
+        match = re.search(r"\((\d+)\s+assertions?\s+in\s+(\d+)\s+test cases?\)", output, re.IGNORECASE)
+        if match and exit_code == 0:
+            return int(match.group(2)), int(match.group(2))
     return (total, total) if exit_code == 0 else (0, total)
 
 
@@ -8822,7 +8830,17 @@ def _run_official_exercise_tests(project: models.CodeProject, exercise: models.P
     bundle = _exercise_json(exercise.official_test_files_json if submission else exercise.public_tests_json, [])
     if not submission:
         official_bundle = _exercise_json(exercise.official_test_files_json, [])
-        bundle.extend(item for item in official_bundle if str(item.get("path") or "").startswith(("test/", "test-framework/")))
+        public_paths = {str(item.get("path") or "") for item in bundle}
+        bundle.extend(
+            item for item in official_bundle
+            if (
+                str(item.get("path") or "").startswith("test-framework/")
+                or (
+                    str(item.get("path") or "").startswith("test/")
+                    and str(item.get("path") or "") not in public_paths
+                )
+            )
+        )
     if not bundle:
         return {"success": False, "passed": False, "passed_count": 0, "total_count": 0, "failed_categories": ["tests"], "duration_ms": 0, "stderr": "官方测试文件不存在。", "exit_code": -1}
     total = _count_exercise_tests(language, bundle)
@@ -8839,16 +8857,25 @@ def _run_official_exercise_tests(project: models.CodeProject, exercise: models.P
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_text(str(item.get("content") or ""), encoding="utf-8")
         if language == "Python":
-            command = [sys.executable, "-m", "unittest", "discover", "-v", "-p", "*_test.py"]
+            command = [sys.executable, "-m", "pytest", "-q"]
         elif language == "C":
             sources = [str(Path(file.relative_path)) for file in files if PurePosixPath(file.relative_path).suffix.lower() == ".c"]
             tests = [str(Path(item["path"])) for item in bundle if str(item.get("path", "")).endswith(".c") and "test-framework" not in str(item.get("path", ""))]
             framework = [str(Path(item["path"])) for item in bundle if str(item.get("path", "")).startswith("test-framework/") and str(item.get("path", "")).endswith(".c")]
-            command = [shutil.which("gcc") or "gcc", "-std=c11", "-I.", *sources, *tests, *framework, "-o", "exercise-tests.exe"]
+            run_all = ["-DEXERCISM_RUN_ALL_TESTS"] if submission else []
+            command = [shutil.which("gcc") or "gcc", "-std=c11", *run_all, "-I.", *sources, *tests, *framework, "-o", "exercise-tests.exe"]
         elif language == "C++":
             sources = [str(Path(file.relative_path)) for file in files if PurePosixPath(file.relative_path).suffix.lower() in (".cpp", ".cc", ".cxx")]
             tests = [str(Path(item["path"])) for item in bundle if str(item.get("path", "")).endswith((".cpp", ".cc", ".cxx"))]
-            command = [shutil.which("g++") or "g++", "-std=c++17", "-I.", *sources, *tests, "-o", "exercise-tests.exe"]
+            included_sources = {
+                match.group(1).replace("\\", "/")
+                for item in bundle
+                for match in re.finditer(r'#include\s+"([^" ]+\.c(?:pp|cxx)?)"', str(item.get("content") or ""))
+            }
+            included_names = {Path(item).name for item in included_sources}
+            sources = [path for path in sources if path.replace("\\", "/") not in included_sources and Path(path).name not in included_names]
+            run_all = ["-DEXERCISM_RUN_ALL_TESTS"] if submission else []
+            command = [shutil.which("g++") or "g++", "-std=c++17", "-static-libgcc", "-static-libstdc++", *run_all, "-I.", *sources, *tests, "-o", "exercise-tests.exe"]
         else:
             return {"success": False, "passed": False, "passed_count": 0, "total_count": total, "failed_categories": ["unsupported"], "duration_ms": 0, "stderr": "Java 题目尚未通过官方测试验证。", "exit_code": -1}
         if language == "Python":

@@ -583,7 +583,7 @@ export default function ProgrammingWorkbench({
     setExpandedProjectIds((prev) => new Set(prev).add(nextProject.id));
     const firstFile = nextProject.files?.find((file) => file.relative_path === nextProject.entry_file) || nextProject.files?.[0];
     setActiveFileId(firstFile?.id || null);
-    setOpenTabs(firstFile ? [firstFile.id] : []);
+    setOpenTabs((nextProject.files || []).map((file) => file.id));
     setDirtyFiles(new Set());
     setSaveState("已保存");
     setCompileDiagnostics([]);
