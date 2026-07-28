@@ -138,11 +138,54 @@ jobs:
       - name: Prepare audited Exercism source bundle
         shell: bash
         run: |
+          set -euo pipefail
           SOURCE_ROOT="$RUNNER_TEMP/exercism_sources"
           mkdir -p "$SOURCE_ROOT"
-          git clone --depth 1 --no-tags https://github.com/exercism/c.git "$SOURCE_ROOT/c"
-          git clone --depth 1 --no-tags https://github.com/exercism/cpp.git "$SOURCE_ROOT/cpp"
-          git clone --depth 1 --no-tags https://github.com/exercism/python.git "$SOURCE_ROOT/python"
+          clone_track() {
+            local repo="$1"
+            local destination="$SOURCE_ROOT/$repo"
+            local attempt
+            for attempt in 1 2 3; do
+              rm -rf "$destination"
+              echo "[sources] cloning $repo (attempt $attempt/3)"
+              if git clone --depth 1 --no-tags --single-branch "https://github.com/exercism/$repo.git" "$destination"; then
+                return 0
+              fi
+              echo "[sources] clone failed for $repo"
+              if [ "$attempt" -lt 3 ]; then sleep 5; fi
+            done
+            return 1
+          }
+          clone_track c
+          clone_track cpp
+          clone_track python
+
+          c_slugs=(hello-world reverse-string acronym bob difference-of-squares grains leap binary collatz-conjecture darts dnd-character eliuds-eggs hamming queen-attack raindrops resistor-color-duo rna-transcription space-age two-fer armstrong-numbers binary-search gigasecond high-scores)
+          cpp_slugs=(hello-world reverse-string acronym bob election-day ellens-alien-game freelancer-rates interest-is-interesting isbn-verifier lasagna lasagna-master last-will log-levels luhn making-the-grade pacman-rules power-of-troy space-age speedywagon troll-the-trolls collatz-conjecture darts grains)
+          python_slugs=(ledger markdown bob hello-world reverse-string acronym anagram armstrong-numbers binary-search black-jack card-games cater-waiter chaitanas-colossal-coaster collatz-conjecture currency-exchange darts difference-of-squares electric-bill ellens-alien-game etl flatten-array ghost-gobble-arcade-game gigasecond grains guidos-gorgeous-lasagna)
+          verify_track() {
+            local repo="$1"
+            shift
+            local missing=()
+            local slug
+            for slug in "$@"; do
+              if [ ! -f "$SOURCE_ROOT/$repo/exercises/practice/$slug/.meta/config.json" ] && [ ! -f "$SOURCE_ROOT/$repo/exercises/concept/$slug/.meta/config.json" ]; then
+                missing+=("$slug")
+              fi
+            done
+            echo "[sources] $repo commit: $(git -C "$SOURCE_ROOT/$repo" rev-parse HEAD)"
+            if [ ! -f "$SOURCE_ROOT/$repo/LICENSE" ]; then
+              echo "[sources] $repo LICENSE is missing"
+              return 1
+            fi
+            if [ "${#missing[@]}" -gt 0 ]; then
+              echo "[sources] $repo missing requested exercises: ${missing[*]}"
+              return 1
+            fi
+          }
+          verify_track c "${c_slugs[@]}"
+          verify_track cpp "${cpp_slugs[@]}"
+          verify_track python "${python_slugs[@]}"
           tar -czf "$RUNNER_TEMP/exercism_sources.tar.gz" -C "$SOURCE_ROOT" c cpp python
 
       - name: Deploy to Tencent Cloud
