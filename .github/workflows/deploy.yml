@@ -131,6 +131,16 @@ jobs:
       - name: Create deployment Git bundle
         run: git bundle create "$RUNNER_TEMP/ai_study_platform.bundle" main
 
+      - name: Prepare audited Exercism source bundle
+        shell: bash
+        run: |
+          SOURCE_ROOT="$RUNNER_TEMP/exercism_sources"
+          mkdir -p "$SOURCE_ROOT"
+          git clone --depth 1 --no-tags https://github.com/exercism/c.git "$SOURCE_ROOT/c"
+          git clone --depth 1 --no-tags https://github.com/exercism/cpp.git "$SOURCE_ROOT/cpp"
+          git clone --depth 1 --no-tags https://github.com/exercism/python.git "$SOURCE_ROOT/python"
+          tar -czf "$RUNNER_TEMP/exercism_sources.tar.gz" -C "$SOURCE_ROOT" c cpp python
+
       - name: Deploy to Tencent Cloud
         shell: bash
         env:
@@ -154,14 +164,20 @@ jobs:
           HOST_CLEAN="${HOST_CLEAN%%:*}"
 
           DEPLOY_BUNDLE="/tmp/ai_study_platform-${GITHUB_SHA}.bundle"
+          EXERCISM_ARCHIVE="/tmp/exercism_sources-${GITHUB_SHA}.tar.gz"
           echo "[deploy] Uploading Git bundle to $HOST_CLEAN:$DEPLOY_BUNDLE"
           scp -i "$HOME/.ssh/tencent_deploy_key" -P "$SSH_PORT" \
             "$RUNNER_TEMP/ai_study_platform.bundle" \
             "$TENCENT_USER@$HOST_CLEAN:$DEPLOY_BUNDLE"
+          echo "[deploy] Uploading audited Exercism sources to $HOST_CLEAN:$EXERCISM_ARCHIVE"
+          scp -i "$HOME/.ssh/tencent_deploy_key" -P "$SSH_PORT" \
+            "$RUNNER_TEMP/exercism_sources.tar.gz" \
+            "$TENCENT_USER@$HOST_CLEAN:$EXERCISM_ARCHIVE"
 
           # Pass ADMIN_LOGIN_CODE as env var to the remote session
           ssh -i "$HOME/.ssh/tencent_deploy_key" -p "$SSH_PORT" "$TENCENT_USER@$HOST_CLEAN" \
             DEPLOY_BUNDLE="$DEPLOY_BUNDLE" \
+            EXERCISM_ARCHIVE="$EXERCISM_ARCHIVE" \
             ADMIN_LOGIN_CODE="${ADMIN_LOGIN_CODE:-}" \
             SMTP_HOST="${SMTP_HOST:-}" \
             SMTP_PORT="${SMTP_PORT:-}" \
@@ -274,25 +290,7 @@ jobs:
           cd backend
           echo "=== Importing audited Exercism programming exercises ==="
           EXERCISM_SOURCE_ROOT=$(mktemp -d)
-          clone_with_retry() {
-            local repo_url="$1"
-            local target="$2"
-            local attempt
-            for attempt in 1 2 3; do
-              echo "[deploy] git clone attempt ${attempt}/3: ${repo_url}"
-              if git clone --depth 1 --no-tags "$repo_url" "$target" 2>&1; then
-                return 0
-              fi
-              echo "[deploy] git clone failed: ${repo_url}"
-              rm -rf "$target"
-              if [ "$attempt" -lt 3 ]; then sleep 10; fi
-            done
-            echo "[deploy] git clone failed after 3 attempts: ${repo_url}"
-            return 1
-          }
-          clone_with_retry https://github.com/exercism/c.git "$EXERCISM_SOURCE_ROOT/c"
-          clone_with_retry https://github.com/exercism/cpp.git "$EXERCISM_SOURCE_ROOT/cpp"
-          clone_with_retry https://github.com/exercism/python.git "$EXERCISM_SOURCE_ROOT/python"
+          tar -xzf "$EXERCISM_ARCHIVE" -C "$EXERCISM_SOURCE_ROOT"
           PROGRAMMING_DB_BACKUP="$DATA_DB.before-programming-reconcile.$(date +%Y%m%d_%H%M%S).db"
           cp "$DATA_DB" "$PROGRAMMING_DB_BACKUP"
           echo "[deploy] Programming database backup: $PROGRAMMING_DB_BACKUP"
@@ -314,7 +312,7 @@ jobs:
             --slugs ledger,markdown,bob,hello-world,reverse-string,acronym,anagram,armstrong-numbers,binary-search,black-jack,card-games,cater-waiter,chaitanas-colossal-coaster,collatz-conjecture,currency-exchange,darts,difference-of-squares,electric-bill,ellens-alien-game,etl,flatten-array,ghost-gobble-arcade-game,gigasecond,grains,guidos-gorgeous-lasagna \
             --max-per-language 25 \
             --prune-unlisted
-          rm -rf "$EXERCISM_SOURCE_ROOT"
+          rm -rf "$EXERCISM_SOURCE_ROOT" "$EXERCISM_ARCHIVE"
           DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python exam_resources/11408/data_structure/chapter_questions/build_data_structure_chapter_questions.py || echo "[deploy] WARN: DS build failed"
           DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python exam_resources/11408/computer_organization/chapter_questions/build_computer_organization_chapter_questions.py || echo "[deploy] WARN: CO chapter build failed"
           DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python exam_resources/11408/computer_organization/past_papers/build_computer_organization_past_papers_text.py --apply || echo "[deploy] WARN: CO past papers build failed"
