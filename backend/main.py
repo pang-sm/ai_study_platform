@@ -8853,6 +8853,10 @@ def start_programming_exercise(exercise_id: int, req: schemas.ProgrammingExercis
         models.CodeProject.username == user.username,
         models.CodeProject.course_id == "programming",
         models.CodeProject.programming_exercise_id == exercise.id,
+        # Exercise ids can be reassigned by a catalog reconciliation.  A
+        # legacy project with the same numeric id but a different language is
+        # not this exercise's draft and must never be resumed.
+        models.CodeProject.language == normalize_project_language(exercise.language),
         models.CodeProject.is_deleted.is_(False),
     ).order_by(models.CodeProject.updated_at.desc()).first()
     if not project:
