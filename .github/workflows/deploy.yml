@@ -160,26 +160,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          DEPLOY_LOG="/tmp/ai-study-platform-deploy-${GITHUB_SHA}.log"
-          DEPLOY_DIAGNOSTIC="/var/www/ai_study_platform/assets/deploy-diagnostic.txt"
-          exec > >(tee "$DEPLOY_LOG") 2>&1
-          deployment_exit() {
-            local rc=$?
-            if [ "$rc" -ne 0 ]; then
-              sudo mkdir -p "$(dirname "$DEPLOY_DIAGNOSTIC")" || true
-              {
-                echo "exit_code=$rc"
-                echo "last_command=${BASH_COMMAND}"
-                echo "--- recent deployment output ---"
-                tail -n 120 "$DEPLOY_LOG" || true
-              } | sudo tee "$DEPLOY_DIAGNOSTIC" >/dev/null || true
-            else
-              sudo rm -f "$DEPLOY_DIAGNOSTIC" || true
-            fi
-            exit "$rc"
-          }
-          trap deployment_exit EXIT
-
           : "${TENCENT_HOST:?TENCENT_HOST secret is required}"
           : "${TENCENT_USER:?TENCENT_USER secret is required}"
           SSH_PORT="${SSH_PORT:-22}"
@@ -216,6 +196,26 @@ jobs:
             SMTP_FROM="${SMTP_FROM:-}" \
             'bash -se' <<'DEPLOYEOF'
           set -euo pipefail
+
+          DEPLOY_LOG="/tmp/ai-study-platform-deploy.log"
+          DEPLOY_DIAGNOSTIC="/var/www/ai_study_platform/assets/deploy-diagnostic.txt"
+          exec > >(tee "$DEPLOY_LOG") 2>&1
+          deployment_exit() {
+            local rc=$?
+            if [ "$rc" -ne 0 ]; then
+              sudo mkdir -p "$(dirname "$DEPLOY_DIAGNOSTIC")" || true
+              {
+                echo "exit_code=$rc"
+                echo "last_command=${BASH_COMMAND}"
+                echo "--- recent deployment output ---"
+                tail -n 120 "$DEPLOY_LOG" || true
+              } | sudo tee "$DEPLOY_DIAGNOSTIC" >/dev/null || true
+            else
+              sudo rm -f "$DEPLOY_DIAGNOSTIC" || true
+            fi
+            exit "$rc"
+          }
+          trap deployment_exit EXIT
 
           REPO_ROOT="$HOME/ai_study_platform"
           cd "$REPO_ROOT"
