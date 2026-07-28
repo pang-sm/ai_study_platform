@@ -262,22 +262,27 @@ jobs:
           git clone --depth 1 https://github.com/exercism/c.git "$EXERCISM_SOURCE_ROOT/c"
           git clone --depth 1 https://github.com/exercism/cpp.git "$EXERCISM_SOURCE_ROOT/cpp"
           git clone --depth 1 https://github.com/exercism/python.git "$EXERCISM_SOURCE_ROOT/python"
-          git clone --depth 1 https://github.com/exercism/java.git "$EXERCISM_SOURCE_ROOT/java"
+          PROGRAMMING_DB_BACKUP="$DATA_DB.before-programming-reconcile.$(date +%Y%m%d_%H%M%S).db"
+          cp "$DATA_DB" "$PROGRAMMING_DB_BACKUP"
+          echo "[deploy] Programming database backup: $PROGRAMMING_DB_BACKUP"
           DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python scripts/import_exercism_exercises.py \
             --source-root "$EXERCISM_SOURCE_ROOT" \
-            --languages Python \
-            --slugs anagram,armstrong-numbers,binary-search \
-            --max-per-language 3
+            --languages C \
+            --slugs hello-world,reverse-string,acronym,bob,difference-of-squares,grains,leap,binary,collatz-conjecture,darts,dnd-character,eliuds-eggs,hamming,queen-attack,raindrops,resistor-color-duo,rna-transcription,space-age,two-fer,armstrong-numbers,binary-search,gigasecond,high-scores \
+            --max-per-language 23 \
+            --prune-unlisted
           DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python scripts/import_exercism_exercises.py \
             --source-root "$EXERCISM_SOURCE_ROOT" \
             --languages C++ \
-            --slugs hello-world \
-            --max-per-language 1
+            --slugs hello-world,reverse-string,acronym,bob,election-day,ellens-alien-game,freelancer-rates,interest-is-interesting,isbn-verifier,lasagna,lasagna-master,last-will,log-levels,luhn,making-the-grade,pacman-rules,power-of-troy,space-age,speedywagon,troll-the-trolls,collatz-conjecture,darts,grains \
+            --max-per-language 23 \
+            --prune-unlisted
           DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python scripts/import_exercism_exercises.py \
             --source-root "$EXERCISM_SOURCE_ROOT" \
-            --languages Java \
-            --slugs bird-watcher \
-            --max-per-language 25
+            --languages Python \
+            --slugs ledger,markdown,bob,hello-world,reverse-string,acronym,anagram,armstrong-numbers,binary-search,black-jack,card-games,cater-waiter,chaitanas-colossal-coaster,collatz-conjecture,currency-exchange,darts,difference-of-squares,electric-bill,ellens-alien-game,etl,flatten-array,ghost-gobble-arcade-game,gigasecond,grains,guidos-gorgeous-lasagna \
+            --max-per-language 25 \
+            --prune-unlisted
           rm -rf "$EXERCISM_SOURCE_ROOT"
           DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python exam_resources/11408/data_structure/chapter_questions/build_data_structure_chapter_questions.py || echo "[deploy] WARN: DS build failed"
           DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python exam_resources/11408/computer_organization/chapter_questions/build_computer_organization_chapter_questions.py || echo "[deploy] WARN: CO chapter build failed"

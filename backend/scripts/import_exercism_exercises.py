@@ -223,7 +223,14 @@ def starter_compile(language: str, starter_files: list[dict], exercise_dir: Path
         return run(["javac", *source_paths], temp)
 
 
-def import_language(db, source_root: Path, language: str, max_count: int, requested_slugs: list[str] | None = None) -> dict:
+def import_language(
+    db,
+    source_root: Path,
+    language: str,
+    max_count: int,
+    requested_slugs: list[str] | None = None,
+    prune_unlisted: bool = False,
+) -> dict:
     repo = LANGUAGE_REPOS[language]
     repo_dir = source_root / repo
     license_path = repo_dir / "LICENSE"
@@ -237,6 +244,7 @@ def import_language(db, source_root: Path, language: str, max_count: int, reques
         requested = set(requested_slugs)
         candidates = [item for item in candidates if item["slug"] in requested]
     imported = 0
+    imported_source_keys = set()
     audited = []
     for item in candidates:
         if imported >= max_count:
@@ -304,9 +312,34 @@ def import_language(db, source_root: Path, language: str, max_count: int, reques
                 setattr(existing, key, value)
         else:
             db.add(models.ProgrammingExercise(**payload))
+        imported_source_keys.add(payload["source_key"])
         imported += 1
+    if prune_unlisted:
+        expected_source_keys = {
+            f"https://github.com/exercism/{repo}|{language}|{slug}"
+            for slug in (requested_slugs or [])
+        }
+        if imported_source_keys != expected_source_keys:
+            raise RuntimeError(
+                f"Refusing to prune {language}: audited import set is incomplete "
+                f"({len(imported_source_keys)}/{len(expected_source_keys)})"
+            )
+        db.query(models.ProgrammingExercise).filter(
+            models.ProgrammingExercise.language == language,
+            (
+                models.ProgrammingExercise.source_key.is_(None)
+                | ~models.ProgrammingExercise.source_key.in_(expected_source_keys)
+            ),
+        ).delete(synchronize_session=False)
     db.commit()
-    return {"language": language, "imported": imported, "audited": audited, "license": "MIT", "commit": commit}
+    return {
+        "language": language,
+        "imported": imported,
+        "audited": audited,
+        "pruned_unlisted": prune_unlisted,
+        "license": "MIT",
+        "commit": commit,
+    }
 
 
 def main() -> None:
@@ -315,13 +348,28 @@ def main() -> None:
     parser.add_argument("--max-per-language", type=int, default=20)
     parser.add_argument("--languages", default=",".join(LANGUAGE_REPOS))
     parser.add_argument("--slugs", default="", help="Optional comma-separated exercise slugs to audit first")
+    parser.add_argument(
+        "--prune-unlisted",
+        action="store_true",
+        help="After a complete requested batch passes audit, remove other rows for those languages",
+    )
     args = parser.parse_args()
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
         selected = [item.strip() for item in args.languages.split(",") if item.strip() in LANGUAGE_REPOS]
         requested = [item.strip() for item in args.slugs.split(",") if item.strip()]
-        report = [import_language(db, Path(args.source_root), language, args.max_per_language, requested) for language in selected]
+        report = [
+            import_language(
+                db,
+                Path(args.source_root),
+                language,
+                args.max_per_language,
+                requested,
+                args.prune_unlisted,
+            )
+            for language in selected
+        ]
         print(json.dumps(report, ensure_ascii=False, indent=2))
     finally:
         db.close()
