@@ -9000,7 +9000,7 @@ def _run_official_exercise_tests(project: models.CodeProject, exercise: models.P
             tests = [str(Path(item["path"])) for item in bundle if str(item.get("path", "")).endswith(".c") and "test-framework" not in str(item.get("path", ""))]
             framework = [str(Path(item["path"])) for item in bundle if str(item.get("path", "")).startswith("test-framework/") and str(item.get("path", "")).endswith(".c")]
             run_all = ["-DEXERCISM_RUN_ALL_TESTS"] if submission else []
-            command = [shutil.which("gcc") or "gcc", "-std=c11", *run_all, "-I.", *sources, *tests, *framework, "-o", "exercise-tests.exe"]
+            command = [shutil.which("gcc") or "gcc", "-std=c11", *run_all, "-I.", *sources, *tests, *framework, "-lm", "-o", "exercise-tests.exe"]
         elif language == "C++":
             sources = [str(Path(file.relative_path)) for file in files if PurePosixPath(file.relative_path).suffix.lower() in (".cpp", ".cc", ".cxx")]
             tests = [str(Path(item["path"])) for item in bundle if str(item.get("path", "")).endswith((".cpp", ".cc", ".cxx"))]
@@ -9084,7 +9084,7 @@ def _run_public_sample(project: models.CodeProject, exercise: models.Programming
             sources = [str(Path(file.relative_path)) for file in files if PurePosixPath(file.relative_path).suffix.lower() == ".c"]
             tests = [str(Path(item["path"])) for item in bundle if str(item.get("path", "")).endswith(".c") and "test-framework" not in str(item.get("path", ""))]
             framework = [str(Path(item["path"])) for item in bundle if str(item.get("path", "")).startswith("test-framework/") and str(item.get("path", "")).endswith(".c")]
-            command = [shutil.which("gcc") or "gcc", "-std=c11", "-I.", *sources, *tests, *framework, "-o", "exercise-sample.exe"]
+            command = [shutil.which("gcc") or "gcc", "-std=c11", "-I.", *sources, *tests, *framework, "-lm", "-o", "exercise-sample.exe"]
             compile_proc = subprocess.run(command, cwd=temp, capture_output=True, text=True, timeout=max(30, EXECUTE_TIMEOUT_SECONDS_C))
             if compile_proc.returncode == 0:
                 run_proc = subprocess.run([str(temp / "exercise-sample.exe")], cwd=temp, capture_output=True, text=True, timeout=max(30, EXECUTE_TIMEOUT_SECONDS_C))

@@ -190,7 +190,7 @@ def audit_reference(language: str, exercise_dir: Path, starter_files: list[dict]
         elif language == "C":
             sources = [str(item["path"]) for item in reference_files if str(item.get("path", "")).endswith(".c")]
             tests = [str(item["path"]) for item in test_files if str(item.get("path", "")).startswith("test_") and str(item.get("path", "")).endswith(".c")]
-            ok, output = run(["gcc", "-std=c99", "-DEXERCISM_RUN_ALL_TESTS", "-I.", *sources, *tests, "test-framework/unity.c", "-o", "tests.exe"], temp)
+            ok, output = run(["gcc", "-std=c99", "-DEXERCISM_RUN_ALL_TESTS", "-I.", *sources, *tests, "test-framework/unity.c", "-lm", "-o", "tests.exe"], temp)
             if ok:
                 ok, output = run([str(temp / "tests.exe")], temp)
         elif language == "Java":
