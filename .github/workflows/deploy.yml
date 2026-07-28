@@ -87,18 +87,41 @@ jobs:
           printf '%s\n' "$TENCENT_SSH_KEY" | tr -d '\r' > "$HOME/.ssh/tencent_deploy_key"
           chmod 600 "$HOME/.ssh/tencent_deploy_key"
 
+          echo "Validating SSH private key format..."
+          if ! ssh-keygen -y -f "$HOME/.ssh/tencent_deploy_key" >/dev/null 2>/tmp/ssh-keygen.err; then
+            echo "SSH private key validation failed"
+            cat /tmp/ssh-keygen.err || true
+            exit 1
+          fi
+          echo "SSH private key format is valid"
+
           echo "Checking SSH connectivity..."
           timeout 10 bash -c "cat < /dev/null > /dev/tcp/$HOST_CLEAN/$SSH_PORT" 2>/dev/null \
             && echo "SSH port reachable" \
             || echo "Warning: TCP check skipped or port unreachable (will retry via ssh-keyscan)"
 
           echo "Running ssh-keyscan..."
-          if ! ssh-keyscan -T 20 -p "$SSH_PORT" -H "$HOST_CLEAN" >> "$HOME/.ssh/known_hosts" 2>/tmp/ssh-keyscan.err; then
-            echo "ssh-keyscan failed. Check TENCENT_HOST / SSH_PORT / server SSH accessibility."
+          SCAN_OK=false
+          for attempt in 1 2 3; do
+            echo "ssh-keyscan attempt $attempt/3"
+            SCAN_FILE="$(mktemp)"
+            if ssh-keyscan -T 20 -p "$SSH_PORT" -H "$HOST_CLEAN" >"$SCAN_FILE" 2>/tmp/ssh-keyscan.err; then
+              cat "$SCAN_FILE" >> "$HOME/.ssh/known_hosts"
+              rm -f "$SCAN_FILE"
+              SCAN_OK=true
+              break
+            fi
+            rm -f "$SCAN_FILE"
+            echo "ssh-keyscan attempt $attempt failed"
+            cat /tmp/ssh-keyscan.err || true
+            if [ "$attempt" -lt 3 ]; then sleep 5; fi
+          done
+          if [ "$SCAN_OK" != "true" ]; then
+            echo "ssh-keyscan failed after 3 attempts. Check TENCENT_HOST / TENCENT_PORT / server SSH banner availability."
             echo "TENCENT_HOST is set: yes (length ${#TENCENT_HOST})"
             echo "Cleaned host: $HOST_CLEAN"
             echo "SSH_PORT: $SSH_PORT"
-            echo "--- ssh-keyscan stderr ---"
+            echo "--- final ssh-keyscan stderr ---"
             cat /tmp/ssh-keyscan.err || true
             exit 1
           fi
