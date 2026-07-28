@@ -128,6 +128,9 @@ jobs:
           chmod 644 "$HOME/.ssh/known_hosts"
           echo "ssh-keyscan succeeded"
 
+      - name: Create deployment Git bundle
+        run: git bundle create "$RUNNER_TEMP/ai_study_platform.bundle" main
+
       - name: Deploy to Tencent Cloud
         shell: bash
         env:
@@ -150,8 +153,15 @@ jobs:
           HOST_CLEAN="${TENCENT_HOST#*@}"
           HOST_CLEAN="${HOST_CLEAN%%:*}"
 
+          DEPLOY_BUNDLE="/tmp/ai_study_platform-${GITHUB_SHA}.bundle"
+          echo "[deploy] Uploading Git bundle to $HOST_CLEAN:$DEPLOY_BUNDLE"
+          scp -i "$HOME/.ssh/tencent_deploy_key" -P "$SSH_PORT" \
+            "$RUNNER_TEMP/ai_study_platform.bundle" \
+            "$TENCENT_USER@$HOST_CLEAN:$DEPLOY_BUNDLE"
+
           # Pass ADMIN_LOGIN_CODE as env var to the remote session
           ssh -i "$HOME/.ssh/tencent_deploy_key" -p "$SSH_PORT" "$TENCENT_USER@$HOST_CLEAN" \
+            DEPLOY_BUNDLE="$DEPLOY_BUNDLE" \
             ADMIN_LOGIN_CODE="${ADMIN_LOGIN_CODE:-}" \
             SMTP_HOST="${SMTP_HOST:-}" \
             SMTP_PORT="${SMTP_PORT:-}" \
@@ -166,25 +176,11 @@ jobs:
           export GIT_TERMINAL_PROMPT=0
           echo "[deploy] repository: $(pwd)"
           git remote -v
-          fetch_with_retry() {
-            local attempt
-            for attempt in 1 2 3; do
-              echo "[deploy] git fetch attempt ${attempt}/3"
-              if git -c http.version=HTTP/1.1 fetch --prune origin main 2>&1; then
-                return 0
-              fi
-              echo "[deploy] git fetch failed on attempt ${attempt}"
-              if [ "$attempt" -lt 3 ]; then sleep 10; fi
-            done
-            echo "[deploy] git fetch failed; repository diagnostics:"
-            git status --short || true
-            git rev-parse --show-toplevel || true
-            git rev-parse HEAD || true
-            return 1
-          }
-          fetch_with_retry
+          echo "[deploy] Updating repository from uploaded Git bundle"
+          git fetch "$DEPLOY_BUNDLE" main
           git checkout main
-          git reset --hard origin/main
+          git reset --hard FETCH_HEAD
+          rm -f "$DEPLOY_BUNDLE"
 
           if ! command -v tesseract >/dev/null 2>&1; then
             sudo apt-get update
