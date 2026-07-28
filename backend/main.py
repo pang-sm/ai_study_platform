@@ -8939,11 +8939,16 @@ def _parse_exercise_test_counts(language: str, output: str, total: int, exit_cod
         match = re.search(r"Ran\s+(\d+)\s+tests?", output)
         if match:
             total = int(match.group(1))
-        pytest_match = re.search(r"(?:(\d+)\s+failed,\s+)?(?:(\d+)\s+passed)", output, re.IGNORECASE)
-        if pytest_match:
-            failed = int(pytest_match.group(1) or 0)
-            passed = int(pytest_match.group(2) or 0)
-            return passed, passed + failed
+        pytest_counts = re.findall(
+            r"(?:(\d+)\s+failed|(?:(\d+)\s+error(?:s)?)|(?:(\d+)\s+passed))",
+            output,
+            re.IGNORECASE,
+        )
+        if pytest_counts:
+            failed = sum(int(failed_count or 0) for failed_count, _, _ in pytest_counts)
+            errors = sum(int(error_count or 0) for _, error_count, _ in pytest_counts)
+            passed = sum(int(passed_count or 0) for _, _, passed_count in pytest_counts)
+            return passed, max(total, passed + failed + errors)
         failed_match = re.search(r"FAILED\s+\(([^)]*)\)", output)
         failed = sum(int(value) for value in re.findall(r"(?:failures|errors)=(\d+)", failed_match.group(1))) if failed_match else 0
         return max(0, total - failed), total
