@@ -163,7 +163,16 @@ jobs:
 
           cd ~/ai_study_platform
 
-          git fetch origin main
+          export GIT_TERMINAL_PROMPT=0
+          echo "[deploy] repository: $(pwd)"
+          git remote -v
+          git fetch origin main 2>&1 || {
+            echo "[deploy] git fetch failed; repository diagnostics:"
+            git status --short || true
+            git rev-parse --show-toplevel || true
+            git rev-parse HEAD || true
+            exit 1
+          }
           git checkout main
           git reset --hard origin/main
 
@@ -259,9 +268,25 @@ jobs:
           cd backend
           echo "=== Importing audited Exercism programming exercises ==="
           EXERCISM_SOURCE_ROOT=$(mktemp -d)
-          git clone --depth 1 https://github.com/exercism/c.git "$EXERCISM_SOURCE_ROOT/c"
-          git clone --depth 1 https://github.com/exercism/cpp.git "$EXERCISM_SOURCE_ROOT/cpp"
-          git clone --depth 1 https://github.com/exercism/python.git "$EXERCISM_SOURCE_ROOT/python"
+          clone_with_retry() {
+            local repo_url="$1"
+            local target="$2"
+            local attempt
+            for attempt in 1 2 3; do
+              echo "[deploy] git clone attempt ${attempt}/3: ${repo_url}"
+              if git clone --depth 1 --no-tags "$repo_url" "$target" 2>&1; then
+                return 0
+              fi
+              echo "[deploy] git clone failed: ${repo_url}"
+              rm -rf "$target"
+              if [ "$attempt" -lt 3 ]; then sleep 10; fi
+            done
+            echo "[deploy] git clone failed after 3 attempts: ${repo_url}"
+            return 1
+          }
+          clone_with_retry https://github.com/exercism/c.git "$EXERCISM_SOURCE_ROOT/c"
+          clone_with_retry https://github.com/exercism/cpp.git "$EXERCISM_SOURCE_ROOT/cpp"
+          clone_with_retry https://github.com/exercism/python.git "$EXERCISM_SOURCE_ROOT/python"
           PROGRAMMING_DB_BACKUP="$DATA_DB.before-programming-reconcile.$(date +%Y%m%d_%H%M%S).db"
           cp "$DATA_DB" "$PROGRAMMING_DB_BACKUP"
           echo "[deploy] Programming database backup: $PROGRAMMING_DB_BACKUP"
