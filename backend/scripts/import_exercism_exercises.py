@@ -246,14 +246,17 @@ def import_language(
     imported = 0
     imported_source_keys = set()
     audited = []
+    skipped = []
     for item in candidates:
         if imported >= max_count:
             break
         exercise_dir, track = find_exercise(repo_dir, item["slug"])
         if not exercise_dir:
+            skipped.append({"slug": item["slug"], "reason": "exercise directory missing"})
             continue
         config_path = exercise_dir / ".meta" / "config.json"
         if not config_path.is_file():
+            skipped.append({"slug": item["slug"], "reason": "metadata config missing"})
             continue
         config = read_json(config_path)
         starter = files_from_config(exercise_dir, config, "solution")
@@ -261,6 +264,16 @@ def import_language(
         reference = reference_files_from_config(exercise_dir, config)
         tests = files_from_config(exercise_dir, config, "test")
         if not starter or not reference or not tests:
+            skipped.append(
+                {
+                    "slug": item["slug"],
+                    "reason": {
+                        "starter_files": len(starter),
+                        "reference_files": len(reference),
+                        "test_files": len(tests),
+                    },
+                }
+            )
             continue
         official_tests = official_test_bundle(language, exercise_dir, tests)
         compile_ok, compile_output = starter_compile(language, starter, exercise_dir)
@@ -268,6 +281,15 @@ def import_language(
         audit = {"starter_compile": "pass" if compile_ok else "fail", "reference_tests": reference_report, "ai_hidden_tests": 0}
         audited.append({"slug": item["slug"], "audit": audit})
         if not compile_ok or not reference_ok:
+            skipped.append(
+                {
+                    "slug": item["slug"],
+                    "reason": {
+                        "starter_compile": compile_output[-1200:],
+                        "reference_tests": reference_report,
+                    },
+                }
+            )
             continue
         instructions = exercise_dir / ".docs" / "instructions.md"
         description = instructions.read_text(encoding="utf-8") if instructions.is_file() else config.get("blurb", "")
@@ -320,9 +342,12 @@ def import_language(
             for slug in (requested_slugs or [])
         }
         if imported_source_keys != expected_source_keys:
+            missing_source_keys = sorted(expected_source_keys - imported_source_keys)
             raise RuntimeError(
                 f"Refusing to prune {language}: audited import set is incomplete "
-                f"({len(imported_source_keys)}/{len(expected_source_keys)})"
+                f"({len(imported_source_keys)}/{len(expected_source_keys)}); "
+                f"missing={json.dumps(missing_source_keys, ensure_ascii=False)}; "
+                f"skipped={json.dumps(skipped, ensure_ascii=False)}"
             )
         db.query(models.ProgrammingExercise).filter(
             models.ProgrammingExercise.language == language,
