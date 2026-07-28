@@ -1710,8 +1710,16 @@
 .pw-exercise-sidebar-section { margin-top: 22px; }
 .pw-exercise-sidebar-section h2 { margin: 0 0 10px; color: #28223d; font-size: 14px; }
 .pw-exercise-example { display: grid; gap: 5px; margin-bottom: 10px; padding: 10px; border: 1px solid #ebe5f6; border-radius: 7px; background: #fbfaff; }
+.pw-exercise-example { width: 100%; text-align: left; cursor: pointer; font: inherit; }
+.pw-exercise-example:hover, .pw-exercise-example.is-selected { border-color: #8b5cf6; background: #f5f0ff; }
 .pw-exercise-example span { color: #766b91; font-size: 11px; font-weight: 800; }
 .pw-exercise-example code { color: #31284d; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.pw-exercise-example em { color: #16794a; font-size: 11px; font-style: normal; font-weight: 800; }
+.pw-exercise-example-empty { color: #766b91; font-size: 12px; line-height: 1.6; }
+.pw-current-language, .pw-run-target { color: #4a3c72; font-size: 12px; font-weight: 800; }
+.pw-sample-result { display: grid; gap: 4px; margin-bottom: 10px; padding: 10px 12px; border-left: 3px solid #8b5cf6; background: #faf8ff; color: #40365b; font-size: 12px; }
+.pw-sample-result.is-passed { border-left-color: #26a269; }
+.pw-sample-result.is-failed { border-left-color: #d14b4b; }
 .pw-exercise-sidebar-empty { padding: 22px 16px; color: #68617b; font-size: 13px; line-height: 1.65; }
 .pw-exercise-sidebar-empty strong { display: block; margin-bottom: 8px; color: #28223d; font-size: 16px; }
 .pw-exercise-sidebar-empty p { margin: 0 0 16px; }

@@ -26,6 +26,15 @@ import models
 
 LANGUAGE_REPOS = {"C": "c", "C++": "cpp", "Python": "python", "Java": "java"}
 LANGUAGE_CONFIG = {"C": "C", "C++": "C++", "Python": "Python", "Java": "Java"}
+CONCEPT_LABELS = {
+    "basics": "基础语法", "conditionals": "条件判断", "loops": "循环", "functions": "函数",
+    "strings": "字符串", "string-methods": "字符串方法", "lists": "列表", "list-methods": "列表操作",
+    "dicts": "字典", "sets": "集合", "comprehensions": "推导式", "regular-expressions": "正则表达式",
+    "exceptions": "异常处理", "classes": "类与对象", "numbers": "数值处理", "sequences": "序列",
+    "arrays": "数组", "pointers": "指针", "memory": "内存管理", "structures": "结构体",
+    "bitwise-operations": "位运算", "stl": "STL 容器", "iterators": "迭代器", "algorithms": "算法",
+    "templates": "模板", "object-oriented-programming": "面向对象",
+}
 
 
 def run(command: list[str], cwd: Path, timeout: int = 90) -> tuple[bool, str]:
@@ -115,6 +124,16 @@ def difficulty_for(item: dict, index: int) -> str:
         value = 1 if prerequisites <= 2 else 2 if prerequisites <= 5 else 4 if prerequisites <= 8 else 6
     value = int(value)
     return "入门" if value <= 1 else "简单" if value <= 3 else "中等" if value <= 5 else "困难"
+
+
+def localized_tags(language: str, tags: list[str]) -> list[str]:
+    fallback = {"C": "C 语言基础", "C++": "C++ 基础", "Python": "Python 基础", "Java": "Java 基础"}.get(language, "基础语法")
+    result = []
+    for tag in tags:
+        label = CONCEPT_LABELS.get(str(tag).strip().lower().replace("_", "-"), fallback)
+        if label not in result:
+            result.append(label)
+    return result or [fallback]
 
 
 def find_exercise(repo_dir: Path, slug: str) -> tuple[Path | None, str | None]:
@@ -244,11 +263,13 @@ def import_language(db, source_root: Path, language: str, max_count: int, reques
             continue
         instructions = exercise_dir / ".docs" / "instructions.md"
         description = instructions.read_text(encoding="utf-8") if instructions.is_file() else config.get("blurb", "")
-        tags = sorted(set((item.get("concepts") or []) + (item.get("practices") or []) + (item.get("prerequisites") or [])))
+        raw_tags = sorted(set((item.get("concepts") or []) + (item.get("practices") or []) + (item.get("prerequisites") or [])))
+        tags = localized_tags(language, raw_tags)
         hidden_tests = normalize_test_files(language, tests)
         public_tests = [{"path": test["path"], "content": test["content"]} for test in tests]
         payload = {
             "slug": f"{language.lower().replace('+', 'p')}-{item['slug']}",
+            "source_key": f"https://github.com/exercism/{repo}|{language}|{item['slug']}",
             "language": language,
             "title": item.get("name") or item["slug"].replace("-", " ").title(),
             "difficulty": difficulty_for(item, imported),
@@ -269,7 +290,15 @@ def import_language(db, source_root: Path, language: str, max_count: int, reques
             "starter_verified": True,
             "audit_report_json": json.dumps(audit, ensure_ascii=False),
         }
-        existing = db.query(models.ProgrammingExercise).filter_by(slug=payload["slug"]).first()
+        existing = (
+            db.query(models.ProgrammingExercise)
+            .filter(
+                (models.ProgrammingExercise.source_key == payload["source_key"])
+                | (models.ProgrammingExercise.slug == payload["slug"])
+            )
+            .order_by(models.ProgrammingExercise.id.asc())
+            .first()
+        )
         if existing:
             for key, value in payload.items():
                 setattr(existing, key, value)

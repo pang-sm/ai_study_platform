@@ -212,6 +212,7 @@ CODE_SESSIONS_COLUMNS = {
 }
 
 CODE_PROJECTS_COLUMNS = {
+    "user_id": "INTEGER",
     "username": "VARCHAR(50) NOT NULL",
     "course_id": "VARCHAR(100) NOT NULL DEFAULT 'programming'",
     "name": "VARCHAR(255) NOT NULL DEFAULT '未命名项目'",
@@ -223,6 +224,10 @@ CODE_PROJECTS_COLUMNS = {
     "updated_at": "DATETIME",
     "is_deleted": "INTEGER NOT NULL DEFAULT 0",
     "deleted_at": "DATETIME",
+}
+
+PROGRAMMING_EXERCISES_COLUMNS = {
+    "source_key": "VARCHAR(800)",
 }
 
 CODE_PROJECT_FILES_COLUMNS = {
@@ -850,6 +855,7 @@ def ensure_code_projects_schema(conn):
             """
             CREATE TABLE IF NOT EXISTS code_projects (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
                 username VARCHAR(50) NOT NULL,
                 course_id VARCHAR(100) NOT NULL DEFAULT 'programming',
                 name VARCHAR(255) NOT NULL DEFAULT '未命名项目',
@@ -868,8 +874,51 @@ def ensure_code_projects_schema(conn):
     conn.execute(
         text(
             """
+            UPDATE code_projects
+            SET user_id = (SELECT id FROM users WHERE users.username = code_projects.username)
+            WHERE user_id IS NULL
+            """
+        )
+    )
+    conn.execute(
+        text(
+            """
             CREATE INDEX IF NOT EXISTS idx_code_projects_user_updated
             ON code_projects (username, updated_at)
+            """
+        )
+    )
+    conn.execute(
+        text(
+            """
+            CREATE INDEX IF NOT EXISTS idx_code_projects_user_exercise
+            ON code_projects (user_id, programming_exercise_id, is_deleted, updated_at)
+            """
+        )
+    )
+
+
+def ensure_programming_exercises_schema(conn):
+    ensure_columns(conn, "programming_exercises", PROGRAMMING_EXERCISES_COLUMNS)
+    rows = conn.execute(
+        text("SELECT id, source_repo, language, source_path, slug FROM programming_exercises")
+    ).mappings().all()
+    for row in rows:
+        if row.get("source_repo") and row.get("language") and not row.get("source_key"):
+            source_path = str(row.get("source_path") or "").rstrip("/")
+            base_slug = source_path.rsplit("/", 1)[-1] or str(row.get("slug") or "")
+            conn.execute(
+                text("UPDATE programming_exercises SET source_key = :source_key WHERE id = :id"),
+                {"source_key": f"{row['source_repo']}|{row['language']}|{base_slug}", "id": row["id"]},
+            )
+    # source_key is the stable importer identity: source + language + slug.
+    # Keep this invariant in SQLite as well as in the SQLAlchemy model so a
+    # redeploy cannot create a second row for the same upstream exercise.
+    conn.execute(
+        text(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_programming_exercises_source_key
+            ON programming_exercises (source_key)
             """
         )
     )
@@ -1677,6 +1726,7 @@ def init_user_profile_schema():
         ensure_course_learning_preferences_schema(conn)
         ensure_code_sessions_schema(conn)
         ensure_code_projects_schema(conn)
+        ensure_programming_exercises_schema(conn)
         ensure_code_project_files_schema(conn)
         ensure_code_ai_messages_schema(conn)
         ensure_code_challenges_schema(conn)

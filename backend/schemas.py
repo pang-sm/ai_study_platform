@@ -70,6 +70,12 @@ class ProgrammingExerciseRunRequest(BaseModel):
     project_id: int
 
 
+class ProgrammingExerciseSampleRunRequest(BaseModel):
+    username: str
+    project_id: int
+    sample_index: int
+
+
 class CodeProjectUpdate(BaseModel):
     username: str
     name: str | None = None

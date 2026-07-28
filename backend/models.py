@@ -219,6 +219,7 @@ class CodeProject(Base):
     )
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=True)
     username = Column(String(50), index=True, nullable=False)
     course_id = Column(String(100), index=True, nullable=False, default="programming")
     name = Column(String(255), nullable=False, default="未命名项目")
@@ -256,6 +257,7 @@ class ProgrammingExercise(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     slug = Column(String(160), unique=True, nullable=False, index=True)
+    source_key = Column(String(800), unique=True, nullable=True, index=True)
     language = Column(String(20), nullable=False, index=True)
     title = Column(String(255), nullable=False)
     difficulty = Column(String(20), nullable=False, index=True)

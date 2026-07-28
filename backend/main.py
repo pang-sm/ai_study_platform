@@ -1,5 +1,6 @@
 import json
 import csv
+import ast
 import logging
 import os
 import re
@@ -12,6 +13,7 @@ import tempfile
 import hashlib
 import shutil
 import asyncio
+import importlib.util
 import threading
 import time
 import zipfile
@@ -8500,6 +8502,28 @@ PROJECT_LANGUAGE_DEFAULT_ENTRY = {
     "Java": "Main.java",
 }
 
+PROGRAMMING_CONCEPT_LABELS = {
+    "basics": "基础语法", "conditionals": "条件判断", "loops": "循环", "functions": "函数",
+    "strings": "字符串", "string-methods": "字符串方法", "lists": "列表", "list-methods": "列表操作",
+    "dicts": "字典", "sets": "集合", "comprehensions": "推导式", "regular-expressions": "正则表达式",
+    "exceptions": "异常处理", "classes": "类与对象", "operator-overloading": "运算符重载",
+    "numbers": "数值处理", "sequences": "序列", "sorting": "排序", "searching": "查找",
+    "arrays": "数组", "pointers": "指针", "memory": "内存管理", "structures": "结构体",
+    "bitwise-operations": "位运算", "stl": "STL 容器", "iterators": "迭代器", "algorithms": "算法",
+    "templates": "模板", "classes-and-objects": "类与对象", "object-oriented-programming": "面向对象",
+}
+
+
+def localized_programming_tags(language: str, tags: list[str]) -> list[str]:
+    fallback = {"C": "C 语言基础", "C++": "C++ 基础", "Python": "Python 基础", "Java": "Java 基础"}.get(language, "基础语法")
+    result = []
+    for tag in tags:
+        normalized = str(tag or "").strip().lower().replace("_", "-")
+        label = PROGRAMMING_CONCEPT_LABELS.get(normalized, fallback)
+        if label not in result:
+            result.append(label)
+    return result or [fallback]
+
 PROJECT_FILE_EXTENSIONS = {
     ".c", ".h", ".cpp", ".cc", ".cxx", ".hpp", ".py", ".java", ".txt", ".json", ".md"
 }
@@ -8566,10 +8590,12 @@ def infer_project_file_type(relative_path: str, file_type: str | None = None) ->
 
 
 def get_code_project_or_404(project_id: int, username: str, db: Session):
+    user = db.query(models.User).filter(models.User.username == username).first()
     project = (
         db.query(models.CodeProject)
         .filter(
             models.CodeProject.id == project_id,
+            models.CodeProject.user_id == (user.id if user else -1),
             models.CodeProject.username == username,
             models.CodeProject.is_deleted.is_(False),
         )
@@ -8621,16 +8647,108 @@ def _exercise_json(value, fallback):
         return fallback
 
 
+def _sample_display_value(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = re.sub(r"\bTEST_IGNORE\s*\(\s*\)\s*;?", "", str(value))
+    normalized = normalized.strip()
+    return normalized[:500] if normalized else None
+
+
+def _public_exercise_samples(exercise: models.ProgrammingExercise) -> list[dict]:
+    """Expose names/fixtures from the imported public test files only.
+
+    The importer stores Exercism's public test source verbatim. These samples
+    are derived from that source and never from hidden tests or AI output.
+    """
+    language = normalize_project_language(exercise.language)
+    files = _exercise_json(exercise.public_tests_json, [])
+    samples = []
+    for file_index, item in enumerate(files):
+        path = str(item.get("path") or "")
+        content = str(item.get("content") or "")
+        if language == "Python":
+            try:
+                tree = ast.parse(content)
+            except SyntaxError:
+                tree = None
+            if tree:
+                for node in ast.walk(tree):
+                    if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) or not node.name.startswith("test_"):
+                        continue
+                    class_name = ""
+                    parent = next((candidate for candidate in ast.walk(tree) if isinstance(candidate, ast.ClassDef) and node in candidate.body), None)
+                    if parent:
+                        class_name = parent.name
+                    assertion = next((candidate for candidate in ast.walk(node) if isinstance(candidate, ast.Call) and isinstance(candidate.func, ast.Attribute) and candidate.func.attr in {"assertEqual", "assertIs", "assertCountEqual"} and len(candidate.args) >= 2), None)
+                    expected = ast.unparse(assertion.args[1]) if assertion else None
+                    actual = ast.unparse(assertion.args[0]) if assertion else None
+                    if assertion and isinstance(assertion.args[1], ast.Name):
+                        expected_name = assertion.args[1].id
+                        assignment = next((candidate for candidate in ast.walk(node) if isinstance(candidate, ast.Assign) and any(isinstance(target, ast.Name) and target.id == expected_name for target in candidate.targets)), None)
+                        if assignment:
+                            expected = ast.unparse(assignment.value)
+                    samples.append({
+                        "name": node.name.removeprefix("test_").replace("_", " "),
+                        "test_path": path,
+                        "selector": f"{class_name}::{node.name}" if class_name else node.name,
+                        "input": _sample_display_value(actual),
+                        "expected_output": _sample_display_value(expected),
+                        "file_index": file_index,
+                    })
+        elif language == "C++":
+            for match in re.finditer(r"TEST_CASE\s*\(\s*\"([^\"]+)\"", content):
+                start = match.end()
+                next_case = re.search(r"TEST_CASE\s*\(", content[start:])
+                block = content[start:start + next_case.start()] if next_case else content[start:]
+                expected = re.search(r"REQUIRE\s*\(\s*(.*?)\s*==\s*(.*?)\s*\)", block, re.DOTALL)
+                left = expected.group(1) if expected else None
+                right = expected.group(2) if expected else None
+                literal = left if left and re.search(r'\"', left) else right
+                variable = re.search(r"expected\s*\{\s*([^}]+)\}", block)
+                samples.append({
+                    "name": match.group(1),
+                    "test_path": path,
+                    "selector": match.group(1),
+                    "input": _sample_display_value(block[:240]),
+                    "expected_output": _sample_display_value(literal or (variable.group(1) if variable else None)),
+                    "file_index": file_index,
+                })
+        elif language == "C":
+            run_names = set(re.findall(r"RUN_TEST\(\s*(test_[A-Za-z0-9_]+)\s*\)", content))
+            for match in re.finditer(r"(?:static\s+)?void\s+(test_[A-Za-z0-9_]+)\s*\([^)]*\)\s*\{", content):
+                name = match.group(1)
+                if run_names and name not in run_names:
+                    continue
+                start = match.end()
+                next_test = re.search(r"(?:static\s+)?void\s+test_[A-Za-z0-9_]+\s*\(", content[start:])
+                block = content[start:start + next_test.start()] if next_test else content[start:]
+                expected = re.search(r'TEST_ASSERT_EQUAL_STRING\s*\(\s*("(?:\\.|[^"\\])*")\s*,', block)
+                samples.append({
+                    "name": name.removeprefix("test_").replace("_", " "),
+                    "test_path": path,
+                    "selector": name,
+                    "input": _sample_display_value(block[:240]),
+                    "expected_output": _sample_display_value(expected.group(1) if expected else None),
+                    "file_index": file_index,
+                })
+    return samples
+
+
 def serialize_programming_exercise(exercise: models.ProgrammingExercise, include_starter: bool = False):
+    raw_tags = _exercise_json(exercise.tags_json, [])
+    localized_tags = localized_programming_tags(exercise.language, raw_tags)
     payload = {
         "id": exercise.id,
         "slug": exercise.slug,
         "language": exercise.language,
         "title": exercise.title,
         "difficulty": exercise.difficulty,
-        "tags": _exercise_json(exercise.tags_json, []),
+        "tags": localized_tags,
+        "concepts": localized_tags,
         "description": exercise.description,
         "public_tests": _exercise_json(exercise.public_tests_json, []),
+        "public_samples": _public_exercise_samples(exercise),
         "source_repo": exercise.source_repo,
         "source_path": exercise.source_path,
         "source_commit": exercise.source_commit,
@@ -8711,7 +8829,7 @@ def list_programming_exercises(language: str | None = None, difficulty: str | No
         query = query.filter(models.ProgrammingExercise.difficulty == difficulty)
     exercises = [serialize_programming_exercise(item) for item in query.order_by(models.ProgrammingExercise.language, models.ProgrammingExercise.id).all()]
     if tag:
-        exercises = [item for item in exercises if tag in item["tags"]]
+        exercises = [item for item in exercises if tag in item["tags"] or tag in item.get("concepts", [])]
     return {"exercises": exercises}
 
 
@@ -8731,6 +8849,7 @@ def start_programming_exercise(exercise_id: int, req: schemas.ProgrammingExercis
         raise HTTPException(status_code=404, detail="题目不存在")
     resumed = False
     project = db.query(models.CodeProject).filter(
+        models.CodeProject.user_id == user.id,
         models.CodeProject.username == user.username,
         models.CodeProject.course_id == "programming",
         models.CodeProject.programming_exercise_id == exercise.id,
@@ -8741,6 +8860,7 @@ def start_programming_exercise(exercise_id: int, req: schemas.ProgrammingExercis
         source_paths = [str(item.get("path") or "") for item in starter_files if item.get("path")]
         entry_file = source_paths[0] if source_paths else PROJECT_LANGUAGE_DEFAULT_ENTRY[normalize_project_language(exercise.language)]
         project = models.CodeProject(
+            user_id=user.id,
             username=user.username,
             course_id="programming",
             name=f"{exercise.title} · 练习",
@@ -8797,6 +8917,19 @@ def _count_exercise_tests(language: str, test_files: list[dict]) -> int:
     return max(1, len(re.findall(patterns.get(language, r"\btest\b"), text, re.MULTILINE)))
 
 
+def _normalized_public_bundle(exercise: models.ProgrammingExercise) -> list[dict]:
+    bundle = _exercise_json(exercise.public_tests_json, [])
+    if normalize_project_language(exercise.language) != "C":
+        return bundle
+    return [
+        {
+            **item,
+            "content": re.sub(r"(?m)^\s*TEST_IGNORE\(\);[^\n]*\n?", "", str(item.get("content") or "")),
+        }
+        for item in bundle
+    ]
+
+
 def _parse_exercise_test_counts(language: str, output: str, total: int, exit_code: int) -> tuple[int, int]:
     if language == "Python":
         match = re.search(r"Ran\s+(\d+)\s+tests?", output)
@@ -8827,7 +8960,7 @@ def _parse_exercise_test_counts(language: str, output: str, total: int, exit_cod
 
 def _run_official_exercise_tests(project: models.CodeProject, exercise: models.ProgrammingExercise, files: list[models.CodeProjectFile], submission: bool) -> dict:
     language = normalize_project_language(exercise.language)
-    bundle = _exercise_json(exercise.official_test_files_json if submission else exercise.public_tests_json, [])
+    bundle = _exercise_json(exercise.official_test_files_json, []) if submission else _normalized_public_bundle(exercise)
     if not submission:
         official_bundle = _exercise_json(exercise.official_test_files_json, [])
         public_paths = {str(item.get("path") or "") for item in bundle}
@@ -8857,7 +8990,11 @@ def _run_official_exercise_tests(project: models.CodeProject, exercise: models.P
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_text(str(item.get("content") or ""), encoding="utf-8")
         if language == "Python":
-            command = [sys.executable, "-m", "pytest", "-q"]
+            command = (
+                [sys.executable, "-m", "pytest", "-q"]
+                if importlib.util.find_spec("pytest") is not None
+                else [sys.executable, "-m", "unittest", "discover", "-v", "-p", "*_test.py"]
+            )
         elif language == "C":
             sources = [str(Path(file.relative_path)) for file in files if PurePosixPath(file.relative_path).suffix.lower() == ".c"]
             tests = [str(Path(item["path"])) for item in bundle if str(item.get("path", "")).endswith(".c") and "test-framework" not in str(item.get("path", ""))]
@@ -8898,6 +9035,107 @@ def _run_official_exercise_tests(project: models.CodeProject, exercise: models.P
         return {"success": True, "passed": not failed_categories, "passed_count": passed_count, "total_count": total, "failed_categories": failed_categories, "duration_ms": int((time.time() - started) * 1000), "stdout": output if not submission else "", "stderr": "" if submission else output, "exit_code": exit_code, "compile_error": output if compile_failed else None}
 
 
+def _sample_test_bundle(exercise: models.ProgrammingExercise, sample: dict) -> list[dict]:
+    bundle = _normalized_public_bundle(exercise)
+    language = normalize_project_language(exercise.language)
+    selected_path = str(sample.get("test_path") or "")
+    selected_name = str(sample.get("selector") or "")
+    result = []
+    for item in bundle:
+        if str(item.get("path") or "") != selected_path:
+            result.append(item)
+            continue
+        content = str(item.get("content") or "")
+        if language == "C":
+            content = re.sub(
+                r"(?m)^\s*RUN_TEST\(([^)]+)\);\s*$",
+                lambda match: match.group(0) if match.group(1).strip() == selected_name else "",
+                content,
+            )
+        elif language == "C++":
+            # Catch2 supports a test-name filter at process runtime; leave the
+            # public source intact and pass the selector to the runner.
+            pass
+        result.append({**item, "content": content})
+    return result
+
+
+def _run_public_sample(project: models.CodeProject, exercise: models.ProgrammingExercise, files: list[models.CodeProjectFile], sample: dict) -> dict:
+    language = normalize_project_language(exercise.language)
+    bundle = _sample_test_bundle(exercise, sample)
+    support = _exercise_json(exercise.official_test_files_json, [])
+    public_paths = {str(item.get("path") or "") for item in bundle}
+    bundle.extend(item for item in support if str(item.get("path") or "").startswith(("test-framework/", "test/")) and str(item.get("path") or "") not in public_paths)
+    started = time.time()
+    with tempfile.TemporaryDirectory(prefix="exercise-sample-") as raw:
+        temp = Path(raw)
+        for file in files + [models.CodeProjectFile(relative_path=item.get("path") or "", content=item.get("content") or "") for item in bundle]:
+            target = temp / safe_project_path(file.relative_path)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(file.content or "", encoding="utf-8")
+        if language == "Python":
+            if importlib.util.find_spec("pytest") is not None:
+                command = [sys.executable, "-m", "pytest", "-q", f"{sample['test_path']}::{sample['selector']}"]
+            else:
+                module_name = Path(sample["test_path"]).with_suffix("").as_posix().replace("/", ".")
+                command = [sys.executable, "-m", "unittest", f"{module_name}.{sample['selector'].replace('::', '.')}"]
+            compile_proc = None
+        elif language == "C":
+            sources = [str(Path(file.relative_path)) for file in files if PurePosixPath(file.relative_path).suffix.lower() == ".c"]
+            tests = [str(Path(item["path"])) for item in bundle if str(item.get("path", "")).endswith(".c") and "test-framework" not in str(item.get("path", ""))]
+            framework = [str(Path(item["path"])) for item in bundle if str(item.get("path", "")).startswith("test-framework/") and str(item.get("path", "")).endswith(".c")]
+            command = [shutil.which("gcc") or "gcc", "-std=c11", "-I.", *sources, *tests, *framework, "-o", "exercise-sample.exe"]
+            compile_proc = subprocess.run(command, cwd=temp, capture_output=True, text=True, timeout=max(30, EXECUTE_TIMEOUT_SECONDS_C))
+            if compile_proc.returncode == 0:
+                run_proc = subprocess.run([str(temp / "exercise-sample.exe")], cwd=temp, capture_output=True, text=True, timeout=max(30, EXECUTE_TIMEOUT_SECONDS_C))
+            else:
+                run_proc = None
+        elif language == "C++":
+            sources = [str(Path(file.relative_path)) for file in files if PurePosixPath(file.relative_path).suffix.lower() in (".cpp", ".cc", ".cxx")]
+            tests = [str(Path(item["path"])) for item in bundle if str(item.get("path", "")).endswith((".cpp", ".cc", ".cxx"))]
+            included = {m.group(1).replace("\\", "/") for item in bundle for m in re.finditer(r'#include\s+"([^" ]+\.c(?:pp|cxx)?)"', str(item.get("content") or ""))}
+            included_names = {Path(item).name for item in included}
+            sources = [path for path in sources if path.replace("\\", "/") not in included and Path(path).name not in included_names]
+            command = [shutil.which("g++") or "g++", "-std=c++17", "-I.", *sources, *tests, "-o", "exercise-sample.exe"]
+            compile_proc = subprocess.run(command, cwd=temp, capture_output=True, text=True, timeout=max(30, EXECUTE_TIMEOUT_SECONDS_C))
+            run_proc = subprocess.run([str(temp / "exercise-sample.exe"), sample["selector"]], cwd=temp, capture_output=True, text=True, timeout=max(30, EXECUTE_TIMEOUT_SECONDS_C)) if compile_proc.returncode == 0 else None
+        else:
+            return {"success": False, "passed": False, "stderr": "Java 题目本轮不执行样例。", "exit_code": -1, "duration_ms": 0}
+        if language == "Python":
+            run_proc = subprocess.run(command, cwd=temp, capture_output=True, text=True, timeout=max(30, EXECUTE_TIMEOUT_SECONDS_C))
+        output = ((compile_proc.stdout + "\n" + compile_proc.stderr) if compile_proc and compile_proc.returncode != 0 else ((run_proc.stdout if run_proc else "") + "\n" + (run_proc.stderr if run_proc else ""))).strip()
+        exit_code = compile_proc.returncode if compile_proc and compile_proc.returncode != 0 else (run_proc.returncode if run_proc else -1)
+        passed = exit_code == 0
+        return {
+            "success": True,
+            "passed": passed,
+            "passed_count": 1 if passed else 0,
+            "total_count": 1,
+            "failed_categories": [] if passed else (["compile"] if compile_proc and compile_proc.returncode != 0 else ["tests"]),
+            "duration_ms": int((time.time() - started) * 1000),
+            "stdout": output if passed else "",
+            "stderr": "" if passed else output,
+            "actual_output": output,
+            "expected_output": sample.get("expected_output"),
+            "exit_code": exit_code,
+            "compile_error": output if compile_proc and compile_proc.returncode != 0 else None,
+        }
+
+
+@app.post("/programming/exercises/{exercise_id}/samples/run")
+def run_programming_exercise_sample(exercise_id: int, req: schemas.ProgrammingExerciseSampleRunRequest, db: Session = Depends(get_db)):
+    user = get_user_by_username(req.username, db)
+    exercise = db.query(models.ProgrammingExercise).filter_by(id=exercise_id).first()
+    project = get_code_project_or_404(req.project_id, user.username, db)
+    if not exercise or project.programming_exercise_id != exercise.id:
+        raise HTTPException(status_code=404, detail="题目项目不存在")
+    samples = _public_exercise_samples(exercise)
+    if req.sample_index < 0 or req.sample_index >= len(samples):
+        raise HTTPException(status_code=400, detail="公开测试样例不存在")
+    result = _run_public_sample(project, exercise, list_project_files(project.id, db), samples[req.sample_index])
+    return {**_exercise_run_summary(result, exercise, submission=False), "sample": samples[req.sample_index], "actual_output": result.get("actual_output", ""), "expected_output": result.get("expected_output")}
+
+
 @app.post("/programming/exercises/{exercise_id}/test")
 def test_programming_exercise(exercise_id: int, req: schemas.ProgrammingExerciseRunRequest, db: Session = Depends(get_db)):
     user = get_user_by_username(req.username, db)
@@ -8924,6 +9162,7 @@ def submit_programming_exercise(exercise_id: int, req: schemas.ProgrammingExerci
 def get_code_projects(username: str, course_id: str = "programming", db: Session = Depends(get_db)):
     user = get_user_by_username(username, db)
     query = db.query(models.CodeProject).filter(
+        models.CodeProject.user_id == user.id,
         models.CodeProject.username == user.username,
         models.CodeProject.is_deleted.is_(False),
     )
@@ -8946,6 +9185,7 @@ def create_code_project(req: schemas.CodeProjectCreate, db: Session = Depends(ge
     language = normalize_project_language(req.language)
     entry_file = PROJECT_LANGUAGE_DEFAULT_ENTRY[language]
     project = models.CodeProject(
+        user_id=user.id,
         username=user.username,
         course_id=normalize_subject(req.course_id, default="programming") or "programming",
         name=(req.name or "未命名项目").strip()[:255] or "未命名项目",

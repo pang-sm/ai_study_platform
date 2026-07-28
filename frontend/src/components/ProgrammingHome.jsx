@@ -11,6 +11,17 @@ const NAV_ITEMS = [
 ];
 
 const PROGRAMMING_NAV_KEY = "ai_study_programming_active_nav";
+const CURRENT_PRACTICE_KEY = "ai_study_programming_current_practice";
+
+function readCurrentPractice(username) {
+  if (!username) return null;
+  try {
+    const saved = JSON.parse(localStorage.getItem(`${CURRENT_PRACTICE_KEY}:${username}`) || "null");
+    return saved?.exerciseId ? saved : null;
+  } catch {
+    return null;
+  }
+}
 
 function Icon({ type }) {
   const common = { viewBox: "0 0 24 24", "aria-hidden": "true" };
@@ -50,7 +61,6 @@ function ProfileButton({ user, apiBase, onClick }) {
 
 function ExerciseLibrary({ user, apiBase, onStart }) {
   const [language, setLanguage] = useState("Python");
-  const [difficulty, setDifficulty] = useState("");
   const [tag, setTag] = useState("");
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -60,7 +70,6 @@ function ExerciseLibrary({ user, apiBase, onStart }) {
     setError("");
     try {
       const query = new URLSearchParams({ language });
-      if (difficulty) query.set("difficulty", difficulty);
       if (tag.trim()) query.set("tag", tag.trim());
       const res = await fetch(`${apiBase}/programming/exercises?${query}`);
       const data = await safeJson(res);
@@ -71,7 +80,7 @@ function ExerciseLibrary({ user, apiBase, onStart }) {
     } finally {
       setLoading(false);
     }
-  }, [apiBase, difficulty, language, tag]);
+  }, [apiBase, language, tag]);
   useEffect(() => { load(); }, [load]);
   const start = async (exercise) => {
     setLoading(true);
@@ -99,9 +108,6 @@ function ExerciseLibrary({ user, apiBase, onStart }) {
       </div>
       <div className="ph-exercise-filters">
         {['C', 'C++', 'Python', 'Java'].map((item) => <button key={item} type="button" className={language === item ? 'is-active' : ''} onClick={() => setLanguage(item)}>{item}</button>)}
-        <select value={difficulty} onChange={(event) => setDifficulty(event.target.value)} aria-label="difficulty">
-          <option value="">All</option><option value="入门">入门</option><option value="简单">简单</option><option value="中等">中等</option><option value="困难">困难</option>
-        </select>
         <input value={tag} onChange={(event) => setTag(event.target.value)} placeholder="知识点标签" />
       </div>
       {error && <div className="ph-error">{error}</div>}
@@ -122,6 +128,7 @@ function ExerciseLibrary({ user, apiBase, onStart }) {
 }
 
 export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
+  const savedPractice = readCurrentPractice(user?.username);
   const [activeNav, setActiveNav] = useState(() => {
     try {
       return localStorage.getItem(PROGRAMMING_NAV_KEY) || "home";
@@ -130,9 +137,9 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
     }
   });
   const [homeData, setHomeData] = useState(null);
-  const [workbenchProjectId, setWorkbenchProjectId] = useState(null);
-  const [workbenchLanguage, setWorkbenchLanguage] = useState("");
-  const [workbenchExerciseId, setWorkbenchExerciseId] = useState(null);
+  const [workbenchProjectId, setWorkbenchProjectId] = useState(() => savedPractice?.projectId || null);
+  const [workbenchLanguage, setWorkbenchLanguage] = useState(() => savedPractice?.language || "");
+  const [workbenchExerciseId, setWorkbenchExerciseId] = useState(() => savedPractice?.exerciseId || null);
   const [error, setError] = useState("");
 
   const loadHomeData = useCallback(() => {
@@ -158,12 +165,20 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
     }
   }, [activeNav]);
 
-  const activateNav = useCallback((key) => {
-    if (key === "workbench") {
-      setWorkbenchProjectId(null);
-      setWorkbenchLanguage("");
-      setWorkbenchExerciseId(null);
+  useEffect(() => {
+    if (!user?.username || !workbenchExerciseId) return;
+    try {
+      localStorage.setItem(`${CURRENT_PRACTICE_KEY}:${user.username}`, JSON.stringify({
+        projectId: workbenchProjectId,
+        language: workbenchLanguage,
+        exerciseId: workbenchExerciseId,
+      }));
+    } catch {
+      // ignore storage failures; server-side exercise state remains authoritative.
     }
+  }, [user?.username, workbenchExerciseId, workbenchLanguage, workbenchProjectId]);
+
+  const activateNav = useCallback((key) => {
     setActiveNav(key);
   }, []);
 
@@ -178,7 +193,8 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
   const navContent = useMemo(() => {
     if (activeNav === "workbench") {
       return (
-        <ProgrammingWorkbench
+          <ProgrammingWorkbench
+            key={workbenchExerciseId ? `exercise-${workbenchExerciseId}` : "workbench-empty"}
           user={user}
           apiBase={apiBase}
           homeData={homeData}
