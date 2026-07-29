@@ -601,7 +601,7 @@ export default function ProgrammingWorkbench({
   const [dirtyFiles, setDirtyFiles] = useState(() => new Set());
   const [collapsedFolders, setCollapsedFolders] = useState(() => new Set());
   const [explorerCollapsed, setExplorerCollapsedState] = useState(() => readUiPreference("explorerCollapsed", false));
-  const [coachCollapsed, setCoachCollapsedState] = useState(() => readUiPreference("coachCollapsed", true));
+  const [coachCollapsed, setCoachCollapsedState] = useState(() => readUiPreference("coachCollapsed", false));
   const [outputCollapsed, setOutputCollapsedState] = useState(() => readUiPreference("outputCollapsed", true));
   const [fontSize, setFontSize] = useState(16);
   const [theme, setTheme] = useState("light");

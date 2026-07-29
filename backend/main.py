@@ -9506,7 +9506,28 @@ def submit_programming_exercise(exercise_id: int, req: schemas.ProgrammingExerci
     project = get_code_project_or_404(req.project_id, user.username, db)
     if not exercise or project.programming_exercise_id != exercise.id:
         raise HTTPException(status_code=404, detail="题目项目不存在")
-    result = _run_official_exercise_tests(project, exercise, list_project_files(project.id, db), submission=True)
+    project_files = list_project_files(project.id, db)
+    result = _run_official_exercise_tests(project, exercise, project_files, submission=True)
+    public_samples = _public_exercise_samples(exercise)
+    if result.get("compile_error") or "compile" in result.get("failed_categories", []):
+        result["cases"] = [
+            {
+                "id": sample.get("id"),
+                "name": sample.get("name"),
+                "status": "not_run",
+                "reason": "代码编译失败，样例未执行",
+                "stdin_text": sample.get("stdin_text", ""),
+                "expected_stdout": sample.get("expected_stdout", ""),
+                "duration_ms": 0,
+            }
+            for sample in public_samples
+        ]
+    elif public_samples:
+        # The official submission result keeps the complete (including hidden)
+        # aggregate, while the modal receives only independently executed
+        # public cases. Hidden inputs and reference solutions never leave the
+        # backend.
+        result["cases"] = _run_public_sample_cases(project, exercise, project_files)
     return _exercise_run_summary(result, exercise, submission=True)
 
 
