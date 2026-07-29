@@ -303,16 +303,42 @@ jobs:
             sudo apt-get install -y tesseract-ocr tesseract-ocr-chi-sim
           fi
 
-          if ! command -v gcc >/dev/null 2>&1 || ! command -v g++ >/dev/null 2>&1 || ! command -v javac >/dev/null 2>&1 || ! command -v java >/dev/null 2>&1 || ! command -v cmake >/dev/null 2>&1; then
+          if ! command -v gcc >/dev/null 2>&1 || ! command -v g++ >/dev/null 2>&1 || ! command -v cmake >/dev/null 2>&1; then
             sudo apt-get update
-            sudo apt-get install -y gcc g++ cmake openjdk-21-jdk-headless
+            sudo apt-get install -y gcc g++ cmake
           fi
 
-          JAVA_MAJOR="$(java -version 2>&1 | sed -n 's/.*version "\([0-9][0-9]*\).*/\1/p' | head -n 1)"
+          JAVA_VERSION_OUTPUT="$(java -version 2>&1 || true)"
+          JAVA_MAJOR="$(printf '%s\n' "$JAVA_VERSION_OUTPUT" | sed -n 's/.*version "\([0-9][0-9]*\).*/\1/p' | head -n 1)"
           if [ "${JAVA_MAJOR:-0}" -lt 21 ]; then
-            echo "[deploy] Java 21 is required; installing OpenJDK 21"
+            echo "[deploy] Java 21 is required; trying the system package"
             sudo apt-get update
-            sudo apt-get install -y openjdk-21-jdk-headless
+            sudo apt-get install -y openjdk-21-jdk-headless || true
+            JAVA_VERSION_OUTPUT="$(java -version 2>&1 || true)"
+            JAVA_MAJOR="$(printf '%s\n' "$JAVA_VERSION_OUTPUT" | sed -n 's/.*version "\([0-9][0-9]*\).*/\1/p' | head -n 1)"
+          fi
+          if [ "${JAVA_MAJOR:-0}" -lt 21 ]; then
+            echo "[deploy] System repositories do not provide Java 21; installing Temurin 21"
+            sudo apt-get update
+            sudo apt-get install -y curl ca-certificates tar
+            JAVA_ARCHIVE="/tmp/temurin-21-linux-x64.tar.gz"
+            curl -fsSL "https://api.adoptium.net/v3/binary/latest/21/ga/linux/x64/jdk/hotspot/normal/eclipse" -o "$JAVA_ARCHIVE"
+            JAVA_HOME_21="/opt/temurin-21"
+            sudo rm -rf "$JAVA_HOME_21"
+            sudo mkdir -p "$JAVA_HOME_21"
+            sudo tar -xzf "$JAVA_ARCHIVE" --strip-components=1 -C "$JAVA_HOME_21"
+            sudo ln -sfn "$JAVA_HOME_21/bin/java" /usr/local/bin/java
+            sudo ln -sfn "$JAVA_HOME_21/bin/javac" /usr/local/bin/javac
+            export JAVA_HOME="$JAVA_HOME_21"
+            export PATH="$JAVA_HOME_21/bin:$PATH"
+            rm -f "$JAVA_ARCHIVE"
+            JAVA_VERSION_OUTPUT="$(java -version 2>&1 || true)"
+            JAVA_MAJOR="$(printf '%s\n' "$JAVA_VERSION_OUTPUT" | sed -n 's/.*version "\([0-9][0-9]*\).*/\1/p' | head -n 1)"
+          fi
+          if [ "${JAVA_MAJOR:-0}" -lt 21 ]; then
+            echo "[deploy] Java 21 installation failed"
+            printf '%s\n' "$JAVA_VERSION_OUTPUT"
+            exit 1
           fi
           if ! command -v gradle >/dev/null 2>&1; then
             echo "[deploy] Gradle is required for audited Java exercises"
