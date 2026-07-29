@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./ProgrammingHome.css";
 import ProgrammingWorkbench from "./ProgrammingWorkbench.jsx";
 import { getExerciseDescription, getExerciseTitle } from "./programmingExerciseCopy.js";
@@ -65,7 +65,9 @@ function ExerciseLibrary({ user, apiBase, onStart }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const requestIdRef = useRef(0);
   const load = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
     setLoading(true);
     setError("");
     try {
@@ -74,11 +76,13 @@ function ExerciseLibrary({ user, apiBase, onStart }) {
       const res = await fetch(`${apiBase}/programming/exercises?${query}`);
       const data = await safeJson(res);
       if (!res.ok) throw new Error(data.detail || "题库加载失败");
+      if (requestId !== requestIdRef.current) return;
       setItems(data.exercises || []);
     } catch (err) {
+      if (requestId !== requestIdRef.current) return;
       setError(err.message || "题库加载失败");
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) setLoading(false);
     }
   }, [apiBase, language, tag]);
   useEffect(() => { load(); }, [load]);
@@ -107,7 +111,7 @@ function ExerciseLibrary({ user, apiBase, onStart }) {
         <button type="button" onClick={load} disabled={loading}>刷新</button>
       </div>
       <div className="ph-exercise-filters">
-        {['C', 'C++', 'Python', 'Java'].map((item) => <button key={item} type="button" className={language === item ? 'is-active' : ''} onClick={() => setLanguage(item)}>{item}</button>)}
+        {['C', 'C++', 'Python', 'Java'].map((item) => <button key={item} type="button" className={language === item ? 'is-active' : ''} onClick={() => { setItems([]); setLanguage(item); }}>{item}</button>)}
         <input value={tag} onChange={(event) => setTag(event.target.value)} placeholder="知识点标签" />
       </div>
       {error && <div className="ph-error">{error}</div>}

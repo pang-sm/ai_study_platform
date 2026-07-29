@@ -8504,25 +8504,52 @@ PROJECT_LANGUAGE_DEFAULT_ENTRY = {
 
 PROGRAMMING_CONCEPT_LABELS = {
     "basics": "基础语法", "conditionals": "条件判断", "loops": "循环", "functions": "函数",
-    "strings": "字符串", "string-methods": "字符串方法", "lists": "列表", "list-methods": "列表操作",
-    "dicts": "字典", "sets": "集合", "comprehensions": "推导式", "regular-expressions": "正则表达式",
-    "exceptions": "异常处理", "classes": "类与对象", "operator-overloading": "运算符重载",
-    "numbers": "数值处理", "sequences": "序列", "sorting": "排序", "searching": "查找",
-    "arrays": "数组", "pointers": "指针", "memory": "内存管理", "structures": "结构体",
-    "bitwise-operations": "位运算", "stl": "STL 容器", "iterators": "迭代器", "algorithms": "算法",
-    "templates": "模板", "classes-and-objects": "类与对象", "object-oriented-programming": "面向对象",
+    "strings": "字符串处理", "string-methods": "字符串方法", "lists": "列表", "list-methods": "列表操作",
+    "dicts": "字典", "dict-methods": "字典操作", "sets": "集合", "comprehensions": "推导式",
+    "regular-expressions": "正则表达式", "exceptions": "异常处理", "classes": "类与对象",
+    "class-composition": "类组合", "class-customization": "类定制", "class-inheritance": "类继承",
+    "operator-overloading": "运算符重载", "numbers": "数值运算", "integers": "整数运算",
+    "sequences": "序列", "sorting": "排序", "searching": "查找", "arrays": "数组",
+    "pointers": "指针", "memory": "内存管理", "memory-management": "内存管理", "structures": "结构体",
+    "structs": "结构体", "enums": "枚举", "bitwise-operations": "位运算", "booleans": "布尔逻辑",
+    "bools": "布尔逻辑", "comparisons": "比较运算", "logic": "逻辑运算", "math": "数值算法",
+    "filtering": "过滤", "algorithms": "算法", "recursion": "递归", "stacks": "栈", "buffers": "缓冲区",
+    "flexible-array-members": "柔性数组", "function-pointers": "函数指针", "variable-argument-lists": "可变参数",
+    "control-flow-case-statements": "case 分支", "control-flow-if-statements": "条件判断",
+    "control-flow-if-else-statements": "条件判断", "control-flow-loops": "循环",
+    "control-flow-loops-switch-if-statements": "循环与分支", "text-formatting": "文本格式化",
+    "dates": "日期处理", "time": "时间处理", "time-functions": "时间函数", "performance-optimizations": "性能优化",
+    "preprocessor-x-macros-in-test": "预处理器宏", "stl": "STL 容器", "vector-arrays": "vector 容器",
+    "iterators": "迭代器", "maps": "映射容器", "data-structures": "数据结构", "templates": "模板",
+    "namespaces": "命名空间", "includes": "头文件", "headers": "头文件", "auto": "类型推导",
+    "references": "引用", "smart-pointers": "智能指针", "interfaces": "接口", "parsing": "解析",
+    "pattern-matching": "模式匹配", "pattern-recognition": "模式识别", "switch": "switch 分支",
+    "threads": "线程", "variables": "变量", "optional-values": "可选值", "pairs": "键值对",
+    "randomness": "随机数", "string-formatting": "字符串格式化", "generator-expressions": "生成器表达式",
+    "generators": "生成器", "decorators": "装饰器", "descriptors": "描述器", "function-arguments": "函数参数",
+    "higher-order-functions": "高阶函数", "iteration": "迭代", "itertools": "迭代工具", "functools": "函数工具",
+    "none": "None 值", "raising-and-handling-errors": "异常处理", "rich-comparisons": "比较运算",
+    "unpacking-and-multiple-assignment": "解包与多重赋值", "user-defined-errors": "自定义异常",
+    "with-statement": "上下文管理",
+    "character-mapping": "字符映射", "validation-algorithm": "校验算法",
 }
 
 
 def localized_programming_tags(language: str, tags: list[str]) -> list[str]:
-    fallback = {"C": "C 语言基础", "C++": "C++ 基础", "Python": "Python 基础", "Java": "Java 基础"}.get(language, "基础语法")
     result = []
     for tag in tags:
+        if str(tag or "").strip() in PROGRAMMING_CONCEPT_LABELS.values():
+            label = str(tag).strip()
+            if label not in result:
+                result.append(label)
+            continue
         normalized = str(tag or "").strip().lower().replace("_", "-")
-        label = PROGRAMMING_CONCEPT_LABELS.get(normalized, fallback)
+        label = PROGRAMMING_CONCEPT_LABELS.get(normalized)
+        if not label:
+            continue
         if label not in result:
             result.append(label)
-    return result or [fallback]
+    return result[:4]
 
 PROJECT_FILE_EXTENSIONS = {
     ".c", ".h", ".cpp", ".cc", ".cxx", ".hpp", ".py", ".java", ".txt", ".json", ".md"
@@ -8656,82 +8683,26 @@ def _sample_display_value(value: str | None) -> str | None:
 
 
 def _public_exercise_samples(exercise: models.ProgrammingExercise) -> list[dict]:
-    """Expose names/fixtures from the imported public test files only.
+    """Return only importer-produced, structured public samples.
 
-    The importer stores Exercism's public test source verbatim. These samples
-    are derived from that source and never from hidden tests or AI output.
+    Raw Exercism test files remain server-side for the official runner. Older
+    rows without canonical-data samples intentionally return an empty list so
+    framework macros can never leak into the learner UI.
     """
-    language = normalize_project_language(exercise.language)
     files = _exercise_json(exercise.public_tests_json, [])
     samples = []
-    for file_index, item in enumerate(files):
-        path = str(item.get("path") or "")
-        content = str(item.get("content") or "")
-        if language == "Python":
-            try:
-                tree = ast.parse(content)
-            except SyntaxError:
-                tree = None
-            if tree:
-                for node in ast.walk(tree):
-                    if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) or not node.name.startswith("test_"):
-                        continue
-                    class_name = ""
-                    parent = next((candidate for candidate in ast.walk(tree) if isinstance(candidate, ast.ClassDef) and node in candidate.body), None)
-                    if parent:
-                        class_name = parent.name
-                    assertion = next((candidate for candidate in ast.walk(node) if isinstance(candidate, ast.Call) and isinstance(candidate.func, ast.Attribute) and candidate.func.attr in {"assertEqual", "assertIs", "assertCountEqual"} and len(candidate.args) >= 2), None)
-                    expected = ast.unparse(assertion.args[1]) if assertion else None
-                    actual = ast.unparse(assertion.args[0]) if assertion else None
-                    if assertion and isinstance(assertion.args[1], ast.Name):
-                        expected_name = assertion.args[1].id
-                        assignment = next((candidate for candidate in ast.walk(node) if isinstance(candidate, ast.Assign) and any(isinstance(target, ast.Name) and target.id == expected_name for target in candidate.targets)), None)
-                        if assignment:
-                            expected = ast.unparse(assignment.value)
-                    samples.append({
-                        "name": node.name.removeprefix("test_").replace("_", " "),
-                        "test_path": path,
-                        "selector": f"{class_name}::{node.name}" if class_name else node.name,
-                        "input": _sample_display_value(actual),
-                        "expected_output": _sample_display_value(expected),
-                        "file_index": file_index,
-                    })
-        elif language == "C++":
-            for match in re.finditer(r"TEST_CASE\s*\(\s*\"([^\"]+)\"", content):
-                start = match.end()
-                next_case = re.search(r"TEST_CASE\s*\(", content[start:])
-                block = content[start:start + next_case.start()] if next_case else content[start:]
-                expected = re.search(r"REQUIRE\s*\(\s*(.*?)\s*==\s*(.*?)\s*\)", block, re.DOTALL)
-                left = expected.group(1) if expected else None
-                right = expected.group(2) if expected else None
-                literal = left if left and re.search(r'\"', left) else right
-                variable = re.search(r"expected\s*\{\s*([^}]+)\}", block)
-                samples.append({
-                    "name": match.group(1),
-                    "test_path": path,
-                    "selector": match.group(1),
-                    "input": _sample_display_value(block[:240]),
-                    "expected_output": _sample_display_value(literal or (variable.group(1) if variable else None)),
-                    "file_index": file_index,
-                })
-        elif language == "C":
-            run_names = set(re.findall(r"RUN_TEST\(\s*(test_[A-Za-z0-9_]+)\s*\)", content))
-            for match in re.finditer(r"(?:static\s+)?void\s+(test_[A-Za-z0-9_]+)\s*\([^)]*\)\s*\{", content):
-                name = match.group(1)
-                if run_names and name not in run_names:
-                    continue
-                start = match.end()
-                next_test = re.search(r"(?:static\s+)?void\s+test_[A-Za-z0-9_]+\s*\(", content[start:])
-                block = content[start:start + next_test.start()] if next_test else content[start:]
-                expected = re.search(r'TEST_ASSERT_EQUAL_STRING\s*\(\s*("(?:\\.|[^"\\])*")\s*,', block)
-                samples.append({
-                    "name": name.removeprefix("test_").replace("_", " "),
-                    "test_path": path,
-                    "selector": name,
-                    "input": _sample_display_value(block[:240]),
-                    "expected_output": _sample_display_value(expected.group(1) if expected else None),
-                    "file_index": file_index,
-                })
+    for item in files:
+        for sample in item.get("samples", []) if isinstance(item, dict) else []:
+            safe = {
+                key: sample.get(key)
+                for key in (
+                    "id", "name", "arguments", "input_display", "expected",
+                    "source_test_name", "test_path", "selector",
+                )
+                if sample.get(key) is not None
+            }
+            if safe.get("test_path") and safe.get("selector") and safe.get("expected") is not None:
+                samples.append(safe)
     return samples
 
 
@@ -8747,7 +8718,6 @@ def serialize_programming_exercise(exercise: models.ProgrammingExercise, include
         "tags": localized_tags,
         "concepts": localized_tags,
         "description": exercise.description,
-        "public_tests": _exercise_json(exercise.public_tests_json, []),
         "public_samples": _public_exercise_samples(exercise),
         "source_repo": exercise.source_repo,
         "source_path": exercise.source_path,
@@ -9012,7 +8982,12 @@ def _run_official_exercise_tests(project: models.CodeProject, exercise: models.P
             sources = [str(Path(file.relative_path)) for file in files if PurePosixPath(file.relative_path).suffix.lower() == ".c"]
             tests = [str(Path(item["path"])) for item in bundle if str(item.get("path", "")).endswith(".c") and "test-framework" not in str(item.get("path", ""))]
             framework = [str(Path(item["path"])) for item in bundle if str(item.get("path", "")).startswith("test-framework/") and str(item.get("path", "")).endswith(".c")]
-            run_all = ["-DEXERCISM_RUN_ALL_TESTS"] if submission else []
+            # The public sample list is built from canonical-data and must be
+            # able to select any real case, including cases guarded by the
+            # track's EXERCISM_RUN_ALL_TESTS block.  The selector still limits
+            # execution for a single sample; this define only makes the case
+            # available to Catch2.
+            run_all = ["-DEXERCISM_RUN_ALL_TESTS"]
             command = [shutil.which("gcc") or "gcc", "-std=c11", *run_all, "-I.", *sources, *tests, *framework, "-lm", "-o", "exercise-tests.exe"]
         elif language == "C++":
             sources = [str(Path(file.relative_path)) for file in files if PurePosixPath(file.relative_path).suffix.lower() in (".cpp", ".cc", ".cxx")]
@@ -9024,7 +8999,7 @@ def _run_official_exercise_tests(project: models.CodeProject, exercise: models.P
             }
             included_names = {Path(item).name for item in included_sources}
             sources = [path for path in sources if path.replace("\\", "/") not in included_sources and Path(path).name not in included_names]
-            run_all = ["-DEXERCISM_RUN_ALL_TESTS"] if submission else []
+            run_all = ["-DEXERCISM_RUN_ALL_TESTS"]
             command = [shutil.which("g++") or "g++", "-std=c++17", "-static-libgcc", "-static-libstdc++", *run_all, "-I.", *sources, *tests, "-o", "exercise-tests.exe"]
         else:
             return {"success": False, "passed": False, "passed_count": 0, "total_count": total, "failed_categories": ["unsupported"], "duration_ms": 0, "stderr": "Java 题目尚未通过官方测试验证。", "exit_code": -1}
@@ -9099,26 +9074,72 @@ def _run_public_sample(project: models.CodeProject, exercise: models.Programming
             framework = [str(Path(item["path"])) for item in bundle if str(item.get("path", "")).startswith("test-framework/") and str(item.get("path", "")).endswith(".c")]
             command = [shutil.which("gcc") or "gcc", "-std=c11", "-I.", *sources, *tests, *framework, "-lm", "-o", "exercise-sample.exe"]
             compile_proc = subprocess.run(command, cwd=temp, capture_output=True, text=True, timeout=max(30, EXECUTE_TIMEOUT_SECONDS_C))
-            if compile_proc.returncode == 0:
-                run_proc = subprocess.run([str(temp / "exercise-sample.exe")], cwd=temp, capture_output=True, text=True, timeout=max(30, EXECUTE_TIMEOUT_SECONDS_C))
-            else:
-                run_proc = None
+            run_proc = None
         elif language == "C++":
             sources = [str(Path(file.relative_path)) for file in files if PurePosixPath(file.relative_path).suffix.lower() in (".cpp", ".cc", ".cxx")]
             tests = [str(Path(item["path"])) for item in bundle if str(item.get("path", "")).endswith((".cpp", ".cc", ".cxx"))]
             included = {m.group(1).replace("\\", "/") for item in bundle for m in re.finditer(r'#include\s+"([^" ]+\.c(?:pp|cxx)?)"', str(item.get("content") or ""))}
             included_names = {Path(item).name for item in included}
             sources = [path for path in sources if path.replace("\\", "/") not in included and Path(path).name not in included_names]
-            command = [shutil.which("g++") or "g++", "-std=c++17", "-I.", *sources, *tests, "-o", "exercise-sample.exe"]
+            command = [shutil.which("g++") or "g++", "-std=c++17", "-DEXERCISM_RUN_ALL_TESTS", "-I.", *sources, *tests, "-o", "exercise-sample.exe"]
             compile_proc = subprocess.run(command, cwd=temp, capture_output=True, text=True, timeout=max(30, EXECUTE_TIMEOUT_SECONDS_C))
-            run_proc = subprocess.run([str(temp / "exercise-sample.exe"), sample["selector"]], cwd=temp, capture_output=True, text=True, timeout=max(30, EXECUTE_TIMEOUT_SECONDS_C)) if compile_proc.returncode == 0 else None
+            run_proc = None
         else:
             return {"success": False, "passed": False, "stderr": "Java 题目本轮不执行样例。", "exit_code": -1, "duration_ms": 0}
-        if language == "Python":
-            run_proc = subprocess.run(command, cwd=temp, capture_output=True, text=True, timeout=max(30, EXECUTE_TIMEOUT_SECONDS_C))
+        try:
+            if language == "Python":
+                run_proc = subprocess.run(command, cwd=temp, capture_output=True, text=True, timeout=max(30, EXECUTE_TIMEOUT_SECONDS_C))
+        except subprocess.TimeoutExpired as exc:
+            timeout_output = "\n".join(str(part or "") for part in (exc.stdout, exc.stderr)).strip()
+            return {
+                "success": True,
+                "passed": False,
+                "passed_count": 0,
+                "total_count": 1,
+                "failed_categories": ["timeout"],
+                "duration_ms": int((time.time() - started) * 1000),
+                "stdout": "",
+                "stderr": timeout_output or "执行超时。",
+                "actual_output": timeout_output or "执行超时。",
+                "expected_output": sample.get("expected"),
+                "test_name": sample.get("name") or sample.get("source_test_name"),
+                "timeout": True,
+                "exit_code": -1,
+            }
+        if language in {"C", "C++"} and (compile_proc is not None and compile_proc.returncode == 0):
+            try:
+                run_proc = subprocess.run(
+                    [str(temp / "exercise-sample.exe"), sample["selector"]] if language == "C++" else [str(temp / "exercise-sample.exe")],
+                    cwd=temp,
+                    capture_output=True,
+                    text=True,
+                    timeout=max(30, EXECUTE_TIMEOUT_SECONDS_C),
+                )
+            except subprocess.TimeoutExpired as exc:
+                timeout_output = "\n".join(str(part or "") for part in (exc.stdout, exc.stderr)).strip()
+                return {
+                    "success": True,
+                    "passed": False,
+                    "passed_count": 0,
+                    "total_count": 1,
+                    "failed_categories": ["timeout"],
+                    "duration_ms": int((time.time() - started) * 1000),
+                    "stdout": "",
+                    "stderr": timeout_output or "执行超时。",
+                    "actual_output": timeout_output or "执行超时。",
+                    "expected_output": sample.get("expected"),
+                    "test_name": sample.get("name") or sample.get("source_test_name"),
+                    "timeout": True,
+                    "exit_code": -1,
+                }
         output = ((compile_proc.stdout + "\n" + compile_proc.stderr) if compile_proc and compile_proc.returncode != 0 else ((run_proc.stdout if run_proc else "") + "\n" + (run_proc.stderr if run_proc else ""))).strip()
         exit_code = compile_proc.returncode if compile_proc and compile_proc.returncode != 0 else (run_proc.returncode if run_proc else -1)
         passed = exit_code == 0
+        expected_output = sample.get("expected")
+        # A passing assertion proves the user's return value equals the
+        # canonical expected value; this is not obtained from the reference
+        # solution. On failure, retain the real runner diagnostic instead.
+        actual_output = expected_output if passed else output
         return {
             "success": True,
             "passed": passed,
@@ -9128,8 +9149,9 @@ def _run_public_sample(project: models.CodeProject, exercise: models.Programming
             "duration_ms": int((time.time() - started) * 1000),
             "stdout": output if passed else "",
             "stderr": "" if passed else output,
-            "actual_output": output,
-            "expected_output": sample.get("expected_output"),
+            "actual_output": actual_output,
+            "expected_output": expected_output,
+            "test_name": sample.get("name") or sample.get("source_test_name"),
             "exit_code": exit_code,
             "compile_error": output if compile_proc and compile_proc.returncode != 0 else None,
         }
@@ -9146,7 +9168,14 @@ def run_programming_exercise_sample(exercise_id: int, req: schemas.ProgrammingEx
     if req.sample_index < 0 or req.sample_index >= len(samples):
         raise HTTPException(status_code=400, detail="公开测试样例不存在")
     result = _run_public_sample(project, exercise, list_project_files(project.id, db), samples[req.sample_index])
-    return {**_exercise_run_summary(result, exercise, submission=False), "sample": samples[req.sample_index], "actual_output": result.get("actual_output", ""), "expected_output": result.get("expected_output")}
+    return {
+        **_exercise_run_summary(result, exercise, submission=False),
+        "sample": samples[req.sample_index],
+        "test_name": result.get("test_name") or samples[req.sample_index].get("name"),
+        "actual_output": result.get("actual_output", ""),
+        "expected_output": result.get("expected_output"),
+        "timeout": bool(result.get("timeout")),
+    }
 
 
 @app.post("/programming/exercises/{exercise_id}/test")

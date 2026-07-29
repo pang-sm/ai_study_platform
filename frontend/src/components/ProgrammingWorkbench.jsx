@@ -227,7 +227,7 @@ function normalizeLanguage(value) {
 }
 
 function formatRunResult(result) {
-  if (!result) return "点击运行后，当前练习入口文件的真实输出会显示在这里。";
+  if (!result) return "点击运行后，当前练习的真实程序输出会显示在这里。";
   const output = result.actual_output ?? result.stdout;
   return output?.trimEnd() || (result.exit_code === 0 ? "程序已运行完成，无输出。" : "程序运行失败，请展开运行详情查看错误信息。");
 }
@@ -505,6 +505,7 @@ export default function ProgrammingWorkbench({
     : null;
   const activeFile = activeResource ? null : (files.find((file) => file.id === activeFileId) || files[0] || null);
   const language = selectedLanguage || project?.language || onboardingLanguage || "Python";
+  const exerciseIdentity = `${user?.id || user?.username || "anonymous"}:${language}:${initialExerciseId || project?.programming_exercise_id || "none"}`;
   const sourceFiles = useMemo(
     () => files.filter((file) => isSourceFileForLanguage(file.relative_path, language)),
     [files, language],
@@ -516,18 +517,10 @@ export default function ProgrammingWorkbench({
   const uniqueJavaMainClasses = useMemo(() => [...new Set(javaMainClasses)], [javaMainClasses]);
   const activeJavaMainClass = useMemo(() => detectJavaMainClass(activeFile), [activeFile]);
   const runTargetLabel = useMemo(() => {
-    if (!project) return "运行：未选择练习";
-    if (language === "Java") return `运行：${project.main_class || uniqueJavaMainClasses[0] || "请选择主类"}`;
-    return `运行：${project.entry_file || activeFile?.relative_path || DEFAULT_FILE[language]}`;
+    if (!project) return "入口：未选择练习";
+    if (language === "Java") return `入口：${project.main_class || uniqueJavaMainClasses[0] || "Main"}`;
+    return `入口：${project.entry_file || activeFile?.relative_path || DEFAULT_FILE[language]}`;
   }, [activeFile?.relative_path, language, project, uniqueJavaMainClasses]);
-  const runScopeLabel = useMemo(() => {
-    if (!project) return "";
-    if (language === "C") return `范围：练习内 ${sourceFiles.length} 个 .c 源文件`;
-    if (language === "C++") return `范围：练习内 ${sourceFiles.length} 个 C++ 源文件`;
-    if (language === "Java") return `范围：全部 ${sourceFiles.length} 个 Java 源文件`;
-    return runMode === "current-file" ? "范围：当前文件" : "范围：练习全部文件";
-  }, [language, project, runMode, sourceFiles.length]);
-
   const relayoutEditor = useCallback(() => {
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => editorRef.current?.layout?.());
@@ -686,6 +679,12 @@ export default function ProgrammingWorkbench({
       if (requestId === workspaceRequestRef.current) window.clearTimeout(saveTimerRef.current);
     };
   }, [initialExerciseId, initialLanguageSelection, relayoutEditor]);
+
+  useEffect(() => () => {
+    const model = editorRef.current?.getModel?.();
+    model?.dispose?.();
+    editorRef.current = null;
+  }, [exerciseIdentity, activeFile?.id]);
 
   useEffect(() => { loadProjects(); }, [loadProjects]);
 
@@ -1292,8 +1291,12 @@ export default function ProgrammingWorkbench({
 
   const runProject = async (override = {}) => {
     if (!project?.id) return;
-    if (exercise && selectedSampleIndex !== null && !override.forceAllTests) {
-      await runExerciseSample(selectedSampleIndex);
+    if (exercise) {
+      if (selectedSampleIndex !== null && !override.forceAllTests) {
+        await runExerciseSample(selectedSampleIndex);
+      } else {
+        await runExerciseCheck(false);
+      }
       return;
     }
     if (language === "Java" && uniqueJavaMainClasses.length > 1 && !project.main_class && !override.mainClass) {
@@ -1342,6 +1345,8 @@ export default function ProgrammingWorkbench({
 
   const runExerciseSample = async (sampleIndex) => {
     if (!exercise?.id || !project?.id) return;
+    setSelectedSampleIndex(sampleIndex);
+    setSampleResult(null);
     setBusy("sample");
     setOutputCollapsed(false);
     setActiveResultTab("run");
@@ -1355,7 +1360,7 @@ export default function ProgrammingWorkbench({
       const data = await safeJson(res);
       if (!res.ok) throw new Error(data.detail || "测试样例运行失败");
       setSampleResult(data);
-      setRunResult({ ...(data.result || {}), actual_output: data.actual_output, expected_output: data.expected_output });
+      setRunResult({ ...(data.result || {}), actual_output: data.actual_output, expected_output: data.expected_output, duration_ms: data.duration_ms, test_name: data.test_name, timeout: data.timeout });
       setRunDetailsOpen(data.passed !== true);
       setCompileDiagnostics(parseCompilerDiagnostics(data.result || data, project));
       setStatus(data.passed ? "测试样例通过" : "测试样例未通过");
@@ -1369,8 +1374,9 @@ export default function ProgrammingWorkbench({
   const runExerciseCheck = async (submission) => {
     if (!exercise?.id || !project?.id) return;
     setBusy(submission ? "submit" : "test");
+    setSampleResult(null);
     setOutputCollapsed(false);
-    setActiveResultTab(submission ? "feedback" : "run");
+    setActiveResultTab(submission ? "feedback" : "tests");
     try {
       await manualSave();
       const res = await fetch(`${apiBase}/programming/exercises/${exercise.id}/${submission ? "submit" : "test"}`, {
@@ -1510,9 +1516,11 @@ export default function ProgrammingWorkbench({
 
   const resultText = activeResultTab === "run"
     ? formatRunResult(runResult)
-    : activeResultTab === "problems"
-      ? ""
-      : feedback || "点击 AI 判题后，项目上下文反馈会显示在这里。";
+    : activeResultTab === "tests"
+      ? (exerciseResult ? `通过 ${exerciseResult.passed_count}/${exerciseResult.total_count}\n${exerciseResult.failed_categories?.length ? `失败类别：${exerciseResult.failed_categories.join("、")}` : "全部测试通过"}` : "点击“运行全部公开测试”或“提交”查看测试结果。")
+      : activeResultTab === "problems"
+        ? ""
+        : feedback || "点击 AI 判题后，当前练习上下文反馈会显示在这里。";
 
   const tree = useMemo(() => buildTree(files), [files]);
   const projectTabs = openTabs
@@ -1560,10 +1568,16 @@ export default function ProgrammingWorkbench({
           </div>
           <div className="pw-toolbar-center">
             <div className="pw-run-cluster">
-              <span className="pw-run-target" title="由当前练习官方配置决定">{project ? runTargetLabel : "运行：未选择练习"}</span>
-              <button type="button" className="run-btn pw-icon-button pw-run-button" data-action="top-run" onClick={runProject} disabled={!project || busy === "run"} title="运行">
+              <span className="pw-run-target" title="入口由当前练习官方配置决定">{project ? runTargetLabel : "入口：未选择练习"}</span>
+              <button type="button" className="run-btn pw-icon-button pw-run-button" data-action="top-run" onClick={runProject} disabled={!project || busy === "run" || busy === "sample"} title={selectedSampleIndex === null ? "运行全部公开测试" : "运行当前样例"}>
                 {busy === "run" ? "..." : "▶ 运行"}
               </button>
+              {exercise && (
+                <>
+                  <button type="button" className="pw-top-exercise-action" onClick={() => runExerciseCheck(false)} disabled={!project || busy === "test" || busy === "submit"} title="运行全部公开测试">运行全部测试</button>
+                  <button type="button" className="pw-top-exercise-action pw-top-exercise-action--primary" onClick={() => runExerciseCheck(true)} disabled={!project || busy === "test" || busy === "submit"} title="提交并运行完整官方测试">提交</button>
+                </>
+              )}
             </div>
           </div>
           <div className="pw-toolbar-right">
@@ -1609,11 +1623,11 @@ export default function ProgrammingWorkbench({
                           type="button"
                           className={`pw-exercise-example${selectedSampleIndex === index ? " is-selected" : ""}`}
                           key={`${sample.test_path}-${sample.selector}-${index}`}
-                          onClick={() => { setSelectedSampleIndex(index); setSampleResult(null); }}
+                          onClick={() => runExerciseSample(index)}
                         >
                           <span>{sample.name || `样例 ${index + 1}`}</span>
-                          {sample.input && <code>参数：{String(sample.input)}</code>}
-                          {sample.expected_output && <code>期望：{String(sample.expected_output)}</code>}
+                          <code>输入：{sample.input_display || "无参数"}</code>
+                          <code>期望：{String(sample.expected ?? "")}</code>
                           {selectedSampleIndex === index && sampleResult && <em>{sampleResult.passed ? "通过" : "未通过"}</em>}
                         </button>
                       ))
@@ -1642,48 +1656,11 @@ export default function ProgrammingWorkbench({
               ))}
             </div>
             <div className="pw-editor-card">
-              {activeResource ? (
-                <div className="pw-resource-viewer">
-                  <div className="pw-resource-header">
-                    <div>
-                      <strong>{getDisplayFilename(activeResource)}</strong>
-                      <span>{getResourceKind(activeResource)} · readonly · StudyMaterial</span>
-                    </div>
-                    <div className="pw-resource-actions">
-                      {["code", "text", "markdown"].includes(getResourceKind(activeResource)) && project && (
-                        <button type="button" onClick={() => addLibraryResourceToProject(activeResource)}>添加到当前项目</button>
-                      )}
-                      {activeResource.can_download !== false && (
-                        <button type="button" onClick={() => downloadLibraryResource(activeResource)}>下载</button>
-                      )}
-                    </div>
-                  </div>
-                  {activeResourceContent.loading ? (
-                    <div className="pw-resource-empty">Loading resource...</div>
-                  ) : getResourceKind(activeResource) === "markdown" ? (
-                    <MarkdownResourceView value={activeResourceContent.content || activeResource.summary || ""} mode={markdownMode} onModeChange={setMarkdownMode} />
-                  ) : ["code", "text"].includes(getResourceKind(activeResource)) ? (
-                    <Editor
-                      height="100%"
-                      path={"library://" + activeResource.id + "/" + getDisplayFilename(activeResource)}
-                      language={getMonacoLanguage({ relative_path: getMaterialPath(activeResource) })}
-                      value={activeResourceContent.content || activeResource.summary || ""}
-                      theme={theme === "dark" ? "vs-dark" : "light"}
-                      options={{ readOnly: true, minimap: { enabled: false }, lineNumbers: "on", wordWrap: "on", scrollBeyondLastLine: false, automaticLayout: true }}
-                    />
-                  ) : (
-                    <div className="pw-resource-empty">
-                      <strong>此资源不适合在 IDE 工作台中打开</strong>
-                      <span>{getDisplayFilename(activeResource)}</span>
-                      {activeResource.can_download !== false && <button type="button" onClick={() => downloadLibraryResource(activeResource)}>下载原文件</button>}
-                    </div>
-                  )}
-                </div>
-              ) : activeFile ? (
+              {activeFile ? (
                 <Editor
                   height="100%"
-                  key={`${initialExerciseId || "empty"}-${project?.id || "none"}-${activeFile.id}`}
-                  path={`exercise://${initialExerciseId || "none"}/${project?.id || "none"}/${activeFile.relative_path}`}
+                  key={`${exerciseIdentity}-${activeFile.id}`}
+                  path={`exercise://${exerciseIdentity}/${activeFile.relative_path}`}
                   language={getMonacoLanguage(activeFile)}
                   value={activeFile.content || ""}
                   theme={theme === "dark" ? "vs-dark" : "light"}
@@ -1724,7 +1701,7 @@ export default function ProgrammingWorkbench({
             <aside className="pw-coach">
               <div className="pw-coach-head">
                 <span className="pw-tool-title">AI 教练</span>
-                <div className="pw-project-tools">
+                <div className="pw-coach-actions">
                   <button type="button" onClick={resetCoach} title="重置 AI 教练">↻</button>
                   <button type="button" onClick={() => setCoachCollapsed(true)} title="收起 AI 教练">×</button>
                 </div>
@@ -1765,27 +1742,35 @@ export default function ProgrammingWorkbench({
           {!outputCollapsed && <div className="pw-bottom-resizer" onMouseDown={startBottomResize} />}
           <div className="pw-result-tabs">
             <button type="button" className={activeResultTab === "run" && !outputCollapsed ? "is-active" : ""} onClick={() => selectResultTab("run")}>
-              <span>▷</span> 运行
+              <span>▷</span> 运行结果
+            </button>
+            <button type="button" className={activeResultTab === "tests" && !outputCollapsed ? "is-active" : ""} onClick={() => selectResultTab("tests")}>
+              <span>✓</span> 测试结果
             </button>
             <button type="button" className={activeResultTab === "problems" && !outputCollapsed ? "is-active" : ""} onClick={() => selectResultTab("problems")}>
-              <span>!</span> 问题
+              <span>!</span> 编译问题
             </button>
             <button type="button" className={activeResultTab === "feedback" && !outputCollapsed ? "is-active" : ""} onClick={() => selectResultTab("feedback")}>
               <span>AI</span> AI 判题反馈
             </button>
             <div className="pw-bottom-tools">
-              {exercise && (
-                <>
-                  <button type="button" onClick={() => runExerciseCheck(false)} disabled={!project || busy === "test" || busy === "submit"} title="运行公开测试">测试</button>
-                  <button type="button" onClick={() => runExerciseCheck(true)} disabled={!project || busy === "test" || busy === "submit"} title="提交并运行隐藏测试">提交 / AI 判题</button>
-                </>
-              )}
               <button type="button" data-action="toggle-output" onClick={() => setOutputCollapsed(!outputCollapsed)} title={outputCollapsed ? "展开" : "收起"}>{outputCollapsed ? "^" : "×"}</button>
             </div>
           </div>
           {!outputCollapsed && (
             <div className="pw-results">
-              {activeResultTab === "problems" ? (
+              {activeResultTab === "tests" ? (
+                <div className="pw-test-result-summary">
+                  {exerciseResult ? (
+                    <>
+                      <strong>{exerciseResult.submission ? "提交结果" : "公开测试结果"}：{exerciseResult.passed_count}/{exerciseResult.total_count}</strong>
+                      <span>{exerciseResult.failed_categories?.length ? `失败类别：${exerciseResult.failed_categories.join("、")}` : "全部测试通过"}</span>
+                      <span>执行时间：{exerciseResult.duration_ms ?? 0}ms</span>
+                      {exerciseResult.ai_explanation && <p>{exerciseResult.ai_explanation}</p>}
+                    </>
+                  ) : <span>点击顶部“运行全部测试”或“提交”查看真实测试结果。</span>}
+                </div>
+              ) : activeResultTab === "problems" ? (
                 <div className="pw-problems-list">
                   <div className="pw-problems-summary">
                     <span className="pw-problems-error">{diagnosticSummary.errors} 个错误</span>
@@ -1811,9 +1796,13 @@ export default function ProgrammingWorkbench({
                 <div className="pw-run-result">
                   {sampleResult && (
                     <div className={`pw-sample-result ${sampleResult.passed ? "is-passed" : "is-failed"}`}>
-                      <strong>{sampleResult.passed ? "测试样例通过" : "测试样例未通过"}</strong>
-                      <span>期望：{sampleResult.expected_output || "（由官方测试断言给出）"}</span>
+                      <strong>{sampleResult.test_name || sampleResult.sample?.name || "当前测试样例"}：{sampleResult.passed ? "通过" : "未通过"}</strong>
+                      <span>期望：{sampleResult.expected_output ?? sampleResult.sample?.expected ?? ""}</span>
                       <span>实际：{sampleResult.actual_output || "（无输出或测试进程未返回值）"}</span>
+                      {sampleResult.timeout && <span>执行超时</span>}
+                      {sampleResult.result?.compile_error && <span>编译错误：{sampleResult.result.compile_error}</span>}
+                      {sampleResult.result?.stderr && <span>运行错误：{sampleResult.result.stderr}</span>}
+                      <span>执行时间：{sampleResult.duration_ms ?? sampleResult.result?.duration_ms ?? 0}ms</span>
                     </div>
                   )}
                   <pre>{resultText}</pre>

@@ -159,10 +159,12 @@ jobs:
           clone_track c
           clone_track cpp
           clone_track python
+          echo "[sources] cloning problem-specifications"
+          git clone --depth 1 --no-tags --single-branch https://github.com/exercism/problem-specifications.git "$SOURCE_ROOT/problem-specifications"
 
           c_slugs=(hello-world reverse-string acronym bob difference-of-squares grains leap binary collatz-conjecture darts dnd-character eliuds-eggs hamming queen-attack raindrops resistor-color-duo rna-transcription space-age two-fer armstrong-numbers binary-search gigasecond high-scores)
           cpp_slugs=(hello-world reverse-string acronym bob election-day ellens-alien-game freelancer-rates interest-is-interesting isbn-verifier lasagna lasagna-master last-will log-levels luhn making-the-grade pacman-rules power-of-troy space-age speedywagon troll-the-trolls collatz-conjecture darts grains)
-          python_slugs=(ledger markdown bob hello-world reverse-string acronym anagram armstrong-numbers binary-search black-jack card-games cater-waiter chaitanas-colossal-coaster collatz-conjecture currency-exchange darts difference-of-squares electric-bill ellens-alien-game etl flatten-array ghost-gobble-arcade-game gigasecond grains guidos-gorgeous-lasagna)
+          python_slugs=(ledger markdown bob hello-world reverse-string acronym anagram armstrong-numbers binary-search black-jack card-games cater-waiter chaitanas-colossal-coaster collatz-conjecture currency-exchange darts difference-of-squares electric-bill ellens-alien-game etl flatten-array ghost-gobble-arcade-game gigasecond grains word-count)
           verify_track() {
             local repo="$1"
             shift
@@ -186,7 +188,11 @@ jobs:
           verify_track c "${c_slugs[@]}"
           verify_track cpp "${cpp_slugs[@]}"
           verify_track python "${python_slugs[@]}"
-          tar -czf "$RUNNER_TEMP/exercism_sources.tar.gz" -C "$SOURCE_ROOT" c cpp python
+          if [ ! -f "$SOURCE_ROOT/problem-specifications/LICENSE" ]; then
+            echo "[sources] problem-specifications LICENSE is missing"
+            exit 1
+          fi
+          tar -czf "$RUNNER_TEMP/exercism_sources.tar.gz" -C "$SOURCE_ROOT" c cpp python problem-specifications
 
       - name: Deploy to Tencent Cloud
         shell: bash
@@ -400,7 +406,7 @@ jobs:
           DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python scripts/import_exercism_exercises.py \
             --source-root "$EXERCISM_SOURCE_ROOT" \
             --languages Python \
-            --slugs ledger,markdown,bob,hello-world,reverse-string,acronym,anagram,armstrong-numbers,binary-search,black-jack,card-games,cater-waiter,chaitanas-colossal-coaster,collatz-conjecture,currency-exchange,darts,difference-of-squares,electric-bill,ellens-alien-game,etl,flatten-array,ghost-gobble-arcade-game,gigasecond,grains,guidos-gorgeous-lasagna \
+            --slugs ledger,markdown,bob,hello-world,reverse-string,acronym,anagram,armstrong-numbers,binary-search,black-jack,card-games,cater-waiter,chaitanas-colossal-coaster,collatz-conjecture,currency-exchange,darts,difference-of-squares,electric-bill,ellens-alien-game,etl,flatten-array,ghost-gobble-arcade-game,gigasecond,grains,word-count \
             --max-per-language 25 \
             --prune-unlisted
           rm -rf "$EXERCISM_SOURCE_ROOT" "$EXERCISM_ARCHIVE"

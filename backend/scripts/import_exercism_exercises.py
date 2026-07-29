@@ -8,6 +8,7 @@ server-side reference/hidden data are copied into the database.
 from __future__ import annotations
 
 import argparse
+import ast
 import importlib.util
 import json
 import os
@@ -28,12 +29,40 @@ LANGUAGE_REPOS = {"C": "c", "C++": "cpp", "Python": "python", "Java": "java"}
 LANGUAGE_CONFIG = {"C": "C", "C++": "C++", "Python": "Python", "Java": "Java"}
 CONCEPT_LABELS = {
     "basics": "基础语法", "conditionals": "条件判断", "loops": "循环", "functions": "函数",
-    "strings": "字符串", "string-methods": "字符串方法", "lists": "列表", "list-methods": "列表操作",
-    "dicts": "字典", "sets": "集合", "comprehensions": "推导式", "regular-expressions": "正则表达式",
-    "exceptions": "异常处理", "classes": "类与对象", "numbers": "数值处理", "sequences": "序列",
-    "arrays": "数组", "pointers": "指针", "memory": "内存管理", "structures": "结构体",
-    "bitwise-operations": "位运算", "stl": "STL 容器", "iterators": "迭代器", "algorithms": "算法",
-    "templates": "模板", "object-oriented-programming": "面向对象",
+    "strings": "字符串处理", "string-methods": "字符串方法", "lists": "列表", "list-methods": "列表操作",
+    "dicts": "字典", "dict-methods": "字典操作", "sets": "集合", "comprehensions": "推导式",
+    "regular-expressions": "正则表达式", "exceptions": "异常处理", "classes": "类与对象",
+    "class-composition": "类组合", "class-customization": "类定制", "class-inheritance": "类继承",
+    "numbers": "数值运算", "integers": "整数运算", "sequences": "序列", "arrays": "数组",
+    "pointers": "指针", "memory": "内存管理", "memory-management": "内存管理", "structures": "结构体",
+    "structs": "结构体", "enums": "枚举", "bitwise-operations": "位运算", "booleans": "布尔逻辑",
+    "bools": "布尔逻辑", "comparisons": "比较运算", "logic": "逻辑运算", "math": "数值算法",
+    "filtering": "过滤", "sorting": "排序", "searching": "查找", "algorithms": "算法",
+    "recursion": "递归", "stacks": "栈", "buffers": "缓冲区", "lists": "列表",
+    "flexible-array-members": "柔性数组", "function-pointers": "函数指针", "variable-argument-lists": "可变参数",
+    "control-flow-case-statements": "条件判断", "control-flow-if-statements": "条件判断",
+    "control-flow-if-else-statements": "条件判断", "control-flow-loops": "循环",
+    "control-flow-loops-switch-if-statements": "循环与分支", "text-formatting": "文本格式化",
+    "dates": "日期处理", "time": "时间处理", "time-functions": "时间函数",
+    "performance-optimizations": "性能优化", "preprocessor-x-macros-in-test": "预处理器宏",
+    "stl": "STL 容器", "vector-arrays": "vector 容器", "iterators": "迭代器", "maps": "映射容器",
+    "data-structures": "数据结构", "templates": "模板", "namespaces": "命名空间", "includes": "头文件",
+    "headers": "头文件", "auto": "类型推导", "references": "引用", "smart-pointers": "智能指针",
+    "operator-overloading": "运算符重载", "exceptions": "异常处理", "interfaces": "接口",
+    "parsing": "解析", "pattern-matching": "模式匹配", "pattern-recognition": "模式识别",
+    "regular-expressions": "正则表达式", "switch": "switch 分支", "threads": "线程",
+    "variables": "变量", "optional-values": "可选值", "pairs": "键值对", "randomness": "随机数",
+    "string-formatting": "字符串格式化", "generator-expressions": "生成器表达式", "generators": "生成器",
+    "decorators": "装饰器", "descriptors": "描述器", "function-arguments": "函数参数",
+    "higher-order-functions": "高阶函数", "iteration": "迭代", "iterators": "迭代器", "itertools": "迭代工具",
+    "functools": "函数工具", "none": "None 值", "operator-overloading": "运算符重载",
+    "raising-and-handling-errors": "异常处理", "rich-comparisons": "比较运算",
+    "unpacking-and-multiple-assignment": "解包与多重赋值", "user-defined-errors": "自定义异常",
+    "with-statement": "上下文管理",
+    "character-mapping": "字符映射", "validation-algorithm": "校验算法",
+    "if-statements": "条件判断", "literals": "字面量", "tuples": "元组",
+    "collections": "集合与容器", "other-comprehensions": "推导式",
+    "list-comprehensions": "推导式", "context-manager-customization": "上下文管理",
 }
 
 
@@ -70,7 +99,10 @@ def files_from_config(exercise_dir: Path, config: dict, key: str) -> list[dict]:
 
 def normalize_test_files(language: str, test_files: list[dict]) -> list[dict]:
     if language != "C":
-        return test_files
+        # Do not let official runner support files be appended to the caller's
+        # public/business test list.  C++'s Catch2 headers must stay server
+        # side and must never participate in sample or concept extraction.
+        return [dict(item) for item in test_files]
     return [
         {
             **item,
@@ -127,13 +159,207 @@ def difficulty_for(item: dict, index: int) -> str:
 
 
 def localized_tags(language: str, tags: list[str]) -> list[str]:
-    fallback = {"C": "C 语言基础", "C++": "C++ 基础", "Python": "Python 基础", "Java": "Java 基础"}.get(language, "基础语法")
     result = []
     for tag in tags:
-        label = CONCEPT_LABELS.get(str(tag).strip().lower().replace("_", "-"), fallback)
+        normalized = str(tag).strip().lower().replace("_", "-")
+        label = CONCEPT_LABELS.get(normalized)
+        if not label:
+            continue
         if label not in result:
             result.append(label)
-    return result or [fallback]
+    if len(result) > 1:
+        result = [item for item in result if item != "基础语法"]
+    for preferred in ("字符映射", "校验算法"):
+        if preferred in result:
+            result.remove(preferred)
+            result.insert(0, preferred)
+    if "校验算法" in result and "字符串处理" in result:
+        result.remove("字符串处理")
+        result.insert(1, "字符串处理")
+    return result[:4]
+
+
+def source_derived_tags(language: str, starter_files: list[dict], reference_files: list[dict], test_files: list[dict]) -> list[str]:
+    """Add only concepts evidenced by the official solution/test source."""
+    implementation_text = "\n".join(
+        str(item.get("content") or "")
+        for item in [*starter_files, *reference_files]
+    )
+    test_text = "\n".join(str(item.get("content") or "") for item in test_files)
+    tags = []
+    if language == "Python":
+        nodes = []
+        for item in [*starter_files, *reference_files]:
+            try:
+                nodes.extend(ast.walk(ast.parse(str(item.get("content") or ""))))
+            except SyntaxError:
+                continue
+        node_types = {type(node) for node in nodes}
+        if ast.FunctionDef in node_types or ast.AsyncFunctionDef in node_types:
+            tags.append("functions")
+        if ast.For in node_types or ast.While in node_types:
+            tags.append("loops")
+        if ast.If in node_types:
+            tags.append("conditionals")
+        if ast.List in node_types:
+            tags.append("lists")
+        if ast.Dict in node_types:
+            tags.append("dicts")
+        if ast.Set in node_types:
+            tags.append("sets")
+        if any(isinstance(node, ast.Constant) and isinstance(node.value, str) for node in nodes):
+            tags.append("strings")
+        if any(isinstance(node, ast.Constant) and isinstance(node.value, (int, float, complex)) for node in nodes):
+            tags.append("numbers")
+    elif language == "C++":
+        if re.search(r"\b[A-Za-z_:<>]+\s+[A-Za-z_]\w*\s*\([^;{}]*\)\s*(?:const\s*)?\{", implementation_text):
+            tags.append("functions")
+        if re.search(r"\bnamespace\s+[A-Za-z_]", implementation_text):
+            tags.append("namespaces")
+        if re.search(r"\b(?:std::)?string\b|[\"'](?:[^\"']|\\.)+[\"']", implementation_text):
+            tags.append("strings")
+        if re.search(r"\b(?:for|while)\s*\(", implementation_text):
+            tags.append("loops")
+        if re.search(r"\b(?:if|else\s+if|switch)\s*\(", implementation_text):
+            tags.append("conditionals")
+        if re.search(r"\b(?:valid|is_valid|verify)\w*\b", test_text, re.IGNORECASE):
+            tags.append("validation-algorithm")
+    elif language == "C":
+        if re.search(r"\b[A-Za-z_][A-Za-z0-9_]*\s*\([^;{}]*\)\s*\{", implementation_text):
+            tags.append("functions")
+        if re.search(r"\bchar\b[\s\S]{0,180}(?:\[[^]]*\]|\*\w+)", implementation_text):
+            tags.append("strings")
+        if re.search(r"['\"](?:A|C|G|T|U)['\"]", implementation_text):
+            tags.append("character-mapping")
+        if re.search(r"\b(?:for|while)\s*\(", implementation_text):
+            tags.append("loops")
+        if re.search(r"\b(?:if|else\s+if|switch)\s*\(", implementation_text):
+            tags.append("conditionals")
+    elif language == "Python":
+        if re.search(r"\b(?:for|while)\b", text):
+            tags.append("loops")
+        if re.search(r"\bif\b|\belif\b", text):
+            tags.append("conditionals")
+        if re.search(r"\[[^\]]*\]|\blist\s*\(", text):
+            tags.append("lists")
+        if re.search(r"\{[^\n]*:\s*[^\n]*\}", text):
+            tags.append("dicts")
+        if re.search(r"\bstr\b|[\"'](?:[^\"']|\\.)+[\"']", text):
+            tags.append("strings")
+        if re.search(r"\b(?:int|float)\b|\b\d+(?:\.\d+)?\b", text):
+            tags.append("numbers")
+    return tags
+
+
+def _display_value(value) -> str:
+    if isinstance(value, str):
+        return value
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+
+
+def _test_selectors(language: str, test_files: list[dict]) -> list[dict]:
+    """Find real test entry points without exposing test framework source."""
+    selectors = []
+    for item in test_files:
+        path = str(item.get("path") or "")
+        content = str(item.get("content") or "")
+        if language == "Python" and path.endswith(".py"):
+            try:
+                tree = ast.parse(content)
+            except SyntaxError:
+                continue
+            for node in tree.body:
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith("test_"):
+                    selectors.append({"path": path, "selector": node.name})
+                elif isinstance(node, ast.ClassDef):
+                    for child in node.body:
+                        if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)) and child.name.startswith("test_"):
+                            selectors.append({"path": path, "selector": f"{node.name}::{child.name}"})
+        elif language == "C++" and path.endswith(('.cpp', '.cc', '.cxx')):
+            for match in re.finditer(r"\bTEST_CASE(?:_METHOD)?\s*\(\s*\"([^\"]+)\"(?:\s*,\s*\"\[([^\"]+)\]\")?", content):
+                selectors.append({"path": path, "selector": match.group(1), "case_id": match.group(2)})
+        elif language == "C" and path.endswith(".c") and "test-framework/" not in path:
+            for match in re.finditer(r"(?:static\s+)?void\s+(test_[A-Za-z0-9_]+)\s*\(", content):
+                selectors.append({"path": path, "selector": match.group(1)})
+    return selectors
+
+
+def canonical_samples(problem_root: Path | None, language: str, slug: str, test_files: list[dict]) -> list[dict]:
+    if not problem_root:
+        return []
+    path = problem_root / "exercises" / slug / "canonical-data.json"
+    if not path.is_file():
+        return []
+    try:
+        cases = read_json(path).get("cases", [])
+    except (OSError, ValueError, TypeError):
+        return []
+    selectors = _test_selectors(language, test_files)
+    # canonical-data.json may group several leaf cases under one property
+    # (for example grains.square).  Only leaf cases map to runnable test
+    # selectors; importing the group itself produces a misleading null
+    # expected value and shifts every following selector.
+    leaf_cases = []
+    for group in cases:
+        nested = group.get("cases") if isinstance(group, dict) else None
+        if isinstance(nested, list):
+            for child in nested:
+                if isinstance(child, dict):
+                    leaf = dict(child)
+                    if not leaf.get("property") and group.get("property"):
+                        leaf["property"] = group["property"]
+                    leaf_cases.append(leaf)
+        elif isinstance(group, dict):
+            leaf_cases.append(group)
+
+    samples = []
+    remaining_selectors = list(selectors)
+    stop_words = {"a", "an", "and", "as", "be", "can", "is", "of", "on", "the", "to", "with"}
+    for case in leaf_cases:
+        selector = next((item for item in remaining_selectors if item.get("case_id") == case.get("uuid")), None)
+        if selector is not None:
+            remaining_selectors.remove(selector)
+        else:
+            description_words = set(re.findall(r"[a-z]+", str(case.get("description") or "").lower())) - stop_words
+            description_numbers = set(re.findall(r"-?\d+", str(case.get("description") or "")))
+            ranked = []
+            for candidate in remaining_selectors:
+                candidate_text = str(candidate.get("selector") or "").lower()
+                candidate_words = set(re.findall(r"[a-z]+", candidate_text))
+                candidate_numbers = set(re.findall(r"-?\d+", candidate_text))
+                if description_numbers and not description_numbers.issubset(candidate_numbers):
+                    continue
+                if "negative" in description_words and "negative" not in candidate_words:
+                    continue
+                score = len(description_words & candidate_words)
+                if score:
+                    ranked.append((score, candidate))
+            if ranked:
+                selector = max(ranked, key=lambda item: item[0])[1]
+                remaining_selectors.remove(selector)
+            elif not description_numbers and "negative" not in description_words and remaining_selectors:
+                # Some tracks use a human-readable canonical description that
+                # does not share words with the test function (e.g. hello-world).
+                # Preserve order only when there is no numeric constraint that
+                # could silently bind this sample to the wrong test.
+                selector = remaining_selectors.pop(0)
+        if selector is None:
+            # The canonical specification can contain cases omitted by a
+            # language track (for example negative grains in C).  Do not
+            # fabricate a selector for such a case.
+            continue
+        input_value = case.get("input") or {}
+        samples.append({
+            "id": str(case.get("uuid") or f"{slug}-{len(samples) + 1}"),
+            "name": str(case.get("description") or f"官方测试 {index + 1}"),
+            "arguments": list(input_value.values()) if isinstance(input_value, dict) else [input_value],
+            "input_display": "无参数" if not input_value else _display_value(input_value),
+            "expected": _display_value(case.get("expected")),
+            "source_test_name": selector["selector"],
+            "test_path": selector["path"],
+            "selector": selector["selector"],
+        })
+    return samples
 
 
 def find_exercise(repo_dir: Path, slug: str) -> tuple[Path | None, str | None]:
@@ -165,28 +391,33 @@ def audit_reference(language: str, exercise_dir: Path, starter_files: list[dict]
         commands = {
             "Python": python_test_command(),
             "C": ["gcc", "-std=c99", "-DEXERCISM_RUN_ALL_TESTS", "-DUNITY_SUPPORT_64", "-DUNITY_OUTPUT_COLOR", "test-framework/unity.c", "-o", "tests.exe"],
-            "C++": ["cmake", "-S", ".", "-B", "build", "-DEXERCISM_RUN_ALL_TESTS=ON"],
         }
         if language == "C++":
-            ok, output = run(commands[language], temp)
+            cpp_sources = [str(item["path"]) for item in reference_files if str(item.get("path", "")).endswith((".cpp", ".cc", ".cxx"))]
+            test_contents = [item for item in test_files if str(item.get("path", "")).endswith((".cpp", ".cc", ".cxx"))]
+            included_sources = {
+                match.group(1).replace("\\", "/")
+                for item in test_contents
+                for match in re.finditer(r'#include\s+"([^" ]+\.c(?:pp|cxx)?)"', str(item.get("content") or ""))
+            }
+            included_names = {Path(item).name for item in included_sources}
+            cpp_sources = [path for path in cpp_sources if path.replace("\\", "/") not in included_sources and Path(path).name not in included_names]
+            cpp_sources.extend(str(item["path"]) for item in test_contents)
+            runner = temp / "test" / "tests-main.cpp"
+            if runner.is_file():
+                cpp_sources.append(str(runner.relative_to(temp)))
+            unique_cpp_sources = []
+            seen_cpp_sources = set()
+            for path in cpp_sources:
+                key = str(Path(path)).replace("\\", "/").lower()
+                if key in seen_cpp_sources:
+                    continue
+                seen_cpp_sources.add(key)
+                unique_cpp_sources.append(path)
+            cpp_sources = unique_cpp_sources
+            ok, output = run(["g++", "-std=c++17", "-DEXERCISM_RUN_ALL_TESTS", "-I.", *cpp_sources, "-o", "exercise-tests.exe"], temp)
             if ok:
-                ok, output = run(["cmake", "--build", "build", "--config", "Debug"], temp)
-                if ok:
-                    ok, output = run(["ctest", "--test-dir", "build", "--output-on-failure"], temp)
-                    if ok and "No tests were found" in output:
-                        cpp_sources = [str(item["path"]) for item in reference_files if str(item.get("path", "")).endswith(".cpp")]
-                        test_contents = [item for item in test_files if str(item.get("path", "")).endswith(".cpp")]
-                        included_sources = {
-                            match.group(1).replace("\\", "/")
-                            for item in test_contents
-                            for match in re.finditer(r'#include\s+"([^" ]+\.c(?:pp|cxx)?)"', str(item.get("content") or ""))
-                        }
-                        cpp_sources = [path for path in cpp_sources if Path(path).name not in {Path(item).name for item in included_sources}]
-                        cpp_sources.extend(str(path.relative_to(temp)) for path in temp.glob("*_test.cpp"))
-                        cpp_sources.extend(str(path.relative_to(temp)) for path in (temp / "test").glob("*.cpp"))
-                        ok, output = run(["g++", "-std=c++17", "-I.", *cpp_sources, "-o", "exercise-tests.exe"], temp)
-                        if ok:
-                            ok, output = run([str(temp / "exercise-tests.exe")], temp)
+                ok, output = run([str(temp / "exercise-tests.exe")], temp)
         elif language == "C":
             sources = [str(item["path"]) for item in reference_files if str(item.get("path", "")).endswith(".c")]
             tests = [str(item["path"]) for item in test_files if str(item.get("path", "")).startswith("test_") and str(item.get("path", "")).endswith(".c")]
@@ -230,6 +461,7 @@ def import_language(
     max_count: int,
     requested_slugs: list[str] | None = None,
     prune_unlisted: bool = False,
+    problem_root: Path | None = None,
 ) -> dict:
     repo = LANGUAGE_REPOS[language]
     repo_dir = source_root / repo
@@ -293,10 +525,24 @@ def import_language(
             continue
         instructions = exercise_dir / ".docs" / "instructions.md"
         description = instructions.read_text(encoding="utf-8") if instructions.is_file() else config.get("blurb", "")
-        raw_tags = sorted(set((item.get("concepts") or []) + (item.get("practices") or []) + (item.get("prerequisites") or [])))
+        raw_tags = []
+        for key in ("concepts", "practices", "prerequisites", "topics"):
+            raw_tags.extend(item.get(key) or [])
+        raw_tags = list(dict.fromkeys(raw_tags))
+        raw_tags.extend(source_derived_tags(language, starter, reference, tests))
         tags = localized_tags(language, raw_tags)
+        if not tags:
+            skipped.append({"slug": item["slug"], "reason": "official concepts/topics missing or unmapped"})
+            continue
         hidden_tests = normalize_test_files(language, tests)
-        public_tests = [{"path": test["path"], "content": test["content"]} for test in tests]
+        samples = canonical_samples(problem_root, language, item["slug"], tests)
+        samples_by_path = {}
+        for sample in samples:
+            samples_by_path.setdefault(sample["test_path"], []).append(sample)
+        public_tests = [
+            {"path": test["path"], "content": test["content"], "samples": samples_by_path.get(test["path"], [])}
+            for test in tests
+        ]
         payload = {
             "slug": f"{language.lower().replace('+', 'p')}-{item['slug']}",
             "source_key": f"https://github.com/exercism/{repo}|{language}|{item['slug']}",
@@ -392,6 +638,7 @@ def main() -> None:
                 args.max_per_language,
                 requested,
                 args.prune_unlisted,
+                Path(args.source_root) / "problem-specifications",
             )
             for language in selected
         ]
