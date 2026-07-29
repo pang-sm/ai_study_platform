@@ -276,11 +276,78 @@ function normalizeResultCase(item, index = 0) {
     name: item?.name || `测试样例 ${index + 1}`,
     status: item?.status || (item?.passed ? "passed" : "failed"),
     reason: caseDisplayReason(item),
+    input_display: item?.input_display ?? item?.input,
     expected: caseExpectedValue(item),
     actual: caseActualValue(item),
     location: item?.location,
     duration_ms: item?.duration_ms ?? 0,
   };
+}
+
+function ExerciseResultModal({ result, mode, filter, onFilterChange, onClose, onRerun, busy }) {
+  const cases = (result?.cases || []).map(normalizeResultCase);
+  const failedCount = Math.max(0, Number(result?.total_count || cases.length) - Number(result?.passed_count || 0));
+  const orderedCases = [...cases]
+    .sort((a, b) => (a.status === "passed" ? 1 : 0) - (b.status === "passed" ? 1 : 0))
+    .filter((item) => filter === "all" || (filter === "failed" ? item.status !== "passed" : item.status === "passed"));
+  const durationSeconds = (Number(result?.duration_ms || 0) / 1000).toFixed(1);
+  const title = mode === "submit" ? "提交结果" : "全部测试结果";
+
+  return (
+    <div className="pw-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section className="pw-result-modal" role="dialog" aria-modal="true" aria-labelledby="pw-result-modal-title">
+        <header className="pw-result-modal-head">
+          <div>
+            <span className="pw-modal-eyebrow">{mode === "submit" ? "完整官方测试集" : "公开测试样例"}</span>
+            <h2 id="pw-result-modal-title">{title}</h2>
+          </div>
+          <button type="button" className="pw-modal-close" onClick={onClose} aria-label="关闭">×</button>
+        </header>
+        <div className="pw-result-modal-summary">
+          <strong>通过 {result?.passed_count ?? 0}/{result?.total_count ?? cases.length}</strong>
+          <span>未通过 {failedCount}</span>
+          <span>耗时 {durationSeconds}s</span>
+        </div>
+        <div className="pw-result-modal-toolbar">
+          <div className="pw-result-filter" role="group" aria-label="测试结果筛选">
+            {[['all', '全部'], ['failed', '仅失败'], ['passed', '仅通过']].map(([value, label]) => (
+              <button key={value} type="button" className={filter === value ? "is-active" : ""} onClick={() => onFilterChange(value)}>{label}</button>
+            ))}
+          </div>
+          <button type="button" className="pw-modal-rerun" onClick={onRerun} disabled={Boolean(busy)}>
+            {busy ? "运行中…" : "重新运行全部测试"}
+          </button>
+        </div>
+        <div className="pw-result-modal-list">
+          {orderedCases.length ? orderedCases.map((item) => {
+            const failed = item.status !== "passed";
+            return (
+              <details key={item.id} className={`pw-modal-case pw-modal-case--${item.status}`} open={failed}>
+                <summary>
+                  <strong>{item.name}</strong>
+                  <span>{caseStatusLabel(item.status)}</span>
+                </summary>
+                <div className="pw-modal-case-body">
+                  {item.input_display && <span>输入或参数：{item.input_display}</span>}
+                  {item.expected !== undefined && <span>期望：{String(item.expected)}</span>}
+                  {item.actual !== undefined && <span>实际：{String(item.actual)}</span>}
+                  {failed && item.reason && <span>原因：{item.reason}</span>}
+                  {item.location && <span>位置：{item.location}</span>}
+                  <span>执行时间：{item.duration_ms ?? 0}ms</span>
+                </div>
+              </details>
+            );
+          }) : <div className="pw-modal-empty">当前筛选没有测试样例。</div>}
+        </div>
+        {result?.technical_details && (
+          <details className="pw-technical-details pw-modal-technical">
+            <summary>技术详情</summary>
+            <pre>{result.technical_details}</pre>
+          </details>
+        )}
+      </section>
+    </div>
+  );
 }
 
 function readUiPreference(key, fallback) {
@@ -525,6 +592,9 @@ export default function ProgrammingWorkbench({
   const [exerciseResult, setExerciseResult] = useState(null);
   const [selectedSampleIndex, setSelectedSampleIndex] = useState(null);
   const [sampleResult, setSampleResult] = useState(null);
+  const [testModal, setTestModal] = useState(null);
+  const [testModalFilter, setTestModalFilter] = useState("all");
+  const [fileListOpen, setFileListOpen] = useState(false);
   const [busy, setBusy] = useState("");
   const [saveState, setSaveState] = useState("已保存");
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -544,12 +614,20 @@ export default function ProgrammingWorkbench({
   const activeResource = String(activeFileId || "").startsWith("library-")
     ? libraryMaterials.find((item) => `library-${item.id}` === activeFileId)
     : null;
-  const activeFile = activeResource ? null : (files.find((file) => file.id === activeFileId) || files[0] || null);
   const language = selectedLanguage || project?.language || onboardingLanguage || "Python";
   const exerciseIdentity = `${user?.id || user?.username || "anonymous"}:${language}:${initialExerciseId || project?.programming_exercise_id || "none"}`;
+  const editableFiles = useMemo(() => {
+    const manifestPaths = exercise?.manifest?.editable_files;
+    if (Array.isArray(manifestPaths) && manifestPaths.length) {
+      const allowed = new Set(manifestPaths.map((path) => String(path).replace(/\\/g, "/")));
+      return files.filter((file) => allowed.has(String(file.relative_path || "").replace(/\\/g, "/")));
+    }
+    return files.filter((file) => !/^(test|tests|test-framework)\//i.test(String(file.relative_path || "")));
+  }, [exercise?.manifest?.editable_files, files]);
+  const activeFile = activeResource ? null : (editableFiles.find((file) => file.id === activeFileId) || editableFiles[0] || null);
   const sourceFiles = useMemo(
-    () => files.filter((file) => isSourceFileForLanguage(file.relative_path, language)),
-    [files, language],
+    () => editableFiles.filter((file) => isSourceFileForLanguage(file.relative_path, language)),
+    [editableFiles, language],
   );
   const javaMainClasses = useMemo(
     () => files.map(detectJavaMainClass).filter(Boolean),
@@ -706,6 +784,9 @@ export default function ProgrammingWorkbench({
     setExerciseResult(null);
     setSelectedSampleIndex(null);
     setSampleResult(null);
+    setTestModal(null);
+    setTestModalFilter("all");
+    setFileListOpen(false);
     setMessages([]);
     setCoachQuestion("");
     setCoachSuggestionsVisible(true);
@@ -1327,8 +1408,9 @@ export default function ProgrammingWorkbench({
   };
 
   const openProblems = () => {
-    setActiveResultTab("problems");
+    setActiveResultTab("run");
     setOutputCollapsed(false);
+    setRunDetailsOpen(true);
   };
 
   const runProject = async (override = {}) => {
@@ -1417,8 +1499,8 @@ export default function ProgrammingWorkbench({
     if (!exercise?.id || !project?.id) return;
     setBusy(submission ? "submit" : "test");
     setSampleResult(null);
-    setOutputCollapsed(false);
-    setActiveResultTab(submission ? "feedback" : "tests");
+    setOutputCollapsed(true);
+    setActiveResultTab("tests");
     try {
       await manualSave();
       const res = await fetch(`${apiBase}/programming/exercises/${exercise.id}/${submission ? "submit" : "test"}`, {
@@ -1432,6 +1514,8 @@ export default function ProgrammingWorkbench({
       setRunResult(data.result || null);
       setRunDetailsOpen(false);
       setFeedback(`通过 ${data.passed_count}/${data.total_count}\n${data.ai_explanation || ""}`);
+      setTestModal({ mode: submission ? "submit" : "test" });
+      setTestModalFilter("all");
       setStatus(data.passed ? "题目校验通过" : "题目校验未通过");
     } catch (err) {
       setStatus(err.message || "题目校验失败");
@@ -1452,24 +1536,37 @@ export default function ProgrammingWorkbench({
     }
     try {
       await manualSave();
-      const treeText = files.map((file) => `- ${file.relative_path}`).join("\n");
+       const treeText = editableFiles.map((file) => `- ${file.relative_path}`).join("\n");
+       const recentTests = exerciseResult ? {
+         total: exerciseResult.total_count || 0,
+         passed: exerciseResult.passed_count || 0,
+         results: (exerciseResult.cases || []).map(normalizeResultCase),
+       } : null;
+       const diagnostics = {
+         status: activeDiagnostics.length ? "has_diagnostics" : "clean",
+         errors: activeDiagnostics.filter((item) => item.severity !== "warning"),
+         warnings: activeDiagnostics.filter((item) => item.severity === "warning"),
+       };
       if (activeResource) {
         const resourceText = activeResourceContent.content || activeResource.summary || "";
         const resourceContext = `Resource: ${getDisplayFilename(activeResource)}\nType: ${getResourceKind(activeResource)}\nReadonly StudyMaterial from programming library.\n\n--- Resource text ---\n${resourceText || "No extracted text is available for this resource."}`;
         const res = await fetch(`${apiBase}/code/analyze`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            username: user.username,
-            course_id: PROJECT_COURSE_ID,
-            session_id: null,
-            challenge_id: null,
-            language,
-            code: resourceContext,
-            question: text,
-            last_run_result: runResult,
-            last_test_results: null,
-          }),
+             body: JSON.stringify({
+               username: user.username,
+               course_id: PROJECT_COURSE_ID,
+               session_id: null,
+               challenge_id: null,
+               exercise_id: exercise?.id || null,
+               language,
+               code: resourceContext,
+               question: text,
+               last_run_result: runResult,
+               last_test_results: recentTests,
+               diagnostics,
+               chat_history: messages,
+             }),
         });
         const data = await safeJson(res);
         const answer = res.ok ? data.answer || "AI analysis complete." : data.detail || "AI analysis failed.";
@@ -1477,7 +1574,7 @@ export default function ProgrammingWorkbench({
         else setFeedback(answer);
         return;
       }
-      const related = files
+       const related = editableFiles
         .filter((file) => file.id !== activeFile.id)
         .slice(0, 5)
         .map((file) => `\n\n--- ${file.relative_path} ---\n${String(file.content || "").slice(0, 1800)}`)
@@ -1486,17 +1583,20 @@ export default function ProgrammingWorkbench({
       const res = await fetch(`${apiBase}/code/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: user.username,
-          course_id: PROJECT_COURSE_ID,
-          session_id: null,
-          challenge_id: null,
-          language: project.language,
-          code: codeContext,
-          question: text,
-          last_run_result: runResult,
-          last_test_results: null,
-        }),
+         body: JSON.stringify({
+           username: user.username,
+           course_id: PROJECT_COURSE_ID,
+           session_id: null,
+           challenge_id: null,
+           exercise_id: exercise?.id || null,
+           language: project.language,
+           code: codeContext,
+           question: text,
+           last_run_result: runResult,
+           last_test_results: recentTests,
+           diagnostics,
+           chat_history: messages,
+         }),
       });
       const data = await safeJson(res);
       const answer = res.ok ? data.answer || "AI 分析完成。" : data.detail || "AI 分析失败。";
@@ -1567,7 +1667,7 @@ export default function ProgrammingWorkbench({
   const tree = useMemo(() => buildTree(files), [files]);
   const projectTabs = openTabs
     .filter((id) => !String(id).startsWith("library-"))
-    .map((id) => files.find((file) => file.id === id))
+    .map((id) => editableFiles.find((file) => file.id === id))
     .filter(Boolean);
   const resourceTabs = openTabs
     .filter((id) => String(id).startsWith("library-"))
@@ -1610,7 +1710,7 @@ export default function ProgrammingWorkbench({
           </div>
           <div className="pw-toolbar-center">
             <div className="pw-run-cluster">
-              <span className="pw-run-target" title="入口由当前练习官方配置决定">{project ? runTargetLabel : "入口：未选择练习"}</span>
+              <span className="pw-run-target" title={activeFile?.relative_path || runTargetLabel}>{project ? (activeFile?.relative_path || runTargetLabel) : "入口：未选择练习"}</span>
               <button type="button" className="run-btn pw-icon-button pw-run-button" data-action="top-run" onClick={runProject} disabled={!project || busy === "run" || busy === "sample"} title={selectedSampleIndex === null ? "运行全部公开测试" : "运行当前样例"}>
                 {busy === "run" ? "..." : "▶ 运行"}
               </button>
@@ -1618,6 +1718,22 @@ export default function ProgrammingWorkbench({
                 <>
                   <button type="button" className="pw-top-exercise-action" onClick={() => runExerciseCheck(false)} disabled={!project || busy === "test" || busy === "submit"} title="运行全部公开测试">运行全部测试</button>
                   <button type="button" className="pw-top-exercise-action pw-top-exercise-action--primary" onClick={() => runExerciseCheck(true)} disabled={!project || busy === "test" || busy === "submit"} title="提交并运行完整官方测试">提交</button>
+                  <div className="pw-file-list-wrap">
+                    <button type="button" className="pw-top-exercise-action pw-file-list-trigger" onClick={() => setFileListOpen((open) => !open)} disabled={!editableFiles.length} aria-expanded={fileListOpen}>
+                      文件列表
+                    </button>
+                    {fileListOpen && (
+                      <div className="pw-file-list-popover" role="menu">
+                        <strong>当前练习文件</strong>
+                        {editableFiles.map((file) => (
+                          <button key={file.id} type="button" className={file.id === activeFileId ? "is-active" : ""} onClick={() => { setActiveFileId(file.id); setOpenTabs((tabs) => tabs.includes(file.id) ? tabs : [...tabs, file.id]); setFileListOpen(false); }} title={file.relative_path}>
+                            <span>{getFileIcon(file.relative_path)}</span>
+                            <b>{file.relative_path}</b>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </>
               )}
             </div>
@@ -1689,10 +1805,10 @@ export default function ProgrammingWorkbench({
           <div className="pw-editor-area">
             <div className="pw-file-tabs">
               {projectTabs.map((file) => (
-                <button key={file.id} type="button" className={file.id === activeFileId ? "is-active" : ""} onClick={() => setActiveFileId(file.id)} title={file.relative_path}>
+                <button key={file.id} type="button" className={`pw-file-tab${file.id === activeFileId ? " is-active" : ""}`} onClick={() => setActiveFileId(file.id)} title={file.relative_path}>
                   <span className={"pw-tab-icon pw-tab-icon--" + (getExt(file.relative_path).replace(".", "") || "txt")}>{getFileIcon(file.relative_path)}</span>
                   <span className={dirtyFiles.has(file.id) ? "pw-dirty-dot is-dirty" : "pw-dirty-dot"} />
-                  <strong>{file.filename}</strong>
+                  <strong>{file.filename || getDisplayFilename(file)}</strong>
                   <b onClick={(event) => { event.stopPropagation(); closeTab(file.id); }}>×</b>
                 </button>
               ))}
@@ -1751,6 +1867,33 @@ export default function ProgrammingWorkbench({
               <div className="pw-coach-body">
                 <h2>你好！我是你的 AI 助手</h2>
                 <p>我可以结合当前练习、代码和运行结果帮助你分析问题。</p>
+                {exercise && (
+                  <div className="pw-coach-context" aria-label="当前题目上下文">
+                    <strong>当前题目</strong>
+                    <b>{getExerciseTitle(exercise)}</b>
+                    <span>{exercise.language} · {editableFiles.length} 个可编辑文件</span>
+                    <span>当前文件：{activeFile?.relative_path || "未打开"}</span>
+                    <span>最近结果：{exerciseResult?.summary || (sampleResult ? (sampleResult.passed ? "单样例通过" : "单样例未通过") : "暂无")}</span>
+                  </div>
+                )}
+                <strong className="pw-coach-section-title">学习工具</strong>
+                <div className="pw-coach-action-grid">
+                  {[
+                    ["题目分析", "分析当前题目的目标、解题思路和边界条件"],
+                    ["代码诊断", "诊断当前文件和当前题目的全部可编辑文件"],
+                    ["失败分析", "结合最近一次测试或提交结果定位失败原因"],
+                    ["一级提示", "只给思路提示，不直接给出完整答案"],
+                    ["复杂度分析", "分析时间复杂度、空间复杂度和改进点"],
+                  ].map(([label, question]) => (
+                    <button key={label} type="button" onClick={() => analyzeProject(question)} disabled={busy === "coach"}>
+                      <span>{label}</span><small>{question}</small>
+                    </button>
+                  ))}
+                </div>
+                <div className="pw-coach-recommendations">
+                  <strong>相关练习</strong>
+                  <span>当前练习推荐数据暂未提供</span>
+                </div>
                 {coachSuggestionsVisible && (
                   <>
                     <strong className="pw-coach-section-title">建议操作</strong>
@@ -1788,12 +1931,6 @@ export default function ProgrammingWorkbench({
             </button>
             <button type="button" className={activeResultTab === "tests" && !outputCollapsed ? "is-active" : ""} onClick={() => selectResultTab("tests")}>
               <span>✓</span> 测试结果
-            </button>
-            <button type="button" className={activeResultTab === "problems" && !outputCollapsed ? "is-active" : ""} onClick={() => selectResultTab("problems")}>
-              <span>!</span> 编译问题
-            </button>
-            <button type="button" className={activeResultTab === "feedback" && !outputCollapsed ? "is-active" : ""} onClick={() => selectResultTab("feedback")}>
-              <span>AI</span> AI 判题反馈
             </button>
             <div className="pw-bottom-tools">
               <button type="button" data-action="toggle-output" onClick={() => setOutputCollapsed(!outputCollapsed)} title={outputCollapsed ? "展开" : "收起"}>{outputCollapsed ? "^" : "×"}</button>
@@ -1943,6 +2080,18 @@ export default function ProgrammingWorkbench({
         </div>
       </div>
 
+      {testModal && exerciseResult && (
+        <ExerciseResultModal
+          result={exerciseResult}
+          mode={testModal.mode}
+          filter={testModalFilter}
+          onFilterChange={setTestModalFilter}
+          onClose={() => setTestModal(null)}
+          onRerun={() => runExerciseCheck(testModal.mode === "submit")}
+          busy={busy === "test" || busy === "submit"}
+        />
+      )}
+
       {contextMenu && (
         <div
           className="pw-context-menu"
@@ -1959,7 +2108,6 @@ export default function ProgrammingWorkbench({
               <button type="button" onClick={() => switchTheme("dark")}>深色模式</button>
               <button type="button" onClick={toggleFocusMode}>{focusMode ? "退出专注编辑" : "专注编辑"}</button>
               <button type="button" onClick={openCoach}>打开 AI 教练</button>
-              <button type="button" onClick={openFeedback} disabled={!activeFile && !activeResource}>打开 AI 判题反馈</button>
             </>
           )}
         </div>

@@ -8331,7 +8331,9 @@ CODE_ANALYZE_SYSTEM_PROMPT = """你是编程学习助手。根据用户提供的
 解释涉及的核心知识点。
 
 ## 下一步学习建议
-给出 1-2 条具体的学习方向建议。"""
+给出 1-2 条具体的学习方向建议。
+
+默认只给渐进式提示，不直接给出完整可提交答案。除非用户明确请求局部代码，先提供思路和关键步骤；如果用户请求代码，也只能给与当前问题直接相关的最小局部片段，并保留让用户自己完成的部分。对于“一级提示”只输出解题方向、关键概念和边界条件。"""
 
 
 @app.get("/code/sessions")
@@ -8927,6 +8929,7 @@ def _exercise_case_from_result(result: dict, sample: dict | None = None) -> dict
         "name": (sample or {}).get("name") or result.get("test_name") or "当前测试",
         "status": status,
         "reason": reason,
+        "input_display": (sample or {}).get("input_display", result.get("input_display")),
         "expected": result.get("expected_output") if sample is None else sample.get("expected"),
         "actual": actual,
         "location": result.get("location"),
@@ -8974,6 +8977,7 @@ def _exercise_run_summary(result: dict, exercise: models.ProgrammingExercise, su
             "name": _localized_exercise_sample_name(case.get("name"), index),
             "status": case.get("status") or "failed",
             "reason": case.get("reason") or ("返回结果与期望值不一致" if case.get("status") != "passed" else ""),
+            "input_display": case.get("input_display", case.get("input")),
             "expected": case.get("expected", case.get("expected_output")),
             "actual": case.get("actual", case.get("actual_output")),
             "location": case.get("location"),
@@ -9313,6 +9317,36 @@ def _run_public_sample(project: models.CodeProject, exercise: models.Programming
         }
 
 
+def _run_public_sample_cases(
+    project: models.CodeProject,
+    exercise: models.ProgrammingExercise,
+    files: list[models.CodeProjectFile],
+) -> list[dict]:
+    """Run each published sample independently for the learner-facing result modal."""
+    cases = []
+    for index, sample in enumerate(_public_exercise_samples(exercise)):
+        try:
+            sample_result = _run_public_sample(project, exercise, files, sample)
+            case = _exercise_case_from_result(sample_result, sample)
+        except Exception as exc:
+            case = {
+                "id": str(sample.get("id") or f"public-case-{index + 1}"),
+                "name": sample.get("name") or f"样例 {index + 1}",
+                "status": "runtime_failed",
+                "reason": "测试样例执行失败",
+                "expected": sample.get("expected"),
+                "actual": None,
+                "duration_ms": 0,
+                "technical_details": str(exc),
+            }
+        case["id"] = str(sample.get("id") or case.get("id") or f"public-case-{index + 1}")
+        case["name"] = sample.get("name") or case.get("name") or f"样例 {index + 1}"
+        if sample.get("expected") is not None:
+            case["expected"] = sample.get("expected")
+        cases.append(case)
+    return cases
+
+
 @app.post("/programming/exercises/{exercise_id}/samples/run")
 def run_programming_exercise_sample(exercise_id: int, req: schemas.ProgrammingExerciseSampleRunRequest, db: Session = Depends(get_db)):
     user = get_user_by_username(req.username, db)
@@ -9341,7 +9375,19 @@ def test_programming_exercise(exercise_id: int, req: schemas.ProgrammingExercise
     project = get_code_project_or_404(req.project_id, user.username, db)
     if not exercise or project.programming_exercise_id != exercise.id:
         raise HTTPException(status_code=404, detail="题目项目不存在")
-    result = _run_official_exercise_tests(project, exercise, list_project_files(project.id, db), submission=False)
+    project_files = list_project_files(project.id, db)
+    result = _run_official_exercise_tests(project, exercise, project_files, submission=False)
+    public_cases = _run_public_sample_cases(project, exercise, project_files)
+    if public_cases:
+        result["cases"] = public_cases
+        result["passed_count"] = sum(1 for case in public_cases if case.get("status") == "passed")
+        result["total_count"] = len(public_cases)
+        result["passed"] = all(case.get("status") == "passed" for case in public_cases)
+        result["summary"] = (
+            f"通过 {result['passed_count']}/{result['total_count']}"
+            if result["passed"]
+            else f"{result['total_count'] - result['passed_count']} 个样例未通过"
+        )
     return _exercise_run_summary(result, exercise, submission=False)
 
 
@@ -10532,6 +10578,28 @@ def analyze_code(req: schemas.CodeAnalyzeRequest, db: Session = Depends(get_db))
     language = (req.language or "").strip() or "未知"
     course_info = normalize_subject(req.course_id, default="")
 
+    exercise_context = ""
+    exercise = None
+    if req.exercise_id:
+        exercise = db.query(models.ProgrammingExercise).filter(models.ProgrammingExercise.id == req.exercise_id).first()
+        if exercise:
+            tags = ", ".join(localized_programming_tags(exercise.language, _exercise_json(exercise.tags_json, [])))
+            exercise_context = (
+                f"\n## 当前练习\n练习 ID: {exercise.id}\n练习名称: {exercise.title}\n"
+                f"题目说明: {exercise.description}\n知识点: {tags or '未提供'}\n"
+            )
+
+    history_context = ""
+    if isinstance(req.chat_history, list) and req.chat_history:
+        history_context = "\n## 当前练习对话历史（仅限当前用户和当前练习）\n"
+        for message in req.chat_history[-8:]:
+            if not isinstance(message, dict):
+                continue
+            role = "用户" if message.get("role") == "user" else "AI"
+            content = str(message.get("content") or "").strip()
+            if content:
+                history_context += f"{role}: {content[:1200]}\n"
+
     if session:
         db.add(models.CodeAIMessage(
             username=user.username,
@@ -10582,13 +10650,16 @@ def analyze_code(req: schemas.CodeAnalyzeRequest, db: Session = Depends(get_db))
             for tc in results:
                 if not isinstance(tc, dict):
                     continue
-                passed_mark = "✅" if tc.get("passed") else "❌"
-                test_context += f"\n{passed_mark} 用例 #{tc.get('index', '?')}: {tc.get('description', '')[:80]}"
-                if not tc.get("passed"):
+                case_status = str(tc.get("status") or "").lower()
+                case_passed = bool(tc.get("passed")) or case_status in {"passed", "skipped"}
+                passed_mark = "✅" if case_passed else "❌"
+                test_context += f"\n{passed_mark} 用例 #{tc.get('index', tc.get('id', '?'))}: {tc.get('description', tc.get('name', ''))[:80]}"
+                if not case_passed:
                     if tc.get("expected_output"):
                         test_context += f"\n   期望输出: {str(tc['expected_output'])[:200]}"
-                    if tc.get("actual_output"):
-                        test_context += f"\n   实际输出: {str(tc['actual_output'])[:200]}"
+                    actual_value = tc.get("actual_output", tc.get("actual"))
+                    if actual_value is not None:
+                        test_context += f"\n   实际输出: {str(actual_value)[:200]}"
                     if tc.get("stderr"):
                         test_context += f"\n   stderr: {str(tc['stderr'])[:200]}"
                     if tc.get("compile_error"):
@@ -10673,26 +10744,28 @@ def analyze_code(req: schemas.CodeAnalyzeRequest, db: Session = Depends(get_db))
 难度：{challenge.difficulty}
 知识点：{challenge.knowledge_point or "未指定"}
 {challenge_context}
+{exercise_context}
 {code_note}
 
 用户代码：
 ```
 {truncated_code}
 ```
-{run_context}{test_context}{diagnostics_context}
+{run_context}{test_context}{diagnostics_context}{history_context}
 
 用户问题：{question}"""
     else:
         system_prompt = CODE_ANALYZE_SYSTEM_PROMPT + context_guidance
         user_message = f"""语言：{language}
 课程：{course_info or "未指定"}
+{exercise_context}
 {code_note}
 
 代码：
 ```
 {truncated_code}
 ```
-{run_context}{test_context}{diagnostics_context}
+{run_context}{test_context}{diagnostics_context}{history_context}
 
 用户问题：{question}"""
 

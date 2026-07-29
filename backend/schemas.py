@@ -112,12 +112,14 @@ class CodeAnalyzeRequest(BaseModel):
     course_id: str = ""
     session_id: int | None = None
     challenge_id: int | None = None
+    exercise_id: int | None = None
     language: str = ""
     code: str = ""
     question: str = ""
     last_run_result: dict | None = None
     last_test_results: dict | None = None
     diagnostics: dict | None = None
+    chat_history: list[dict] | None = None
 
 
 class CodeAIMessageCreate(BaseModel):
