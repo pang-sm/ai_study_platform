@@ -316,6 +316,71 @@ def _display_value(value) -> str:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
 
 
+def _schema_for_value(value):
+    if isinstance(value, bool):
+        return "boolean"
+    if isinstance(value, int):
+        return "integer"
+    if isinstance(value, float):
+        return "number"
+    if isinstance(value, str):
+        return "string"
+    if isinstance(value, list):
+        if value and isinstance(value[0], list):
+            return {"type": "matrix", "item": _schema_for_value(value[0])}
+        return {"type": "array", "item": _schema_for_value(value[0]) if value else "string"}
+    if isinstance(value, dict):
+        return {str(key): _schema_for_value(item) for key, item in value.items()}
+    return "string"
+
+
+def _scalar_stdin_value(value) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if value is None:
+        return ""
+    return str(value)
+
+
+def _stdin_lines_for_value(value) -> list[str]:
+    if isinstance(value, list):
+        if value and isinstance(value[0], list):
+            columns = max((len(row) for row in value if isinstance(row, list)), default=0)
+            return [f"{len(value)} {columns}"] + [
+                " ".join(_scalar_stdin_value(item) for item in row) if isinstance(row, list) else _scalar_stdin_value(row)
+                for row in value
+            ]
+        return [str(len(value)), " ".join(_scalar_stdin_value(item) for item in value)]
+    return [_scalar_stdin_value(value)]
+
+
+def _stdin_text_for_input(value) -> str:
+    """Serialize canonical input into the learner-facing console protocol."""
+    if value is None:
+        return ""
+    values = list(value.values()) if isinstance(value, dict) else [value]
+    if not values:
+        return ""
+    if all(not isinstance(item, (list, dict)) for item in values):
+        return " ".join(_scalar_stdin_value(item) for item in values) + "\n"
+    lines = []
+    for item in values:
+        lines.extend(_stdin_lines_for_value(item) if isinstance(item, list) else [_scalar_stdin_value(item)])
+    return "\n".join(lines) + "\n"
+
+
+def _stdout_text_for_expected(value) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, dict) and set(value) == {"error"}:
+        return _scalar_stdin_value(value["error"]) + "\n"
+    if isinstance(value, bool):
+        return ("true" if value else "false") + "\n"
+    if isinstance(value, list):
+        return " ".join(_scalar_stdin_value(item) for item in value) + "\n"
+    return _scalar_stdin_value(value).rstrip("\r\n") + "\n"
+
+
 def _test_selectors(language: str, test_files: list[dict]) -> list[dict]:
     """Find real test entry points without exposing test framework source."""
     selectors = []
@@ -430,17 +495,27 @@ def canonical_samples(problem_root: Path | None, language: str, slug: str, test_
             # language track (for example negative grains in C).  Do not
             # fabricate a selector for such a case.
             continue
-        input_value = case.get("input") or {}
+        input_value = case.get("input") if case.get("input") is not None else {}
+        expected_value = case.get("expected")
         raw_name = str(case.get("description") or f"官方测试 {index + 1}")
+        raw_arguments = list(input_value.values()) if isinstance(input_value, dict) else [input_value]
         samples.append({
             "id": str(case.get("uuid") or f"{slug}-{len(samples) + 1}"),
             "name": JAVA_SAMPLE_NAMES_ZH.get(raw_name, raw_name) if language == "Java" else raw_name,
-            "arguments": list(input_value.values()) if isinstance(input_value, dict) else [input_value],
+            "raw_arguments": raw_arguments,
             "input_display": "无参数" if not input_value else _display_value(input_value),
-            "expected": _display_value(case.get("expected")),
+            "stdin_text": _stdin_text_for_input(input_value),
+            "expected_stdout": _stdout_text_for_expected(expected_value),
+            "expected": _display_value(expected_value),
             "source_test_name": selector.get("source_test_name") or selector["selector"],
             "test_path": selector["path"],
             "selector": selector["selector"],
+            "adapter_config": {
+                "callable": case.get("property") or selector.get("source_test_name") or selector["selector"],
+                "input_schema": [_schema_for_value(item) for item in raw_arguments],
+                "output_schema": _schema_for_value(expected_value),
+                "protocol": "stdin_stdout_v1",
+            },
         })
     return samples
 

@@ -1884,3 +1884,40 @@
   .pw-modal-rerun { width: 100%; }
   .pw-coach-action-grid { grid-template-columns: 1fr; }
 }
+
+/* Console protocol samples are copyable, readable, and never expose raw
+   Exercism argument objects or test framework details. */
+.pw-exercise-example-card { margin-bottom: 10px; }
+.pw-exercise-example-card .pw-exercise-example { margin-bottom: 4px; }
+.pw-exercise-example small { color: var(--text-secondary); font-size: 10px; font-weight: 700; }
+.pw-exercise-example code,
+.pw-protocol-code {
+  display: block;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid #e8e1f4;
+  border-radius: 4px;
+  background: #f7f4fc;
+  color: #2b2345;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.pw-copy-sample-input { min-height: 26px; padding: 0 8px; border: 1px solid #d8c9f8; border-radius: 4px; background: #fff; color: var(--brand-purple); font-size: 11px; font-weight: 700; cursor: pointer; }
+.pw-copy-sample-input:hover { background: var(--brand-purple-light); }
+.pw-coach-intro { margin-bottom: 8px !important; }
+.pw-coach-tools-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 7px; color: var(--text-primary); font-size: 12px; font-weight: 750; }
+.pw-coach-tools-head button { min-height: 24px; padding: 0 7px; border: 1px solid var(--border-color); border-radius: 4px; background: #fff; color: var(--brand-purple); font-size: 11px; }
+.pw-coach-action-grid { margin-bottom: 8px; }
+.pw-coach-action-grid button { min-height: 42px; padding: 6px 7px; }
+.pw-coach-action-grid span { font-size: 11px; }
+.pw-coach-action-grid small { margin-top: 2px; font-size: 9px; }
+.pw-coach-recommendations { display: flex; grid-template-columns: none; align-items: center; justify-content: space-between; margin-bottom: 8px; padding: 6px 8px; }
+.pw-coach-recommendations span { color: var(--text-primary); font-weight: 700; }
+.pw-coach-recommendations b { color: var(--text-secondary); font-size: 11px; font-weight: 500; }
+.pw-chat-log { min-height: 80px; overflow: auto; }
+.pw-modal-case--not_run { border-left-color: #a38abd; }
+.pw-modal-case--not_run summary span { color: #76608f; }
+.pw-modal-case-body .pw-protocol-code { margin: 0 0 3px; }

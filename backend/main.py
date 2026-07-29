@@ -65,6 +65,7 @@ from membership import (
 )
 from prompts import build_system_prompt
 from programming_execution import run_java_tests
+from programming_io_adapter import run_sample as run_programming_io_adapter
 from qwen_parser import (
     SCANNED_PDF_PAGE_PROMPT,
     get_qwen_pdf_ocr_model,
@@ -8707,7 +8708,78 @@ def _localized_exercise_sample_name(value: str | None, index: int) -> str:
     return _JAVA_SAMPLE_NAMES_ZH.get(raw, raw or f"测试样例 {index + 1}")
 
 
-def _public_exercise_samples(exercise: models.ProgrammingExercise) -> list[dict]:
+def _protocol_scalar(value) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if value is None:
+        return ""
+    return str(value)
+
+
+def _protocol_stdin_text(value) -> str:
+    if value is None:
+        return ""
+    values = list(value.values()) if isinstance(value, dict) else [value]
+    if not values:
+        return ""
+    if all(not isinstance(item, (list, dict)) for item in values):
+        return " ".join(_protocol_scalar(item) for item in values) + "\n"
+    lines = []
+    for item in values:
+        if isinstance(item, list):
+            if item and isinstance(item[0], list):
+                columns = max((len(row) for row in item if isinstance(row, list)), default=0)
+                lines.append(f"{len(item)} {columns}")
+                lines.extend(
+                    " ".join(_protocol_scalar(cell) for cell in row) if isinstance(row, list) else _protocol_scalar(row)
+                    for row in item
+                )
+            else:
+                lines.extend([str(len(item)), " ".join(_protocol_scalar(cell) for cell in item)])
+        else:
+            lines.append(_protocol_scalar(item))
+    return "\n".join(lines) + "\n"
+
+
+def _protocol_stdout_text(value) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, dict) and set(value) == {"error"}:
+        return _protocol_scalar(value["error"]) + "\n"
+    if isinstance(value, bool):
+        return ("true" if value else "false") + "\n"
+    if isinstance(value, list):
+        return " ".join(_protocol_scalar(item) for item in value) + "\n"
+    return _protocol_scalar(value).rstrip("\r\n") + "\n"
+
+
+def _sample_input_value(sample: dict):
+    raw = sample.get("raw_arguments", sample.get("arguments"))
+    if raw is not None:
+        if isinstance(raw, list) and not raw:
+            return None
+        if isinstance(raw, list) and len(raw) == 1:
+            return raw[0]
+        return raw
+    display = sample.get("input_display")
+    if not display or display == "无参数":
+        return None
+    try:
+        return json.loads(display)
+    except (TypeError, ValueError):
+        return display
+
+
+def _normalize_sample_protocol(sample: dict) -> dict:
+    normalized = dict(sample)
+    input_value = _sample_input_value(sample)
+    expected_value = sample.get("expected")
+    normalized["stdin_text"] = sample.get("stdin_text") if sample.get("stdin_text") is not None else _protocol_stdin_text(input_value)
+    normalized["expected_stdout"] = sample.get("expected_stdout") if sample.get("expected_stdout") is not None else _protocol_stdout_text(expected_value)
+    return normalized
+
+
+def _public_exercise_samples(exercise: models.ProgrammingExercise, include_backend_fields: bool = True) -> list[dict]:
     """Return only importer-produced, structured public samples.
 
     Raw Exercism test files remain server-side for the official runner. Older
@@ -8721,13 +8793,26 @@ def _public_exercise_samples(exercise: models.ProgrammingExercise) -> list[dict]
             safe = {
                 key: sample.get(key)
                 for key in (
-                    "id", "name", "arguments", "input_display", "expected",
+                    "id", "name", "stdin_text", "expected_stdout",
                     "source_test_name", "test_path", "selector",
                 )
                 if sample.get(key) is not None
             }
+            safe = _normalize_sample_protocol(safe | {
+                "expected": sample.get("expected"),
+                "input_display": sample.get("input_display"),
+                "raw_arguments": sample.get("raw_arguments", sample.get("arguments")),
+            })
             if safe.get("test_path") and safe.get("selector") and safe.get("expected") is not None:
                 safe["name"] = _localized_exercise_sample_name(safe.get("name"), len(samples))
+                if include_backend_fields:
+                    safe["raw_arguments"] = sample.get("raw_arguments", sample.get("arguments"))
+                    safe["adapter_config"] = sample.get("adapter_config") or {}
+                else:
+                    safe.pop("raw_arguments", None)
+                    safe.pop("adapter_config", None)
+                    safe.pop("expected", None)
+                    safe.pop("input_display", None)
                 samples.append(safe)
     return samples
 
@@ -8765,7 +8850,7 @@ def serialize_programming_exercise(exercise: models.ProgrammingExercise, include
         "tags": localized_tags,
         "concepts": localized_tags,
         "description": exercise.description,
-        "public_samples": _public_exercise_samples(exercise),
+        "public_samples": _public_exercise_samples(exercise, include_backend_fields=False),
         "source_repo": exercise.source_repo,
         "source_path": exercise.source_path,
         "source_commit": exercise.source_commit,
@@ -8932,6 +9017,9 @@ def _exercise_case_from_result(result: dict, sample: dict | None = None) -> dict
         "input_display": (sample or {}).get("input_display", result.get("input_display")),
         "expected": result.get("expected_output") if sample is None else sample.get("expected"),
         "actual": actual,
+        "stdin_text": (sample or {}).get("stdin_text", result.get("stdin_text", "")),
+        "expected_stdout": result.get("expected_stdout") if result.get("expected_stdout") is not None else (sample or {}).get("expected_stdout", ""),
+        "actual_stdout": result.get("actual_stdout") if result.get("actual_stdout") is not None else (actual or ""),
         "location": result.get("location"),
         "duration_ms": result.get("duration_ms", 0),
     }
@@ -8980,6 +9068,9 @@ def _exercise_run_summary(result: dict, exercise: models.ProgrammingExercise, su
             "input_display": case.get("input_display", case.get("input")),
             "expected": case.get("expected", case.get("expected_output")),
             "actual": case.get("actual", case.get("actual_output")),
+            "stdin_text": case.get("stdin_text", ""),
+            "expected_stdout": case.get("expected_stdout", ""),
+            "actual_stdout": case.get("actual_stdout", case.get("actual", case.get("actual_output", ""))),
             "location": case.get("location"),
             "duration_ms": case.get("duration_ms", result.get("duration_ms", 0)),
         }
@@ -9186,6 +9277,9 @@ def _sample_test_bundle(exercise: models.ProgrammingExercise, sample: dict) -> l
 
 def _run_public_sample(project: models.CodeProject, exercise: models.ProgrammingExercise, files: list[models.CodeProjectFile], sample: dict) -> dict:
     language = normalize_project_language(exercise.language)
+    adapter_result = run_programming_io_adapter(language, exercise, files, sample, _exercise_manifest(exercise))
+    if adapter_result is not None:
+        return adapter_result
     bundle = _sample_test_bundle(exercise, sample)
     support = _exercise_json(exercise.official_test_files_json, [])
     public_paths = {str(item.get("path") or "") for item in bundle}
@@ -9364,6 +9458,9 @@ def run_programming_exercise_sample(exercise_id: int, req: schemas.ProgrammingEx
         "test_name": result.get("test_name") or samples[req.sample_index].get("name"),
         "actual_output": result.get("actual_output", ""),
         "expected_output": result.get("expected_output"),
+        "stdin_text": samples[req.sample_index].get("stdin_text", ""),
+        "expected_stdout": result.get("expected_stdout") or samples[req.sample_index].get("expected_stdout", ""),
+        "actual_stdout": result.get("actual_stdout", result.get("actual_output", "")),
         "timeout": bool(result.get("timeout")),
     }
 
@@ -9377,17 +9474,28 @@ def test_programming_exercise(exercise_id: int, req: schemas.ProgrammingExercise
         raise HTTPException(status_code=404, detail="题目项目不存在")
     project_files = list_project_files(project.id, db)
     result = _run_official_exercise_tests(project, exercise, project_files, submission=False)
-    public_cases = _run_public_sample_cases(project, exercise, project_files)
+    public_cases = []
+    if result.get("compile_error") or "compile" in result.get("failed_categories", []):
+        for sample in _public_exercise_samples(exercise):
+            public_cases.append({
+                "id": sample.get("id"), "name": sample.get("name"), "status": "not_run",
+                "reason": "代码编译失败，样例未执行", "stdin_text": sample.get("stdin_text", ""),
+                "expected_stdout": sample.get("expected_stdout", ""), "duration_ms": 0,
+            })
+        result["summary"] = "全部样例未执行"
+    else:
+        public_cases = _run_public_sample_cases(project, exercise, project_files)
     if public_cases:
         result["cases"] = public_cases
         result["passed_count"] = sum(1 for case in public_cases if case.get("status") == "passed")
         result["total_count"] = len(public_cases)
         result["passed"] = all(case.get("status") == "passed" for case in public_cases)
-        result["summary"] = (
-            f"通过 {result['passed_count']}/{result['total_count']}"
-            if result["passed"]
-            else f"{result['total_count'] - result['passed_count']} 个样例未通过"
-        )
+        if not result.get("compile_error") and "compile" not in result.get("failed_categories", []):
+            result["summary"] = (
+                f"通过 {result['passed_count']}/{result['total_count']}"
+                if result["passed"]
+                else f"{result['total_count'] - result['passed_count']} 个样例未通过"
+            )
     return _exercise_run_summary(result, exercise, submission=False)
 
 

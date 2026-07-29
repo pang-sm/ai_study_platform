@@ -9,6 +9,16 @@ const LANGUAGE_TABS = ["C", "C++", "Python", "Java"];
 const DEFAULT_FILE = { C: "main.c", "C++": "main.cpp", Python: "main.py", Java: "Main.java" };
 const PROJECT_COURSE_ID = "programming";
 const UI_STORAGE_KEY = "ai_study_programming_workbench_ui_v2";
+const COACH_QUICK_TOOLS = [
+  ["题目分析", "说明目标、输入输出协议、知识点和边界条件", "请分析当前题目的目标、控制台输入输出格式、核心知识点、边界条件和推荐步骤。"],
+  ["解释当前代码", "解释当前文件或选中代码", "请解释当前选中代码；如果没有选中代码，则解释当前激活文件，并说明它如何完成当前题目。"],
+  ["代码诊断", "检查当前全部文件", "请诊断当前题目的全部可编辑文件，指出编译、逻辑、输入输出、边界条件和多文件接口问题，并给出文件和行号。"],
+  ["测试失败分析", "定位最近失败样例", "请分析最近一次失败测试，结合输入、标准输出和实际输出说明原因，并指出应检查的代码位置。"],
+  ["渐进式提示", "先给思路，不给完整答案", "请给出一级渐进式提示，只提供解题方向、关键概念和边界条件，不直接给完整答案。"],
+  ["复杂度分析", "分析时间与空间复杂度", "请分析当前实现的时间复杂度、空间复杂度和可以改进的地方。"],
+  ["优化建议", "改善结构、性能和可读性", "请在当前代码基本正确的前提下给出代码结构、可读性、性能和输入输出处理方面的优化建议。"],
+  ["补充测试", "仅建议边界样例", "请建议 1-3 个边界测试，并明确标记为 AI 建议测试；不要修改或冒充官方测试。"],
+];
 
 const LANGUAGE_META = {
   C: { mark: "C", description: "贴近系统底层，适合指针、结构体和多文件练习。" },
@@ -249,6 +259,7 @@ function caseStatusLabel(status) {
     runtime_failed: "运行失败",
     timeout: "运行超时",
     skipped: "已跳过",
+    not_run: "未执行",
   }[status] || "未通过";
 }
 
@@ -257,17 +268,19 @@ function caseDisplayReason(item) {
   if (item?.status === "compile_failed") return "代码编译失败";
   if (item?.status === "runtime_failed") return "代码运行时发生异常";
   if (item?.status === "timeout") return "程序运行超过 5 秒，可能存在死循环";
+  if (item?.status === "not_run") return "代码编译失败，样例未执行";
   return item?.status === "passed" ? "" : "返回结果与期望值不一致";
 }
 
 function caseExpectedValue(item) {
-  return item?.expected ?? item?.expected_output;
+  return item?.expected_stdout ?? item?.expected ?? item?.expected_output ?? "";
 }
 
 function caseActualValue(item) {
+  if (item?.actual_stdout !== undefined && item?.actual_stdout !== null) return item.actual_stdout;
   if (item?.actual !== undefined && item?.actual !== null) return item.actual;
   if (item?.actual_output !== undefined && item?.actual_output !== null) return item.actual_output;
-  return "未返回结果";
+  return "";
 }
 
 function normalizeResultCase(item, index = 0) {
@@ -276,17 +289,34 @@ function normalizeResultCase(item, index = 0) {
     name: item?.name || `测试样例 ${index + 1}`,
     status: item?.status || (item?.passed ? "passed" : "failed"),
     reason: caseDisplayReason(item),
-    input_display: item?.input_display ?? item?.input,
-    expected: caseExpectedValue(item),
-    actual: caseActualValue(item),
+    stdin_text: item?.stdin_text ?? "",
+    expected_stdout: caseExpectedValue(item),
+    actual_stdout: caseActualValue(item),
     location: item?.location,
     duration_ms: item?.duration_ms ?? 0,
   };
 }
 
+async function copyProtocolInput(value) {
+  const text = String(value || "");
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand("copy");
+  textarea.remove();
+}
+
 function ExerciseResultModal({ result, mode, filter, onFilterChange, onClose, onRerun, busy }) {
   const cases = (result?.cases || []).map(normalizeResultCase);
   const failedCount = Math.max(0, Number(result?.total_count || cases.length) - Number(result?.passed_count || 0));
+  const compileBlocked = cases.length > 0 && cases.every((item) => item.status === "not_run");
   const orderedCases = [...cases]
     .sort((a, b) => (a.status === "passed" ? 1 : 0) - (b.status === "passed" ? 1 : 0))
     .filter((item) => filter === "all" || (filter === "failed" ? item.status !== "passed" : item.status === "passed"));
@@ -304,8 +334,8 @@ function ExerciseResultModal({ result, mode, filter, onFilterChange, onClose, on
           <button type="button" className="pw-modal-close" onClick={onClose} aria-label="关闭">×</button>
         </header>
         <div className="pw-result-modal-summary">
-          <strong>通过 {result?.passed_count ?? 0}/{result?.total_count ?? cases.length}</strong>
-          <span>未通过 {failedCount}</span>
+          <strong>{compileBlocked ? "全部样例未执行" : `通过 ${result?.passed_count ?? 0}/${result?.total_count ?? cases.length}`}</strong>
+          <span>{compileBlocked ? `原因：${result?.result?.compile_error ? "代码编译失败" : "测试未执行"}` : `未通过 ${failedCount}`}</span>
           <span>耗时 {durationSeconds}s</span>
         </div>
         <div className="pw-result-modal-toolbar">
@@ -328,9 +358,9 @@ function ExerciseResultModal({ result, mode, filter, onFilterChange, onClose, on
                   <span>{caseStatusLabel(item.status)}</span>
                 </summary>
                 <div className="pw-modal-case-body">
-                  {item.input_display && <span>输入或参数：{item.input_display}</span>}
-                  {item.expected !== undefined && <span>期望：{String(item.expected)}</span>}
-                  {item.actual !== undefined && <span>实际：{String(item.actual)}</span>}
+                  <span>输入</span><code className="pw-protocol-code">{item.stdin_text || "无"}</code>
+                  <span>标准输出</span><code className="pw-protocol-code">{item.expected_stdout}</code>
+                  {item.status !== "not_run" && <><span>实际输出</span><code className="pw-protocol-code">{item.actual_stdout}</code></>}
                   {failed && item.reason && <span>原因：{item.reason}</span>}
                   {item.location && <span>位置：{item.location}</span>}
                   <span>执行时间：{item.duration_ms ?? 0}ms</span>
@@ -585,7 +615,7 @@ export default function ProgrammingWorkbench({
   const [monacoDiagnostics, setMonacoDiagnostics] = useState([]);
   const [feedback, setFeedback] = useState("");
   const [messages, setMessages] = useState([]);
-  const [coachSuggestionsVisible, setCoachSuggestionsVisible] = useState(true);
+  const [coachToolsCollapsed, setCoachToolsCollapsed] = useState(false);
   const [coachQuestion, setCoachQuestion] = useState("");
   const [status, setStatus] = useState("");
   const [exercise, setExercise] = useState(null);
@@ -789,7 +819,6 @@ export default function ProgrammingWorkbench({
     setFileListOpen(false);
     setMessages([]);
     setCoachQuestion("");
-    setCoachSuggestionsVisible(true);
     setResourceContents({});
     setContextMenu(null);
     setRunConfigOpen(false);
@@ -1524,15 +1553,14 @@ export default function ProgrammingWorkbench({
     }
   };
 
-  const analyzeProject = async (question) => {
+  const analyzeProject = async (question, toolLabel = "") => {
     const text = question || "请基于当前项目上下文进行判题式分析，指出错误、可改进点和下一步建议。";
     if (!activeFile && !activeResource) return;
     setBusy(question ? "coach" : "feedback");
     setOutputCollapsed(false);
     setActiveResultTab(question ? activeResultTab : "feedback");
     if (question) {
-      setCoachSuggestionsVisible(false);
-      setMessages((prev) => [...prev, { role: "user", content: question }]);
+      setMessages((prev) => [...prev, { role: "user", content: toolLabel ? `你选择了：${toolLabel}` : question }]);
     }
     try {
       await manualSave();
@@ -1541,6 +1569,10 @@ export default function ProgrammingWorkbench({
          total: exerciseResult.total_count || 0,
          passed: exerciseResult.passed_count || 0,
          results: (exerciseResult.cases || []).map(normalizeResultCase),
+       } : sampleResult ? {
+         total: 1,
+         passed: sampleResult.passed ? 1 : 0,
+         results: [normalizeResultCase(sampleResult.cases?.[0] || sampleResult)],
        } : null;
        const diagnostics = {
          status: activeDiagnostics.length ? "has_diagnostics" : "clean",
@@ -1579,7 +1611,9 @@ export default function ProgrammingWorkbench({
         .slice(0, 5)
         .map((file) => `\n\n--- ${file.relative_path} ---\n${String(file.content || "").slice(0, 1800)}`)
         .join("");
-      const codeContext = `当前练习：${getExerciseTitle(exercise)}\n语言：${exercise?.language || language}\n题目说明：${getExerciseDescription(exercise)}\n当前文件：${activeFile.relative_path}\n当前练习文件：\n${treeText}\n\n--- 当前文件内容 ---\n${activeFile.content || ""}${related}`;
+      const selectedCode = editorRef.current?.getSelection?.() && editorRef.current?.getModel?.()?.getValueInRange?.(editorRef.current.getSelection());
+      const protocolText = (exercise?.public_samples || []).slice(0, 3).map((sample) => `输入：${sample.stdin_text || "无"}\n标准输出：${sample.expected_stdout || ""}`).join("\n---\n");
+      const codeContext = `当前练习：${getExerciseTitle(exercise)}\n语言：${exercise?.language || language}\n题目说明：${getExerciseDescription(exercise)}\n输入输出协议：\n${protocolText || "暂无公开样例"}\n当前文件：${activeFile.relative_path}\n当前练习文件：\n${treeText}\n\n--- ${selectedCode ? "选中代码" : "当前文件内容"} ---\n${selectedCode || activeFile.content || ""}${related}`;
       const res = await fetch(`${apiBase}/code/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1614,7 +1648,7 @@ export default function ProgrammingWorkbench({
   const resetCoach = () => {
     setMessages([]);
     setCoachQuestion("");
-    setCoachSuggestionsVisible(true);
+    setCoachToolsCollapsed(false);
   };
 
   const toggleFullscreen = async () => {
@@ -1677,6 +1711,16 @@ export default function ProgrammingWorkbench({
     })
     .filter(Boolean);
   const activeResourceContent = activeResource ? resourceContents[`library-${activeResource.id}`] || {} : {};
+  const recentFailureCount = exerciseResult
+    ? Math.max(0, Number(exerciseResult.total_count || 0) - Number(exerciseResult.passed_count || 0))
+    : sampleResult && !sampleResult.passed ? 1 : 0;
+  const coachToolStatus = (label) => {
+    if (label === "测试失败分析") return recentFailureCount ? `${recentFailureCount} 个样例未通过` : "请先运行测试";
+    if (label === "补充测试") return "仅生成 AI 建议测试";
+    if (label === "代码诊断") return activeDiagnostics.length ? `${activeDiagnostics.length} 个诊断项` : "检查当前全部文件";
+    if (label === "解释当前代码") return editorRef.current?.getSelection?.()?.isEmpty?.() === false ? "解释选中代码" : "解释当前文件";
+    return COACH_QUICK_TOOLS.find((item) => item[0] === label)?.[1] || "结合当前题目分析";
+  };
   const shellClassName = [
     "pw-shell",
     "pw-shell--workspace",
@@ -1777,17 +1821,23 @@ export default function ProgrammingWorkbench({
                     <h2>测试样例</h2>
                     {(exercise.public_samples || []).length ? (
                       (exercise.public_samples || []).slice(0, 8).map((sample, index) => (
-                        <button
-                          type="button"
-                          className={`pw-exercise-example${selectedSampleIndex === index ? " is-selected" : ""}`}
-                          key={`${sample.test_path}-${sample.selector}-${index}`}
-                          onClick={() => runExerciseSample(index)}
-                        >
-                          <span>{sample.name || `样例 ${index + 1}`}</span>
-                          <code>输入：{sample.input_display || "无参数"}</code>
-                          <code>期望：{String(sample.expected ?? "")}</code>
-                          {selectedSampleIndex === index && sampleResult && <em>{sampleResult.passed ? "通过" : "未通过"}</em>}
-                        </button>
+                        <article className="pw-exercise-example-card" key={`${sample.test_path}-${sample.selector}-${index}`}>
+                          <button
+                            type="button"
+                            className={`pw-exercise-example${selectedSampleIndex === index ? " is-selected" : ""}`}
+                            onClick={() => runExerciseSample(index)}
+                          >
+                            <span>{sample.name || `样例 ${index + 1}`}</span>
+                            <small>输入</small>
+                            <code>{sample.stdin_text || "无"}</code>
+                            <small>输出</small>
+                            <code>{sample.expected_stdout || ""}</code>
+                            {selectedSampleIndex === index && sampleResult && <em>{sampleResult.passed ? "通过" : "未通过"}</em>}
+                          </button>
+                          <button type="button" className="pw-copy-sample-input" onClick={() => copyProtocolInput(sample.stdin_text || "")}>
+                            复制输入
+                          </button>
+                        </article>
                       ))
                     ) : <p className="pw-exercise-example-empty">官方没有提供可公开展示的测试样例。</p>}
                   </section>
@@ -1865,47 +1915,40 @@ export default function ProgrammingWorkbench({
                 </div>
               </div>
               <div className="pw-coach-body">
-                <h2>你好！我是你的 AI 助手</h2>
-                <p>我可以结合当前练习、代码和运行结果帮助你分析问题。</p>
+                <h2>AI 教练</h2>
+                <p className="pw-coach-intro">围绕当前题目连续对话，逐步解决问题。</p>
                 {exercise && (
                   <div className="pw-coach-context" aria-label="当前题目上下文">
                     <strong>当前题目</strong>
                     <b>{getExerciseTitle(exercise)}</b>
+                    <span>知识点：{(exercise.tags || []).join("、") || "暂无"}</span>
                     <span>{exercise.language} · {editableFiles.length} 个可编辑文件</span>
                     <span>当前文件：{activeFile?.relative_path || "未打开"}</span>
-                    <span>最近结果：{exerciseResult?.summary || (sampleResult ? (sampleResult.passed ? "单样例通过" : "单样例未通过") : "暂无")}</span>
+                    <span>最近测试：{exerciseResult?.summary || (sampleResult ? (sampleResult.passed ? "1/1" : "0/1") : "暂无")}</span>
                   </div>
                 )}
-                <strong className="pw-coach-section-title">学习工具</strong>
-                <div className="pw-coach-action-grid">
-                  {[
-                    ["题目分析", "分析当前题目的目标、解题思路和边界条件"],
-                    ["代码诊断", "诊断当前文件和当前题目的全部可编辑文件"],
-                    ["失败分析", "结合最近一次测试或提交结果定位失败原因"],
-                    ["一级提示", "只给思路提示，不直接给出完整答案"],
-                    ["复杂度分析", "分析时间复杂度、空间复杂度和改进点"],
-                  ].map(([label, question]) => (
-                    <button key={label} type="button" onClick={() => analyzeProject(question)} disabled={busy === "coach"}>
-                      <span>{label}</span><small>{question}</small>
-                    </button>
-                  ))}
+                <div className="pw-coach-tools-head">
+                  <strong>AI 快捷工具</strong>
+                  <button type="button" onClick={() => setCoachToolsCollapsed((collapsed) => !collapsed)}>
+                    {coachToolsCollapsed ? "展开" : "收起"}
+                  </button>
                 </div>
-                <div className="pw-coach-recommendations">
-                  <strong>相关练习</strong>
-                  <span>当前练习推荐数据暂未提供</span>
-                </div>
-                {coachSuggestionsVisible && (
-                  <>
-                    <strong className="pw-coach-section-title">建议操作</strong>
-                    <div className="pw-quick-list">
-                      {["解释这段代码的作用", "分析代码的时间复杂度", "优化这段代码", "生成单元测试", "查找潜在问题"].map((item) => (
-                        <button key={item} type="button" onClick={() => analyzeProject(item)}>
-                          <span>{item}</span><b>›</b>
-                        </button>
-                      ))}
-                    </div>
-                  </>
+                {!coachToolsCollapsed && (
+                  <div className="pw-coach-action-grid">
+                    {COACH_QUICK_TOOLS.map(([label, , question]) => (
+                      <button
+                        key={label}
+                        type="button"
+                        onClick={() => analyzeProject(question, label)}
+                        disabled={busy === "coach" || (label === "测试失败分析" && !recentFailureCount)}
+                        title={coachToolStatus(label)}
+                      >
+                        <span>{label}</span><small>{coachToolStatus(label)}</small>
+                      </button>
+                    ))}
+                  </div>
                 )}
+                <div className="pw-coach-recommendations"><span>相关练习</span><b>暂无推荐</b></div>
                 <div className="pw-chat-log">
                   {messages.slice(-6).map((message, index) => (
                     <div key={message.role + "-" + index} className={"pw-chat-msg pw-chat-msg--" + message.role}>
@@ -1959,8 +2002,9 @@ export default function ProgrammingWorkbench({
                                   <strong>测试样例：{item.name}</strong>
                                   <span>结果：{caseStatusLabel(item.status)}</span>
                                   <span>原因：{item.reason}</span>
-                                  {item.expected !== undefined && <span>期望：{String(item.expected)}</span>}
-                                  {item.actual !== undefined && <span>实际：{String(item.actual)}</span>}
+                                  <span>输入</span><code className="pw-protocol-code">{item.stdin_text || "无"}</code>
+                                  <span>标准输出</span><code className="pw-protocol-code">{item.expected_stdout}</code>
+                                  {item.status !== "not_run" && <><span>实际输出</span><code className="pw-protocol-code">{item.actual_stdout}</code></>}
                                   {item.location && <span>位置：{item.location}</span>}
                                   <span>执行时间：{item.duration_ms}ms</span>
                                 </article>
@@ -1975,8 +2019,9 @@ export default function ProgrammingWorkbench({
                                   <article className="pw-test-case-card pw-test-case-card--passed" key={item.id}>
                                     <strong>测试样例：{item.name}</strong>
                                     <span>结果：通过</span>
-                                    {item.expected !== undefined && <span>期望：{String(item.expected)}</span>}
-                                    {item.actual !== "未返回结果" && <span>实际：{String(item.actual)}</span>}
+                                    <span>输入</span><code className="pw-protocol-code">{item.stdin_text || "无"}</code>
+                                    <span>标准输出</span><code className="pw-protocol-code">{item.expected_stdout}</code>
+                                    <span>实际输出</span><code className="pw-protocol-code">{item.actual_stdout}</code>
                                     <span>执行时间：{item.duration_ms}ms</span>
                                   </article>
                                 ))}
@@ -2026,8 +2071,9 @@ export default function ProgrammingWorkbench({
                         name: sampleResult.test_name || sampleResult.sample?.name,
                         status: sampleResult.status || (sampleResult.passed ? "passed" : "failed"),
                         reason: sampleResult.status === "compile_failed" ? "代码编译失败" : sampleResult.status === "timeout" ? "程序运行超过 5 秒，可能存在死循环" : undefined,
-                        expected: sampleResult.expected_output ?? sampleResult.sample?.expected,
-                        actual: sampleResult.actual_output,
+                        stdin_text: sampleResult.stdin_text ?? sampleResult.sample?.stdin_text ?? "",
+                        expected_stdout: sampleResult.expected_stdout ?? sampleResult.sample?.expected_stdout ?? "",
+                        actual_stdout: sampleResult.actual_stdout ?? sampleResult.actual_output ?? "",
                         duration_ms: sampleResult.duration_ms ?? sampleResult.result?.duration_ms,
                       });
                       return (
@@ -2035,8 +2081,9 @@ export default function ProgrammingWorkbench({
                           <strong>测试样例：{item.name}</strong>
                           <span>结果：{caseStatusLabel(item.status)}</span>
                           {item.status !== "passed" && <span>原因：{item.reason}</span>}
-                          {item.expected !== undefined && <span>期望：{String(item.expected)}</span>}
-                          {item.actual !== undefined && <span>实际：{String(item.actual)}</span>}
+                          <span>输入</span><code className="pw-protocol-code">{item.stdin_text || "无"}</code>
+                          <span>标准输出</span><code className="pw-protocol-code">{item.expected_stdout}</code>
+                          {item.status !== "not_run" && <><span>实际输出</span><code className="pw-protocol-code">{item.actual_stdout}</code></>}
                           {item.location && <span>位置：{item.location}</span>}
                           <span>执行时间：{item.duration_ms}ms</span>
                           {(sampleResult.technical_details || sampleResult.result?.technical_details) && (
