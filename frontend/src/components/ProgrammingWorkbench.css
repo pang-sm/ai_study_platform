@@ -1744,10 +1744,22 @@
 .pw-exercise-example-empty { color: #766b91; font-size: 12px; line-height: 1.6; }
 .pw-current-language, .pw-run-target { color: #4a3c72; font-size: 12px; font-weight: 800; }
 .pw-run-target { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pw-sample-result { display: grid; gap: 4px; margin-bottom: 10px; padding: 10px 12px; border-left: 3px solid #8b5cf6; background: #faf8ff; color: #40365b; font-size: 12px; }
-.pw-sample-result.is-passed { border-left-color: #26a269; }
-.pw-sample-result.is-failed { border-left-color: #d14b4b; }
-.pw-test-result-summary { display: grid; gap: 8px; padding: 16px; color: #40365b; font-size: 13px; }
+.pw-sample-result { display: grid; gap: 5px; margin-bottom: 10px; padding: 12px 14px; border-left: 3px solid #8b5cf6; background: #faf8ff; color: #40365b; font-size: 12px; }
+.pw-sample-result--passed { border-left-color: #26a269; }
+.pw-sample-result--failed, .pw-sample-result--compile_failed, .pw-sample-result--runtime_failed, .pw-sample-result--timeout { border-left-color: #d14b4b; }
+.pw-test-result-summary { display: grid; gap: 10px; padding: 16px; color: #40365b; font-size: 13px; }
+.pw-test-summary-head { display: grid; gap: 5px; }
+.pw-test-summary-head strong { color: #211b38; font-size: 16px; }
+.pw-test-case-list { display: grid; gap: 8px; }
+.pw-test-case-card { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid #e5dfef; border-left: 3px solid #d14b4b; border-radius: 6px; background: #fff; }
+.pw-test-case-card--passed { border-left-color: #26a269; }
+.pw-test-case-card strong { color: #211b38; }
+.pw-test-case-card span { color: #625a73; white-space: pre-wrap; overflow-wrap: anywhere; }
+.pw-passed-cases { border-top: 1px solid #eeeaf6; padding-top: 8px; }
+.pw-passed-cases summary, .pw-technical-details summary { cursor: pointer; color: #6541b8; font-weight: 700; }
+.pw-passed-cases .pw-test-case-list { margin-top: 8px; }
+.pw-technical-details { margin-top: 4px; }
+.pw-technical-details pre { margin: 8px 0 0; max-height: 180px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
 .pw-test-result-summary strong { color: #211b38; font-size: 16px; }
 .pw-test-result-summary p { margin: 0; white-space: pre-wrap; line-height: 1.6; }
 .pw-exercise-sidebar-empty { padding: 22px 16px; color: #68617b; font-size: 13px; line-height: 1.65; }

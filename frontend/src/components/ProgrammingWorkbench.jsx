@@ -236,10 +236,51 @@ function formatRunDetails(result) {
   if (!result) return "";
   const lines = [`exit_code: ${result.exit_code ?? "-"}`];
   if (result.duration_ms != null) lines.push(`duration: ${result.duration_ms}ms`);
-  if (result.stderr) lines.push(`stderr\n${result.stderr.trimEnd()}`);
-  if (result.compile_error) lines.push(`编译信息\n${result.compile_error.trimEnd()}`);
-  if (result.error_message) lines.push(`错误信息\n${result.error_message}`);
+  const technicalDetails = result.technical_details || result.stderr || result.compile_error || result.error_message;
+  if (technicalDetails) lines.push(`原始测试日志\n${String(technicalDetails).trimEnd()}`);
   return lines.join("\n");
+}
+
+function caseStatusLabel(status) {
+  return {
+    passed: "通过",
+    failed: "未通过",
+    compile_failed: "编译失败",
+    runtime_failed: "运行失败",
+    timeout: "运行超时",
+    skipped: "已跳过",
+  }[status] || "未通过";
+}
+
+function caseDisplayReason(item) {
+  if (item?.reason) return item.reason;
+  if (item?.status === "compile_failed") return "代码编译失败";
+  if (item?.status === "runtime_failed") return "代码运行时发生异常";
+  if (item?.status === "timeout") return "程序运行超过 5 秒，可能存在死循环";
+  return item?.status === "passed" ? "" : "返回结果与期望值不一致";
+}
+
+function caseExpectedValue(item) {
+  return item?.expected ?? item?.expected_output;
+}
+
+function caseActualValue(item) {
+  if (item?.actual !== undefined && item?.actual !== null) return item.actual;
+  if (item?.actual_output !== undefined && item?.actual_output !== null) return item.actual_output;
+  return "未返回结果";
+}
+
+function normalizeResultCase(item, index = 0) {
+  return {
+    id: item?.id || `case-${index + 1}`,
+    name: item?.name || `测试样例 ${index + 1}`,
+    status: item?.status || (item?.passed ? "passed" : "failed"),
+    reason: caseDisplayReason(item),
+    expected: caseExpectedValue(item),
+    actual: caseActualValue(item),
+    location: item?.location,
+    duration_ms: item?.duration_ms ?? 0,
+  };
 }
 
 function readUiPreference(key, fallback) {
@@ -518,9 +559,10 @@ export default function ProgrammingWorkbench({
   const activeJavaMainClass = useMemo(() => detectJavaMainClass(activeFile), [activeFile]);
   const runTargetLabel = useMemo(() => {
     if (!project) return "入口：未选择练习";
+    if (exercise?.manifest?.editable_files?.length) return `文件：${exercise.manifest.editable_files[0]}`;
     if (language === "Java") return `入口：${project.main_class || uniqueJavaMainClasses[0] || "Main"}`;
     return `入口：${project.entry_file || activeFile?.relative_path || DEFAULT_FILE[language]}`;
-  }, [activeFile?.relative_path, language, project, uniqueJavaMainClasses]);
+  }, [activeFile?.relative_path, exercise, language, project, uniqueJavaMainClasses]);
   const relayoutEditor = useCallback(() => {
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => editorRef.current?.layout?.());
@@ -1360,8 +1402,8 @@ export default function ProgrammingWorkbench({
       const data = await safeJson(res);
       if (!res.ok) throw new Error(data.detail || "测试样例运行失败");
       setSampleResult(data);
-      setRunResult({ ...(data.result || {}), actual_output: data.actual_output, expected_output: data.expected_output, duration_ms: data.duration_ms, test_name: data.test_name, timeout: data.timeout });
-      setRunDetailsOpen(data.passed !== true);
+      setRunResult({ ...(data.result || {}), actual_output: data.actual_output, expected_output: data.expected_output, duration_ms: data.duration_ms, test_name: data.test_name, timeout: data.timeout, technical_details: data.technical_details || data.result?.technical_details });
+      setRunDetailsOpen(false);
       setCompileDiagnostics(parseCompilerDiagnostics(data.result || data, project));
       setStatus(data.passed ? "测试样例通过" : "测试样例未通过");
     } catch (err) {
@@ -1388,7 +1430,7 @@ export default function ProgrammingWorkbench({
       if (!res.ok) throw new Error(data.detail || "题目校验失败");
       setExerciseResult(data);
       setRunResult(data.result || null);
-      setRunDetailsOpen(data.passed !== true);
+      setRunDetailsOpen(false);
       setFeedback(`通过 ${data.passed_count}/${data.total_count}\n${data.ai_explanation || ""}`);
       setStatus(data.passed ? "题目校验通过" : "题目校验未通过");
     } catch (err) {
@@ -1517,7 +1559,7 @@ export default function ProgrammingWorkbench({
   const resultText = activeResultTab === "run"
     ? formatRunResult(runResult)
     : activeResultTab === "tests"
-      ? (exerciseResult ? `通过 ${exerciseResult.passed_count}/${exerciseResult.total_count}\n${exerciseResult.failed_categories?.length ? `失败类别：${exerciseResult.failed_categories.join("、")}` : "全部测试通过"}` : "点击“运行全部公开测试”或“提交”查看测试结果。")
+      ? (exerciseResult ? `${exerciseResult.summary || `通过 ${exerciseResult.passed_count}/${exerciseResult.total_count}`}\n${exerciseResult.failed_categories?.length ? `失败类别：${exerciseResult.failed_categories.join("、")}` : "全部测试通过"}` : "点击“运行全部公开测试”或“提交”查看测试结果。")
       : activeResultTab === "problems"
         ? ""
         : feedback || "点击 AI 判题后，当前练习上下文反馈会显示在这里。";
@@ -1762,12 +1804,58 @@ export default function ProgrammingWorkbench({
               {activeResultTab === "tests" ? (
                 <div className="pw-test-result-summary">
                   {exerciseResult ? (
-                    <>
-                      <strong>{exerciseResult.submission ? "提交结果" : "公开测试结果"}：{exerciseResult.passed_count}/{exerciseResult.total_count}</strong>
-                      <span>{exerciseResult.failed_categories?.length ? `失败类别：${exerciseResult.failed_categories.join("、")}` : "全部测试通过"}</span>
-                      <span>执行时间：{exerciseResult.duration_ms ?? 0}ms</span>
-                      {exerciseResult.ai_explanation && <p>{exerciseResult.ai_explanation}</p>}
-                    </>
+                    (() => {
+                      const cases = (exerciseResult.cases || []).map(normalizeResultCase);
+                      const failedCases = cases.filter((item) => !["passed", "skipped"].includes(item.status));
+                      const passedCases = cases.filter((item) => ["passed", "skipped"].includes(item.status));
+                      return (
+                        <>
+                          <div className="pw-test-summary-head">
+                            <strong>{exerciseResult.summary || `通过 ${exerciseResult.passed_count}/${exerciseResult.total_count}`}</strong>
+                            <span>{exerciseResult.failed_categories?.length ? `失败类别：${exerciseResult.failed_categories.join("、")}` : "全部测试通过"}</span>
+                            <span>执行时间：{exerciseResult.duration_ms ?? 0}ms</span>
+                          </div>
+                          {failedCases.length > 0 && (
+                            <div className="pw-test-case-list">
+                              {failedCases.map((item) => (
+                                <article className={`pw-test-case-card pw-test-case-card--${item.status}`} key={item.id}>
+                                  <strong>测试样例：{item.name}</strong>
+                                  <span>结果：{caseStatusLabel(item.status)}</span>
+                                  <span>原因：{item.reason}</span>
+                                  {item.expected !== undefined && <span>期望：{String(item.expected)}</span>}
+                                  {item.actual !== undefined && <span>实际：{String(item.actual)}</span>}
+                                  {item.location && <span>位置：{item.location}</span>}
+                                  <span>执行时间：{item.duration_ms}ms</span>
+                                </article>
+                              ))}
+                            </div>
+                          )}
+                          {passedCases.length > 0 && (
+                            <details className="pw-passed-cases">
+                              <summary>查看已通过的 {passedCases.length} 个样例</summary>
+                              <div className="pw-test-case-list">
+                                {passedCases.map((item) => (
+                                  <article className="pw-test-case-card pw-test-case-card--passed" key={item.id}>
+                                    <strong>测试样例：{item.name}</strong>
+                                    <span>结果：通过</span>
+                                    {item.expected !== undefined && <span>期望：{String(item.expected)}</span>}
+                                    {item.actual !== "未返回结果" && <span>实际：{String(item.actual)}</span>}
+                                    <span>执行时间：{item.duration_ms}ms</span>
+                                  </article>
+                                ))}
+                              </div>
+                            </details>
+                          )}
+                          {exerciseResult.ai_explanation && <p>{exerciseResult.ai_explanation}</p>}
+                          {exerciseResult.technical_details && (
+                            <details className="pw-technical-details">
+                              <summary>技术详情</summary>
+                              <pre>{exerciseResult.technical_details}</pre>
+                            </details>
+                          )}
+                        </>
+                      );
+                    })()
                   ) : <span>点击顶部“运行全部测试”或“提交”查看真实测试结果。</span>}
                 </div>
               ) : activeResultTab === "problems" ? (
@@ -1795,17 +1883,36 @@ export default function ProgrammingWorkbench({
               ) : activeResultTab === "run" ? (
                 <div className="pw-run-result">
                   {sampleResult && (
-                    <div className={`pw-sample-result ${sampleResult.passed ? "is-passed" : "is-failed"}`}>
-                      <strong>{sampleResult.test_name || sampleResult.sample?.name || "当前测试样例"}：{sampleResult.passed ? "通过" : "未通过"}</strong>
-                      <span>期望：{sampleResult.expected_output ?? sampleResult.sample?.expected ?? ""}</span>
-                      <span>实际：{sampleResult.actual_output || "（无输出或测试进程未返回值）"}</span>
-                      {sampleResult.timeout && <span>执行超时</span>}
-                      {sampleResult.result?.compile_error && <span>编译错误：{sampleResult.result.compile_error}</span>}
-                      {sampleResult.result?.stderr && <span>运行错误：{sampleResult.result.stderr}</span>}
-                      <span>执行时间：{sampleResult.duration_ms ?? sampleResult.result?.duration_ms ?? 0}ms</span>
-                    </div>
+                    (() => {
+                      const item = normalizeResultCase(sampleResult.cases?.[0] || {
+                        id: sampleResult.sample?.id,
+                        name: sampleResult.test_name || sampleResult.sample?.name,
+                        status: sampleResult.status || (sampleResult.passed ? "passed" : "failed"),
+                        reason: sampleResult.status === "compile_failed" ? "代码编译失败" : sampleResult.status === "timeout" ? "程序运行超过 5 秒，可能存在死循环" : undefined,
+                        expected: sampleResult.expected_output ?? sampleResult.sample?.expected,
+                        actual: sampleResult.actual_output,
+                        duration_ms: sampleResult.duration_ms ?? sampleResult.result?.duration_ms,
+                      });
+                      return (
+                        <div className={`pw-sample-result pw-sample-result--${item.status}`}>
+                          <strong>测试样例：{item.name}</strong>
+                          <span>结果：{caseStatusLabel(item.status)}</span>
+                          {item.status !== "passed" && <span>原因：{item.reason}</span>}
+                          {item.expected !== undefined && <span>期望：{String(item.expected)}</span>}
+                          {item.actual !== undefined && <span>实际：{String(item.actual)}</span>}
+                          {item.location && <span>位置：{item.location}</span>}
+                          <span>执行时间：{item.duration_ms}ms</span>
+                          {(sampleResult.technical_details || sampleResult.result?.technical_details) && (
+                            <details className="pw-technical-details">
+                              <summary>技术详情</summary>
+                              <pre>{sampleResult.technical_details || sampleResult.result?.technical_details}</pre>
+                            </details>
+                          )}
+                        </div>
+                      );
+                    })()
                   )}
-                  <pre>{resultText}</pre>
+                  {!sampleResult && <pre>{resultText}</pre>}
                   {runResult && (
                     <>
                       <button type="button" className="pw-run-details-toggle" onClick={() => setRunDetailsOpen((open) => !open)} aria-expanded={runDetailsOpen}>

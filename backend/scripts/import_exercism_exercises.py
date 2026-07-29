@@ -65,13 +65,44 @@ CONCEPT_LABELS = {
     "list-comprehensions": "推导式", "context-manager-customization": "上下文管理",
 }
 
+CONCEPT_LABELS.update({
+    "methods": "函数与方法", "chars": "字符", "for-loops": "循环", "foreach-loops": "循环",
+    "if-else-statements": "条件判断", "switch-statement": "switch 分支", "datetime": "日期与时间",
+    "collections": "集合", "interfaces": "接口", "inheritance": "继承", "generics": "泛型",
+    "streams": "Stream API", "maps": "Map", "sets": "Set", "enums": "枚举",
+})
+
+JAVA_SAMPLE_NAMES_ZH = {
+    "Say Hi!": "返回问候语",
+    "a word": "反转普通单词",
+    "an empty string": "处理空字符串",
+    "a capitalized word": "处理首字母大写单词",
+    "a sentence with punctuation": "处理带标点的句子",
+    "a palindrome": "处理回文字符串",
+    "an even-sized word": "处理偶数长度单词",
+    "full time specified": "完整日期时间输入",
+    "date only specification of time": "日期输入测试",
+    "third test for date only specification of time": "日期输入边界测试（三）",
+    "second test for date only specification of time": "日期输入边界测试（二）",
+    "full time with day roll-over": "跨天日期时间计算",
+    "does not mutate the input": "不修改原始日期时间",
+}
+
 
 def run(command: list[str], cwd: Path, timeout: int = 90) -> tuple[bool, str]:
     try:
-        result = subprocess.run(command, cwd=cwd, text=True, capture_output=True, timeout=timeout)
+        result = subprocess.run(
+            command,
+            cwd=cwd,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            capture_output=True,
+            timeout=timeout,
+        )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return False, str(exc)
-    output = (result.stdout + "\n" + result.stderr).strip()
+    output = ((result.stdout or "") + "\n" + (result.stderr or "")).strip()
     return result.returncode == 0, output[-4000:]
 
 
@@ -110,6 +141,11 @@ def normalize_test_files(language: str, test_files: list[dict]) -> list[dict]:
         }
         for item in test_files
     ]
+
+
+def java_enabled_test_content(content: str) -> str:
+    """Enable the full official Java suite only inside an isolated runner."""
+    return re.sub(r"(?m)^\s*@Disabled(?:\([^\n]*\))?\s*\n", "", str(content or ""))
 
 
 def official_test_bundle(language: str, exercise_dir: Path, test_files: list[dict]) -> list[dict]:
@@ -235,6 +271,29 @@ def source_derived_tags(language: str, starter_files: list[dict], reference_file
             tags.append("loops")
         if re.search(r"\b(?:if|else\s+if|switch)\s*\(", implementation_text):
             tags.append("conditionals")
+    elif language == "Java":
+        if re.search(r"\b(?:public|private|protected)?\s*(?:static\s+)?[A-Za-z_$][\w$<>\[\]]*\s+[A-Za-z_$][\w$]*\s*\([^;{}]*\)", implementation_text):
+            tags.append("methods")
+        if re.search(r"\bclass\s+[A-Za-z_$][\w$]*", implementation_text):
+            tags.append("classes")
+        if re.search(r"\b(?:interface|implements)\b", implementation_text):
+            tags.append("interfaces")
+        if re.search(r"\b(?:extends|super)\b", implementation_text):
+            tags.append("inheritance")
+        if re.search(r"\b(?:List|ArrayList|Collection|Map|HashMap|Set|HashSet)\b", implementation_text):
+            tags.append("collections")
+        if re.search(r"\b(?:LocalDate|LocalDateTime|Instant|Duration|Period|ZonedDateTime)\b|java\.time", implementation_text):
+            tags.append("datetime")
+        if re.search(r"\b(?:try|catch|throw|throws)\b", implementation_text):
+            tags.append("exceptions")
+        if re.search(r"\b(?:for|while|do)\b", implementation_text):
+            tags.append("loops")
+        if re.search(r"\b(?:if|else|switch|case)\b", implementation_text):
+            tags.append("conditionals")
+        if re.search(r"\b(?:String|char|Character)\b|\"(?:[^\"]|\\.)*\"", implementation_text):
+            tags.append("strings")
+        if re.search(r"\b(?:enum|Enum)\b", implementation_text):
+            tags.append("enums")
     elif language == "Python":
         if re.search(r"\b(?:for|while)\b", text):
             tags.append("loops")
@@ -281,6 +340,29 @@ def _test_selectors(language: str, test_files: list[dict]) -> list[dict]:
         elif language == "C" and path.endswith(".c") and "test-framework/" not in path:
             for match in re.finditer(r"(?:static\s+)?void\s+(test_[A-Za-z0-9_]+)\s*\(", content):
                 selectors.append({"path": path, "selector": match.group(1)})
+        elif language == "Java" and path.endswith(".java") and "/test/" in f"/{path.replace('\\', '/')}" :
+            class_match = re.search(r"\bclass\s+([A-Za-z_$][\w$]*)", content)
+            class_name = class_match.group(1) if class_match else Path(path).stem
+            pending_display = None
+            pending_test = False
+            for line in content.splitlines():
+                if re.search(r"@Test\b", line):
+                    pending_test = True
+                display_match = re.search(r"@DisplayName\(\s*\"([^\"]+)\"\s*\)", line)
+                if display_match:
+                    pending_display = display_match.group(1)
+                    continue
+                method_match = re.search(r"\b(?:public\s+)?void\s+([A-Za-z_$][\w$]*)\s*\(", line)
+                if method_match and pending_test:
+                    method_name = method_match.group(1)
+                    selectors.append({
+                        "path": path,
+                        "selector": f"{class_name}.{method_name}",
+                        "source_test_name": method_name,
+                        "display_name": pending_display or method_name,
+                    })
+                    pending_display = None
+                    pending_test = False
     return selectors
 
 
@@ -315,7 +397,7 @@ def canonical_samples(problem_root: Path | None, language: str, slug: str, test_
     samples = []
     remaining_selectors = list(selectors)
     stop_words = {"a", "an", "and", "as", "be", "can", "is", "of", "on", "the", "to", "with"}
-    for case in leaf_cases:
+    for index, case in enumerate(leaf_cases):
         selector = next((item for item in remaining_selectors if item.get("case_id") == case.get("uuid")), None)
         if selector is not None:
             remaining_selectors.remove(selector)
@@ -349,13 +431,14 @@ def canonical_samples(problem_root: Path | None, language: str, slug: str, test_
             # fabricate a selector for such a case.
             continue
         input_value = case.get("input") or {}
+        raw_name = str(case.get("description") or f"官方测试 {index + 1}")
         samples.append({
             "id": str(case.get("uuid") or f"{slug}-{len(samples) + 1}"),
-            "name": str(case.get("description") or f"官方测试 {index + 1}"),
+            "name": JAVA_SAMPLE_NAMES_ZH.get(raw_name, raw_name) if language == "Java" else raw_name,
             "arguments": list(input_value.values()) if isinstance(input_value, dict) else [input_value],
             "input_display": "无参数" if not input_value else _display_value(input_value),
             "expected": _display_value(case.get("expected")),
-            "source_test_name": selector["selector"],
+            "source_test_name": selector.get("source_test_name") or selector["selector"],
             "test_path": selector["path"],
             "selector": selector["selector"],
         })
@@ -387,7 +470,8 @@ def audit_reference(language: str, exercise_dir: Path, starter_files: list[dict]
         for item in test_files:
             target = temp / item["path"]
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(item["content"], encoding="utf-8")
+            content = java_enabled_test_content(item["content"]) if language == "Java" else item["content"]
+            target.write_text(content, encoding="utf-8")
         commands = {
             "Python": python_test_command(),
             "C": ["gcc", "-std=c99", "-DEXERCISM_RUN_ALL_TESTS", "-DUNITY_SUPPORT_64", "-DUNITY_OUTPUT_COLOR", "test-framework/unity.c", "-o", "tests.exe"],
@@ -434,7 +518,33 @@ def audit_reference(language: str, exercise_dir: Path, starter_files: list[dict]
                 ok, output = run(["gradle", "test", "--no-daemon"], temp)
         else:
             ok, output = run(commands[language], temp)
-        return ok, {"reference": "pass" if ok else "fail", "output": output}
+        report = {"reference": "pass" if ok else "fail", "output": output}
+        if language == "Java" and ok:
+            mutated = False
+            for item in reference_files:
+                target = temp / item["path"]
+                original = target.read_text(encoding="utf-8")
+                wrong, replacements = re.subn(
+                    r"(?m)^(\s*return\s+)(?!;)([^;]+);",
+                    r"\1null;",
+                    original,
+                    count=1,
+                )
+                if replacements:
+                    target.write_text(wrong, encoding="utf-8")
+                    mutated = True
+                    break
+            if mutated:
+                wrong_ok, wrong_output = run(
+                    [str(gradle_wrapper), "test", "--no-daemon"] if gradle_wrapper.is_file() else ["gradle", "test", "--no-daemon"],
+                    temp,
+                )
+                report["wrong_solution_rejected"] = not wrong_ok
+                report["wrong_solution_output"] = wrong_output
+            else:
+                report["wrong_solution_rejected"] = False
+                report["wrong_solution_output"] = "No deterministic mutation was applied"
+        return ok and report.get("wrong_solution_rejected", True), report
 
 
 def starter_compile(language: str, starter_files: list[dict], exercise_dir: Path) -> tuple[bool, str]:
@@ -543,6 +653,25 @@ def import_language(
             {"path": test["path"], "content": test["content"], "samples": samples_by_path.get(test["path"], [])}
             for test in tests
         ]
+        manifest = {
+            "language": language.lower(),
+            "exercise_id": item["slug"],
+            "editable_files": [str(entry.get("path") or "") for entry in starter],
+            "support_files": [],
+            "test_files": [str(entry.get("path") or "") for entry in tests],
+            "package_name": next(
+                (
+                    match.group(1)
+                    for entry in starter
+                    for match in [re.search(r"(?m)^\s*package\s+([\w.]+)\s*;", str(entry.get("content") or ""))]
+                    if match
+                ),
+                "",
+            ),
+            "test_framework": "junit5" if language == "Java" else None,
+            "build_type": "gradle" if language == "Java" else None,
+        }
+        audit["manifest"] = manifest
         payload = {
             "slug": f"{language.lower().replace('+', 'p')}-{item['slug']}",
             "source_key": f"https://github.com/exercism/{repo}|{language}|{item['slug']}",

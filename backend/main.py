@@ -64,6 +64,7 @@ from membership import (
     is_developer_account,
 )
 from prompts import build_system_prompt
+from programming_execution import run_java_tests
 from qwen_parser import (
     SCANNED_PDF_PAGE_PROMPT,
     get_qwen_pdf_ocr_model,
@@ -8682,6 +8683,28 @@ def _sample_display_value(value: str | None) -> str | None:
     return normalized[:500] if normalized else None
 
 
+_JAVA_SAMPLE_NAMES_ZH = {
+    "Say Hi!": "返回问候语",
+    "a word": "反转普通单词",
+    "an empty string": "处理空字符串",
+    "a capitalized word": "处理首字母大写单词",
+    "a sentence with punctuation": "处理带标点的句子",
+    "a palindrome": "处理回文字符串",
+    "an even-sized word": "处理偶数长度单词",
+    "full time specified": "完整日期时间输入",
+    "date only specification of time": "日期输入测试",
+    "third test for date only specification of time": "日期输入边界测试（三）",
+    "second test for date only specification of time": "日期输入边界测试（二）",
+    "full time with day roll-over": "跨天日期时间计算",
+    "does not mutate the input": "不修改原始日期时间",
+}
+
+
+def _localized_exercise_sample_name(value: str | None, index: int) -> str:
+    raw = str(value or "").strip()
+    return _JAVA_SAMPLE_NAMES_ZH.get(raw, raw or f"测试样例 {index + 1}")
+
+
 def _public_exercise_samples(exercise: models.ProgrammingExercise) -> list[dict]:
     """Return only importer-produced, structured public samples.
 
@@ -8702,8 +8725,30 @@ def _public_exercise_samples(exercise: models.ProgrammingExercise) -> list[dict]
                 if sample.get(key) is not None
             }
             if safe.get("test_path") and safe.get("selector") and safe.get("expected") is not None:
+                safe["name"] = _localized_exercise_sample_name(safe.get("name"), len(samples))
                 samples.append(safe)
     return samples
+
+
+def _exercise_manifest(exercise: models.ProgrammingExercise) -> dict:
+    report = _exercise_json(exercise.audit_report_json, {})
+    manifest = report.get("manifest") if isinstance(report, dict) else None
+    if isinstance(manifest, dict):
+        return manifest
+    return {
+        "language": normalize_project_language(exercise.language).lower(),
+        "exercise_id": exercise.slug,
+        "editable_files": [item.get("path") for item in _exercise_json(exercise.starter_files_json, []) if item.get("path")],
+        "support_files": [],
+        "test_files": [
+            item.get("path")
+            for item in _exercise_json(exercise.official_test_files_json, [])
+            if item.get("path") and "/test/" in str(item.get("path") or "").replace("\\", "/")
+        ],
+        "package_name": "",
+        "test_framework": "junit5" if normalize_project_language(exercise.language) == "Java" else None,
+        "build_type": "gradle" if normalize_project_language(exercise.language) == "Java" else None,
+    }
 
 
 def serialize_programming_exercise(exercise: models.ProgrammingExercise, include_starter: bool = False):
@@ -8724,6 +8769,7 @@ def serialize_programming_exercise(exercise: models.ProgrammingExercise, include
         "source_commit": exercise.source_commit,
         "license": exercise.license,
         "attribution": exercise.attribution,
+        "manifest": _exercise_manifest(exercise),
     }
     if include_starter:
         payload["starter_files"] = _exercise_json(exercise.starter_files_json, [])
@@ -8863,22 +8909,101 @@ def start_programming_exercise(exercise_id: int, req: schemas.ProgrammingExercis
     return {"exercise": serialize_programming_exercise(exercise, include_starter=True), "project": serialize_code_project(project, files), "resumed": resumed}
 
 
-def _exercise_run_summary(result: dict, exercise: models.ProgrammingExercise, submission: bool):
+def _exercise_case_from_result(result: dict, sample: dict | None = None) -> dict:
+    status = str(result.get("status") or ("passed" if result.get("passed") else "failed"))
+    if result.get("timeout") or status == "timeout":
+        status, reason = "timeout", "程序运行超过 5 秒，可能存在死循环"
+    elif result.get("compile_error") or "compile" in result.get("failed_categories", []):
+        status, reason = "compile_failed", "代码编译失败"
+    elif result.get("passed"):
+        status, reason = "passed", ""
+    else:
+        status, reason = "failed", "返回结果与期望值不一致"
+    actual = result.get("actual_output")
+    if actual and not result.get("passed") and re.search(r"Traceback|pytest|Catch2|Unity|JUnit|AssertionError", str(actual), re.IGNORECASE):
+        actual = None
+    return {
+        "id": str((sample or {}).get("id") or result.get("test_name") or "exercise-run"),
+        "name": (sample or {}).get("name") or result.get("test_name") or "当前测试",
+        "status": status,
+        "reason": reason,
+        "expected": result.get("expected_output") if sample is None else sample.get("expected"),
+        "actual": actual,
+        "location": result.get("location"),
+        "duration_ms": result.get("duration_ms", 0),
+    }
+
+
+def _extract_runner_actual(output: str) -> str | None:
+    """Extract a user-facing actual value without exposing runner output."""
+    text = str(output or "")
+    match = re.search(r"\bWas\s+'((?:\\'|[^'])*)'", text, re.IGNORECASE)
+    if match:
+        return match.group(1).replace("\\'", "'")
+    match = re.search(r"but was:\s*(?:\"([^\"\n]*)\"|<([^>\n]*)>)", text, re.IGNORECASE)
+    if match:
+        return match.group(1) if match.group(1) is not None else match.group(2)
+    match = re.search(r"with expansion:\s*\n\s*[\"']([^\"'\n]*)[\"']\s*==", text, re.IGNORECASE)
+    if match:
+        return match.group(1)
+    match = re.search(r"with expansion:\s*\n\s*([^\s]+)\s*==", text, re.IGNORECASE)
+    if match:
+        return match.group(1)
+    match = re.search(r"AssertionError:\s*['\"]([^'\"\n]*)['\"]\s*!=", text, re.IGNORECASE)
+    if match:
+        return match.group(1)
+    match = re.search(r"AssertionError:\s*(\{[^{}\n]*\}|\[[^\[\]\n]*\]|None|True|False|-?\d+(?:\.\d+)?)\s*!=", text)
+    if match:
+        return match.group(1)
+    match = re.search(r"\bactual(?:ly)?\s*[:=]\s*([^\n]+)", text, re.IGNORECASE)
+    if match and not re.search(r"pytest|catch2|junit|traceback|assertion", match.group(1), re.IGNORECASE):
+        return match.group(1).strip()
+    return None
+
+
+def _exercise_run_summary(result: dict, exercise: models.ProgrammingExercise, submission: bool, sample: dict | None = None):
     passed = bool(result.get("passed"))
+    cases = result.get("cases") if isinstance(result.get("cases"), list) else []
+    if not cases:
+        cases = [_exercise_case_from_result(result, sample)]
+    failed_cases = [case for case in cases if case.get("status") not in {"passed", "skipped"}]
+    normalized_cases = []
+    for index, case in enumerate(cases):
+        normalized = {
+            "id": str(case.get("id") or f"case-{index + 1}"),
+            "name": _localized_exercise_sample_name(case.get("name"), index),
+            "status": case.get("status") or "failed",
+            "reason": case.get("reason") or ("返回结果与期望值不一致" if case.get("status") != "passed" else ""),
+            "expected": case.get("expected", case.get("expected_output")),
+            "actual": case.get("actual", case.get("actual_output")),
+            "location": case.get("location"),
+            "duration_ms": case.get("duration_ms", result.get("duration_ms", 0)),
+        }
+        normalized_cases.append({key: value for key, value in normalized.items() if value is not None})
+    cases = normalized_cases
+    passed_count = result.get("passed_count", sum(1 for case in cases if case.get("status") == "passed"))
+    total_count = result.get("total_count", len(cases)) or len(cases)
+    summary = result.get("summary") or (f"通过 {passed_count}/{total_count}" if not failed_cases else f"{len(failed_cases)} 个样例未通过")
+    technical_details = result.get("technical_details") or result.get("stderr") or result.get("compile_error") or ""
     return {
         "success": result.get("success", True),
         "submission": submission,
         "passed": passed,
-        "passed_count": result.get("passed_count", 0),
-        "total_count": result.get("total_count", 0),
+        "status": result.get("status") or ("passed" if passed else "failed"),
+        "summary": summary,
+        "passed_count": passed_count,
+        "total_count": total_count,
         "failed_categories": result.get("failed_categories", []),
+        "cases": cases,
         "duration_ms": result.get("duration_ms", 0),
         "ai_explanation": "代码通过当前练习运行校验。" if passed else "代码未通过当前练习运行校验，请先查看 Problems 中的诊断。",
+        "technical_details": technical_details,
         "result": {
             "stdout": result.get("stdout", ""),
             "exit_code": result.get("exit_code"),
             "compile_error": result.get("compile_error"),
             "stderr": result.get("stderr", ""),
+            "technical_details": technical_details,
         },
         "exercise_id": exercise.id,
     }
@@ -8959,6 +9084,13 @@ def _run_official_exercise_tests(project: models.CodeProject, exercise: models.P
         )
     if not bundle:
         return {"success": False, "passed": False, "passed_count": 0, "total_count": 0, "failed_categories": ["tests"], "duration_ms": 0, "stderr": "官方测试文件不存在。", "exit_code": -1}
+    if language == "Java":
+        return run_java_tests(
+            [{"relative_path": file.relative_path, "content": file.content or ""} for file in files],
+            bundle,
+            selector=None,
+            timeout_seconds=6,
+        )
     total = _count_exercise_tests(language, bundle)
     started = time.time()
     with tempfile.TemporaryDirectory(prefix="exercise-tests-") as raw:
@@ -9054,6 +9186,29 @@ def _run_public_sample(project: models.CodeProject, exercise: models.Programming
     support = _exercise_json(exercise.official_test_files_json, [])
     public_paths = {str(item.get("path") or "") for item in bundle}
     bundle.extend(item for item in support if str(item.get("path") or "").startswith(("test-framework/", "test/")) and str(item.get("path") or "") not in public_paths)
+    if language == "Java":
+        result = run_java_tests(
+            [{"relative_path": file.relative_path, "content": file.content or ""} for file in files],
+            bundle,
+            selector=str(sample.get("selector") or "") or None,
+            timeout_seconds=6,
+        )
+        result["test_name"] = sample.get("name") or sample.get("source_test_name")
+        result["expected_output"] = sample.get("expected")
+        # JUnit function tests normally do not print the return value. A
+        # passing assertion proves that the user's return value equals the
+        # structured expected value, so expose that value in the learner
+        # result card instead of the framework's internal output. The raw
+        # assertion log remains available through technical_details.
+        if result.get("passed"):
+            expected = sample.get("expected")
+            result["actual_output"] = expected
+            for case in result.get("cases") or []:
+                if case.get("status") == "passed":
+                    case["actual"] = expected
+        else:
+            result["actual_output"] = None
+        return result
     started = time.time()
     with tempfile.TemporaryDirectory(prefix="exercise-sample-") as raw:
         temp = Path(raw)
@@ -9138,8 +9293,9 @@ def _run_public_sample(project: models.CodeProject, exercise: models.Programming
         expected_output = sample.get("expected")
         # A passing assertion proves the user's return value equals the
         # canonical expected value; this is not obtained from the reference
-        # solution. On failure, retain the real runner diagnostic instead.
-        actual_output = expected_output if passed else output
+        # solution. On failure, expose only a parsed actual value and keep the
+        # complete runner diagnostic in technical_details.
+        actual_output = expected_output if passed else _extract_runner_actual(output)
         return {
             "success": True,
             "passed": passed,
@@ -9169,7 +9325,7 @@ def run_programming_exercise_sample(exercise_id: int, req: schemas.ProgrammingEx
         raise HTTPException(status_code=400, detail="公开测试样例不存在")
     result = _run_public_sample(project, exercise, list_project_files(project.id, db), samples[req.sample_index])
     return {
-        **_exercise_run_summary(result, exercise, submission=False),
+        **_exercise_run_summary(result, exercise, submission=False, sample=samples[req.sample_index]),
         "sample": samples[req.sample_index],
         "test_name": result.get("test_name") or samples[req.sample_index].get("name"),
         "actual_output": result.get("actual_output", ""),

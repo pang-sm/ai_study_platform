@@ -159,6 +159,7 @@ jobs:
           clone_track c
           clone_track cpp
           clone_track python
+          clone_track java
           echo "[sources] cloning problem-specifications"
           git clone --depth 1 --no-tags --single-branch https://github.com/exercism/problem-specifications.git "$SOURCE_ROOT/problem-specifications"
 
@@ -188,11 +189,13 @@ jobs:
           verify_track c "${c_slugs[@]}"
           verify_track cpp "${cpp_slugs[@]}"
           verify_track python "${python_slugs[@]}"
+          java_slugs=(hello-world reverse-string gigasecond remote-control-competition logs-logs-logs)
+          verify_track java "${java_slugs[@]}"
           if [ ! -f "$SOURCE_ROOT/problem-specifications/LICENSE" ]; then
             echo "[sources] problem-specifications LICENSE is missing"
             exit 1
           fi
-          tar -czf "$RUNNER_TEMP/exercism_sources.tar.gz" -C "$SOURCE_ROOT" c cpp python problem-specifications
+          tar -czf "$RUNNER_TEMP/exercism_sources.tar.gz" -C "$SOURCE_ROOT" c cpp python java problem-specifications
 
       - name: Deploy to Tencent Cloud
         shell: bash
@@ -302,8 +305,31 @@ jobs:
 
           if ! command -v gcc >/dev/null 2>&1 || ! command -v g++ >/dev/null 2>&1 || ! command -v javac >/dev/null 2>&1 || ! command -v java >/dev/null 2>&1 || ! command -v cmake >/dev/null 2>&1; then
             sudo apt-get update
-            sudo apt-get install -y gcc g++ cmake default-jdk-headless
+            sudo apt-get install -y gcc g++ cmake openjdk-21-jdk-headless
           fi
+
+          JAVA_MAJOR="$(java -version 2>&1 | sed -n 's/.*version "\([0-9][0-9]*\).*/\1/p' | head -n 1)"
+          if [ "${JAVA_MAJOR:-0}" -lt 21 ]; then
+            echo "[deploy] Java 21 is required; installing OpenJDK 21"
+            sudo apt-get update
+            sudo apt-get install -y openjdk-21-jdk-headless
+          fi
+          if ! command -v gradle >/dev/null 2>&1; then
+            echo "[deploy] Gradle is required for audited Java exercises"
+            sudo apt-get update
+            sudo apt-get install -y curl unzip
+            GRADLE_VERSION="8.10.2"
+            GRADLE_ARCHIVE="/tmp/gradle-${GRADLE_VERSION}-bin.zip"
+            curl -fsSL "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" -o "$GRADLE_ARCHIVE"
+            sudo rm -rf "/opt/gradle-${GRADLE_VERSION}"
+            sudo unzip -q "$GRADLE_ARCHIVE" -d /opt
+            sudo ln -sfn "/opt/gradle-${GRADLE_VERSION}/bin/gradle" /usr/local/bin/gradle
+            rm -f "$GRADLE_ARCHIVE"
+          fi
+          echo "=== Java toolchain ==="
+          java -version
+          javac -version
+          gradle -version
 
           echo "=== 安装后端Python依赖 ==="
           if [ -x "backend/.venv/bin/pip" ]; then
@@ -408,6 +434,12 @@ jobs:
             --languages Python \
             --slugs ledger,markdown,bob,hello-world,reverse-string,acronym,anagram,armstrong-numbers,binary-search,black-jack,card-games,cater-waiter,chaitanas-colossal-coaster,collatz-conjecture,currency-exchange,darts,difference-of-squares,electric-bill,ellens-alien-game,etl,flatten-array,ghost-gobble-arcade-game,gigasecond,grains,word-count \
             --max-per-language 25 \
+            --prune-unlisted
+          DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python scripts/import_exercism_exercises.py \
+            --source-root "$EXERCISM_SOURCE_ROOT" \
+            --languages Java \
+            --slugs hello-world,reverse-string,gigasecond,remote-control-competition,logs-logs-logs \
+            --max-per-language 5 \
             --prune-unlisted
           rm -rf "$EXERCISM_SOURCE_ROOT" "$EXERCISM_ARCHIVE"
           DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python exam_resources/11408/data_structure/chapter_questions/build_data_structure_chapter_questions.py || echo "[deploy] WARN: DS build failed"
