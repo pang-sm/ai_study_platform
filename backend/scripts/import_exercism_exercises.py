@@ -340,7 +340,7 @@ def _test_selectors(language: str, test_files: list[dict]) -> list[dict]:
         elif language == "C" and path.endswith(".c") and "test-framework/" not in path:
             for match in re.finditer(r"(?:static\s+)?void\s+(test_[A-Za-z0-9_]+)\s*\(", content):
                 selectors.append({"path": path, "selector": match.group(1)})
-        elif language == "Java" and path.endswith(".java") and "/test/" in f"/{path.replace('\\', '/')}" :
+        elif language == "Java" and path.endswith(".java") and "/test/" in ("/" + path.replace("\\", "/")):
             class_match = re.search(r"\bclass\s+([A-Za-z_$][\w$]*)", content)
             class_name = class_match.group(1) if class_match else Path(path).stem
             pending_display = None
