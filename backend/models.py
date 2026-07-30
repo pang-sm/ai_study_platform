@@ -432,6 +432,7 @@ class UserKnowledgeProgress(Base):
     __tablename__ = "user_knowledge_progress"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, index=True, nullable=True)
     username = Column(String(50), index=True, nullable=False)
     course_id = Column(String(100), index=True, nullable=False)
     knowledge_point_id = Column(Integer, index=True, nullable=False)

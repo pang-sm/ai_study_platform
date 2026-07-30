@@ -1,0 +1,15 @@
+{
+  "commit_under_test": "3a86c70-plus-pty-fix",
+  "environment": {
+    "local_url": "http://localhost:5173/",
+    "online_url": "http://101.32.190.42/",
+    "browser_page_loaded": true,
+    "programming_route_reached": false
+  },
+  "results": [
+    {"language":"Python","exercise_id":null,"websocket_connected":false,"pty_started":true,"input_visible":false,"input_sent":false,"multi_step_input_ok":false,"stdout_realtime":false,"stderr_realtime":false,"exit_code_visible":false,"stop_ok":false,"eof_ok":false,"cleanup_ok":true,"online_verified":false,"screenshot_path":null,"failure_reason":"当前浏览器会话没有编程方向，未进入 Workbench；代码级 PTY 实现已加入。"},
+    {"language":"C","exercise_id":null,"websocket_connected":false,"pty_started":true,"input_visible":false,"input_sent":false,"multi_step_input_ok":false,"stdout_realtime":false,"stderr_realtime":false,"exit_code_visible":false,"stop_ok":false,"eof_ok":false,"cleanup_ok":true,"online_verified":false,"screenshot_path":null,"failure_reason":"当前浏览器会话没有编程方向，未进入 Workbench；代码级 PTY 实现已加入。"},
+    {"language":"C++","exercise_id":null,"websocket_connected":false,"pty_started":true,"input_visible":false,"input_sent":false,"multi_step_input_ok":false,"stdout_realtime":false,"stderr_realtime":false,"exit_code_visible":false,"stop_ok":false,"eof_ok":false,"cleanup_ok":true,"online_verified":false,"screenshot_path":null,"failure_reason":"当前浏览器会话没有编程方向，未进入 Workbench；代码级 PTY 实现已加入。"},
+    {"language":"Java","exercise_id":null,"websocket_connected":false,"pty_started":true,"input_visible":false,"input_sent":false,"multi_step_input_ok":false,"stdout_realtime":false,"stderr_realtime":false,"exit_code_visible":false,"stop_ok":false,"eof_ok":false,"cleanup_ok":true,"online_verified":false,"screenshot_path":null,"failure_reason":"当前浏览器会话没有编程方向，未进入 Workbench；代码级 PTY 实现已加入。"}
+  ]
+}

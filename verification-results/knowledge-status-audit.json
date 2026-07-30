@@ -1,0 +1,8 @@
+{
+  "commit_under_test": "3a86c70-plus-pty-fix",
+  "status_model": ["not_started", "learning", "mastered", "review_due"],
+  "storage_key": "user_id + course_id(language) + knowledge_point_code",
+  "online_verified": false,
+  "results": [],
+  "failure_reason": "浏览器当前登录会话没有编程方向入口，未能在线选择叶子节点并执行未学习→学习中→刷新→已学习流程。"
+}

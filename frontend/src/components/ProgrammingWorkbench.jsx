@@ -689,7 +689,8 @@ export default function ProgrammingWorkbench({
   const terminalNodeRef = useRef(null);
   const terminalRef = useRef(null);
   const terminalSocketRef = useRef(null);
-  const terminalLineRef = useRef("");
+  const terminalFitRef = useRef(null);
+  const [terminalConnection, setTerminalConnection] = useState("disconnected");
   const runSessionRef = useRef(null);
   const activeResource = String(activeFileId || "").startsWith("library-")
     ? libraryMaterials.find((item) => `library-${item.id}` === activeFileId)
@@ -941,7 +942,7 @@ export default function ProgrammingWorkbench({
   useEffect(() => {
     const node = shellRef.current;
     if (!node || !window.ResizeObserver) return undefined;
-    const observer = new ResizeObserver(() => relayoutEditor());
+    const observer = new ResizeObserver(() => { relayoutEditor(); terminalFitRef.current?.fit(); });
     observer.observe(node);
     return () => observer.disconnect();
   }, [relayoutEditor]);
@@ -952,30 +953,23 @@ export default function ProgrammingWorkbench({
 
   useEffect(() => {
     if (!terminalNodeRef.current || terminalRef.current) return undefined;
-    const terminal = new Terminal({ convertEol: true, cursorBlink: true, fontSize: 13, theme: { background: "#111827" }, scrollback: 4000 });
+    const terminal = new Terminal({ convertEol: true, cursorBlink: true, fontSize: 13, allowProposedApi: true, theme: { background: "#111827", foreground: "#f9fafb", cursor: "#ffffff", selectionBackground: "#2563eb" }, scrollback: 4000 });
     const fit = new FitAddon();
     terminal.loadAddon(fit);
     terminal.open(terminalNodeRef.current);
     fit.fit();
+    terminal.focus();
     terminalRef.current = terminal;
+    terminalFitRef.current = fit;
     const onData = (data) => {
       const socket = terminalSocketRef.current;
-      if (data === "\u0003") { socket?.send(JSON.stringify({ type: "interrupt" })); terminal.write("^C\r\n"); return; }
-      if (data === "\u0004") { socket?.send(JSON.stringify({ type: "eof" })); return; }
       if (data === "\u000c") { terminal.clear(); return; }
-      if (data === "\r") {
-        terminal.write("\r\n");
-        socket?.send(JSON.stringify({ type: "stdin", data: `${terminalLineRef.current}\n` }));
-        terminalLineRef.current = "";
-        return;
-      }
-      if (data === "\u007f") { if (terminalLineRef.current) { terminalLineRef.current = terminalLineRef.current.slice(0, -1); terminal.write("\b \b"); } return; }
-      if (data >= " " && data !== "\u007f") { terminalLineRef.current += data; terminal.write(data); }
+      if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "stdin", data }));
     };
     const disposable = terminal.onData(onData);
     const resize = () => fit.fit();
     window.addEventListener("resize", resize);
-    return () => { disposable.dispose(); window.removeEventListener("resize", resize); terminal.dispose(); terminalRef.current = null; };
+    return () => { disposable.dispose(); window.removeEventListener("resize", resize); terminal.dispose(); terminalRef.current = null; terminalFitRef.current = null; };
   }, []);
 
   useEffect(() => () => {
@@ -1587,6 +1581,11 @@ export default function ProgrammingWorkbench({
 
   const startInteractiveSession = async (queuedInput = "") => {
     if (!exercise?.id || !project?.id || !user?.username) return;
+    if (terminalSocketRef.current) {
+      try { terminalSocketRef.current.send(JSON.stringify({ type: "stop" })); } catch { /* already closed */ }
+      terminalSocketRef.current.close();
+      terminalSocketRef.current = null;
+    }
     await manualSave();
     setBusy("run");
     setSampleResult(null); setExerciseResult(null); setOutputCollapsed(false); setActiveResultTab("run"); setRunDetailsOpen(false); setCompileDiagnostics([]);
@@ -1596,16 +1595,17 @@ export default function ProgrammingWorkbench({
     const socket = new WebSocket(`${scheme}://${window.location.host}${apiBase}/programming/exercises/${exercise.id}/interactive`);
     terminalSocketRef.current = socket;
     runSessionRef.current = crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`;
-    socket.onopen = () => socket.send(JSON.stringify({ type: "start", username: user.username, user_id: user.id, exercise_id: exercise.id, project_id: project.id, run_session_id: runSessionRef.current, language }));
+    setTerminalConnection("connecting");
+    socket.onopen = () => { setTerminalConnection("connected"); terminal?.focus(); socket.send(JSON.stringify({ type: "start", username: user.username, user_id: user.id, exercise_id: exercise.id, project_id: project.id, run_session_id: runSessionRef.current, language })); };
     socket.onmessage = (event) => {
       const message = JSON.parse(event.data || "{}");
-      if (message.type === "stdout" || message.type === "stderr") terminal?.write(message.data || "");
+      if (message.type === "stdout" || message.type === "stderr" || message.type === "terminal") terminal?.write(message.data || "");
       if (message.type === "status") { terminal?.writeln(`\r\n[${message.message}]`); setStatus(message.message); }
       if (message.type === "compile_error" || message.type === "error") { terminal?.writeln(`\r\n${message.message}`); setStatus(message.message); setRunDetailsOpen(true); }
-      if (message.type === "exit") { terminal?.writeln(`\r\n[进程已退出，退出代码 ${message.exit_code}]`); setRunResult(message); setStatus(`退出代码 ${message.exit_code}`); setBusy(""); }
+      if (message.type === "exit") { terminal?.writeln(`\r\n进程已结束，退出代码 ${message.exit_code}`); setRunResult(message); setStatus(`退出代码 ${message.exit_code}`); setBusy(""); }
     };
-    socket.onerror = () => { terminal?.writeln("\r\n[WebSocket 连接失败]"); setStatus("实时终端连接失败"); setBusy(""); };
-    socket.onclose = () => { terminalSocketRef.current = null; setBusy(""); };
+    socket.onerror = () => { setTerminalConnection("failed"); terminal?.writeln("\r\n[WebSocket 连接失败，请点击重新连接]"); setStatus("实时终端连接失败"); setBusy(""); };
+    socket.onclose = () => { setTerminalConnection("disconnected"); terminalSocketRef.current = null; setBusy(""); };
     if (queuedInput) window.setTimeout(() => socket.readyState === WebSocket.OPEN && socket.send(JSON.stringify({ type: "stdin", data: queuedInput })), 500);
   };
 
@@ -2224,7 +2224,8 @@ export default function ProgrammingWorkbench({
                 <div className="pw-run-result">
                   {exercise && (
                     <div className="pw-terminal-shell">
-                      <div ref={terminalNodeRef} className="pw-xterm" aria-label="实时交互终端" />
+                      <div className="pw-terminal-status">终端：{terminalConnection === "connecting" ? "正在连接" : terminalConnection === "connected" ? "已连接" : terminalConnection === "failed" ? "连接失败" : "已断开"}</div>
+                      <div ref={terminalNodeRef} className="pw-xterm" aria-label="实时交互终端" tabIndex="0" onClick={() => terminalRef.current?.focus()} />
                       <div className="pw-terminal-input-actions">
                         <button type="button" onClick={() => terminalRef.current?.clear()}>清空终端</button>
                         <button type="button" onClick={() => startInteractiveSession()}>重新运行</button>

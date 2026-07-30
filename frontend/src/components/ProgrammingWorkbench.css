@@ -2052,6 +2052,8 @@
 }
 .pw-terminal-shell { display: grid; gap: 8px; }
 .pw-xterm { min-height: 210px; padding: 10px; border-radius: 8px; overflow: hidden; background: #111827; }
+.pw-xterm:focus { outline: 2px solid #60a5fa; outline-offset: -2px; }
+.pw-terminal-status { color: #475569; font-size: 12px; margin-bottom: 4px; }
 .pw-terminal-input-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .pw-terminal-input-actions span { color: #64748b; font-size: 12px; }
 .pw-send-sample-input { margin-left: 6px; }

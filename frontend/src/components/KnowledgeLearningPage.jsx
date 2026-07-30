@@ -50,6 +50,7 @@ const EXAM_VALUE_OPTIONS = [
 ];
 
 const MANUAL_STATUS_OPTIONS = [
+  { value: "review_due", label: "待复习" },
   { value: "not_started", label: "未学习" },
   { value: "learning", label: "学习中" },
   { value: "mastered", label: "已学习" },
@@ -840,7 +841,7 @@ export default function KnowledgeLearningPage({
             </div>
           )}
 
-          {!examCramMode && !programmingLanguageTabs && detailIsLeaf ? (
+          {!examCramMode && detailIsLeaf ? (
             <div className="km-status-manager">
               <h3>状态管理</h3>
               <div className="km-status-actions">
@@ -857,7 +858,7 @@ export default function KnowledgeLearningPage({
                 ))}
               </div>
             </div>
-          ) : !examCramMode && !programmingLanguageTabs ? (
+          ) : !examCramMode ? (
             <div className="km-status-manager km-status-manager--disabled">
               <h3>状态管理</h3>
               <p className="km-parent-hint">该节点状态由下级知识点自动汇总，不能手动设置。</p>
@@ -874,7 +875,7 @@ export default function KnowledgeLearningPage({
           {!examCramMode && <div className="km-review-hint">
             <h3>复习提示</h3>
             {programmingLanguageTabs ? (
-              <p>你可以自行设置掌握状态，做题结果和 AI 评估仅作为参考。</p>
+              <p>你可以自行设置学习状态，做题结果和 AI 评估仅作为参考。</p>
             ) : detailIsLeaf && detailStatus === "review_due" ? (
               <p>该知识点已到复习时间，复习完成后请点击"已学习"开启下一轮复习。</p>
             ) : detailIsLeaf && detailStatus === "mastered" ? (

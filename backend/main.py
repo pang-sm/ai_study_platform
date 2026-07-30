@@ -111,6 +111,7 @@ init_user_profile_schema()
 with engine.begin() as _connection:
     _columns = {row[1] for row in _connection.exec_driver_sql("PRAGMA table_info(user_knowledge_progress)")}
     for _name, _definition in {
+        "user_id": "INTEGER",
         "user_confirmed_status": "VARCHAR(30)",
         "system_suggested_status": "VARCHAR(30)",
         "ai_recommended_status": "VARCHAR(30)",
@@ -8977,20 +8978,25 @@ def _record_programming_submission_progress(user, exercise, db: Session) -> list
         passed = len(exercise_ids & passed_ids)
         status = "mastered" if required > 0 and passed >= required else "learning"
         progress = db.query(models.UserKnowledgeProgress).filter(
-            models.UserKnowledgeProgress.username == user.username,
+            models.UserKnowledgeProgress.user_id == user.id,
             models.UserKnowledgeProgress.course_id == course_id,
             models.UserKnowledgeProgress.knowledge_point_code == point["code"],
         ).first()
         if not progress:
             progress = models.UserKnowledgeProgress(
-                username=user.username, course_id=course_id, knowledge_point_id=0,
+                user_id=user.id, username=user.username, course_id=course_id, knowledge_point_id=0,
                 knowledge_point_code=point["code"], knowledge_point_title=point["title"],
                 mastery_score=0, status="not_started", practice_count=0, task_count=0,
                 created_at=now,
             )
             db.add(progress)
+        progress.user_id = user.id
         progress.knowledge_point_title = point["title"]
-        progress.status = status
+        progress.system_suggested_status = status
+        # A successful submission is only a suggestion. Never overwrite a
+        # status the learner has explicitly confirmed in the course map.
+        if not progress.user_confirmed_status:
+            progress.status = progress.status or "not_started"
         progress.mastery_score = 100 if status == "mastered" else min(99, max(30, int(passed / max(required, 1) * 100)))
         progress.practice_count = passed
         progress.last_studied_at = now
@@ -15420,7 +15426,7 @@ def get_knowledge_map(course_id: str, username: str = "", db: Session = Depends(
         progress_rows = (
             db.query(models.UserKnowledgeProgress)
             .filter(
-                models.UserKnowledgeProgress.username == user.username,
+                models.UserKnowledgeProgress.user_id == user.id,
                 models.UserKnowledgeProgress.course_id == normalized_course,
             )
             .all()
@@ -15511,7 +15517,7 @@ def update_knowledge_map_progress(req: schemas.KnowledgeMapProgressUpdate, db: S
     progress = (
         db.query(models.UserKnowledgeProgress)
         .filter(
-            models.UserKnowledgeProgress.username == user.username,
+            models.UserKnowledgeProgress.user_id == user.id,
             models.UserKnowledgeProgress.course_id == course_id,
             models.UserKnowledgeProgress.knowledge_point_code == code,
         )
@@ -15520,6 +15526,7 @@ def update_knowledge_map_progress(req: schemas.KnowledgeMapProgressUpdate, db: S
     now = utc_now()
     if not progress:
         progress = models.UserKnowledgeProgress(
+            user_id=user.id,
             username=user.username,
             course_id=course_id,
             knowledge_point_id=0,
@@ -15534,6 +15541,7 @@ def update_knowledge_map_progress(req: schemas.KnowledgeMapProgressUpdate, db: S
         )
         db.add(progress)
 
+    progress.user_id = user.id
     progress.knowledge_point_code = code
     progress.knowledge_point_title = canonical_title
     progress.user_confirmed_status = next_status
@@ -28076,20 +28084,32 @@ async def programming_exercise_interactive(exercise_id: int, ws: WebSocket):
         docker_cmd = ["docker", "run", "--rm", "-i", "--network", "none", "--memory", INTERACTIVE_MEMORY_C if language in {"C", "C++"} else INTERACTIVE_MEMORY,
                       "--cpus", str(DOCKER_CPU_LIMIT), "--pids-limit", str(DOCKER_PIDS_LIMIT), "--read-only", "--tmpfs", "/tmp:rw,exec,nosuid,size=128m",
                       "-v", f"{tmp_dir}:/code:ro", image, "sh", "-lc", "cp -a /code /tmp/work && " + " ".join(command[2:] if command[:2] == ["sh", "-lc"] else command)]
-        proc = subprocess.Popen(docker_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=tmp_dir)
-        await ws.send_text(json.dumps({"type": "status", "message": "进程已启动，等待程序输入"}, ensure_ascii=False))
-        collected = {"stdout": [], "stderr": []}
-        def reader(stream, key):
-            while True:
-                chunk = stream.read(1)
-                if not chunk: break
-                collected[key].append(chunk)
-                try: asyncio.run_coroutine_threadsafe(ws.send_text(json.dumps({"type": key, "data": chunk}, ensure_ascii=False)), loop)
-                except Exception: break
+        await ws.send_text(json.dumps({"type": "status", "message": "正在编译……"}, ensure_ascii=False))
         import threading
+        use_pty = hasattr(os, "openpty")
+        master_fd = None
+        if use_pty:
+            master_fd, slave_fd = os.openpty()
+            proc = subprocess.Popen(docker_cmd, stdin=slave_fd, stdout=slave_fd, stderr=slave_fd, close_fds=True, cwd=tmp_dir)
+            os.close(slave_fd)
+        else:
+            proc = subprocess.Popen(docker_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=False, cwd=tmp_dir)
+        await ws.send_text(json.dumps({"type": "status", "message": "程序已启动，等待输入……"}, ensure_ascii=False))
+        collected = []
+        def reader():
+            try:
+                while True:
+                    chunk = os.read(master_fd, 4096) if master_fd is not None else proc.stdout.read(4096)
+                    if not chunk: break
+                    text_chunk = chunk.decode("utf-8", errors="replace")
+                    collected.append(text_chunk)
+                    try: asyncio.run_coroutine_threadsafe(ws.send_text(json.dumps({"type": "terminal", "data": text_chunk}, ensure_ascii=False)), loop)
+                    except Exception: break
+            except (OSError, ValueError):
+                pass
         loop = asyncio.get_running_loop()
-        threads = [threading.Thread(target=reader, args=(proc.stdout, "stdout"), daemon=True), threading.Thread(target=reader, args=(proc.stderr, "stderr"), daemon=True)]
-        for thread in threads: thread.start()
+        reader_thread = threading.Thread(target=reader, daemon=True)
+        reader_thread.start()
         started = time.time()
         while proc.poll() is None:
             if time.time() - started > INTERACTIVE_TIMEOUT:
@@ -28100,17 +28120,22 @@ async def programming_exercise_interactive(exercise_id: int, ws: WebSocket):
                 message = json.loads(await asyncio.wait_for(ws.receive_text(), timeout=0.25))
                 kind, data = message.get("type"), str(message.get("data") or "")
                 if kind in {"stop", "interrupt"}: proc.kill(); break
-                if kind == "eof": proc.stdin.close(); continue
-                if kind == "stdin" and data and proc.stdin:
-                    proc.stdin.write(data); proc.stdin.flush()
+                if kind == "eof":
+                    if master_fd is not None: os.close(master_fd); master_fd = None
+                    elif proc.stdin: proc.stdin.close()
+                    continue
+                if kind == "stdin" and data:
+                    raw_data = data.encode("utf-8")
+                    if master_fd is not None: os.write(master_fd, raw_data)
+                    elif proc.stdin: proc.stdin.write(raw_data); proc.stdin.flush()
             except asyncio.TimeoutError:
                 continue
             except WebSocketDisconnect:
                 proc.kill(); break
         proc.wait(timeout=3)
-        for thread in threads: thread.join(timeout=1)
+        reader_thread.join(timeout=1)
         await ws.send_text(json.dumps({"type": "exit", "exit_code": proc.returncode, "run_session_id": run_session_id,
-                                       "stdout": "".join(collected["stdout"])[-8000:], "stderr": "".join(collected["stderr"])[-8000:]}, ensure_ascii=False))
+                                       "stdout": "".join(collected)[-8000:]}, ensure_ascii=False))
     except Exception as exc:
         try: await ws.send_text(json.dumps({"type": "error", "message": str(exc)[:500]}, ensure_ascii=False))
         except Exception: pass
@@ -28118,6 +28143,9 @@ async def programming_exercise_interactive(exercise_id: int, ws: WebSocket):
         if proc and proc.poll() is None:
             try: proc.kill()
             except Exception: pass
+        try:
+            if 'master_fd' in locals() and master_fd is not None: os.close(master_fd)
+        except OSError: pass
         if acquired: DOCKER_SEMAPHORE.release()
         if tmp_dir: shutil.rmtree(tmp_dir, ignore_errors=True)
         try: await ws.close()
