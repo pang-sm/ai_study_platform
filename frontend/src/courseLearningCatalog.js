@@ -4,6 +4,7 @@
  */
 
 export const COURSE_LEARNING_CATALOG = [
+  { displayName: "C++ 程序设计", courseId: "cpp_programming" },
   { displayName: "程序设计基础",         courseId: "programming_fundamentals" },
   { displayName: "C 语言程序设计",       courseId: "c_programming" },
   { displayName: "Python 程序设计",      courseId: "python_programming" },

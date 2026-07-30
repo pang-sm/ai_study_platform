@@ -55,6 +55,7 @@ SUBJECT_ALIASES = {
 
 # displayName → 稳定英文 course_id（用于 seed 文件命名和 API 兼容）
 COURSE_LEARNING_ID_MAP = {
+    "C++ 程序设计": "cpp_programming",
     "程序设计基础": "programming_fundamentals",
     "C 语言程序设计": "c_programming",
     "Python 程序设计": "python_programming",
