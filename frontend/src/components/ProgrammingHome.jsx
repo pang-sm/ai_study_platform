@@ -163,6 +163,21 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
 
   useEffect(() => { loadHomeData(); }, [loadHomeData]);
 
+  const openExercise = useCallback(async (exerciseId) => {
+    if (!exerciseId || !user?.username) return;
+    const res = await fetch(`${apiBase}/programming/exercises/${exerciseId}/start`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: user.username }),
+    });
+    const data = await safeJson(res);
+    if (!res.ok || !data.project) return;
+    setWorkbenchProjectId(data.project.id);
+    setWorkbenchLanguage(data.project.language);
+    setWorkbenchExerciseId(exerciseId);
+    setActiveNav("workbench");
+  }, [apiBase, user?.username]);
+
   useEffect(() => {
     try {
       localStorage.setItem(PROGRAMMING_NAV_KEY, activeNav);
@@ -223,7 +238,7 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
     if (activeNav === "status") {
       const knowledgeCourse = {
         C: { id: "c_programming", name: "C 语言程序设计" },
-        "C++": { id: "programming_fundamentals", name: "C++ 程序设计" },
+        "C++": { id: "cpp_programming", name: "C++ 程序设计" },
         Python: { id: "python_programming", name: "Python 程序设计" },
         Java: { id: "java_programming", name: "Java 程序设计" },
       }[knowledgeLanguage] || { id: "python_programming", name: "Python 程序设计" };
@@ -236,6 +251,8 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
           programmingLanguageTabs
           programmingLanguage={knowledgeLanguage}
           onProgrammingLanguageChange={setKnowledgeLanguage}
+          apiBase={apiBase}
+          onOpenExercise={openExercise}
           onNavigateToAI={() => setActiveNav("workbench")}
         />
       );
@@ -250,7 +267,7 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
       );
     }
     return null;
-  }, [activeNav, apiBase, homeData, knowledgeLanguage, loadHomeData, setPage, user, workbenchExerciseId, workbenchLanguage, workbenchProjectId]);
+  }, [activeNav, apiBase, homeData, knowledgeLanguage, loadHomeData, openExercise, setPage, user, workbenchExerciseId, workbenchLanguage, workbenchProjectId]);
 
   return (
     <div className="ph-page">

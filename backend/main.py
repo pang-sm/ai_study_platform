@@ -8838,6 +8838,158 @@ def _exercise_manifest(exercise: models.ProgrammingExercise) -> dict:
     }
 
 
+PROGRAMMING_KNOWLEDGE_ALIASES = {
+    "C": {
+        "arrays": "一维数组的定义与引用", "array": "一维数组的定义与引用",
+        "strings": "字符数组与字符串的关系", "pointers": "指针基础",
+        "functions": "函数的定义", "conditionals": "if、else if、else",
+        "loops": "for 循环", "structs": "结构体", "bitwise": "位运算符",
+        "字符串处理": "字符数组与字符串的关系", "函数": "函数的定义", "循环": "for 循环",
+        "条件判断": "if、else if、else", "指针": "指针基础", "结构体": "结构体",
+    },
+    "C++": {
+        "stl": "STL 算法", "vector": "vector 与数组", "vector-arrays": "vector 与数组",
+        "maps": "map 与 set", "strings": "std::string", "iterators": "迭代器与范围遍历",
+        "templates": "函数模板", "references": "移动语义与右值引用",
+        "smart-pointers": "智能指针", "namespaces": "命名空间与头文件",
+        "control-flow": "条件与循环", "functions": "函数参数与返回值",
+        "字符串处理": "std::string", "函数": "函数参数与返回值", "循环": "条件与循环",
+        "条件判断": "条件与循环", "类与对象": "类、对象与封装", "比较运算": "条件与循环",
+        "引用": "移动语义与右值引用", "头文件": "命名空间与头文件", "解析": "字符串算法",
+    },
+    "Python": {
+        "strings": "字符串", "lists": "列表", "dictionaries": "字典",
+        "sets": "集合", "functions": "函数定义与调用", "loops": "for 循环",
+        "conditionals": "条件判断", "classes": "类与实例", "exceptions": "异常处理",
+        "generators": "生成器", "iterators": "迭代器", "sorting": "排序与查找",
+        "字符串处理": "字符串定义与引号", "函数": "def 语句", "循环": "for 循环",
+        "条件判断": "if、elif、else", "列表": "列表的创建与访问", "字典": "字典的创建与访问",
+        "集合": "集合的定义与特点", "类与对象": "class 定义", "异常处理": "try / except 语句",
+        "数值运算": "整数 int", "布尔逻辑": "布尔值与 bool 类型",
+    },
+    "Java": {
+        "strings": "String", "arrays": "数组", "methods": "方法",
+        "classes": "类与实例", "inheritance": "继承", "interfaces": "接口",
+        "collections": "List", "maps": "Map", "sets": "Set", "exceptions": "异常处理",
+        "lambdas": "Lambda", "streams": "Stream API",
+        "字符串处理": "String 类", "函数": "方法", "循环": "for 循环", "条件判断": "if、else if、else",
+        "数组": "一维数组的定义与遍历", "类与对象": "类的定义", "异常处理": "异常体系",
+    },
+}
+
+
+def _programming_knowledge_points(exercise: models.ProgrammingExercise) -> list[dict]:
+    language = normalize_project_language(exercise.language)
+    seed_id = {"C++": "cpp_programming", "C": "c_programming", "Python": "python_programming", "Java": "java_programming"}.get(language)
+    seed_path = _knowledge_map_seed_path(seed_id or "")
+    if not seed_path.exists():
+        return []
+    try:
+        payload = json.loads(seed_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    aliases = PROGRAMMING_KNOWLEDGE_ALIASES.get(language, {})
+    raw_tags = _exercise_json(exercise.tags_json, [])
+    tag_candidates = list(raw_tags) + localized_programming_tags(language, raw_tags)
+    wanted = []
+    for raw in tag_candidates:
+        key = str(raw or "").strip().lower().replace("_", "-")
+        title = aliases.get(key)
+        if title and title not in wanted:
+            wanted.append(title)
+    leaves = []
+
+    def walk(nodes, path=""):
+        for index, node in enumerate(nodes or [], start=1):
+            node_path = f"{path}.{index}" if path else str(index)
+            children = node.get("children") or []
+            if children:
+                walk(children, node_path)
+            else:
+                code = str(node.get("code") or f"_leaf:{node_path}").strip()
+                leaves.append({"code": code, "title": str(node.get("title") or "").strip()})
+
+    walk(payload.get("chapters") or [])
+    result = []
+    for title in wanted:
+        match = next((item for item in leaves if item["title"] == title), None)
+        if match and match not in result:
+            result.append(match)
+    return result[:4]
+
+
+def _record_programming_submission_progress(user, exercise, db: Session) -> list[dict]:
+    points = _programming_knowledge_points(exercise)
+    if not points:
+        return []
+    submitted = (
+        db.query(models.ProgrammingExerciseSubmission)
+        .filter(
+            models.ProgrammingExerciseSubmission.username == user.username,
+            models.ProgrammingExerciseSubmission.exercise_id == exercise.id,
+        )
+        .first()
+    )
+    now = utc_now()
+    if not submitted:
+        db.add(models.ProgrammingExerciseSubmission(username=user.username, exercise_id=exercise.id, passed_at=now))
+        db.flush()
+
+    language = normalize_project_language(exercise.language)
+    course_id = {"C": "c_programming", "C++": "cpp_programming", "Python": "python_programming", "Java": "java_programming"}[language]
+    linked_exercises = db.query(models.ProgrammingExercise).filter(
+        models.ProgrammingExercise.language == language,
+        models.ProgrammingExercise.reference_verified.is_(True),
+        models.ProgrammingExercise.starter_verified.is_(True),
+    ).all()
+    links_by_code: dict[str, list[int]] = defaultdict(list)
+    titles_by_code: dict[str, str] = {}
+    for item in linked_exercises:
+        for point in _programming_knowledge_points(item):
+            links_by_code[point["code"]].append(item.id)
+            titles_by_code[point["code"]] = point["title"]
+
+    updated = []
+    for point in points:
+        exercise_ids = set(links_by_code.get(point["code"], []))
+        passed_ids = {
+            row.exercise_id
+            for row in db.query(models.ProgrammingExerciseSubmission).filter(
+                models.ProgrammingExerciseSubmission.username == user.username,
+                models.ProgrammingExerciseSubmission.exercise_id.in_(list(exercise_ids) or [0]),
+            ).all()
+        }
+        required = len(exercise_ids)
+        passed = len(exercise_ids & passed_ids)
+        status = "mastered" if required > 0 and passed >= required else "learning"
+        progress = db.query(models.UserKnowledgeProgress).filter(
+            models.UserKnowledgeProgress.username == user.username,
+            models.UserKnowledgeProgress.course_id == course_id,
+            models.UserKnowledgeProgress.knowledge_point_code == point["code"],
+        ).first()
+        if not progress:
+            progress = models.UserKnowledgeProgress(
+                username=user.username, course_id=course_id, knowledge_point_id=0,
+                knowledge_point_code=point["code"], knowledge_point_title=point["title"],
+                mastery_score=0, status="not_started", practice_count=0, task_count=0,
+                created_at=now,
+            )
+            db.add(progress)
+        progress.knowledge_point_title = point["title"]
+        progress.status = status
+        progress.mastery_score = 100 if status == "mastered" else min(99, max(30, int(passed / max(required, 1) * 100)))
+        progress.practice_count = passed
+        progress.last_studied_at = now
+        progress.updated_at = now
+        if status == "mastered":
+            progress.learned_at = progress.learned_at or now
+            progress.review_interval_days = _get_review_interval_days(db, user.username, course_id)
+            progress.review_due_at = now + timedelta(days=progress.review_interval_days)
+        updated.append({"code": point["code"], "title": point["title"], "status": status, "passed": passed, "required": required})
+    db.commit()
+    return updated
+
+
 def serialize_programming_exercise(exercise: models.ProgrammingExercise, include_starter: bool = False):
     raw_tags = _exercise_json(exercise.tags_json, [])
     localized_tags = localized_programming_tags(exercise.language, raw_tags)
@@ -8849,6 +9001,7 @@ def serialize_programming_exercise(exercise: models.ProgrammingExercise, include
         "difficulty": exercise.difficulty,
         "tags": localized_tags,
         "concepts": localized_tags,
+        "knowledge_points": _programming_knowledge_points(exercise),
         "description": exercise.description,
         "public_samples": _public_exercise_samples(exercise, include_backend_fields=False),
         "source_repo": exercise.source_repo,
@@ -9528,7 +9681,10 @@ def submit_programming_exercise(exercise_id: int, req: schemas.ProgrammingExerci
         # public cases. Hidden inputs and reference solutions never leave the
         # backend.
         result["cases"] = _run_public_sample_cases(project, exercise, project_files)
-    return _exercise_run_summary(result, exercise, submission=True)
+    payload = _exercise_run_summary(result, exercise, submission=True)
+    if payload.get("passed"):
+        payload["knowledge_progress"] = _record_programming_submission_progress(user, exercise, db)
+    return payload
 
 
 @app.get("/code/projects")

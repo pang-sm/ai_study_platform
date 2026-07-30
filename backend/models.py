@@ -281,6 +281,19 @@ class ProgrammingExercise(Base):
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
 
+class ProgrammingExerciseSubmission(Base):
+    __tablename__ = "programming_exercise_submissions"
+    __table_args__ = (
+        Index("idx_programming_submission_user_exercise", "username", "exercise_id", unique=True),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), index=True, nullable=False)
+    exercise_id = Column(Integer, index=True, nullable=False)
+    passed_at = Column(DateTime, nullable=False, default=utc_now)
+    created_at = Column(DateTime, default=utc_now)
+
+
 class CodeChallenge(Base):
     __tablename__ = "code_challenges"
 

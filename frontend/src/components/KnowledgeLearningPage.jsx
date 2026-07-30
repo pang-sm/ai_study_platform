@@ -335,7 +335,9 @@ function KnowledgeTreeNode({ node, depth = 1, selectedId, expandedIds, keyword, 
 
 export default function KnowledgeLearningPage({
   user,
+  apiBase = API_BASE,
   onNavigateToAI,
+  onOpenExercise,
   subjectKey,
   mode = "exam_11408",         // "exam_11408" | "course_learning"
   courseName: courseNameProp,   // direct course name for course_learning mode
@@ -369,6 +371,7 @@ export default function KnowledgeLearningPage({
   const [reviewIntervalDays, setReviewIntervalDays] = useState(7);
   const [reviewInput, setReviewInput] = useState("7");
   const [reviewSaving, setReviewSaving] = useState(false);
+  const [programmingExercises, setProgrammingExercises] = useState([]);
 
   const loadMap = async () => {
     setLoading(true);
@@ -404,6 +407,18 @@ export default function KnowledgeLearningPage({
       alive = false;
     };
   }, [courseId, user?.username]);
+
+  useEffect(() => {
+    if (!programmingLanguageTabs) return undefined;
+    let cancelled = false;
+    fetch(`${apiBase}/programming/exercises?language=${encodeURIComponent(programmingLanguage)}`)
+      .then((res) => res.json().then((payload) => ({ ok: res.ok, payload })))
+      .then(({ ok, payload }) => {
+        if (!cancelled && ok) setProgrammingExercises(payload.exercises || []);
+      })
+      .catch(() => { if (!cancelled) setProgrammingExercises([]); });
+    return () => { cancelled = true; };
+  }, [apiBase, programmingLanguage, programmingLanguageTabs]);
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -501,6 +516,9 @@ export default function KnowledgeLearningPage({
   const detailIsLeaf = isLeaf(detailNode);
   const detailStatus = normalizeStatus(detailNode?.status);
   const statusCounts = detailNode?.status_counts || {};
+  const relatedProgrammingExercises = programmingExercises.filter((exercise) =>
+    (exercise.knowledge_points || []).some((point) => point.code === detailNode?.code)
+  );
 
   const saveStatus = async (nextStatus) => {
     if (!detailNode?.code || !user?.username) return;
@@ -692,7 +710,7 @@ export default function KnowledgeLearningPage({
               </button>
             ))}
           </div>
-          {!examCramMode && (
+          {!examCramMode && !programmingLanguageTabs && (
             <>
               <span className="km-filter-sep" />
 
@@ -822,7 +840,7 @@ export default function KnowledgeLearningPage({
             </div>
           )}
 
-          {!examCramMode && detailIsLeaf ? (
+          {!examCramMode && !programmingLanguageTabs && detailIsLeaf ? (
             <div className="km-status-manager">
               <h3>状态管理</h3>
               <div className="km-status-actions">
@@ -839,7 +857,7 @@ export default function KnowledgeLearningPage({
                 ))}
               </div>
             </div>
-          ) : !examCramMode ? (
+          ) : !examCramMode && !programmingLanguageTabs ? (
             <div className="km-status-manager km-status-manager--disabled">
               <h3>状态管理</h3>
               <p className="km-parent-hint">该节点状态由下级知识点自动汇总，不能手动设置。</p>
@@ -855,7 +873,9 @@ export default function KnowledgeLearningPage({
 
           {!examCramMode && <div className="km-review-hint">
             <h3>复习提示</h3>
-            {detailIsLeaf && detailStatus === "review_due" ? (
+            {programmingLanguageTabs ? (
+              <p>状态由关联题目的完整官方测试提交自动计算，不能手动修改。</p>
+            ) : detailIsLeaf && detailStatus === "review_due" ? (
               <p>该知识点已到复习时间，复习完成后请点击"已学习"开启下一轮复习。</p>
             ) : detailIsLeaf && detailStatus === "mastered" ? (
               <p>{detailNode?.review_due_at ? `下次复习时间：${formatDateTime(detailNode.review_due_at)}` : `已学习后 ${reviewIntervalDays} 天进入待复习。`}</p>
@@ -865,6 +885,17 @@ export default function KnowledgeLearningPage({
               <p>父级节点的复习状态由下级叶子知识点自动决定。</p>
             )}
           </div>}
+
+          {programmingLanguageTabs && detailIsLeaf && (
+            <div className="km-related-exercises">
+              <h3>关联编程题</h3>
+              {relatedProgrammingExercises.length ? relatedProgrammingExercises.slice(0, 8).map((exercise) => (
+                <button key={exercise.id} type="button" onClick={() => onOpenExercise?.(exercise.id)}>
+                  <span>{exercise.title}</span><small>{exercise.difficulty}</small>
+                </button>
+              )) : <p>暂无配套练习</p>}
+            </div>
+          )}
 
           <div className="km-actions">
             <button type="button" onClick={openAI}>AI问答</button>

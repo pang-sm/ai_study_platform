@@ -924,6 +924,31 @@ def ensure_programming_exercises_schema(conn):
     )
 
 
+def ensure_programming_exercise_submissions_schema(conn):
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS programming_exercise_submissions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username VARCHAR(50) NOT NULL,
+                exercise_id INTEGER NOT NULL,
+                passed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(username, exercise_id)
+            )
+            """
+        )
+    )
+    conn.execute(
+        text(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_programming_submission_user_exercise
+            ON programming_exercise_submissions (username, exercise_id)
+            """
+        )
+    )
+
+
 def ensure_code_project_files_schema(conn):
     conn.execute(
         text(
@@ -1727,6 +1752,7 @@ def init_user_profile_schema():
         ensure_code_sessions_schema(conn)
         ensure_code_projects_schema(conn)
         ensure_programming_exercises_schema(conn)
+        ensure_programming_exercise_submissions_schema(conn)
         ensure_code_project_files_schema(conn)
         ensure_code_ai_messages_schema(conn)
         ensure_code_challenges_schema(conn)
