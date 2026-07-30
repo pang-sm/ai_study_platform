@@ -63,6 +63,10 @@ function ProfileButton({ user, apiBase, onClick }) {
 function ExerciseLibrary({ user, apiBase, onStart }) {
   const [language, setLanguage] = useState("Python");
   const [tag, setTag] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(12);
+  const [paging, setPaging] = useState({ total: 0, total_pages: 1 });
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -72,21 +76,23 @@ function ExerciseLibrary({ user, apiBase, onStart }) {
     setLoading(true);
     setError("");
     try {
-      const query = new URLSearchParams({ language });
+      const query = new URLSearchParams({ language, page: String(page), page_size: String(pageSize) });
       if (user?.username) query.set("username", user.username);
       if (tag.trim()) query.set("tag", tag.trim());
+      if (statusFilter) query.set("status", statusFilter);
       const res = await fetch(`${apiBase}/programming/exercises?${query}`);
       const data = await safeJson(res);
       if (!res.ok) throw new Error(data.detail || "题库加载失败");
       if (requestId !== requestIdRef.current) return;
       setItems(data.exercises || []);
+      setPaging({ total: data.total || 0, total_pages: data.total_pages || 1 });
     } catch (err) {
       if (requestId !== requestIdRef.current) return;
       setError(err.message || "题库加载失败");
     } finally {
       if (requestId === requestIdRef.current) setLoading(false);
     }
-  }, [apiBase, language, tag, user?.username]);
+  }, [apiBase, language, tag, statusFilter, page, pageSize, user?.username]);
   useEffect(() => { load(); }, [load]);
   const start = async (exercise) => {
     setLoading(true);
@@ -117,19 +123,24 @@ function ExerciseLibrary({ user, apiBase, onStart }) {
         <input value={tag} onChange={(event) => setTag(event.target.value)} placeholder="知识点标签" />
       </div>
       {error && <div className="ph-error">{error}</div>}
+      <div className="ph-exercise-filters ph-exercise-status-filters">
+        <select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }}><option value="">全部状态</option><option value="needs_improvement">待改进</option><option value="not_started">未开始</option><option value="passed">已通过</option></select>
+        <select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }}><option value={12}>12/页</option><option value={24}>24/页</option><option value={48}>48/页</option></select>
+      </div>
       <div className="ph-exercise-grid">
         {items.map((exercise) => (
           <article key={exercise.id} className="ph-exercise-card">
-            <div className="ph-exercise-personal-status">{exercise.personal_progress?.personal_status === "passed" ? "已通过" : exercise.personal_progress?.personal_status === "needs_work" ? "待改进" : "未开始"}</div>
+            <div className={`ph-exercise-personal-status ph-exercise-personal-status--${exercise.personal_progress?.personal_status || "not_started"}`}>{exercise.personal_progress?.personal_status === "passed" ? "已通过" : exercise.personal_progress?.personal_status === "needs_work" ? "待改进" : "未开始"}</div>
             <div className="ph-exercise-card-top"><span>{exercise.language}</span><em>{exercise.difficulty}</em></div>
             <h3>{getExerciseTitle(exercise)}</h3>
             <p>{getExerciseDescription(exercise)}</p>
             <div className="ph-exercise-tags">{(exercise.tags || []).slice(0, 5).map((item) => <span key={item}>{item}</span>)}</div>
-            <button type="button" onClick={() => start(exercise)} disabled={loading}>做题</button>
+            <button type="button" onClick={() => start(exercise)} disabled={loading}>{exercise.personal_progress?.personal_status === "passed" ? "再次练习" : exercise.personal_progress?.personal_status === "needs_work" ? "继续改进" : "开始做题"}</button>
           </article>
         ))}
       </div>
       {!loading && !items.length && <div className="ph-lib-empty">暂无符合筛选条件的已审计题目。</div>}
+      <div className="ph-pagination"><span>共 {paging.total} 道，第 {page}/{paging.total_pages} 页</span><button type="button" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={page <= 1 || loading}>上一页</button><button type="button" onClick={() => setPage((value) => Math.min(paging.total_pages, value + 1))} disabled={page >= paging.total_pages || loading}>下一页</button></div>
     </section>
   );
 }

@@ -2050,3 +2050,8 @@
   color: #64748b;
   white-space: pre-wrap;
 }
+.pw-terminal-shell { display: grid; gap: 8px; }
+.pw-xterm { min-height: 210px; padding: 10px; border-radius: 8px; overflow: hidden; background: #111827; }
+.pw-terminal-input-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.pw-terminal-input-actions span { color: #64748b; font-size: 12px; }
+.pw-send-sample-input { margin-left: 6px; }

@@ -13,6 +13,7 @@ import tempfile
 import hashlib
 import shutil
 import asyncio
+import uuid
 import importlib.util
 import threading
 import time
@@ -104,6 +105,19 @@ app = FastAPI()
 
 Base.metadata.create_all(bind=engine)
 init_user_profile_schema()
+
+# SQLite create_all does not add columns to an existing table. Keep the
+# knowledge-progress split fields backwards-compatible with deployed data.
+with engine.begin() as _connection:
+    _columns = {row[1] for row in _connection.exec_driver_sql("PRAGMA table_info(user_knowledge_progress)")}
+    for _name, _definition in {
+        "user_confirmed_status": "VARCHAR(30)",
+        "system_suggested_status": "VARCHAR(30)",
+        "ai_recommended_status": "VARCHAR(30)",
+        "ai_assessment": "TEXT",
+    }.items():
+        if _name not in _columns:
+            _connection.exec_driver_sql(f"ALTER TABLE user_knowledge_progress ADD COLUMN {_name} {_definition}")
 
 # Preload redemption codes from env var on startup
 with SessionLocal() as _db:
@@ -9129,7 +9143,10 @@ def serialize_programming_recent_item(item_type: str, payload: dict):
 
 
 @app.get("/programming/exercises")
-def list_programming_exercises(language: str | None = None, difficulty: str | None = None, tag: str | None = None, username: str = "", db: Session = Depends(get_db)):
+def list_programming_exercises(language: str | None = None, difficulty: str | None = None, tag: str | None = None,
+                               keyword: str | None = None, knowledge_point: str | None = None,
+                               status: str | None = None, page: int = 1, page_size: int = 12,
+                               username: str = "", db: Session = Depends(get_db)):
     query = db.query(models.ProgrammingExercise).filter(
         models.ProgrammingExercise.reference_verified.is_(True),
         models.ProgrammingExercise.starter_verified.is_(True),
@@ -9138,6 +9155,8 @@ def list_programming_exercises(language: str | None = None, difficulty: str | No
         query = query.filter(models.ProgrammingExercise.language == normalize_project_language(language))
     if difficulty:
         query = query.filter(models.ProgrammingExercise.difficulty == difficulty)
+    page = max(1, int(page or 1))
+    page_size = min(48, max(12, int(page_size or 12)))
     rows = query.order_by(models.ProgrammingExercise.language, models.ProgrammingExercise.id).all()
     progress_by_exercise = {}
     if username:
@@ -9151,7 +9170,26 @@ def list_programming_exercises(language: str | None = None, difficulty: str | No
     exercises = [serialize_programming_exercise(item, progress=progress_by_exercise.get(item.id)) for item in rows]
     if tag:
         exercises = [item for item in exercises if tag in item["tags"] or tag in item.get("concepts", [])]
-    return {"exercises": exercises}
+    if knowledge_point:
+        exercises = [item for item in exercises if knowledge_point in item.get("knowledge_points", []) or knowledge_point in item.get("concepts", [])]
+    if keyword:
+        needle = keyword.strip().lower()
+        exercises = [item for item in exercises if needle in str(item.get("title") or item.get("name") or "").lower() or needle in str(item.get("description") or "").lower()]
+    status_order = {"needs_work": 0, "needs_improvement": 0, "not_started": 1, "passed": 2}
+    def item_status(item): return (item.get("personal_progress") or {}).get("personal_status") or "not_started"
+    counts = {"needs_improvement": 0, "not_started": 0, "passed": 0}
+    for item in exercises:
+        key = item_status(item)
+        counts["needs_improvement" if key == "needs_work" else key] = counts.get("needs_improvement" if key == "needs_work" else key, 0) + 1
+    if status:
+        wanted = "needs_work" if status == "needs_improvement" else status
+        exercises = [item for item in exercises if item_status(item) == wanted]
+    exercises.sort(key=lambda item: (status_order.get(item_status(item), 1), int(item.get("id") or 0)))
+    total = len(exercises)
+    total_pages = max(1, (total + page_size - 1) // page_size)
+    page = min(page, total_pages)
+    items = exercises[(page - 1) * page_size: page * page_size]
+    return {"exercises": items, "items": items, "page": page, "page_size": page_size, "total": total, "total_pages": total_pages, "status_counts": counts}
 
 
 @app.get("/programming/exercises/{exercise_id}")
@@ -15207,7 +15245,7 @@ def _build_enriched_map_index(nodes: list[dict]) -> dict[str, dict]:
 def _display_map_progress_status(progress: models.UserKnowledgeProgress | None, now: datetime | None = None) -> str:
     if not progress:
         return "not_started"
-    status = _normalize_map_node_status(progress.status)
+    status = _normalize_map_node_status(getattr(progress, "user_confirmed_status", None) or progress.status)
     due_at = getattr(progress, "review_due_at", None)
     if status == "mastered" and due_at:
         now = now or utc_now()
@@ -15230,6 +15268,10 @@ def _serialize_map_progress(progress: models.UserKnowledgeProgress | None, displ
         "knowledge_point_title": getattr(progress, "knowledge_point_title", "") or "",
         "status": display_status or _display_map_progress_status(progress),
         "stored_status": progress.status or "not_started",
+        "user_confirmed_status": getattr(progress, "user_confirmed_status", None) or _display_map_progress_status(progress),
+        "system_suggested_status": getattr(progress, "system_suggested_status", None),
+        "ai_recommended_status": getattr(progress, "ai_recommended_status", None),
+        "ai_assessment": getattr(progress, "ai_assessment", None),
         "learned_at": serialize_datetime(getattr(progress, "learned_at", None)) if getattr(progress, "learned_at", None) else None,
         "review_due_at": serialize_datetime(getattr(progress, "review_due_at", None)) if getattr(progress, "review_due_at", None) else None,
         "review_interval_days": getattr(progress, "review_interval_days", None) or 7,
@@ -15281,6 +15323,10 @@ def _attach_knowledge_map_status(nodes: list[dict], progress_by_code: dict[str, 
         display_status = _display_map_progress_status(progress, now)
         item["status"] = display_status
         item["stored_status"] = progress.status if progress else "not_started"
+        item["user_confirmed_status"] = getattr(progress, "user_confirmed_status", None) if progress else None
+        item["system_suggested_status"] = getattr(progress, "system_suggested_status", None) if progress else None
+        item["ai_recommended_status"] = getattr(progress, "ai_recommended_status", None) if progress else None
+        item["ai_assessment"] = getattr(progress, "ai_assessment", None) if progress else None
         if progress:
             item["progress"] = _serialize_map_progress(progress, display_status)
             item["learned_at"] = item["progress"].get("learned_at")
@@ -15439,9 +15485,7 @@ def update_knowledge_map_progress(req: schemas.KnowledgeMapProgressUpdate, db: S
     next_status = (req.status or "").strip()
     if not course_id:
         raise HTTPException(status_code=400, detail="course_id is required")
-    if next_status == "review_due":
-        raise HTTPException(status_code=400, detail="review_due is system-generated and cannot be set manually")
-    if next_status not in {"not_started", "learning", "mastered"}:
+    if next_status not in {"not_started", "learning", "mastered", "review_due"}:
         raise HTTPException(status_code=400, detail="invalid status")
 
     seed_path = _knowledge_map_seed_path(course_id)
@@ -15483,6 +15527,7 @@ def update_knowledge_map_progress(req: schemas.KnowledgeMapProgressUpdate, db: S
             knowledge_point_title=canonical_title,
             mastery_score=0,
             status="not_started",
+            user_confirmed_status="not_started",
             practice_count=0,
             task_count=0,
             created_at=now,
@@ -15491,6 +15536,9 @@ def update_knowledge_map_progress(req: schemas.KnowledgeMapProgressUpdate, db: S
 
     progress.knowledge_point_code = code
     progress.knowledge_point_title = canonical_title
+    progress.user_confirmed_status = next_status
+    # Keep legacy status as a compatibility mirror; suggestions never mutate
+    # the confirmed status after this request.
     progress.status = next_status
     progress.updated_at = now
     progress.last_studied_at = now
@@ -15511,6 +15559,9 @@ def update_knowledge_map_progress(req: schemas.KnowledgeMapProgressUpdate, db: S
         progress.learned_at = now
         progress.review_interval_days = interval_days
         progress.review_due_at = now + timedelta(days=interval_days)
+    elif next_status == "review_due":
+        progress.mastery_score = progress.mastery_score if progress.mastery_score is not None else 0
+        progress.learned_at = progress.learned_at
 
     db.commit()
     db.refresh(progress)
@@ -15523,6 +15574,10 @@ def update_knowledge_map_progress(req: schemas.KnowledgeMapProgressUpdate, db: S
             "title": canonical_title,
             "status": display_status,
             "stored_status": progress.status,
+            "user_confirmed_status": progress.user_confirmed_status,
+            "system_suggested_status": progress.system_suggested_status,
+            "ai_recommended_status": progress.ai_recommended_status,
+            "ai_assessment": progress.ai_assessment,
             "learned_at": serialize_datetime(progress.learned_at) if progress.learned_at else None,
             "review_due_at": serialize_datetime(progress.review_due_at) if progress.review_due_at else None,
             "review_interval_days": progress.review_interval_days or _get_review_interval_days(db, user.username, course_id),
@@ -27969,6 +28024,105 @@ def ensure_feature_enabled(db, key, message):
 
 
 # ── Interactive Terminal WebSocket ─────────────────────
+
+@app.websocket("/api/programming/exercises/{exercise_id}/interactive")
+async def programming_exercise_interactive(exercise_id: int, ws: WebSocket):
+    """Run the saved exercise project and stream its real process I/O."""
+    await ws.accept()
+    proc = None
+    tmp_dir = None
+    acquired = False
+    try:
+        config = json.loads(await ws.receive_text())
+        username = str(config.get("username") or "").strip()
+        run_session_id = str(config.get("run_session_id") or uuid.uuid4())
+        if not username:
+            raise ValueError("username is required")
+        db = SessionLocal()
+        try:
+            user = get_user_by_username(username, db)
+            exercise = db.query(models.ProgrammingExercise).filter_by(id=exercise_id).first()
+            project = get_code_project_or_404(int(config.get("project_id") or 0), user.username, db)
+            if not exercise or project.programming_exercise_id != exercise.id:
+                raise ValueError("exercise project mismatch")
+            files = list_project_files(project.id, db)
+            language = normalize_project_language(exercise.language)
+            entry_file = str(project.entry_file or (files[0].relative_path if files else ""))
+            main_class = str(project.main_class or "Main")
+        finally:
+            db.close()
+        if language not in {"C", "C++", "Python", "Java"} or not files:
+            raise ValueError("unsupported language or empty project")
+        if not _check_code_run_rate(username, CODE_RUN_RATE_EXECUTE):
+            raise ValueError("运行过于频繁，请稍后再试")
+        acquired = DOCKER_SEMAPHORE.acquire(timeout=DOCKER_SEMAPHORE_TIMEOUT)
+        if not acquired:
+            raise ValueError("当前运行任务较多，请稍后重试")
+        tmp_dir = tempfile.mkdtemp(prefix=f"interactive_{user.id}_{exercise_id}_{run_session_id}_")
+        for item in files:
+            target = os.path.join(tmp_dir, safe_project_path(item.relative_path))
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            with open(target, "w", encoding="utf-8") as handle:
+                handle.write(item.content or "")
+        await ws.send_text(json.dumps({"type": "status", "message": f"正在准备 {language} 项目（会话 {run_session_id}）"}, ensure_ascii=False))
+        if language == "Python":
+            image, command = DOCKER_IMAGE, ["python", "-u", f"/code/{safe_project_path(entry_file)}"]
+        elif language == "Java":
+            image, command = "eclipse-temurin:21-jdk", ["sh", "-lc", f"cd /tmp/work && javac $(find . -name '*.java') && java {main_class}"]
+        elif language == "C++":
+            image, command = DOCKER_IMAGE_C, ["sh", "-lc", f"cd /tmp/work && g++ -std=c++17 -O0 $(find . -name '*.cpp' -o -name '*.cc' -o -name '*.cxx') -o /tmp/program && /tmp/program"]
+        else:
+            image, command = DOCKER_IMAGE_C, ["sh", "-lc", f"cd /tmp/work && gcc -std=c11 -O0 $(find . -name '*.c') -o /tmp/program && /tmp/program"]
+        docker_cmd = ["docker", "run", "--rm", "-i", "--network", "none", "--memory", INTERACTIVE_MEMORY_C if language in {"C", "C++"} else INTERACTIVE_MEMORY,
+                      "--cpus", str(DOCKER_CPU_LIMIT), "--pids-limit", str(DOCKER_PIDS_LIMIT), "--read-only", "--tmpfs", "/tmp:rw,exec,nosuid,size=128m",
+                      "-v", f"{tmp_dir}:/code:ro", image, "sh", "-lc", "cp -a /code /tmp/work && " + " ".join(command[2:] if command[:2] == ["sh", "-lc"] else command)]
+        proc = subprocess.Popen(docker_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=tmp_dir)
+        await ws.send_text(json.dumps({"type": "status", "message": "进程已启动，等待程序输入"}, ensure_ascii=False))
+        collected = {"stdout": [], "stderr": []}
+        def reader(stream, key):
+            while True:
+                chunk = stream.read(1)
+                if not chunk: break
+                collected[key].append(chunk)
+                try: asyncio.run_coroutine_threadsafe(ws.send_text(json.dumps({"type": key, "data": chunk}, ensure_ascii=False)), loop)
+                except Exception: break
+        import threading
+        loop = asyncio.get_running_loop()
+        threads = [threading.Thread(target=reader, args=(proc.stdout, "stdout"), daemon=True), threading.Thread(target=reader, args=(proc.stderr, "stderr"), daemon=True)]
+        for thread in threads: thread.start()
+        started = time.time()
+        while proc.poll() is None:
+            if time.time() - started > INTERACTIVE_TIMEOUT:
+                proc.kill()
+                await ws.send_text(json.dumps({"type": "status", "message": "运行超时，进程已停止"}, ensure_ascii=False))
+                break
+            try:
+                message = json.loads(await asyncio.wait_for(ws.receive_text(), timeout=0.25))
+                kind, data = message.get("type"), str(message.get("data") or "")
+                if kind in {"stop", "interrupt"}: proc.kill(); break
+                if kind == "eof": proc.stdin.close(); continue
+                if kind == "stdin" and data and proc.stdin:
+                    proc.stdin.write(data); proc.stdin.flush()
+            except asyncio.TimeoutError:
+                continue
+            except WebSocketDisconnect:
+                proc.kill(); break
+        proc.wait(timeout=3)
+        for thread in threads: thread.join(timeout=1)
+        await ws.send_text(json.dumps({"type": "exit", "exit_code": proc.returncode, "run_session_id": run_session_id,
+                                       "stdout": "".join(collected["stdout"])[-8000:], "stderr": "".join(collected["stderr"])[-8000:]}, ensure_ascii=False))
+    except Exception as exc:
+        try: await ws.send_text(json.dumps({"type": "error", "message": str(exc)[:500]}, ensure_ascii=False))
+        except Exception: pass
+    finally:
+        if proc and proc.poll() is None:
+            try: proc.kill()
+            except Exception: pass
+        if acquired: DOCKER_SEMAPHORE.release()
+        if tmp_dir: shutil.rmtree(tmp_dir, ignore_errors=True)
+        try: await ws.close()
+        except Exception: pass
+
 
 INTERACTIVE_TIMEOUT = 30  # seconds
 INTERACTIVE_MEMORY = "128m"

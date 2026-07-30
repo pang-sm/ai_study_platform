@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Editor from "@monaco-editor/react";
+import { Terminal } from "xterm";
+import { FitAddon } from "xterm-addon-fit";
+import "xterm/css/xterm.css";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import "./ProgrammingWorkbench.css";
@@ -647,7 +650,6 @@ export default function ProgrammingWorkbench({
   const [cursorPosition, setCursorPosition] = useState({ lineNumber: 1, column: 1 });
   const [focusMode, setFocusMode] = useState(false);
   const [runResult, setRunResult] = useState(null);
-  const [terminalInput, setTerminalInput] = useState("");
   const [runDetailsOpen, setRunDetailsOpen] = useState(false);
   const [compileDiagnostics, setCompileDiagnostics] = useState([]);
   const [monacoDiagnostics, setMonacoDiagnostics] = useState([]);
@@ -684,6 +686,11 @@ export default function ProgrammingWorkbench({
   const focusLayoutRef = useRef(null);
   const coachLogRef = useRef(null);
   const coachPinnedRef = useRef(true);
+  const terminalNodeRef = useRef(null);
+  const terminalRef = useRef(null);
+  const terminalSocketRef = useRef(null);
+  const terminalLineRef = useRef("");
+  const runSessionRef = useRef(null);
   const activeResource = String(activeFileId || "").startsWith("library-")
     ? libraryMaterials.find((item) => `library-${item.id}` === activeFileId)
     : null;
@@ -942,6 +949,40 @@ export default function ProgrammingWorkbench({
   useEffect(() => {
     relayoutEditor();
   }, [coachCollapsed, explorerCollapsed, outputCollapsed, isFullscreen, fullscreenFallback, selectedLanguage, relayoutEditor]);
+
+  useEffect(() => {
+    if (!terminalNodeRef.current || terminalRef.current) return undefined;
+    const terminal = new Terminal({ convertEol: true, cursorBlink: true, fontSize: 13, theme: { background: "#111827" }, scrollback: 4000 });
+    const fit = new FitAddon();
+    terminal.loadAddon(fit);
+    terminal.open(terminalNodeRef.current);
+    fit.fit();
+    terminalRef.current = terminal;
+    const onData = (data) => {
+      const socket = terminalSocketRef.current;
+      if (data === "\u0003") { socket?.send(JSON.stringify({ type: "interrupt" })); terminal.write("^C\r\n"); return; }
+      if (data === "\u0004") { socket?.send(JSON.stringify({ type: "eof" })); return; }
+      if (data === "\u000c") { terminal.clear(); return; }
+      if (data === "\r") {
+        terminal.write("\r\n");
+        socket?.send(JSON.stringify({ type: "stdin", data: `${terminalLineRef.current}\n` }));
+        terminalLineRef.current = "";
+        return;
+      }
+      if (data === "\u007f") { if (terminalLineRef.current) { terminalLineRef.current = terminalLineRef.current.slice(0, -1); terminal.write("\b \b"); } return; }
+      if (data >= " " && data !== "\u007f") { terminalLineRef.current += data; terminal.write(data); }
+    };
+    const disposable = terminal.onData(onData);
+    const resize = () => fit.fit();
+    window.addEventListener("resize", resize);
+    return () => { disposable.dispose(); window.removeEventListener("resize", resize); terminal.dispose(); terminalRef.current = null; };
+  }, []);
+
+  useEffect(() => () => {
+    terminalSocketRef.current?.send(JSON.stringify({ type: "stop" }));
+    terminalSocketRef.current?.close();
+    terminalSocketRef.current = null;
+  }, [exerciseIdentity]);
 
   useEffect(() => {
     const node = coachLogRef.current;
@@ -1544,43 +1585,31 @@ export default function ProgrammingWorkbench({
     }
   };
 
-  const runExerciseInteractive = async () => {
-    if (!exercise?.id || !project?.id) return;
+  const startInteractiveSession = async (queuedInput = "") => {
+    if (!exercise?.id || !project?.id || !user?.username) return;
+    await manualSave();
     setBusy("run");
-    setSampleResult(null);
-    setExerciseResult(null);
-    setOutputCollapsed(false);
-    setActiveResultTab("run");
-    setRunDetailsOpen(false);
-    setCompileDiagnostics([]);
-    try {
-      await manualSave();
-      const res = await fetch(`${apiBase}/programming/exercises/${exercise.id}/run`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: user.username,
-          project_id: project.id,
-          stdin: terminalInput,
-          entry_file: project.entry_file,
-          main_class: project.main_class || uniqueJavaMainClasses[0] || "",
-          source_files: sourceFiles.map((file) => file.relative_path),
-        }),
-      });
-      const data = await safeJson(res);
-      if (!res.ok) throw new Error(data.detail || "运行失败");
-      setRunResult(data);
-      setRunDetailsOpen(Boolean(data.stderr || data.compile_error || data.error_message || data.exit_code !== 0));
-      setCompileDiagnostics(parseCompilerDiagnostics(data, project));
-      setStatus(data.exit_code === 0 ? "运行完成" : "运行失败");
-    } catch (err) {
-      setRunResult({ exit_code: -1, error_message: err.message || "运行失败" });
-      setRunDetailsOpen(true);
-      setStatus(err.message || "运行失败");
-    } finally {
-      setBusy("");
-    }
+    setSampleResult(null); setExerciseResult(null); setOutputCollapsed(false); setActiveResultTab("run"); setRunDetailsOpen(false); setCompileDiagnostics([]);
+    const terminal = terminalRef.current;
+    terminal?.clear(); terminal?.writeln(`$ ${language} interactive session`);
+    const scheme = window.location.protocol === "https:" ? "wss" : "ws";
+    const socket = new WebSocket(`${scheme}://${window.location.host}${apiBase}/programming/exercises/${exercise.id}/interactive`);
+    terminalSocketRef.current = socket;
+    runSessionRef.current = crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`;
+    socket.onopen = () => socket.send(JSON.stringify({ type: "start", username: user.username, user_id: user.id, exercise_id: exercise.id, project_id: project.id, run_session_id: runSessionRef.current, language }));
+    socket.onmessage = (event) => {
+      const message = JSON.parse(event.data || "{}");
+      if (message.type === "stdout" || message.type === "stderr") terminal?.write(message.data || "");
+      if (message.type === "status") { terminal?.writeln(`\r\n[${message.message}]`); setStatus(message.message); }
+      if (message.type === "compile_error" || message.type === "error") { terminal?.writeln(`\r\n${message.message}`); setStatus(message.message); setRunDetailsOpen(true); }
+      if (message.type === "exit") { terminal?.writeln(`\r\n[进程已退出，退出代码 ${message.exit_code}]`); setRunResult(message); setStatus(`退出代码 ${message.exit_code}`); setBusy(""); }
+    };
+    socket.onerror = () => { terminal?.writeln("\r\n[WebSocket 连接失败]"); setStatus("实时终端连接失败"); setBusy(""); };
+    socket.onclose = () => { terminalSocketRef.current = null; setBusy(""); };
+    if (queuedInput) window.setTimeout(() => socket.readyState === WebSocket.OPEN && socket.send(JSON.stringify({ type: "stdin", data: queuedInput })), 500);
   };
+
+  const runExerciseInteractive = () => startInteractiveSession();
 
   const runExerciseSample = async (sampleIndex) => {
     if (!exercise?.id || !project?.id) return;
@@ -1955,6 +1984,7 @@ export default function ProgrammingWorkbench({
                           <button type="button" className="pw-copy-sample-input" onClick={() => copyProtocolInput(sample.stdin_text || "")}>
                             复制输入
                           </button>
+                          <button type="button" className="pw-send-sample-input" onClick={() => startInteractiveSession(sample.stdin_text || "")}>发送到运行终端</button>
                         </article>
                       ))
                     ) : <p className="pw-exercise-example-empty">官方没有提供可公开展示的测试样例。</p>}
@@ -2193,12 +2223,15 @@ export default function ProgrammingWorkbench({
               ) : activeResultTab === "run" ? (
                 <div className="pw-run-result">
                   {exercise && (
-                    <div className="pw-terminal-input">
-                      <label htmlFor="pw-terminal-input">标准输入 stdin</label>
-                      <textarea id="pw-terminal-input" value={terminalInput} onChange={(event) => setTerminalInput(event.target.value)} placeholder="输入要传给程序的内容，支持多行" rows={3} />
+                    <div className="pw-terminal-shell">
+                      <div ref={terminalNodeRef} className="pw-xterm" aria-label="实时交互终端" />
                       <div className="pw-terminal-input-actions">
-                        <button type="button" onClick={() => setTerminalInput("")} disabled={!terminalInput}>清空终端</button>
-                        <span>点击“运行”后仅执行当前代码，不执行官方测试。</span>
+                        <button type="button" onClick={() => terminalRef.current?.clear()}>清空终端</button>
+                        <button type="button" onClick={() => startInteractiveSession()}>重新运行</button>
+                        <button type="button" onClick={() => terminalSocketRef.current?.send(JSON.stringify({ type: "stop" }))}>停止程序</button>
+                        <button type="button" onClick={() => terminalSocketRef.current?.send(JSON.stringify({ type: "eof" }))}>发送 EOF</button>
+                        <button type="button" onClick={() => navigator.clipboard?.writeText(terminalRef.current?.buffer?.active?.getLine(0)?.translateToString() || "")}>复制输出</button>
+                        <span>Enter 发送当前行 · Ctrl+C 终止 · Ctrl+D EOF · Ctrl+L 清屏</span>
                       </div>
                     </div>
                   )}

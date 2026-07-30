@@ -1,0 +1,1222 @@
+{
+  "database": "C:\\Users\\26477\\Desktop\\ai_study_platform\\backend\\app.db",
+  "total": 76,
+  "results": [
+    {
+      "language": "C",
+      "exercise_id": 7,
+      "public_case_count": 1,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "not_executed",
+      "failure_reasons": [
+        "需要在隔离运行器中执行参考解、错误解和终端逐行输入审计"
+      ]
+    },
+    {
+      "language": "C",
+      "exercise_id": 8,
+      "public_case_count": 7,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "C",
+      "exercise_id": 9,
+      "public_case_count": 9,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "C",
+      "exercise_id": 10,
+      "public_case_count": 25,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "C",
+      "exercise_id": 34,
+      "public_case_count": 9,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "C",
+      "exercise_id": 35,
+      "public_case_count": 10,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "C",
+      "exercise_id": 36,
+      "public_case_count": 9,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "C",
+      "exercise_id": 37,
+      "public_case_count": 15,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "C",
+      "exercise_id": 38,
+      "public_case_count": 6,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "C",
+      "exercise_id": 39,
+      "public_case_count": 13,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "C",
+      "exercise_id": 40,
+      "public_case_count": 13,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "C",
+      "exercise_id": 41,
+      "public_case_count": 4,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "C",
+      "exercise_id": 42,
+      "public_case_count": 9,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "C",
+      "exercise_id": 43,
+      "public_case_count": 13,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "C",
+      "exercise_id": 44,
+      "public_case_count": 17,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "C",
+      "exercise_id": 45,
+      "public_case_count": 7,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "C",
+      "exercise_id": 46,
+      "public_case_count": 6,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "C",
+      "exercise_id": 47,
+      "public_case_count": 9,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "C",
+      "exercise_id": 48,
+      "public_case_count": 3,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "C",
+      "exercise_id": 49,
+      "public_case_count": 9,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "C",
+      "exercise_id": 50,
+      "public_case_count": 11,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "C",
+      "exercise_id": 51,
+      "public_case_count": 6,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "C",
+      "exercise_id": 52,
+      "public_case_count": 7,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "C++",
+      "exercise_id": 11,
+      "public_case_count": 1,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "not_executed",
+      "failure_reasons": [
+        "需要在隔离运行器中执行参考解、错误解和终端逐行输入审计"
+      ]
+    },
+    {
+      "language": "C++",
+      "exercise_id": 12,
+      "public_case_count": 5,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "C++",
+      "exercise_id": 13,
+      "public_case_count": 9,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "C++",
+      "exercise_id": 14,
+      "public_case_count": 27,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "C++",
+      "exercise_id": 53,
+      "public_case_count": 0,
+      "input_format_ok": false,
+      "output_format_ok": false,
+      "official_source_ok": false,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "没有结构化公开样例"
+      ]
+    },
+    {
+      "language": "C++",
+      "exercise_id": 54,
+      "public_case_count": 0,
+      "input_format_ok": false,
+      "output_format_ok": false,
+      "official_source_ok": false,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "没有结构化公开样例"
+      ]
+    },
+    {
+      "language": "C++",
+      "exercise_id": 55,
+      "public_case_count": 0,
+      "input_format_ok": false,
+      "output_format_ok": false,
+      "official_source_ok": false,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "没有结构化公开样例"
+      ]
+    },
+    {
+      "language": "C++",
+      "exercise_id": 56,
+      "public_case_count": 0,
+      "input_format_ok": false,
+      "output_format_ok": false,
+      "official_source_ok": false,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "没有结构化公开样例"
+      ]
+    },
+    {
+      "language": "C++",
+      "exercise_id": 57,
+      "public_case_count": 19,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "C++",
+      "exercise_id": 58,
+      "public_case_count": 0,
+      "input_format_ok": false,
+      "output_format_ok": false,
+      "official_source_ok": false,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "没有结构化公开样例"
+      ]
+    },
+    {
+      "language": "C++",
+      "exercise_id": 59,
+      "public_case_count": 0,
+      "input_format_ok": false,
+      "output_format_ok": false,
+      "official_source_ok": false,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "没有结构化公开样例"
+      ]
+    },
+    {
+      "language": "C++",
+      "exercise_id": 60,
+      "public_case_count": 0,
+      "input_format_ok": false,
+      "output_format_ok": false,
+      "official_source_ok": false,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "没有结构化公开样例"
+      ]
+    },
+    {
+      "language": "C++",
+      "exercise_id": 61,
+      "public_case_count": 0,
+      "input_format_ok": false,
+      "output_format_ok": false,
+      "official_source_ok": false,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "没有结构化公开样例"
+      ]
+    },
+    {
+      "language": "C++",
+      "exercise_id": 62,
+      "public_case_count": 21,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "C++",
+      "exercise_id": 63,
+      "public_case_count": 0,
+      "input_format_ok": false,
+      "output_format_ok": false,
+      "official_source_ok": false,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "没有结构化公开样例"
+      ]
+    },
+    {
+      "language": "C++",
+      "exercise_id": 64,
+      "public_case_count": 0,
+      "input_format_ok": false,
+      "output_format_ok": false,
+      "official_source_ok": false,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "没有结构化公开样例"
+      ]
+    },
+    {
+      "language": "C++",
+      "exercise_id": 65,
+      "public_case_count": 0,
+      "input_format_ok": false,
+      "output_format_ok": false,
+      "official_source_ok": false,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "没有结构化公开样例"
+      ]
+    },
+    {
+      "language": "C++",
+      "exercise_id": 66,
+      "public_case_count": 9,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "C++",
+      "exercise_id": 67,
+      "public_case_count": 0,
+      "input_format_ok": false,
+      "output_format_ok": false,
+      "official_source_ok": false,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "没有结构化公开样例"
+      ]
+    },
+    {
+      "language": "C++",
+      "exercise_id": 68,
+      "public_case_count": 0,
+      "input_format_ok": false,
+      "output_format_ok": false,
+      "official_source_ok": false,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "没有结构化公开样例"
+      ]
+    },
+    {
+      "language": "C++",
+      "exercise_id": 69,
+      "public_case_count": 6,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "C++",
+      "exercise_id": 70,
+      "public_case_count": 13,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "C++",
+      "exercise_id": 71,
+      "public_case_count": 8,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "Java",
+      "exercise_id": 73,
+      "public_case_count": 1,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "not_executed",
+      "failure_reasons": [
+        "需要在隔离运行器中执行参考解、错误解和终端逐行输入审计"
+      ]
+    },
+    {
+      "language": "Java",
+      "exercise_id": 74,
+      "public_case_count": 0,
+      "input_format_ok": false,
+      "output_format_ok": false,
+      "official_source_ok": false,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "没有结构化公开样例"
+      ]
+    },
+    {
+      "language": "Java",
+      "exercise_id": 75,
+      "public_case_count": 0,
+      "input_format_ok": false,
+      "output_format_ok": false,
+      "official_source_ok": false,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "没有结构化公开样例"
+      ]
+    },
+    {
+      "language": "Java",
+      "exercise_id": 76,
+      "public_case_count": 6,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "Java",
+      "exercise_id": 77,
+      "public_case_count": 6,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1,
+      "public_case_count": 11,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "Python",
+      "exercise_id": 2,
+      "public_case_count": 17,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "Python",
+      "exercise_id": 3,
+      "public_case_count": 26,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "Python",
+      "exercise_id": 4,
+      "public_case_count": 1,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "not_executed",
+      "failure_reasons": [
+        "需要在隔离运行器中执行参考解、错误解和终端逐行输入审计"
+      ]
+    },
+    {
+      "language": "Python",
+      "exercise_id": 5,
+      "public_case_count": 7,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "Python",
+      "exercise_id": 6,
+      "public_case_count": 9,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "Python",
+      "exercise_id": 15,
+      "public_case_count": 18,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "Python",
+      "exercise_id": 16,
+      "public_case_count": 9,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "Python",
+      "exercise_id": 17,
+      "public_case_count": 11,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "Python",
+      "exercise_id": 18,
+      "public_case_count": 0,
+      "input_format_ok": false,
+      "output_format_ok": false,
+      "official_source_ok": false,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "没有结构化公开样例"
+      ]
+    },
+    {
+      "language": "Python",
+      "exercise_id": 19,
+      "public_case_count": 0,
+      "input_format_ok": false,
+      "output_format_ok": false,
+      "official_source_ok": false,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "没有结构化公开样例"
+      ]
+    },
+    {
+      "language": "Python",
+      "exercise_id": 20,
+      "public_case_count": 0,
+      "input_format_ok": false,
+      "output_format_ok": false,
+      "official_source_ok": false,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "没有结构化公开样例"
+      ]
+    },
+    {
+      "language": "Python",
+      "exercise_id": 21,
+      "public_case_count": 0,
+      "input_format_ok": false,
+      "output_format_ok": false,
+      "official_source_ok": false,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "没有结构化公开样例"
+      ]
+    },
+    {
+      "language": "Python",
+      "exercise_id": 22,
+      "public_case_count": 6,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "Python",
+      "exercise_id": 23,
+      "public_case_count": 0,
+      "input_format_ok": false,
+      "output_format_ok": false,
+      "official_source_ok": false,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "没有结构化公开样例"
+      ]
+    },
+    {
+      "language": "Python",
+      "exercise_id": 24,
+      "public_case_count": 13,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "Python",
+      "exercise_id": 25,
+      "public_case_count": 9,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "Python",
+      "exercise_id": 26,
+      "public_case_count": 0,
+      "input_format_ok": false,
+      "output_format_ok": false,
+      "official_source_ok": false,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "没有结构化公开样例"
+      ]
+    },
+    {
+      "language": "Python",
+      "exercise_id": 27,
+      "public_case_count": 0,
+      "input_format_ok": false,
+      "output_format_ok": false,
+      "official_source_ok": false,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "没有结构化公开样例"
+      ]
+    },
+    {
+      "language": "Python",
+      "exercise_id": 28,
+      "public_case_count": 4,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "Python",
+      "exercise_id": 29,
+      "public_case_count": 11,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "Python",
+      "exercise_id": 30,
+      "public_case_count": 0,
+      "input_format_ok": false,
+      "output_format_ok": false,
+      "official_source_ok": false,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "没有结构化公开样例"
+      ]
+    },
+    {
+      "language": "Python",
+      "exercise_id": 31,
+      "public_case_count": 5,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "Python",
+      "exercise_id": 32,
+      "public_case_count": 11,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    },
+    {
+      "language": "Python",
+      "exercise_id": 72,
+      "public_case_count": 15,
+      "input_format_ok": true,
+      "output_format_ok": true,
+      "official_source_ok": true,
+      "terminal_input_ok": false,
+      "reference_cases_passed": false,
+      "wrong_solution_rejected": false,
+      "hidden_case_leakage": false,
+      "final_status": "failed",
+      "failure_reasons": [
+        "样例输入仍疑似包含 JSON 参数"
+      ]
+    }
+  ]
+}

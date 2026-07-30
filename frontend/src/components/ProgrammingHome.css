@@ -1020,3 +1020,7 @@
   font-size: 12px;
   font-weight: 700;
 }
+.ph-exercise-personal-status--needs_work { background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5; }
+.ph-exercise-personal-status--not_started { background: #eef2f7; color: #64748b; }
+.ph-exercise-personal-status--passed { background: #ecfdf5; color: #16a34a; }
+.ph-pagination { display: flex; gap: 12px; align-items: center; justify-content: flex-end; margin-top: 16px; }
