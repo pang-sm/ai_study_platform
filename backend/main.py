@@ -28034,14 +28034,15 @@ def ensure_feature_enabled(db, key, message):
 # ── Interactive Terminal WebSocket ─────────────────────
 
 @app.websocket("/api/programming/exercises/{exercise_id}/interactive")
-async def programming_exercise_interactive(exercise_id: int, ws: WebSocket):
+async def programming_exercise_interactive(exercise_id: int, ws: WebSocket, initial_config: dict | None = None):
     """Run the saved exercise project and stream its real process I/O."""
-    await ws.accept()
+    if initial_config is None:
+        await ws.accept()
     proc = None
     tmp_dir = None
     acquired = False
     try:
-        config = json.loads(await ws.receive_text())
+        config = initial_config or json.loads(await ws.receive_text())
         username = str(config.get("username") or "").strip()
         run_session_id = str(config.get("run_session_id") or uuid.uuid4())
         if not username:
@@ -28170,6 +28171,12 @@ async def interactive_run(ws: WebSocket):
         await ws.send_text(json.dumps({"type": "error", "message": "连接参数无效"}))
         await ws.close()
         return
+
+    # Keep the long-standing /api/code WebSocket proxy entry point for
+    # deployments whose reverse proxy only upgrades that location. Exercise
+    # sessions still use the PTY implementation above.
+    if config.get("exercise_id") and config.get("project_id"):
+        return await programming_exercise_interactive(int(config["exercise_id"]), ws, config)
 
     language = (config.get("language", "") or "").strip().lower()
     code = (config.get("code", "") or "")

@@ -29,7 +29,7 @@ function buildCourseLearningId(courseName) {
 const STATUS_CONFIG = {
   not_started: { label: "未学习", shortLabel: "未学习", color: "#64748b", bg: "#f1f5f9" },
   learning: { label: "学习中", shortLabel: "学习中", color: "#7c3aed", bg: "#ede9fe" },
-  mastered: { label: "已掌握", shortLabel: "已掌握", color: "#16a34a", bg: "#dcfce7" },
+  mastered: { label: "已学习", shortLabel: "已学习", color: "#16a34a", bg: "#dcfce7" },
   review_due: { label: "待复习", shortLabel: "待复习", color: "#dc2626", bg: "#fee2e2" },
 };
 
@@ -37,7 +37,7 @@ const STATUS_OPTIONS = [
   { value: "all", label: "全部" },
   { value: "not_started", label: "未学习" },
   { value: "learning", label: "学习中" },
-  { value: "mastered", label: "已掌握" },
+  { value: "mastered", label: "已学习" },
   { value: "review_due", label: "待复习" },
 ];
 

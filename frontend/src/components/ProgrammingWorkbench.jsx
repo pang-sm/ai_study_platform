@@ -1592,7 +1592,7 @@ export default function ProgrammingWorkbench({
     const terminal = terminalRef.current;
     terminal?.clear(); terminal?.writeln(`$ ${language} interactive session`);
     const scheme = window.location.protocol === "https:" ? "wss" : "ws";
-    const socket = new WebSocket(`${scheme}://${window.location.host}${apiBase}/programming/exercises/${exercise.id}/interactive`);
+    const socket = new WebSocket(`${scheme}://${window.location.host}${apiBase}/code/interactive-run`);
     terminalSocketRef.current = socket;
     runSessionRef.current = crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`;
     setTerminalConnection("connecting");

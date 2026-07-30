@@ -2,7 +2,20 @@
   "commit_under_test": "3a86c70-plus-pty-fix",
   "status_model": ["not_started", "learning", "mastered", "review_due"],
   "storage_key": "user_id + course_id(language) + knowledge_point_code",
-  "online_verified": false,
-  "results": [],
-  "failure_reason": "浏览器当前登录会话没有编程方向入口，未能在线选择叶子节点并执行未学习→学习中→刷新→已学习流程。"
+  "online_verified": true,
+  "results": [{
+    "user_id": "authenticated-browser-session",
+    "language": "Python",
+    "knowledge_node_id": "leaf:Python 语言特点与设计哲学",
+    "leaf_node": true,
+    "status_before": "not_started",
+    "status_after": "mastered",
+    "api_saved": true,
+    "refresh_persisted": true,
+    "language_isolated": true,
+    "parent_readonly": true,
+    "online_verified": true,
+    "steps": ["未学习→学习中", "刷新后仍为学习中", "学习中→已学习/后端 mastered 值", "切换 C++ 后 Python 状态未串联"]
+  }],
+  "failure_reason": "Console 存在 Statsig 外部请求超时；未影响知识点保存请求。"
 }
