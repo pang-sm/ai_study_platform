@@ -1,7 +1,11 @@
 # Terminal interaction audit
 
-本报告明确区分代码检查和真实浏览器交互。Linux PTY 代码已加入后端，前端已移除 local echo，改为把每个按键发送给 PTY，由 PTY 回显。
+Commit under test: `5f0f694`  
+Online deployment run: `30552316701` (success)  
+Online URL: `http://101.32.190.42/`
 
-本轮浏览器实际加载了 `http://localhost:5173/`，但现有登录会话是 11408 用户，页面没有编程方向入口；因此没有伪造 Python/C/C++/Java 终端通过结果。线上 Workbench 交互、截图、Console 和 Network 仍待有编程方向权限的登录会话完成。
+The real online Workbench now mounts xterm after the asynchronously loaded exercise appears. DOM evidence showed `.pw-xterm` with a real xterm terminal and `Terminal input`; the online run displayed compile/startup messages and exit code 0. The deployed WebSocket endpoint also completed the HTTP 101 upgrade.
 
-四种语言当前均为 `online_verified=false`，详见 `terminal-interaction-audit.json`。
+Python `gigasecond` was used for the online smoke test, but it is a function-only exercise without top-level input, so it cannot prove the requested `Tom`/`18` multi-step interaction. C, C++, Java, Ctrl+C, EOF, stderr ordering, and a hidden adapter remain unverified and are explicitly not marked passed.
+
+Screenshot: `verification-screenshots/terminal-online-pty-mounted.png`

@@ -1,15 +1,33 @@
 {
-  "commit_under_test": "3a86c70-plus-pty-fix",
+  "commit_under_test": "5f0f694",
   "environment": {
     "local_url": "http://localhost:5173/",
     "online_url": "http://101.32.190.42/",
     "browser_page_loaded": true,
-    "programming_route_reached": false
+    "programming_route_reached": true,
+    "online_run_id": 30552316701
   },
   "results": [
-    {"language":"Python","exercise_id":null,"websocket_connected":false,"pty_started":true,"input_visible":false,"input_sent":false,"multi_step_input_ok":false,"stdout_realtime":false,"stderr_realtime":false,"exit_code_visible":false,"stop_ok":false,"eof_ok":false,"cleanup_ok":true,"online_verified":false,"screenshot_path":null,"failure_reason":"当前浏览器会话没有编程方向，未进入 Workbench；代码级 PTY 实现已加入。"},
-    {"language":"C","exercise_id":null,"websocket_connected":false,"pty_started":true,"input_visible":false,"input_sent":false,"multi_step_input_ok":false,"stdout_realtime":false,"stderr_realtime":false,"exit_code_visible":false,"stop_ok":false,"eof_ok":false,"cleanup_ok":true,"online_verified":false,"screenshot_path":null,"failure_reason":"当前浏览器会话没有编程方向，未进入 Workbench；代码级 PTY 实现已加入。"},
-    {"language":"C++","exercise_id":null,"websocket_connected":false,"pty_started":true,"input_visible":false,"input_sent":false,"multi_step_input_ok":false,"stdout_realtime":false,"stderr_realtime":false,"exit_code_visible":false,"stop_ok":false,"eof_ok":false,"cleanup_ok":true,"online_verified":false,"screenshot_path":null,"failure_reason":"当前浏览器会话没有编程方向，未进入 Workbench；代码级 PTY 实现已加入。"},
-    {"language":"Java","exercise_id":null,"websocket_connected":false,"pty_started":true,"input_visible":false,"input_sent":false,"multi_step_input_ok":false,"stdout_realtime":false,"stderr_realtime":false,"exit_code_visible":false,"stop_ok":false,"eof_ok":false,"cleanup_ok":true,"online_verified":false,"screenshot_path":null,"failure_reason":"当前浏览器会话没有编程方向，未进入 Workbench；代码级 PTY 实现已加入。"}
+    {
+      "language": "Python",
+      "exercise_id": "gigasecond",
+      "websocket_connected": true,
+      "pty_started": true,
+      "input_visible": "terminal input control mounted; no input-bearing program available",
+      "input_sent": false,
+      "multi_step_input_ok": false,
+      "stdout_realtime": "startup/status stream verified; stdout case not applicable",
+      "stderr_realtime": false,
+      "exit_code_visible": true,
+      "stop_ok": false,
+      "eof_ok": false,
+      "cleanup_ok": true,
+      "online_verified": true,
+      "screenshot_path": "verification-screenshots/terminal-online-pty-mounted.png",
+      "failure_reason": "真实线上 gigasecond 函数题无顶层 input，进程正常以退出码 0 结束；Tom/18 双步输入、Ctrl+C、EOF、stderr 尚未完成。"
+    },
+    {"language":"C","exercise_id":null,"websocket_connected":false,"pty_started":false,"input_visible":false,"input_sent":false,"multi_step_input_ok":false,"stdout_realtime":false,"stderr_realtime":false,"exit_code_visible":false,"stop_ok":false,"eof_ok":false,"cleanup_ok":false,"online_verified":false,"screenshot_path":null,"failure_reason":"未完成真实线上 C 程序逐行输入回归。"},
+    {"language":"C++","exercise_id":null,"websocket_connected":false,"pty_started":false,"input_visible":false,"input_sent":false,"multi_step_input_ok":false,"stdout_realtime":false,"stderr_realtime":false,"exit_code_visible":false,"stop_ok":false,"eof_ok":false,"cleanup_ok":false,"online_verified":false,"screenshot_path":null,"failure_reason":"未完成真实线上 C++ 程序逐行输入回归。"},
+    {"language":"Java","exercise_id":null,"websocket_connected":false,"pty_started":false,"input_visible":false,"input_sent":false,"multi_step_input_ok":false,"stdout_realtime":false,"stderr_realtime":false,"exit_code_visible":false,"stop_ok":false,"eof_ok":false,"cleanup_ok":false,"online_verified":false,"screenshot_path":null,"failure_reason":"未完成真实线上 Java 程序逐行输入回归。"}
   ]
 }
