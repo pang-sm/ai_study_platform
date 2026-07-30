@@ -72,6 +72,7 @@ class ProgrammingExerciseRunRequest(BaseModel):
     entry_file: str | None = None
     main_class: str | None = None
     source_files: list[str] | None = None
+    public_case_ids: list[str] | None = None
 
 
 class ProgrammingExerciseSampleRunRequest(BaseModel):

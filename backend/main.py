@@ -9568,10 +9568,11 @@ def _run_public_sample_cases(
     project: models.CodeProject,
     exercise: models.ProgrammingExercise,
     files: list[models.CodeProjectFile],
+    samples: list[dict] | None = None,
 ) -> list[dict]:
     """Run each published sample independently for the learner-facing result modal."""
     cases = []
-    for index, sample in enumerate(_public_exercise_samples(exercise)):
+    for index, sample in enumerate(samples if samples is not None else _public_exercise_samples(exercise)):
         try:
             sample_result = _run_public_sample(project, exercise, files, sample)
             case = _exercise_case_from_result(sample_result, sample)
@@ -9625,31 +9626,35 @@ def test_programming_exercise(exercise_id: int, req: schemas.ProgrammingExercise
     project = get_code_project_or_404(req.project_id, user.username, db)
     if not exercise or project.programming_exercise_id != exercise.id:
         raise HTTPException(status_code=404, detail="题目项目不存在")
+    public_samples = _public_exercise_samples(exercise)
+    selected_ids = {str(value) for value in (req.public_case_ids or []) if str(value).strip()}
+    if not selected_ids:
+        raise HTTPException(status_code=400, detail="至少选择一个公开测试样例")
+    selected_samples = [sample for sample in public_samples if str(sample.get("id") or "") in selected_ids]
+    if not selected_samples:
+        raise HTTPException(status_code=400, detail="所选公开测试样例不存在")
     project_files = list_project_files(project.id, db)
-    result = _run_official_exercise_tests(project, exercise, project_files, submission=False)
-    public_cases = []
-    if result.get("compile_error") or "compile" in result.get("failed_categories", []):
-        for sample in _public_exercise_samples(exercise):
-            public_cases.append({
-                "id": sample.get("id"), "name": sample.get("name"), "status": "not_run",
-                "reason": "代码编译失败，样例未执行", "stdin_text": sample.get("stdin_text", ""),
-                "expected_stdout": sample.get("expected_stdout", ""), "duration_ms": 0,
-            })
-        result["summary"] = "全部样例未执行"
-    else:
-        public_cases = _run_public_sample_cases(project, exercise, project_files)
+    started = time.time()
+    public_cases = _run_public_sample_cases(project, exercise, project_files, selected_samples)
+    passed_count = sum(1 for case in public_cases if case.get("status") == "passed")
+    result = {
+        "success": True,
+        "passed": passed_count == len(public_cases),
+        "passed_count": passed_count,
+        "total_count": len(public_cases),
+        "failed_categories": [] if passed_count == len(public_cases) else ["tests"],
+        "duration_ms": int((time.time() - started) * 1000),
+        "exit_code": 0 if passed_count == len(public_cases) else 1,
+        "tests_executed": "public_only",
+    }
     if public_cases:
         result["cases"] = public_cases
-        result["passed_count"] = sum(1 for case in public_cases if case.get("status") == "passed")
-        result["total_count"] = len(public_cases)
-        result["passed"] = all(case.get("status") == "passed" for case in public_cases)
-        if not result.get("compile_error") and "compile" not in result.get("failed_categories", []):
-            result["summary"] = (
-                f"通过 {result['passed_count']}/{result['total_count']}"
-                if result["passed"]
-                else f"{result['total_count'] - result['passed_count']} 个样例未通过"
-            )
-    return _exercise_run_summary(result, exercise, submission=False)
+        result["summary"] = f"通过 {passed_count}/{len(public_cases)}" if result["passed"] else f"{len(public_cases) - passed_count} 个样例未通过"
+    payload = _exercise_run_summary(result, exercise, submission=False)
+    payload["public_case_ids"] = [str(sample.get("id") or "") for sample in selected_samples]
+    payload["tests_executed"] = "public_only"
+    payload["state_updated"] = False
+    return payload
 
 
 @app.post("/programming/exercises/{exercise_id}/run")

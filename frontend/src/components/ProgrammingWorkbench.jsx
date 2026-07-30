@@ -577,6 +577,43 @@ function MarkdownResourceView({ value, mode, onModeChange }) {
   );
 }
 
+function ExerciseTestPickerModal({ samples, selectedIds, onChange, onClose, onStart }) {
+  const allIds = (samples || []).map((sample) => String(sample.id || "")).filter(Boolean);
+  const allSelected = allIds.length > 0 && allIds.every((id) => selectedIds.includes(id));
+  return (
+    <div className="pw-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section className="pw-result-modal pw-test-picker" role="dialog" aria-modal="true" aria-labelledby="pw-test-picker-title">
+        <header className="pw-result-modal-head">
+          <div>
+            <span className="pw-modal-eyebrow">公开测试样例</span>
+            <h2 id="pw-test-picker-title">选择要测试的样例</h2>
+          </div>
+          <button type="button" className="pw-modal-close" onClick={onClose} aria-label="关闭">×</button>
+        </header>
+        <div className="pw-test-picker-toolbar">
+          <button type="button" onClick={() => onChange(allSelected ? [] : allIds)}>{allSelected ? "取消全选" : "全选"}</button>
+          <span>测试只运行选中的公开样例，不执行隐藏测试。</span>
+        </div>
+        <div className="pw-test-picker-list">
+          {(samples || []).map((sample) => {
+            const id = String(sample.id || "");
+            return (
+              <label key={id} className="pw-test-picker-item">
+                <input type="checkbox" checked={selectedIds.includes(id)} onChange={() => onChange(selectedIds.includes(id) ? selectedIds.filter((value) => value !== id) : [...selectedIds, id])} />
+                <span><strong>{sample.name || "测试样例"}</strong><code>{sample.stdin_text || "无输入"}</code></span>
+              </label>
+            );
+          })}
+        </div>
+        <footer className="pw-test-picker-footer">
+          <button type="button" onClick={onClose}>取消</button>
+          <button type="button" className="pw-top-exercise-action--primary" onClick={onStart} disabled={!selectedIds.length}>开始测试（{selectedIds.length}）</button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
 export default function ProgrammingWorkbench({
   user,
   apiBase = "/api",
@@ -624,6 +661,8 @@ export default function ProgrammingWorkbench({
   const [selectedSampleIndex, setSelectedSampleIndex] = useState(null);
   const [sampleResult, setSampleResult] = useState(null);
   const [testModal, setTestModal] = useState(null);
+  const [testPickerOpen, setTestPickerOpen] = useState(false);
+  const [testSelectionIds, setTestSelectionIds] = useState([]);
   const [testModalFilter, setTestModalFilter] = useState("all");
   const [fileListOpen, setFileListOpen] = useState(false);
   const [busy, setBusy] = useState("");
@@ -1571,7 +1610,12 @@ export default function ProgrammingWorkbench({
     }
   };
 
-  const runExerciseCheck = async (submission) => {
+  const openPublicTestPicker = () => {
+    setTestSelectionIds((exercise?.public_samples || []).map((sample) => String(sample.id || "")).filter(Boolean));
+    setTestPickerOpen(true);
+  };
+
+  const runExerciseCheck = async (submission, publicCaseIds = null) => {
     if (!exercise?.id || !project?.id) return;
     setBusy(submission ? "submit" : "test");
     setSampleResult(null);
@@ -1582,7 +1626,11 @@ export default function ProgrammingWorkbench({
       const res = await fetch(`${apiBase}/programming/exercises/${exercise.id}/${submission ? "submit" : "test"}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: user.username, project_id: project.id }),
+        body: JSON.stringify({
+          username: user.username,
+          project_id: project.id,
+          ...(submission ? {} : { public_case_ids: publicCaseIds || [] }),
+        }),
       });
       const data = await safeJson(res);
       if (!res.ok) throw new Error(data.detail || "题目校验失败");
@@ -1592,6 +1640,7 @@ export default function ProgrammingWorkbench({
       setFeedback(`通过 ${data.passed_count}/${data.total_count}\n${data.ai_explanation || ""}`);
       setTestModal({ mode: submission ? "submit" : "test" });
       setTestModalFilter("all");
+      setTestPickerOpen(false);
       setStatus(data.passed ? "题目校验通过" : "题目校验未通过");
     } catch (err) {
       setStatus(err.message || "题目校验失败");
@@ -1829,7 +1878,7 @@ export default function ProgrammingWorkbench({
               </button>
               {exercise && (
                 <>
-                  <button type="button" className="pw-top-exercise-action" onClick={() => runExerciseCheck(false)} disabled={!project || busy === "test" || busy === "submit"} title="选择公开测试样例后运行">测试</button>
+                  <button type="button" className="pw-top-exercise-action" onClick={openPublicTestPicker} disabled={!project || busy === "test" || busy === "submit"} title="选择公开测试样例后运行">测试</button>
                   <button type="button" className="pw-top-exercise-action pw-top-exercise-action--primary" onClick={() => runExerciseCheck(true)} disabled={!project || busy === "test" || busy === "submit"} title="提交并运行完整官方测试">提交</button>
                   <div className="pw-file-list-wrap">
                     <button type="button" className="pw-top-exercise-action pw-file-list-trigger" onClick={() => setFileListOpen((open) => !open)} disabled={!editableFiles.length} aria-expanded={fileListOpen}>
@@ -2216,6 +2265,16 @@ export default function ProgrammingWorkbench({
         </div>
       </div>
 
+      {testPickerOpen && exercise && (
+        <ExerciseTestPickerModal
+          samples={exercise.public_samples || []}
+          selectedIds={testSelectionIds}
+          onChange={setTestSelectionIds}
+          onClose={() => setTestPickerOpen(false)}
+          onStart={() => runExerciseCheck(false, testSelectionIds)}
+        />
+      )}
+
       {testModal && exerciseResult && (
         <ExerciseResultModal
           result={exerciseResult}
@@ -2223,7 +2282,7 @@ export default function ProgrammingWorkbench({
           filter={testModalFilter}
           onFilterChange={setTestModalFilter}
           onClose={() => setTestModal(null)}
-          onRerun={() => runExerciseCheck(testModal.mode === "submit")}
+          onRerun={() => runExerciseCheck(testModal.mode === "submit", testSelectionIds)}
           busy={busy === "test" || busy === "submit"}
         />
       )}
