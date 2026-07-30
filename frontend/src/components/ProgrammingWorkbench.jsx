@@ -974,7 +974,7 @@ export default function ProgrammingWorkbench({
     const resize = () => fit.fit();
     window.addEventListener("resize", resize);
     return () => { disposable.dispose(); window.removeEventListener("resize", resize); terminal.dispose(); terminalRef.current = null; terminalFitRef.current = null; };
-  }, []);
+  }, [exercise?.id]);
 
   useEffect(() => () => {
     terminalSocketRef.current?.send(JSON.stringify({ type: "stop" }));
