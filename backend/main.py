@@ -9652,6 +9652,40 @@ def test_programming_exercise(exercise_id: int, req: schemas.ProgrammingExercise
     return _exercise_run_summary(result, exercise, submission=False)
 
 
+@app.post("/programming/exercises/{exercise_id}/run")
+def run_programming_exercise(exercise_id: int, req: schemas.ProgrammingExerciseRunRequest, db: Session = Depends(get_db)):
+    """Run the learner's current program with user-provided stdin only.
+
+    This endpoint intentionally does not load or execute any official test
+    bundle and does not update exercise, knowledge, or mastery state.
+    """
+    user = get_user_by_username(req.username, db)
+    exercise = db.query(models.ProgrammingExercise).filter_by(id=exercise_id).first()
+    project = get_code_project_or_404(req.project_id, user.username, db)
+    if not exercise or project.programming_exercise_id != exercise.id:
+        raise HTTPException(status_code=404, detail="题目项目不存在")
+    result = execute_code_project(
+        project.id,
+        schemas.CodeProjectExecuteRequest(
+            username=user.username,
+            stdin=(req.stdin or "")[:MAX_STDIN_CHARS],
+            run_mode="interactive",
+            entry_file=req.entry_file or project.entry_file,
+            main_class=req.main_class or project.main_class,
+            source_files=req.source_files,
+        ),
+        db,
+    )
+    return {
+        **result,
+        "mode": "run",
+        "exercise_id": exercise.id,
+        "project_id": project.id,
+        "tests_executed": False,
+        "state_updated": False,
+    }
+
+
 @app.post("/programming/exercises/{exercise_id}/submit")
 def submit_programming_exercise(exercise_id: int, req: schemas.ProgrammingExerciseRunRequest, db: Session = Depends(get_db)):
     user = get_user_by_username(req.username, db)

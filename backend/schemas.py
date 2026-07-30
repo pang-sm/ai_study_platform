@@ -68,6 +68,10 @@ class ProgrammingExerciseStartRequest(BaseModel):
 class ProgrammingExerciseRunRequest(BaseModel):
     username: str
     project_id: int
+    stdin: str = ""
+    entry_file: str | None = None
+    main_class: str | None = None
+    source_files: list[str] | None = None
 
 
 class ProgrammingExerciseSampleRunRequest(BaseModel):

@@ -1934,3 +1934,54 @@
 .pw-modal-case--not_run { border-left-color: #a38abd; }
 .pw-modal-case--not_run summary span { color: #76608f; }
 .pw-modal-case-body .pw-protocol-code { margin: 0 0 3px; }
+.pw-terminal-input {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid #dbe4ee;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.pw-terminal-input label {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pw-terminal-input textarea {
+  width: 100%;
+  min-height: 64px;
+  resize: vertical;
+  box-sizing: border-box;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  padding: 8px 10px;
+  color: #0f172a;
+  background: #fff;
+  font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.pw-terminal-input-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: #64748b;
+  font-size: 11px;
+}
+
+.pw-terminal-input-actions button {
+  border: 0;
+  border-radius: 6px;
+  padding: 5px 9px;
+  color: #334155;
+  background: #e2e8f0;
+  cursor: pointer;
+}
+
+.pw-terminal-input-actions button:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}

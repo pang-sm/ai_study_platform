@@ -610,6 +610,7 @@ export default function ProgrammingWorkbench({
   const [cursorPosition, setCursorPosition] = useState({ lineNumber: 1, column: 1 });
   const [focusMode, setFocusMode] = useState(false);
   const [runResult, setRunResult] = useState(null);
+  const [terminalInput, setTerminalInput] = useState("");
   const [runDetailsOpen, setRunDetailsOpen] = useState(false);
   const [compileDiagnostics, setCompileDiagnostics] = useState([]);
   const [monacoDiagnostics, setMonacoDiagnostics] = useState([]);
@@ -1457,11 +1458,7 @@ export default function ProgrammingWorkbench({
   const runProject = async (override = {}) => {
     if (!project?.id) return;
     if (exercise) {
-      if (selectedSampleIndex !== null && !override.forceAllTests) {
-        await runExerciseSample(selectedSampleIndex);
-      } else {
-        await runExerciseCheck(false);
-      }
+      await runExerciseInteractive();
       return;
     }
     if (language === "Java" && uniqueJavaMainClasses.length > 1 && !project.main_class && !override.mainClass) {
@@ -1503,6 +1500,44 @@ export default function ProgrammingWorkbench({
       setRunResult(nextResult);
       setRunDetailsOpen(true);
       setCompileDiagnostics(parseCompilerDiagnostics(nextResult, project));
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const runExerciseInteractive = async () => {
+    if (!exercise?.id || !project?.id) return;
+    setBusy("run");
+    setSampleResult(null);
+    setExerciseResult(null);
+    setOutputCollapsed(false);
+    setActiveResultTab("run");
+    setRunDetailsOpen(false);
+    setCompileDiagnostics([]);
+    try {
+      await manualSave();
+      const res = await fetch(`${apiBase}/programming/exercises/${exercise.id}/run`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: user.username,
+          project_id: project.id,
+          stdin: terminalInput,
+          entry_file: project.entry_file,
+          main_class: project.main_class || uniqueJavaMainClasses[0] || "",
+          source_files: sourceFiles.map((file) => file.relative_path),
+        }),
+      });
+      const data = await safeJson(res);
+      if (!res.ok) throw new Error(data.detail || "运行失败");
+      setRunResult(data);
+      setRunDetailsOpen(Boolean(data.stderr || data.compile_error || data.error_message || data.exit_code !== 0));
+      setCompileDiagnostics(parseCompilerDiagnostics(data, project));
+      setStatus(data.exit_code === 0 ? "运行完成" : "运行失败");
+    } catch (err) {
+      setRunResult({ exit_code: -1, error_message: err.message || "运行失败" });
+      setRunDetailsOpen(true);
+      setStatus(err.message || "运行失败");
     } finally {
       setBusy("");
     }
@@ -1789,12 +1824,12 @@ export default function ProgrammingWorkbench({
           <div className="pw-toolbar-center">
             <div className="pw-run-cluster">
               <span className="pw-run-target" title={activeFile?.relative_path || runTargetLabel}>{project ? (activeFile?.relative_path || runTargetLabel) : "入口：未选择练习"}</span>
-              <button type="button" className="run-btn pw-icon-button pw-run-button" data-action="top-run" onClick={runProject} disabled={!project || busy === "run" || busy === "sample"} title={selectedSampleIndex === null ? "运行全部公开测试" : "运行当前样例"}>
+              <button type="button" className="run-btn pw-icon-button pw-run-button" data-action="top-run" onClick={runProject} disabled={!project || busy === "run" || busy === "sample"} title={exercise ? "使用当前 stdin 运行代码" : "运行当前项目"}>
                 {busy === "run" ? "..." : "▶ 运行"}
               </button>
               {exercise && (
                 <>
-                  <button type="button" className="pw-top-exercise-action" onClick={() => runExerciseCheck(false)} disabled={!project || busy === "test" || busy === "submit"} title="运行全部公开测试">运行全部测试</button>
+                  <button type="button" className="pw-top-exercise-action" onClick={() => runExerciseCheck(false)} disabled={!project || busy === "test" || busy === "submit"} title="选择公开测试样例后运行">测试</button>
                   <button type="button" className="pw-top-exercise-action pw-top-exercise-action--primary" onClick={() => runExerciseCheck(true)} disabled={!project || busy === "test" || busy === "submit"} title="提交并运行完整官方测试">提交</button>
                   <div className="pw-file-list-wrap">
                     <button type="button" className="pw-top-exercise-action pw-file-list-trigger" onClick={() => setFileListOpen((open) => !open)} disabled={!editableFiles.length} aria-expanded={fileListOpen}>
@@ -2108,6 +2143,16 @@ export default function ProgrammingWorkbench({
                 </div>
               ) : activeResultTab === "run" ? (
                 <div className="pw-run-result">
+                  {exercise && (
+                    <div className="pw-terminal-input">
+                      <label htmlFor="pw-terminal-input">标准输入 stdin</label>
+                      <textarea id="pw-terminal-input" value={terminalInput} onChange={(event) => setTerminalInput(event.target.value)} placeholder="输入要传给程序的内容，支持多行" rows={3} />
+                      <div className="pw-terminal-input-actions">
+                        <button type="button" onClick={() => setTerminalInput("")} disabled={!terminalInput}>清空终端</button>
+                        <span>点击“运行”后仅执行当前代码，不执行官方测试。</span>
+                      </div>
+                    </div>
+                  )}
                   {sampleResult && (
                     (() => {
                       const item = normalizeResultCase(sampleResult.cases?.[0] || {
