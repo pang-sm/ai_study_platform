@@ -1,0 +1,66 @@
+{
+  "audit_date": "2026-07-30",
+  "scope": "Chinese standard-input/output OJ pilot",
+  "records": [
+    {
+      "source_name": "Hydro",
+      "repository_or_site": "https://github.com/hydro-dev/Hydro",
+      "license": "AGPL-3.0",
+      "license_scope": "OJ software source code only; no demonstrated grant for hosted or third-party problem statements, test data, translations, or reference solutions.",
+      "problem_statement_allowed": false,
+      "test_data_allowed": false,
+      "translation_allowed": false,
+      "modification_allowed": false,
+      "commercial_use_allowed": false,
+      "attribution_required": true,
+      "source_commit_or_version": "repository license reviewed 2026-07-30",
+      "decision": "rejected",
+      "rejection_reason": "A platform software license is not evidence that its problem content can be redistributed."
+    },
+    {
+      "source_name": "HUSTOJ",
+      "repository_or_site": "https://github.com/zhblue/hustoj",
+      "license": "GPL-2.0",
+      "license_scope": "OJ software source code only; no demonstrated grant for problem-package content or test data.",
+      "problem_statement_allowed": false,
+      "test_data_allowed": false,
+      "translation_allowed": false,
+      "modification_allowed": false,
+      "commercial_use_allowed": false,
+      "attribution_required": true,
+      "source_commit_or_version": "repository license reviewed 2026-07-30",
+      "decision": "rejected",
+      "rejection_reason": "GPL coverage of the judge does not license third-party problem statements or tests."
+    },
+    {
+      "source_name": "Exercism Python track",
+      "repository_or_site": "https://github.com/exercism/python",
+      "license": "MIT",
+      "license_scope": "Existing classic-exercise track material; not selected as the source of this new standard OJ pilot.",
+      "problem_statement_allowed": true,
+      "test_data_allowed": true,
+      "translation_allowed": true,
+      "modification_allowed": true,
+      "commercial_use_allowed": true,
+      "attribution_required": true,
+      "source_commit_or_version": "existing audited import",
+      "decision": "retained_not_used_for_pilot",
+      "rejection_reason": "The pilot requires directly runnable standard console programs, not function/adapter exercises."
+    },
+    {
+      "source_name": "AI Study Platform first-party original OJ pilot",
+      "repository_or_site": "first_party_original",
+      "license": "first_party_original",
+      "license_scope": "The platform independently authored the problem statements, test data, starter code, and reference solutions.",
+      "problem_statement_allowed": true,
+      "test_data_allowed": true,
+      "translation_allowed": true,
+      "modification_allowed": true,
+      "commercial_use_allowed": true,
+      "attribution_required": false,
+      "source_commit_or_version": "chinese_oj_pilot_v1",
+      "decision": "accepted",
+      "rejection_reason": ""
+    }
+  ]
+}

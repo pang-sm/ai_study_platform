@@ -467,6 +467,8 @@ jobs:
             --slugs hello-world,reverse-string,gigasecond,remote-control-competition,logs-logs-logs \
             --max-per-language 5 \
             --prune-unlisted
+          echo "=== Seeding first-party standard OJ pilot ==="
+          DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python scripts/seed_chinese_oj_pilot.py
           rm -rf "$EXERCISM_SOURCE_ROOT" "$EXERCISM_ARCHIVE"
           DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python exam_resources/11408/data_structure/chapter_questions/build_data_structure_chapter_questions.py || echo "[deploy] WARN: DS build failed"
           DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python exam_resources/11408/computer_organization/chapter_questions/build_computer_organization_chapter_questions.py || echo "[deploy] WARN: CO chapter build failed"

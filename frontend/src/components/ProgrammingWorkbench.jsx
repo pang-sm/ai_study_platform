@@ -691,6 +691,7 @@ export default function ProgrammingWorkbench({
   const terminalSocketRef = useRef(null);
   const terminalFitRef = useRef(null);
   const [terminalConnection, setTerminalConnection] = useState("disconnected");
+  const [terminalRunStatus, setTerminalRunStatus] = useState("");
   const runSessionRef = useRef(null);
   const activeResource = String(activeFileId || "").startsWith("library-")
     ? libraryMaterials.find((item) => `library-${item.id}` === activeFileId)
@@ -1594,7 +1595,8 @@ export default function ProgrammingWorkbench({
     setBusy("run");
     setSampleResult(null); setExerciseResult(null); setOutputCollapsed(false); setActiveResultTab("run"); setRunDetailsOpen(false); setCompileDiagnostics([]);
     const terminal = terminalRef.current;
-    terminal?.clear(); terminal?.writeln(`$ ${language} interactive session`);
+    terminal?.clear();
+    setTerminalRunStatus("正在编译…");
     const scheme = window.location.protocol === "https:" ? "wss" : "ws";
     // The deployed Nginx has an explicit WebSocket-upgrade location for this
     // path. Keep the old /api path as a backend-compatible fallback only.
@@ -1614,13 +1616,14 @@ export default function ProgrammingWorkbench({
     socket.onmessage = (event) => {
       const message = JSON.parse(event.data || "{}");
       if (message.type === "stdout" || message.type === "stderr" || message.type === "terminal") terminal?.write(message.data || "");
-      if (message.type === "status") { terminal?.writeln(`\r\n[${message.message}]`); setStatus(message.message); }
+      if (message.type === "status") { const running = message.message === "程序正在运行"; setTerminalRunStatus(running ? "" : message.message); setStatus(message.message); if (running) terminal?.focus(); }
       if (message.type === "compile_error" || message.type === "error") { terminal?.writeln(`\r\n${message.message}`); setStatus(message.message); setRunDetailsOpen(true); }
-      if (message.type === "exit") { terminal?.writeln(`\r\n进程已结束，退出代码 ${message.exit_code}`); setRunResult(message); setStatus(`退出代码 ${message.exit_code}`); setBusy(""); }
+      if (message.type === "exit") { terminal?.writeln(`\r\n进程结束，退出代码 ${message.exit_code}`); setTerminalRunStatus(""); setRunResult(message); setStatus(`退出代码 ${message.exit_code}`); setBusy(""); }
     };
     socket.onerror = () => { setTerminalConnection("failed"); terminal?.writeln("\r\n[WebSocket 连接失败，请点击重新连接]"); setStatus("实时终端连接失败"); setBusy(""); };
     socket.onclose = (event) => {
       if (terminalSocketRef.current === socket) terminalSocketRef.current = null;
+      setTerminalRunStatus("");
       if (event.code !== 1000 && terminalConnection !== "failed") {
         setTerminalConnection("failed");
         terminal?.writeln(`\r\n[终端连接已关闭，代码 ${event.code}，请点击重新连接]`);
@@ -2247,7 +2250,7 @@ export default function ProgrammingWorkbench({
                 <div className="pw-run-result">
                   {exercise && (
                     <div className="pw-terminal-shell">
-                      <div className="pw-terminal-status">终端：{terminalConnection === "connecting" ? "正在连接" : terminalConnection === "connected" ? "已连接" : terminalConnection === "failed" ? "连接失败" : "已断开"}</div>
+                      <div className="pw-terminal-status">{terminalRunStatus || `终端：${terminalConnection === "connecting" ? "正在连接" : terminalConnection === "connected" ? "已连接" : terminalConnection === "failed" ? "连接失败" : "已断开"}`}</div>
                       <div ref={terminalNodeRef} className="pw-xterm" aria-label="实时交互终端" tabIndex="0" onClick={() => terminalRef.current?.focus()} />
                       <div className="pw-terminal-input-actions">
                         <button type="button" onClick={() => terminalRef.current?.clear()}>清空终端</button>
@@ -2255,7 +2258,11 @@ export default function ProgrammingWorkbench({
                         {terminalConnection === "failed" && <button type="button" onClick={() => startInteractiveSession()}>重新连接</button>}
                         <button type="button" onClick={() => terminalSocketRef.current?.send(JSON.stringify({ type: "stop" }))}>停止程序</button>
                         <button type="button" onClick={() => terminalSocketRef.current?.send(JSON.stringify({ type: "eof" }))}>发送 EOF</button>
-                        <button type="button" onClick={() => navigator.clipboard?.writeText(terminalRef.current?.buffer?.active?.getLine(0)?.translateToString() || "")}>复制输出</button>
+                        <button type="button" onClick={() => {
+                          const buffer = terminalRef.current?.buffer?.active;
+                          const output = buffer ? Array.from({ length: buffer.length }, (_, index) => buffer.getLine(index)?.translateToString(true) || "").join("\n").trimEnd() : "";
+                          navigator.clipboard?.writeText(output);
+                        }}>复制输出</button>
                         <span>Enter 发送当前行 · Ctrl+C 终止 · Ctrl+D EOF · Ctrl+L 清屏</span>
                       </div>
                     </div>

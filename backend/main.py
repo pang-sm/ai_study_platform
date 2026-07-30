@@ -8818,7 +8818,8 @@ def _public_exercise_samples(exercise: models.ProgrammingExercise, include_backe
                 "input_display": sample.get("input_display"),
                 "raw_arguments": sample.get("raw_arguments", sample.get("arguments")),
             })
-            if safe.get("test_path") and safe.get("selector") and safe.get("expected") is not None:
+            is_standard_oj = _exercise_manifest(exercise).get("runner") == "standard_io"
+            if (is_standard_oj and safe.get("stdin_text") is not None and safe.get("expected_stdout") is not None) or (safe.get("test_path") and safe.get("selector") and safe.get("expected") is not None):
                 safe["name"] = _localized_exercise_sample_name(safe.get("name"), len(samples))
                 if include_backend_fields:
                     safe["raw_arguments"] = sample.get("raw_arguments", sample.get("arguments"))
@@ -8830,6 +8831,24 @@ def _public_exercise_samples(exercise: models.ProgrammingExercise, include_backe
                     safe.pop("input_display", None)
                 samples.append(safe)
     return samples
+
+
+def _standard_oj_cases(exercise: models.ProgrammingExercise, hidden: bool = False) -> list[dict]:
+    """Read standard-console cases on the server without exposing hidden data."""
+    source = exercise.hidden_tests_json if hidden else exercise.public_tests_json
+    cases = []
+    for group in _exercise_json(source, []):
+        for case in group.get("samples", []) if isinstance(group, dict) else []:
+            if not isinstance(case, dict) or case.get("stdin_text") is None or case.get("expected_stdout") is None:
+                continue
+            cases.append({
+                "id": str(case.get("id") or f"{'hidden' if hidden else 'public'}-{len(cases) + 1}"),
+                "name": str(case.get("name") or ("隐藏测试" if hidden else f"样例 {len(cases) + 1}")),
+                "stdin_text": str(case.get("stdin_text") or ""),
+                "expected_stdout": str(case.get("expected_stdout") or ""),
+                "visibility": "hidden" if hidden else "public",
+            })
+    return cases
 
 
 def _exercise_manifest(exercise: models.ProgrammingExercise) -> dict:
@@ -9070,6 +9089,9 @@ def serialize_programming_exercise(exercise: models.ProgrammingExercise, include
     payload = {
         "id": exercise.id,
         "slug": exercise.slug,
+        "source_key": exercise.source_key,
+        "source_type": "first_party_original" if exercise.source_repo == "first_party_original" else "classic_exercise",
+        "source_label": "原创题目" if exercise.source_repo == "first_party_original" else "经典练习",
         "language": exercise.language,
         "title": exercise.title,
         "difficulty": exercise.difficulty,
@@ -9151,7 +9173,7 @@ def serialize_programming_recent_item(item_type: str, payload: dict):
 @app.get("/programming/exercises")
 def list_programming_exercises(language: str | None = None, difficulty: str | None = None, tag: str | None = None,
                                keyword: str | None = None, knowledge_point: str | None = None,
-                               status: str | None = None, page: int = 1, page_size: int = 12,
+                               status: str | None = None, source: str | None = None, page: int = 1, page_size: int = 12,
                                username: str = "", db: Session = Depends(get_db)):
     query = db.query(models.ProgrammingExercise).filter(
         models.ProgrammingExercise.reference_verified.is_(True),
@@ -9174,6 +9196,8 @@ def list_programming_exercises(language: str | None = None, difficulty: str | No
             ).all()
         }
     exercises = [serialize_programming_exercise(item, progress=progress_by_exercise.get(item.id)) for item in rows]
+    if source:
+        exercises = [item for item in exercises if item.get("source_type") == source]
     if tag:
         exercises = [item for item in exercises if tag in item["tags"] or tag in item.get("concepts", [])]
     if knowledge_point:
@@ -9190,7 +9214,7 @@ def list_programming_exercises(language: str | None = None, difficulty: str | No
     if status:
         wanted = "needs_work" if status == "needs_improvement" else status
         exercises = [item for item in exercises if item_status(item) == wanted]
-    exercises.sort(key=lambda item: (status_order.get(item_status(item), 1), int(item.get("id") or 0)))
+    exercises.sort(key=lambda item: (0 if item.get("source_type") == "first_party_original" else 1, status_order.get(item_status(item), 1), int(item.get("id") or 0)))
     total = len(exercises)
     total_pages = max(1, (total + page_size - 1) // page_size)
     page = min(page, total_pages)
@@ -9425,6 +9449,25 @@ def _parse_exercise_test_counts(language: str, output: str, total: int, exit_cod
 
 def _run_official_exercise_tests(project: models.CodeProject, exercise: models.ProgrammingExercise, files: list[models.CodeProjectFile], submission: bool) -> dict:
     language = normalize_project_language(exercise.language)
+    if _exercise_manifest(exercise).get("runner") == "standard_io":
+        cases = _standard_oj_cases(exercise, hidden=False)
+        if submission:
+            cases.extend(_standard_oj_cases(exercise, hidden=True))
+        results = [_run_standard_oj_case(project, files, case) for case in cases]
+        passed_count = sum(1 for item in results if item.get("passed"))
+        return {
+            "success": True,
+            "passed": bool(cases) and passed_count == len(cases),
+            "passed_count": passed_count,
+            "total_count": len(cases),
+            "failed_categories": [] if cases and passed_count == len(cases) else ["tests"],
+            "duration_ms": sum(int(item.get("duration_ms") or 0) for item in results),
+            "exit_code": 0 if cases and passed_count == len(cases) else 1,
+            "cases": [
+                _exercise_case_from_result(item, case)
+                for item, case in zip(results, cases)
+            ],
+        }
     bundle = _exercise_json(exercise.official_test_files_json, []) if submission else _normalized_public_bundle(exercise)
     if not submission:
         official_bundle = _exercise_json(exercise.official_test_files_json, [])
@@ -9537,8 +9580,52 @@ def _sample_test_bundle(exercise: models.ProgrammingExercise, sample: dict) -> l
     return result
 
 
+def _run_standard_oj_case(project: models.CodeProject, files: list[models.CodeProjectFile], sample: dict) -> dict:
+    """Compile/run one normal stdin/stdout case without any Exercism adapter."""
+    language = normalize_project_language(project.language)
+    started = time.time()
+    with tempfile.TemporaryDirectory(prefix="standard-oj-") as raw:
+        temp = Path(raw)
+        for file in files:
+            target = temp / safe_project_path(file.relative_path)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(file.content or "", encoding="utf-8")
+        entry = safe_project_path(project.entry_file)
+        stdin_text = str(sample.get("stdin_text") or "")
+        expected = str(sample.get("expected_stdout") or "")
+        compile_error = None
+        if language == "Python":
+            command = [_get_python_project_runner(), entry]
+        elif language == "C":
+            sources = [str(Path(file.relative_path)) for file in files if str(file.relative_path).endswith(".c")]
+            command = [shutil.which("gcc") or "gcc", *sources, "-std=c11", "-Wall", "-Wextra", "-o", "program"]
+            compiled = subprocess.run(command, cwd=temp, capture_output=True, text=True, timeout=EXECUTE_TIMEOUT_SECONDS_C)
+            if compiled.returncode != 0:
+                compile_error = compiled.stderr or compiled.stdout
+            command = [str(temp / "program")]
+        elif language == "C++":
+            sources = [str(Path(file.relative_path)) for file in files if PurePosixPath(file.relative_path).suffix.lower() in {".cpp", ".cc", ".cxx"}]
+            command = [shutil.which("g++") or "g++", *sources, "-std=c++17", "-Wall", "-Wextra", "-o", "program"]
+            compiled = subprocess.run(command, cwd=temp, capture_output=True, text=True, timeout=EXECUTE_TIMEOUT_SECONDS_C)
+            if compiled.returncode != 0:
+                compile_error = compiled.stderr or compiled.stdout
+            command = [str(temp / "program")]
+        else:
+            return {"success": False, "passed": False, "failed_categories": ["unsupported"], "stderr": "本轮仅支持 C、C++、Python 标准 OJ 题。", "exit_code": -1, "duration_ms": 0}
+        if compile_error:
+            return {"success": True, "passed": False, "failed_categories": ["compile"], "compile_error": compile_error, "stderr": "", "actual_output": "", "expected_output": expected, "actual_stdout": "", "expected_stdout": expected, "exit_code": 1, "duration_ms": int((time.time() - started) * 1000)}
+        try:
+            run = subprocess.run(command, cwd=temp, input=stdin_text, capture_output=True, text=True, timeout=EXECUTE_TIMEOUT_SECONDS_C)
+        except subprocess.TimeoutExpired:
+            return {"success": True, "passed": False, "failed_categories": ["timeout"], "timeout": True, "stderr": "", "actual_output": "", "expected_output": expected, "actual_stdout": "", "expected_stdout": expected, "exit_code": -1, "duration_ms": int((time.time() - started) * 1000)}
+        actual = (run.stdout or "").replace("\r\n", "\n")
+        return {"success": True, "passed": run.returncode == 0 and actual == expected, "failed_categories": [] if run.returncode == 0 and actual == expected else ["tests"], "stdout": actual, "stderr": run.stderr or "", "actual_output": actual, "expected_output": expected, "actual_stdout": actual, "expected_stdout": expected, "exit_code": run.returncode, "duration_ms": int((time.time() - started) * 1000)}
+
+
 def _run_public_sample(project: models.CodeProject, exercise: models.ProgrammingExercise, files: list[models.CodeProjectFile], sample: dict) -> dict:
     language = normalize_project_language(exercise.language)
+    if _exercise_manifest(exercise).get("runner") == "standard_io":
+        return _run_standard_oj_case(project, files, sample)
     adapter_result = run_programming_io_adapter(language, exercise, files, sample, _exercise_manifest(exercise))
     if adapter_result is not None:
         return adapter_result
@@ -28033,6 +28120,18 @@ def ensure_feature_enabled(db, key, message):
 
 # ── Interactive Terminal WebSocket ─────────────────────
 
+def _friendly_compile_error(raw_error: str) -> str:
+    """Keep compiler feedback useful without exposing container internals."""
+    normalized = raw_error.replace("\\r\\n", "\\n").strip()
+    if "undefined reference to `main'" in normalized or "undefined reference to main" in normalized:
+        return "缺少程序入口 main 函数。"
+    match = re.search(r"([^/\\\\\n]+\.(?:c|cc|cpp|cxx)):(\\d+)(?::\\d+)?:\\s*(?:fatal )?(?:error:)?\\s*(.+)", normalized, re.I)
+    if match:
+        filename, line, reason = match.groups()
+        return f"编译错误：{filename} 第 {line} 行：{reason[:240]}"
+    first_line = next((line.strip() for line in normalized.splitlines() if "error" in line.lower()), "")
+    return f"编译错误：{first_line[:260] or '请检查代码语法和入口函数。'}"
+
 @app.websocket("/api/programming/exercises/{exercise_id}/interactive")
 async def programming_exercise_interactive(exercise_id: int, ws: WebSocket, initial_config: dict | None = None):
     """Run the saved exercise project and stream its real process I/O."""
@@ -28073,19 +28172,34 @@ async def programming_exercise_interactive(exercise_id: int, ws: WebSocket, init
             os.makedirs(os.path.dirname(target), exist_ok=True)
             with open(target, "w", encoding="utf-8") as handle:
                 handle.write(item.content or "")
-        await ws.send_text(json.dumps({"type": "status", "message": f"正在准备 {language} 项目（会话 {run_session_id}）"}, ensure_ascii=False))
-        if language == "Python":
-            image, command = DOCKER_IMAGE, ["python", "-u", f"/code/{safe_project_path(entry_file)}"]
+        await ws.send_text(json.dumps({"type": "status", "message": "正在编译…"}, ensure_ascii=False))
+        memory = INTERACTIVE_MEMORY_C if language in {"C", "C++"} else INTERACTIVE_MEMORY
+        runtime_image = DOCKER_IMAGE
+        runtime_command = ["python", "-u", f"/code/{safe_project_path(entry_file)}"]
+        # Compile native programs before opening the interactive PTY.  This
+        # prevents a failed build from being presented as a running program.
+        if language in {"C", "C++"}:
+            compiler = "g++ -std=c++17 -O0" if language == "C++" else "gcc -std=c11 -O0"
+            source_glob = "*.cpp *.cc *.cxx" if language == "C++" else "*.c"
+            compile_cmd = [
+                "docker", "run", "--rm", "--network", "none", "--memory", memory,
+                "--cpus", str(DOCKER_CPU_LIMIT), "--pids-limit", str(DOCKER_PIDS_LIMIT),
+                "-v", f"{tmp_dir}:/work", "-w", "/work", DOCKER_IMAGE_C,
+                "sh", "-lc", f"{compiler} $(find . -type f \\( -name '{source_glob.split()[0]}'" + "".join(f" -o -name '{part}'" for part in source_glob.split()[1:]) + ") -o program",
+            ]
+            compiled = subprocess.run(compile_cmd, capture_output=True, text=True, timeout=20, cwd=tmp_dir)
+            if compiled.returncode != 0:
+                raw_error = (compiled.stderr or compiled.stdout or "编译失败").strip()
+                await ws.send_text(json.dumps({"type": "compile_error", "message": _friendly_compile_error(raw_error), "technical_details": raw_error[:8000]}, ensure_ascii=False))
+                await ws.send_text(json.dumps({"type": "exit", "exit_code": compiled.returncode, "run_session_id": run_session_id}, ensure_ascii=False))
+                return
+            runtime_image, runtime_command = DOCKER_IMAGE_C, ["/code/program"]
         elif language == "Java":
-            image, command = "eclipse-temurin:21-jdk", ["sh", "-lc", f"cd /tmp/work && javac $(find . -name '*.java') && java {main_class}"]
-        elif language == "C++":
-            image, command = DOCKER_IMAGE_C, ["sh", "-lc", f"cd /tmp/work && g++ -std=c++17 -O0 $(find . -name '*.cpp' -o -name '*.cc' -o -name '*.cxx') -o /tmp/program && /tmp/program"]
-        else:
-            image, command = DOCKER_IMAGE_C, ["sh", "-lc", f"cd /tmp/work && gcc -std=c11 -O0 $(find . -name '*.c') -o /tmp/program && /tmp/program"]
-        docker_cmd = ["docker", "run", "--rm", "-i", "--network", "none", "--memory", INTERACTIVE_MEMORY_C if language in {"C", "C++"} else INTERACTIVE_MEMORY,
+            runtime_image = "eclipse-temurin:21-jdk"
+            runtime_command = ["sh", "-lc", f"cp -a /code /tmp/work && cd /tmp/work && javac $(find . -name '*.java') && java {main_class}"]
+        docker_cmd = ["docker", "run", "--rm", "-i", "-t", "--network", "none", "--memory", memory,
                       "--cpus", str(DOCKER_CPU_LIMIT), "--pids-limit", str(DOCKER_PIDS_LIMIT), "--read-only", "--tmpfs", "/tmp:rw,exec,nosuid,size=128m",
-                      "-v", f"{tmp_dir}:/code:ro", image, "sh", "-lc", "cp -a /code /tmp/work && " + " ".join(command[2:] if command[:2] == ["sh", "-lc"] else command)]
-        await ws.send_text(json.dumps({"type": "status", "message": "正在编译……"}, ensure_ascii=False))
+                      "-v", f"{tmp_dir}:/code:ro", runtime_image, *runtime_command]
         import threading
         use_pty = hasattr(os, "openpty")
         master_fd = None
@@ -28095,7 +28209,7 @@ async def programming_exercise_interactive(exercise_id: int, ws: WebSocket, init
             os.close(slave_fd)
         else:
             proc = subprocess.Popen(docker_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=False, cwd=tmp_dir)
-        await ws.send_text(json.dumps({"type": "status", "message": "程序已启动，等待输入……"}, ensure_ascii=False))
+        await ws.send_text(json.dumps({"type": "status", "message": "程序正在运行"}, ensure_ascii=False))
         collected = []
         def reader():
             try:

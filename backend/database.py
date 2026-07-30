@@ -708,7 +708,7 @@ def seed_default_reference_materials(conn):
                 INSERT INTO study_materials (
                     username, subject, file_type, original_filename, mime_type,
                     file_size, file_hash, file_path, extracted_text, summary,
-                    source_message_id, source_type, visibility, copyright_status,
+                    source_message_id, source_type, study_mode, visibility, copyright_status,
                     allow_download, allow_public_rag, allow_private_rag,
                     allow_generate_knowledge, is_default_reference, extract_method,
                     parse_status, parse_error, qwen_used, parsed_at, total_pages,
@@ -717,7 +717,7 @@ def seed_default_reference_materials(conn):
                 ) VALUES (
                     :username, :subject, :file_type, :original_filename, :mime_type,
                     0, NULL, :file_path, :extracted_text, :summary,
-                    NULL, 'reference_metadata', 'system_public_metadata', 'restricted_reference_only',
+                    NULL, 'reference_metadata', 'general', 'system_public_metadata', 'restricted_reference_only',
                     0, 0, 0,
                     1, 1, 'metadata',
                     'success', NULL, 0, CURRENT_TIMESTAMP, 0,
@@ -907,9 +907,13 @@ def ensure_programming_exercises_schema(conn):
         if row.get("source_repo") and row.get("language") and not row.get("source_key"):
             source_path = str(row.get("source_path") or "").rstrip("/")
             base_slug = source_path.rsplit("/", 1)[-1] or str(row.get("slug") or "")
+            if row["source_repo"] == "first_party_original" and source_path.startswith("chinese_oj_pilot_v1/"):
+                source_key = f"chinese_oj_pilot_v1:{row['language']}:{base_slug}"
+            else:
+                source_key = f"{row['source_repo']}|{row['language']}|{base_slug}"
             conn.execute(
                 text("UPDATE programming_exercises SET source_key = :source_key WHERE id = :id"),
-                {"source_key": f"{row['source_repo']}|{row['language']}|{base_slug}", "id": row["id"]},
+                {"source_key": source_key, "id": row["id"]},
             )
     # source_key is the stable importer identity: source + language + slug.
     # Keep this invariant in SQLite as well as in the SQLAlchemy model so a

@@ -64,6 +64,7 @@ function ExerciseLibrary({ user, apiBase, onStart }) {
   const [language, setLanguage] = useState("Python");
   const [tag, setTag] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [sourceFilter, setSourceFilter] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(12);
   const [paging, setPaging] = useState({ total: 0, total_pages: 1 });
@@ -80,6 +81,7 @@ function ExerciseLibrary({ user, apiBase, onStart }) {
       if (user?.username) query.set("username", user.username);
       if (tag.trim()) query.set("tag", tag.trim());
       if (statusFilter) query.set("status", statusFilter);
+      if (sourceFilter) query.set("source", sourceFilter);
       const res = await fetch(`${apiBase}/programming/exercises?${query}`);
       const data = await safeJson(res);
       if (!res.ok) throw new Error(data.detail || "题库加载失败");
@@ -92,7 +94,7 @@ function ExerciseLibrary({ user, apiBase, onStart }) {
     } finally {
       if (requestId === requestIdRef.current) setLoading(false);
     }
-  }, [apiBase, language, tag, statusFilter, page, pageSize, user?.username]);
+  }, [apiBase, language, tag, statusFilter, sourceFilter, page, pageSize, user?.username]);
   useEffect(() => { load(); }, [load]);
   const start = async (exercise) => {
     setLoading(true);
@@ -115,7 +117,7 @@ function ExerciseLibrary({ user, apiBase, onStart }) {
   return (
     <section className="ph-exercise-panel">
       <div className="ph-library-head">
-        <div><h2>编程题库</h2><p>来自 Exercism 官方 MIT 许可练习，做题后直接进入对应 Workbench。</p></div>
+        <div><h2>编程题库</h2><p>包含标准输入输出原创 OJ 题与经典练习，做题后直接进入对应 Workbench。</p></div>
         <button type="button" onClick={load} disabled={loading}>刷新</button>
       </div>
       <div className="ph-exercise-filters">
@@ -125,13 +127,14 @@ function ExerciseLibrary({ user, apiBase, onStart }) {
       {error && <div className="ph-error">{error}</div>}
       <div className="ph-exercise-filters ph-exercise-status-filters">
         <select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }}><option value="">全部状态</option><option value="needs_improvement">待改进</option><option value="not_started">未开始</option><option value="passed">已通过</option></select>
+        <select value={sourceFilter} onChange={(event) => { setSourceFilter(event.target.value); setPage(1); }}><option value="">全部题源</option><option value="first_party_original">原创题目</option><option value="classic_exercise">经典练习</option></select>
         <select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }}><option value={12}>12/页</option><option value={24}>24/页</option><option value={48}>48/页</option></select>
       </div>
       <div className="ph-exercise-grid">
         {items.map((exercise) => (
           <article key={exercise.id} className="ph-exercise-card">
             <div className={`ph-exercise-personal-status ph-exercise-personal-status--${exercise.personal_progress?.personal_status || "not_started"}`}>{exercise.personal_progress?.personal_status === "passed" ? "已通过" : exercise.personal_progress?.personal_status === "needs_work" ? "待改进" : "未开始"}</div>
-            <div className="ph-exercise-card-top"><span>{exercise.language}</span><em>{exercise.difficulty}</em></div>
+            <div className="ph-exercise-card-top"><span>{exercise.language}</span><em>{exercise.difficulty}</em><small>{exercise.source_label}</small></div>
             <h3>{getExerciseTitle(exercise)}</h3>
             <p>{getExerciseDescription(exercise)}</p>
             <div className="ph-exercise-tags">{(exercise.tags || []).slice(0, 5).map((item) => <span key={item}>{item}</span>)}</div>
