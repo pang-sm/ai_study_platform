@@ -8990,7 +8990,61 @@ def _record_programming_submission_progress(user, exercise, db: Session) -> list
     return updated
 
 
-def serialize_programming_exercise(exercise: models.ProgrammingExercise, include_starter: bool = False):
+def _record_programming_exercise_activity(user, exercise, db: Session, action: str, result: dict):
+    now = utc_now()
+    progress = db.query(models.ProgrammingExerciseProgress).filter(
+        models.ProgrammingExerciseProgress.username == user.username,
+        models.ProgrammingExerciseProgress.exercise_id == exercise.id,
+    ).first()
+    if not progress:
+        progress = models.ProgrammingExerciseProgress(
+            user_id=user.id,
+            username=user.username,
+            exercise_id=exercise.id,
+        )
+        db.add(progress)
+    progress.user_id = user.id
+    progress.last_action = action
+    progress.last_updated_at = now
+    if action == "run":
+        progress.last_run_at = now
+    elif action == "test":
+        progress.last_test_at = now
+    elif action == "submit":
+        progress.last_submit_at = now
+        progress.last_submit_passed = bool(result.get("passed"))
+        progress.last_public_passed_count = int(result.get("passed_count") or 0)
+        progress.last_public_total_count = int(result.get("total_count") or 0)
+    if action == "submit" and result.get("passed"):
+        progress.personal_status = "passed"
+    elif progress.personal_status != "passed":
+        progress.personal_status = "needs_work"
+    db.commit()
+    return progress
+
+
+def _serialize_programming_progress(progress: models.ProgrammingExerciseProgress | None) -> dict:
+    if not progress:
+        return {
+            "personal_status": "not_started",
+            "last_action": None,
+            "last_submit_passed": False,
+            "last_public_passed_count": 0,
+            "last_public_total_count": 0,
+        }
+    return {
+        "personal_status": progress.personal_status,
+        "last_action": progress.last_action,
+        "last_submit_passed": bool(progress.last_submit_passed),
+        "last_public_passed_count": progress.last_public_passed_count or 0,
+        "last_public_total_count": progress.last_public_total_count or 0,
+        "last_run_at": serialize_datetime(progress.last_run_at) if progress.last_run_at else None,
+        "last_test_at": serialize_datetime(progress.last_test_at) if progress.last_test_at else None,
+        "last_submit_at": serialize_datetime(progress.last_submit_at) if progress.last_submit_at else None,
+    }
+
+
+def serialize_programming_exercise(exercise: models.ProgrammingExercise, include_starter: bool = False, progress=None):
     raw_tags = _exercise_json(exercise.tags_json, [])
     localized_tags = localized_programming_tags(exercise.language, raw_tags)
     payload = {
@@ -9010,6 +9064,7 @@ def serialize_programming_exercise(exercise: models.ProgrammingExercise, include
         "license": exercise.license,
         "attribution": exercise.attribution,
         "manifest": _exercise_manifest(exercise),
+        "personal_progress": _serialize_programming_progress(progress),
     }
     if include_starter:
         payload["starter_files"] = _exercise_json(exercise.starter_files_json, [])
@@ -9074,7 +9129,7 @@ def serialize_programming_recent_item(item_type: str, payload: dict):
 
 
 @app.get("/programming/exercises")
-def list_programming_exercises(language: str | None = None, difficulty: str | None = None, tag: str | None = None, db: Session = Depends(get_db)):
+def list_programming_exercises(language: str | None = None, difficulty: str | None = None, tag: str | None = None, username: str = "", db: Session = Depends(get_db)):
     query = db.query(models.ProgrammingExercise).filter(
         models.ProgrammingExercise.reference_verified.is_(True),
         models.ProgrammingExercise.starter_verified.is_(True),
@@ -9083,7 +9138,17 @@ def list_programming_exercises(language: str | None = None, difficulty: str | No
         query = query.filter(models.ProgrammingExercise.language == normalize_project_language(language))
     if difficulty:
         query = query.filter(models.ProgrammingExercise.difficulty == difficulty)
-    exercises = [serialize_programming_exercise(item) for item in query.order_by(models.ProgrammingExercise.language, models.ProgrammingExercise.id).all()]
+    rows = query.order_by(models.ProgrammingExercise.language, models.ProgrammingExercise.id).all()
+    progress_by_exercise = {}
+    if username:
+        progress_by_exercise = {
+            row.exercise_id: row
+            for row in db.query(models.ProgrammingExerciseProgress).filter(
+                models.ProgrammingExerciseProgress.username == username,
+                models.ProgrammingExerciseProgress.exercise_id.in_([item.id for item in rows] or [0]),
+            ).all()
+        }
+    exercises = [serialize_programming_exercise(item, progress=progress_by_exercise.get(item.id)) for item in rows]
     if tag:
         exercises = [item for item in exercises if tag in item["tags"] or tag in item.get("concepts", [])]
     return {"exercises": exercises}
@@ -9654,6 +9719,7 @@ def test_programming_exercise(exercise_id: int, req: schemas.ProgrammingExercise
     payload["public_case_ids"] = [str(sample.get("id") or "") for sample in selected_samples]
     payload["tests_executed"] = "public_only"
     payload["state_updated"] = False
+    _record_programming_exercise_activity(user, exercise, db, "test", payload)
     return payload
 
 
@@ -9681,6 +9747,7 @@ def run_programming_exercise(exercise_id: int, req: schemas.ProgrammingExerciseR
         ),
         db,
     )
+    _record_programming_exercise_activity(user, exercise, db, "run", result)
     return {
         **result,
         "mode": "run",
@@ -9721,6 +9788,7 @@ def submit_programming_exercise(exercise_id: int, req: schemas.ProgrammingExerci
         # backend.
         result["cases"] = _run_public_sample_cases(project, exercise, project_files)
     payload = _exercise_run_summary(result, exercise, submission=True)
+    _record_programming_exercise_activity(user, exercise, db, "submit", payload)
     if payload.get("passed"):
         payload["knowledge_progress"] = _record_programming_submission_progress(user, exercise, db)
     return payload

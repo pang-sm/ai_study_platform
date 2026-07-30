@@ -294,6 +294,28 @@ class ProgrammingExerciseSubmission(Base):
     created_at = Column(DateTime, default=utc_now)
 
 
+class ProgrammingExerciseProgress(Base):
+    __tablename__ = "programming_exercise_progress"
+    __table_args__ = (
+        Index("idx_programming_progress_user_exercise", "username", "exercise_id", unique=True),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=True)
+    username = Column(String(50), index=True, nullable=False)
+    exercise_id = Column(Integer, index=True, nullable=False)
+    personal_status = Column(String(20), nullable=False, default="not_started")
+    last_action = Column(String(20), nullable=True)
+    last_run_at = Column(DateTime, nullable=True)
+    last_test_at = Column(DateTime, nullable=True)
+    last_submit_at = Column(DateTime, nullable=True)
+    last_submit_passed = Column(Boolean, nullable=False, default=False)
+    last_public_passed_count = Column(Integer, nullable=False, default=0)
+    last_public_total_count = Column(Integer, nullable=False, default=0)
+    last_updated_at = Column(DateTime, default=utc_now)
+    created_at = Column(DateTime, default=utc_now)
+
+
 class CodeChallenge(Base):
     __tablename__ = "code_challenges"
 

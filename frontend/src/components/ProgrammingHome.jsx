@@ -73,6 +73,7 @@ function ExerciseLibrary({ user, apiBase, onStart }) {
     setError("");
     try {
       const query = new URLSearchParams({ language });
+      if (user?.username) query.set("username", user.username);
       if (tag.trim()) query.set("tag", tag.trim());
       const res = await fetch(`${apiBase}/programming/exercises?${query}`);
       const data = await safeJson(res);
@@ -85,7 +86,7 @@ function ExerciseLibrary({ user, apiBase, onStart }) {
     } finally {
       if (requestId === requestIdRef.current) setLoading(false);
     }
-  }, [apiBase, language, tag]);
+  }, [apiBase, language, tag, user?.username]);
   useEffect(() => { load(); }, [load]);
   const start = async (exercise) => {
     setLoading(true);
@@ -119,6 +120,7 @@ function ExerciseLibrary({ user, apiBase, onStart }) {
       <div className="ph-exercise-grid">
         {items.map((exercise) => (
           <article key={exercise.id} className="ph-exercise-card">
+            <div className="ph-exercise-personal-status">{exercise.personal_progress?.personal_status === "passed" ? "已通过" : exercise.personal_progress?.personal_status === "needs_work" ? "待改进" : "未开始"}</div>
             <div className="ph-exercise-card-top"><span>{exercise.language}</span><em>{exercise.difficulty}</em></div>
             <h3>{getExerciseTitle(exercise)}</h3>
             <p>{getExerciseDescription(exercise)}</p>

@@ -1008,3 +1008,15 @@
     grid-template-columns: 1fr;
   }
 }
+.ph-exercise-personal-status {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  margin: 8px 0;
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: #475569;
+  background: #f1f5f9;
+  font-size: 12px;
+  font-weight: 700;
+}
