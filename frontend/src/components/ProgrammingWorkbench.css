@@ -878,6 +878,19 @@
   margin-top: 16px;
   display: grid;
   gap: 10px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.pw-chat-latest {
+  align-self: flex-end;
+  border: 1px solid #c4b5fd;
+  border-radius: 999px;
+  background: #f5f3ff;
+  color: #6d28d9;
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
 }
 
 .pw-chat-msg {

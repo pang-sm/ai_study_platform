@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./ProgrammingHome.css";
 import ProgrammingWorkbench from "./ProgrammingWorkbench.jsx";
+import KnowledgeLearningPage from "./KnowledgeLearningPage.jsx";
 import { getExerciseDescription, getExerciseTitle } from "./programmingExerciseCopy.js";
 
 const NAV_ITEMS = [
   { key: "home", label: "首页", icon: "home" },
-  { key: "status", label: "学习情况", icon: "chart" },
+  { key: "status", label: "知识点学习", icon: "chart" },
   { key: "workbench", label: "编程工作台", icon: "terminal" },
   { key: "questions", label: "题库", icon: "list" },
 ];
@@ -144,6 +145,7 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
   const [workbenchProjectId, setWorkbenchProjectId] = useState(() => savedPractice?.projectId || null);
   const [workbenchLanguage, setWorkbenchLanguage] = useState(() => savedPractice?.language || "");
   const [workbenchExerciseId, setWorkbenchExerciseId] = useState(() => savedPractice?.exerciseId || null);
+  const [knowledgeLanguage, setKnowledgeLanguage] = useState(() => homeData?.onboarding?.main_language || "Python");
   const [error, setError] = useState("");
 
   const loadHomeData = useCallback(() => {
@@ -218,6 +220,26 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
     if (activeNav === "questions") {
       return <ExerciseLibrary user={user} apiBase={apiBase} onStart={(projectId, language, exerciseId) => { setWorkbenchProjectId(projectId); setWorkbenchLanguage(language); setWorkbenchExerciseId(exerciseId); setActiveNav("workbench"); }} />;
     }
+    if (activeNav === "status") {
+      const knowledgeCourse = {
+        C: { id: "c_programming", name: "C 语言程序设计" },
+        "C++": { id: "programming_fundamentals", name: "C++ 程序设计" },
+        Python: { id: "python_programming", name: "Python 程序设计" },
+        Java: { id: "java_programming", name: "Java 程序设计" },
+      }[knowledgeLanguage] || { id: "python_programming", name: "Python 程序设计" };
+      return (
+        <KnowledgeLearningPage
+          user={user}
+          mode="course_learning"
+          courseId={knowledgeCourse.id}
+          courseName={knowledgeCourse.name}
+          programmingLanguageTabs
+          programmingLanguage={knowledgeLanguage}
+          onProgrammingLanguageChange={setKnowledgeLanguage}
+          onNavigateToAI={() => setActiveNav("workbench")}
+        />
+      );
+    }
     if (activeNav !== "home") {
       const item = NAV_ITEMS.find((nav) => nav.key === activeNav);
       return (
@@ -228,7 +250,7 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
       );
     }
     return null;
-  }, [activeNav, apiBase, homeData, loadHomeData, setPage, user, workbenchExerciseId, workbenchLanguage, workbenchProjectId]);
+  }, [activeNav, apiBase, homeData, knowledgeLanguage, loadHomeData, setPage, user, workbenchExerciseId, workbenchLanguage, workbenchProjectId]);
 
   return (
     <div className="ph-page">

@@ -735,3 +735,24 @@
     border-top: 1px solid #eadfff;
   }
 }
+.km-language-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.km-language-tabs button {
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: #fff;
+  color: #475569;
+  padding: 8px 18px;
+  cursor: pointer;
+}
+
+.km-language-tabs button.is-active {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-weight: 700;
+}

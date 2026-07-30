@@ -636,11 +636,14 @@ export default function ProgrammingWorkbench({
   const [draftEntryFile, setDraftEntryFile] = useState("");
   const [draftMainClass, setDraftMainClass] = useState("");
   const [contextMenu, setContextMenu] = useState(null);
+  const [coachAtLatest, setCoachAtLatest] = useState(true);
   const saveTimerRef = useRef(null);
   const workspaceRequestRef = useRef(0);
   const shellRef = useRef(null);
   const editorRef = useRef(null);
   const focusLayoutRef = useRef(null);
+  const coachLogRef = useRef(null);
+  const coachPinnedRef = useRef(true);
   const activeResource = String(activeFileId || "").startsWith("library-")
     ? libraryMaterials.find((item) => `library-${item.id}` === activeFileId)
     : null;
@@ -899,6 +902,15 @@ export default function ProgrammingWorkbench({
   useEffect(() => {
     relayoutEditor();
   }, [coachCollapsed, explorerCollapsed, outputCollapsed, isFullscreen, fullscreenFallback, selectedLanguage, relayoutEditor]);
+
+  useEffect(() => {
+    const node = coachLogRef.current;
+    if (!node || !coachPinnedRef.current) return undefined;
+    const frame = window.requestAnimationFrame(() => {
+      node.scrollTo({ top: node.scrollHeight, behavior: "smooth" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [messages, busy]);
 
   useEffect(() => {
     setDraftEntryFile(project?.entry_file || activeFile?.relative_path || DEFAULT_FILE[language] || "");
@@ -1557,8 +1569,13 @@ export default function ProgrammingWorkbench({
     const text = question || "请基于当前项目上下文进行判题式分析，指出错误、可改进点和下一步建议。";
     if (!activeFile && !activeResource) return;
     setBusy(question ? "coach" : "feedback");
-    setOutputCollapsed(false);
-    setActiveResultTab(question ? activeResultTab : "feedback");
+    if (question) {
+      coachPinnedRef.current = true;
+      setCoachAtLatest(true);
+    } else {
+      setOutputCollapsed(false);
+      setActiveResultTab("feedback");
+    }
     if (question) {
       setMessages((prev) => [...prev, { role: "user", content: toolLabel ? `你选择了：${toolLabel}` : question }]);
     }
@@ -1649,6 +1666,23 @@ export default function ProgrammingWorkbench({
     setMessages([]);
     setCoachQuestion("");
     setCoachToolsCollapsed(false);
+    coachPinnedRef.current = true;
+    setCoachAtLatest(true);
+  };
+
+  const handleCoachLogScroll = (event) => {
+    const node = event.currentTarget;
+    const atLatest = node.scrollHeight - node.scrollTop - node.clientHeight < 24;
+    coachPinnedRef.current = atLatest;
+    setCoachAtLatest(atLatest);
+  };
+
+  const scrollCoachToLatest = () => {
+    const node = coachLogRef.current;
+    if (!node) return;
+    coachPinnedRef.current = true;
+    setCoachAtLatest(true);
+    node.scrollTo({ top: node.scrollHeight, behavior: "smooth" });
   };
 
   const toggleFullscreen = async () => {
@@ -1939,7 +1973,11 @@ export default function ProgrammingWorkbench({
                       <button
                         key={label}
                         type="button"
-                        onClick={() => analyzeProject(question, label)}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          analyzeProject(question, label);
+                        }}
                         disabled={busy === "coach" || (label === "测试失败分析" && !recentFailureCount)}
                         title={coachToolStatus(label)}
                       >
@@ -1949,13 +1987,19 @@ export default function ProgrammingWorkbench({
                   </div>
                 )}
                 <div className="pw-coach-recommendations"><span>相关练习</span><b>暂无推荐</b></div>
-                <div className="pw-chat-log">
+                <div className="pw-chat-log" ref={coachLogRef} onScroll={handleCoachLogScroll}>
                   {messages.slice(-6).map((message, index) => (
                     <div key={message.role + "-" + index} className={"pw-chat-msg pw-chat-msg--" + message.role}>
                       {message.content}
                     </div>
                   ))}
+                  {busy === "coach" && <div className="pw-chat-msg pw-chat-msg--assistant">AI 教练正在思考...</div>}
                 </div>
+                {!coachAtLatest && (
+                  <button type="button" className="pw-chat-latest" onClick={scrollCoachToLatest}>
+                    回到最新消息
+                  </button>
+                )}
               </div>
               <form className="pw-chat-input" onSubmit={(event) => { event.preventDefault(); analyzeProject(coachQuestion.trim()); }}>
                 <input value={coachQuestion} onChange={(event) => setCoachQuestion(event.target.value)} placeholder="向 AI 提问..." />

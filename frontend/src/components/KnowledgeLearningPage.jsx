@@ -341,6 +341,9 @@ export default function KnowledgeLearningPage({
   courseName: courseNameProp,   // direct course name for course_learning mode
   courseId: courseIdProp,
   examCramMode = false,
+  programmingLanguageTabs = false,
+  programmingLanguage = "Python",
+  onProgrammingLanguageChange,
 }) {
   const isCourseMode = mode === "course_learning";
   const courseId = isCourseMode
@@ -615,6 +618,20 @@ export default function KnowledgeLearningPage({
 
   return (
     <div className={`km-page${examCramMode ? " km-page--cram" : ""}`}>
+      {programmingLanguageTabs && (
+        <div className="km-language-tabs" aria-label="编程语言知识体系">
+          {["C", "C++", "Python", "Java"].map((item) => (
+            <button
+              key={item}
+              type="button"
+              className={programmingLanguage === item ? "is-active" : ""}
+              onClick={() => onProgrammingLanguageChange?.(item)}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
+      )}
       {examCramMode ? (
         <section className="km-hero-card">
           <div>
