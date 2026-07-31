@@ -9,6 +9,7 @@ from models import ProgrammingExercise
 # Existing curated card copy remains the title/summary source; source English
 # is preserved separately and never rendered as the primary description.
 COPY = Path(__file__).resolve().parents[2] / 'frontend/src/components/programmingExerciseCopy.js'
+OVERRIDES = {'electric-bill': ('电费计算', '根据用电量和分段费率计算电费。')}
 def curated():
  text=COPY.read_text(encoding='utf-8')
  return {m.group(1): (m.group(2),m.group(3)) for m in re.finditer(r'^[ \t]*["\']?([\w-]+)["\']?\s*:\s*\["([^"]+)",\s*"([^"]+)"\]',text,re.M)}
@@ -18,7 +19,7 @@ def main():
   rows=db.query(ProgrammingExercise).filter(ProgrammingExercise.source_repo!='first_party_original',ProgrammingExercise.is_active.is_(True)).all()
   for r in rows:
    key=r.slug.replace('python-','').replace('cpp-','').replace('java-','').replace('c-','')
-   title,summary=data.get(key,(r.title, '请根据函数签名完成题目要求，并通过随题测试。'))
+   title,summary=data.get(key,OVERRIDES.get(key,(r.title, '请根据函数签名完成题目要求，并通过随题测试。')))
    r.title_en=r.title_en or r.title; r.statement_en=r.statement_en or r.description
    r.title_zh=r.title_zh or title; r.summary_zh=r.summary_zh or summary
    r.statement_zh=r.statement_zh or f'实现题目提供的函数接口，完成“{title}”要求。函数名、参数、返回值及边界行为以 starter code 和测试为准。{summary}'
