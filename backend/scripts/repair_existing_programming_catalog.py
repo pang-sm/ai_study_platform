@@ -197,8 +197,16 @@ def main() -> None:
         db.commit()
     finally:
         db.close()
-    MANUAL_REVIEW.write_text(json.dumps({"archived": archived, "repair_failures": failures}, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(json.dumps({"repaired": repaired, "archived": len(archived), "failures": len(failures), "manual_review": str(MANUAL_REVIEW)}, ensure_ascii=False))
+    review_db = SessionLocal()
+    try:
+        all_archived = [
+            {"id": row.id, "language": row.language, "source_key": row.source_key, "reason": "未通过本轮完整自动确认，已按安全策略归档"}
+            for row in review_db.query(ProgrammingExercise).filter(ProgrammingExercise.is_active.is_(False)).order_by(ProgrammingExercise.id).all()
+        ]
+    finally:
+        review_db.close()
+    MANUAL_REVIEW.write_text(json.dumps({"archived": all_archived, "repair_failures": failures}, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(json.dumps({"repaired": repaired, "archived": len(all_archived), "failures": len(failures), "manual_review": str(MANUAL_REVIEW)}, ensure_ascii=False))
 
 
 def _run_wrong(candidate: dict, case: dict, row: ProgrammingExercise) -> str:
