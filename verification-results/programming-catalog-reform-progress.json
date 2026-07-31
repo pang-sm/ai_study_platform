@@ -1,0 +1,12 @@
+{
+  "phase": 1,
+  "batch": "1.1",
+  "status": "ready_to_deploy",
+  "completed": ["local_database_backup", "deployment_backup_guard", "exercise_schema_fields", "sqlite_additive_migration", "active_filter", "unified_api_fields", "card_layout_css"],
+  "pending": ["phase_1_local_migration_validation", "phase_1_deployment", "phase_1_online_smoke", "phase_2_localization", "phase_3_original_differentiation", "phase_4_audit", "phase_5_online_acceptance"],
+  "commit_hash": null,
+  "actions_run_id": null,
+  "deployment_result": null,
+  "next_batch": "phase_1_online_smoke",
+  "blocker": null
+}

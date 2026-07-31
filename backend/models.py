@@ -277,6 +277,19 @@ class ProgrammingExercise(Base):
     reference_verified = Column(Boolean, nullable=False, default=False)
     starter_verified = Column(Boolean, nullable=False, default=False)
     audit_report_json = Column(Text, nullable=False, default="{}")
+    # Stable catalog metadata.  The fields remain separate from the original
+    # imported English description so migration never destroys source text.
+    is_active = Column(Boolean, nullable=False, default=True, index=True)
+    problem_family_id = Column(String(160), nullable=True, index=True)
+    language_fit_reason = Column(Text, nullable=True)
+    title_zh = Column(String(255), nullable=True)
+    summary_zh = Column(Text, nullable=True)
+    statement_zh = Column(Text, nullable=True)
+    input_format_zh = Column(Text, nullable=True)
+    output_format_zh = Column(Text, nullable=True)
+    constraints_zh = Column(Text, nullable=True)
+    title_en = Column(String(255), nullable=True)
+    statement_en = Column(Text, nullable=True)
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 

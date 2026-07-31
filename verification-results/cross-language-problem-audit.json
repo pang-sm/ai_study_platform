@@ -1,0 +1,334 @@
+{
+  "summary": {
+    "C": {
+      "total": 10,
+      "repeated": 10,
+      "unique": 0,
+      "duplicate_ratio": 1.0
+    },
+    "C++": {
+      "total": 10,
+      "repeated": 10,
+      "unique": 0,
+      "duplicate_ratio": 1.0
+    },
+    "Python": {
+      "total": 10,
+      "repeated": 10,
+      "unique": 0,
+      "duplicate_ratio": 1.0
+    }
+  },
+  "families": [
+    {
+      "problem_family_id": "array-sum",
+      "exercises": [
+        {
+          "language": "C",
+          "exercise_id": 84,
+          "source_key": "chinese_oj_pilot_v1:C:array-sum",
+          "title": "数组元素求和"
+        },
+        {
+          "language": "C++",
+          "exercise_id": 94,
+          "source_key": "chinese_oj_pilot_v1:C++:array-sum",
+          "title": "数组元素求和"
+        },
+        {
+          "language": "Python",
+          "exercise_id": 104,
+          "source_key": "chinese_oj_pilot_v1:Python:array-sum",
+          "title": "数组元素求和"
+        }
+      ],
+      "completely_duplicate": true,
+      "has_language_learning_value": false,
+      "language_fit_reason": {
+        "C": "未记录；当前第一方题族使用同一题意和测试协议。",
+        "C++": "未记录；当前第一方题族使用同一题意和测试协议。",
+        "Python": "未记录；当前第一方题族使用同一题意和测试协议。"
+      },
+      "decision": "调整"
+    },
+    {
+      "problem_family_id": "count-vowels",
+      "exercises": [
+        {
+          "language": "C",
+          "exercise_id": 82,
+          "source_key": "chinese_oj_pilot_v1:C:count-vowels",
+          "title": "统计元音字母"
+        },
+        {
+          "language": "C++",
+          "exercise_id": 92,
+          "source_key": "chinese_oj_pilot_v1:C++:count-vowels",
+          "title": "统计元音字母"
+        },
+        {
+          "language": "Python",
+          "exercise_id": 102,
+          "source_key": "chinese_oj_pilot_v1:Python:count-vowels",
+          "title": "统计元音字母"
+        }
+      ],
+      "completely_duplicate": true,
+      "has_language_learning_value": false,
+      "language_fit_reason": {
+        "C": "未记录；当前第一方题族使用同一题意和测试协议。",
+        "C++": "未记录；当前第一方题族使用同一题意和测试协议。",
+        "Python": "未记录；当前第一方题族使用同一题意和测试协议。"
+      },
+      "decision": "调整"
+    },
+    {
+      "problem_family_id": "digit-sum",
+      "exercises": [
+        {
+          "language": "C",
+          "exercise_id": 87,
+          "source_key": "chinese_oj_pilot_v1:C:digit-sum",
+          "title": "各位数字之和"
+        },
+        {
+          "language": "C++",
+          "exercise_id": 97,
+          "source_key": "chinese_oj_pilot_v1:C++:digit-sum",
+          "title": "各位数字之和"
+        },
+        {
+          "language": "Python",
+          "exercise_id": 107,
+          "source_key": "chinese_oj_pilot_v1:Python:digit-sum",
+          "title": "各位数字之和"
+        }
+      ],
+      "completely_duplicate": true,
+      "has_language_learning_value": false,
+      "language_fit_reason": {
+        "C": "未记录；当前第一方题族使用同一题意和测试协议。",
+        "C++": "未记录；当前第一方题族使用同一题意和测试协议。",
+        "Python": "未记录；当前第一方题族使用同一题意和测试协议。"
+      },
+      "decision": "调整"
+    },
+    {
+      "problem_family_id": "linear-search",
+      "exercises": [
+        {
+          "language": "C",
+          "exercise_id": 85,
+          "source_key": "chinese_oj_pilot_v1:C:linear-search",
+          "title": "查找目标位置"
+        },
+        {
+          "language": "C++",
+          "exercise_id": 95,
+          "source_key": "chinese_oj_pilot_v1:C++:linear-search",
+          "title": "查找目标位置"
+        },
+        {
+          "language": "Python",
+          "exercise_id": 105,
+          "source_key": "chinese_oj_pilot_v1:Python:linear-search",
+          "title": "查找目标位置"
+        }
+      ],
+      "completely_duplicate": true,
+      "has_language_learning_value": false,
+      "language_fit_reason": {
+        "C": "未记录；当前第一方题族使用同一题意和测试协议。",
+        "C++": "未记录；当前第一方题族使用同一题意和测试协议。",
+        "Python": "未记录；当前第一方题族使用同一题意和测试协议。"
+      },
+      "decision": "调整"
+    },
+    {
+      "problem_family_id": "max-of-three",
+      "exercises": [
+        {
+          "language": "C",
+          "exercise_id": 80,
+          "source_key": "chinese_oj_pilot_v1:C:max-of-three",
+          "title": "三个数的最大值"
+        },
+        {
+          "language": "C++",
+          "exercise_id": 90,
+          "source_key": "chinese_oj_pilot_v1:C++:max-of-three",
+          "title": "三个数的最大值"
+        },
+        {
+          "language": "Python",
+          "exercise_id": 100,
+          "source_key": "chinese_oj_pilot_v1:Python:max-of-three",
+          "title": "三个数的最大值"
+        }
+      ],
+      "completely_duplicate": true,
+      "has_language_learning_value": false,
+      "language_fit_reason": {
+        "C": "未记录；当前第一方题族使用同一题意和测试协议。",
+        "C++": "未记录；当前第一方题族使用同一题意和测试协议。",
+        "Python": "未记录；当前第一方题族使用同一题意和测试协议。"
+      },
+      "decision": "调整"
+    },
+    {
+      "problem_family_id": "parity-check",
+      "exercises": [
+        {
+          "language": "C",
+          "exercise_id": 79,
+          "source_key": "chinese_oj_pilot_v1:C:parity-check",
+          "title": "奇偶判断"
+        },
+        {
+          "language": "C++",
+          "exercise_id": 89,
+          "source_key": "chinese_oj_pilot_v1:C++:parity-check",
+          "title": "奇偶判断"
+        },
+        {
+          "language": "Python",
+          "exercise_id": 99,
+          "source_key": "chinese_oj_pilot_v1:Python:parity-check",
+          "title": "奇偶判断"
+        }
+      ],
+      "completely_duplicate": true,
+      "has_language_learning_value": false,
+      "language_fit_reason": {
+        "C": "未记录；当前第一方题族使用同一题意和测试协议。",
+        "C++": "未记录；当前第一方题族使用同一题意和测试协议。",
+        "Python": "未记录；当前第一方题族使用同一题意和测试协议。"
+      },
+      "decision": "调整"
+    },
+    {
+      "problem_family_id": "reverse-text",
+      "exercises": [
+        {
+          "language": "C",
+          "exercise_id": 83,
+          "source_key": "chinese_oj_pilot_v1:C:reverse-text",
+          "title": "反转字符串"
+        },
+        {
+          "language": "C++",
+          "exercise_id": 93,
+          "source_key": "chinese_oj_pilot_v1:C++:reverse-text",
+          "title": "反转字符串"
+        },
+        {
+          "language": "Python",
+          "exercise_id": 103,
+          "source_key": "chinese_oj_pilot_v1:Python:reverse-text",
+          "title": "反转字符串"
+        }
+      ],
+      "completely_duplicate": true,
+      "has_language_learning_value": false,
+      "language_fit_reason": {
+        "C": "未记录；当前第一方题族使用同一题意和测试协议。",
+        "C++": "未记录；当前第一方题族使用同一题意和测试协议。",
+        "Python": "未记录；当前第一方题族使用同一题意和测试协议。"
+      },
+      "decision": "调整"
+    },
+    {
+      "problem_family_id": "sort-three",
+      "exercises": [
+        {
+          "language": "C",
+          "exercise_id": 86,
+          "source_key": "chinese_oj_pilot_v1:C:sort-three",
+          "title": "三个数排序"
+        },
+        {
+          "language": "C++",
+          "exercise_id": 96,
+          "source_key": "chinese_oj_pilot_v1:C++:sort-three",
+          "title": "三个数排序"
+        },
+        {
+          "language": "Python",
+          "exercise_id": 106,
+          "source_key": "chinese_oj_pilot_v1:Python:sort-three",
+          "title": "三个数排序"
+        }
+      ],
+      "completely_duplicate": true,
+      "has_language_learning_value": false,
+      "language_fit_reason": {
+        "C": "未记录；当前第一方题族使用同一题意和测试协议。",
+        "C++": "未记录；当前第一方题族使用同一题意和测试协议。",
+        "Python": "未记录；当前第一方题族使用同一题意和测试协议。"
+      },
+      "decision": "调整"
+    },
+    {
+      "problem_family_id": "sum-to-n",
+      "exercises": [
+        {
+          "language": "C",
+          "exercise_id": 81,
+          "source_key": "chinese_oj_pilot_v1:C:sum-to-n",
+          "title": "累加到 n"
+        },
+        {
+          "language": "C++",
+          "exercise_id": 91,
+          "source_key": "chinese_oj_pilot_v1:C++:sum-to-n",
+          "title": "累加到 n"
+        },
+        {
+          "language": "Python",
+          "exercise_id": 101,
+          "source_key": "chinese_oj_pilot_v1:Python:sum-to-n",
+          "title": "累加到 n"
+        }
+      ],
+      "completely_duplicate": true,
+      "has_language_learning_value": false,
+      "language_fit_reason": {
+        "C": "未记录；当前第一方题族使用同一题意和测试协议。",
+        "C++": "未记录；当前第一方题族使用同一题意和测试协议。",
+        "Python": "未记录；当前第一方题族使用同一题意和测试协议。"
+      },
+      "decision": "调整"
+    },
+    {
+      "problem_family_id": "two-number-sum",
+      "exercises": [
+        {
+          "language": "C",
+          "exercise_id": 78,
+          "source_key": "chinese_oj_pilot_v1:C:two-number-sum",
+          "title": "两数求和"
+        },
+        {
+          "language": "C++",
+          "exercise_id": 88,
+          "source_key": "chinese_oj_pilot_v1:C++:two-number-sum",
+          "title": "两数求和"
+        },
+        {
+          "language": "Python",
+          "exercise_id": 98,
+          "source_key": "chinese_oj_pilot_v1:Python:two-number-sum",
+          "title": "两数求和"
+        }
+      ],
+      "completely_duplicate": true,
+      "has_language_learning_value": false,
+      "language_fit_reason": {
+        "C": "未记录；当前第一方题族使用同一题意和测试协议。",
+        "C++": "未记录；当前第一方题族使用同一题意和测试协议。",
+        "Python": "未记录；当前第一方题族使用同一题意和测试协议。"
+      },
+      "decision": "调整"
+    }
+  ]
+}

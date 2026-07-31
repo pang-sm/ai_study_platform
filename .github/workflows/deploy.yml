@@ -390,6 +390,18 @@ jobs:
           fi
           sudo chown -R $(whoami):$(whoami) /var/lib/ai_study_platform 2>/dev/null || true
           sudo chmod 755 /var/lib/ai_study_platform 2>/dev/null || true
+          # A catalog migration must never run without a recoverable snapshot.
+          if [ -f "$DATA_DB" ]; then
+            CATALOG_BACKUP_DIR="$REPO_ROOT/backend/backups"
+            mkdir -p "$CATALOG_BACKUP_DIR"
+            CATALOG_BACKUP="$CATALOG_BACKUP_DIR/app.db.before-catalog-reform.$(date +%Y%m%d_%H%M%S).db"
+            if ! cp "$DATA_DB" "$CATALOG_BACKUP"; then
+              echo "[deploy] ERROR: catalog database backup failed"
+              exit 1
+            fi
+            test -s "$CATALOG_BACKUP" || { echo "[deploy] ERROR: catalog database backup is empty"; exit 1; }
+            echo "[deploy] Catalog database backup: $CATALOG_BACKUP ($(du -h "$CATALOG_BACKUP" | cut -f1))"
+          fi
           echo "[deploy] Persistent DB at $DATA_DB"
 
           # ── Configure persistent database for systemd service ──

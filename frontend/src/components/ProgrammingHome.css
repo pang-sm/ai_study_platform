@@ -11,15 +11,15 @@
 .ph-exercise-filters button, .ph-exercise-filters select, .ph-exercise-filters input { min-height: 38px; border: 1px solid #e4dafa; border-radius: 9px; background: #fff; color: #31265f; padding: 0 14px; font: inherit; }
 .ph-exercise-filters button { cursor: pointer; font-weight: 800; }
 .ph-exercise-filters button.is-active { background: #5b21e6; color: #fff; border-color: #5b21e6; }
-.ph-exercise-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 18px; }
-.ph-exercise-card { padding: 22px; border: 1px solid #e9e0fb; border-radius: 16px; background: rgba(255,255,255,.88); box-shadow: 0 12px 30px rgba(95,73,140,.08); }
+.ph-exercise-grid { display: grid; min-width: 0; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 18px; }
+.ph-exercise-card { display: flex; min-width: 0; min-height: 292px; overflow: hidden; flex-direction: column; padding: 22px; border: 1px solid #e9e0fb; border-radius: 16px; background: rgba(255,255,255,.88); box-shadow: 0 12px 30px rgba(95,73,140,.08); }
 .ph-exercise-card-top { display: flex; justify-content: space-between; color: #6d28d9; font-size: 13px; font-weight: 900; }
 .ph-exercise-card-top em { color: #7c6f9f; font-style: normal; }
-.ph-exercise-card h3 { margin: 15px 0 10px; color: #16123d; }
-.ph-exercise-card p { min-height: 62px; margin: 0; color: #67618b; line-height: 1.55; font-size: 14px; }
-.ph-exercise-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0; }
-.ph-exercise-tags span { padding: 4px 8px; border-radius: 999px; background: #f0eaff; color: #5b21e6; font-size: 12px; }
-.ph-exercise-card > button { width: 100%; min-height: 40px; border: 0; border-radius: 9px; background: #5b21e6; color: #fff; font-weight: 900; cursor: pointer; }
+.ph-exercise-card h3 { display: -webkit-box; min-width: 0; overflow: hidden; margin: 15px 0 10px; color: #16123d; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.ph-exercise-card p { display: -webkit-box; min-width: 0; min-height: 0; overflow: hidden; margin: 0; color: #67618b; overflow-wrap: anywhere; line-height: 1.55; font-size: 14px; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.ph-exercise-tags { display: flex; min-width: 0; max-height: 52px; overflow: hidden; flex-wrap: wrap; gap: 6px; margin: 16px 0; }
+.ph-exercise-tags span { overflow: hidden; max-width: 100%; padding: 4px 8px; border-radius: 999px; background: #f0eaff; color: #5b21e6; overflow-wrap: anywhere; font-size: 12px; }
+.ph-exercise-card > button { width: 100%; min-height: 40px; margin-top: auto; border: 0; border-radius: 9px; background: #5b21e6; color: #fff; font-weight: 900; cursor: pointer; }
 
 .ph-learning-entry-copy { margin: 0 0 18px; color: #67618b; font-size: 14px; line-height: 1.6; }
 .ph-learning-entry-actions { display: grid; gap: 10px; }

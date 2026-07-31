@@ -119,6 +119,15 @@ with engine.begin() as _connection:
     }.items():
         if _name not in _columns:
             _connection.exec_driver_sql(f"ALTER TABLE user_knowledge_progress ADD COLUMN {_name} {_definition}")
+    _exercise_columns = {row[1] for row in _connection.exec_driver_sql("PRAGMA table_info(programming_exercises)")}
+    for _name, _definition in {
+        "is_active": "BOOLEAN NOT NULL DEFAULT 1", "problem_family_id": "VARCHAR(160)",
+        "language_fit_reason": "TEXT", "title_zh": "VARCHAR(255)", "summary_zh": "TEXT",
+        "statement_zh": "TEXT", "input_format_zh": "TEXT", "output_format_zh": "TEXT",
+        "constraints_zh": "TEXT", "title_en": "VARCHAR(255)", "statement_en": "TEXT",
+    }.items():
+        if _name not in _exercise_columns:
+            _connection.exec_driver_sql(f"ALTER TABLE programming_exercises ADD COLUMN {_name} {_definition}")
 
 # Preload redemption codes from env var on startup
 with SessionLocal() as _db:
@@ -9095,16 +9104,23 @@ def serialize_programming_exercise(exercise: models.ProgrammingExercise, include
         "source_type": "first_party_original" if exercise.source_repo == "first_party_original" else "classic_exercise",
         "source_label": "原创题目" if exercise.source_repo == "first_party_original" else "经典练习",
         "language": exercise.language,
-        "title": exercise.title,
+        "title": exercise.title_zh or exercise.title,
+        "summary": exercise.summary_zh or exercise.description,
+        "statement": exercise.statement_zh or exercise.description,
+        "title_en": exercise.title_en or exercise.title,
+        "statement_en": exercise.statement_en or exercise.description,
+        "problem_family_id": exercise.problem_family_id or "",
+        "language_fit_reason": exercise.language_fit_reason or "",
+        "is_active": bool(exercise.is_active),
         "difficulty": exercise.difficulty,
         "tags": localized_tags,
         "concepts": localized_tags,
         "knowledge_points": _programming_knowledge_points(exercise),
-        "description": exercise.description,
-        "problem_statement": str(problem.get("problem_statement") or exercise.description),
-        "input_format": str(problem.get("input_format") or ""),
-        "output_format": str(problem.get("output_format") or ""),
-        "constraints": str(problem.get("constraints") or ""),
+        "description": exercise.summary_zh or exercise.description,
+        "problem_statement": exercise.statement_zh or str(problem.get("problem_statement") or exercise.description),
+        "input_format": exercise.input_format_zh or str(problem.get("input_format") or ""),
+        "output_format": exercise.output_format_zh or str(problem.get("output_format") or ""),
+        "constraints": exercise.constraints_zh or str(problem.get("constraints") or ""),
         "public_samples": _public_exercise_samples(exercise, include_backend_fields=False),
         "source_repo": exercise.source_repo,
         "source_path": exercise.source_path,
@@ -9184,6 +9200,7 @@ def list_programming_exercises(language: str | None = None, difficulty: str | No
     query = db.query(models.ProgrammingExercise).filter(
         models.ProgrammingExercise.reference_verified.is_(True),
         models.ProgrammingExercise.starter_verified.is_(True),
+        models.ProgrammingExercise.is_active.is_(True),
     )
     if language:
         query = query.filter(models.ProgrammingExercise.language == normalize_project_language(language))
