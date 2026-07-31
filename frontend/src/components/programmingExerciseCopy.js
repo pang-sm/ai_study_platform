@@ -60,10 +60,10 @@ function copyKey(exercise = {}) {
 }
 
 export function getExerciseTitle(exercise = {}) {
-  return exercise.title_zh || EXERCISE_COPY[copyKey(exercise)]?.[0] || "编程练习";
+  return exercise.title || exercise.title_zh || EXERCISE_COPY[copyKey(exercise)]?.[0] || "题目数据加载异常，请刷新或联系管理员。";
 }
 
 export function getExerciseDescription(exercise = {}) {
-  return exercise.description_zh || EXERCISE_COPY[copyKey(exercise)]?.[1]
-    || "请根据题目要求完成当前练习，运行公开测试并提交代码。";
+  return exercise.description || exercise.description_zh || EXERCISE_COPY[copyKey(exercise)]?.[1]
+    || "题目数据加载异常，请刷新或联系管理员。";
 }

@@ -117,7 +117,18 @@ def payload(language: str, spec: tuple) -> dict:
                 "sort_order": i,
             })
         return cases
-    report = {"manifest": {"runner": "standard_io", "language": language.lower().replace("+", "pp"), "exercise_id": f"{SOURCE_KEY}-{slug}", "editable_files": [filename], "source_type": "first_party_original"}, "source": SOURCE_KEY}
+    report = {
+        "manifest": {"runner": "standard_io", "language": language.lower().replace("+", "pp"), "exercise_id": f"{SOURCE_KEY}-{slug}", "editable_files": [filename], "source_type": "first_party_original"},
+        "source": SOURCE_KEY,
+        "problem": {
+            "problem_statement": task,
+            "input_format": input_format(kind),
+            "output_format": output_format(kind),
+            "constraints": limits,
+            "notes": "",
+            "knowledge_tags": [tag, "标准输入输出", "中文 OJ"],
+        },
+    }
     return {"slug": f"{SOURCE_KEY}-{language.lower().replace('+', 'pp')}-{slug}", "source_key": f"{SOURCE_KEY}:{language}:{slug}", "language": language, "title": title, "difficulty": "入门", "tags_json": json.dumps([tag, "标准输入输出", "中文 OJ"], ensure_ascii=False), "description": description, "starter_files_json": json.dumps([{"path": filename, "content": starter_code}], ensure_ascii=False), "reference_files_json": json.dumps([{"path": filename, "content": reference(language, kind)}], ensure_ascii=False), "public_tests_json": json.dumps([{"samples": make_cases(public_rows, "public")}], ensure_ascii=False), "hidden_tests_json": json.dumps([{"samples": make_cases(hidden, "hidden")}], ensure_ascii=False), "official_test_files_json": "[]", "source_repo": "first_party_original", "source_path": f"{SOURCE_KEY}/{language}/{slug}", "source_commit": "2026-07-31", "license": "first_party_original", "license_text": "题面、测试数据与参考实现均为本项目第一方原创内容。", "attribution": "AI Study Platform first-party original OJ pilot", "reference_verified": True, "starter_verified": True, "audit_report_json": json.dumps(report, ensure_ascii=False)}
 
 

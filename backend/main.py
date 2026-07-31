@@ -9086,6 +9086,8 @@ def _serialize_programming_progress(progress: models.ProgrammingExerciseProgress
 def serialize_programming_exercise(exercise: models.ProgrammingExercise, include_starter: bool = False, progress=None):
     raw_tags = _exercise_json(exercise.tags_json, [])
     localized_tags = localized_programming_tags(exercise.language, raw_tags)
+    audit = _exercise_json(exercise.audit_report_json, {})
+    problem = audit.get("problem", {}) if isinstance(audit, dict) else {}
     payload = {
         "id": exercise.id,
         "slug": exercise.slug,
@@ -9099,6 +9101,10 @@ def serialize_programming_exercise(exercise: models.ProgrammingExercise, include
         "concepts": localized_tags,
         "knowledge_points": _programming_knowledge_points(exercise),
         "description": exercise.description,
+        "problem_statement": str(problem.get("problem_statement") or exercise.description),
+        "input_format": str(problem.get("input_format") or ""),
+        "output_format": str(problem.get("output_format") or ""),
+        "constraints": str(problem.get("constraints") or ""),
         "public_samples": _public_exercise_samples(exercise, include_backend_fields=False),
         "source_repo": exercise.source_repo,
         "source_path": exercise.source_path,
