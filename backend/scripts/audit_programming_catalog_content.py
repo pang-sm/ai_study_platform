@@ -89,15 +89,15 @@ def main() -> None:
 
         content_records = []
         for row in rows:
-            meta = problem_metadata(row)
             is_pilot = row in pilot_rows
-            title_zh = row.title if has_chinese(row.title) else str(meta.get("title_zh") or "")
-            summary_zh = row.description if is_pilot else str(meta.get("summary_zh") or "")
-            statement_zh = str(meta.get("problem_statement") or row.description if is_pilot else meta.get("statement_zh") or "")
-            input_zh = str(meta.get("input_format") or meta.get("input_format_zh") or "")
-            output_zh = str(meta.get("output_format") or meta.get("output_format_zh") or "")
+            # Current database columns are the canonical catalog source.
+            title_zh = str(row.title_zh or (row.title if is_pilot else ""))
+            summary_zh = str(row.summary_zh or (row.description if is_pilot else ""))
+            statement_zh = str(row.statement_zh or (row.description if is_pilot else ""))
+            input_zh = str(row.input_format_zh or "")
+            output_zh = str(row.output_format_zh or "")
             generic = row.title == "编程练习" or "请根据题目要求完成当前练习" in str(row.description or "")
-            final = all([has_chinese(title_zh), has_chinese(summary_zh), has_chinese(statement_zh), has_chinese(input_zh), has_chinese(output_zh)]) and not generic and not has_markdown_noise(summary_zh)
+            final = all([has_chinese(title_zh), has_chinese(summary_zh), has_chinese(statement_zh), has_chinese(input_zh), has_chinese(output_zh), bool(row.constraints_zh), bool(row.title_en), bool(row.statement_en)]) and not generic and not has_markdown_noise(summary_zh)
             content_records.append({
                 "language": row.language, "exercise_id": row.id, "source_key": row.source_key,
                 "title_zh_present": has_chinese(title_zh), "summary_zh_present": has_chinese(summary_zh),
