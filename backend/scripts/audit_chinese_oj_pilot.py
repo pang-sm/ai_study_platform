@@ -29,7 +29,7 @@ def _exercise_json(raw: str, default):
 def _standard_oj_cases(exercise: ProgrammingExercise, hidden: bool = False) -> list[dict]:
     source = exercise.hidden_tests_json if hidden else exercise.public_tests_json
     return [
-        case for group in _exercise_json(source, []) if isinstance(group, dict)
+        dict(case) for group in _exercise_json(source, []) if isinstance(group, dict)
         for case in group.get("samples", []) if isinstance(case, dict)
         and case.get("visibility") == ("hidden" if hidden else "public")
     ]

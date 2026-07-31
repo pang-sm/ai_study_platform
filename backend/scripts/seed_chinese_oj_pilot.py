@@ -28,6 +28,21 @@ PROBLEMS = [
     ("digit-sum", "各位数字之和", "读取非负整数 n，输出其十进制各位数字之和。", "0 ≤ n ≤ 10^18。", "基础综合", "digits", [("样例 1", "12345\n", "15\n"), ("样例 2", "0\n", "0\n")], [("隐藏：重复数字", "909\n", "18\n")]),
 ]
 
+# These cases are independently derived from each first-party problem's input
+# contract.  They deliberately do not reuse the corresponding hidden input.
+AI_PUBLIC_CASES = {
+    "sum2": ("样例 3", "1000000000 -1000000000\n", "0\n", "覆盖合法整数边界与相反数求和"),
+    "parity": ("样例 3", "-2\n", "even\n", "覆盖负偶数分支"),
+    "max3": ("样例 3", "-10 0 -1\n", "0\n", "覆盖零与负数混合比较"),
+    "sum_n": ("样例 3", "1000000\n", "500000500000\n", "覆盖允许的最大 n"),
+    "vowels": ("样例 3", "aEiOu xyz\n", "5\n", "覆盖大小写混合和空格"),
+    "reverse": ("样例 3", "space here\n", "ereh ecaps\n", "覆盖含空格的文本"),
+    "array_sum": ("样例 3", "5\n0 -1 1 -2 2\n", "0\n", "覆盖零与正负数混合数组"),
+    "find": ("样例 3", "5\n1 3 3 2 3\n3\n", "1\n", "覆盖重复目标时首次位置"),
+    "sort3": ("样例 3", "0 -5 0\n", "-5 0 0\n", "覆盖重复值与负数排序"),
+    "digits": ("样例 3", "1000000000000000000\n", "1\n", "覆盖最大合法数值的各位求和"),
+}
+
 
 def starter(language: str) -> tuple[str, str]:
     if language == "C":
@@ -83,9 +98,27 @@ def payload(language: str, spec: tuple) -> dict:
     slug, title, task, limits, tag, kind, public, hidden = spec
     filename, starter_code = starter(language)
     description = f"{task}\n\n输入格式：\n{input_format(kind)}\n\n输出格式：\n{output_format(kind)}\n\n数据范围：\n{limits}"
-    make_cases = lambda rows, visibility: [{"id": f"{slug}-{visibility}-{i}", "name": name, "stdin_text": stdin, "expected_stdout": stdout, "visibility": visibility} for i, (name, stdin, stdout) in enumerate(rows, 1)]
+    generated = AI_PUBLIC_CASES[kind]
+    public_rows = [*public, generated]
+
+    def make_cases(rows, visibility):
+        cases = []
+        for i, row in enumerate(rows, 1):
+            name, stdin, stdout = row[:3]
+            is_generated = visibility == "public" and i == len(public_rows)
+            cases.append({
+                "id": f"{slug}-{visibility}-{i}",
+                "name": name,
+                "visibility": visibility,
+                "stdin_text": stdin,
+                "expected_stdout": stdout,
+                "source": "ai_generated_validated" if is_generated else "first_party_seed",
+                "generation_reason": row[3] if is_generated else "第一方原创基础样例",
+                "sort_order": i,
+            })
+        return cases
     report = {"manifest": {"runner": "standard_io", "language": language.lower().replace("+", "pp"), "exercise_id": f"{SOURCE_KEY}-{slug}", "editable_files": [filename], "source_type": "first_party_original"}, "source": SOURCE_KEY}
-    return {"slug": f"{SOURCE_KEY}-{language.lower().replace('+', 'pp')}-{slug}", "source_key": f"{SOURCE_KEY}:{language}:{slug}", "language": language, "title": title, "difficulty": "入门", "tags_json": json.dumps([tag, "标准输入输出", "中文 OJ"], ensure_ascii=False), "description": description, "starter_files_json": json.dumps([{"path": filename, "content": starter_code}], ensure_ascii=False), "reference_files_json": json.dumps([{"path": filename, "content": reference(language, kind)}], ensure_ascii=False), "public_tests_json": json.dumps([{"samples": make_cases(public, "public")}], ensure_ascii=False), "hidden_tests_json": json.dumps([{"samples": make_cases(hidden, "hidden")}], ensure_ascii=False), "official_test_files_json": "[]", "source_repo": "first_party_original", "source_path": f"{SOURCE_KEY}/{language}/{slug}", "source_commit": "2026-07-30", "license": "first_party_original", "license_text": "题面、测试数据与参考实现均为本项目第一方原创内容。", "attribution": "AI Study Platform first-party original OJ pilot", "reference_verified": True, "starter_verified": True, "audit_report_json": json.dumps(report, ensure_ascii=False)}
+    return {"slug": f"{SOURCE_KEY}-{language.lower().replace('+', 'pp')}-{slug}", "source_key": f"{SOURCE_KEY}:{language}:{slug}", "language": language, "title": title, "difficulty": "入门", "tags_json": json.dumps([tag, "标准输入输出", "中文 OJ"], ensure_ascii=False), "description": description, "starter_files_json": json.dumps([{"path": filename, "content": starter_code}], ensure_ascii=False), "reference_files_json": json.dumps([{"path": filename, "content": reference(language, kind)}], ensure_ascii=False), "public_tests_json": json.dumps([{"samples": make_cases(public_rows, "public")}], ensure_ascii=False), "hidden_tests_json": json.dumps([{"samples": make_cases(hidden, "hidden")}], ensure_ascii=False), "official_test_files_json": "[]", "source_repo": "first_party_original", "source_path": f"{SOURCE_KEY}/{language}/{slug}", "source_commit": "2026-07-31", "license": "first_party_original", "license_text": "题面、测试数据与参考实现均为本项目第一方原创内容。", "attribution": "AI Study Platform first-party original OJ pilot", "reference_verified": True, "starter_verified": True, "audit_report_json": json.dumps(report, ensure_ascii=False)}
 
 
 def input_format(kind: str) -> str:
@@ -110,6 +143,20 @@ def main() -> None:
                     | (ProgrammingExercise.slug == data["slug"])
                 ).first()
                 if row:
+                    # Case identity is stable within an exercise
+                    # (source_key + language + exercise slug + case id).
+                    # Keep any manually confirmed case that is not owned by
+                    # this seed; never move a case between public/hidden.
+                    for field in ("public_tests_json", "hidden_tests_json"):
+                        existing_groups = json.loads(getattr(row, field) or "[]")
+                        seeded_groups = json.loads(data[field])
+                        existing_cases = [case for group in existing_groups if isinstance(group, dict) for case in group.get("samples", []) if isinstance(case, dict)]
+                        seeded_cases = [case for group in seeded_groups if isinstance(group, dict) for case in group.get("samples", []) if isinstance(case, dict)]
+                        seeded_ids = {str(case.get("id")) for case in seeded_cases}
+                        extras = [case for case in existing_cases if str(case.get("id")) not in seeded_ids]
+                        if extras:
+                            seeded_groups[0]["samples"].extend(extras)
+                        data[field] = json.dumps(seeded_groups, ensure_ascii=False)
                     for key, value in data.items():
                         setattr(row, key, value)
                 else:
