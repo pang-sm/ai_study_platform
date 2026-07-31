@@ -12,6 +12,17 @@ from database_schema import ensure_database_schema
 from models import ProgrammingExercise
 
 
+def normalize_case(item: dict, visibility: str, index: int) -> dict:
+    """Persist the canonical API-safe stdin/stdout field names."""
+    return {
+        "id": str(item.get("id") or f"{visibility}-{index}"),
+        "name": str(item.get("name") or f"{visibility}-{index}"),
+        "visibility": visibility,
+        "stdin_text": str(item.get("stdin_text", item.get("stdin", ""))),
+        "expected_stdout": str(item.get("expected_stdout", item.get("expected", ""))),
+    }
+
+
 def seed(items: list[dict]) -> int:
     ensure_database_schema(engine)
     db = SessionLocal()
@@ -22,8 +33,8 @@ def seed(items: list[dict]) -> int:
                 raise ValueError(f"candidate is not validated: {item.get('source_key')}")
             if db.query(ProgrammingExercise).filter_by(source_key=item["source_key"]).first():
                 continue
-            public = [{"id": f"{item['source_key']}-public-{i}", "visibility": "public", **test} for i, test in enumerate(item["public_cases"], 1)]
-            hidden = [{"id": f"{item['source_key']}-hidden-{i}", "visibility": "hidden", **test} for i, test in enumerate(item["hidden_cases"], 1)]
+            public = [{**normalize_case(test, "public", i), "id": f"{item['source_key']}-public-{i}"} for i, test in enumerate(item["public_cases"], 1)]
+            hidden = [{**normalize_case(test, "hidden", i), "id": f"{item['source_key']}-hidden-{i}"} for i, test in enumerate(item["hidden_cases"], 1)]
             db.add(ProgrammingExercise(
                 slug=item["source_key"].replace(":", "-"), source_key=item["source_key"], language=item["language"],
                 title=item["title_zh"], title_zh=item["title_zh"], summary_zh=item["summary_zh"], statement_zh=item["statement_zh"],

@@ -18,7 +18,7 @@ LIVE_MD = ROOT / "verification-results/catalog-build-live-progress.md"
 def _cases(index: int, op: str) -> list[dict]:
     pairs = [(1, 2), (5, 3), (-7, 4), (0, 9), (12, -5), (100, 10), (-9, -2), (6, 6)]
     def calc(a, b): return {"add": a + b, "sub": a - b, "mul": a * b, "max": max(a, b), "min": min(a, b)}[op]
-    return [{"name": f"case-{index}-{n}", "stdin": f"{a} {b}\n", "expected_stdout": f"{calc(a,b)}\n"} for n, (a,b) in enumerate(pairs, 1)]
+    return [{"name": f"case-{index}-{n}", "stdin_text": f"{a} {b}\n", "expected_stdout": f"{calc(a,b)}\n"} for n, (a,b) in enumerate(pairs, 1)]
 
 def candidate(language: str, index: int) -> dict:
     ops = ["add", "sub", "mul", "max", "min"]

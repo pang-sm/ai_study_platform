@@ -1,0 +1,5149 @@
+# hidden-test-separation-audit
+
+```json
+{
+  "summary": {
+    "total": 642,
+    "hidden_not_serialized": 642,
+    "leaks": 0
+  },
+  "results": [
+    {
+      "exercise_id": 140,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 141,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 142,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 143,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 144,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 145,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 146,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 147,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 148,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 149,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 150,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 151,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 152,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 153,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 154,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 155,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 156,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 157,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 158,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 159,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 160,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 161,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 162,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 163,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 164,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 165,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 166,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 167,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 168,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 169,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 170,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 171,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 172,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 173,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 174,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 175,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 176,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 177,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 178,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 179,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 180,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 181,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 182,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 183,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 184,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 185,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 186,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 187,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 188,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 189,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 190,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 191,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 192,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 193,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 194,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 195,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 196,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 197,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 198,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 199,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 200,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 201,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 202,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 203,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 204,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 205,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 206,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 207,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 208,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 209,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 210,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 211,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 212,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 213,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 214,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 215,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 216,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 217,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 218,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 219,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 220,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 221,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 222,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 223,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 224,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 225,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 226,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 227,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 228,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 229,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 230,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 231,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 232,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 233,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 234,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 235,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 236,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 237,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 238,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 239,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 240,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 241,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 242,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 243,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 244,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 245,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 246,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 247,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 248,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 249,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 250,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 251,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 252,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 253,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 254,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 255,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 256,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 257,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 258,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 259,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 260,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 261,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 262,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 263,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 264,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 265,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 266,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 267,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 268,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 269,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 270,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 271,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 272,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 273,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 274,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 275,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 276,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 277,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 278,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 279,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 280,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 281,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 282,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 283,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 284,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 285,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 286,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 287,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 288,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 289,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 290,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 291,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 292,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 293,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 294,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 295,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 296,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 297,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 298,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 299,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 300,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 301,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 302,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 303,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 304,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 305,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 306,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 307,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 308,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 309,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 310,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 311,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 312,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 313,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 314,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 315,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 316,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 317,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 318,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 319,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 320,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 321,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 322,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 323,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 324,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 325,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 326,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 327,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 328,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 329,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 330,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 331,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 332,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 333,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 334,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 335,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 336,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 337,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 338,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 339,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 340,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 341,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 342,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 343,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 344,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 345,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 346,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 347,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 348,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 349,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 350,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 351,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 352,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 353,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 354,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 355,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 356,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 357,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 358,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 359,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 360,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 361,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 362,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 363,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 364,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 365,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 366,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 367,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 368,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 369,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 370,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 371,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 372,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 373,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 374,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 375,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 376,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 377,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 378,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 379,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 380,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 381,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 382,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 383,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 384,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 385,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 386,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 387,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 388,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 389,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 390,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 391,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 392,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 393,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 394,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 395,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 396,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 397,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 398,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 399,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 400,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 401,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 402,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 403,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 404,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 405,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 406,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 407,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 408,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 409,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 410,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 411,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 412,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 413,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 414,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 415,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 416,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 417,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 418,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 419,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 420,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 421,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 422,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 423,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 424,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 425,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 426,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 427,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 428,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 429,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 430,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 431,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 432,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 433,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 434,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 435,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 436,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 437,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 438,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 439,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 440,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 441,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 442,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 443,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 444,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 445,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 446,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 447,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 448,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 449,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 450,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 451,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 452,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 453,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 454,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 455,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 456,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 457,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 458,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 459,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 460,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 461,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 462,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 463,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 464,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 465,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 466,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 467,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 468,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 469,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 470,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 471,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 472,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 473,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 474,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 475,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 476,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 477,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 478,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 479,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 480,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 481,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 482,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 483,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 484,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 485,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 486,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 487,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 488,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 489,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 490,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 491,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 492,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 493,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 494,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 495,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 496,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 497,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 498,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 499,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 500,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 501,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 502,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 503,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 504,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 505,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 506,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 507,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 508,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 509,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 510,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 511,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 512,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 513,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 514,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 515,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 516,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 517,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 518,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 519,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 520,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 521,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 522,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 523,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 524,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 525,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 526,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 527,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 528,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 529,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 530,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 531,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 532,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 533,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 534,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 535,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 536,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 537,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 538,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 539,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 540,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 541,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 542,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 543,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 544,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 545,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 546,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 547,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 548,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 549,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 550,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 551,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 552,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 553,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 554,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 555,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 556,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 557,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 558,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 559,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 560,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 561,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 562,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 563,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 564,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 565,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 566,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 567,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 568,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 569,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 570,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 571,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 572,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 573,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 574,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 575,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 576,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 577,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 578,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 579,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 580,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 581,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 582,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 583,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 584,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 585,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 586,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 587,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 588,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 589,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 590,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 591,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 592,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 593,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 594,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 595,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 596,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 597,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 598,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 599,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 600,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 601,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 602,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 603,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 604,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 605,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 606,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 607,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 608,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 609,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 610,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 611,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 612,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 613,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 614,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 615,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 616,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 617,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 618,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 619,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 620,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 621,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 622,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 623,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 624,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 625,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 626,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 627,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 628,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 629,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 630,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 631,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 632,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 633,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 634,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 635,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 636,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 637,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 638,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 639,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 640,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 641,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 642,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 643,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 644,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 645,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 646,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 647,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 648,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 649,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 650,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 651,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 652,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 653,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 654,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 655,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 656,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 657,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 658,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 659,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 660,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 661,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 662,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 663,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 664,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 665,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 666,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 667,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 668,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 669,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 670,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 671,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 672,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 673,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 674,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 675,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 676,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 677,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 678,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 679,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 680,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 681,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 682,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 683,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 684,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 685,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 686,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 687,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 688,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 689,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 690,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 691,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 692,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 693,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 694,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 695,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 696,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 697,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 698,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 699,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 700,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 701,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 702,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 703,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 704,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 705,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 706,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 707,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 708,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 709,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 710,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 711,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 712,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 713,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 714,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 715,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 716,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 717,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 718,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 719,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 720,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 721,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 722,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 723,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 724,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 725,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 726,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 727,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 728,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 729,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 730,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 731,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 732,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 733,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 734,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 735,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 736,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 737,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 738,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 739,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 740,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 741,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 742,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 743,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 744,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 745,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 746,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 747,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 748,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 749,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 750,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 751,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 752,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 753,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 754,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 755,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 756,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 757,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 758,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 759,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 760,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 761,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 762,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 763,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 764,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 765,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 766,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 767,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 768,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 769,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 770,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 771,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 772,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 773,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 774,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 775,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 776,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 777,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 778,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 779,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 780,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    },
+    {
+      "exercise_id": 781,
+      "hidden_not_serialized": true,
+      "api_fields_checked": [
+        "public_samples",
+        "starter_files"
+      ]
+    }
+  ]
+}
+```

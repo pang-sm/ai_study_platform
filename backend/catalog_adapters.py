@@ -25,18 +25,18 @@ def _compile(candidate: dict, root: Path, kind: str) -> bool:
     if language == "Python":
         path = root / "main.py"
         path.write_text(source, encoding="utf-8")
-        subprocess.run(["python", "-m", "py_compile", str(path)], cwd=root, check=True, capture_output=True)
+        subprocess.run(["python", "-m", "py_compile", str(path)], cwd=root, check=True, capture_output=True, timeout=15)
         return True
     if language == "Java":
         (root / "Main.java").write_text(source, encoding="utf-8")
-        subprocess.run(["javac", "Main.java"], cwd=root, check=True, capture_output=True)
+        subprocess.run(["javac", "Main.java"], cwd=root, check=True, capture_output=True, timeout=30)
         return True
     extension = ".cpp" if language == "C++" else ".c"
     path = root / f"main{extension}"
     path.write_text(source, encoding="utf-8")
     compiler = "g++" if language == "C++" else "gcc"
     flags = ["-std=c++17"] if language == "C++" else ["-std=c11"]
-    result = subprocess.run([compiler, *flags, path.name, "-o", "program.exe"], cwd=root, capture_output=True, text=True)
+    result = subprocess.run([compiler, *flags, path.name, "-o", "program.exe"], cwd=root, capture_output=True, text=True, timeout=30)
     if result.returncode != 0:
         raise RuntimeError((result.stderr or result.stdout or "compiler failed")[-1000:])
     return True
@@ -47,11 +47,12 @@ def execute_reference(candidate: dict, test: dict) -> str:
         root = Path(raw)
         _compile(candidate, root, "reference")
         language = candidate["language"]
+        stdin_text = str(test.get("stdin_text", test.get("stdin", "")))
         if language == "Python":
-            return _run(["python", "main.py"], root, test["stdin"])
+            return _run(["python", "main.py"], root, stdin_text)
         if language == "Java":
-            return _run(["java", "-cp", str(root), "Main"], root, test["stdin"])
-        return _run([str(root / "program.exe")], root, test["stdin"])
+            return _run(["java", "-cp", str(root), "Main"], root, stdin_text)
+        return _run([str(root / "program.exe")], root, stdin_text)
 
 
 def execute_wrong_solution(candidate: dict, test: dict) -> str:
@@ -71,7 +72,7 @@ def validate_candidate(candidate: dict) -> dict:
             _compile(item, root, "reference")
             language = item["language"]
             command = ["python", "main.py"] if language == "Python" else ["java", "-cp", str(root), "Main"] if language == "Java" else [str(root / "program.exe")]
-            return [_run(command, root, test["stdin"]) for test in tests]
+            return [_run(command, root, str(test.get("stdin_text", test.get("stdin", "")))) for test in tests]
 
     all_tests = [*public, *hidden]
     outputs = run_all(candidate, all_tests)

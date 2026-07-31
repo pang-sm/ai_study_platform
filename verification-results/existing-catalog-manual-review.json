@@ -1,0 +1,47 @@
+{
+  "archived": [
+    {
+      "id": 98,
+      "language": "Python",
+      "source_key": "chinese_oj_pilot_v1:Python:two-number-sum",
+      "reason": "当前执行环境无法重新确认完整隐藏测试与错误解拒绝，按安全策略归档"
+    },
+    {
+      "id": 100,
+      "language": "Python",
+      "source_key": "chinese_oj_pilot_v1:Python:max-of-three",
+      "reason": "当前执行环境无法重新确认完整隐藏测试与错误解拒绝，按安全策略归档"
+    },
+    {
+      "id": 102,
+      "language": "Python",
+      "source_key": "chinese_oj_pilot_v1:Python:count-vowels",
+      "reason": "当前执行环境无法重新确认完整隐藏测试与错误解拒绝，按安全策略归档"
+    },
+    {
+      "id": 103,
+      "language": "Python",
+      "source_key": "chinese_oj_pilot_v1:Python:reverse-text",
+      "reason": "当前执行环境无法重新确认完整隐藏测试与错误解拒绝，按安全策略归档"
+    },
+    {
+      "id": 104,
+      "language": "Python",
+      "source_key": "chinese_oj_pilot_v1:Python:array-sum",
+      "reason": "当前执行环境无法重新确认完整隐藏测试与错误解拒绝，按安全策略归档"
+    },
+    {
+      "id": 106,
+      "language": "Python",
+      "source_key": "chinese_oj_pilot_v1:Python:sort-three",
+      "reason": "当前执行环境无法重新确认完整隐藏测试与错误解拒绝，按安全策略归档"
+    },
+    {
+      "id": 107,
+      "language": "Python",
+      "source_key": "chinese_oj_pilot_v1:Python:digit-sum",
+      "reason": "当前执行环境无法重新确认完整隐藏测试与错误解拒绝，按安全策略归档"
+    }
+  ],
+  "repair_failures": []
+}
