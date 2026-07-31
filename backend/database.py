@@ -3,7 +3,10 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 from subjects import DEFAULT_SUBJECT, get_subject_migration_pairs
 
 import os as _os
-DATABASE_URL = _os.getenv("DATABASE_URL", "sqlite:///./app.db")
+from pathlib import Path as _Path
+
+_DEFAULT_DATABASE_PATH = (_Path(__file__).resolve().parent / "app.db").as_posix()
+DATABASE_URL = _os.getenv("DATABASE_URL") or f"sqlite:///{_DEFAULT_DATABASE_PATH}"
 
 engine = create_engine(
     DATABASE_URL,

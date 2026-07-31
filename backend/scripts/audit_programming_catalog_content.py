@@ -13,7 +13,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "backend"))
 
-from database import SessionLocal
+from database import SessionLocal, engine
+from database_schema import ensure_database_schema
 from models import ProgrammingExercise
 
 
@@ -52,6 +53,7 @@ def write_json_md(name: str, payload: dict, lines: list[str]) -> None:
 
 
 def main() -> None:
+    ensure_database_schema(engine)
     db = SessionLocal()
     try:
         rows = db.query(ProgrammingExercise).filter(

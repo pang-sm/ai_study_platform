@@ -1,17 +1,47 @@
-"""Transactional, idempotent seed for validated first-party C candidates."""
-import json,sys
+"""Idempotent transactional seed for validated first-party candidates."""
+from __future__ import annotations
+
+import json
+import sys
 from pathlib import Path
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-from database import SessionLocal
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "backend"))
+from database import SessionLocal, engine
+from database_schema import ensure_database_schema
 from models import ProgrammingExercise
-def seed(items):
- db=SessionLocal();added=0
- try:
-  for x in items:
-   if db.query(ProgrammingExercise).filter_by(source_key=x['source_key']).first():continue
-   samples=[{'id':f"{x['source_key']}-public-{i}",'visibility':'public','stdin_text':a,'expected_stdout':b} for i,(a,b) in enumerate(x['cases'],1)]
-   hidden=[{'id':f"{x['source_key']}-hidden-{i}",'visibility':'hidden','stdin_text':a,'expected_stdout':b} for i,(a,b) in enumerate(x['cases'],1)]
-   db.add(ProgrammingExercise(slug=x['source_key'].replace(':','-'),source_key=x['source_key'],language='C',title=x['title'],title_zh=x['title'],summary_zh=x['title']+'：读取两个整数并输出计算结果。',statement_zh=x['title']+'。',input_format_zh='一行两个整数。',output_format_zh='输出一个整数。',constraints_zh='输入在 64 位整数范围内。',title_en=x['title'],statement_en=x['title'],difficulty='入门',tags_json='["C","数值运算"]',description=x['title'],starter_files_json='[{"path":"main.c","content":"#include <stdio.h>\\nint main(void){return 0;}"}]',reference_files_json=json.dumps([{'path':'main.c','content':x['reference']}]),public_tests_json=json.dumps([{'samples':samples}]),hidden_tests_json=json.dumps([{'samples':hidden}]),official_test_files_json='[]',source_repo='first_party_original',source_path=x['source_key'],source_commit='generated',license='project_owned',license_text='第一方原创',attribution='AI-assisted original content created for ai_study_platform',reference_verified=True,starter_verified=True,is_active=True,problem_family_id=x['source_key'],language_fit_reason='训练 C 的 scanf/printf 与整数运算。'));added+=1
-  db.commit();return added
- except: db.rollback();raise
- finally: db.close()
+
+
+def seed(items: list[dict]) -> int:
+    ensure_database_schema(engine)
+    db = SessionLocal()
+    added = 0
+    try:
+        for item in items:
+            if not item.get("validated"):
+                raise ValueError(f"candidate is not validated: {item.get('source_key')}")
+            if db.query(ProgrammingExercise).filter_by(source_key=item["source_key"]).first():
+                continue
+            public = [{"id": f"{item['source_key']}-public-{i}", "visibility": "public", **test} for i, test in enumerate(item["public_cases"], 1)]
+            hidden = [{"id": f"{item['source_key']}-hidden-{i}", "visibility": "hidden", **test} for i, test in enumerate(item["hidden_cases"], 1)]
+            db.add(ProgrammingExercise(
+                slug=item["source_key"].replace(":", "-"), source_key=item["source_key"], language=item["language"],
+                title=item["title_zh"], title_zh=item["title_zh"], summary_zh=item["summary_zh"], statement_zh=item["statement_zh"],
+                input_format_zh=item["input_format_zh"], output_format_zh=item["output_format_zh"], constraints_zh=item["constraints_zh"],
+                title_en=item["title_en"], statement_en=item["statement_en"], difficulty=item["difficulty"],
+                tags_json=json.dumps(item["knowledge_tags"], ensure_ascii=False), description=item["summary_zh"],
+                starter_files_json=json.dumps([{"path": item["filename"], "content": item["starter_code"]}], ensure_ascii=False),
+                reference_files_json=json.dumps([{"path": item["filename"], "content": item["reference_code"]}], ensure_ascii=False),
+                public_tests_json=json.dumps([{"samples": public}], ensure_ascii=False), hidden_tests_json=json.dumps([{"samples": hidden}], ensure_ascii=False),
+                official_test_files_json="[]", source_repo="first_party_original", source_path=item["source_key"], source_commit="generated-2026-07-31",
+                license="project_owned", license_text="第一方原创", attribution="AI Study Platform first-party original content",
+                reference_verified=True, starter_verified=True, is_active=True, problem_family_id=item["problem_family_id"], language_fit_reason=item["language_fit_reason"],
+            ))
+            added += 1
+        db.commit()
+        return added
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()

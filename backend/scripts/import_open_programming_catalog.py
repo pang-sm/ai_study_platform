@@ -8,6 +8,9 @@ from __future__ import annotations
 import json, argparse, sys
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]
+sys.path.insert(0,str(ROOT/'backend'))
+from database import engine
+from database_schema import ensure_database_schema
 REGISTRY=ROOT/'backend/data/programming_source_registry.json'
 def approved_sources():
  data=json.loads(REGISTRY.read_text(encoding='utf8'))
@@ -20,6 +23,7 @@ def validate_record(record, approved):
  if len(record['public_cases'])<3 or len(record['hidden_cases'])<3: raise ValueError('insufficient test cases')
  return True
 def main():
+ ensure_database_schema(engine)
  parser=argparse.ArgumentParser();parser.add_argument('--records');args=parser.parse_args();approved=approved_sources()
  if not args.records: print('approved sources:', ', '.join(approved));return
  records=json.loads(Path(args.records).read_text(encoding='utf8'))

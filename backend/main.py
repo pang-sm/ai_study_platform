@@ -52,6 +52,7 @@ import models
 import schemas
 from auth import hash_password, verify_password
 from database import Base, SessionLocal, engine, get_db, init_user_profile_schema, update_conversation_title
+from database_schema import ensure_database_schema
 from membership import (
     PLAN_DEFINITIONS,
     VALID_PLANS,
@@ -119,15 +120,7 @@ with engine.begin() as _connection:
     }.items():
         if _name not in _columns:
             _connection.exec_driver_sql(f"ALTER TABLE user_knowledge_progress ADD COLUMN {_name} {_definition}")
-    _exercise_columns = {row[1] for row in _connection.exec_driver_sql("PRAGMA table_info(programming_exercises)")}
-    for _name, _definition in {
-        "is_active": "BOOLEAN NOT NULL DEFAULT 1", "problem_family_id": "VARCHAR(160)",
-        "language_fit_reason": "TEXT", "title_zh": "VARCHAR(255)", "summary_zh": "TEXT",
-        "statement_zh": "TEXT", "input_format_zh": "TEXT", "output_format_zh": "TEXT",
-        "constraints_zh": "TEXT", "title_en": "VARCHAR(255)", "statement_en": "TEXT",
-    }.items():
-        if _name not in _exercise_columns:
-            _connection.exec_driver_sql(f"ALTER TABLE programming_exercises ADD COLUMN {_name} {_definition}")
+ensure_database_schema(engine)
 
 # Preload redemption codes from env var on startup
 with SessionLocal() as _db:
