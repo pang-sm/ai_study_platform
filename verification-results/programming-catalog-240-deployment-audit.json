@@ -1,0 +1,42 @@
+{
+  "deployment_commit": "5824b5e",
+  "actions_run": "30710013694",
+  "actions_conclusion": "success",
+  "backend_health": {
+    "public_api": "http://101.32.190.42/api/health",
+    "status_code": 200,
+    "body": {"status": "ok"},
+    "systemd": "active"
+  },
+  "online_backup": {
+    "path": "/var/lib/ai_study_platform/backups/app.db.after-catalog-240.20260802_012123.db",
+    "bytes": 476553216,
+    "integrity_check": "ok"
+  },
+  "online_database": {
+    "database_path": "/var/lib/ai_study_platform/app.db",
+    "counts": {"C": 60, "C++": 60, "Python": 60, "Java": 60},
+    "approved_active_total": 240,
+    "title_zh_missing": 0,
+    "statement_zh_missing": 0,
+    "public_under_3": 0,
+    "hidden_under_5": 0,
+    "source_key_duplicates": 0,
+    "users": 161,
+    "programming_progress_rows": 1,
+    "integrity_check": "ok"
+  },
+  "api_acceptance": {
+    "base": "http://101.32.190.42/api",
+    "languages": {"C": {"total": 60, "pages": 2, "details_sampled": 10}, "C++": {"total": 60, "pages": 2, "details_sampled": 10}, "Python": {"total": 60, "pages": 2, "details_sampled": 10}, "Java": {"total": 60, "pages": 2, "details_sampled": 10}},
+    "detail_missing_chinese_fields": 0,
+    "hidden_test_field_leaks": 0,
+    "http_4xx_5xx_in_sample": 0
+  },
+  "web_acceptance": {
+    "http_root_status": 200,
+    "browser_catalog_card抽验": "未完成：浏览器自动化加载正式站点两次超时，未宣称 UI 全部通过",
+    "login_required": false
+  },
+  "uncompleted": ["浏览器自动化页面级抽验未完成；公网 API 和根页面 HTTP 200 已核验。"]
+}
