@@ -1,0 +1,724 @@
+{
+  "new": [
+    {
+      "language": "C",
+      "source_key": "recovery-2026:C:0:task-0",
+      "title_zh": "奇数电量汇总",
+      "learning_objective_id": "c-io-types"
+    },
+    {
+      "language": "C",
+      "source_key": "recovery-2026:C:1:task-1",
+      "title_zh": "循环峰值轨迹",
+      "learning_objective_id": "c-control-flow"
+    },
+    {
+      "language": "C",
+      "source_key": "recovery-2026:C:2:task-2",
+      "title_zh": "数组右移校准",
+      "learning_objective_id": "c-arrays-strings"
+    },
+    {
+      "language": "C",
+      "source_key": "recovery-2026:C:3:task-3",
+      "title_zh": "连续温度区间",
+      "learning_objective_id": "c-functions-pointers"
+    },
+    {
+      "language": "C",
+      "source_key": "recovery-2026:C:4:task-4",
+      "title_zh": "有序序列去重",
+      "learning_objective_id": "c-structs-files"
+    },
+    {
+      "language": "C",
+      "source_key": "recovery-2026:C:5:task-5",
+      "title_zh": "下界位置定位",
+      "learning_objective_id": "c-data-structures"
+    },
+    {
+      "language": "C",
+      "source_key": "recovery-2026:C:6:task-6",
+      "title_zh": "字符括号检查",
+      "learning_objective_id": "c-algorithms"
+    },
+    {
+      "language": "C",
+      "source_key": "recovery-2026:C:7:task-7",
+      "title_zh": "硬币兑换张数",
+      "learning_objective_id": "c-graphs-dp"
+    },
+    {
+      "language": "C",
+      "source_key": "recovery-2026:C:8:task-8",
+      "title_zh": "网格路线计数",
+      "learning_objective_id": "c-io-types"
+    },
+    {
+      "language": "C",
+      "source_key": "recovery-2026:C:9:task-9",
+      "title_zh": "前缀能量峰值",
+      "learning_objective_id": "c-control-flow"
+    },
+    {
+      "language": "C",
+      "source_key": "recovery-2026:C:10:task-10",
+      "title_zh": "传感器异常段",
+      "learning_objective_id": "c-arrays-strings"
+    },
+    {
+      "language": "C",
+      "source_key": "recovery-2026:C:11:task-11",
+      "title_zh": "二进制开关统计",
+      "learning_objective_id": "c-functions-pointers"
+    },
+    {
+      "language": "C",
+      "source_key": "recovery-2026:C:12:task-12",
+      "title_zh": "成绩区间合并",
+      "learning_objective_id": "c-structs-files"
+    },
+    {
+      "language": "C",
+      "source_key": "recovery-2026:C:13:task-13",
+      "title_zh": "日志词频摘要",
+      "learning_objective_id": "c-data-structures"
+    },
+    {
+      "language": "C",
+      "source_key": "recovery-2026:C:14:task-14",
+      "title_zh": "动态数组拼接",
+      "learning_objective_id": "c-algorithms"
+    },
+    {
+      "language": "C",
+      "source_key": "recovery-2026:C:15:task-15",
+      "title_zh": "链表节点筛选",
+      "learning_objective_id": "c-graphs-dp"
+    },
+    {
+      "language": "C",
+      "source_key": "recovery-2026:C:16:task-16",
+      "title_zh": "结构体成绩排名",
+      "learning_objective_id": "c-io-types"
+    },
+    {
+      "language": "C",
+      "source_key": "recovery-2026:C:17:task-17",
+      "title_zh": "指针窗口扫描",
+      "learning_objective_id": "c-control-flow"
+    },
+    {
+      "language": "C",
+      "source_key": "recovery-2026:C:18:task-18",
+      "title_zh": "迷宫连通区域",
+      "learning_objective_id": "c-arrays-strings"
+    },
+    {
+      "language": "C",
+      "source_key": "recovery-2026:C:19:task-19",
+      "title_zh": "缓存命中统计",
+      "learning_objective_id": "c-functions-pointers"
+    },
+    {
+      "language": "C",
+      "source_key": "recovery-2026:C:20:task-20",
+      "title_zh": "日程冲突检测",
+      "learning_objective_id": "c-structs-files"
+    },
+    {
+      "language": "C",
+      "source_key": "recovery-2026:C:21:task-21",
+      "title_zh": "订单分桶汇总",
+      "learning_objective_id": "c-data-structures"
+    },
+    {
+      "language": "C",
+      "source_key": "recovery-2026:C:22:task-22",
+      "title_zh": "文本单词反转",
+      "learning_objective_id": "c-algorithms"
+    },
+    {
+      "language": "C",
+      "source_key": "recovery-2026:C:23:task-23",
+      "title_zh": "边界索引查询",
+      "learning_objective_id": "c-graphs-dp"
+    },
+    {
+      "language": "C",
+      "source_key": "recovery-2026:C:24:task-24",
+      "title_zh": "预算组合计数",
+      "learning_objective_id": "c-io-types"
+    },
+    {
+      "language": "C",
+      "source_key": "recovery-2026:C:25:task-25",
+      "title_zh": "二维边框求和",
+      "learning_objective_id": "c-control-flow"
+    },
+    {
+      "language": "C",
+      "source_key": "recovery-2026:C:26:task-26",
+      "title_zh": "任务优先级整理",
+      "learning_objective_id": "c-arrays-strings"
+    },
+    {
+      "language": "C",
+      "source_key": "recovery-2026:C:27:task-27",
+      "title_zh": "颜色编码解码",
+      "learning_objective_id": "c-functions-pointers"
+    },
+    {
+      "language": "C",
+      "source_key": "recovery-2026:C:28:task-28",
+      "title_zh": "库存变化轨迹",
+      "learning_objective_id": "c-structs-files"
+    },
+    {
+      "language": "C",
+      "source_key": "recovery-2026:C:29:task-29",
+      "title_zh": "设备状态压缩",
+      "learning_objective_id": "c-data-structures"
+    },
+    {
+      "language": "C++",
+      "source_key": "recovery-2026:C++:0:task-0",
+      "title_zh": "奇数测量值汇总",
+      "learning_objective_id": "cpp-io-stl"
+    },
+    {
+      "language": "C++",
+      "source_key": "recovery-2026:C++:1:vector",
+      "title_zh": "vector 循环位移",
+      "learning_objective_id": "cpp-control"
+    },
+    {
+      "language": "C++",
+      "source_key": "recovery-2026:C++:2:task-2",
+      "title_zh": "连续读数最长段",
+      "learning_objective_id": "cpp-sequence"
+    },
+    {
+      "language": "C++",
+      "source_key": "recovery-2026:C++:3:task-3",
+      "title_zh": "迭代器去重",
+      "learning_objective_id": "cpp-ordered"
+    },
+    {
+      "language": "C++",
+      "source_key": "recovery-2026:C++:4:task-4",
+      "title_zh": "有序序列下界",
+      "learning_objective_id": "cpp-stack-queue"
+    },
+    {
+      "language": "C++",
+      "source_key": "recovery-2026:C++:5:task-5",
+      "title_zh": "括号序列校验",
+      "learning_objective_id": "cpp-search"
+    },
+    {
+      "language": "C++",
+      "source_key": "recovery-2026:C++:6:task-6",
+      "title_zh": "硬币兑换规划",
+      "learning_objective_id": "cpp-graphs"
+    },
+    {
+      "language": "C++",
+      "source_key": "recovery-2026:C++:7:task-7",
+      "title_zh": "网格路径计数",
+      "learning_objective_id": "cpp-dp"
+    },
+    {
+      "language": "C++",
+      "source_key": "recovery-2026:C++:8:task-8",
+      "title_zh": "稳定分组记录",
+      "learning_objective_id": "cpp-io-stl"
+    },
+    {
+      "language": "C++",
+      "source_key": "recovery-2026:C++:9:task-9",
+      "title_zh": "字符串游程编码",
+      "learning_objective_id": "cpp-control"
+    },
+    {
+      "language": "C++",
+      "source_key": "recovery-2026:C++:10:task-10",
+      "title_zh": "频次映射摘要",
+      "learning_objective_id": "cpp-sequence"
+    },
+    {
+      "language": "C++",
+      "source_key": "recovery-2026:C++:11:task-11",
+      "title_zh": "区间合并报告",
+      "learning_objective_id": "cpp-ordered"
+    },
+    {
+      "language": "C++",
+      "source_key": "recovery-2026:C++:12:lambda",
+      "title_zh": "lambda 成绩排序",
+      "learning_objective_id": "cpp-stack-queue"
+    },
+    {
+      "language": "C++",
+      "source_key": "recovery-2026:C++:13:task-13",
+      "title_zh": "优先队列调度",
+      "learning_objective_id": "cpp-search"
+    },
+    {
+      "language": "C++",
+      "source_key": "recovery-2026:C++:14:task-14",
+      "title_zh": "滑动窗口峰值",
+      "learning_objective_id": "cpp-graphs"
+    },
+    {
+      "language": "C++",
+      "source_key": "recovery-2026:C++:15:task-15",
+      "title_zh": "并查集连通分量",
+      "learning_objective_id": "cpp-dp"
+    },
+    {
+      "language": "C++",
+      "source_key": "recovery-2026:C++:16:task-16",
+      "title_zh": "最长递增序列",
+      "learning_objective_id": "cpp-io-stl"
+    },
+    {
+      "language": "C++",
+      "source_key": "recovery-2026:C++:17:task-17",
+      "title_zh": "滚动数组背包",
+      "learning_objective_id": "cpp-control"
+    },
+    {
+      "language": "C++",
+      "source_key": "recovery-2026:C++:18:raii",
+      "title_zh": "RAII 资源日志",
+      "learning_objective_id": "cpp-sequence"
+    },
+    {
+      "language": "C++",
+      "source_key": "recovery-2026:C++:19:task-19",
+      "title_zh": "模板最大公约数",
+      "learning_objective_id": "cpp-ordered"
+    },
+    {
+      "language": "C++",
+      "source_key": "recovery-2026:C++:20:set",
+      "title_zh": "set 范围查询",
+      "learning_objective_id": "cpp-stack-queue"
+    },
+    {
+      "language": "C++",
+      "source_key": "recovery-2026:C++:21:map",
+      "title_zh": "map 索引构建",
+      "learning_objective_id": "cpp-search"
+    },
+    {
+      "language": "C++",
+      "source_key": "recovery-2026:C++:22:task-22",
+      "title_zh": "双指针配对",
+      "learning_objective_id": "cpp-graphs"
+    },
+    {
+      "language": "C++",
+      "source_key": "recovery-2026:C++:23:task-23",
+      "title_zh": "矩阵旋转",
+      "learning_objective_id": "cpp-dp"
+    },
+    {
+      "language": "C++",
+      "source_key": "recovery-2026:C++:24:task-24",
+      "title_zh": "异常值过滤",
+      "learning_objective_id": "cpp-io-stl"
+    },
+    {
+      "language": "C++",
+      "source_key": "recovery-2026:C++:25:task-25",
+      "title_zh": "类成员统计器",
+      "learning_objective_id": "cpp-control"
+    },
+    {
+      "language": "C++",
+      "source_key": "recovery-2026:C++:26:task-26",
+      "title_zh": "比较器日程表",
+      "learning_objective_id": "cpp-sequence"
+    },
+    {
+      "language": "C++",
+      "source_key": "recovery-2026:C++:27:task-27",
+      "title_zh": "图的最短层数",
+      "learning_objective_id": "cpp-ordered"
+    },
+    {
+      "language": "C++",
+      "source_key": "recovery-2026:C++:28:task-28",
+      "title_zh": "字符串分词器",
+      "learning_objective_id": "cpp-stack-queue"
+    },
+    {
+      "language": "C++",
+      "source_key": "recovery-2026:C++:29:task-29",
+      "title_zh": "任务依赖拓扑",
+      "learning_objective_id": "cpp-search"
+    },
+    {
+      "language": "Python",
+      "source_key": "recovery-2026:Python:0:task-0",
+      "title_zh": "奇数支出汇总",
+      "learning_objective_id": "python-io-types"
+    },
+    {
+      "language": "Python",
+      "source_key": "recovery-2026:Python:1:task-1",
+      "title_zh": "列表循环位移",
+      "learning_objective_id": "python-control"
+    },
+    {
+      "language": "Python",
+      "source_key": "recovery-2026:Python:2:task-2",
+      "title_zh": "最长连续温度",
+      "learning_objective_id": "python-sequences"
+    },
+    {
+      "language": "Python",
+      "source_key": "recovery-2026:Python:3:task-3",
+      "title_zh": "切片去重序列",
+      "learning_objective_id": "python-mapping"
+    },
+    {
+      "language": "Python",
+      "source_key": "recovery-2026:Python:4:bisect",
+      "title_zh": "bisect 下界查询",
+      "learning_objective_id": "python-stack-queue"
+    },
+    {
+      "language": "Python",
+      "source_key": "recovery-2026:Python:5:task-5",
+      "title_zh": "括号栈校验",
+      "learning_objective_id": "python-search"
+    },
+    {
+      "language": "Python",
+      "source_key": "recovery-2026:Python:6:task-6",
+      "title_zh": "硬币兑换规划",
+      "learning_objective_id": "python-graphs"
+    },
+    {
+      "language": "Python",
+      "source_key": "recovery-2026:Python:7:task-7",
+      "title_zh": "网格路径计数",
+      "learning_objective_id": "python-dp"
+    },
+    {
+      "language": "Python",
+      "source_key": "recovery-2026:Python:8:task-8",
+      "title_zh": "列表推导转置",
+      "learning_objective_id": "python-io-types"
+    },
+    {
+      "language": "Python",
+      "source_key": "recovery-2026:Python:9:task-9",
+      "title_zh": "字典频次索引",
+      "learning_objective_id": "python-control"
+    },
+    {
+      "language": "Python",
+      "source_key": "recovery-2026:Python:10:task-10",
+      "title_zh": "生成器分块平均",
+      "learning_objective_id": "python-sequences"
+    },
+    {
+      "language": "Python",
+      "source_key": "recovery-2026:Python:11:counter",
+      "title_zh": "Counter 众数摘要",
+      "learning_objective_id": "python-mapping"
+    },
+    {
+      "language": "Python",
+      "source_key": "recovery-2026:Python:12:deque",
+      "title_zh": "deque 窗口峰值",
+      "learning_objective_id": "python-stack-queue"
+    },
+    {
+      "language": "Python",
+      "source_key": "recovery-2026:Python:13:heapq",
+      "title_zh": "heapq 任务合并",
+      "learning_objective_id": "python-search"
+    },
+    {
+      "language": "Python",
+      "source_key": "recovery-2026:Python:14:task-14",
+      "title_zh": "日期区间重叠",
+      "learning_objective_id": "python-graphs"
+    },
+    {
+      "language": "Python",
+      "source_key": "recovery-2026:Python:15:dataclass",
+      "title_zh": "dataclass 成绩排序",
+      "learning_objective_id": "python-dp"
+    },
+    {
+      "language": "Python",
+      "source_key": "recovery-2026:Python:16:task-16",
+      "title_zh": "集合相似度",
+      "learning_objective_id": "python-io-types"
+    },
+    {
+      "language": "Python",
+      "source_key": "recovery-2026:Python:17:task-17",
+      "title_zh": "递归岛屿计数",
+      "learning_objective_id": "python-control"
+    },
+    {
+      "language": "Python",
+      "source_key": "recovery-2026:Python:18:task-18",
+      "title_zh": "缓存递推台阶",
+      "learning_objective_id": "python-sequences"
+    },
+    {
+      "language": "Python",
+      "source_key": "recovery-2026:Python:19:key",
+      "title_zh": "稳定 key 排序",
+      "learning_objective_id": "python-mapping"
+    },
+    {
+      "language": "Python",
+      "source_key": "recovery-2026:Python:20:task-20",
+      "title_zh": "字符串词频",
+      "learning_objective_id": "python-stack-queue"
+    },
+    {
+      "language": "Python",
+      "source_key": "recovery-2026:Python:21:task-21",
+      "title_zh": "二维切片旋转",
+      "learning_objective_id": "python-search"
+    },
+    {
+      "language": "Python",
+      "source_key": "recovery-2026:Python:22:bfs",
+      "title_zh": "邻接表 BFS",
+      "learning_objective_id": "python-graphs"
+    },
+    {
+      "language": "Python",
+      "source_key": "recovery-2026:Python:23:task-23",
+      "title_zh": "前缀和查询",
+      "learning_objective_id": "python-dp"
+    },
+    {
+      "language": "Python",
+      "source_key": "recovery-2026:Python:24:task-24",
+      "title_zh": "预算组合计数",
+      "learning_objective_id": "python-io-types"
+    },
+    {
+      "language": "Python",
+      "source_key": "recovery-2026:Python:25:task-25",
+      "title_zh": "异常记录过滤",
+      "learning_objective_id": "python-control"
+    },
+    {
+      "language": "Python",
+      "source_key": "recovery-2026:Python:26:task-26",
+      "title_zh": "文件名扩展统计",
+      "learning_objective_id": "python-sequences"
+    },
+    {
+      "language": "Python",
+      "source_key": "recovery-2026:Python:27:task-27",
+      "title_zh": "迭代器扁平化",
+      "learning_objective_id": "python-mapping"
+    },
+    {
+      "language": "Python",
+      "source_key": "recovery-2026:Python:28:task-28",
+      "title_zh": "时间段调度",
+      "learning_objective_id": "python-stack-queue"
+    },
+    {
+      "language": "Python",
+      "source_key": "recovery-2026:Python:29:task-29",
+      "title_zh": "配置字典合并",
+      "learning_objective_id": "python-search"
+    },
+    {
+      "language": "Java",
+      "source_key": "recovery-2026:Java:0:task-0",
+      "title_zh": "奇数读数汇总",
+      "learning_objective_id": "java-io-types"
+    },
+    {
+      "language": "Java",
+      "source_key": "recovery-2026:Java:1:task-1",
+      "title_zh": "数组循环位移",
+      "learning_objective_id": "java-control"
+    },
+    {
+      "language": "Java",
+      "source_key": "recovery-2026:Java:2:task-2",
+      "title_zh": "最长连续状态",
+      "learning_objective_id": "java-arrays-strings"
+    },
+    {
+      "language": "Java",
+      "source_key": "recovery-2026:Java:3:list",
+      "title_zh": "List 去重保序",
+      "learning_objective_id": "java-collections"
+    },
+    {
+      "language": "Java",
+      "source_key": "recovery-2026:Java:4:task-4",
+      "title_zh": "二分下界定位",
+      "learning_objective_id": "java-stack-queue"
+    },
+    {
+      "language": "Java",
+      "source_key": "recovery-2026:Java:5:deque",
+      "title_zh": "Deque 括号校验",
+      "learning_objective_id": "java-search"
+    },
+    {
+      "language": "Java",
+      "source_key": "recovery-2026:Java:6:task-6",
+      "title_zh": "硬币兑换规划",
+      "learning_objective_id": "java-graphs"
+    },
+    {
+      "language": "Java",
+      "source_key": "recovery-2026:Java:7:task-7",
+      "title_zh": "网格路径计数",
+      "learning_objective_id": "java-dp"
+    },
+    {
+      "language": "Java",
+      "source_key": "recovery-2026:Java:8:stringbuilder",
+      "title_zh": "StringBuilder 词序反转",
+      "learning_objective_id": "java-io-types"
+    },
+    {
+      "language": "Java",
+      "source_key": "recovery-2026:Java:9:map",
+      "title_zh": "Map 频次索引",
+      "learning_objective_id": "java-control"
+    },
+    {
+      "language": "Java",
+      "source_key": "recovery-2026:Java:10:comparator",
+      "title_zh": "Comparator 成绩排序",
+      "learning_objective_id": "java-arrays-strings"
+    },
+    {
+      "language": "Java",
+      "source_key": "recovery-2026:Java:11:priorityqueue",
+      "title_zh": "PriorityQueue 任务调度",
+      "learning_objective_id": "java-collections"
+    },
+    {
+      "language": "Java",
+      "source_key": "recovery-2026:Java:12:set",
+      "title_zh": "Set 标签去重",
+      "learning_objective_id": "java-stack-queue"
+    },
+    {
+      "language": "Java",
+      "source_key": "recovery-2026:Java:13:task-13",
+      "title_zh": "泛型区间合并",
+      "learning_objective_id": "java-search"
+    },
+    {
+      "language": "Java",
+      "source_key": "recovery-2026:Java:14:task-14",
+      "title_zh": "异常输入校验",
+      "learning_objective_id": "java-graphs"
+    },
+    {
+      "language": "Java",
+      "source_key": "recovery-2026:Java:15:enum",
+      "title_zh": "enum 状态计分",
+      "learning_objective_id": "java-dp"
+    },
+    {
+      "language": "Java",
+      "source_key": "recovery-2026:Java:16:task-16",
+      "title_zh": "接口折扣结算",
+      "learning_objective_id": "java-io-types"
+    },
+    {
+      "language": "Java",
+      "source_key": "recovery-2026:Java:17:task-17",
+      "title_zh": "对象账单汇总",
+      "learning_objective_id": "java-control"
+    },
+    {
+      "language": "Java",
+      "source_key": "recovery-2026:Java:18:task-18",
+      "title_zh": "流式分组统计",
+      "learning_objective_id": "java-arrays-strings"
+    },
+    {
+      "language": "Java",
+      "source_key": "recovery-2026:Java:19:task-19",
+      "title_zh": "双指针配对",
+      "learning_objective_id": "java-collections"
+    },
+    {
+      "language": "Java",
+      "source_key": "recovery-2026:Java:20:bfs",
+      "title_zh": "BFS 网格距离",
+      "learning_objective_id": "java-stack-queue"
+    },
+    {
+      "language": "Java",
+      "source_key": "recovery-2026:Java:21:task-21",
+      "title_zh": "并查集连通分量",
+      "learning_objective_id": "java-search"
+    },
+    {
+      "language": "Java",
+      "source_key": "recovery-2026:Java:22:task-22",
+      "title_zh": "滚动数组背包",
+      "learning_objective_id": "java-graphs"
+    },
+    {
+      "language": "Java",
+      "source_key": "recovery-2026:Java:23:task-23",
+      "title_zh": "最长递增序列",
+      "learning_objective_id": "java-dp"
+    },
+    {
+      "language": "Java",
+      "source_key": "recovery-2026:Java:24:task-24",
+      "title_zh": "日期区间重叠",
+      "learning_objective_id": "java-io-types"
+    },
+    {
+      "language": "Java",
+      "source_key": "recovery-2026:Java:25:task-25",
+      "title_zh": "字符串规范化",
+      "learning_objective_id": "java-control"
+    },
+    {
+      "language": "Java",
+      "source_key": "recovery-2026:Java:26:task-26",
+      "title_zh": "矩阵边框求和",
+      "learning_objective_id": "java-arrays-strings"
+    },
+    {
+      "language": "Java",
+      "source_key": "recovery-2026:Java:27:task-27",
+      "title_zh": "优先级窗口",
+      "learning_objective_id": "java-collections"
+    },
+    {
+      "language": "Java",
+      "source_key": "recovery-2026:Java:28:task-28",
+      "title_zh": "泛型栈操作",
+      "learning_objective_id": "java-stack-queue"
+    },
+    {
+      "language": "Java",
+      "source_key": "recovery-2026:Java:29:task-29",
+      "title_zh": "配置键排序",
+      "learning_objective_id": "java-search"
+    }
+  ]
+}
