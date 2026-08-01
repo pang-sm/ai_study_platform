@@ -128,6 +128,43 @@ jobs:
           chmod 644 "$HOME/.ssh/known_hosts"
           echo "ssh-keyscan succeeded"
 
+      - name: Remote disk preflight
+        shell: bash
+        env:
+          TENCENT_HOST: ${{ secrets.TENCENT_HOST }}
+          TENCENT_USER: ${{ secrets.TENCENT_USER }}
+          SSH_PORT: ${{ secrets.TENCENT_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          HOST_CLEAN="${TENCENT_HOST#*@}"
+          HOST_CLEAN="${HOST_CLEAN%%:*}"
+          SSH_PORT="${SSH_PORT:-22}"
+          ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=10 \
+            -i "$HOME/.ssh/tencent_deploy_key" -p "$SSH_PORT" \
+            "$TENCENT_USER@$HOST_CLEAN" 'bash -se' <<'PREFLIGHTEOF'
+          set -euo pipefail
+          echo "=== remote disk preflight ==="
+          df -h /
+          df -i /
+          # Remove only stale deployment scratch files. Persistent databases,
+          # backups, uploads, and the repository are outside this cleanup.
+          find /tmp -maxdepth 1 -type f \( \
+            -name 'ai_study_platform-*' -o -name 'exercism_sources-*' \
+          \) -mmin +60 -print -delete
+          find /tmp -maxdepth 1 -type d -name 'tmp.*' -mmin +60 -print -exec rm -rf -- {} +
+          AVAIL_KB="$(df -Pk / | awk 'NR==2 {print $4}')"
+          INODES_AVAIL="$(df -Pi / | awk 'NR==2 {print $4}')"
+          if [ "${AVAIL_KB:-0}" -lt 2097152 ]; then
+            echo "ERROR: less than 2 GiB available before deployment"
+            exit 1
+          fi
+          if [ "${INODES_AVAIL:-0}" -lt 10000 ]; then
+            echo "ERROR: fewer than 10000 inodes available before deployment"
+            exit 1
+          fi
+          echo "remote disk preflight passed"
+          PREFLIGHTEOF
+
       - name: Create deployment Git bundle
         run: git bundle create "$RUNNER_TEMP/ai_study_platform.bundle" main
 
@@ -274,15 +311,25 @@ jobs:
 
           export GIT_TERMINAL_PROMPT=0
           echo "[deploy] repository: $(pwd)"
+          echo "[deploy] disk before git update"
+          df -h /
+          df -i /
           git remote -v
           echo "[deploy] Updating repository from uploaded Git bundle"
-          if git fetch "$DEPLOY_BUNDLE" main 2>&1; then
-            git checkout main
-            git reset --hard FETCH_HEAD
+          GIT_FETCH_LOG="$(mktemp)"
+          if git fetch "$DEPLOY_BUNDLE" main 2>&1 | tee "$GIT_FETCH_LOG"; then
+            echo "[deploy] git fetch succeeded"
+            git checkout main 2>&1 | tee -a "$GIT_FETCH_LOG"
+            git reset --hard FETCH_HEAD 2>&1 | tee -a "$GIT_FETCH_LOG"
           else
+            GIT_FETCH_STATUS=${PIPESTATUS[0]}
+            echo "[deploy] git fetch failed with exit code $GIT_FETCH_STATUS"
+            echo "[deploy] complete git stderr/stdout:"
+            cat "$GIT_FETCH_LOG"
+            rm -f "$GIT_FETCH_LOG"
             echo "[deploy] Existing Git worktree could not consume bundle; rebuilding it from the same bundle"
             DEPLOY_TREE=$(mktemp -d)
-            if git clone "$DEPLOY_BUNDLE" "$DEPLOY_TREE" 2>&1; then
+            if git clone "$DEPLOY_BUNDLE" "$DEPLOY_TREE" 2>&1 | tee "$REPO_ROOT/.git-clone.log"; then
               rsync -a --delete --exclude='.git/' --exclude='backend/app.db' --exclude='backend/backups/' --exclude='backend/uploads/' "$DEPLOY_TREE/" "$REPO_ROOT/"
               mv "$REPO_ROOT/.git" "$DEPLOY_TREE/.git.previous"
               mv "$DEPLOY_TREE/.git" "$REPO_ROOT/.git"
@@ -295,6 +342,8 @@ jobs:
             fi
             rm -rf "$DEPLOY_TREE"
           fi
+          rm -f "$GIT_FETCH_LOG" "$REPO_ROOT/.git-clone.log"
+          echo "[deploy] git update completed"
           rm -f "$DEPLOY_BUNDLE"
           rm -f "$DEPLOY_ARCHIVE"
 
@@ -390,6 +439,12 @@ jobs:
           fi
           sudo chown -R $(whoami):$(whoami) /var/lib/ai_study_platform 2>/dev/null || true
           sudo chmod 755 /var/lib/ai_study_platform 2>/dev/null || true
+          # Stop writers before the protected snapshot and catalog seed.
+          sudo systemctl stop ai-backend || true
+          sudo systemctl is-inactive --quiet ai-backend || {
+            echo "[deploy] ERROR: ai-backend did not stop before database work"
+            exit 1
+          }
           # A catalog migration must never run without a recoverable snapshot.
           if [ -f "$DATA_DB" ]; then
             CATALOG_BACKUP_DIR="$REPO_ROOT/backend/backups"
@@ -401,6 +456,11 @@ jobs:
             fi
             test -s "$CATALOG_BACKUP" || { echo "[deploy] ERROR: catalog database backup is empty"; exit 1; }
             echo "[deploy] Catalog database backup: $CATALOG_BACKUP ($(du -h "$CATALOG_BACKUP" | cut -f1))"
+            if ! sudo sqlite3 "$DATA_DB" 'PRAGMA integrity_check;' | grep -qx 'ok'; then
+              echo "[deploy] ERROR: persistent database integrity_check failed"
+              exit 1
+            fi
+            echo "[deploy] Persistent database integrity_check: ok"
           fi
           echo "[deploy] Persistent DB at $DATA_DB"
 
@@ -444,9 +504,6 @@ jobs:
           fi
 
           sudo systemctl daemon-reload
-          sudo systemctl restart ai-backend
-          sudo systemctl is-active --quiet ai-backend
-
           echo "=== 章节题库导入(持久DB, 不阻塞服务) ==="
           cd backend
           echo "=== Importing audited Exercism programming exercises ==="
