@@ -7,7 +7,7 @@ from database import engine
 from database_schema import ensure_database_schema
 from catalog_adapters import validate_candidate
 
-REQUIRED = {"source_key", "language", "title_zh", "summary_zh", "statement_zh", "starter_code", "reference_code", "public_cases", "hidden_cases", "problem_family_id", "language_fit_reason"}
+REQUIRED = {"source_key", "language", "title_zh", "summary_zh", "statement_zh", "input_format_zh", "output_format_zh", "constraints_zh", "starter_code", "reference_code", "public_cases", "hidden_cases", "problem_family_id", "language_fit_reason", "learning_objective_id", "learning_objective", "prerequisites", "core_skill", "novelty_reason", "difficulty", "knowledge_tags"}
 
 def validate(item: dict) -> bool:
     missing = [key for key in REQUIRED if not item.get(key)]

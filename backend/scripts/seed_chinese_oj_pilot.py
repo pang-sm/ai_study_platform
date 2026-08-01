@@ -10,7 +10,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from database import SessionLocal
+from database import SessionLocal, engine
+from database_schema import ensure_database_schema
 from models import ProgrammingExercise
 
 SOURCE_KEY = "chinese_oj_pilot_v1"
@@ -129,7 +130,7 @@ def payload(language: str, spec: tuple) -> dict:
             "knowledge_tags": [tag, "标准输入输出", "中文 OJ"],
         },
     }
-    return {"slug": f"{SOURCE_KEY}-{language.lower().replace('+', 'pp')}-{slug}", "source_key": f"{SOURCE_KEY}:{language}:{slug}", "language": language, "title": title, "difficulty": "入门", "tags_json": json.dumps([tag, "标准输入输出", "中文 OJ"], ensure_ascii=False), "description": description, "starter_files_json": json.dumps([{"path": filename, "content": starter_code}], ensure_ascii=False), "reference_files_json": json.dumps([{"path": filename, "content": reference(language, kind)}], ensure_ascii=False), "public_tests_json": json.dumps([{"samples": make_cases(public_rows, "public")}], ensure_ascii=False), "hidden_tests_json": json.dumps([{"samples": make_cases(hidden, "hidden")}], ensure_ascii=False), "official_test_files_json": "[]", "source_repo": "first_party_original", "source_path": f"{SOURCE_KEY}/{language}/{slug}", "source_commit": "2026-07-31", "license": "first_party_original", "license_text": "题面、测试数据与参考实现均为本项目第一方原创内容。", "attribution": "AI Study Platform first-party original OJ pilot", "reference_verified": True, "starter_verified": True, "audit_report_json": json.dumps(report, ensure_ascii=False)}
+    return {"slug": f"{SOURCE_KEY}-{language.lower().replace('+', 'pp')}-{slug}", "source_key": f"{SOURCE_KEY}:{language}:{slug}", "language": language, "title": title, "difficulty": "入门", "tags_json": json.dumps([tag, "标准输入输出", "中文 OJ"], ensure_ascii=False), "description": description, "starter_files_json": json.dumps([{"path": filename, "content": starter_code}], ensure_ascii=False), "reference_files_json": json.dumps([{"path": filename, "content": reference(language, kind)}], ensure_ascii=False), "public_tests_json": json.dumps([{"samples": make_cases(public_rows, "public")}], ensure_ascii=False), "hidden_tests_json": json.dumps([{"samples": make_cases(hidden, "hidden")}], ensure_ascii=False), "official_test_files_json": "[]", "source_repo": "first_party_original", "source_path": f"{SOURCE_KEY}/{language}/{slug}", "source_commit": "2026-07-31", "license": "first_party_original", "license_text": "题面、测试数据与参考实现均为本项目第一方原创内容。", "attribution": "AI Study Platform first-party original OJ pilot", "reference_verified": True, "starter_verified": True, "is_active": False, "quality_status": "needs_review", "quality_score": 0, "quality_failure_reasons": json.dumps(["needs_manual_quality_review"], ensure_ascii=False), "audit_report_json": json.dumps(report, ensure_ascii=False)}
 
 
 def input_format(kind: str) -> str:
@@ -141,6 +142,7 @@ def output_format(kind: str) -> str:
 
 
 def main() -> None:
+    ensure_database_schema(engine)
     db = SessionLocal()
     try:
         for language in ("C", "C++", "Python"):

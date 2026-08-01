@@ -24,6 +24,15 @@ PROGRAMMING_EXERCISE_COLUMNS: Mapping[str, str] = {
     "constraints_zh": "TEXT",
     "title_en": "VARCHAR(255)",
     "statement_en": "TEXT",
+    "quality_status": "VARCHAR(20) NOT NULL DEFAULT 'needs_review'",
+    "quality_score": "FLOAT NOT NULL DEFAULT 0",
+    "quality_failure_reasons": "TEXT NOT NULL DEFAULT '[]'",
+    "learning_objective_id": "VARCHAR(160)",
+    "learning_objective": "TEXT",
+    "prerequisites": "TEXT",
+    "core_skill": "TEXT",
+    "novelty_reason": "TEXT",
+    "reviewed_at": "TEXT",
 }
 
 

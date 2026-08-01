@@ -11,6 +11,7 @@ from models import ProgrammingExercise
 from seed_first_party_catalog import seed
 
 TARGETS = {"C": 100, "C++": 75, "Python": 75, "Java": 50}
+BLUEPRINT = ROOT / "backend/data/programming_catalog/curriculum_blueprint.json"
 STATE = ROOT / "backend/data/programming_catalog/build_state.json"
 LIVE = ROOT / "verification-results/catalog-build-live-progress.json"
 LIVE_MD = ROOT / "verification-results/catalog-build-live-progress.md"
@@ -59,6 +60,9 @@ def save(state):
 
 def main():
     parser = argparse.ArgumentParser(); parser.add_argument("--resume", action="store_true"); parser.add_argument("--target-per-language", type=int, default=0); parser.add_argument("--batch-size", type=int, default=10); args = parser.parse_args()
+    raise RuntimeError(
+        f"quantity-first catalog expansion is disabled after quality reform; review {BLUEPRINT} and use a blueprint-driven generator"
+    )
     targets = {lang: max(target, args.target_per_language) for lang, target in TARGETS.items()}
     state = {"targets": targets, "generated": 0, "validated": 0, "written": 0, "quarantined": 0, "zero_write_batches": 0, "updated_at": ""}
     ensure_database_schema(engine)

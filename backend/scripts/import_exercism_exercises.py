@@ -22,6 +22,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from database import Base, SessionLocal, engine
+from database_schema import ensure_database_schema
 import models
 
 
@@ -768,6 +769,10 @@ def import_language(
             "attribution": f"Exercism {language} track and Exercism problem specifications; MIT License. Source: https://github.com/exercism/{repo}/tree/{commit}/exercises/{track}/{item['slug']}",
             "reference_verified": True,
             "starter_verified": True,
+            "is_active": False,
+            "quality_status": "needs_review",
+            "quality_score": 0,
+            "quality_failure_reasons": json.dumps(["needs_manual_quality_review"], ensure_ascii=False),
             "audit_report_json": json.dumps(audit, ensure_ascii=False),
         }
         existing = (
@@ -829,6 +834,7 @@ def main() -> None:
         help="After a complete requested batch passes audit, remove other rows for those languages",
     )
     args = parser.parse_args()
+    ensure_database_schema(engine)
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:

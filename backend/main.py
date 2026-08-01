@@ -9197,6 +9197,7 @@ def list_programming_exercises(language: str | None = None, difficulty: str | No
         models.ProgrammingExercise.reference_verified.is_(True),
         models.ProgrammingExercise.starter_verified.is_(True),
         models.ProgrammingExercise.is_active.is_(True),
+        models.ProgrammingExercise.quality_status == "approved",
     )
     if language:
         query = query.filter(models.ProgrammingExercise.language == normalize_project_language(language))
@@ -9244,7 +9245,7 @@ def list_programming_exercises(language: str | None = None, difficulty: str | No
 @app.get("/programming/exercises/{exercise_id}")
 def get_programming_exercise(exercise_id: int, db: Session = Depends(get_db)):
     exercise = db.query(models.ProgrammingExercise).filter_by(id=exercise_id).first()
-    if not exercise or not exercise.reference_verified or not exercise.starter_verified:
+    if not exercise or not exercise.reference_verified or not exercise.starter_verified or not exercise.is_active or exercise.quality_status != "approved":
         raise HTTPException(status_code=404, detail="题目不存在")
     return {"exercise": serialize_programming_exercise(exercise)}
 
@@ -9253,7 +9254,7 @@ def get_programming_exercise(exercise_id: int, db: Session = Depends(get_db)):
 def start_programming_exercise(exercise_id: int, req: schemas.ProgrammingExerciseStartRequest, db: Session = Depends(get_db)):
     user = get_user_by_username(req.username, db)
     exercise = db.query(models.ProgrammingExercise).filter_by(id=exercise_id).first()
-    if not exercise or not exercise.reference_verified or not exercise.starter_verified:
+    if not exercise or not exercise.reference_verified or not exercise.starter_verified or not exercise.is_active or exercise.quality_status != "approved":
         raise HTTPException(status_code=404, detail="题目不存在")
     resumed = False
     project = db.query(models.CodeProject).filter(
@@ -9815,7 +9816,7 @@ def run_programming_exercise_sample(exercise_id: int, req: schemas.ProgrammingEx
     user = get_user_by_username(req.username, db)
     exercise = db.query(models.ProgrammingExercise).filter_by(id=exercise_id).first()
     project = get_code_project_or_404(req.project_id, user.username, db)
-    if not exercise or project.programming_exercise_id != exercise.id:
+    if not exercise or not exercise.is_active or exercise.quality_status != "approved" or project.programming_exercise_id != exercise.id:
         raise HTTPException(status_code=404, detail="题目项目不存在")
     samples = _public_exercise_samples(exercise)
     if req.sample_index < 0 or req.sample_index >= len(samples):
@@ -9839,7 +9840,7 @@ def test_programming_exercise(exercise_id: int, req: schemas.ProgrammingExercise
     user = get_user_by_username(req.username, db)
     exercise = db.query(models.ProgrammingExercise).filter_by(id=exercise_id).first()
     project = get_code_project_or_404(req.project_id, user.username, db)
-    if not exercise or project.programming_exercise_id != exercise.id:
+    if not exercise or not exercise.is_active or exercise.quality_status != "approved" or project.programming_exercise_id != exercise.id:
         raise HTTPException(status_code=404, detail="题目项目不存在")
     public_samples = _public_exercise_samples(exercise)
     selected_ids = {str(value) for value in (req.public_case_ids or []) if str(value).strip()}
@@ -9883,7 +9884,7 @@ def run_programming_exercise(exercise_id: int, req: schemas.ProgrammingExerciseR
     user = get_user_by_username(req.username, db)
     exercise = db.query(models.ProgrammingExercise).filter_by(id=exercise_id).first()
     project = get_code_project_or_404(req.project_id, user.username, db)
-    if not exercise or project.programming_exercise_id != exercise.id:
+    if not exercise or not exercise.is_active or exercise.quality_status != "approved" or project.programming_exercise_id != exercise.id:
         raise HTTPException(status_code=404, detail="题目项目不存在")
     result = execute_code_project(
         project.id,
@@ -9913,7 +9914,7 @@ def submit_programming_exercise(exercise_id: int, req: schemas.ProgrammingExerci
     user = get_user_by_username(req.username, db)
     exercise = db.query(models.ProgrammingExercise).filter_by(id=exercise_id).first()
     project = get_code_project_or_404(req.project_id, user.username, db)
-    if not exercise or project.programming_exercise_id != exercise.id:
+    if not exercise or not exercise.is_active or exercise.quality_status != "approved" or project.programming_exercise_id != exercise.id:
         raise HTTPException(status_code=404, detail="题目项目不存在")
     project_files = list_project_files(project.id, db)
     result = _run_official_exercise_tests(project, exercise, project_files, submission=True)
@@ -28170,7 +28171,7 @@ async def programming_exercise_interactive(exercise_id: int, ws: WebSocket, init
             user = get_user_by_username(username, db)
             exercise = db.query(models.ProgrammingExercise).filter_by(id=exercise_id).first()
             project = get_code_project_or_404(int(config.get("project_id") or 0), user.username, db)
-            if not exercise or project.programming_exercise_id != exercise.id:
+            if not exercise or not exercise.is_active or exercise.quality_status != "approved" or project.programming_exercise_id != exercise.id:
                 raise ValueError("exercise project mismatch")
             files = list_project_files(project.id, db)
             language = normalize_project_language(exercise.language)

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import subprocess
 import tempfile
+import re
 from pathlib import Path
 
 
@@ -62,6 +63,25 @@ def execute_wrong_solution(candidate: dict, test: dict) -> str:
 
 
 def validate_candidate(candidate: dict) -> dict:
+    required = (
+        "source_key", "language", "title_zh", "summary_zh", "statement_zh",
+        "input_format_zh", "output_format_zh", "constraints_zh", "difficulty",
+        "problem_family_id", "language_fit_reason", "learning_objective_id",
+        "learning_objective", "prerequisites", "core_skill", "novelty_reason",
+        "knowledge_tags",
+    )
+    missing = [key for key in required if not candidate.get(key)]
+    if missing:
+        raise ValueError("missing quality metadata: " + ",".join(missing))
+    title = str(candidate["title_zh"]).strip().lower()
+    if re.search(r"(?:练习|题目|习题)\s*\d+$", title) or re.search(r"(?:add|sub|mul|max|min|basic|variant|generated)", title):
+        raise ValueError("template or numbered title")
+    public_inputs = {str(test.get("stdin_text", test.get("stdin", ""))) for test in candidate["public_cases"]}
+    hidden_inputs = {str(test.get("stdin_text", test.get("stdin", ""))) for test in candidate["hidden_cases"]}
+    if public_inputs & hidden_inputs:
+        raise ValueError("public and hidden inputs overlap")
+    if len(candidate["public_cases"]) < 3 or len(candidate["hidden_cases"]) < 5:
+        raise ValueError("insufficient public or hidden tests")
     if not compile_starter(candidate):
         raise RuntimeError("starter did not compile")
     public = candidate["public_cases"]
@@ -85,4 +105,6 @@ def validate_candidate(candidate: dict) -> dict:
     if not any(actual.rstrip("\n") != test["expected_stdout"].rstrip("\n") for actual, test in zip(wrong_outputs, hidden)):
         raise RuntimeError("wrong solution was not rejected")
     candidate["validated"] = True
+    candidate["quality_status"] = "approved"
+    candidate.setdefault("quality_score", 100)
     return candidate

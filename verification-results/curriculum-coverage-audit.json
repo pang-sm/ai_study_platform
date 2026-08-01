@@ -1,0 +1,210 @@
+{
+  "generated_at": "2026-08-01T01:50:20.433487+00:00",
+  "blueprint": "backend\\data\\programming_catalog\\curriculum_blueprint.json",
+  "approved_total": 0,
+  "approved_by_language": {},
+  "covered_objectives": 0,
+  "total_objectives": 32,
+  "languages": {
+    "C": [
+      {
+        "objective_id": "c-io-types",
+        "objective": "掌握标准输入输出、整数与浮点数类型转换",
+        "approved_count": 0,
+        "status": "uncovered"
+      },
+      {
+        "objective_id": "c-control-flow",
+        "objective": "使用条件与循环解决带边界的计算问题",
+        "approved_count": 0,
+        "status": "uncovered"
+      },
+      {
+        "objective_id": "c-arrays-strings",
+        "objective": "处理一维数组、二维数组和以零结尾的字符序列",
+        "approved_count": 0,
+        "status": "uncovered"
+      },
+      {
+        "objective_id": "c-functions-pointers",
+        "objective": "用函数和指针表达可复用的原地操作",
+        "approved_count": 0,
+        "status": "uncovered"
+      },
+      {
+        "objective_id": "c-structs-files",
+        "objective": "组织结构体数据并完成稳定的排序与查询",
+        "approved_count": 0,
+        "status": "uncovered"
+      },
+      {
+        "objective_id": "c-data-structures",
+        "objective": "实现栈、队列、链表等基础数据结构",
+        "approved_count": 0,
+        "status": "uncovered"
+      },
+      {
+        "objective_id": "c-algorithms",
+        "objective": "应用二分、排序和前缀和分析约束规模",
+        "approved_count": 0,
+        "status": "uncovered"
+      },
+      {
+        "objective_id": "c-graphs-dp",
+        "objective": "解决基础图遍历和动态规划状态转移问题",
+        "approved_count": 0,
+        "status": "uncovered"
+      }
+    ],
+    "C++": [
+      {
+        "objective_id": "cpp-io-stl",
+        "objective": "使用类型安全输入输出和标准容器完成数据处理",
+        "approved_count": 0,
+        "status": "uncovered"
+      },
+      {
+        "objective_id": "cpp-control",
+        "objective": "组合分支、循环和函数处理约束明确的模拟",
+        "approved_count": 0,
+        "status": "uncovered"
+      },
+      {
+        "objective_id": "cpp-sequence",
+        "objective": "用迭代器和算法处理序列、字符串与矩阵",
+        "approved_count": 0,
+        "status": "uncovered"
+      },
+      {
+        "objective_id": "cpp-ordered",
+        "objective": "理解排序、比较器、集合与映射的有序语义",
+        "approved_count": 0,
+        "status": "uncovered"
+      },
+      {
+        "objective_id": "cpp-stack-queue",
+        "objective": "选择栈、队列和优先队列解决顺序约束问题",
+        "approved_count": 0,
+        "status": "uncovered"
+      },
+      {
+        "objective_id": "cpp-search",
+        "objective": "使用二分、双指针和滑动窗口降低时间复杂度",
+        "approved_count": 0,
+        "status": "uncovered"
+      },
+      {
+        "objective_id": "cpp-graphs",
+        "objective": "用 BFS、DFS 和并查集处理连通性问题",
+        "approved_count": 0,
+        "status": "uncovered"
+      },
+      {
+        "objective_id": "cpp-dp",
+        "objective": "设计状态、转移和滚动数组解决动态规划问题",
+        "approved_count": 0,
+        "status": "uncovered"
+      }
+    ],
+    "Python": [
+      {
+        "objective_id": "python-io-types",
+        "objective": "掌握标准输入解析、数值运算和格式化输出",
+        "approved_count": 0,
+        "status": "uncovered"
+      },
+      {
+        "objective_id": "python-control",
+        "objective": "使用条件、循环和函数完成可验证的模拟",
+        "approved_count": 0,
+        "status": "uncovered"
+      },
+      {
+        "objective_id": "python-sequences",
+        "objective": "用列表、元组和字符串处理顺序数据",
+        "approved_count": 0,
+        "status": "uncovered"
+      },
+      {
+        "objective_id": "python-mapping",
+        "objective": "利用字典和集合完成频次、去重与索引查询",
+        "approved_count": 0,
+        "status": "uncovered"
+      },
+      {
+        "objective_id": "python-stack-queue",
+        "objective": "选择列表、deque 和 heapq 解决顺序与优先级问题",
+        "approved_count": 0,
+        "status": "uncovered"
+      },
+      {
+        "objective_id": "python-search",
+        "objective": "应用排序、二分和双指针处理大规模序列",
+        "approved_count": 0,
+        "status": "uncovered"
+      },
+      {
+        "objective_id": "python-graphs",
+        "objective": "用 BFS、DFS 和网格建模解决连通性问题",
+        "approved_count": 0,
+        "status": "uncovered"
+      },
+      {
+        "objective_id": "python-dp",
+        "objective": "设计缓存、状态转移和滚动空间解决动态规划问题",
+        "approved_count": 0,
+        "status": "uncovered"
+      }
+    ],
+    "Java": [
+      {
+        "objective_id": "java-io-types",
+        "objective": "掌握 Scanner 或缓冲输入以及基本类型转换",
+        "approved_count": 0,
+        "status": "uncovered"
+      },
+      {
+        "objective_id": "java-control",
+        "objective": "使用分支、循环和方法完成边界清晰的模拟",
+        "approved_count": 0,
+        "status": "uncovered"
+      },
+      {
+        "objective_id": "java-arrays-strings",
+        "objective": "用数组和 StringBuilder 处理序列与文本",
+        "approved_count": 0,
+        "status": "uncovered"
+      },
+      {
+        "objective_id": "java-collections",
+        "objective": "选择 List、Set、Map 完成去重、计数和索引",
+        "approved_count": 0,
+        "status": "uncovered"
+      },
+      {
+        "objective_id": "java-stack-queue",
+        "objective": "使用 Deque 和 PriorityQueue 建模顺序与优先级",
+        "approved_count": 0,
+        "status": "uncovered"
+      },
+      {
+        "objective_id": "java-search",
+        "objective": "应用排序、二分与双指针处理规模约束",
+        "approved_count": 0,
+        "status": "uncovered"
+      },
+      {
+        "objective_id": "java-graphs",
+        "objective": "用邻接表、BFS、DFS 和并查集解决图问题",
+        "approved_count": 0,
+        "status": "uncovered"
+      },
+      {
+        "objective_id": "java-dp",
+        "objective": "设计数组状态和转移关系解决动态规划问题",
+        "approved_count": 0,
+        "status": "uncovered"
+      }
+    ]
+  }
+}

@@ -44,9 +44,14 @@ def main() -> None:
             raise RuntimeError("active catalog contains a record without source_key")
         if len({row.source_key for row in rows}) != len(rows):
             raise RuntimeError("active catalog contains duplicate source_key values")
+        if any(row.quality_status != "approved" for row in rows):
+            raise RuntimeError("active catalog contains a non-approved exercise")
+        if any(not row.reference_verified or not row.starter_verified for row in rows):
+            raise RuntimeError("active catalog contains an unvalidated exercise")
         payload = {
-            "schema_version": 1,
+            "schema_version": 2,
             "counts": counts,
+            "validated": True,
             "exercises": [
                 {field: getattr(row, field) for field in fields}
                 for row in rows
