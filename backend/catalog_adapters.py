@@ -4,6 +4,7 @@ from __future__ import annotations
 import subprocess
 import tempfile
 import re
+import json
 from pathlib import Path
 
 
@@ -20,24 +21,48 @@ def compile_starter(candidate: dict) -> bool:
         return _compile(candidate, root, "starter")
 
 
+def _files(candidate: dict, kind: str) -> list[dict]:
+    """Return the requested source-file set, with legacy single-file fallback."""
+    value = candidate.get(f"{kind}_files")
+    if isinstance(value, list) and value:
+        return value
+    content = candidate.get(f"{kind}_code", "")
+    filename = candidate.get(
+        "filename",
+        "main.py" if candidate.get("language") == "Python" else
+        "Main.java" if candidate.get("language") == "Java" else
+        "main.cpp" if candidate.get("language") == "C++" else "main.c",
+    )
+    return [{"path": filename, "content": content}]
+
+
+def _write_files(candidate: dict, root: Path, kind: str) -> list[Path]:
+    paths: list[Path] = []
+    for item in _files(candidate, kind):
+        relative = Path(str(item.get("path", "")))
+        if not relative.name or relative.is_absolute() or ".." in relative.parts:
+            raise ValueError(f"invalid catalog source path: {relative}")
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(str(item.get("content", "")), encoding="utf-8")
+        paths.append(path)
+    return paths
+
+
 def _compile(candidate: dict, root: Path, kind: str) -> bool:
     language = candidate["language"]
-    source = candidate[f"{kind}_code"]
+    paths = _write_files(candidate, root, kind)
     if language == "Python":
-        path = root / "main.py"
-        path.write_text(source, encoding="utf-8")
-        subprocess.run(["python", "-m", "py_compile", str(path)], cwd=root, check=True, capture_output=True, timeout=15)
+        subprocess.run(["python", "-m", "py_compile", *[str(path) for path in paths]], cwd=root, check=True, capture_output=True, timeout=15)
         return True
     if language == "Java":
-        (root / "Main.java").write_text(source, encoding="utf-8")
-        subprocess.run(["javac", "Main.java"], cwd=root, check=True, capture_output=True, timeout=30)
+        subprocess.run(["javac", "-d", str(root), *[str(path) for path in paths]], cwd=root, check=True, capture_output=True, timeout=30)
         return True
     extension = ".cpp" if language == "C++" else ".c"
-    path = root / f"main{extension}"
-    path.write_text(source, encoding="utf-8")
     compiler = "g++" if language == "C++" else "gcc"
     flags = ["-std=c++17"] if language == "C++" else ["-std=c11"]
-    result = subprocess.run([compiler, *flags, path.name, "-o", "program.exe"], cwd=root, capture_output=True, text=True, timeout=30)
+    source_paths = [path for path in paths if path.suffix in {".c", ".cc", ".cpp", ".cxx"}]
+    result = subprocess.run([compiler, *flags, *[str(path) for path in source_paths], "-o", "program.exe"], cwd=root, capture_output=True, text=True, timeout=30)
     if result.returncode != 0:
         raise RuntimeError((result.stderr or result.stdout or "compiler failed")[-1000:])
     return True
@@ -52,13 +77,16 @@ def execute_reference(candidate: dict, test: dict) -> str:
         if language == "Python":
             return _run(["python", "main.py"], root, stdin_text)
         if language == "Java":
-            return _run(["java", "-cp", str(root), "Main"], root, stdin_text)
+            return _run(["java", "-cp", str(root), candidate.get("main_class", "Main")], root, stdin_text)
         return _run([str(root / "program.exe")], root, stdin_text)
 
 
 def execute_wrong_solution(candidate: dict, test: dict) -> str:
     wrong = dict(candidate)
-    wrong["reference_code"] = candidate["wrong_code"]
+    if candidate.get("wrong_files"):
+        wrong["reference_files"] = candidate["wrong_files"]
+    else:
+        wrong["reference_code"] = candidate["wrong_code"]
     return execute_reference(wrong, test)
 
 

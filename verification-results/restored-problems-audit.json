@@ -1,4 +1,7 @@
 {
-  "existing_repaired": 30,
-  "official_candidates_kept_in_review": true
+  "restored_from_exercism": 0,
+  "restored_from_early_first_party": 0,
+  "archived_previous_template_rows": 1280,
+  "user_data_preserved": true,
+  "note": "本轮没有从旧模板题恢复；旧 active first-party 题保留原 exercise_id 并继续 inactive/rejected。"
 }

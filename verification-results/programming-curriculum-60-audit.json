@@ -1,0 +1,176 @@
+{
+  "summary": {
+    "objective_total": 32,
+    "covered": 32
+  },
+  "languages": {
+    "C": {
+      "c-io-types": {
+        "objective": "标准输入输出与类型",
+        "covered": true,
+        "count": 60
+      },
+      "c-control-flow": {
+        "objective": "条件与循环",
+        "covered": true,
+        "count": 60
+      },
+      "c-arrays-strings": {
+        "objective": "数组与字符数组",
+        "covered": true,
+        "count": 60
+      },
+      "c-functions-pointers": {
+        "objective": "函数与指针",
+        "covered": true,
+        "count": 60
+      },
+      "c-structs-files": {
+        "objective": "结构体与记录",
+        "covered": true,
+        "count": 60
+      },
+      "c-data-structures": {
+        "objective": "基础数据结构",
+        "covered": true,
+        "count": 60
+      },
+      "c-algorithms": {
+        "objective": "搜索与排序",
+        "covered": true,
+        "count": 60
+      },
+      "c-graphs-dp": {
+        "objective": "图与动态规划",
+        "covered": true,
+        "count": 60
+      }
+    },
+    "C++": {
+      "cpp-io-stl": {
+        "objective": "输入输出与 STL",
+        "covered": true,
+        "count": 60
+      },
+      "cpp-control": {
+        "objective": "控制流与函数",
+        "covered": true,
+        "count": 60
+      },
+      "cpp-sequence": {
+        "objective": "序列与迭代器",
+        "covered": true,
+        "count": 60
+      },
+      "cpp-ordered": {
+        "objective": "有序容器",
+        "covered": true,
+        "count": 60
+      },
+      "cpp-stack-queue": {
+        "objective": "栈队列与优先级",
+        "covered": true,
+        "count": 60
+      },
+      "cpp-search": {
+        "objective": "搜索与窗口",
+        "covered": true,
+        "count": 60
+      },
+      "cpp-graphs": {
+        "objective": "图与连通性",
+        "covered": true,
+        "count": 60
+      },
+      "cpp-dp": {
+        "objective": "动态规划",
+        "covered": true,
+        "count": 60
+      }
+    },
+    "Python": {
+      "python-io-types": {
+        "objective": "输入解析与类型",
+        "covered": true,
+        "count": 60
+      },
+      "python-control": {
+        "objective": "控制流与函数",
+        "covered": true,
+        "count": 60
+      },
+      "python-sequences": {
+        "objective": "序列与切片",
+        "covered": true,
+        "count": 60
+      },
+      "python-mapping": {
+        "objective": "字典与集合",
+        "covered": true,
+        "count": 60
+      },
+      "python-stack-queue": {
+        "objective": "栈队列与堆",
+        "covered": true,
+        "count": 60
+      },
+      "python-search": {
+        "objective": "搜索与排序",
+        "covered": true,
+        "count": 60
+      },
+      "python-graphs": {
+        "objective": "图与遍历",
+        "covered": true,
+        "count": 60
+      },
+      "python-dp": {
+        "objective": "动态规划",
+        "covered": true,
+        "count": 60
+      }
+    },
+    "Java": {
+      "java-io-types": {
+        "objective": "输入输出与类型",
+        "covered": true,
+        "count": 60
+      },
+      "java-control": {
+        "objective": "控制流与方法",
+        "covered": true,
+        "count": 60
+      },
+      "java-arrays-strings": {
+        "objective": "数组与字符串",
+        "covered": true,
+        "count": 60
+      },
+      "java-collections": {
+        "objective": "集合与泛型",
+        "covered": true,
+        "count": 60
+      },
+      "java-stack-queue": {
+        "objective": "栈队列与比较器",
+        "covered": true,
+        "count": 60
+      },
+      "java-search": {
+        "objective": "搜索与排序",
+        "covered": true,
+        "count": 60
+      },
+      "java-graphs": {
+        "objective": "图与遍历",
+        "covered": true,
+        "count": 60
+      },
+      "java-dp": {
+        "objective": "动态规划",
+        "covered": true,
+        "count": 60
+      }
+    }
+  }
+}
