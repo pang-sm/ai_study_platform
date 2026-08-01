@@ -1990,6 +1990,24 @@ export default function ProgrammingWorkbench({
                     {(exercise.tags || []).map((tag) => <span key={tag}>{tag}</span>)}
                   </div>
                   <div className="pw-exercise-sidebar-copy">{getExerciseDescription(exercise)}</div>
+                  <section className="pw-exercise-sidebar-section pw-exercise-statement-section">
+                    <h2>题目说明</h2>
+                    <p className="pw-exercise-statement-copy">{exercise.statement || exercise.problem_statement || "暂无题目说明"}</p>
+                    <div className="pw-exercise-protocol-grid">
+                      <div>
+                        <h3>输入格式</h3>
+                        <p>{exercise.input_format || exercise.input_format_zh || "暂无输入格式说明"}</p>
+                      </div>
+                      <div>
+                        <h3>输出格式</h3>
+                        <p>{exercise.output_format || exercise.output_format_zh || "暂无输出格式说明"}</p>
+                      </div>
+                      <div>
+                        <h3>数据范围与约束</h3>
+                        <p>{exercise.constraints || exercise.constraints_zh || "暂无约束说明"}</p>
+                      </div>
+                    </div>
+                  </section>
                   <section className="pw-exercise-sidebar-section">
                     <h2>测试样例</h2>
                     {(exercise.public_samples || []).length ? (

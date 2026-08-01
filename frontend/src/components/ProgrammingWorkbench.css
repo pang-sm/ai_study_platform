@@ -1748,6 +1748,12 @@
 .pw-exercise-sidebar-copy { color: #57516a; font-size: 13px; line-height: 1.7; white-space: pre-wrap; }
 .pw-exercise-sidebar-section { margin-top: 22px; }
 .pw-exercise-sidebar-section h2 { margin: 0 0 10px; color: #28223d; font-size: 14px; }
+.pw-exercise-statement-section { padding-top: 2px; }
+.pw-exercise-statement-copy,
+.pw-exercise-protocol-grid p { margin: 0; color: #57516a; font-size: 13px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+.pw-exercise-protocol-grid { display: grid; gap: 12px; margin-top: 14px; }
+.pw-exercise-protocol-grid > div { padding: 10px 11px; border: 1px solid #ebe5f6; border-radius: 8px; background: #fbfaff; }
+.pw-exercise-protocol-grid h3 { margin: 0 0 5px; color: #685a91; font-size: 11px; font-weight: 800; }
 .pw-exercise-example { display: grid; gap: 5px; margin-bottom: 10px; padding: 10px; border: 1px solid #ebe5f6; border-radius: 7px; background: #fbfaff; }
 .pw-exercise-example { width: 100%; text-align: left; cursor: pointer; font: inherit; }
 .pw-exercise-example:hover, .pw-exercise-example.is-selected { border-color: #8b5cf6; background: #f5f0ff; }
