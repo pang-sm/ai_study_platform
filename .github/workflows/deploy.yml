@@ -154,6 +154,26 @@ jobs:
           find /tmp -maxdepth 1 -type d -name 'tmp.*' -mmin +60 -print -exec rm -rf -- {} +
           npm cache clean --force || true
           sudo journalctl --vacuum-size=200M || true
+          # Keep the three newest catalog-reform database copies in each
+          # explicitly managed backup directory. The live database, deploy
+          # backups, uploads, and all other backup names are never touched.
+          for BACKUP_ROOT in \
+            "$HOME/ai_study_platform/backend/backups" \
+            "/var/lib/ai_study_platform/backups"; do
+            if [ -d "$BACKUP_ROOT" ]; then
+              mapfile -t STALE_CATALOG_BACKUPS < <(
+                find "$BACKUP_ROOT" -maxdepth 1 -type f \
+                  -name 'app.db.before-catalog-reform.*.db' \
+                  -printf '%T@ %p\n' | sort -nr | tail -n +4 | cut -d' ' -f2-
+              )
+              for OLD_BACKUP in "${STALE_CATALOG_BACKUPS[@]}"; do
+                if [ -n "$OLD_BACKUP" ] && [ -f "$OLD_BACKUP" ]; then
+                  echo "[preflight] removing stale catalog backup: $OLD_BACKUP"
+                  rm -- "$OLD_BACKUP"
+                fi
+              done
+            fi
+          done
           if git -C "$HOME/ai_study_platform" rev-parse --git-dir >/dev/null 2>&1; then
             echo "[preflight] compacting unreachable Git objects"
             git -C "$HOME/ai_study_platform" gc --prune=now
