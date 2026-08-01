@@ -152,6 +152,8 @@ jobs:
             -name 'ai_study_platform-*' -o -name 'exercism_sources-*' \
           \) -mmin +60 -print -delete
           find /tmp -maxdepth 1 -type d -name 'tmp.*' -mmin +60 -print -exec rm -rf -- {} +
+          npm cache clean --force || true
+          sudo journalctl --vacuum-size=200M || true
           AVAIL_KB="$(df -Pk / | awk 'NR==2 {print $4}')"
           INODES_AVAIL="$(df -Pi / | awk 'NR==2 {print $4}')"
           if [ "${AVAIL_KB:-0}" -lt 1048576 ]; then
