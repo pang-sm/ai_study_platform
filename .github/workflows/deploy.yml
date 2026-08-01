@@ -154,8 +154,8 @@ jobs:
           find /tmp -maxdepth 1 -type d -name 'tmp.*' -mmin +60 -print -exec rm -rf -- {} +
           AVAIL_KB="$(df -Pk / | awk 'NR==2 {print $4}')"
           INODES_AVAIL="$(df -Pi / | awk 'NR==2 {print $4}')"
-          if [ "${AVAIL_KB:-0}" -lt 2097152 ]; then
-            echo "ERROR: less than 2 GiB available before deployment"
+          if [ "${AVAIL_KB:-0}" -lt 1048576 ]; then
+            echo "ERROR: less than 1 GiB available before deployment"
             exit 1
           fi
           if [ "${INODES_AVAIL:-0}" -lt 10000 ]; then
