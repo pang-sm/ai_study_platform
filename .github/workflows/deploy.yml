@@ -509,9 +509,6 @@ jobs:
           echo "=== Importing audited Exercism programming exercises ==="
           EXERCISM_SOURCE_ROOT=$(mktemp -d)
           tar -xzf "$EXERCISM_ARCHIVE" -C "$EXERCISM_SOURCE_ROOT"
-          PROGRAMMING_DB_BACKUP="$DATA_DB.before-programming-reconcile.$(date +%Y%m%d_%H%M%S).db"
-          cp "$DATA_DB" "$PROGRAMMING_DB_BACKUP"
-          echo "[deploy] Programming database backup: $PROGRAMMING_DB_BACKUP"
           DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python scripts/import_exercism_exercises.py \
             --source-root "$EXERCISM_SOURCE_ROOT" \
             --languages C \
