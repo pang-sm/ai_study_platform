@@ -198,68 +198,6 @@ jobs:
         shell: bash
         run: git archive --format=tar main | gzip -n > "$RUNNER_TEMP/ai_study_platform.tar.gz"
 
-      - name: Prepare audited Exercism source bundle
-        shell: bash
-        run: |
-          set -euo pipefail
-          SOURCE_ROOT="$RUNNER_TEMP/exercism_sources"
-          mkdir -p "$SOURCE_ROOT"
-          clone_track() {
-            local repo="$1"
-            local destination="$SOURCE_ROOT/$repo"
-            local attempt
-            for attempt in 1 2 3; do
-              rm -rf "$destination"
-              echo "[sources] cloning $repo (attempt $attempt/3)"
-              if git clone --depth 1 --no-tags --single-branch "https://github.com/exercism/$repo.git" "$destination"; then
-                return 0
-              fi
-              echo "[sources] clone failed for $repo"
-              if [ "$attempt" -lt 3 ]; then sleep 5; fi
-            done
-            return 1
-          }
-          clone_track c
-          clone_track cpp
-          clone_track python
-          clone_track java
-          echo "[sources] cloning problem-specifications"
-          git clone --depth 1 --no-tags --single-branch https://github.com/exercism/problem-specifications.git "$SOURCE_ROOT/problem-specifications"
-
-          c_slugs=(hello-world reverse-string acronym bob difference-of-squares grains leap binary collatz-conjecture darts dnd-character eliuds-eggs hamming queen-attack raindrops resistor-color-duo rna-transcription space-age two-fer armstrong-numbers binary-search gigasecond high-scores)
-          cpp_slugs=(hello-world reverse-string acronym bob election-day ellens-alien-game freelancer-rates interest-is-interesting isbn-verifier lasagna lasagna-master last-will log-levels luhn making-the-grade pacman-rules power-of-troy space-age speedywagon troll-the-trolls collatz-conjecture darts grains)
-          python_slugs=(ledger markdown bob hello-world reverse-string acronym anagram armstrong-numbers binary-search black-jack card-games cater-waiter chaitanas-colossal-coaster collatz-conjecture currency-exchange darts difference-of-squares electric-bill ellens-alien-game etl flatten-array ghost-gobble-arcade-game gigasecond grains word-count)
-          verify_track() {
-            local repo="$1"
-            shift
-            local missing=()
-            local slug
-            for slug in "$@"; do
-              if [ ! -f "$SOURCE_ROOT/$repo/exercises/practice/$slug/.meta/config.json" ] && [ ! -f "$SOURCE_ROOT/$repo/exercises/concept/$slug/.meta/config.json" ]; then
-                missing+=("$slug")
-              fi
-            done
-            echo "[sources] $repo commit: $(git -C "$SOURCE_ROOT/$repo" rev-parse HEAD)"
-            if [ ! -f "$SOURCE_ROOT/$repo/LICENSE" ]; then
-              echo "[sources] $repo LICENSE is missing"
-              return 1
-            fi
-            if [ "${#missing[@]}" -gt 0 ]; then
-              echo "[sources] $repo missing requested exercises: ${missing[*]}"
-              return 1
-            fi
-          }
-          verify_track c "${c_slugs[@]}"
-          verify_track cpp "${cpp_slugs[@]}"
-          verify_track python "${python_slugs[@]}"
-          java_slugs=(hello-world reverse-string gigasecond remote-control-competition logs-logs-logs)
-          verify_track java "${java_slugs[@]}"
-          if [ ! -f "$SOURCE_ROOT/problem-specifications/LICENSE" ]; then
-            echo "[sources] problem-specifications LICENSE is missing"
-            exit 1
-          fi
-          tar -czf "$RUNNER_TEMP/exercism_sources.tar.gz" -C "$SOURCE_ROOT" c cpp python java problem-specifications
-
       - name: Deploy to Tencent Cloud
         shell: bash
         env:
@@ -284,7 +222,6 @@ jobs:
 
           DEPLOY_BUNDLE="/tmp/ai_study_platform-${GITHUB_SHA}.bundle"
           DEPLOY_ARCHIVE="/tmp/ai_study_platform-${GITHUB_SHA}.tar.gz"
-          EXERCISM_ARCHIVE="/tmp/exercism_sources-${GITHUB_SHA}.tar.gz"
           echo "[deploy] Uploading Git bundle to $HOST_CLEAN:$DEPLOY_BUNDLE"
           scp -i "$HOME/.ssh/tencent_deploy_key" -P "$SSH_PORT" \
             "$RUNNER_TEMP/ai_study_platform.bundle" \
@@ -293,16 +230,10 @@ jobs:
           scp -i "$HOME/.ssh/tencent_deploy_key" -P "$SSH_PORT" \
             "$RUNNER_TEMP/ai_study_platform.tar.gz" \
             "$TENCENT_USER@$HOST_CLEAN:$DEPLOY_ARCHIVE"
-          echo "[deploy] Uploading audited Exercism sources to $HOST_CLEAN:$EXERCISM_ARCHIVE"
-          scp -i "$HOME/.ssh/tencent_deploy_key" -P "$SSH_PORT" \
-            "$RUNNER_TEMP/exercism_sources.tar.gz" \
-            "$TENCENT_USER@$HOST_CLEAN:$EXERCISM_ARCHIVE"
-
           # Pass ADMIN_LOGIN_CODE as env var to the remote session
           ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=20 -i "$HOME/.ssh/tencent_deploy_key" -p "$SSH_PORT" "$TENCENT_USER@$HOST_CLEAN" \
             DEPLOY_BUNDLE="$DEPLOY_BUNDLE" \
             DEPLOY_ARCHIVE="$DEPLOY_ARCHIVE" \
-            EXERCISM_ARCHIVE="$EXERCISM_ARCHIVE" \
             ADMIN_LOGIN_CODE="${ADMIN_LOGIN_CODE:-}" \
             SMTP_HOST="${SMTP_HOST:-}" \
             SMTP_PORT="${SMTP_PORT:-}" \
@@ -446,6 +377,16 @@ jobs:
             echo "[deploy] 未找到虚拟环境，使用系统 python3"
             python3 -m pip install -r backend/requirements.txt
           fi
+          if [ -x "backend/.venv/bin/python" ]; then
+            PYTHON_BIN="$REPO_ROOT/backend/.venv/bin/python"
+          elif [ -x ".venv/bin/python" ]; then
+            PYTHON_BIN="$REPO_ROOT/.venv/bin/python"
+          elif [ -x "venv/bin/python" ]; then
+            PYTHON_BIN="$REPO_ROOT/venv/bin/python"
+          else
+            PYTHON_BIN="$(command -v python3)"
+          fi
+          echo "[deploy] Python runtime: $PYTHON_BIN"
           echo "=== 依赖安装完成 ==="
 
           cd frontend
@@ -532,6 +473,10 @@ jobs:
           sudo systemctl daemon-reload
           echo "=== 章节题库导入(持久DB, 不阻塞服务) ==="
           cd backend
+          # The legacy online importer remains in the file for rollback
+          # reference but is intentionally disabled.  The audited snapshot is
+          # the only programming-catalog input for this deployment.
+          if false; then
           echo "=== Importing audited Exercism programming exercises ==="
           EXERCISM_SOURCE_ROOT=$(mktemp -d)
           tar -xzf "$EXERCISM_ARCHIVE" -C "$EXERCISM_SOURCE_ROOT"
@@ -561,13 +506,22 @@ jobs:
           DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python scripts/seed_approved_120_catalog.py
           echo "=== Legacy full-catalog quarantine and 800 snapshot seed intentionally disabled ==="
           rm -rf "$EXERCISM_SOURCE_ROOT" "$EXERCISM_ARCHIVE"
-          DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python exam_resources/11408/data_structure/chapter_questions/build_data_structure_chapter_questions.py || echo "[deploy] WARN: DS build failed"
-          DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python exam_resources/11408/computer_organization/chapter_questions/build_computer_organization_chapter_questions.py || echo "[deploy] WARN: CO chapter build failed"
-          DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python exam_resources/11408/computer_organization/past_papers/build_computer_organization_past_papers_text.py --apply || echo "[deploy] WARN: CO past papers build failed"
-          DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python exam_resources/11408/operating_system/chapter_practice/build_operating_system_chapter_questions.py || echo "[deploy] WARN: OS chapter build failed"
-          DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python exam_resources/11408/operating_system/past_papers/build_operating_system_past_papers.py || echo "[deploy] WARN: OS past papers build failed"
-          DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python exam_resources/11408/computer_network/chapter_practice/build_computer_network_chapter_questions.py || echo "[deploy] WARN: CN chapter build failed"
-          DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python exam_resources/11408/computer_network/past_papers/build_computer_network_past_papers.py || echo "[deploy] WARN: CN past papers build failed"
+          fi
+          echo "=== Initialize database schema ==="
+          DATABASE_URL="sqlite:///$DATA_DB" "$PYTHON_BIN" -c \
+            'from database import engine; from database_schema import ensure_database_schema; print(ensure_database_schema(engine))'
+          echo "=== Seed validated 480 programming catalog ==="
+          DATABASE_URL="sqlite:///$DATA_DB" "$PYTHON_BIN" scripts/seed_validated_programming_catalog_480.py
+          echo "=== Verify seeded catalog counts ==="
+          DATABASE_URL="sqlite:///$DATA_DB" "$PYTHON_BIN" -c \
+            'from database import SessionLocal; from models import ProgrammingExercise; db=SessionLocal(); rows=db.query(ProgrammingExercise).filter(ProgrammingExercise.is_active.is_(True), ProgrammingExercise.quality_status=="approved").all(); counts={language:sum(row.language==language for row in rows) for language in ("C","C++","Python","Java")}; print({"active_approved":len(rows),"counts":counts}); assert len(rows)==480 and counts=={"C":120,"C++":120,"Python":120,"Java":120}; db.close()'
+          DATABASE_URL="sqlite:///$DATA_DB" "$PYTHON_BIN" exam_resources/11408/data_structure/chapter_questions/build_data_structure_chapter_questions.py || echo "[deploy] WARN: DS build failed"
+          DATABASE_URL="sqlite:///$DATA_DB" "$PYTHON_BIN" exam_resources/11408/computer_organization/chapter_questions/build_computer_organization_chapter_questions.py || echo "[deploy] WARN: CO chapter build failed"
+          DATABASE_URL="sqlite:///$DATA_DB" "$PYTHON_BIN" exam_resources/11408/computer_organization/past_papers/build_computer_organization_past_papers_text.py --apply || echo "[deploy] WARN: CO past papers build failed"
+          DATABASE_URL="sqlite:///$DATA_DB" "$PYTHON_BIN" exam_resources/11408/operating_system/chapter_practice/build_operating_system_chapter_questions.py || echo "[deploy] WARN: OS chapter build failed"
+          DATABASE_URL="sqlite:///$DATA_DB" "$PYTHON_BIN" exam_resources/11408/operating_system/past_papers/build_operating_system_past_papers.py || echo "[deploy] WARN: OS past papers build failed"
+          DATABASE_URL="sqlite:///$DATA_DB" "$PYTHON_BIN" exam_resources/11408/computer_network/chapter_practice/build_computer_network_chapter_questions.py || echo "[deploy] WARN: CN chapter build failed"
+          DATABASE_URL="sqlite:///$DATA_DB" "$PYTHON_BIN" exam_resources/11408/computer_network/past_papers/build_computer_network_past_papers.py || echo "[deploy] WARN: CN past papers build failed"
           cd ..
           sudo systemctl restart ai-backend
 

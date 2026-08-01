@@ -1,0 +1,11 @@
+{
+  "approved_total": 480,
+  "passed": 480,
+  "failed": 0,
+  "public_min": 3,
+  "hidden_min": 5,
+  "duplicates": 0,
+  "wrong_rejected": 0,
+  "starter_failures": 0,
+  "reference_failures": 0
+}

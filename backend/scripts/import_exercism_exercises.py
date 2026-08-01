@@ -90,7 +90,7 @@ JAVA_SAMPLE_NAMES_ZH = {
 }
 
 
-def run(command: list[str], cwd: Path, timeout: int = 90) -> tuple[bool, str]:
+def run(command: list[str], cwd: Path, timeout: int = 25) -> tuple[bool, str]:
     try:
         result = subprocess.run(
             command,

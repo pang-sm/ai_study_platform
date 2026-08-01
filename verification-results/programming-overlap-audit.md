@@ -1,0 +1,12 @@
+# Programming Overlap Audit
+
+```json
+{
+  "source_key_count": 480,
+  "row_count": 480,
+  "duplicate_source_keys": 0,
+  "max_similarity": 0.7699,
+  "similarity_failures": [],
+  "max_family_per_language": 1
+}
+```

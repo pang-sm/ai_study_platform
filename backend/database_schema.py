@@ -33,6 +33,15 @@ PROGRAMMING_EXERCISE_COLUMNS: Mapping[str, str] = {
     "core_skill": "TEXT",
     "novelty_reason": "TEXT",
     "reviewed_at": "TEXT",
+    "background_knowledge_zh": "TEXT",
+    "hints_zh": "TEXT",
+    "knowledge_point_ids": "TEXT NOT NULL DEFAULT '[]'",
+    "primary_knowledge_point_id": "INTEGER",
+    "prerequisite_knowledge_point_ids": "TEXT NOT NULL DEFAULT '[]'",
+    "curriculum_module": "VARCHAR(120)",
+    "level": "VARCHAR(20)",
+    "difficulty_score": "FLOAT",
+    "estimated_minutes": "INTEGER",
 }
 
 

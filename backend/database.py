@@ -231,6 +231,15 @@ CODE_PROJECTS_COLUMNS = {
 
 PROGRAMMING_EXERCISES_COLUMNS = {
     "source_key": "VARCHAR(800)",
+    "background_knowledge_zh": "TEXT",
+    "hints_zh": "TEXT",
+    "knowledge_point_ids": "TEXT NOT NULL DEFAULT '[]'",
+    "primary_knowledge_point_id": "INTEGER",
+    "prerequisite_knowledge_point_ids": "TEXT NOT NULL DEFAULT '[]'",
+    "curriculum_module": "VARCHAR(120)",
+    "level": "VARCHAR(20)",
+    "difficulty_score": "FLOAT",
+    "estimated_minutes": "INTEGER",
 }
 
 CODE_PROJECT_FILES_COLUMNS = {
