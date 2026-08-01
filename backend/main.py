@@ -9114,7 +9114,10 @@ def serialize_programming_exercise(exercise: models.ProgrammingExercise, include
         "input_format": exercise.input_format_zh or str(problem.get("input_format") or ""),
         "output_format": exercise.output_format_zh or str(problem.get("output_format") or ""),
         "constraints": exercise.constraints_zh or str(problem.get("constraints") or ""),
-        "public_samples": _public_exercise_samples(exercise, include_backend_fields=False),
+        "public_samples": (
+            _public_exercise_samples(exercise, include_backend_fields=False)
+            or _standard_oj_cases(exercise, hidden=False)
+        ),
         "source_repo": exercise.source_repo,
         "source_path": exercise.source_path,
         "source_commit": exercise.source_commit,
