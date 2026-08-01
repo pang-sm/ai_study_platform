@@ -1,0 +1,79 @@
+{
+  "generated_at": "2026-08-01T02:30:00+08:00",
+  "local_quality_reform": {
+    "initial_active_count": 800,
+    "rejected_count": 800,
+    "rejected_by_language": {"C": 200, "C++": 200, "Python": 200, "Java": 200},
+    "approved_count": 0,
+    "quality_report": "verification-results/programming-catalog-quality-audit.json",
+    "curriculum_coverage": "0/32 objectives covered"
+  },
+  "deployment_history": [
+    {
+      "commit": "c444cba10f84791884d671c83a8b193e29677210",
+      "run_id": "30678986608",
+      "result": "success",
+      "issue": "旧 workflow 的 --prune-unlisted 物理删除了备份中的 800 条题目；随后依据部署前备份恢复并 quarantine。"
+    },
+    {
+      "commit": "e3f5b9993eaa90974f14fac12eb059858748224b",
+      "run_id": "30679483077",
+      "result": "failure",
+      "issue": "Remote disk preflight 失败；根分区仅约 194 MB 可用，Deploy 步骤未执行。"
+    },
+    {
+      "commit": "d48a1cd65a33684772c7213f4bb7d30ee8655c4d",
+      "run_id": "30679593790",
+      "result": "success",
+      "issue": "加入远端 Git gc 磁盘预检并移除物理删除路径；Prepare SSH、磁盘预检、数据库备份、导入、质量归档、重启和 health 全部成功。"
+    }
+  ],
+  "remote_database": {
+    "final_backup_path": "/var/lib/ai_study_platform/backups/app.db.after-final-deploy.20260801_022342.db",
+    "final_backup_size_bytes": 457658368,
+    "current_integrity": "ok",
+    "backup_integrity": "ok",
+    "total_records": 906,
+    "by_language": {"C": 233, "C++": 233, "Python": 235, "Java": 205},
+    "active_count": 0,
+    "active_approved_count": 0,
+    "quality_counts": {"rejected_inactive": 800, "needs_review_inactive": 106},
+    "source_key_duplicate_groups": 0,
+    "users": 161,
+    "learning_records": 15,
+    "programming_submissions": 0,
+    "programming_progress": 1,
+    "pre_and_post_deploy_total_unchanged": true,
+    "pre_and_post_deploy_user_history_unchanged": true
+  },
+  "online_content_audit": {
+    "rejected_count": 800,
+    "chinese_required_fields_missing": 0,
+    "public_case_total": 2400,
+    "hidden_case_total": 4000,
+    "public_case_min": 3,
+    "hidden_case_min": 5,
+    "public_hidden_duplicate_input_total": 0,
+    "source_key_unique": true
+  },
+  "api_audit": {
+    "root_http": 200,
+    "health_http": 200,
+    "language_list_http": {"C": 200, "C++": 200, "Python": 200, "Java": 200},
+    "language_list_totals": {"C": 0, "C++": 0, "Python": 0, "Java": 0},
+    "hidden_fields_in_list_responses": 0,
+    "archived_detail_http": 404,
+    "note": "没有 approved 题，无法抽取 5 个公开详情；归档题直接详情返回 404。"
+  },
+  "web_audit": {
+    "browser_status": "not_completed",
+    "reason": "in-app browser 对正式 IP 返回 ERR_BLOCKED_BY_CLIENT",
+    "direct_http_root": 200,
+    "console_network": "未通过浏览器采集；API smoke 通过。"
+  },
+  "uncompleted": [
+    "当前 approved 题量为 0，尚未补充高质量题目。",
+    "课程蓝图 32 个教学目标目前均未覆盖。",
+    "浏览器视觉抽验因客户端阻断未完成。"
+  ]
+}
