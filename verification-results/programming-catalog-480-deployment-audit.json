@@ -1,0 +1,86 @@
+{
+  "catalog": "programming-480",
+  "generated_at": "2026-08-01T15:10:00Z",
+  "deployment": {
+    "commit": "f8e63e56626cea5cf0095d7ddb020d4e61a95e22",
+    "actions_run_id": 30704970093,
+    "actions_url": "https://github.com/pang-sm/ai_study_platform/actions/runs/30704970093",
+    "status": "success",
+    "steps": {
+      "Prepare SSH": "success",
+      "Remote disk preflight": "success",
+      "Create deployment Git bundle": "success",
+      "Create deployment source archive": "success",
+      "Deploy to Tencent Cloud": "success"
+    }
+  },
+  "local_validation": {
+    "python_compile": "passed",
+    "workflow_yaml_parse": "passed",
+    "snapshot_validated": true,
+    "snapshot_rows": 480,
+    "snapshot_source_key_duplicates": 0,
+    "seed_first_written": 480,
+    "seed_second_written": 0,
+    "approved_active_total": 480,
+    "approved_by_language": {
+      "C": 120,
+      "C++": 120,
+      "Python": 120,
+      "Java": 120
+    },
+    "full_execution_audit": "passed 480/480",
+    "curriculum_objectives": "32/32"
+  },
+  "online_backup": {
+    "path": "/home/ubuntu/ai_study_platform/backend/backups/app.db.before-catalog-reform.20260801_230151.db",
+    "bytes": 468865024,
+    "non_empty": true,
+    "live_database": "/var/lib/ai_study_platform/app.db",
+    "live_database_bytes": 473321472,
+    "integrity_check": "ok"
+  },
+  "online_database": {
+    "approved_active_total": 480,
+    "approved_active_by_language": {
+      "C": 120,
+      "C++": 120,
+      "Python": 120,
+      "Java": 120
+    },
+    "source_key_duplicates": 0,
+    "active_rejected": 0,
+    "users": 161,
+    "programming_submissions": 0,
+    "programming_progress": 1,
+    "backend_service": "active/enabled",
+    "local_health": 200
+  },
+  "online_api": {
+    "base_url": "http://101.32.190.42/api",
+    "health": 200,
+    "homepage": 200,
+    "languages": {
+      "C": {"status": 200, "total": 120, "total_pages": 3, "page_counts": [48, 48, 24], "missing_required_fields": 0, "banned_title_count": 0},
+      "C++": {"status": 200, "total": 120, "total_pages": 3, "page_counts": [48, 48, 24], "missing_required_fields": 0, "banned_title_count": 0},
+      "Python": {"status": 200, "total": 120, "total_pages": 3, "page_counts": [48, 48, 24], "missing_required_fields": 0, "banned_title_count": 0},
+      "Java": {"status": 200, "total": 120, "total_pages": 3, "page_counts": [48, 48, 24], "missing_required_fields": 0, "banned_title_count": 0}
+    },
+    "detail_checks": {"per_language": 10, "status": 200, "required_chinese_fields_present": true, "public_sample_count": 3, "hidden_test_leaks": 0},
+    "all_listed_source_key_duplicates": 0,
+    "archived_or_rejected_visible_in_list": false
+  },
+  "web_ui": {
+    "browser": "Codex In-app Browser",
+    "language_list_checks": {"C": "passed", "C++": "passed", "Python": "passed", "Java": "passed"},
+    "cards_per_language_observed": 12,
+    "page_total_per_language": 120,
+    "chinese_titles_and_summaries": true,
+    "hidden_tests_visible": false,
+    "horizontal_overflow": false,
+    "workbench_full_exercise_context": "not_completed"
+  },
+  "uncompleted_items": [
+    "当前浏览器会话点击开始做题后进入 Workbench 的未选择练习状态，未完成登录后具体题目的完整题干/样例交互抽验；线上 API 详情和公开样例已真实核验。"
+  ]
+}
