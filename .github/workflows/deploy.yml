@@ -154,6 +154,10 @@ jobs:
           find /tmp -maxdepth 1 -type d -name 'tmp.*' -mmin +60 -print -exec rm -rf -- {} +
           npm cache clean --force || true
           sudo journalctl --vacuum-size=200M || true
+          if git -C "$HOME/ai_study_platform" rev-parse --git-dir >/dev/null 2>&1; then
+            echo "[preflight] compacting unreachable Git objects"
+            git -C "$HOME/ai_study_platform" gc --prune=now
+          fi
           AVAIL_KB="$(df -Pk / | awk 'NR==2 {print $4}')"
           INODES_AVAIL="$(df -Pi / | awk 'NR==2 {print $4}')"
           if [ "${AVAIL_KB:-0}" -lt 1048576 ]; then
