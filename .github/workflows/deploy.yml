@@ -441,10 +441,10 @@ jobs:
           sudo chmod 755 /var/lib/ai_study_platform 2>/dev/null || true
           # Stop writers before the protected snapshot and catalog seed.
           sudo systemctl stop ai-backend || true
-          sudo systemctl is-inactive --quiet ai-backend || {
+          if sudo systemctl is-active --quiet ai-backend; then
             echo "[deploy] ERROR: ai-backend did not stop before database work"
             exit 1
-          }
+          fi
           # A catalog migration must never run without a recoverable snapshot.
           if [ -f "$DATA_DB" ]; then
             CATALOG_BACKUP_DIR="$REPO_ROOT/backend/backups"
