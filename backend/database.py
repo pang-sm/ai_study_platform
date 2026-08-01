@@ -904,7 +904,7 @@ def ensure_code_projects_schema(conn):
 def ensure_programming_exercises_schema(conn):
     ensure_columns(conn, "programming_exercises", PROGRAMMING_EXERCISES_COLUMNS)
     rows = conn.execute(
-        text("SELECT id, source_repo, language, source_path, slug FROM programming_exercises")
+        text("SELECT id, source_repo, language, source_path, slug, source_key FROM programming_exercises")
     ).mappings().all()
     for row in rows:
         if row.get("source_repo") and row.get("language") and not row.get("source_key"):

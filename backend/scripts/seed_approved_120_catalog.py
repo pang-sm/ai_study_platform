@@ -18,6 +18,8 @@ def main():
     try:
         for data in rows:
             row=db.query(ProgrammingExercise).filter_by(source_key=data['source_key']).first()
+            if row is None:
+                row=db.query(ProgrammingExercise).filter_by(source_key=f"first_party_original|{data['language']}|{data['source_key']}").first()
             if row is None: row=ProgrammingExercise(); db.add(row); inserted+=1
             elif row.quality_status=='rejected': raise RuntimeError('refusing to re-enable rejected source_key '+str(row.source_key))
             else: updated+=1
