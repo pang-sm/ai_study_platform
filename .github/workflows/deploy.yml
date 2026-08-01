@@ -515,26 +515,22 @@ jobs:
             --source-root "$EXERCISM_SOURCE_ROOT" \
             --languages C \
             --slugs hello-world,reverse-string,acronym,bob,difference-of-squares,grains,leap,binary,collatz-conjecture,darts,dnd-character,eliuds-eggs,hamming,queen-attack,raindrops,resistor-color-duo,rna-transcription,space-age,two-fer,armstrong-numbers,binary-search,gigasecond,high-scores \
-            --max-per-language 23 \
-            --prune-unlisted
+            --max-per-language 23
           DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python scripts/import_exercism_exercises.py \
             --source-root "$EXERCISM_SOURCE_ROOT" \
             --languages C++ \
             --slugs hello-world,reverse-string,acronym,bob,election-day,ellens-alien-game,freelancer-rates,interest-is-interesting,isbn-verifier,lasagna,lasagna-master,last-will,log-levels,luhn,making-the-grade,pacman-rules,power-of-troy,space-age,speedywagon,troll-the-trolls,collatz-conjecture,darts,grains \
-            --max-per-language 23 \
-            --prune-unlisted
+            --max-per-language 23
           DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python scripts/import_exercism_exercises.py \
             --source-root "$EXERCISM_SOURCE_ROOT" \
             --languages Python \
             --slugs ledger,markdown,bob,hello-world,reverse-string,acronym,anagram,armstrong-numbers,binary-search,black-jack,card-games,cater-waiter,chaitanas-colossal-coaster,collatz-conjecture,currency-exchange,darts,difference-of-squares,electric-bill,ellens-alien-game,etl,flatten-array,ghost-gobble-arcade-game,gigasecond,grains,word-count \
-            --max-per-language 25 \
-            --prune-unlisted
+            --max-per-language 25
           DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python scripts/import_exercism_exercises.py \
             --source-root "$EXERCISM_SOURCE_ROOT" \
             --languages Java \
             --slugs hello-world,reverse-string,gigasecond,remote-control-competition,logs-logs-logs \
-            --max-per-language 5 \
-            --prune-unlisted
+            --max-per-language 5
           echo "=== Importing first-party standard OJ pilot as needs_review/inactive ==="
           DATABASE_URL="sqlite:///$DATA_DB" .venv/bin/python scripts/seed_chinese_oj_pilot.py
           echo "=== Applying programming catalog quality quarantine ==="

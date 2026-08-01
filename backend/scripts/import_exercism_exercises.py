@@ -791,6 +791,7 @@ def import_language(
             db.add(models.ProgrammingExercise(**payload))
         imported_source_keys.add(payload["source_key"])
         imported += 1
+    quarantined = 0
     if prune_unlisted:
         expected_source_keys = {
             f"https://github.com/exercism/{repo}|{language}|{slug}"
@@ -810,13 +811,22 @@ def import_language(
                 models.ProgrammingExercise.source_key.is_(None)
                 | ~models.ProgrammingExercise.source_key.in_(expected_source_keys)
             ),
-        ).delete(synchronize_session=False)
+        ).update(
+            {
+                "is_active": False,
+                "quality_status": "needs_review",
+                "quality_score": 0,
+                "quality_failure_reasons": json.dumps(["unlisted_import_record_needs_review"], ensure_ascii=False),
+            },
+            synchronize_session=False,
+        )
     db.commit()
     return {
         "language": language,
         "imported": imported,
         "audited": audited,
         "pruned_unlisted": prune_unlisted,
+        "quarantined_unlisted": quarantined,
         "license": "MIT",
         "commit": commit,
     }
@@ -831,7 +841,7 @@ def main() -> None:
     parser.add_argument(
         "--prune-unlisted",
         action="store_true",
-        help="After a complete requested batch passes audit, remove other rows for those languages",
+        help="After a complete requested batch passes audit, quarantine other rows for those languages without deleting them",
     )
     args = parser.parse_args()
     ensure_database_schema(engine)
