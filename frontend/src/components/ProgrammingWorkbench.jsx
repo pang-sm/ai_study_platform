@@ -2019,9 +2019,11 @@ export default function ProgrammingWorkbench({
                       <div className="pw-file-list-popover" role="menu">
                         <strong>当前练习文件</strong>
                         {editableFiles.map((file) => (
-                          <button key={file.id} type="button" className={file.id === activeFileId ? "is-active" : ""} onClick={() => { setActiveFileId(file.id); setOpenTabs((tabs) => tabs.includes(file.id) ? tabs : [...tabs, file.id]); setFileListOpen(false); }} title={file.relative_path}>
+                          <button key={file.id} type="button" className={file.id === activeFileId ? "is-active" : ""} aria-current={file.id === activeFileId ? "true" : undefined} onClick={() => { openFile(file.id); setFileListOpen(false); }} title={file.relative_path}>
                             <span>{getFileIcon(file.relative_path)}</span>
                             <b>{file.relative_path}</b>
+                            {file.relative_path === (exercise?.manifest?.entry_file || project?.entry_file) && <em>入口</em>}
+                            {dirtyFiles.has(file.id) && <i aria-label="未保存">未保存</i>}
                           </button>
                         ))}
                       </div>
@@ -2136,7 +2138,7 @@ export default function ProgrammingWorkbench({
           <div className="pw-editor-area">
             <div className="pw-file-tabs">
               {projectTabs.map((file) => (
-                <button key={file.id} type="button" className={`pw-file-tab${file.id === activeFileId ? " is-active" : ""}`} onClick={() => setActiveFileId(file.id)} title={file.relative_path}>
+                <button key={file.id} type="button" className={`pw-file-tab${file.id === activeFileId ? " is-active" : ""}`} aria-current={file.id === activeFileId ? "true" : undefined} onClick={() => openFile(file.id)} title={file.relative_path}>
                   <span className={"pw-tab-icon pw-tab-icon--" + (getExt(file.relative_path).replace(".", "") || "txt")}>{getFileIcon(file.relative_path)}</span>
                   <span className={dirtyFiles.has(file.id) ? "pw-dirty-dot is-dirty" : "pw-dirty-dot"} />
                   <strong>{file.filename || getDisplayFilename(file)}</strong>

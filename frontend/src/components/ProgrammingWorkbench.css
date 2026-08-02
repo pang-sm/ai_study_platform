@@ -1838,6 +1838,10 @@
 .pw-file-list-popover button:hover,
 .pw-file-list-popover button.is-active { background: var(--brand-purple-light); color: var(--brand-purple); }
 .pw-file-list-popover button b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 600; }
+.pw-file-list-popover button em,
+.pw-file-list-popover button i { flex: 0 0 auto; font-size: 10px; font-style: normal; white-space: nowrap; }
+.pw-file-list-popover button em { color: var(--brand-purple); }
+.pw-file-list-popover button i { color: #b45309; }
 
 .pw-file-tabs { scrollbar-width: thin; }
 .pw-file-tabs .pw-file-tab { flex: 0 0 190px; min-width: 170px; max-width: 280px; }

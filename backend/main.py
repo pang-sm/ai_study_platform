@@ -9306,6 +9306,33 @@ def start_programming_exercise(exercise_id: int, req: schemas.ProgrammingExercis
         db.refresh(project)
     else:
         resumed = True
+        # A project may have been created before an exercise was upgraded to
+        # a multi-file Java scaffold.  Preserve every existing user file and
+        # add only starter files that are missing from that project.
+        existing_paths = {
+            str(file.relative_path).replace("\\", "/")
+            for file in list_project_files(project.id, db)
+        }
+        starter_files = _exercise_json(exercise.starter_files_json, [])
+        added_files = False
+        for item in starter_files:
+            path = safe_project_path(item.get("path") or "")
+            if not path or path in existing_paths:
+                continue
+            db.add(models.CodeProjectFile(
+                project_id=project.id,
+                username=user.username,
+                relative_path=path,
+                filename=PurePosixPath(path).name,
+                content=str(item.get("content") or ""),
+                file_type=infer_project_file_type(path),
+            ))
+            existing_paths.add(path)
+            added_files = True
+        if added_files:
+            project.updated_at = utc_now()
+            db.commit()
+            db.refresh(project)
     files = list_project_files(project.id, db)
     return {"exercise": serialize_programming_exercise(exercise, include_starter=True), "project": serialize_code_project(project, files), "resumed": resumed}
 
@@ -9434,7 +9461,11 @@ def _exercise_run_summary(result: dict, exercise: models.ProgrammingExercise, su
             "location": case.get("location"),
             "duration_ms": case.get("duration_ms", result.get("duration_ms", 0)),
         }
-        normalized_cases.append({key: value for key, value in normalized.items() if value is not None})
+        # Keep the result protocol stable.  In particular, a successful case
+        # must still include ``failure_type: null`` so clients do not have to
+        # guess whether a missing key means success or an older response
+        # shape.
+        normalized_cases.append(normalized)
     cases = normalized_cases
     failed_cases = [case for case in cases if not case.get("passed") and case.get("status") != "skipped"]
     passed_count = result.get("passed_count", sum(1 for case in cases if case.get("passed")))
@@ -9612,7 +9643,7 @@ def _run_official_exercise_tests(project: models.CodeProject, exercise: models.P
             return {"success": False, "passed": False, "passed_count": 0, "total_count": total, "failed_categories": ["unsupported"], "duration_ms": 0, "stderr": "Java 题目尚未通过官方测试验证。", "exit_code": -1}
         if language == "Python":
             compile_proc = None
-            run_proc = subprocess.run(command, cwd=temp, capture_output=True, encoding="utf-8", text=True, timeout=max(30, EXECUTE_TIMEOUT_SECONDS_C))
+            run_proc = subprocess.run(command, cwd=temp, capture_output=True, encoding="utf-8", errors="replace", text=True, timeout=max(30, EXECUTE_TIMEOUT_SECONDS_C))
             output = (run_proc.stdout or "") + (run_proc.stderr or "")
             exit_code = run_proc.returncode
         else:
@@ -9674,14 +9705,14 @@ def _run_standard_oj_case(project: models.CodeProject, files: list[models.CodePr
         elif language == "C":
             sources = [str(Path(file.relative_path)) for file in files if str(file.relative_path).endswith(".c")]
             command = [shutil.which("gcc") or "gcc", *sources, "-std=c11", "-Wall", "-Wextra", "-o", "program"]
-            compiled = subprocess.run(command, cwd=temp, capture_output=True, encoding="utf-8", text=True, timeout=EXECUTE_TIMEOUT_SECONDS_C)
+            compiled = subprocess.run(command, cwd=temp, capture_output=True, encoding="utf-8", errors="replace", text=True, timeout=EXECUTE_TIMEOUT_SECONDS_C)
             if compiled.returncode != 0:
                 compile_error = compiled.stderr or compiled.stdout
             command = [str(temp / "program")]
         elif language == "C++":
             sources = [str(Path(file.relative_path)) for file in files if PurePosixPath(file.relative_path).suffix.lower() in {".cpp", ".cc", ".cxx"}]
             command = [shutil.which("g++") or "g++", *sources, "-std=c++17", "-Wall", "-Wextra", "-o", "program"]
-            compiled = subprocess.run(command, cwd=temp, capture_output=True, encoding="utf-8", text=True, timeout=EXECUTE_TIMEOUT_SECONDS_C)
+            compiled = subprocess.run(command, cwd=temp, capture_output=True, encoding="utf-8", errors="replace", text=True, timeout=EXECUTE_TIMEOUT_SECONDS_C)
             if compiled.returncode != 0:
                 compile_error = compiled.stderr or compiled.stdout
             command = [str(temp / "program")]
@@ -9693,7 +9724,7 @@ def _run_standard_oj_case(project: models.CodeProject, files: list[models.CodePr
             classes_dir.mkdir(exist_ok=True)
             compiled = subprocess.run(
                 [shutil.which("javac") or "javac", "-encoding", "UTF-8", "-d", str(classes_dir), *sources],
-                cwd=temp, capture_output=True, encoding="utf-8", text=True, timeout=EXECUTE_TIMEOUT_SECONDS_C,
+                cwd=temp, capture_output=True, encoding="utf-8", errors="replace", text=True, timeout=EXECUTE_TIMEOUT_SECONDS_C,
             )
             if compiled.returncode != 0:
                 compile_error = compiled.stderr or compiled.stdout
@@ -9702,7 +9733,7 @@ def _run_standard_oj_case(project: models.CodeProject, files: list[models.CodePr
             try:
                 run = subprocess.run(
                     [shutil.which("java") or "java", "-Dfile.encoding=UTF-8", "-cp", str(classes_dir), main_class],
-                    cwd=temp, input=stdin_text, capture_output=True, encoding="utf-8", text=True, timeout=EXECUTE_TIMEOUT_SECONDS_C,
+                    cwd=temp, input=stdin_text, capture_output=True, encoding="utf-8", errors="replace", text=True, timeout=EXECUTE_TIMEOUT_SECONDS_C,
                 )
             except subprocess.TimeoutExpired:
                 return {"success": True, "passed": False, "failed_categories": ["timeout"], "timeout": True, "stderr": "", "actual_output": "", "expected_output": expected, "actual_stdout": "", "expected_stdout": expected, "exit_code": -1, "duration_ms": int((time.time() - started) * 1000)}
@@ -9713,7 +9744,7 @@ def _run_standard_oj_case(project: models.CodeProject, files: list[models.CodePr
         if compile_error:
             return {"success": True, "passed": False, "failed_categories": ["compile"], "compile_error": compile_error, "stderr": "", "actual_output": "", "expected_output": expected, "actual_stdout": "", "expected_stdout": expected, "exit_code": 1, "duration_ms": int((time.time() - started) * 1000)}
         try:
-            run = subprocess.run(command, cwd=temp, input=stdin_text, capture_output=True, encoding="utf-8", text=True, timeout=EXECUTE_TIMEOUT_SECONDS_C)
+            run = subprocess.run(command, cwd=temp, input=stdin_text, capture_output=True, encoding="utf-8", errors="replace", text=True, timeout=EXECUTE_TIMEOUT_SECONDS_C)
         except subprocess.TimeoutExpired:
             return {"success": True, "passed": False, "failed_categories": ["timeout"], "timeout": True, "stderr": "", "actual_output": "", "expected_output": expected, "actual_stdout": "", "expected_stdout": expected, "exit_code": -1, "duration_ms": int((time.time() - started) * 1000)}
         actual = (run.stdout or "").replace("\r\n", "\n")
@@ -10284,6 +10315,7 @@ def _run_project_command(args: list[str], cwd: str, stdin: str = "", timeout: in
             cwd=cwd,
             input=stdin or None,
             encoding="utf-8",
+            errors="replace",
             capture_output=True,
             text=True,
             timeout=timeout,
