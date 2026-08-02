@@ -264,21 +264,140 @@ STARTER_HINT = {
 
 
 def starter_files_for(language: str, kind: str, multifile: bool = False) -> list[dict]:
-    """Return a readable, compilable scaffold that contains no solution logic."""
-    note = STARTER_BACKGROUND.get(kind, "请根据题目协议完成输入解析、核心处理和标准输出。")
+    """Return a readable, compilable scaffold with a task-specific TODO.
+
+    The scaffold deliberately contains the input boundary and the public
+    function shape, but not the algorithm.  Keeping this function as the
+    single source of truth is important because repair and snapshot seeding
+    both call it.
+    """
+    note = STARTER_BACKGROUND.get(kind, "根据题目协议解析输入、完成核心处理并输出结果。")
+    function_names = {
+        "recipe": "calculate_total", "transfer": "calculate_elapsed", "month": "days_in_month",
+        "checksum": "calculate_checksum", "scoreboard": "rank_teams", "times": "sort_times",
+        "intervals": "merge_intervals", "inventory": "summarize_inventory", "unique": "first_unique_character",
+        "words": "most_frequent_word", "brackets": "validate_brackets", "caesar": "decode_message",
+        "prefix": "count_with_prefix", "rotate": "rotate_right", "dedup": "preserve_first_occurrence",
+        "ranges": "range_sums", "maxsub": "max_subarray_sum", "overlap": "max_overlap",
+        "coins": "minimum_coins", "bfs": "shortest_path",
+    }
+    function_name = function_names.get(kind, "solve_problem")
+    string_input = kind in {"checksum", "unique", "words", "brackets"}
     if language == "C":
-        content = f'''#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\nint main(void) {{\n    /* {note} */\n    /* 在这里读取标准输入并完成题目要求。 */\n    return 0;\n}}\n'''
+        if string_input:
+            input_block = "    char input_text[10005];\n    if (fgets(input_text, sizeof(input_text), stdin) == NULL) {\n        return 0;\n    }"
+        elif kind == "caesar":
+            input_block = "    int shift = 0;\n    char message[10005];\n    if (scanf(\"%d\", &shift) != 1) {\n        return 0;\n    }\n    getchar();\n    if (fgets(message, sizeof(message), stdin) == NULL) {\n        return 0;\n    }"
+        elif kind == "month":
+            input_block = "    int year = 0;\n    int month = 0;\n    if (scanf(\"%d%d\", &year, &month) != 2) {\n        return 0;\n    }"
+        else:
+            input_block = "    int record_count = 0;\n    if (scanf(\"%d\", &record_count) != 1) {\n        return 0;\n    }\n    // TODO：按输入格式读取每条记录，并把它放入有语义的数据结构。"
+        content = f'''#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+/* {note} */
+static int {function_name}(void) {{
+    /* TODO：实现题目要求的核心规则，并处理边界情况。 */
+    return 0;
+}}
+
+int main(void) {{
+{input_block}
+    // TODO：调用核心函数，严格按照输出格式打印结果。
+    return 0;
+}}
+'''
         return [{"path": "main.c", "content": content}]
     if language == "C++":
-        content = f'''#include <iostream>\n#include <string>\n#include <vector>\n#include <algorithm>\n\nint main() {{\n    // {note}\n    // 在这里读取标准输入并完成题目要求。\n    return 0;\n}}\n'''
+        if string_input:
+            input_block = "    std::string input_text;\n    std::getline(std::cin, input_text);"
+        elif kind == "caesar":
+            input_block = "    int shift = 0;\n    std::string message;\n    std::cin >> shift;\n    std::cin.ignore();\n    std::getline(std::cin, message);"
+        elif kind == "month":
+            input_block = "    int year = 0;\n    int month = 0;\n    std::cin >> year >> month;"
+        else:
+            input_block = "    int record_count = 0;\n    if (!(std::cin >> record_count)) {\n        return 0;\n    }\n    // TODO：按输入格式读取记录，选择合适的 STL 容器保存它们。"
+        content = f'''#include <algorithm>
+#include <iostream>
+#include <string>
+#include <vector>
+
+// {note}
+static int {function_name}() {{
+    // TODO：实现核心算法，明确处理空数据、边界值和排序规则。
+    return 0;
+}}
+
+int main() {{
+{input_block}
+    // TODO：调用核心函数，并按题目协议输出，不输出额外说明文字。
+    return 0;
+}}
+'''
         return [{"path": "main.cpp", "content": content}]
     if language == "Python":
-        content = f'''import sys\n\n\ndef main():\n    """{note}"""\n    input_text = sys.stdin.read()\n    _ = input_text\n    # 在这里解析输入、完成处理并输出结果。\n\n\nif __name__ == "__main__":\n    main()\n'''
+        signatures = {
+            "recipe": "records", "transfer": "durations", "month": "year, month",
+            "checksum": "code", "scoreboard": "teams", "times": "values", "intervals": "intervals",
+            "inventory": "changes", "unique": "text", "words": "words", "brackets": "text",
+            "caesar": "shift, text", "prefix": "values, prefix", "rotate": "values, shift",
+            "dedup": "values", "ranges": "values, queries", "maxsub": "values", "overlap": "intervals",
+            "coins": "amount, denominations", "bfs": "grid",
+        }
+        signature = signatures.get(kind, "data")
+        call_arguments = {
+            "month": "0, 0", "caesar": "0, \"\"", "prefix": "[], \"\"",
+            "rotate": "[], 0", "ranges": "[], []", "coins": "0, []",
+        }.get(kind, "input_lines")
+        content = f'''import sys
+
+
+def {function_name}({signature}):
+    """完成“{note}”的核心处理。"""
+    # TODO：根据题目规则完成计算；不要改变输入数据的含义或输出协议。
+    return None
+
+
+def main():
+    input_lines = sys.stdin.read().splitlines()
+    # TODO：按输入格式把 input_lines 解析成上面函数需要的数据结构。
+    result = {function_name}({call_arguments})
+    if result is not None:
+        print(result)
+
+
+if __name__ == "__main__":
+    main()
+'''
         return [{"path": "main.py", "content": content}]
-    main = f'''import java.util.*;\n\npublic class Main {{\n    public static void main(String[] args) {{\n        // {note}\n        Scanner scanner = new Scanner(System.in);\n        while (scanner.hasNext()) {{\n            scanner.next();\n        }}\n        // 在这里完成输入解析、处理和输出。\n    }}\n}}\n'''
-    files = [{"path": "Main.java", "content": main}]
+    content = f'''import java.io.BufferedReader;
+import java.io.InputStreamReader;
+
+public class Main {{
+    private static String {function_name}(String inputText) {{
+        // TODO：实现题目规则，并返回严格符合输出协议的文本。
+        return "";
+    }}
+
+    public static void main(String[] args) throws Exception {{
+        BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+        StringBuilder inputText = new StringBuilder();
+        String line;
+        while ((line = reader.readLine()) != null) {{
+            inputText.append(line).append('\\n');
+        }}
+        // TODO：解析输入后调用核心方法；不要输出调试信息。
+        String output = {function_name}(inputText.toString());
+        if (!output.isEmpty()) {{
+            System.out.println(output);
+        }}
+    }}
+}}
+'''
+    files = [{"path": "Main.java", "content": content}]
     if multifile:
-        files.append({"path": "DomainModel.java", "content": "import java.util.*;\n\nclass DomainModel {\n    static Scanner input() {\n        return new Scanner(System.in);\n    }\n}\n"})
+        files.append({"path": "DomainModel.java", "content": "class DomainModel {\n    static String normalize(String inputText) {\n        // TODO：为多文件题提供与题意相关的辅助转换。\n        return inputText;\n    }\n}\n"})
     return files
 
 
@@ -379,7 +498,7 @@ def run_many(candidate: dict, tests: list[dict], kind: str) -> list[str]:
         root = Path(raw)
         _compile(candidate, root, kind)
         language = candidate["language"]
-        command = [sys.executable, "main.py"] if language == "Python" else ["java", "-cp", str(root), candidate.get("main_class", "Main")] if language == "Java" else [str(root / "program.exe")]
+        command = [sys.executable, "-X", "utf8", "main.py"] if language == "Python" else ["java", "-Dfile.encoding=UTF-8", "-cp", str(root), candidate.get("main_class", "Main")] if language == "Java" else [str(root / "program.exe")]
         return [_run(command, root, str(t["stdin_text"])) for t in tests]
 
 

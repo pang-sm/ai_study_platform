@@ -5,11 +5,12 @@ import subprocess
 import tempfile
 import re
 import json
+import sys
 from pathlib import Path
 
 
 def _run(command: list[str], cwd: Path, stdin: str) -> str:
-    result = subprocess.run(command, cwd=cwd, input=stdin, text=True, capture_output=True, timeout=8)
+    result = subprocess.run(command, cwd=cwd, input=stdin, encoding="utf-8", errors="replace", text=True, capture_output=True, timeout=8)
     if result.returncode != 0:
         raise RuntimeError((result.stderr or result.stdout or "process failed")[-500:])
     return result.stdout
@@ -62,7 +63,7 @@ def _compile(candidate: dict, root: Path, kind: str) -> bool:
     compiler = "g++" if language == "C++" else "gcc"
     flags = ["-std=c++17"] if language == "C++" else ["-std=c11"]
     source_paths = [path for path in paths if path.suffix in {".c", ".cc", ".cpp", ".cxx"}]
-    result = subprocess.run([compiler, *flags, *[str(path) for path in source_paths], "-o", "program.exe"], cwd=root, capture_output=True, text=True, timeout=30)
+    result = subprocess.run([compiler, *flags, *[str(path) for path in source_paths], "-o", "program.exe"], cwd=root, capture_output=True, encoding="utf-8", errors="replace", text=True, timeout=30)
     if result.returncode != 0:
         raise RuntimeError((result.stderr or result.stdout or "compiler failed")[-1000:])
     return True
@@ -75,7 +76,7 @@ def execute_reference(candidate: dict, test: dict) -> str:
         language = candidate["language"]
         stdin_text = str(test.get("stdin_text", test.get("stdin", "")))
         if language == "Python":
-            return _run(["python", "main.py"], root, stdin_text)
+            return _run([sys.executable, "-X", "utf8", "main.py"], root, stdin_text)
         if language == "Java":
             return _run(["java", "-cp", str(root), candidate.get("main_class", "Main")], root, stdin_text)
         return _run([str(root / "program.exe")], root, stdin_text)
@@ -119,7 +120,7 @@ def validate_candidate(candidate: dict) -> dict:
             root = Path(raw)
             _compile(item, root, "reference")
             language = item["language"]
-            command = ["python", "main.py"] if language == "Python" else ["java", "-cp", str(root), "Main"] if language == "Java" else [str(root / "program.exe")]
+            command = [sys.executable, "-X", "utf8", "main.py"] if language == "Python" else ["java", "-Dfile.encoding=UTF-8", "-cp", str(root), "Main"] if language == "Java" else [str(root / "program.exe")]
             return [_run(command, root, str(test.get("stdin_text", test.get("stdin", "")))) for test in tests]
 
     all_tests = [*public, *hidden]

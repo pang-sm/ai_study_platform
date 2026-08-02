@@ -8,6 +8,7 @@ recomputes published outputs by running the stored reference program.
 from __future__ import annotations
 
 import json
+import gzip
 import sys
 import tempfile
 from datetime import datetime, timezone
@@ -31,6 +32,7 @@ from models import ProgrammingExercise  # noqa: E402
 
 LANGUAGES = ("C", "C++", "Python", "Java")
 EXPECTED = {language: 60 for language in LANGUAGES}
+SNAPSHOT = ROOT / "backend" / "data" / "programming_catalog_240.json.gz"
 
 
 def parse_json(value: str, fallback):
@@ -60,9 +62,9 @@ def run_reference(language: str, reference_files: list[dict], samples: list[dict
         candidate = {"language": language, "reference_files": reference_files, "main_class": "Main"}
         _compile(candidate, root, "reference")
         command = (
-            [sys.executable, "main.py"]
+            [sys.executable, "-X", "utf8", "main.py"]
             if language == "Python"
-            else ["java", "-cp", str(root), "Main"]
+            else ["java", "-Dfile.encoding=UTF-8", "-cp", str(root), "Main"]
             if language == "Java"
             else [str(root / "program.exe")]
         )
@@ -163,8 +165,35 @@ def repair(dry_run: bool = False) -> dict:
     finally:
         db.close()
     result = {"dry_run": dry_run, "changed": changed, "counts": language_counts}
+    if not dry_run:
+        sync_snapshot()
     print(json.dumps(result, ensure_ascii=False))
     return result
+
+
+def sync_snapshot() -> None:
+    """Keep the validated deployment snapshot aligned with repaired starters."""
+    with gzip.open(SNAPSHOT, "rt", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    db = SessionLocal()
+    try:
+        rows = {
+            row.source_key: row
+            for row in db.query(ProgrammingExercise)
+            .filter(ProgrammingExercise.source_key.like("first_party_original_v2|%"))
+            .all()
+        }
+        for item in payload.get("exercises", []):
+            row = rows.get(item.get("source_key"))
+            if row is None:
+                continue
+            item["starter_files_json"] = row.starter_files_json
+            item["starter_verified"] = bool(row.starter_verified)
+            item["audit_report_json"] = row.audit_report_json
+    finally:
+        db.close()
+    with gzip.open(SNAPSHOT, "wt", encoding="utf-8", compresslevel=9) as handle:
+        json.dump(payload, handle, ensure_ascii=False, separators=(",", ":"))
 
 
 if __name__ == "__main__":

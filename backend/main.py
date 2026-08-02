@@ -9312,13 +9312,19 @@ def start_programming_exercise(exercise_id: int, req: schemas.ProgrammingExercis
 
 def _exercise_case_from_result(result: dict, sample: dict | None = None) -> dict:
     status = str(result.get("status") or ("passed" if result.get("passed") else "failed"))
+    failure_type = result.get("failure_type")
+    if result.get("timeout") or status == "timeout":
+        failure_type = "timeout"
     if result.get("timeout") or status == "timeout":
         status, reason = "timeout", "程序运行超过 5 秒，可能存在死循环"
     elif result.get("compile_error") or "compile" in result.get("failed_categories", []):
+        failure_type = "compile_error"
         status, reason = "compile_failed", "代码编译失败"
     elif result.get("passed"):
+        failure_type = None
         status, reason = "passed", ""
     else:
+        failure_type = failure_type or "output_mismatch"
         status, reason = "failed", "返回结果与期望值不一致"
     actual = result.get("actual_output")
     if actual and not result.get("passed") and re.search(r"Traceback|pytest|Catch2|Unity|JUnit|AssertionError", str(actual), re.IGNORECASE):
@@ -9339,6 +9345,7 @@ def _exercise_case_from_result(result: dict, sample: dict | None = None) -> dict
         "exit_code": result.get("exit_code"),
         "stderr": result.get("stderr") or "",
         "duration_ms": result.get("duration_ms", 0),
+        "failure_type": failure_type,
         "failure_reason": reason,
         # Backward-compatible aliases for clients deployed before the protocol update.
         "id": case_id,
@@ -9395,6 +9402,14 @@ def _exercise_run_summary(result: dict, exercise: models.ProgrammingExercise, su
         expected_output = case.get("expected_output", case.get("expected", ""))
         actual_output = case.get("actual_output", case.get("actual_stdout", case.get("actual", "")))
         case_passed = bool(case.get("passed", case.get("status") in {"passed", "skipped"}))
+        case_status = case.get("status") or ("passed" if case_passed else "failed")
+        failure_type = case.get("failure_type")
+        if not failure_type and not case_passed:
+            failure_type = {
+                "compile_failed": "compile_error",
+                "timeout": "timeout",
+                "runtime_failed": "runtime_error",
+            }.get(case_status, "output_mismatch")
         normalized = {
             "case_id": case_id,
             "case_name": case_name,
@@ -9404,10 +9419,11 @@ def _exercise_run_summary(result: dict, exercise: models.ProgrammingExercise, su
             "passed": case_passed,
             "exit_code": case.get("exit_code", result.get("exit_code")),
             "stderr": case.get("stderr", ""),
+            "failure_type": failure_type,
             "failure_reason": case.get("failure_reason", case.get("reason", "")),
             "id": case_id,
             "name": case_name,
-            "status": case.get("status") or "failed",
+            "status": case_status,
             "reason": case.get("reason") or ("返回结果与期望值不一致" if case.get("status") != "passed" else ""),
             "input_display": case.get("input_display", case.get("input")),
             "expected": expected_output,
@@ -9420,7 +9436,8 @@ def _exercise_run_summary(result: dict, exercise: models.ProgrammingExercise, su
         }
         normalized_cases.append({key: value for key, value in normalized.items() if value is not None})
     cases = normalized_cases
-    passed_count = result.get("passed_count", sum(1 for case in cases if case.get("status") == "passed"))
+    failed_cases = [case for case in cases if not case.get("passed") and case.get("status") != "skipped"]
+    passed_count = result.get("passed_count", sum(1 for case in cases if case.get("passed")))
     total_count = result.get("total_count", len(cases)) or len(cases)
     summary = result.get("summary") or (f"通过 {passed_count}/{total_count}" if not failed_cases else f"{len(failed_cases)} 个样例未通过")
     technical_details = result.get("technical_details") or result.get("stderr") or result.get("compile_error") or ""
@@ -9595,7 +9612,7 @@ def _run_official_exercise_tests(project: models.CodeProject, exercise: models.P
             return {"success": False, "passed": False, "passed_count": 0, "total_count": total, "failed_categories": ["unsupported"], "duration_ms": 0, "stderr": "Java 题目尚未通过官方测试验证。", "exit_code": -1}
         if language == "Python":
             compile_proc = None
-            run_proc = subprocess.run(command, cwd=temp, capture_output=True, text=True, timeout=max(30, EXECUTE_TIMEOUT_SECONDS_C))
+            run_proc = subprocess.run(command, cwd=temp, capture_output=True, encoding="utf-8", text=True, timeout=max(30, EXECUTE_TIMEOUT_SECONDS_C))
             output = (run_proc.stdout or "") + (run_proc.stderr or "")
             exit_code = run_proc.returncode
         else:
@@ -9653,18 +9670,18 @@ def _run_standard_oj_case(project: models.CodeProject, files: list[models.CodePr
         expected = str(sample.get("expected_stdout") or "")
         compile_error = None
         if language == "Python":
-            command = [_get_python_project_runner(), entry]
+            command = [_get_python_project_runner(), "-X", "utf8", entry]
         elif language == "C":
             sources = [str(Path(file.relative_path)) for file in files if str(file.relative_path).endswith(".c")]
             command = [shutil.which("gcc") or "gcc", *sources, "-std=c11", "-Wall", "-Wextra", "-o", "program"]
-            compiled = subprocess.run(command, cwd=temp, capture_output=True, text=True, timeout=EXECUTE_TIMEOUT_SECONDS_C)
+            compiled = subprocess.run(command, cwd=temp, capture_output=True, encoding="utf-8", text=True, timeout=EXECUTE_TIMEOUT_SECONDS_C)
             if compiled.returncode != 0:
                 compile_error = compiled.stderr or compiled.stdout
             command = [str(temp / "program")]
         elif language == "C++":
             sources = [str(Path(file.relative_path)) for file in files if PurePosixPath(file.relative_path).suffix.lower() in {".cpp", ".cc", ".cxx"}]
             command = [shutil.which("g++") or "g++", *sources, "-std=c++17", "-Wall", "-Wextra", "-o", "program"]
-            compiled = subprocess.run(command, cwd=temp, capture_output=True, text=True, timeout=EXECUTE_TIMEOUT_SECONDS_C)
+            compiled = subprocess.run(command, cwd=temp, capture_output=True, encoding="utf-8", text=True, timeout=EXECUTE_TIMEOUT_SECONDS_C)
             if compiled.returncode != 0:
                 compile_error = compiled.stderr or compiled.stdout
             command = [str(temp / "program")]
@@ -9676,7 +9693,7 @@ def _run_standard_oj_case(project: models.CodeProject, files: list[models.CodePr
             classes_dir.mkdir(exist_ok=True)
             compiled = subprocess.run(
                 [shutil.which("javac") or "javac", "-encoding", "UTF-8", "-d", str(classes_dir), *sources],
-                cwd=temp, capture_output=True, text=True, timeout=EXECUTE_TIMEOUT_SECONDS_C,
+                cwd=temp, capture_output=True, encoding="utf-8", text=True, timeout=EXECUTE_TIMEOUT_SECONDS_C,
             )
             if compiled.returncode != 0:
                 compile_error = compiled.stderr or compiled.stdout
@@ -9684,8 +9701,8 @@ def _run_standard_oj_case(project: models.CodeProject, files: list[models.CodePr
             main_class = getattr(project, "main_class", None) or "Main"
             try:
                 run = subprocess.run(
-                    [shutil.which("java") or "java", "-cp", str(classes_dir), main_class],
-                    cwd=temp, input=stdin_text, capture_output=True, text=True, timeout=EXECUTE_TIMEOUT_SECONDS_C,
+                    [shutil.which("java") or "java", "-Dfile.encoding=UTF-8", "-cp", str(classes_dir), main_class],
+                    cwd=temp, input=stdin_text, capture_output=True, encoding="utf-8", text=True, timeout=EXECUTE_TIMEOUT_SECONDS_C,
                 )
             except subprocess.TimeoutExpired:
                 return {"success": True, "passed": False, "failed_categories": ["timeout"], "timeout": True, "stderr": "", "actual_output": "", "expected_output": expected, "actual_stdout": "", "expected_stdout": expected, "exit_code": -1, "duration_ms": int((time.time() - started) * 1000)}
@@ -9696,7 +9713,7 @@ def _run_standard_oj_case(project: models.CodeProject, files: list[models.CodePr
         if compile_error:
             return {"success": True, "passed": False, "failed_categories": ["compile"], "compile_error": compile_error, "stderr": "", "actual_output": "", "expected_output": expected, "actual_stdout": "", "expected_stdout": expected, "exit_code": 1, "duration_ms": int((time.time() - started) * 1000)}
         try:
-            run = subprocess.run(command, cwd=temp, input=stdin_text, capture_output=True, text=True, timeout=EXECUTE_TIMEOUT_SECONDS_C)
+            run = subprocess.run(command, cwd=temp, input=stdin_text, capture_output=True, encoding="utf-8", text=True, timeout=EXECUTE_TIMEOUT_SECONDS_C)
         except subprocess.TimeoutExpired:
             return {"success": True, "passed": False, "failed_categories": ["timeout"], "timeout": True, "stderr": "", "actual_output": "", "expected_output": expected, "actual_stdout": "", "expected_stdout": expected, "exit_code": -1, "duration_ms": int((time.time() - started) * 1000)}
         actual = (run.stdout or "").replace("\r\n", "\n")
@@ -9746,10 +9763,10 @@ def _run_public_sample(project: models.CodeProject, exercise: models.Programming
             target.write_text(file.content or "", encoding="utf-8")
         if language == "Python":
             if importlib.util.find_spec("pytest") is not None:
-                command = [sys.executable, "-m", "pytest", "-q", f"{sample['test_path']}::{sample['selector']}"]
+                command = [sys.executable, "-X", "utf8", "-m", "pytest", "-q", f"{sample['test_path']}::{sample['selector']}"]
             else:
                 module_name = Path(sample["test_path"]).with_suffix("").as_posix().replace("/", ".")
-                command = [sys.executable, "-m", "unittest", f"{module_name}.{sample['selector'].replace('::', '.')}"]
+                command = [sys.executable, "-X", "utf8", "-m", "unittest", f"{module_name}.{sample['selector'].replace('::', '.')}"]
             compile_proc = None
         elif language == "C":
             sources = [str(Path(file.relative_path)) for file in files if PurePosixPath(file.relative_path).suffix.lower() == ".c"]
@@ -9795,6 +9812,7 @@ def _run_public_sample(project: models.CodeProject, exercise: models.Programming
                     [str(temp / "exercise-sample.exe"), sample["selector"]] if language == "C++" else [str(temp / "exercise-sample.exe")],
                     cwd=temp,
                     capture_output=True,
+                    encoding="utf-8",
                     text=True,
                     timeout=max(30, EXECUTE_TIMEOUT_SECONDS_C),
                 )
@@ -9856,11 +9874,24 @@ def _run_public_sample_cases(
         except Exception as exc:
             case = {
                 "id": str(sample.get("id") or f"public-case-{index + 1}"),
+                "case_id": str(sample.get("id") or f"public-case-{index + 1}"),
                 "name": sample.get("name") or f"样例 {index + 1}",
+                "case_name": sample.get("name") or f"样例 {index + 1}",
                 "status": "runtime_failed",
+                "failure_type": "executor_error",
+                "failure_reason": "测试样例执行失败",
                 "reason": "测试样例执行失败",
-                "expected": sample.get("expected"),
-                "actual": None,
+                "input": sample.get("stdin_text", ""),
+                "stdin_text": sample.get("stdin_text", ""),
+                "expected": sample.get("expected", sample.get("expected_stdout", "")),
+                "expected_output": sample.get("expected", sample.get("expected_stdout", "")),
+                "expected_stdout": sample.get("expected", sample.get("expected_stdout", "")),
+                "actual": "",
+                "actual_output": "",
+                "actual_stdout": "",
+                "passed": False,
+                "exit_code": -1,
+                "stderr": str(exc),
                 "duration_ms": 0,
                 "technical_details": str(exc),
             }
@@ -9913,7 +9944,7 @@ def test_programming_exercise(exercise_id: int, req: schemas.ProgrammingExercise
     project_files = list_project_files(project.id, db)
     started = time.time()
     public_cases = _run_public_sample_cases(project, exercise, project_files, selected_samples)
-    passed_count = sum(1 for case in public_cases if case.get("status") == "passed")
+    passed_count = sum(1 for case in public_cases if case.get("passed") or case.get("status") == "passed")
     result = {
         "success": True,
         "passed": passed_count == len(public_cases),
@@ -10252,6 +10283,7 @@ def _run_project_command(args: list[str], cwd: str, stdin: str = "", timeout: in
             args,
             cwd=cwd,
             input=stdin or None,
+            encoding="utf-8",
             capture_output=True,
             text=True,
             timeout=timeout,

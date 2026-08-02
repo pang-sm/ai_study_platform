@@ -276,6 +276,18 @@ function caseDisplayReason(item) {
   return item?.status === "passed" ? "" : "返回结果与期望值不一致";
 }
 
+function failureTypeLabel(value) {
+  return {
+    compile_error: "编译失败",
+    runtime_error: "运行时错误",
+    timeout: "超时",
+    memory_limit: "内存超限",
+    output_mismatch: "输出不一致",
+    invalid_test_data: "测试数据异常",
+    executor_error: "执行器连接失败",
+  }[value] || (value ? String(value) : "无");
+}
+
 function caseExpectedValue(item) {
   return item?.expected_output ?? item?.expected_stdout ?? item?.expected ?? "";
 }
@@ -285,6 +297,10 @@ function caseActualValue(item) {
   if (item?.actual_stdout !== undefined && item?.actual_stdout !== null) return item.actual_stdout;
   if (item?.actual !== undefined && item?.actual !== null) return item.actual;
   return "";
+}
+
+function displayProtocolValue(value) {
+  return value === null || value === undefined || value === "" ? "（空）" : String(value);
 }
 
 function normalizeResultCase(item, index = 0) {
@@ -306,11 +322,12 @@ function normalizeResultCase(item, index = 0) {
     input,
     expected_output: expectedOutput,
     actual_output: actualOutput,
-    stdin_text: input,
+    stdin_text: displayProtocolValue(input),
     expected_stdout: expectedOutput,
     actual_stdout: actualOutput,
     exit_code: item?.exit_code ?? null,
     stderr: item?.stderr || "",
+    failure_type: item?.failure_type || null,
     location: item?.location,
     duration_ms: item?.duration_ms ?? 0,
   };
@@ -381,6 +398,9 @@ function ExerciseResultModal({ result, mode, filter, onFilterChange, onClose, on
                   <span>标准输出</span><code className="pw-protocol-code">{item.expected_stdout}</code>
                   {item.status !== "not_run" && <><span>实际输出</span><code className="pw-protocol-code">{item.actual_stdout}</code></>}
                   {failed && item.reason && <span>原因：{item.reason}</span>}
+                  <span>失败类型：{failureTypeLabel(item.failure_type)}</span>
+                  <span>退出码：{item.exit_code ?? "—"}</span>
+                  {item.stderr && <><span>stderr</span><code className="pw-protocol-code">{item.stderr}</code></>}
                   {item.location && <span>位置：{item.location}</span>}
                   <span>执行时间：{item.duration_ms ?? 0}ms</span>
                 </div>
@@ -922,7 +942,18 @@ export default function ProgrammingWorkbench({
     let cancelled = false;
     fetch(`${apiBase}/programming/exercises/${exerciseId}`)
       .then(safeJson)
-      .then((data) => { if (!cancelled) setExercise(data.exercise || null); })
+      .then((data) => {
+        if (cancelled) return;
+          const nextExercise = data.exercise || null;
+          if (nextExercise) {
+            nextExercise.public_samples = (nextExercise.public_samples || []).map((sample) => ({
+              ...sample,
+              original_stdin_text: sample.stdin_text || "",
+              stdin_text: displayProtocolValue(sample.stdin_text || ""),
+            }));
+          }
+        setExercise(nextExercise);
+      })
       .catch(() => { if (!cancelled) setExercise(null); });
     return () => { cancelled = true; };
   }, [apiBase, initialExerciseId, project?.programming_exercise_id]);
@@ -1293,19 +1324,20 @@ export default function ProgrammingWorkbench({
 
   const manualSave = async () => {
     window.clearTimeout(saveTimerRef.current);
-    const latestFiles = filesRef.current;
-    const pending = latestFiles.filter((file) => dirtyFilesRef.current.has(file.id));
-    if (activeFile && editorRef.current?.getValue) {
-      const latestContent = editorRef.current.getValue();
-      if (latestContent !== activeFile.content) {
-        setFiles((prev) => prev.map((file) => file.id === activeFile.id ? { ...file, content: latestContent } : file));
-        pending.push({ ...activeFile, content: latestContent });
-      } else if (!pending.some((file) => file.id === activeFile.id) && activeFile.content !== undefined) {
-        pending.push(activeFile);
-      }
+    const currentFiles = filesRef.current.map((file) => ({ ...file }));
+    const currentActive = currentFiles.find((file) => file.id === activeFileId);
+    if (currentActive && editorRef.current?.getValue) {
+      currentActive.content = editorRef.current.getValue();
     }
-    const unique = [...new Map(pending.map((file) => [file.id, file])).values()];
-    await Promise.all(unique.map((file) => updateProjectFile(file.id, { content: file.content || "" })));
+    setFiles(currentFiles);
+    setSaveState("正在保存…");
+    const savedFiles = await Promise.all(
+      currentFiles.map((file) => updateProjectFile(file.id, { content: file.content || "" }, true)),
+    );
+    if (savedFiles.every(Boolean)) {
+      setDirtyFiles(new Set());
+      setSaveState("已保存");
+    }
   };
 
   const renameProject = async () => {
@@ -1647,11 +1679,24 @@ export default function ProgrammingWorkbench({
     socket.onmessage = (event) => {
       const message = JSON.parse(event.data || "{}");
       if (message.type === "stdout" || message.type === "stderr" || message.type === "terminal") terminal?.write(message.data || "");
-      if (message.type === "status") { const running = message.message === "程序正在运行"; setTerminalRunStatus(running ? "" : message.message); setStatus(message.message); if (running) terminal?.focus(); }
-      if (message.type === "compile_error" || message.type === "error") { terminal?.writeln(`\r\n${message.message}`); setStatus(message.message); setRunDetailsOpen(true); }
+      if (message.type === "status") { setTerminalRunStatus(message.message || "运行中"); setStatus(message.message); terminal?.focus(); }
+      if (message.type === "compile_error" || message.type === "error") {
+        const logLabel = message.error_id ? `（日志 ${message.error_id}）` : "";
+        terminal?.writeln(`\r\n${message.message || "执行失败"}${logLabel}`);
+        setStatus(`${message.message || "执行失败"}${logLabel}`);
+        setTerminalRunStatus(message.type === "compile_error" ? "编译失败" : "连接失败");
+        setRunDetailsOpen(true);
+      }
       if (message.type === "exit") { terminal?.writeln(`\r\n进程结束，退出代码 ${message.exit_code}`); setTerminalRunStatus(""); setRunResult(message); setStatus(`退出代码 ${message.exit_code}`); setBusy(""); }
     };
-    socket.onerror = () => { setTerminalConnection("failed"); terminal?.writeln("\r\n[WebSocket 连接失败，请点击重新连接]"); setStatus("实时终端连接失败"); setBusy(""); };
+    socket.onerror = () => {
+      const errorId = `WS-${Date.now().toString(36)}`;
+      setTerminalConnection("failed");
+      terminal?.writeln(`\r\n[实时终端连接失败，日志 ${errorId}，请点击重新连接]`);
+      setStatus(`实时终端连接失败（日志 ${errorId}）`);
+      setTerminalRunStatus("连接失败");
+      setBusy("");
+    };
     socket.onclose = (event) => {
       if (terminalSocketRef.current === socket) terminalSocketRef.current = null;
       setTerminalRunStatus("");
@@ -2060,13 +2105,19 @@ export default function ProgrammingWorkbench({
                             <code>{sample.stdin_text || "无"}</code>
                             <small>输出</small>
                             <code>{sample.expected_stdout || ""}</code>
+                            {sample.explanation_zh && (
+                              <details className="pw-sample-explanation-details" onClick={(event) => event.stopPropagation()}>
+                                <summary>查看样例解释</summary>
+                                <p>{sample.explanation_zh}</p>
+                              </details>
+                            )}
                             {sample.explanation_zh && <small className="pw-sample-explanation">样例解释：{sample.explanation_zh}</small>}
                             {selectedSampleIndex === index && sampleResult && <em>{sampleResult.passed ? "通过" : "未通过"}</em>}
                           </button>
-                          <button type="button" className="pw-copy-sample-input" onClick={() => copyProtocolInput(sample.stdin_text || "")}>
+                          <button type="button" className="pw-copy-sample-input" onClick={() => copyProtocolInput(sample.original_stdin_text ?? sample.stdin_text ?? "")}>
                             复制输入
                           </button>
-                          <button type="button" className="pw-send-sample-input" onClick={() => startInteractiveSession(sample.stdin_text || "")}>发送到运行终端</button>
+                          <button type="button" className="pw-send-sample-input" onClick={() => startInteractiveSession(sample.original_stdin_text ?? sample.stdin_text ?? "")}>发送到运行终端</button>
                         </article>
                       ))
                     ) : <p className="pw-exercise-example-empty">官方没有提供可公开展示的测试样例。</p>}
@@ -2245,6 +2296,9 @@ export default function ProgrammingWorkbench({
                                   <span>输入</span><code className="pw-protocol-code">{item.stdin_text || "无"}</code>
                                   <span>标准输出</span><code className="pw-protocol-code">{item.expected_stdout}</code>
                                   {item.status !== "not_run" && <><span>实际输出</span><code className="pw-protocol-code">{item.actual_stdout}</code></>}
+                                  <span>失败类型：{failureTypeLabel(item.failure_type)}</span>
+                                  <span>退出码：{item.exit_code ?? "—"}</span>
+                                  {item.stderr && <><span>stderr</span><code className="pw-protocol-code">{item.stderr}</code></>}
                                   {item.location && <span>位置：{item.location}</span>}
                                   <span>执行时间：{item.duration_ms}ms</span>
                                 </article>
@@ -2262,6 +2316,8 @@ export default function ProgrammingWorkbench({
                                     <span>输入</span><code className="pw-protocol-code">{item.stdin_text || "无"}</code>
                                     <span>标准输出</span><code className="pw-protocol-code">{item.expected_stdout}</code>
                                     <span>实际输出</span><code className="pw-protocol-code">{item.actual_stdout}</code>
+                                    <span>退出码：{item.exit_code ?? "—"}</span>
+                                    {item.stderr && <><span>stderr</span><code className="pw-protocol-code">{item.stderr}</code></>}
                                     <span>执行时间：{item.duration_ms}ms</span>
                                   </article>
                                 ))}
@@ -2343,6 +2399,9 @@ export default function ProgrammingWorkbench({
                           <span>输入</span><code className="pw-protocol-code">{item.stdin_text || "无"}</code>
                           <span>标准输出</span><code className="pw-protocol-code">{item.expected_stdout}</code>
                           {item.status !== "not_run" && <><span>实际输出</span><code className="pw-protocol-code">{item.actual_stdout}</code></>}
+                          <span>失败类型：{failureTypeLabel(item.failure_type)}</span>
+                          <span>退出码：{item.exit_code ?? "—"}</span>
+                          {item.stderr && <><span>stderr</span><code className="pw-protocol-code">{item.stderr}</code></>}
                           {item.location && <span>位置：{item.location}</span>}
                           <span>执行时间：{item.duration_ms}ms</span>
                           {(sampleResult.technical_details || sampleResult.result?.technical_details) && (
