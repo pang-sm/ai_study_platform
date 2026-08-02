@@ -1,0 +1,28 @@
+{
+  "generated_at": "2026-08-02T10:20:00+08:00",
+  "commit": "38f0805",
+  "actions_run": {"id": 30728230170, "conclusion": "success", "url": "https://github.com/pang-sm/ai_study_platform/actions/runs/30728230170"},
+  "site": "http://101.32.190.42/",
+  "public_http": {"frontend": 200, "api_health": 200, "api_health_body": {"status": "ok"}},
+  "online_api": {
+    "C": {"list_status": 200, "total": 60, "page_size": 48, "details_checked": 5, "complete_chinese_fields": "5/5", "public_samples": "3/3 each", "hidden_or_reference_fields": 0},
+    "C++": {"list_status": 200, "total": 60, "page_size": 48, "details_checked": 5, "complete_chinese_fields": "5/5", "public_samples": "3/3 each", "hidden_or_reference_fields": 0},
+    "Python": {"list_status": 200, "total": 60, "page_size": 48, "details_checked": 5, "complete_chinese_fields": "5/5", "public_samples": "3/3 each", "hidden_or_reference_fields": 0},
+    "Java": {"list_status": 200, "total": 60, "page_size": 48, "details_checked": 5, "complete_chinese_fields": "5/5", "public_samples": "3/3 each", "hidden_or_reference_fields": 0}
+  },
+  "online_database_observed_through_api": {"C": 60, "C++": 60, "Python": 60, "Java": 60, "total": 240},
+  "hidden_test_leakage": {"detail_api": 0, "start_api": 0, "submit_api": "not run because authenticated session was unavailable"},
+  "browser_ui": {
+    "site_loaded": true,
+    "title": "AI 学习平台",
+    "catalog_visible": false,
+    "workbench_authenticated_flow": "not_completed",
+    "reason": "正式站点页面可打开，但当前浏览器没有可用登录态；题库入口请求超时，直接 start API 对四个验收账号均返回 401。未绕过认证。",
+    "console_network": "页面加载出现宿主 Statsig telemetry timeout；正式 API 请求通过独立 HTTP 核验，未观察到站点 4xx/5xx。"
+  },
+  "deployment": {"prepare_ssh": "Actions run success", "schema_seed_restart_health": "Actions run success", "online_backup_path": "未通过当前权限读取 Actions 私有日志或 SSH 取得绝对路径"},
+  "uncompleted_items": [
+    "登录后线上 Workbench 20 道网页抽验未完成；线上 API 与公开详情隔离已完成。",
+    "线上数据库备份的绝对路径和大小未能从当前可见权限取得。"
+  ]
+}
