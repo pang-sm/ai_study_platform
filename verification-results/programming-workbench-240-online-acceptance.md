@@ -2,8 +2,8 @@
 
 ## 部署
 
-- commit：`38f0805`
-- Actions：`30728230170`，结论 `success`
+- 最终文档 commit：`6ebf54f`
+- 最终 Actions：`30728548736`，结论 `success`
 - 正式站点：<http://101.32.190.42/>
 - 前端入口 HTTP 200，`/api/health` HTTP 200，响应 `{"status":"ok"}`。
 

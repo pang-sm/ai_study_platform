@@ -1,7 +1,7 @@
 {
   "generated_at": "2026-08-02T10:20:00+08:00",
-  "commit": "38f0805",
-  "actions_run": {"id": 30728230170, "conclusion": "success", "url": "https://github.com/pang-sm/ai_study_platform/actions/runs/30728230170"},
+  "commit": "6ebf54f",
+  "actions_run": {"id": 30728548736, "conclusion": "success", "url": "https://github.com/pang-sm/ai_study_platform/actions/runs/30728548736"},
   "site": "http://101.32.190.42/",
   "public_http": {"frontend": 200, "api_health": 200, "api_health_body": {"status": "ok"}},
   "online_api": {
