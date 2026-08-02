@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import difflib
+import re
 import subprocess
 import sys
 import tempfile
@@ -64,6 +65,16 @@ def api_keys(exercise_id: int) -> set[str]:
         return set()
 
 
+def java_feature_coverage(reference: list[dict]) -> dict[str, bool]:
+    """Detect real Java syntax in server-side reference files, not metadata tags."""
+    source = "\n".join(str(item.get("content") or "") for item in reference)
+    return {
+        "abstract_class": bool(re.search(r"\babstract\s+class\b", source)),
+        "optional": bool(re.search(r"\bOptional\s*<|\bOptional\.ofNullable\b", source)),
+        "lambda": "->" in source,
+    }
+
+
 def audit_row(row: ProgrammingExercise) -> dict:
     starter = parse(row.starter_files_json, [])
     reference = parse(row.reference_files_json, [])
@@ -98,6 +109,7 @@ def audit_row(row: ProgrammingExercise) -> dict:
         if str(item.get("path") or "") in reference_by_path
     )
     api_field_set = api_keys(row.id)
+    feature_coverage = java_feature_coverage(reference)
     return {
         "language": row.language,
         "exercise_id": row.id,
@@ -112,6 +124,7 @@ def audit_row(row: ProgrammingExercise) -> dict:
         "starter_max_line_length": starter_max_line_length,
         "starter_reference_similarity_max": round(starter_reference_similarity_max, 4),
         "starter_equal_reference_file_count": starter_equal_reference_file_count,
+        "java_feature_coverage": feature_coverage,
         "starter_format_passed": starter_max_line_length <= 120 and starter_todo_file_count >= 3,
         "starter_valid": starter_code == 0,
         "starter_compile_error": bool(starter_err),
@@ -139,6 +152,14 @@ def write_reports(results: list[dict]) -> None:
         "multi_file_count": sum(item["exercise_type"] == "multi_file" for item in results),
         "passed": passed,
         "failed": len(results) - passed,
+        "java_feature_coverage": {
+            feature: sum(bool(item.get("java_feature_coverage", {}).get(feature)) for item in results)
+            for feature in ("abstract_class", "optional", "lambda")
+        },
+        "required_java_features_covered": all(
+            any(item.get("java_feature_coverage", {}).get(feature) for item in results)
+            for feature in ("abstract_class", "optional", "lambda")
+        ),
         "results": results,
     }
     data = json.dumps(summary, ensure_ascii=False, indent=2)

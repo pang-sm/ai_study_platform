@@ -1,9 +1,15 @@
 {
-  "generated_at": "2026-08-02T14:48:16.488341+00:00",
+  "generated_at": "2026-08-02T15:12:40.365006+00:00",
   "total_java": 12,
   "multi_file_count": 12,
-  "passed": 12,
-  "failed": 0,
+  "passed": 11,
+  "failed": 1,
+  "java_feature_coverage": {
+    "abstract_class": 1,
+    "optional": 1,
+    "lambda": 2
+  },
+  "required_java_features_covered": true,
   "results": [
     {
       "language": "Java",
@@ -26,6 +32,11 @@
       "starter_max_line_length": 112,
       "starter_reference_similarity_max": 0.958,
       "starter_equal_reference_file_count": 0,
+      "java_feature_coverage": {
+        "abstract_class": false,
+        "optional": false,
+        "lambda": false
+      },
       "starter_format_passed": true,
       "starter_valid": true,
       "starter_compile_error": false,
@@ -62,6 +73,11 @@
       "starter_max_line_length": 93,
       "starter_reference_similarity_max": 0.8851,
       "starter_equal_reference_file_count": 0,
+      "java_feature_coverage": {
+        "abstract_class": false,
+        "optional": false,
+        "lambda": false
+      },
       "starter_format_passed": true,
       "starter_valid": true,
       "starter_compile_error": false,
@@ -86,19 +102,25 @@
       "title": "停车场的分时计费",
       "exercise_type": "multi_file",
       "entry_file": "Main.java",
-      "editable_file_count": 6,
+      "editable_file_count": 7,
       "editable_files": [
         "Vehicle.java",
         "ParkingTicket.java",
         "FeePolicy.java",
+        "BaseFeePolicy.java",
         "StandardFeePolicy.java",
         "ParkingLot.java",
         "Main.java"
       ],
       "starter_todo_file_count": 5,
       "starter_max_line_length": 85,
-      "starter_reference_similarity_max": 0.9531,
+      "starter_reference_similarity_max": 0.9983,
       "starter_equal_reference_file_count": 0,
+      "java_feature_coverage": {
+        "abstract_class": true,
+        "optional": false,
+        "lambda": false
+      },
       "starter_format_passed": true,
       "starter_valid": true,
       "starter_compile_error": false,
@@ -112,8 +134,8 @@
       "reference_files_leak": false,
       "hidden_test_driver_leak": false,
       "api_forbidden_fields": [],
-      "final_status": "passed",
-      "failure_reason": ""
+      "final_status": "failed",
+      "failure_reason": "multi-file quality gate failed"
     },
     {
       "language": "Java",
@@ -136,6 +158,11 @@
       "starter_max_line_length": 115,
       "starter_reference_similarity_max": 0.9434,
       "starter_equal_reference_file_count": 0,
+      "java_feature_coverage": {
+        "abstract_class": false,
+        "optional": false,
+        "lambda": false
+      },
       "starter_format_passed": true,
       "starter_valid": true,
       "starter_compile_error": false,
@@ -172,6 +199,11 @@
       "starter_max_line_length": 118,
       "starter_reference_similarity_max": 0.8369,
       "starter_equal_reference_file_count": 0,
+      "java_feature_coverage": {
+        "abstract_class": false,
+        "optional": false,
+        "lambda": false
+      },
       "starter_format_passed": true,
       "starter_valid": true,
       "starter_compile_error": false,
@@ -209,6 +241,11 @@
       "starter_max_line_length": 104,
       "starter_reference_similarity_max": 0.9423,
       "starter_equal_reference_file_count": 0,
+      "java_feature_coverage": {
+        "abstract_class": false,
+        "optional": false,
+        "lambda": false
+      },
       "starter_format_passed": true,
       "starter_valid": true,
       "starter_compile_error": false,
@@ -246,6 +283,11 @@
       "starter_max_line_length": 69,
       "starter_reference_similarity_max": 0.9524,
       "starter_equal_reference_file_count": 0,
+      "java_feature_coverage": {
+        "abstract_class": false,
+        "optional": false,
+        "lambda": false
+      },
       "starter_format_passed": true,
       "starter_valid": true,
       "starter_compile_error": false,
@@ -282,6 +324,11 @@
       "starter_max_line_length": 101,
       "starter_reference_similarity_max": 0.7941,
       "starter_equal_reference_file_count": 0,
+      "java_feature_coverage": {
+        "abstract_class": false,
+        "optional": true,
+        "lambda": true
+      },
       "starter_format_passed": true,
       "starter_valid": true,
       "starter_compile_error": false,
@@ -318,6 +365,11 @@
       "starter_max_line_length": 113,
       "starter_reference_similarity_max": 0.9362,
       "starter_equal_reference_file_count": 0,
+      "java_feature_coverage": {
+        "abstract_class": false,
+        "optional": false,
+        "lambda": false
+      },
       "starter_format_passed": true,
       "starter_valid": true,
       "starter_compile_error": false,
@@ -353,6 +405,11 @@
       "starter_max_line_length": 116,
       "starter_reference_similarity_max": 0.8261,
       "starter_equal_reference_file_count": 0,
+      "java_feature_coverage": {
+        "abstract_class": false,
+        "optional": false,
+        "lambda": true
+      },
       "starter_format_passed": true,
       "starter_valid": true,
       "starter_compile_error": false,
@@ -389,6 +446,11 @@
       "starter_max_line_length": 95,
       "starter_reference_similarity_max": 0.8056,
       "starter_equal_reference_file_count": 0,
+      "java_feature_coverage": {
+        "abstract_class": false,
+        "optional": false,
+        "lambda": false
+      },
       "starter_format_passed": true,
       "starter_valid": true,
       "starter_compile_error": false,
@@ -426,6 +488,11 @@
       "starter_max_line_length": 108,
       "starter_reference_similarity_max": 0.94,
       "starter_equal_reference_file_count": 0,
+      "java_feature_coverage": {
+        "abstract_class": false,
+        "optional": false,
+        "lambda": false
+      },
       "starter_format_passed": true,
       "starter_valid": true,
       "starter_compile_error": false,
