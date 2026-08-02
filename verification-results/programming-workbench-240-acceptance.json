@@ -1,0 +1,75 @@
+{
+  "generated_at": "2026-08-02T10:00:00+08:00",
+  "scope": "本地 240 道编程题与 Workbench 功能验收",
+  "catalog": {
+    "total": 240,
+    "passed": 240,
+    "failed": 0,
+    "counts": {"C": 60, "C++": 60, "Python": 60, "Java": 60},
+    "integrity_check": "ok",
+    "starter_reference_equal": 0,
+    "public_cases_per_problem": 3,
+    "hidden_cases_per_problem": 5,
+    "source_report": "verification-results/programming-starter-code-audit.json"
+  },
+  "root_cause_and_fix": {
+    "initial_failure": "本地 Uvicorn 虽注册了 WebSocket 路由，但虚拟环境缺少 requirements 中声明的 websockets==15.0.1，日志为 Unsupported upgrade request / No supported WebSocket library detected，导致 /code/interactive-run 返回 404。",
+    "environment_fix": "按 backend/requirements.txt 安装 websockets==15.0.1，并重启本地后端。",
+    "code_fix": "backend/main.py 的编程题交互终端保留 Docker 首选；没有 Docker 的本地验收环境使用本机 gcc/g++、Python、javac/java 编译并复用同一 stdin/stdout、状态和退出码协议。",
+    "websocket_handshake_after_fix": 101
+  },
+  "browser": {
+    "url": "http://127.0.0.1:5173/",
+    "screenshot": "verification-screenshots/workbench-local-240-python-terminal.png",
+    "sampled_per_language": {"C": 5, "C++": 5, "Python": 5, "Java": 5},
+    "content_checks": {
+      "background_knowledge": "20/20",
+      "statement": "20/20",
+      "input_output_constraints": "20/20",
+      "public_samples": "20/20",
+      "sample_explanations": "20/20",
+      "readable_starter": "20/20",
+      "starter_reference_leak": 0
+    },
+    "terminal_checks": {
+      "C": {"connected": true, "compile_or_start": true, "exit_code": 0, "result": "passed"},
+      "C++": {"connected": true, "compile_or_start": true, "exit_code": 0, "result": "passed"},
+      "Python": {"connected": true, "stdin_eof": true, "exit_code": 0, "result": "passed"},
+      "Java": {"connected": true, "multifile_starter": ["DomainModel.java", "Main.java"], "stdin_eof": true, "exit_code": 0, "result": "passed"}
+    },
+    "test_and_submit": {
+      "Python_public_test": {"passed": 3, "total": 3, "hidden_executed": false},
+      "Python_submit": {"passed": 8, "total": 8, "hidden_inputs_visible": false, "reference_visible": false}
+    },
+    "console": {"errors": 0, "warnings": 0},
+    "network": {
+      "list_and_detail_api": "四种语言列表/详情均 HTTP 200",
+      "websocket": "修复后原始握手 HTTP 101 Switching Protocols",
+      "hidden_test_leak": 0
+    }
+  },
+  "api": {
+    "C": {"list_status": 200, "total": 60, "page_size": 48, "details_checked": 5, "public_samples": "3/3 each", "hidden_or_reference_fields": 0},
+    "C++": {"list_status": 200, "total": 60, "page_size": 48, "details_checked": 5, "public_samples": "3/3 each", "hidden_or_reference_fields": 0},
+    "Python": {"list_status": 200, "total": 60, "page_size": 48, "details_checked": 5, "public_samples": "3/3 each", "hidden_or_reference_fields": 0},
+    "Java": {"list_status": 200, "total": 60, "page_size": 48, "details_checked": 5, "public_samples": "3/3 each", "hidden_or_reference_fields": 0}
+  },
+  "validation": {
+    "py_compile": "passed",
+    "frontend_build": "passed; existing large chunk warning only",
+    "database_integrity": "ok",
+    "approved_counts": {"C": 60, "C++": 60, "Python": 60, "Java": 60, "total": 240}
+  },
+  "changed_files": [
+    "backend/main.py",
+    "backend/scripts/build_catalog_240_quality.py",
+    "backend/scripts/repair_programming_catalog_240.py",
+    "backend/scripts/audit_programming_catalog_240_workbench.py",
+    "backend/scripts/sync_catalog_240_java_multifile.py",
+    "frontend/src/components/ProgrammingWorkbench.jsx",
+    "frontend/src/components/ProgrammingWorkbench.css"
+  ],
+  "uncompleted_items": [
+    "本地验收完成；线上提交、推送和部署需在本轮 commit 后执行。"
+  ]
+}

@@ -267,6 +267,7 @@ function caseStatusLabel(status) {
 }
 
 function caseDisplayReason(item) {
+  if (item?.failure_reason) return item.failure_reason;
   if (item?.reason) return item.reason;
   if (item?.status === "compile_failed") return "代码编译失败";
   if (item?.status === "runtime_failed") return "代码运行时发生异常";
@@ -276,25 +277,40 @@ function caseDisplayReason(item) {
 }
 
 function caseExpectedValue(item) {
-  return item?.expected_stdout ?? item?.expected ?? item?.expected_output ?? "";
+  return item?.expected_output ?? item?.expected_stdout ?? item?.expected ?? "";
 }
 
 function caseActualValue(item) {
+  if (item?.actual_output !== undefined && item?.actual_output !== null) return item.actual_output;
   if (item?.actual_stdout !== undefined && item?.actual_stdout !== null) return item.actual_stdout;
   if (item?.actual !== undefined && item?.actual !== null) return item.actual;
-  if (item?.actual_output !== undefined && item?.actual_output !== null) return item.actual_output;
   return "";
 }
 
 function normalizeResultCase(item, index = 0) {
+  const caseId = item?.case_id || item?.id || `case-${index + 1}`;
+  const caseName = item?.case_name || item?.name || `测试样例 ${index + 1}`;
+  const passed = Boolean(item?.passed ?? item?.status === "passed");
+  const input = item?.input ?? item?.stdin_text ?? "";
+  const expectedOutput = caseExpectedValue(item);
+  const actualOutput = caseActualValue(item);
   return {
-    id: item?.id || `case-${index + 1}`,
-    name: item?.name || `测试样例 ${index + 1}`,
-    status: item?.status || (item?.passed ? "passed" : "failed"),
+    id: caseId,
+    case_id: caseId,
+    name: caseName,
+    case_name: caseName,
+    status: item?.status || (passed ? "passed" : "failed"),
+    passed,
     reason: caseDisplayReason(item),
-    stdin_text: item?.stdin_text ?? "",
-    expected_stdout: caseExpectedValue(item),
-    actual_stdout: caseActualValue(item),
+    failure_reason: item?.failure_reason || caseDisplayReason(item),
+    input,
+    expected_output: expectedOutput,
+    actual_output: actualOutput,
+    stdin_text: input,
+    expected_stdout: expectedOutput,
+    actual_stdout: actualOutput,
+    exit_code: item?.exit_code ?? null,
+    stderr: item?.stderr || "",
     location: item?.location,
     duration_ms: item?.duration_ms ?? 0,
   };
@@ -680,6 +696,8 @@ export default function ProgrammingWorkbench({
   const [contextMenu, setContextMenu] = useState(null);
   const [coachAtLatest, setCoachAtLatest] = useState(true);
   const saveTimerRef = useRef(null);
+  const filesRef = useRef([]);
+  const dirtyFilesRef = useRef(new Set());
   const workspaceRequestRef = useRef(0);
   const shellRef = useRef(null);
   const editorRef = useRef(null);
@@ -707,6 +725,8 @@ export default function ProgrammingWorkbench({
     return files.filter((file) => !/^(test|tests|test-framework)\//i.test(String(file.relative_path || "")));
   }, [exercise?.manifest?.editable_files, files]);
   const activeFile = activeResource ? null : (editableFiles.find((file) => file.id === activeFileId) || editableFiles[0] || null);
+  useEffect(() => { filesRef.current = files; }, [files]);
+  useEffect(() => { dirtyFilesRef.current = dirtyFiles; }, [dirtyFiles]);
   const sourceFiles = useMemo(
     () => editableFiles.filter((file) => isSourceFileForLanguage(file.relative_path, language)),
     [editableFiles, language],
@@ -1273,8 +1293,19 @@ export default function ProgrammingWorkbench({
 
   const manualSave = async () => {
     window.clearTimeout(saveTimerRef.current);
-    if (!activeFile) return;
-    await updateProjectFile(activeFile.id, { content: activeFile.content || "" });
+    const latestFiles = filesRef.current;
+    const pending = latestFiles.filter((file) => dirtyFilesRef.current.has(file.id));
+    if (activeFile && editorRef.current?.getValue) {
+      const latestContent = editorRef.current.getValue();
+      if (latestContent !== activeFile.content) {
+        setFiles((prev) => prev.map((file) => file.id === activeFile.id ? { ...file, content: latestContent } : file));
+        pending.push({ ...activeFile, content: latestContent });
+      } else if (!pending.some((file) => file.id === activeFile.id) && activeFile.content !== undefined) {
+        pending.push(activeFile);
+      }
+    }
+    const unique = [...new Map(pending.map((file) => [file.id, file])).values()];
+    await Promise.all(unique.map((file) => updateProjectFile(file.id, { content: file.content || "" })));
   };
 
   const renameProject = async () => {
@@ -1990,6 +2021,12 @@ export default function ProgrammingWorkbench({
                     {(exercise.tags || []).map((tag) => <span key={tag}>{tag}</span>)}
                   </div>
                   <div className="pw-exercise-sidebar-copy">{getExerciseDescription(exercise)}</div>
+                  {(exercise.background_knowledge || exercise.hints) && (
+                    <section className="pw-exercise-sidebar-section pw-exercise-learning-context">
+                      {exercise.background_knowledge && <div><h2>背景知识</h2><p>{exercise.background_knowledge}</p></div>}
+                      {exercise.hints && <div><h2>解题提醒</h2><p>{exercise.hints}</p></div>}
+                    </section>
+                  )}
                   <section className="pw-exercise-sidebar-section pw-exercise-statement-section">
                     <h2>题目说明</h2>
                     <p className="pw-exercise-statement-copy">{exercise.statement || exercise.problem_statement || "暂无题目说明"}</p>
@@ -2023,6 +2060,7 @@ export default function ProgrammingWorkbench({
                             <code>{sample.stdin_text || "无"}</code>
                             <small>输出</small>
                             <code>{sample.expected_stdout || ""}</code>
+                            {sample.explanation_zh && <small className="pw-sample-explanation">样例解释：{sample.explanation_zh}</small>}
                             {selectedSampleIndex === index && sampleResult && <em>{sampleResult.passed ? "通过" : "未通过"}</em>}
                           </button>
                           <button type="button" className="pw-copy-sample-input" onClick={() => copyProtocolInput(sample.stdin_text || "")}>

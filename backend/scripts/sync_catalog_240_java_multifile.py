@@ -11,7 +11,7 @@ sys.path.insert(0, str(ROOT / "backend/scripts"))
 from database import SessionLocal, engine  # noqa: E402
 from database_schema import ensure_database_schema  # noqa: E402
 from models import ProgrammingExercise  # noqa: E402
-from build_catalog_240_quality import java_source  # noqa: E402
+from build_catalog_240_quality import java_source, starter_files_for  # noqa: E402
 
 
 def main() -> None:
@@ -27,7 +27,7 @@ def main() -> None:
         for index, row in enumerate(rows[:10]):
             kind = str(row.source_key).rsplit("|", 1)[-1].rsplit("-", 1)[0]
             files = java_source(kind, False, True)
-            row.starter_files_json = json.dumps(files, ensure_ascii=False, separators=(",", ":"))
+            row.starter_files_json = json.dumps(starter_files_for("Java", kind, True), ensure_ascii=False, separators=(",", ":"))
             row.reference_files_json = json.dumps(files, ensure_ascii=False, separators=(",", ":"))
             changed += 1
         db.commit()

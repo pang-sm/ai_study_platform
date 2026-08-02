@@ -1746,6 +1746,9 @@
 .pw-exercise-sidebar-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 16px; }
 .pw-exercise-sidebar-tags span { padding: 3px 7px; border: 1px solid #e6ddfa; border-radius: 999px; color: #685a91; font-size: 11px; }
 .pw-exercise-sidebar-copy { color: #57516a; font-size: 13px; line-height: 1.7; white-space: pre-wrap; }
+.pw-exercise-learning-context { display: grid; gap: 12px; }
+.pw-exercise-learning-context h2 { margin-bottom: 5px; }
+.pw-exercise-learning-context p { margin: 0; color: #57516a; font-size: 12px; line-height: 1.65; white-space: pre-wrap; }
 .pw-exercise-sidebar-section { margin-top: 22px; }
 .pw-exercise-sidebar-section h2 { margin: 0 0 10px; color: #28223d; font-size: 14px; }
 .pw-exercise-statement-section { padding-top: 2px; }
@@ -1760,6 +1763,7 @@
 .pw-exercise-example span { color: #766b91; font-size: 11px; font-weight: 800; }
 .pw-exercise-example code { color: #31284d; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .pw-exercise-example em { color: #16794a; font-size: 11px; font-style: normal; font-weight: 800; }
+.pw-sample-explanation { color: #5f5873; font-size: 11px; font-weight: 500; line-height: 1.55; white-space: normal; }
 .pw-exercise-example-empty { color: #766b91; font-size: 12px; line-height: 1.6; }
 .pw-current-language, .pw-run-target { color: #4a3c72; font-size: 12px; font-weight: 800; }
 .pw-run-target { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

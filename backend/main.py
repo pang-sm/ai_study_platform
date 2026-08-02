@@ -8811,7 +8811,7 @@ def _public_exercise_samples(exercise: models.ProgrammingExercise, include_backe
                 key: sample.get(key)
                 for key in (
                     "id", "name", "stdin_text", "expected_stdout",
-                    "source_test_name", "test_path", "selector",
+                    "source_test_name", "test_path", "selector", "explanation_zh",
                 )
                 if sample.get(key) is not None
             }
@@ -9114,6 +9114,14 @@ def serialize_programming_exercise(exercise: models.ProgrammingExercise, include
         "input_format": exercise.input_format_zh or str(problem.get("input_format") or ""),
         "output_format": exercise.output_format_zh or str(problem.get("output_format") or ""),
         "constraints": exercise.constraints_zh or str(problem.get("constraints") or ""),
+        "background_knowledge": exercise.background_knowledge_zh or "",
+        "hints": exercise.hints_zh or "",
+        "learning_objective_id": exercise.learning_objective_id or "",
+        "learning_objective": exercise.learning_objective or "",
+        "curriculum_module": exercise.curriculum_module or "",
+        "level": exercise.level or "",
+        "prerequisites": exercise.prerequisites or "",
+        "core_skill": exercise.core_skill or "",
         "public_samples": (
             _public_exercise_samples(exercise, include_backend_fields=False)
             or _standard_oj_cases(exercise, hidden=False)
@@ -9315,19 +9323,35 @@ def _exercise_case_from_result(result: dict, sample: dict | None = None) -> dict
     actual = result.get("actual_output")
     if actual and not result.get("passed") and re.search(r"Traceback|pytest|Catch2|Unity|JUnit|AssertionError", str(actual), re.IGNORECASE):
         actual = None
+    expected_output = result.get("expected_output") if sample is None else sample.get("expected")
+    if expected_output is None and sample is not None:
+        expected_output = sample.get("expected_stdout", "")
+    actual_output = result.get("actual_stdout") if result.get("actual_stdout") is not None else (actual or "")
+    case_id = str((sample or {}).get("id") or result.get("test_name") or "exercise-run")
+    case_name = (sample or {}).get("name") or result.get("test_name") or "当前测试"
     return {
-        "id": str((sample or {}).get("id") or result.get("test_name") or "exercise-run"),
-        "name": (sample or {}).get("name") or result.get("test_name") or "当前测试",
+        "case_id": case_id,
+        "case_name": case_name,
+        "input": (sample or {}).get("stdin_text", result.get("stdin_text", "")),
+        "expected_output": expected_output or "",
+        "actual_output": actual_output,
+        "passed": status == "passed",
+        "exit_code": result.get("exit_code"),
+        "stderr": result.get("stderr") or "",
+        "duration_ms": result.get("duration_ms", 0),
+        "failure_reason": reason,
+        # Backward-compatible aliases for clients deployed before the protocol update.
+        "id": case_id,
+        "name": case_name,
         "status": status,
         "reason": reason,
         "input_display": (sample or {}).get("input_display", result.get("input_display")),
-        "expected": result.get("expected_output") if sample is None else sample.get("expected"),
+        "expected": expected_output,
         "actual": actual,
         "stdin_text": (sample or {}).get("stdin_text", result.get("stdin_text", "")),
-        "expected_stdout": result.get("expected_stdout") if result.get("expected_stdout") is not None else (sample or {}).get("expected_stdout", ""),
-        "actual_stdout": result.get("actual_stdout") if result.get("actual_stdout") is not None else (actual or ""),
+        "expected_stdout": expected_output or "",
+        "actual_stdout": actual_output,
         "location": result.get("location"),
-        "duration_ms": result.get("duration_ms", 0),
     }
 
 
@@ -9366,17 +9390,31 @@ def _exercise_run_summary(result: dict, exercise: models.ProgrammingExercise, su
     failed_cases = [case for case in cases if case.get("status") not in {"passed", "skipped"}]
     normalized_cases = []
     for index, case in enumerate(cases):
+        case_id = str(case.get("case_id") or case.get("id") or f"case-{index + 1}")
+        case_name = _localized_exercise_sample_name(case.get("case_name") or case.get("name"), index)
+        expected_output = case.get("expected_output", case.get("expected", ""))
+        actual_output = case.get("actual_output", case.get("actual_stdout", case.get("actual", "")))
+        case_passed = bool(case.get("passed", case.get("status") in {"passed", "skipped"}))
         normalized = {
-            "id": str(case.get("id") or f"case-{index + 1}"),
-            "name": _localized_exercise_sample_name(case.get("name"), index),
+            "case_id": case_id,
+            "case_name": case_name,
+            "input": case.get("input", case.get("stdin_text", "")),
+            "expected_output": expected_output,
+            "actual_output": actual_output,
+            "passed": case_passed,
+            "exit_code": case.get("exit_code", result.get("exit_code")),
+            "stderr": case.get("stderr", ""),
+            "failure_reason": case.get("failure_reason", case.get("reason", "")),
+            "id": case_id,
+            "name": case_name,
             "status": case.get("status") or "failed",
             "reason": case.get("reason") or ("返回结果与期望值不一致" if case.get("status") != "passed" else ""),
             "input_display": case.get("input_display", case.get("input")),
-            "expected": case.get("expected", case.get("expected_output")),
-            "actual": case.get("actual", case.get("actual_output")),
+            "expected": expected_output,
+            "actual": case.get("actual", actual_output),
             "stdin_text": case.get("stdin_text", ""),
-            "expected_stdout": case.get("expected_stdout", ""),
-            "actual_stdout": case.get("actual_stdout", case.get("actual", case.get("actual_output", ""))),
+            "expected_stdout": expected_output or "",
+            "actual_stdout": actual_output,
             "location": case.get("location"),
             "duration_ms": case.get("duration_ms", result.get("duration_ms", 0)),
         }
@@ -9630,6 +9668,29 @@ def _run_standard_oj_case(project: models.CodeProject, files: list[models.CodePr
             if compiled.returncode != 0:
                 compile_error = compiled.stderr or compiled.stdout
             command = [str(temp / "program")]
+        elif language == "Java":
+            sources = [str(Path(file.relative_path)) for file in files if PurePosixPath(file.relative_path).suffix.lower() == ".java"]
+            if not sources:
+                return {"success": False, "passed": False, "failed_categories": ["compile"], "stderr": "Java 项目没有 .java 源文件", "exit_code": -1, "duration_ms": 0}
+            classes_dir = temp / "classes"
+            classes_dir.mkdir(exist_ok=True)
+            compiled = subprocess.run(
+                [shutil.which("javac") or "javac", "-encoding", "UTF-8", "-d", str(classes_dir), *sources],
+                cwd=temp, capture_output=True, text=True, timeout=EXECUTE_TIMEOUT_SECONDS_C,
+            )
+            if compiled.returncode != 0:
+                compile_error = compiled.stderr or compiled.stdout
+                return {"success": True, "passed": False, "failed_categories": ["compile"], "compile_error": compile_error, "stderr": "", "actual_output": "", "expected_output": expected, "actual_stdout": "", "expected_stdout": expected, "exit_code": compiled.returncode, "duration_ms": int((time.time() - started) * 1000)}
+            main_class = getattr(project, "main_class", None) or "Main"
+            try:
+                run = subprocess.run(
+                    [shutil.which("java") or "java", "-cp", str(classes_dir), main_class],
+                    cwd=temp, input=stdin_text, capture_output=True, text=True, timeout=EXECUTE_TIMEOUT_SECONDS_C,
+                )
+            except subprocess.TimeoutExpired:
+                return {"success": True, "passed": False, "failed_categories": ["timeout"], "timeout": True, "stderr": "", "actual_output": "", "expected_output": expected, "actual_stdout": "", "expected_stdout": expected, "exit_code": -1, "duration_ms": int((time.time() - started) * 1000)}
+            actual = (run.stdout or "").replace("\r\n", "\n")
+            return {"success": True, "passed": run.returncode == 0 and actual == expected, "failed_categories": [] if run.returncode == 0 and actual == expected else ["tests"], "stdout": actual, "stderr": run.stderr or "", "actual_output": actual, "expected_output": expected, "actual_stdout": actual, "expected_stdout": expected, "exit_code": run.returncode, "duration_ms": int((time.time() - started) * 1000)}
         else:
             return {"success": False, "passed": False, "failed_categories": ["unsupported"], "stderr": "本轮仅支持 C、C++、Python 标准 OJ 题。", "exit_code": -1, "duration_ms": 0}
         if compile_error:
@@ -28194,41 +28255,92 @@ async def programming_exercise_interactive(exercise_id: int, ws: WebSocket, init
                 handle.write(item.content or "")
         await ws.send_text(json.dumps({"type": "status", "message": "正在编译…"}, ensure_ascii=False))
         memory = INTERACTIVE_MEMORY_C if language in {"C", "C++"} else INTERACTIVE_MEMORY
+        use_docker = shutil.which("docker") is not None
         runtime_image = DOCKER_IMAGE
         runtime_command = ["python", "-u", f"/code/{safe_project_path(entry_file)}"]
         # Compile native programs before opening the interactive PTY.  This
         # prevents a failed build from being presented as a running program.
         if language in {"C", "C++"}:
-            compiler = "g++ -std=c++17 -O0" if language == "C++" else "gcc -std=c11 -O0"
-            source_glob = "*.cpp *.cc *.cxx" if language == "C++" else "*.c"
-            compile_cmd = [
-                "docker", "run", "--rm", "--network", "none", "--memory", memory,
-                "--cpus", str(DOCKER_CPU_LIMIT), "--pids-limit", str(DOCKER_PIDS_LIMIT),
-                "-v", f"{tmp_dir}:/work", "-w", "/work", DOCKER_IMAGE_C,
-                "sh", "-lc", f"{compiler} $(find . -type f \\( -name '{source_glob.split()[0]}'" + "".join(f" -o -name '{part}'" for part in source_glob.split()[1:]) + ") -o program",
+            compiler_name = "g++" if language == "C++" else "gcc"
+            compiler_flags = ["-std=c++17" if language == "C++" else "-std=c11", "-O0"]
+            source_suffixes = (".cpp", ".cc", ".cxx") if language == "C++" else (".c",)
+            source_files = [
+                os.path.join(tmp_dir, safe_project_path(item.relative_path))
+                for item in files
+                if str(item.relative_path).lower().endswith(source_suffixes)
             ]
+            if not source_files:
+                raise ValueError("项目中没有可编译的源文件")
+            if use_docker:
+                compiler = "g++ -std=c++17 -O0" if language == "C++" else "gcc -std=c11 -O0"
+                source_glob = "*.cpp *.cc *.cxx" if language == "C++" else "*.c"
+                compile_cmd = [
+                    "docker", "run", "--rm", "--network", "none", "--memory", memory,
+                    "--cpus", str(DOCKER_CPU_LIMIT), "--pids-limit", str(DOCKER_PIDS_LIMIT),
+                    "-v", f"{tmp_dir}:/work", "-w", "/work", DOCKER_IMAGE_C,
+                    "sh", "-lc", f"{compiler} $(find . -type f \\( -name '{source_glob.split()[0]}'" + "".join(f" -o -name '{part}'" for part in source_glob.split()[1:]) + ") -o program",
+                ]
+            else:
+                compiler_path = shutil.which(compiler_name)
+                if not compiler_path:
+                    raise ValueError(f"服务器未安装 {compiler_name}，无法运行 {language} 项目")
+                local_binary = os.path.join(tmp_dir, "program.exe" if os.name == "nt" else "program")
+                compile_cmd = [compiler_path, *compiler_flags, *source_files, "-o", local_binary]
             compiled = subprocess.run(compile_cmd, capture_output=True, text=True, timeout=20, cwd=tmp_dir)
             if compiled.returncode != 0:
                 raw_error = (compiled.stderr or compiled.stdout or "编译失败").strip()
                 await ws.send_text(json.dumps({"type": "compile_error", "message": _friendly_compile_error(raw_error), "technical_details": raw_error[:8000]}, ensure_ascii=False))
                 await ws.send_text(json.dumps({"type": "exit", "exit_code": compiled.returncode, "run_session_id": run_session_id}, ensure_ascii=False))
                 return
-            runtime_image, runtime_command = DOCKER_IMAGE_C, ["/code/program"]
+            runtime_image, runtime_command = DOCKER_IMAGE_C, ["/code/program"] if use_docker else [local_binary]
         elif language == "Java":
-            runtime_image = "eclipse-temurin:21-jdk"
-            runtime_command = ["sh", "-lc", f"cp -a /code /tmp/work && cd /tmp/work && javac $(find . -name '*.java') && java {main_class}"]
-        docker_cmd = ["docker", "run", "--rm", "-i", "-t", "--network", "none", "--memory", memory,
-                      "--cpus", str(DOCKER_CPU_LIMIT), "--pids-limit", str(DOCKER_PIDS_LIMIT), "--read-only", "--tmpfs", "/tmp:rw,exec,nosuid,size=128m",
-                      "-v", f"{tmp_dir}:/code:ro", runtime_image, *runtime_command]
+            if use_docker:
+                runtime_image = "eclipse-temurin:21-jdk"
+                runtime_command = ["sh", "-lc", f"cp -a /code /tmp/work && cd /tmp/work && javac $(find . -name '*.java') && java {main_class}"]
+            else:
+                javac_path = shutil.which("javac")
+                java_path = shutil.which("java")
+                java_files = [
+                    os.path.join(tmp_dir, safe_project_path(item.relative_path))
+                    for item in files
+                    if str(item.relative_path).lower().endswith(".java")
+                ]
+                if not javac_path or not java_path:
+                    raise ValueError("服务器未安装 javac/java，无法运行 Java 项目")
+                if not java_files:
+                    raise ValueError("项目中没有可编译的 Java 文件")
+                classes_dir = os.path.join(tmp_dir, "classes")
+                os.makedirs(classes_dir, exist_ok=True)
+                compiled = subprocess.run(
+                    [javac_path, "-encoding", "UTF-8", "-d", classes_dir, *java_files],
+                    capture_output=True,
+                    text=True,
+                    timeout=20,
+                    cwd=tmp_dir,
+                )
+                if compiled.returncode != 0:
+                    raw_error = (compiled.stderr or compiled.stdout or "编译失败").strip()
+                    await ws.send_text(json.dumps({"type": "compile_error", "message": f"编译错误：{raw_error[:500]}", "technical_details": raw_error[:8000]}, ensure_ascii=False))
+                    await ws.send_text(json.dumps({"type": "exit", "exit_code": compiled.returncode, "run_session_id": run_session_id}, ensure_ascii=False))
+                    return
+                runtime_command = [java_path, "-cp", classes_dir, main_class]
+        if use_docker:
+            launch_command = ["docker", "run", "--rm", "-i", "-t", "--network", "none", "--memory", memory,
+                              "--cpus", str(DOCKER_CPU_LIMIT), "--pids-limit", str(DOCKER_PIDS_LIMIT), "--read-only", "--tmpfs", "/tmp:rw,exec,nosuid,size=128m",
+                              "-v", f"{tmp_dir}:/code:ro", runtime_image, *runtime_command]
+        else:
+            if language == "Python":
+                runtime_command = [_get_python_project_runner(), os.path.join(tmp_dir, safe_project_path(entry_file))]
+            launch_command = runtime_command
         import threading
         use_pty = hasattr(os, "openpty")
         master_fd = None
         if use_pty:
             master_fd, slave_fd = os.openpty()
-            proc = subprocess.Popen(docker_cmd, stdin=slave_fd, stdout=slave_fd, stderr=slave_fd, close_fds=True, cwd=tmp_dir)
+            proc = subprocess.Popen(launch_command, stdin=slave_fd, stdout=slave_fd, stderr=slave_fd, close_fds=True, cwd=tmp_dir)
             os.close(slave_fd)
         else:
-            proc = subprocess.Popen(docker_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=False, cwd=tmp_dir)
+            proc = subprocess.Popen(launch_command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=False, cwd=tmp_dir)
         await ws.send_text(json.dumps({"type": "status", "message": "程序正在运行"}, ensure_ascii=False))
         collected = []
         def reader():

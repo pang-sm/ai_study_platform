@@ -216,6 +216,80 @@ def java_source(kind: str, wrong: bool = False, multifile: bool = False) -> list
     return files
 
 
+STARTER_BACKGROUND = {
+    "recipe": "这道题把多条数量记录转换成总金额，适合练习顺序读取、循环累加和整数乘法。",
+    "transfer": "这道题把连续工序的时长合并成有效时长，重点是区分第一项和后续项，并处理结果下界。",
+    "month": "这道题使用公历月份规则判断天数，重点是把普通年份、四年闰年、整百年份和四百年年份区分开。",
+    "checksum": "这道题把字符串中的数字按位置交替参与运算，适合练习字符遍历和下标奇偶判断。",
+    "scoreboard": "这道题需要把记录映射为积分并排序，重点是结构化记录、比较规则和稳定的输出格式。",
+    "times": "这道题要求整理时间文本，重点是保持固定宽度格式并按字典序排序。",
+    "intervals": "这道题把相交或相接的区间合并，重点是先排序，再维护当前合并区间的右端点。",
+    "inventory": "这道题把同名物品的多次变动汇总，重点是建立名称到数量的映射并处理净值为零的记录。",
+    "unique": "这道题要求寻找第一个只出现一次的字符，适合练习频次统计和保持原始顺序。",
+    "words": "这道题统计单词频次并处理并列规则，重点是映射统计和明确的二级排序条件。",
+    "brackets": "这道题检查括号是否正确嵌套，重点是使用栈匹配最近打开的括号。",
+    "caesar": "这道题在保留大小写和非字母字符的前提下还原文本，重点是字符范围和循环移位。",
+    "prefix": "这道题统计满足前缀条件的字符串数量，重点是字符串比较和边界长度处理。",
+    "rotate": "这道题把序列向右循环移动，重点是归一化移动量和下标映射。",
+    "dedup": "这道题按首次出现顺序去重，重点是记录已经见过的元素而不改变原序列。",
+    "ranges": "这道题要回答多个闭区间求和查询，重点是构造前缀和并正确处理 1-based 下标。",
+    "maxsub": "这道题寻找连续非空子数组的最大和，重点是维护以当前位置结尾的最优状态。",
+    "overlap": "这道题统计同时占用的最大区间数，重点是事件排序以及同端点时先结束后开始。",
+    "coins": "这道题求凑出金额所需的最少硬币数，重点是状态转移和不可达状态表示。",
+    "bfs": "这道题在网格中寻找最短路，重点是队列层序遍历、障碍判断和不可达处理。",
+}
+
+STARTER_HINT = {
+    "recipe": "先读取 n，再逐条读取两个整数；结果变量应使用足够的整数范围。",
+    "transfer": "第一项不扣衔接时间；每读到后续项再扣除一次，最后统一处理下界。",
+    "month": "可以先准备 12 个月的基础天数，再单独判断二月是否为闰年。",
+    "checksum": "字符串下标从 0 开始，偶数下标和奇数下标的符号不同。",
+    "scoreboard": "先计算每条记录的积分，再按照积分降序和名称升序比较。",
+    "times": "时间使用 HH:MM 的固定宽度文本，直接进行字符串排序即可。",
+    "intervals": "按左端点排序；若新区间与结果末项相接，就扩展末项而不是新增一项。",
+    "inventory": "使用映射累计同名记录，输出前按名称排序并过滤净值为零的项。",
+    "unique": "先统计每个字符的出现次数，再从左到右找到第一个频次为 1 的字符。",
+    "words": "频次更高优先；频次相同用字典序较小的单词作为答案。",
+    "brackets": "遇到左括号入栈，遇到右括号检查栈顶类型，最后栈必须为空。",
+    "caesar": "先把偏移量对 26 取模，再分别处理大写字母和小写字母。",
+    "prefix": "比较字符串开头的同长度片段，查询前缀为空时要遵守题目约定。",
+    "rotate": "移动量先对 n 取模，右移后第 i 个位置来自原序列的循环下标。",
+    "dedup": "集合只负责判断是否见过，另用列表保存首次出现的顺序。",
+    "ranges": "令 prefix[i] 表示前 i 个元素之和，区间 [l,r] 可由 prefix[r]-prefix[l-1] 得到。",
+    "maxsub": "维护以当前位置结尾的最大和，并与全局答案比较；不能把空子数组当作答案。",
+    "overlap": "把开始和结束拆成事件，坐标相同的事件必须先处理结束事件。",
+    "coins": "dp[0] 为 0，其余初始为不可达；每种硬币都尝试更新当前金额。",
+    "bfs": "从 S 入队并记录距离，第一次到达某个格子时就是最短距离。",
+}
+
+
+def starter_files_for(language: str, kind: str, multifile: bool = False) -> list[dict]:
+    """Return a readable, compilable scaffold that contains no solution logic."""
+    note = STARTER_BACKGROUND.get(kind, "请根据题目协议完成输入解析、核心处理和标准输出。")
+    if language == "C":
+        content = f'''#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\nint main(void) {{\n    /* {note} */\n    /* 在这里读取标准输入并完成题目要求。 */\n    return 0;\n}}\n'''
+        return [{"path": "main.c", "content": content}]
+    if language == "C++":
+        content = f'''#include <iostream>\n#include <string>\n#include <vector>\n#include <algorithm>\n\nint main() {{\n    // {note}\n    // 在这里读取标准输入并完成题目要求。\n    return 0;\n}}\n'''
+        return [{"path": "main.cpp", "content": content}]
+    if language == "Python":
+        content = f'''import sys\n\n\ndef main():\n    """{note}"""\n    input_text = sys.stdin.read()\n    _ = input_text\n    # 在这里解析输入、完成处理并输出结果。\n\n\nif __name__ == "__main__":\n    main()\n'''
+        return [{"path": "main.py", "content": content}]
+    main = f'''import java.util.*;\n\npublic class Main {{\n    public static void main(String[] args) {{\n        // {note}\n        Scanner scanner = new Scanner(System.in);\n        while (scanner.hasNext()) {{\n            scanner.next();\n        }}\n        // 在这里完成输入解析、处理和输出。\n    }}\n}}\n'''
+    files = [{"path": "Main.java", "content": main}]
+    if multifile:
+        files.append({"path": "DomainModel.java", "content": "import java.util.*;\n\nclass DomainModel {\n    static Scanner input() {\n        return new Scanner(System.in);\n    }\n}\n"})
+    return files
+
+
+def sample_explanation(kind: str, stdin_text: str, expected_stdout: str) -> str:
+    """Explain the published sample without revealing an implementation."""
+    background = STARTER_BACKGROUND.get(kind, "根据题目规则处理输入数据")
+    clean_input = str(stdin_text).strip().replace("\n", "；")
+    clean_output = str(expected_stdout).strip().replace("\n", "；")
+    return f"本例输入为“{clean_input}”。按照{background}，逐步处理后应输出“{clean_output}”。"
+
+
 def task_specs() -> list[dict]:
     rows = []
     for family, (kind, titles) in enumerate(TASK_GROUPS):
@@ -328,6 +402,7 @@ def make_candidate(language: str, spec: dict, index: int) -> dict:
         multi = index < 10
         reference = java_source(kind, False, multi)
         wrong = java_source(kind, True, multi)
+    starter = starter_files_for(language, kind, language == "Java" and index < 10)
     raw_cases = [{"id": f"public-{i+1}", "name": f"公开样例 {i+1}", "stdin_text": x, "visibility": "public"} for i, x in enumerate(cases(kind)[:3])]
     raw_cases += [{"id": f"hidden-{i+1}", "name": f"服务端测试 {i+1}", "stdin_text": x, "visibility": "hidden"} for i, x in enumerate(cases(kind)[3:])]
     candidate = {
@@ -348,7 +423,8 @@ def make_candidate(language: str, spec: dict, index: int) -> dict:
         "core_skill": BLUEPRINT_DATA["languages"][language][spec["family"] % 8]["core_skill"],
         "novelty_reason": f"题目围绕{spec['title']}的实际记录协议设计，输出规则、边界与错误解均独立，不是编号、常量或运算符变体。",
         "knowledge_tags": [language, spec["kind"], "标准输入输出", "复杂度分析"],
-        "starter_files": reference, "reference_files": reference, "wrong_files": wrong,
+        "background_knowledge_zh": STARTER_BACKGROUND[kind], "hints_zh": STARTER_HINT[kind],
+        "starter_files": starter, "reference_files": reference, "wrong_files": wrong,
         "public_cases": raw_cases[:3], "hidden_cases": raw_cases[3:], "quality_score": 98,
         "curriculum_module": f"{language} · 模块 {spec['family'] % 8 + 1}", "level": "进阶" if spec["family"] % 3 == 0 else "中等",
         "estimated_minutes": 35 if spec["family"] % 3 else 45,
@@ -356,6 +432,7 @@ def make_candidate(language: str, spec: dict, index: int) -> dict:
     expected = run_many({"language": language, "reference_files": reference, "main_class": "Main"}, raw_cases, "reference")
     for item, output in zip(raw_cases, expected):
         item["expected_stdout"] = output
+    candidate["starter_verified"] = bool(compile_starter(candidate))
     wrong_actual = run_many({"language": language, "reference_files": wrong, "main_class": "Main"}, raw_cases[3:], "reference")
     if not any(a.rstrip("\n") != b["expected_stdout"].rstrip("\n") for a, b in zip(wrong_actual, raw_cases[3:])):
         raise RuntimeError(f"wrong solution survived: {language} {spec['slug']}")
@@ -364,7 +441,23 @@ def make_candidate(language: str, spec: dict, index: int) -> dict:
     candidate["is_active"] = True
     candidate["reference_verified"] = True
     candidate["starter_verified"] = True
-    candidate["audit_report"] = {"runner": "catalog_adapters", "reference_passed": True, "wrong_solution_rejected": True, "multifile": language == "Java" and len(reference) > 1}
+    for item in raw_cases:
+        item["explanation_zh"] = sample_explanation(kind, item["stdin_text"], item["expected_stdout"])
+    candidate["audit_report"] = {
+        "runner": "standard_io",
+        "reference_passed": True,
+        "wrong_solution_rejected": True,
+        "multifile": language == "Java" and len(reference) > 1,
+        "manifest": {
+            "runner": "standard_io",
+            "protocol_version": 1,
+            "language": language.lower(),
+            "exercise_id": spec["slug"],
+            "editable_files": [item["path"] for item in starter],
+            "support_files": [],
+            "test_files": [],
+        },
+    }
     return candidate
 
 
@@ -377,7 +470,7 @@ def row_payload(candidate: dict) -> dict:
         "public_tests_json": json.dumps([{"samples": candidate["public_cases"]}], ensure_ascii=False), "hidden_tests_json": json.dumps([{"samples": candidate["hidden_cases"]}], ensure_ascii=False), "official_test_files_json": "[]",
         "source_repo": "first_party_original", "source_path": candidate["source_key"], "source_commit": "catalog-240-2026-08-01", "license": "project_owned", "license_text": "题面、测试数据与实现为本项目第一方原创内容。", "attribution": "AI Study Platform first-party catalog",
         "reference_verified": True, "starter_verified": True, "audit_report_json": json.dumps(candidate["audit_report"], ensure_ascii=False), "is_active": True, "quality_status": "approved", "quality_score": candidate["quality_score"], "quality_failure_reasons": "[]",
-        "problem_family_id": candidate["problem_family_id"], "language_fit_reason": candidate["language_fit_reason"], "title_zh": candidate["title_zh"], "summary_zh": candidate["summary_zh"], "statement_zh": candidate["statement_zh"], "input_format_zh": candidate["input_format_zh"], "output_format_zh": candidate["output_format_zh"], "constraints_zh": candidate["constraints_zh"], "title_en": candidate["title_en"], "statement_en": candidate["statement_en"],
+        "problem_family_id": candidate["problem_family_id"], "language_fit_reason": candidate["language_fit_reason"], "title_zh": candidate["title_zh"], "summary_zh": candidate["summary_zh"], "statement_zh": candidate["statement_zh"], "input_format_zh": candidate["input_format_zh"], "output_format_zh": candidate["output_format_zh"], "constraints_zh": candidate["constraints_zh"], "title_en": candidate["title_en"], "statement_en": candidate["statement_en"], "background_knowledge_zh": candidate["background_knowledge_zh"], "hints_zh": candidate["hints_zh"],
         "learning_objective_id": candidate["learning_objective_id"], "learning_objective": candidate["learning_objective"], "prerequisites": candidate["prerequisites"], "core_skill": candidate["core_skill"], "novelty_reason": candidate["novelty_reason"], "knowledge_point_ids": json.dumps([candidate["learning_objective_id"]], ensure_ascii=False), "primary_knowledge_point_id": None, "prerequisite_knowledge_point_ids": "[]", "curriculum_module": candidate["curriculum_module"], "level": candidate["level"], "difficulty_score": 3.5 if candidate["level"] == "中等" else 4.5, "estimated_minutes": candidate["estimated_minutes"], "reviewed_at": now,
     }
 
