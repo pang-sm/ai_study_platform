@@ -17,8 +17,24 @@
 
 - 已在修复脚本中加入进一步的 `BaseFeePolicy` TODO 分离，但随后 dry-run 被暂停，未完成验证。
 - 该修复尚未提交、推送或部署。
-- 远端磁盘、数据库完整性和线上 health 尚未在本次暂停中核验。
+- 远端磁盘、数据库完整性和线上 health 已在本次暂停中核验并通过，详见 `remote-disk-space-audit.json/.md`。
 - 第三次跨语言去重任务未执行。
+
+## 腾讯云空间处置结果
+
+- 清理前：`/dev/vda2` 40G，已用 35G，可用 3.1G，使用率 92%。
+- 清理对象：43 个已确认重复的 `/var/lib/ai_study_platform/app.db.before-programming-reconcile.202607*.db`，共 17,913,765,888 bytes；当前数据库、2026-08 备份和命名里程碑备份均保留。
+- 另正常停止卡住约 4 小时、无数据库句柄的 `exciting_bouman` Java 临时容器。
+- 清理后：已用 18G，可用 20G，使用率 48%；inode 使用率 8%。
+- 持久数据库：`/var/lib/ai_study_platform/app.db`。
+- 最近部署前备份：`/home/ubuntu/ai_study_platform/backend/backups/app.db.before-catalog-reform.20260802_231820.db`，488,058,880 bytes。
+- `quick_check` 和 `integrity_check` 均为 `ok`；systemd active；内网和公网 health 均 HTTP 200。
+- 用户/历史核对：users 163、code_projects 121、code_project_files 291、programming_exercise_progress 27、programming_exercise_submissions 0；approved 题仍 C/C++/Java/Python 各 60。
+
+## 部署保护
+
+- `.github/workflows/deploy.yml` 已加入 `<3GiB` 失败、`<5GiB` 警告、创建快照后每个受管目录保留最新 3 个自动备份、部署结束磁盘检查。
+- 已提交并推送：`58f01b2 fix: add deployment disk safety guardrails`。
 
 ## 已修改文件
 

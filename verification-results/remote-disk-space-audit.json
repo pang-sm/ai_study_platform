@@ -1,0 +1,41 @@
+{
+  "generated_at": "2026-08-02T23:23:00+08:00",
+  "host": "101.32.190.42",
+  "database_path": "/var/lib/ai_study_platform/app.db",
+  "disk_before": {"size": "40G", "used": "35G", "available": "3.1G", "use_percent": "92%"},
+  "disk_after": {"size": "40G", "used": "18G", "available": "20G", "use_percent": "48%"},
+  "inode_use_percent_after": "8%",
+  "deleted": {
+    "count": 43,
+    "bytes": 17913765888,
+    "pattern": "/var/lib/ai_study_platform/app.db.before-programming-reconcile.202607*.db"
+  },
+  "protected": [
+    "/var/lib/ai_study_platform/app.db",
+    "/home/ubuntu/ai_study_platform/backend/backups/app.db.before-catalog-reform.20260802_231820.db",
+    "/var/lib/ai_study_platform/backups/app.db.after-catalog-240.20260802_012123.db",
+    "/var/lib/ai_study_platform/backups/app.db.after-actions-30680014996.20260801_023643.db",
+    "/var/lib/ai_study_platform/backups/app.db.before-quality-reform.20260801_094057.db",
+    "/var/lib/ai_study_platform/backups/app.db.after-quality-reform.20260801_100526.db",
+    "/var/lib/ai_study_platform/backups/app.db.after-quality-restore.20260801_100823.db",
+    "/var/lib/ai_study_platform/backups/app.db.after-final-deploy.20260801_022342.db"
+  ],
+  "database": {
+    "quick_check": "ok",
+    "integrity_check": "ok",
+    "users": 163,
+    "code_projects": 121,
+    "code_project_files": 291,
+    "programming_exercise_progress": 27,
+    "programming_exercise_submissions": 0,
+    "approved_by_language": {"C": 60, "C++": 60, "Java": 60, "Python": 60}
+  },
+  "service": {"systemd": "active", "private_health": 200, "public_health": 200},
+  "stale_execution_container": {"name": "exciting_bouman", "action": "docker stop (normal)", "database_handle": false},
+  "space_protection_commit": "58f01b2",
+  "notes": [
+    "没有创建新数据库备份。",
+    "没有删除当前数据库、用户代码、用户提交记录或前端静态文件。",
+    "第三次跨语言去重任务未执行。"
+  ]
+}
