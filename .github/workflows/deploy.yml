@@ -180,9 +180,12 @@ jobs:
           fi
           AVAIL_KB="$(df -Pk / | awk 'NR==2 {print $4}')"
           INODES_AVAIL="$(df -Pi / | awk 'NR==2 {print $4}')"
-          if [ "${AVAIL_KB:-0}" -lt 1048576 ]; then
-            echo "ERROR: less than 1 GiB available before deployment"
+          if [ "${AVAIL_KB:-0}" -lt 3145728 ]; then
+            echo "ERROR: less than 3 GiB available before deployment; refusing to upload or migrate"
             exit 1
+          fi
+          if [ "${AVAIL_KB:-0}" -lt 5242880 ]; then
+            echo "WARNING: less than 5 GiB available before deployment"
           fi
           if [ "${INODES_AVAIL:-0}" -lt 10000 ]; then
             echo "ERROR: fewer than 10000 inodes available before deployment"
@@ -423,6 +426,26 @@ jobs:
             fi
             test -s "$CATALOG_BACKUP" || { echo "[deploy] ERROR: catalog database backup is empty"; exit 1; }
             echo "[deploy] Catalog database backup: $CATALOG_BACKUP ($(du -h "$CATALOG_BACKUP" | cut -f1))"
+            # A new automatic snapshot was just created. Retain the newest
+            # three automatic catalog-reform backups in each managed folder;
+            # milestone backups with other names are never touched.
+            for BACKUP_ROOT in \
+              "$REPO_ROOT/backend/backups" \
+              "/var/lib/ai_study_platform/backups"; do
+              if [ -d "$BACKUP_ROOT" ]; then
+                mapfile -t STALE_CATALOG_BACKUPS < <(
+                  find "$BACKUP_ROOT" -maxdepth 1 -type f \
+                    -name 'app.db.before-catalog-reform.*.db' \
+                    -printf '%T@ %p\n' | sort -nr | tail -n +4 | cut -d' ' -f2-
+                )
+                for OLD_BACKUP in "${STALE_CATALOG_BACKUPS[@]}"; do
+                  if [ -n "$OLD_BACKUP" ] && [ -f "$OLD_BACKUP" ]; then
+                    echo "[deploy] removing stale automatic catalog backup: $OLD_BACKUP"
+                    rm -- "$OLD_BACKUP"
+                  fi
+                done
+              fi
+            done
             if ! sudo sqlite3 "$DATA_DB" 'PRAGMA integrity_check;' | grep -qx 'ok'; then
               echo "[deploy] ERROR: persistent database integrity_check failed"
               exit 1
@@ -545,4 +568,15 @@ jobs:
             curl -fsS http://127.0.0.1/api/health >/dev/null
             sleep 1
           done
+          echo "=== Final remote disk check ==="
+          df -h /
+          df -i /
+          FINAL_AVAIL_KB="$(df -Pk / | awk 'NR==2 {print $4}')"
+          if [ "${FINAL_AVAIL_KB:-0}" -lt 3145728 ]; then
+            echo "[deploy] ERROR: less than 3 GiB remains after deployment"
+            exit 1
+          fi
+          if [ "${FINAL_AVAIL_KB:-0}" -lt 5242880 ]; then
+            echo "[deploy] WARNING: less than 5 GiB remains after deployment"
+          fi
           DEPLOYEOF
