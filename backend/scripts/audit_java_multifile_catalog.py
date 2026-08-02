@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import difflib
 import subprocess
 import sys
 import tempfile
@@ -66,6 +67,7 @@ def api_keys(exercise_id: int) -> set[str]:
 def audit_row(row: ProgrammingExercise) -> dict:
     starter = parse(row.starter_files_json, [])
     reference = parse(row.reference_files_json, [])
+    reference_by_path = {str(item.get("path") or ""): str(item.get("content") or "") for item in reference}
     public = flat_cases(row.public_tests_json)
     hidden = flat_cases(row.hidden_tests_json)
     starter_out, starter_err, starter_code = run_files(starter, public[0].get("stdin_text", "") if public else "")
@@ -81,6 +83,20 @@ def audit_row(row: ProgrammingExercise) -> dict:
         for case in hidden
     )
     paths = [str(item.get("path") or "") for item in starter]
+    starter_texts = [str(item.get("content") or "") for item in starter]
+    starter_todo_file_count = sum("TODO" in text.upper() for text in starter_texts)
+    starter_max_line_length = max((len(line) for text in starter_texts for line in text.splitlines()), default=0)
+    starter_reference_similarities = [
+        difflib.SequenceMatcher(None, str(item.get("content") or ""), reference_by_path.get(str(item.get("path") or ""), "")).ratio()
+        for item in starter
+        if str(item.get("path") or "") in reference_by_path
+    ]
+    starter_reference_similarity_max = max(starter_reference_similarities, default=0.0)
+    starter_equal_reference_file_count = sum(
+        str(item.get("content") or "") == reference_by_path.get(str(item.get("path") or ""), "")
+        for item in starter
+        if str(item.get("path") or "") in reference_by_path
+    )
     api_field_set = api_keys(row.id)
     return {
         "language": row.language,
@@ -92,6 +108,11 @@ def audit_row(row: ProgrammingExercise) -> dict:
         "entry_file": "Main.java",
         "editable_file_count": len(paths),
         "editable_files": paths,
+        "starter_todo_file_count": starter_todo_file_count,
+        "starter_max_line_length": starter_max_line_length,
+        "starter_reference_similarity_max": round(starter_reference_similarity_max, 4),
+        "starter_equal_reference_file_count": starter_equal_reference_file_count,
+        "starter_format_passed": starter_max_line_length <= 120 and starter_todo_file_count >= 3,
         "starter_valid": starter_code == 0,
         "starter_compile_error": bool(starter_err),
         "reference_passed": reference_passed and len(reference_results) == len(public) + len(hidden),
@@ -104,8 +125,8 @@ def audit_row(row: ProgrammingExercise) -> dict:
         "reference_files_leak": bool(FORBIDDEN_API_FIELDS & api_field_set),
         "hidden_test_driver_leak": bool(FORBIDDEN_API_FIELDS & api_field_set),
         "api_forbidden_fields": sorted(FORBIDDEN_API_FIELDS & api_field_set),
-        "final_status": "passed" if len(paths) >= 3 and starter_code == 0 and reference_passed and wrong_rejected and len(public) >= 3 and len(hidden) >= 5 and not (FORBIDDEN_API_FIELDS & api_field_set) else "failed",
-        "failure_reason": "" if len(paths) >= 3 and starter_code == 0 and reference_passed and wrong_rejected and len(public) >= 3 and len(hidden) >= 5 and not (FORBIDDEN_API_FIELDS & api_field_set) else "multi-file quality gate failed",
+        "final_status": "passed" if len(paths) >= 3 and starter_code == 0 and reference_passed and wrong_rejected and len(public) >= 3 and len(hidden) >= 5 and not ({case.get("stdin_text", "") for case in public} & {case.get("stdin_text", "") for case in hidden}) and starter_max_line_length <= 120 and starter_todo_file_count >= 3 and starter_reference_similarity_max < 0.97 and starter_equal_reference_file_count == 0 and not (FORBIDDEN_API_FIELDS & api_field_set) else "failed",
+        "failure_reason": "" if len(paths) >= 3 and starter_code == 0 and reference_passed and wrong_rejected and len(public) >= 3 and len(hidden) >= 5 and not ({case.get("stdin_text", "") for case in public} & {case.get("stdin_text", "") for case in hidden}) and starter_max_line_length <= 120 and starter_todo_file_count >= 3 and starter_reference_similarity_max < 0.97 and starter_equal_reference_file_count == 0 and not (FORBIDDEN_API_FIELDS & api_field_set) else "multi-file quality gate failed",
     }
 
 

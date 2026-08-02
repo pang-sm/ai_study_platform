@@ -55,9 +55,230 @@ def starterize(content: str) -> str:
     return re.sub(r"\s*// SOLUTION_START:(\w+)\n(.*?)// SOLUTION_END", replace, content, flags=re.S)
 
 
+def _matching_brace(source: str, opening: int) -> int:
+    depth = 0
+    in_string = False
+    in_char = False
+    escaped = False
+    for index in range(opening, len(source)):
+        char = source[index]
+        if escaped:
+            escaped = False
+            continue
+        if char == "\\" and (in_string or in_char):
+            escaped = True
+            continue
+        if char == '"' and not in_char:
+            in_string = not in_string
+            continue
+        if char == "'" and not in_string:
+            in_char = not in_char
+            continue
+        if in_string or in_char:
+            continue
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return index
+    return len(source) - 1
+
+
+def _java_default_for_type(type_name: str) -> str:
+    raw = re.sub(r"\s+", "", type_name)
+    if raw in {"byte", "short", "int", "long", "float", "double", "char"}:
+        return "0"
+    if raw == "boolean":
+        return "false"
+    if raw.endswith("[]"):
+        return f"new {raw[:-2]}[0]"
+    if raw.startswith("List<") or raw.startswith("ArrayList<"):
+        return "new ArrayList<>()"
+    if raw.startswith("Set<") or raw.startswith("LinkedHashSet<"):
+        return "new LinkedHashSet<>()"
+    if raw.startswith("Map<") or raw.startswith("HashMap<"):
+        return "new HashMap<>()"
+    if raw.startswith("Queue<") or raw.startswith("ArrayDeque<"):
+        return "new ArrayDeque<>()"
+    return "null"
+
+
+def _blank_java_constructors(source: str) -> str:
+    """Make every business constructor an honest learner task.
+
+    The public constructor signatures remain unchanged.  Final fields still
+    receive compiling defaults, but learners must replace those defaults with
+    the constructor parameters.  Main.java is deliberately excluded because
+    it is the input/output framework rather than the business task.
+    """
+    match = re.search(r"public\s+class\s+(\w+)", source)
+    if not match:
+        return source
+    class_name = match.group(1)
+    cursor = 0
+    pieces: list[str] = []
+    constructor_pattern = re.compile(rf"public\s+{re.escape(class_name)}\s*\([^)]*\)\s*\{{")
+    while True:
+        found = constructor_pattern.search(source, cursor)
+        if not found:
+            pieces.append(source[cursor:])
+            break
+        opening = source.find("{", found.start(), found.end())
+        closing = _matching_brace(source, opening)
+        pieces.append(source[cursor:opening + 1])
+        field_text = source[:found.start()]
+        field_matches = re.finditer(
+            r"(?:private|protected)\s+(?:final\s+)?(?P<type>[\w<>?,\s\[\]]+?)\s+(?P<name>\w+)\s*(?P<initializer>=\s*[^;]+)?;",
+            field_text,
+        )
+        fields = [
+            (match.group("type"), match.group("name"))
+            for match in field_matches
+            if not match.group("initializer")
+        ]
+        assignments = []
+        for type_name, field_name in fields:
+            assignments.append(
+                f"        // TODO：用构造参数保存 {field_name}。\n"
+                f"        this.{field_name} = {_java_default_for_type(type_name)};"
+            )
+        if not assignments:
+            assignments.append("        // TODO：保存构造参数并建立对象初始状态。")
+        pieces.append("\n" + "\n".join(assignments) + "\n    ")
+        cursor = closing
+    return "".join(pieces)
+
+
+def _format_java_source(source: str) -> str:
+    """Apply predictable line breaks without changing Java tokens."""
+    output: list[str] = []
+    line: list[str] = []
+    indent = 0
+    paren_depth = 0
+    in_string = False
+    in_char = False
+    in_line_comment = False
+    escaped = False
+
+    def flush() -> None:
+        text = "".join(line).strip()
+        if text:
+            output.append("    " * indent + text)
+        line.clear()
+
+    for char in source:
+        if in_line_comment:
+            line.append(char)
+            if char == "\n":
+                in_line_comment = False
+                flush()
+            continue
+        if escaped:
+            line.append(char)
+            escaped = False
+            continue
+        if char == "\\" and (in_string or in_char):
+            line.append(char)
+            escaped = True
+            continue
+        if char == '"' and not in_char:
+            in_string = not in_string
+            line.append(char)
+            continue
+        if char == "'" and not in_string:
+            in_char = not in_char
+            line.append(char)
+            continue
+        if not in_string and not in_char and "//" == ("".join(line[-1:]) + char):
+            in_line_comment = True
+            line.append(char)
+            continue
+        if not in_string and not in_char:
+            if char == "(":
+                paren_depth += 1
+            elif char == ")":
+                paren_depth = max(0, paren_depth - 1)
+            elif char == "{":
+                line.append(" {") if line and not line[-1].endswith((" ", "{")) else line.append(char)
+                flush()
+                indent += 1
+                continue
+            elif char == "}":
+                flush()
+                indent = max(0, indent - 1)
+                line.append("}")
+                continue
+            elif char == ";" and paren_depth == 0:
+                line.append(char)
+                flush()
+                continue
+            elif char == "\n":
+                flush()
+                continue
+        line.append(char)
+    flush()
+    while output and not output[-1].strip():
+        output.pop()
+
+    wrapped: list[str] = []
+    for original in output:
+        source_lines = [original]
+        if len(original) > 120:
+            chain_break = re.search(r"\.(?:reversed|thenComparing|toList)\(", original)
+            if chain_break and chain_break.start() > 12:
+                source_lines = [
+                    original[:chain_break.start()].rstrip(),
+                    "    " + original[chain_break.start():].lstrip(),
+                ]
+        for source_line in source_lines:
+            pending = source_line
+            while len(pending) > 120:
+                in_string = False
+                in_char = False
+                escaped = False
+                cut = -1
+                for index, char in enumerate(pending[:121]):
+                    if escaped:
+                        escaped = False
+                        continue
+                    if char == "\\" and (in_string or in_char):
+                        escaped = True
+                        continue
+                    if char == '"' and not in_char:
+                        in_string = not in_string
+                        continue
+                    if char == "'" and not in_string:
+                        in_char = not in_char
+                        continue
+                    if not in_string and not in_char and char.isspace() and index > 12:
+                        cut = index
+                if cut < 0:
+                    break
+                wrapped.append(pending[:cut].rstrip())
+                prefix = re.match(r"\s*", pending).group(0)
+                pending = prefix + pending[cut + 1:].lstrip()
+            wrapped.append(pending)
+    return "\n".join(wrapped) + "\n"
+
+
 def java_files(reference: dict[str, str]) -> tuple[list[dict], list[dict]]:
     ref = [f(path, content) for path, content in reference.items()]
-    starter = [f(item["path"], starterize(item["content"])) for item in ref]
+    starter = []
+    for item in ref:
+        path = item["path"]
+        content = starterize(item["content"])
+        if path != "Main.java":
+            content = _blank_java_constructors(content)
+            if "public record " in content and re.search(r"\{\s*\}\s*$", content):
+                content = re.sub(
+                    r"\{\s*\}\s*$",
+                    "{\n    // TODO：确认比赛结果对象的字段语义和不可变约束。\n}",
+                    content,
+                )
+        else:
+            content = "// TODO：确认 Main 只负责输入解析和结果输出，不要把业务算法写回入口文件。\n" + content
+        starter.append(f(path, _format_java_source(content)))
     return starter, ref
 
 
@@ -564,6 +785,7 @@ def repair(dry_run: bool = False) -> dict:
             row.title_zh = prepared_item["title_zh"]
             row.title_en = prepared_item["title_en"]
             row.description = prepared_item["description"]
+            row.summary_zh = prepared_item["summary_zh"]
             row.statement_zh = prepared_item["statement_zh"]
             row.statement_en = prepared_item["statement_en"]
             row.input_format_zh = prepared_item["input_format_zh"]
