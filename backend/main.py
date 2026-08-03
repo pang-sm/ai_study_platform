@@ -28336,13 +28336,16 @@ async def programming_exercise_interactive(exercise_id: int, ws: WebSocket, init
             if not source_files:
                 raise ValueError("项目中没有可编译的源文件")
             if use_docker:
-                compiler = "g++ -std=c++17 -O0" if language == "C++" else "gcc -std=c11 -O0"
-                source_glob = "*.cpp *.cc *.cxx" if language == "C++" else "*.c"
+                source_relative_files = [
+                    safe_project_path(item.relative_path)
+                    for item in files
+                    if str(item.relative_path).lower().endswith(source_suffixes)
+                ]
                 compile_cmd = [
                     "docker", "run", "--rm", "--network", "none", "--memory", memory,
                     "--cpus", str(DOCKER_CPU_LIMIT), "--pids-limit", str(DOCKER_PIDS_LIMIT),
                     "-v", f"{tmp_dir}:/work", "-w", "/work", DOCKER_IMAGE_C,
-                    "sh", "-lc", f"{compiler} $(find . -type f \\( -name '{source_glob.split()[0]}'" + "".join(f" -o -name '{part}'" for part in source_glob.split()[1:]) + ") -o program",
+                    compiler_name, *compiler_flags, *source_relative_files, "-o", "program",
                 ]
             else:
                 compiler_path = shutil.which(compiler_name)
