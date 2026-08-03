@@ -1,0 +1,48 @@
+{
+  "generated_at": "2026-08-03T02:05:00+08:00",
+  "actions_run": 30777079617,
+  "commit": "1c1986f89354aeeccbe022372b8286478a3479ab",
+  "host": "http://101.32.190.42/",
+  "test_account": "codex_java_multifile_20260803",
+  "summary": {
+    "total": 12,
+    "passed": 12,
+    "failed": 0,
+    "file_lists": "12/12",
+    "multi_file_save_and_reload": "12/12",
+    "compile_error_file_and_line": "12/12",
+    "public_tests": "12/12, each 3/3",
+    "submissions": "12/12, each 8/8",
+    "reference_or_hidden_leaks": 0
+  },
+  "results": [
+    {"exercise_id":1545,"title":"电影院的座位预订","files":["BookingService.java","Customer.java","Main.java","Movie.java","Screening.java","Seat.java"],"file_count":6,"entry_file":"Main.java","status":"passed"},
+    {"exercise_id":1546,"title":"图书馆的借阅登记","files":["Book.java","Library.java","LoanRecord.java","Main.java","Reader.java"],"file_count":5,"entry_file":"Main.java","status":"passed"},
+    {"exercise_id":1547,"title":"停车场的分时计费","files":["BaseFeePolicy.java","FeePolicy.java","Main.java","ParkingLot.java","ParkingTicket.java","StandardFeePolicy.java","Vehicle.java"],"file_count":7,"entry_file":"Main.java","status":"passed"},
+    {"exercise_id":1548,"title":"餐厅预约与候位","files":["Guest.java","Main.java","Reservation.java","ReservationStatus.java","Restaurant.java","Table.java"],"file_count":6,"entry_file":"Main.java","status":"passed"},
+    {"exercise_id":1549,"title":"学生选课登记","files":["Course.java","Enrollment.java","Main.java","Registrar.java","Student.java"],"file_count":5,"entry_file":"Main.java","status":"passed"},
+    {"exercise_id":1550,"title":"银行账户与交易流水","files":["Account.java","Bank.java","InsufficientBalanceException.java","Main.java","Transaction.java","TransactionType.java"],"file_count":6,"entry_file":"Main.java","status":"passed"},
+    {"exercise_id":1551,"title":"电商订单与优惠券","files":["Coupon.java","DiscountPolicy.java","Main.java","Order.java","OrderItem.java","Product.java"],"file_count":6,"entry_file":"Main.java","status":"passed"},
+    {"exercise_id":1552,"title":"酒店房间预订","files":["Booking.java","Guest.java","Hotel.java","Main.java","Room.java"],"file_count":5,"entry_file":"Main.java","status":"passed"},
+    {"exercise_id":1553,"title":"快递分拣与配送","files":["DeliveryStatus.java","DispatchCenter.java","Main.java","Parcel.java","Route.java"],"file_count":5,"entry_file":"Main.java","status":"passed"},
+    {"exercise_id":1554,"title":"棋类比赛积分榜","files":["Main.java","MatchResult.java","Player.java","RankingService.java"],"file_count":4,"entry_file":"Main.java","status":"passed"},
+    {"exercise_id":1555,"title":"宠物诊所预约","files":["Appointment.java","Clinic.java","Main.java","Pet.java","Veterinarian.java"],"file_count":5,"entry_file":"Main.java","status":"passed"},
+    {"exercise_id":1556,"title":"租车订单管理","files":["Customer.java","Main.java","RentalOrder.java","RentalService.java","Vehicle.java","VehicleStatus.java"],"file_count":6,"entry_file":"Main.java","status":"passed"}
+  ],
+  "browser_ui": {
+    "first_exercise_id": 1545,
+    "file_tabs_visible": true,
+    "six_java_files_visible": true,
+    "chinese_statement_formats_constraints_visible": true,
+    "three_public_samples_and_explanation_visible": true,
+    "visual_full_12_page_walk": "not separately repeated; all 12 were exercised through the real public API and Workbench endpoints"
+  },
+  "remote_safety": {
+    "disk_available": "21G",
+    "database": "/var/lib/ai_study_platform/app.db",
+    "quick_check": "ok",
+    "integrity_check": "ok",
+    "health_private": 200,
+    "health_public": 200
+  }
+}

@@ -1,6 +1,6 @@
 {
   "generated_at": "2026-08-03T01:35:00+08:00",
-  "status": "local_java_multifile_audit_passed_waiting_for_deploy",
+  "status": "deployed_and_online_acceptance_passed",
   "scope": "仅 Java 多文件；第三次跨语言去重任务未执行",
   "local_base_commit": "c3eae3b",
   "local_database": {
@@ -50,9 +50,9 @@
   "unfinished": {
     "parking_starter_similarity": "resolved; full Java multi-file audit is 12/12",
     "unverified_worktree_patch": "none for the parking fix; dry-run, actual repair and audit all passed",
-    "deployment": "feature patch not committed, pushed, or deployed",
+    "deployment": "Actions 30777079617 succeeded; online API acceptance 12/12 passed",
     "remote_disk_check": "completed; disk and database safety conditions passed",
-    "online_reacceptance": "must be rerun after space recovery and deployment"
+    "online_reacceptance": "12/12 passed; browser UI visually checked on the first exercise and API/Workbench flow checked for all 12"
   },
   "modified_files": [
     "backend/scripts/repair_java_multifile_catalog.py",
@@ -68,6 +68,8 @@
     "verification-results/java-multifile-online-acceptance.json",
     "verification-results/java-multifile-online-acceptance.md"
   ],
-  "next_exact_task": "只提交本轮 Java 修复脚本、目录快照和四份专项报告；推送后跟踪 Actions，部署完成后逐一线上验收 12 道多文件题。",
+  "next_exact_task": "本轮 Java 多文件专项已完成；不要启动第三次跨语言去重任务。",
+  "final_commit": "1c1986f",
+  "actions_run": 30777079617,
   "space_protection_commit": "58f01b2"
 }
