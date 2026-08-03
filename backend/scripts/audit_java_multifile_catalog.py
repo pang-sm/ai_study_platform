@@ -65,14 +65,32 @@ def api_keys(exercise_id: int) -> set[str]:
         return set()
 
 
+JAVA_FEATURE_PATTERNS = {
+    "class_object": r"\bclass\s+\w+",
+    "constructor": r"\bpublic\s+\w+\s*\([^)]*\)\s*\{",
+    "encapsulation": r"\bprivate\s+(?:final\s+)?[\w<>?,\[\]]+\s+\w+",
+    "List": r"\bList\s*<|\bArrayList\b",
+    "Set": r"\bSet\s*<|\bHashSet\b|\bLinkedHashSet\b",
+    "Map": r"\bMap\s*<|\bHashMap\b|\bTreeMap\b",
+    "interface": r"\binterface\s+\w+",
+    "enum": r"\benum\s+\w+",
+    "inheritance": r"\bextends\s+\w+|\bimplements\s+\w+",
+    "generic": r"\b(?:List|Set|Map|Optional|Comparable|Comparator)\s*<[^>]+>",
+    "exception": r"\b(?:Exception|RuntimeException|Error)\b|\b(?:try|catch|throws)\b",
+    "Comparator": r"\bComparator\b|comparing(?:Int|Long|Double)?\s*\(",
+    "Stream API": r"\.(?:stream|map|filter|sorted|toList|collect)\s*\(",
+    "lambda": r"->",
+    "Optional": r"\bOptional\s*<|\bOptional\.(?:of|ofNullable|empty)\b",
+    "record": r"\brecord\s+\w+\s*\("
+}
+
+
 def java_feature_coverage(reference: list[dict]) -> dict[str, bool]:
     """Detect real Java syntax in server-side reference files, not metadata tags."""
     source = "\n".join(str(item.get("content") or "") for item in reference)
-    return {
-        "abstract_class": bool(re.search(r"\babstract\s+class\b", source)),
-        "optional": bool(re.search(r"\bOptional\s*<|\bOptional\.ofNullable\b", source)),
-        "lambda": "->" in source,
-    }
+    coverage = {name: bool(re.search(pattern, source)) for name, pattern in JAVA_FEATURE_PATTERNS.items()}
+    coverage["abstract_class"] = bool(re.search(r"\babstract\s+class\b", source))
+    return coverage
 
 
 def audit_row(row: ProgrammingExercise) -> dict:
@@ -125,6 +143,7 @@ def audit_row(row: ProgrammingExercise) -> dict:
         "starter_reference_similarity_max": round(starter_reference_similarity_max, 4),
         "starter_equal_reference_file_count": starter_equal_reference_file_count,
         "java_feature_coverage": feature_coverage,
+        "java_features": [name for name, present in feature_coverage.items() if present],
         "starter_format_passed": starter_max_line_length <= 120 and starter_todo_file_count >= 3,
         "starter_valid": starter_code == 0,
         "starter_compile_error": bool(starter_err),
@@ -154,11 +173,11 @@ def write_reports(results: list[dict]) -> None:
         "failed": len(results) - passed,
         "java_feature_coverage": {
             feature: sum(bool(item.get("java_feature_coverage", {}).get(feature)) for item in results)
-            for feature in ("abstract_class", "optional", "lambda")
+            for feature in JAVA_FEATURE_PATTERNS.keys() | {"abstract_class"}
         },
         "required_java_features_covered": all(
             any(item.get("java_feature_coverage", {}).get(feature) for item in results)
-            for feature in ("abstract_class", "optional", "lambda")
+            for feature in ("abstract_class", "Optional", "lambda")
         ),
         "results": results,
     }

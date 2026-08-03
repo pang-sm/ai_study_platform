@@ -1,6 +1,6 @@
 # Java 多文件任务暂停断点
 
-- 状态：已暂停，原因是先处理腾讯云系统盘空间；本轮不生成题目、不批量编译、不 seed、不部署。
+- 状态：停车场修复和本地 12/12 审计已完成，等待提交、部署和线上验收；本轮不生成题目、不跨语言去重。
 - 本地基线：`c3eae3b`。
 - 当前本地数据库：60 道启用 approved Java 题，其中 12 道真实多文件题，exercise_id 为 1660–1671。
 - 已有数据库备份：`backend/app.db.pre-java-multifile-20260802-214420.bak`。
@@ -11,12 +11,13 @@
 - `c3eae3b`：starter、WorkBench 文件列表、测试协议修复；Actions `30752936219` 部署成功。
 - 上一轮线上 API 验收：12/12 通过，包含文件数、独立保存、编译错误文件名/行号、公开测试和提交测试、参考实现/隐藏字段隔离。
 - 本轮本地 reference 已加入真实 `abstract class`、`Optional` 和 lambda，并对 12 道题重新生成 starter/reference、真实执行公开和隐藏样例；当前本地数据库已经包含这些 reference 特性。
-- 最近一次完整专项审计结果：11/12 通过；唯一失败是停车场 `BaseFeePolicy.java` starter/reference 相似度门禁，不是编译或参考解测试失败。
+- 当前专项审计结果：12/12 通过；停车场 `BaseFeePolicy.java` 已通过 starter/reference 相似度门禁。
+- 停车场直接相似度：`BaseFeePolicy.java` 0.7465、`StandardFeePolicy.java` 0.6000、`ParkingLot.java` 0.6332；starter 只保留结构、签名和 TODO。
+- 本地回归：Python compileall、`npm run build`、Workbench 代码路径检查均通过。
 
 ## 未完成
 
-- 已在修复脚本中加入进一步的 `BaseFeePolicy` TODO 分离，但随后 dry-run 被暂停，未完成验证。
-- 该修复尚未提交、推送或部署。
+- Java 修复尚未提交、推送或部署。
 - 远端磁盘、数据库完整性和线上 health 已在本次暂停中核验并通过，详见 `remote-disk-space-audit.json/.md`。
 - 第三次跨语言去重任务未执行。
 
@@ -45,12 +46,10 @@
 
 ## 恢复条件与准确下一步
 
-满足远端可用空间至少 6GB、SQLite `quick_check` 和 `integrity_check` 均为 `ok`、本地及线上 health 为 200、没有残留批量进程后，继续执行：
+下一步执行：
 
-1. `repair_java_multifile_catalog.py --dry-run`；
-2. 实际 repair；
-3. Java 多文件四份专项审计和本地回归；
-4. 只提交已验证的 Java 多文件变更；
-5. 推送、部署并重新完成 12 道线上验收。
+1. 只提交已验证的 Java 多文件变更；
+2. 推送并跟踪 Actions 部署；
+3. 重新完成 12 道线上验收。
 
 详细机器可读状态见同目录 `java-multifile-progress.json`。

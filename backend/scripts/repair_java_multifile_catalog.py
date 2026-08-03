@@ -446,16 +446,60 @@ public class Main {
         "输入为车牌号、车辆类型（car 或 bike）和停留分钟数。", "输出 PARKED 车牌号 费用，费用按整数元输出。", "停留时间为 1 至 1440 分钟；car 每小时 5 元，bike 每小时 2 元，不足一小时按一小时计。",
         ["interface", "List", "Map", "封装", "Comparator"],
         {
-            "Vehicle.java": '''public class Vehicle { private final String plate; private final String type; public Vehicle(String plate, String type) { this.plate = plate; this.type = type; } public String getPlate() { return plate; } public String getType() { return type; } }''',
-            "ParkingTicket.java": '''public class ParkingTicket { private final Vehicle vehicle; private final int minutes; public ParkingTicket(Vehicle vehicle, int minutes) { this.vehicle = vehicle; this.minutes = minutes; } public Vehicle getVehicle() { return vehicle; } public int getMinutes() { return minutes; } }''',
+            "Vehicle.java": '''public class Vehicle {
+    private final String plate;
+    private final String type;
+    public Vehicle(String plate, String type) {
+        this.plate = plate;
+        this.type = type;
+    }
+    public String getPlate() { return plate; }
+    public String getType() { return type; }
+}''',
+            "ParkingTicket.java": '''public class ParkingTicket {
+    private final Vehicle vehicle;
+    private final int minutes;
+    public ParkingTicket(Vehicle vehicle, int minutes) {
+        this.vehicle = vehicle;
+        this.minutes = minutes;
+    }
+    public Vehicle getVehicle() { return vehicle; }
+    public int getMinutes() { return minutes; }
+}''',
             "FeePolicy.java": '''public interface FeePolicy { int fee(ParkingTicket ticket); }''',
-            "StandardFeePolicy.java": '''public class StandardFeePolicy implements FeePolicy {
+            "BaseFeePolicy.java": '''public abstract class BaseFeePolicy implements FeePolicy {
+    protected abstract int rateFor(String vehicleType);
+
     // SOLUTION_START:INT
-    public int fee(ParkingTicket ticket) { int rate = ticket.getVehicle().getType().equals("bike") ? 2 : 5; return ((ticket.getMinutes() + 59) / 60) * rate; }
+    protected int billableHours(int minutes) {
+        return (minutes + 59) / 60;
+    }
+    // SOLUTION_END
+
+    @Override
+    public final int fee(ParkingTicket ticket) {
+        return billableHours(ticket.getMinutes()) * rateFor(ticket.getVehicle().getType());
+    }
+}''',
+            "StandardFeePolicy.java": '''public class StandardFeePolicy extends BaseFeePolicy {
+    // SOLUTION_START:INT
+    @Override
+    protected int rateFor(String vehicleType) {
+        return vehicleType.equals("bike") ? 2 : 5;
+    }
     // SOLUTION_END
 }''',
-            "ParkingLot.java": '''public class ParkingLot { private final FeePolicy policy; public ParkingLot(FeePolicy policy) { this.policy = policy; } // SOLUTION_START:INT
-    public int checkout(Vehicle vehicle, int minutes) { return policy.fee(new ParkingTicket(vehicle, minutes)); }
+            "ParkingLot.java": '''public class ParkingLot {
+    private final FeePolicy policy;
+
+    public ParkingLot(FeePolicy policy) {
+        this.policy = policy;
+    }
+
+    // SOLUTION_START:INT
+    public int checkout(Vehicle vehicle, int minutes) {
+        return policy.fee(new ParkingTicket(vehicle, minutes));
+    }
     // SOLUTION_END
 }''',
             "Main.java": '''import java.util.Scanner;
@@ -568,9 +612,25 @@ public class Main { public static void main(String[] args) { Scanner input = new
 }''',
             "Guest.java": '''public class Guest { private final String name; public Guest(String name) { this.name = name; } public String getName() { return name; } }''',
             "Booking.java": '''public class Booking { private final Guest guest; private final Room room; private final int nights; public Booking(Guest guest, Room room, int nights) { this.guest = guest; this.room = room; this.nights = nights; } public String summary() { return "BOOKED " + guest.getName() + " " + room.getNumber() + " " + room.getPrice() * nights; } }''',
-            "Hotel.java": '''import java.util.*;
-public class Hotel { private final Map<String, Room> rooms = new HashMap<>(); public void add(Room room) { rooms.put(room.getNumber(), room); } // SOLUTION_START:STRING
-    public String book(Guest guest, String number, int nights) { Room room = rooms.get(number); if (room == null || nights < 1 || nights > 30 || !room.occupy()) return "REJECTED"; return new Booking(guest, room, nights).summary(); }
+            "Hotel.java": '''import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+
+public class Hotel {
+    private final Map<String, Room> rooms = new HashMap<>();
+
+    public void add(Room room) {
+        rooms.put(room.getNumber(), room);
+    }
+
+    // SOLUTION_START:STRING
+    public String book(Guest guest, String number, int nights) {
+        return Optional.ofNullable(rooms.get(number))
+            .filter(room -> nights >= 1 && nights <= 30)
+            .filter(Room::occupy)
+            .map(room -> new Booking(guest, room, nights).summary())
+            .orElse("REJECTED");
+    }
     // SOLUTION_END
 }''',
             "Main.java": '''import java.util.Scanner;
@@ -614,11 +674,40 @@ public class Main { public static void main(String[] args) { Scanner input = new
     // SOLUTION_END
 }''',
             "MatchResult.java": '''public record MatchResult(String white, String black, String result) {}''',
-            "RankingService.java": '''import java.util.*;
-public class RankingService { private final Map<String, Player> players = new HashMap<>(); private Player player(String name) { return players.computeIfAbsent(name, Player::new); } // SOLUTION_START:VOID
-    public void record(MatchResult match) { Player white = player(match.white()); Player black = player(match.black()); if (match.result().equals("WHITE")) white.addPoints(3); else if (match.result().equals("BLACK")) black.addPoints(3); else { white.addPoints(1); black.addPoints(1); } }
+            "RankingService.java": '''import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+public class RankingService {
+    private final Map<String, Player> players = new HashMap<>();
+
+    private Player player(String name) {
+        return players.computeIfAbsent(name, key -> new Player(key));
+    }
+
+    // SOLUTION_START:VOID
+    public void record(MatchResult match) {
+        Player white = player(match.white());
+        Player black = player(match.black());
+        if (match.result().equals("WHITE")) {
+            white.addPoints(3);
+        } else if (match.result().equals("BLACK")) {
+            black.addPoints(3);
+        } else {
+            white.addPoints(1);
+            black.addPoints(1);
+        }
+    }
     // SOLUTION_END
-    public List<Player> ranking() { return players.values().stream().sorted(Comparator.comparingInt(Player::getPoints).reversed().thenComparing(Player::getName)).toList(); } }''',
+
+    public List<Player> ranking() {
+        return players.values().stream()
+            .sorted(Comparator.comparingInt(Player::getPoints).reversed()
+                .thenComparing(Player::getName))
+            .toList();
+    }
+}''',
             "Main.java": '''import java.util.*;
 public class Main { public static void main(String[] args) { Scanner input = new Scanner(System.in); int count = input.nextInt(); RankingService service = new RankingService(); for (int i = 0; i < count; i++) service.record(new MatchResult(input.next(), input.next(), input.next())); int rank = 1; for (Player player : service.ranking()) System.out.println("RANK " + rank++ + " " + player.getName() + " " + player.getPoints()); } }''',
         },
