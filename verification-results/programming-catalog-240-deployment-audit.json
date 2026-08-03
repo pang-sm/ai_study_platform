@@ -1,42 +1,77 @@
 {
-  "deployment_commit": "5824b5e",
-  "actions_run": "30710013694",
+  "commit": "359cba99957e97261844f57d541672af42fdb370",
+  "actions_run": 30817287283,
   "actions_conclusion": "success",
-  "backend_health": {
-    "public_api": "http://101.32.190.42/api/health",
-    "status_code": 200,
-    "body": {"status": "ok"},
-    "systemd": "active"
+  "deployment": {
+    "prepare_ssh": "passed",
+    "git_update": "passed",
+    "database_backup": "passed",
+    "schema_initialization": "passed",
+    "catalog_seed": "passed",
+    "backend_restart": "passed",
+    "frontend_build_and_publish": "passed",
+    "health_check": "passed"
   },
-  "online_backup": {
-    "path": "/var/lib/ai_study_platform/backups/app.db.after-catalog-240.20260802_012123.db",
-    "bytes": 476553216,
-    "integrity_check": "ok"
-  },
-  "online_database": {
+  "online": {
+    "host": "http://101.32.190.42/",
     "database_path": "/var/lib/ai_study_platform/app.db",
-    "counts": {"C": 60, "C++": 60, "Python": 60, "Java": 60},
-    "approved_active_total": 240,
-    "title_zh_missing": 0,
-    "statement_zh_missing": 0,
+    "database_size_bytes": 502300672,
+    "quick_check": "ok",
+    "integrity_check": "ok",
+    "backup": {
+      "path": "/home/ubuntu/ai_study_platform/backend/backups/app.db.before-catalog-reform.20260803_211909.db",
+      "size_bytes": 498835456
+    },
+    "disk": {
+      "available": "21G",
+      "use_percent": 47,
+      "inode_use_percent": 8
+    },
+    "health": {
+      "backend_local": 200,
+      "public_api": 200,
+      "frontend": 200
+    },
+    "approved_counts": {"C": 60, "C++": 60, "Python": 60, "Java": 60, "total": 240},
+    "active_rejected": 0,
+    "source_key_duplicates": 0,
+    "missing_title_zh": 0,
+    "missing_statement_zh": 0,
     "public_under_3": 0,
     "hidden_under_5": 0,
-    "source_key_duplicates": 0,
-    "users": 161,
-    "programming_progress_rows": 1,
-    "integrity_check": "ok"
+    "history_rows": {
+      "users": 164,
+      "code_projects": 134,
+      "code_project_files": 358,
+      "programming_exercise_progress": 39,
+      "programming_exercise_submissions": 0
+    }
   },
-  "api_acceptance": {
-    "base": "http://101.32.190.42/api",
-    "languages": {"C": {"total": 60, "pages": 2, "details_sampled": 10}, "C++": {"total": 60, "pages": 2, "details_sampled": 10}, "Python": {"total": 60, "pages": 2, "details_sampled": 10}, "Java": {"total": 60, "pages": 2, "details_sampled": 10}},
-    "detail_missing_chinese_fields": 0,
-    "hidden_test_field_leaks": 0,
-    "http_4xx_5xx_in_sample": 0
+  "api": {
+    "list_counts": {"C": 60, "C++": 60, "Python": 60, "Java": 60},
+    "pagination": "each language total_pages=2 at page_size=48",
+    "required_fields_missing": 0,
+    "detail_checks": "5 per language, 20 total",
+    "hidden_or_reference_field_leaks": 0,
+    "public_sample_payload": "present in sampled details"
   },
-  "web_acceptance": {
-    "http_root_status": 200,
-    "browser_catalog_card抽验": "未完成：浏览器自动化加载正式站点两次超时，未宣称 UI 全部通过",
-    "login_required": false
+  "browser": {
+    "java_workbench": "visually verified with 6 editable files, Chinese statement, 3 public samples, no hidden tests visible",
+    "catalog_visual_samples": "C and Python pages visually verified with 60 total and 5 pages",
+    "cpp_java_language_switch": "not completed because in-app browser language-switch action timed out",
+    "observed_quality_risk": "some catalog cards use repeated variant titles such as 边界保护/状态转移/反例处理; automated similarity gates do not establish human-level title originality"
   },
-  "uncompleted": ["浏览器自动化页面级抽验未完成；公网 API 和根页面 HTTP 200 已核验。"]
+  "reports": [
+    "verification-results/cross-language-overlap-matrix.json",
+    "verification-results/cross-language-overlap-audit.md",
+    "verification-results/programming-language-specificity-audit.json",
+    "verification-results/programming-language-specificity-audit.md",
+    "verification-results/programming-cross-language-overlap.json",
+    "verification-results/programming-curriculum-final.json",
+    "verification-results/programming-content-quality-final.json"
+  ],
+  "unfinished_items": [
+    "The 240-card catalog still needs a human-level rewrite pass for repeated variant naming and generic summaries.",
+    "Browser visual switching for C++ and Java was not completed; their API detail checks passed."
+  ]
 }
