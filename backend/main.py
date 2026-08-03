@@ -9770,7 +9770,13 @@ def _run_standard_oj_case(project: models.CodeProject, files: list[models.CodePr
 
 def _run_public_sample(project: models.CodeProject, exercise: models.ProgrammingExercise, files: list[models.CodeProjectFile], sample: dict) -> dict:
     language = normalize_project_language(exercise.language)
-    if _exercise_manifest(exercise).get("runner") == "standard_io":
+    is_stdin_stdout_sample = (
+        sample.get("stdin_text") is not None
+        and sample.get("expected_stdout") is not None
+        and not sample.get("test_path")
+        and not sample.get("selector")
+    )
+    if _is_standard_oj_exercise(exercise) or is_stdin_stdout_sample:
         return _run_standard_oj_case(project, files, sample)
     adapter_result = run_programming_io_adapter(language, exercise, files, sample, _exercise_manifest(exercise))
     if adapter_result is not None:
