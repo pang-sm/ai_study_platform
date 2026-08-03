@@ -1,0 +1,5727 @@
+{
+  "generated_at": "2026-08-03T13:00:44.984563+00:00",
+  "read_only": true,
+  "thresholds": {
+    "title_similarity": 0.82,
+    "statement_similarity": 0.78,
+    "solution_similarity": 0.88,
+    "test_similarity": 0.8
+  },
+  "allowed_shared_families": [
+    "catalog240-bfs-0",
+    "catalog240-brackets-0",
+    "catalog240-checksum-0",
+    "catalog240-coins-0",
+    "catalog240-unique-0",
+    "catalog240-words-0"
+  ],
+  "summary": {
+    "approved_active_total": 240,
+    "pair_overlap_count": 33,
+    "shared_family_count": 6,
+    "shared_families": {
+      "catalog240-checksum-0": 3,
+      "catalog240-unique-0": 4,
+      "catalog240-words-0": 4,
+      "catalog240-brackets-0": 4,
+      "catalog240-coins-0": 4,
+      "catalog240-bfs-0": 4
+    },
+    "per_language": {
+      "C": {
+        "total": 60,
+        "shared_candidates": 6,
+        "shared_kept": 6,
+        "shared_ratio_after_plan": 0.1,
+        "language_specific_candidates": 56,
+        "language_specific_ratio": 0.9333,
+        "replace_candidates": 54
+      },
+      "C++": {
+        "total": 60,
+        "shared_candidates": 6,
+        "shared_kept": 6,
+        "shared_ratio_after_plan": 0.1,
+        "language_specific_candidates": 60,
+        "language_specific_ratio": 1.0,
+        "replace_candidates": 54
+      },
+      "Python": {
+        "total": 60,
+        "shared_candidates": 6,
+        "shared_kept": 6,
+        "shared_ratio_after_plan": 0.1,
+        "language_specific_candidates": 56,
+        "language_specific_ratio": 0.9333,
+        "replace_candidates": 54
+      },
+      "Java": {
+        "total": 60,
+        "shared_candidates": 5,
+        "shared_kept": 5,
+        "shared_ratio_after_plan": 0.0833,
+        "language_specific_candidates": 60,
+        "language_specific_ratio": 1.0,
+        "replace_candidates": 55
+      }
+    }
+  },
+  "records": [
+    {
+      "language": "C",
+      "exercise_id": 1489,
+      "source_key": "first_party_original_v2|C|checksum-0",
+      "problem_family_id": "catalog240-checksum-0",
+      "duplicate_languages": [
+        "C++",
+        "Python"
+      ],
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1504,
+      "source_key": "first_party_original_v2|C|unique-0",
+      "problem_family_id": "catalog240-unique-0",
+      "duplicate_languages": [
+        "C++",
+        "Java",
+        "Python"
+      ],
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1507,
+      "source_key": "first_party_original_v2|C|words-0",
+      "problem_family_id": "catalog240-words-0",
+      "duplicate_languages": [
+        "C++",
+        "Java",
+        "Python"
+      ],
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1510,
+      "source_key": "first_party_original_v2|C|brackets-0",
+      "problem_family_id": "catalog240-brackets-0",
+      "duplicate_languages": [
+        "C++",
+        "Java",
+        "Python"
+      ],
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "language_specific_value": false,
+      "language_markers_found": [
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1534,
+      "source_key": "first_party_original_v2|C|coins-0",
+      "problem_family_id": "catalog240-coins-0",
+      "duplicate_languages": [
+        "C++",
+        "Java",
+        "Python"
+      ],
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1537,
+      "source_key": "first_party_original_v2|C|bfs-0",
+      "problem_family_id": "catalog240-bfs-0",
+      "duplicate_languages": [
+        "C++",
+        "Java",
+        "Python"
+      ],
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1720,
+      "source_key": "language_specific_catalog_202608:C:sensor-pointer-edge",
+      "problem_family_id": "language-specific-c-sensor-pointer-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1721,
+      "source_key": "language_specific_catalog_202608:C:sensor-pointer-state",
+      "problem_family_id": "language-specific-c-sensor-pointer-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1722,
+      "source_key": "language_specific_catalog_202608:C:sensor-pointer-adversarial",
+      "problem_family_id": "language-specific-c-sensor-pointer-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1723,
+      "source_key": "language_specific_catalog_202608:C:contact-records-edge",
+      "problem_family_id": "language-specific-c-contact-records-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1724,
+      "source_key": "language_specific_catalog_202608:C:contact-records-state",
+      "problem_family_id": "language-specific-c-contact-records-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1725,
+      "source_key": "language_specific_catalog_202608:C:contact-records-adversarial",
+      "problem_family_id": "language-specific-c-contact-records-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1726,
+      "source_key": "language_specific_catalog_202608:C:permission-mask-edge",
+      "problem_family_id": "language-specific-c-permission-mask-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1727,
+      "source_key": "language_specific_catalog_202608:C:permission-mask-state",
+      "problem_family_id": "language-specific-c-permission-mask-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1728,
+      "source_key": "language_specific_catalog_202608:C:permission-mask-adversarial",
+      "problem_family_id": "language-specific-c-permission-mask-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1729,
+      "source_key": "language_specific_catalog_202608:C:csv-columns-edge",
+      "problem_family_id": "language-specific-c-csv-columns-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1730,
+      "source_key": "language_specific_catalog_202608:C:csv-columns-state",
+      "problem_family_id": "language-specific-c-csv-columns-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1731,
+      "source_key": "language_specific_catalog_202608:C:csv-columns-adversarial",
+      "problem_family_id": "language-specific-c-csv-columns-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1732,
+      "source_key": "language_specific_catalog_202608:C:dynamic-basket-edge",
+      "problem_family_id": "language-specific-c-dynamic-basket-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1733,
+      "source_key": "language_specific_catalog_202608:C:dynamic-basket-state",
+      "problem_family_id": "language-specific-c-dynamic-basket-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1734,
+      "source_key": "language_specific_catalog_202608:C:dynamic-basket-adversarial",
+      "problem_family_id": "language-specific-c-dynamic-basket-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1735,
+      "source_key": "language_specific_catalog_202608:C:linked-tasks-edge",
+      "problem_family_id": "language-specific-c-linked-tasks-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1736,
+      "source_key": "language_specific_catalog_202608:C:linked-tasks-state",
+      "problem_family_id": "language-specific-c-linked-tasks-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1737,
+      "source_key": "language_specific_catalog_202608:C:linked-tasks-adversarial",
+      "problem_family_id": "language-specific-c-linked-tasks-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1738,
+      "source_key": "language_specific_catalog_202608:C:stack-expression-edge",
+      "problem_family_id": "language-specific-c-stack-expression-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1739,
+      "source_key": "language_specific_catalog_202608:C:stack-expression-state",
+      "problem_family_id": "language-specific-c-stack-expression-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1740,
+      "source_key": "language_specific_catalog_202608:C:stack-expression-adversarial",
+      "problem_family_id": "language-specific-c-stack-expression-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1741,
+      "source_key": "language_specific_catalog_202608:C:window-queue-edge",
+      "problem_family_id": "language-specific-c-window-queue-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1742,
+      "source_key": "language_specific_catalog_202608:C:window-queue-state",
+      "problem_family_id": "language-specific-c-window-queue-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1743,
+      "source_key": "language_specific_catalog_202608:C:window-queue-adversarial",
+      "problem_family_id": "language-specific-c-window-queue-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1744,
+      "source_key": "language_specific_catalog_202608:C:maze-route-edge",
+      "problem_family_id": "language-specific-c-maze-route-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1745,
+      "source_key": "language_specific_catalog_202608:C:maze-route-state",
+      "problem_family_id": "language-specific-c-maze-route-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1746,
+      "source_key": "language_specific_catalog_202608:C:maze-route-adversarial",
+      "problem_family_id": "language-specific-c-maze-route-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1747,
+      "source_key": "language_specific_catalog_202608:C:tic-tac-toe-edge",
+      "problem_family_id": "language-specific-c-tic-tac-toe-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1748,
+      "source_key": "language_specific_catalog_202608:C:tic-tac-toe-state",
+      "problem_family_id": "language-specific-c-tic-tac-toe-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1749,
+      "source_key": "language_specific_catalog_202608:C:tic-tac-toe-adversarial",
+      "problem_family_id": "language-specific-c-tic-tac-toe-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1750,
+      "source_key": "language_specific_catalog_202608:C:sparse-matrix-edge",
+      "problem_family_id": "language-specific-c-sparse-matrix-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1751,
+      "source_key": "language_specific_catalog_202608:C:sparse-matrix-state",
+      "problem_family_id": "language-specific-c-sparse-matrix-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1752,
+      "source_key": "language_specific_catalog_202608:C:sparse-matrix-adversarial",
+      "problem_family_id": "language-specific-c-sparse-matrix-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1753,
+      "source_key": "language_specific_catalog_202608:C:polynomial-pointer-edge",
+      "problem_family_id": "language-specific-c-polynomial-pointer-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1754,
+      "source_key": "language_specific_catalog_202608:C:polynomial-pointer-state",
+      "problem_family_id": "language-specific-c-polynomial-pointer-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1755,
+      "source_key": "language_specific_catalog_202608:C:polynomial-pointer-adversarial",
+      "problem_family_id": "language-specific-c-polynomial-pointer-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1756,
+      "source_key": "language_specific_catalog_202608:C:log-segments-edge",
+      "problem_family_id": "language-specific-c-log-segments-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1757,
+      "source_key": "language_specific_catalog_202608:C:log-segments-state",
+      "problem_family_id": "language-specific-c-log-segments-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1758,
+      "source_key": "language_specific_catalog_202608:C:log-segments-adversarial",
+      "problem_family_id": "language-specific-c-log-segments-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1759,
+      "source_key": "language_specific_catalog_202608:C:inventory-struct-edge",
+      "problem_family_id": "language-specific-c-inventory-struct-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": false,
+      "language_markers_found": [
+        "scanf"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1760,
+      "source_key": "language_specific_catalog_202608:C:inventory-struct-state",
+      "problem_family_id": "language-specific-c-inventory-struct-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": false,
+      "language_markers_found": [
+        "scanf"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1761,
+      "source_key": "language_specific_catalog_202608:C:inventory-struct-adversarial",
+      "problem_family_id": "language-specific-c-inventory-struct-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": false,
+      "language_markers_found": [
+        "scanf"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1762,
+      "source_key": "language_specific_catalog_202608:C:ring-buffer-edge",
+      "problem_family_id": "language-specific-c-ring-buffer-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1763,
+      "source_key": "language_specific_catalog_202608:C:ring-buffer-state",
+      "problem_family_id": "language-specific-c-ring-buffer-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1764,
+      "source_key": "language_specific_catalog_202608:C:ring-buffer-adversarial",
+      "problem_family_id": "language-specific-c-ring-buffer-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1765,
+      "source_key": "language_specific_catalog_202608:C:file-token-edge",
+      "problem_family_id": "language-specific-c-file-token-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1766,
+      "source_key": "language_specific_catalog_202608:C:file-token-state",
+      "problem_family_id": "language-specific-c-file-token-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1767,
+      "source_key": "language_specific_catalog_202608:C:file-token-adversarial",
+      "problem_family_id": "language-specific-c-file-token-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1768,
+      "source_key": "language_specific_catalog_202608:C:graph-components-edge",
+      "problem_family_id": "language-specific-c-graph-components-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1769,
+      "source_key": "language_specific_catalog_202608:C:graph-components-state",
+      "problem_family_id": "language-specific-c-graph-components-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1770,
+      "source_key": "language_specific_catalog_202608:C:graph-components-adversarial",
+      "problem_family_id": "language-specific-c-graph-components-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1771,
+      "source_key": "language_specific_catalog_202608:C:knapsack-table-edge",
+      "problem_family_id": "language-specific-c-knapsack-table-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1772,
+      "source_key": "language_specific_catalog_202608:C:knapsack-table-state",
+      "problem_family_id": "language-specific-c-knapsack-table-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1773,
+      "source_key": "language_specific_catalog_202608:C:knapsack-table-adversarial",
+      "problem_family_id": "language-specific-c-knapsack-table-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanf",
+        "printf",
+        "&"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1549,
+      "source_key": "first_party_original_v2|C++|checksum-0",
+      "problem_family_id": "catalog240-checksum-0",
+      "duplicate_languages": [
+        "C",
+        "Python"
+      ],
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "cin",
+        "cout"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1564,
+      "source_key": "first_party_original_v2|C++|unique-0",
+      "problem_family_id": "catalog240-unique-0",
+      "duplicate_languages": [
+        "C",
+        "Java",
+        "Python"
+      ],
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "cin",
+        "cout"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1567,
+      "source_key": "first_party_original_v2|C++|words-0",
+      "problem_family_id": "catalog240-words-0",
+      "duplicate_languages": [
+        "C",
+        "Java",
+        "Python"
+      ],
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "cin",
+        "cout"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1570,
+      "source_key": "first_party_original_v2|C++|brackets-0",
+      "problem_family_id": "catalog240-brackets-0",
+      "duplicate_languages": [
+        "C",
+        "Java",
+        "Python"
+      ],
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "cin",
+        "cout",
+        "vector<"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1594,
+      "source_key": "first_party_original_v2|C++|coins-0",
+      "problem_family_id": "catalog240-coins-0",
+      "duplicate_languages": [
+        "C",
+        "Java",
+        "Python"
+      ],
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "cin",
+        "cout",
+        "vector<"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1597,
+      "source_key": "first_party_original_v2|C++|bfs-0",
+      "problem_family_id": "catalog240-bfs-0",
+      "duplicate_languages": [
+        "C",
+        "Java",
+        "Python"
+      ],
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "cin",
+        "cout",
+        "vector<"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1774,
+      "source_key": "language_specific_catalog_202608:C++:triage-queue-edge",
+      "problem_family_id": "language-specific-cpp-triage-queue-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1775,
+      "source_key": "language_specific_catalog_202608:C++:triage-queue-state",
+      "problem_family_id": "language-specific-cpp-triage-queue-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1776,
+      "source_key": "language_specific_catalog_202608:C++:triage-queue-adversarial",
+      "problem_family_id": "language-specific-cpp-triage-queue-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1777,
+      "source_key": "language_specific_catalog_202608:C++:warehouse-map-edge",
+      "problem_family_id": "language-specific-cpp-warehouse-map-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout",
+        "vector<",
+        "rotate("
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1778,
+      "source_key": "language_specific_catalog_202608:C++:warehouse-map-state",
+      "problem_family_id": "language-specific-cpp-warehouse-map-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout",
+        "vector<",
+        "rotate("
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1779,
+      "source_key": "language_specific_catalog_202608:C++:warehouse-map-adversarial",
+      "problem_family_id": "language-specific-cpp-warehouse-map-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout",
+        "vector<",
+        "rotate("
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1780,
+      "source_key": "language_specific_catalog_202608:C++:film-lambda-edge",
+      "problem_family_id": "language-specific-cpp-film-lambda-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1781,
+      "source_key": "language_specific_catalog_202608:C++:film-lambda-state",
+      "problem_family_id": "language-specific-cpp-film-lambda-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1782,
+      "source_key": "language_specific_catalog_202608:C++:film-lambda-adversarial",
+      "problem_family_id": "language-specific-cpp-film-lambda-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1783,
+      "source_key": "language_specific_catalog_202608:C++:template-gcd-edge",
+      "problem_family_id": "language-specific-cpp-template-gcd-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout",
+        "vector<",
+        "sort("
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1784,
+      "source_key": "language_specific_catalog_202608:C++:template-gcd-state",
+      "problem_family_id": "language-specific-cpp-template-gcd-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout",
+        "vector<",
+        "sort("
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1785,
+      "source_key": "language_specific_catalog_202608:C++:template-gcd-adversarial",
+      "problem_family_id": "language-specific-cpp-template-gcd-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout",
+        "vector<",
+        "sort("
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1786,
+      "source_key": "language_specific_catalog_202608:C++:smart-owners-edge",
+      "problem_family_id": "language-specific-cpp-smart-owners-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout",
+        "vector<"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1787,
+      "source_key": "language_specific_catalog_202608:C++:smart-owners-state",
+      "problem_family_id": "language-specific-cpp-smart-owners-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout",
+        "vector<"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1788,
+      "source_key": "language_specific_catalog_202608:C++:smart-owners-adversarial",
+      "problem_family_id": "language-specific-cpp-smart-owners-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout",
+        "vector<"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1789,
+      "source_key": "language_specific_catalog_202608:C++:raii-report-edge",
+      "problem_family_id": "language-specific-cpp-raii-report-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout",
+        "vector<"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1790,
+      "source_key": "language_specific_catalog_202608:C++:raii-report-state",
+      "problem_family_id": "language-specific-cpp-raii-report-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout",
+        "vector<"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1791,
+      "source_key": "language_specific_catalog_202608:C++:raii-report-adversarial",
+      "problem_family_id": "language-specific-cpp-raii-report-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout",
+        "vector<"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1792,
+      "source_key": "language_specific_catalog_202608:C++:deque-window-edge",
+      "problem_family_id": "language-specific-cpp-deque-window-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1793,
+      "source_key": "language_specific_catalog_202608:C++:deque-window-state",
+      "problem_family_id": "language-specific-cpp-deque-window-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1794,
+      "source_key": "language_specific_catalog_202608:C++:deque-window-adversarial",
+      "problem_family_id": "language-specific-cpp-deque-window-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1795,
+      "source_key": "language_specific_catalog_202608:C++:set-overlap-edge",
+      "problem_family_id": "language-specific-cpp-set-overlap-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1796,
+      "source_key": "language_specific_catalog_202608:C++:set-overlap-state",
+      "problem_family_id": "language-specific-cpp-set-overlap-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1797,
+      "source_key": "language_specific_catalog_202608:C++:set-overlap-adversarial",
+      "problem_family_id": "language-specific-cpp-set-overlap-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1798,
+      "source_key": "language_specific_catalog_202608:C++:dsu-network-edge",
+      "problem_family_id": "language-specific-cpp-dsu-network-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout",
+        "vector<"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1799,
+      "source_key": "language_specific_catalog_202608:C++:dsu-network-state",
+      "problem_family_id": "language-specific-cpp-dsu-network-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout",
+        "vector<"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1800,
+      "source_key": "language_specific_catalog_202608:C++:dsu-network-adversarial",
+      "problem_family_id": "language-specific-cpp-dsu-network-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout",
+        "vector<"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1801,
+      "source_key": "language_specific_catalog_202608:C++:calendar-merge-edge",
+      "problem_family_id": "language-specific-cpp-calendar-merge-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1802,
+      "source_key": "language_specific_catalog_202608:C++:calendar-merge-state",
+      "problem_family_id": "language-specific-cpp-calendar-merge-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1803,
+      "source_key": "language_specific_catalog_202608:C++:calendar-merge-adversarial",
+      "problem_family_id": "language-specific-cpp-calendar-merge-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1804,
+      "source_key": "language_specific_catalog_202608:C++:card-comparator-edge",
+      "problem_family_id": "language-specific-cpp-card-comparator-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1805,
+      "source_key": "language_specific_catalog_202608:C++:card-comparator-state",
+      "problem_family_id": "language-specific-cpp-card-comparator-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1806,
+      "source_key": "language_specific_catalog_202608:C++:card-comparator-adversarial",
+      "problem_family_id": "language-specific-cpp-card-comparator-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1807,
+      "source_key": "language_specific_catalog_202608:C++:vending-state-edge",
+      "problem_family_id": "language-specific-cpp-vending-state-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1808,
+      "source_key": "language_specific_catalog_202608:C++:vending-state-state",
+      "problem_family_id": "language-specific-cpp-vending-state-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1809,
+      "source_key": "language_specific_catalog_202608:C++:vending-state-adversarial",
+      "problem_family_id": "language-specific-cpp-vending-state-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1810,
+      "source_key": "language_specific_catalog_202608:C++:iterator-diff-edge",
+      "problem_family_id": "language-specific-cpp-iterator-diff-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout",
+        "vector<",
+        "stable_partition"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1811,
+      "source_key": "language_specific_catalog_202608:C++:iterator-diff-state",
+      "problem_family_id": "language-specific-cpp-iterator-diff-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout",
+        "vector<",
+        "stable_partition"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1812,
+      "source_key": "language_specific_catalog_202608:C++:iterator-diff-adversarial",
+      "problem_family_id": "language-specific-cpp-iterator-diff-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout",
+        "vector<",
+        "stable_partition"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1813,
+      "source_key": "language_specific_catalog_202608:C++:unordered-count-edge",
+      "problem_family_id": "language-specific-cpp-unordered-count-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout",
+        "sort("
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1814,
+      "source_key": "language_specific_catalog_202608:C++:unordered-count-state",
+      "problem_family_id": "language-specific-cpp-unordered-count-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout",
+        "sort("
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1815,
+      "source_key": "language_specific_catalog_202608:C++:unordered-count-adversarial",
+      "problem_family_id": "language-specific-cpp-unordered-count-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout",
+        "sort("
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1816,
+      "source_key": "language_specific_catalog_202608:C++:stack-parser-edge",
+      "problem_family_id": "language-specific-cpp-stack-parser-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout",
+        "vector<",
+        "sort("
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1817,
+      "source_key": "language_specific_catalog_202608:C++:stack-parser-state",
+      "problem_family_id": "language-specific-cpp-stack-parser-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout",
+        "vector<",
+        "sort("
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1818,
+      "source_key": "language_specific_catalog_202608:C++:stack-parser-adversarial",
+      "problem_family_id": "language-specific-cpp-stack-parser-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout",
+        "vector<",
+        "sort("
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1819,
+      "source_key": "language_specific_catalog_202608:C++:priority-deadline-edge",
+      "problem_family_id": "language-specific-cpp-priority-deadline-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1820,
+      "source_key": "language_specific_catalog_202608:C++:priority-deadline-state",
+      "problem_family_id": "language-specific-cpp-priority-deadline-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1821,
+      "source_key": "language_specific_catalog_202608:C++:priority-deadline-adversarial",
+      "problem_family_id": "language-specific-cpp-priority-deadline-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1822,
+      "source_key": "language_specific_catalog_202608:C++:graph-bfs-edge",
+      "problem_family_id": "language-specific-cpp-graph-bfs-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout",
+        "vector<",
+        "rotate("
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1823,
+      "source_key": "language_specific_catalog_202608:C++:graph-bfs-state",
+      "problem_family_id": "language-specific-cpp-graph-bfs-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout",
+        "vector<",
+        "rotate("
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1824,
+      "source_key": "language_specific_catalog_202608:C++:graph-bfs-adversarial",
+      "problem_family_id": "language-specific-cpp-graph-bfs-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout",
+        "vector<",
+        "rotate("
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1825,
+      "source_key": "language_specific_catalog_202608:C++:rolling-dp-edge",
+      "problem_family_id": "language-specific-cpp-rolling-dp-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1826,
+      "source_key": "language_specific_catalog_202608:C++:rolling-dp-state",
+      "problem_family_id": "language-specific-cpp-rolling-dp-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1827,
+      "source_key": "language_specific_catalog_202608:C++:rolling-dp-adversarial",
+      "problem_family_id": "language-specific-cpp-rolling-dp-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "ios::sync_with_stdio",
+        "cin",
+        "cout"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1660,
+      "source_key": "first_party_original_v2|Java|recipe-0",
+      "problem_family_id": "java-multifile-cinema-booking",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1661,
+      "source_key": "first_party_original_v2|Java|recipe-1",
+      "problem_family_id": "java-multifile-library-loans",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "hashmap",
+        "record "
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1662,
+      "source_key": "first_party_original_v2|Java|recipe-2",
+      "problem_family_id": "java-multifile-parking-fee",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1663,
+      "source_key": "first_party_original_v2|Java|transfer-0",
+      "problem_family_id": "java-multifile-restaurant-queue",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1664,
+      "source_key": "first_party_original_v2|Java|transfer-1",
+      "problem_family_id": "java-multifile-course-registration",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1665,
+      "source_key": "first_party_original_v2|Java|transfer-2",
+      "problem_family_id": "java-multifile-bank-transactions",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1666,
+      "source_key": "first_party_original_v2|Java|month-0",
+      "problem_family_id": "java-multifile-order-coupon",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arraylist",
+        "stream()"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1667,
+      "source_key": "first_party_original_v2|Java|month-1",
+      "problem_family_id": "java-multifile-hotel-booking",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "hashmap",
+        "optional"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1668,
+      "source_key": "first_party_original_v2|Java|month-2",
+      "problem_family_id": "java-multifile-parcel-dispatch",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "stream()"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1669,
+      "source_key": "first_party_original_v2|Java|checksum-0",
+      "problem_family_id": "java-multifile-chess-ranking",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "hashmap",
+        "comparator",
+        "stream()",
+        "record "
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1670,
+      "source_key": "first_party_original_v2|Java|checksum-1",
+      "problem_family_id": "java-multifile-pet-clinic",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arraylist"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1671,
+      "source_key": "first_party_original_v2|Java|checksum-2",
+      "problem_family_id": "java-multifile-car-rental",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "hashmap"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1684,
+      "source_key": "first_party_original_v2|Java|unique-0",
+      "problem_family_id": "catalog240-unique-0",
+      "duplicate_languages": [
+        "C",
+        "C++",
+        "Python"
+      ],
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.4111,
+      "test_similarity": 1.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1687,
+      "source_key": "first_party_original_v2|Java|words-0",
+      "problem_family_id": "catalog240-words-0",
+      "duplicate_languages": [
+        "C",
+        "C++",
+        "Python"
+      ],
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.1235,
+      "test_similarity": 1.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1690,
+      "source_key": "first_party_original_v2|Java|brackets-0",
+      "problem_family_id": "catalog240-brackets-0",
+      "duplicate_languages": [
+        "C",
+        "C++",
+        "Python"
+      ],
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0805,
+      "test_similarity": 1.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1714,
+      "source_key": "first_party_original_v2|Java|coins-0",
+      "problem_family_id": "catalog240-coins-0",
+      "duplicate_languages": [
+        "C",
+        "C++",
+        "Python"
+      ],
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0494,
+      "test_similarity": 1.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays."
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1717,
+      "source_key": "first_party_original_v2|Java|bfs-0",
+      "problem_family_id": "catalog240-bfs-0",
+      "duplicate_languages": [
+        "C",
+        "C++",
+        "Python"
+      ],
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0391,
+      "test_similarity": 1.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1882,
+      "source_key": "language_specific_catalog_202608:Java:string-normalize-edge",
+      "problem_family_id": "language-specific-java-string-normalize-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1883,
+      "source_key": "language_specific_catalog_202608:Java:string-normalize-state",
+      "problem_family_id": "language-specific-java-string-normalize-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1884,
+      "source_key": "language_specific_catalog_202608:Java:string-normalize-adversarial",
+      "problem_family_id": "language-specific-java-string-normalize-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1885,
+      "source_key": "language_specific_catalog_202608:Java:list-rotation-edge",
+      "problem_family_id": "language-specific-java-list-rotation-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1886,
+      "source_key": "language_specific_catalog_202608:Java:list-rotation-state",
+      "problem_family_id": "language-specific-java-list-rotation-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1887,
+      "source_key": "language_specific_catalog_202608:Java:list-rotation-adversarial",
+      "problem_family_id": "language-specific-java-list-rotation-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1888,
+      "source_key": "language_specific_catalog_202608:Java:tag-sets-edge",
+      "problem_family_id": "language-specific-java-tag-sets-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1889,
+      "source_key": "language_specific_catalog_202608:Java:tag-sets-state",
+      "problem_family_id": "language-specific-java-tag-sets-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1890,
+      "source_key": "language_specific_catalog_202608:Java:tag-sets-adversarial",
+      "problem_family_id": "language-specific-java-tag-sets-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1891,
+      "source_key": "language_specific_catalog_202608:Java:ledger-map-edge",
+      "problem_family_id": "language-specific-java-ledger-map-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1892,
+      "source_key": "language_specific_catalog_202608:Java:ledger-map-state",
+      "problem_family_id": "language-specific-java-ledger-map-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1893,
+      "source_key": "language_specific_catalog_202608:Java:ledger-map-adversarial",
+      "problem_family_id": "language-specific-java-ledger-map-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1894,
+      "source_key": "language_specific_catalog_202608:Java:enum-workflow-edge",
+      "problem_family_id": "language-specific-java-enum-workflow-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1895,
+      "source_key": "language_specific_catalog_202608:Java:enum-workflow-state",
+      "problem_family_id": "language-specific-java-enum-workflow-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1896,
+      "source_key": "language_specific_catalog_202608:Java:enum-workflow-adversarial",
+      "problem_family_id": "language-specific-java-enum-workflow-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1897,
+      "source_key": "language_specific_catalog_202608:Java:interface-discount-edge",
+      "problem_family_id": "language-specific-java-interface-discount-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1898,
+      "source_key": "language_specific_catalog_202608:Java:interface-discount-state",
+      "problem_family_id": "language-specific-java-interface-discount-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1899,
+      "source_key": "language_specific_catalog_202608:Java:interface-discount-adversarial",
+      "problem_family_id": "language-specific-java-interface-discount-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1900,
+      "source_key": "language_specific_catalog_202608:Java:generic-box-edge",
+      "problem_family_id": "language-specific-java-generic-box-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1901,
+      "source_key": "language_specific_catalog_202608:Java:generic-box-state",
+      "problem_family_id": "language-specific-java-generic-box-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1902,
+      "source_key": "language_specific_catalog_202608:Java:generic-box-adversarial",
+      "problem_family_id": "language-specific-java-generic-box-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1903,
+      "source_key": "language_specific_catalog_202608:Java:exception-parser-edge",
+      "problem_family_id": "language-specific-java-exception-parser-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1904,
+      "source_key": "language_specific_catalog_202608:Java:exception-parser-state",
+      "problem_family_id": "language-specific-java-exception-parser-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1905,
+      "source_key": "language_specific_catalog_202608:Java:exception-parser-adversarial",
+      "problem_family_id": "language-specific-java-exception-parser-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1906,
+      "source_key": "language_specific_catalog_202608:Java:comparator-ranking-edge",
+      "problem_family_id": "language-specific-java-comparator-ranking-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1907,
+      "source_key": "language_specific_catalog_202608:Java:comparator-ranking-state",
+      "problem_family_id": "language-specific-java-comparator-ranking-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1908,
+      "source_key": "language_specific_catalog_202608:Java:comparator-ranking-adversarial",
+      "problem_family_id": "language-specific-java-comparator-ranking-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1909,
+      "source_key": "language_specific_catalog_202608:Java:stream-grouping-edge",
+      "problem_family_id": "language-specific-java-stream-grouping-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1910,
+      "source_key": "language_specific_catalog_202608:Java:stream-grouping-state",
+      "problem_family_id": "language-specific-java-stream-grouping-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1911,
+      "source_key": "language_specific_catalog_202608:Java:stream-grouping-adversarial",
+      "problem_family_id": "language-specific-java-stream-grouping-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1912,
+      "source_key": "language_specific_catalog_202608:Java:optional-lookup-edge",
+      "problem_family_id": "language-specific-java-optional-lookup-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1913,
+      "source_key": "language_specific_catalog_202608:Java:optional-lookup-state",
+      "problem_family_id": "language-specific-java-optional-lookup-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1914,
+      "source_key": "language_specific_catalog_202608:Java:optional-lookup-adversarial",
+      "problem_family_id": "language-specific-java-optional-lookup-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1915,
+      "source_key": "language_specific_catalog_202608:Java:record-transfer-edge",
+      "problem_family_id": "language-specific-java-record-transfer-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1916,
+      "source_key": "language_specific_catalog_202608:Java:record-transfer-state",
+      "problem_family_id": "language-specific-java-record-transfer-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1917,
+      "source_key": "language_specific_catalog_202608:Java:record-transfer-adversarial",
+      "problem_family_id": "language-specific-java-record-transfer-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1918,
+      "source_key": "language_specific_catalog_202608:Java:deque-parser-edge",
+      "problem_family_id": "language-specific-java-deque-parser-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1919,
+      "source_key": "language_specific_catalog_202608:Java:deque-parser-state",
+      "problem_family_id": "language-specific-java-deque-parser-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1920,
+      "source_key": "language_specific_catalog_202608:Java:deque-parser-adversarial",
+      "problem_family_id": "language-specific-java-deque-parser-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1921,
+      "source_key": "language_specific_catalog_202608:Java:priority-tasks-edge",
+      "problem_family_id": "language-specific-java-priority-tasks-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1922,
+      "source_key": "language_specific_catalog_202608:Java:priority-tasks-state",
+      "problem_family_id": "language-specific-java-priority-tasks-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1923,
+      "source_key": "language_specific_catalog_202608:Java:priority-tasks-adversarial",
+      "problem_family_id": "language-specific-java-priority-tasks-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1924,
+      "source_key": "language_specific_catalog_202608:Java:array-records-edge",
+      "problem_family_id": "language-specific-java-array-records-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "scanner",
+        "system.out",
+        "arrays.",
+        "arraylist",
+        "deque"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1609,
+      "source_key": "first_party_original_v2|Python|checksum-0",
+      "problem_family_id": "catalog240-checksum-0",
+      "duplicate_languages": [
+        "C",
+        "C++"
+      ],
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "language_specific_value": false,
+      "language_markers_found": [
+        "sys.stdin"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1624,
+      "source_key": "first_party_original_v2|Python|unique-0",
+      "problem_family_id": "catalog240-unique-0",
+      "duplicate_languages": [
+        "C",
+        "C++",
+        "Java"
+      ],
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.4111,
+      "test_similarity": 1.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1627,
+      "source_key": "first_party_original_v2|Python|words-0",
+      "problem_family_id": "catalog240-words-0",
+      "duplicate_languages": [
+        "C",
+        "C++",
+        "Java"
+      ],
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.1235,
+      "test_similarity": 1.0,
+      "language_specific_value": false,
+      "language_markers_found": [
+        "sys.stdin"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1630,
+      "source_key": "first_party_original_v2|Python|brackets-0",
+      "problem_family_id": "catalog240-brackets-0",
+      "duplicate_languages": [
+        "C",
+        "C++",
+        "Java"
+      ],
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0805,
+      "test_similarity": 1.0,
+      "language_specific_value": false,
+      "language_markers_found": [
+        "sys.stdin"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1654,
+      "source_key": "first_party_original_v2|Python|coins-0",
+      "problem_family_id": "catalog240-coins-0",
+      "duplicate_languages": [
+        "C",
+        "C++",
+        "Java"
+      ],
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0494,
+      "test_similarity": 1.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1657,
+      "source_key": "first_party_original_v2|Python|bfs-0",
+      "problem_family_id": "catalog240-bfs-0",
+      "duplicate_languages": [
+        "C",
+        "C++",
+        "Java"
+      ],
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0391,
+      "test_similarity": 1.0,
+      "language_specific_value": false,
+      "language_markers_found": [
+        "sys.stdin"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1828,
+      "source_key": "language_specific_catalog_202608:Python:chat-counter-edge",
+      "problem_family_id": "language-specific-python-chat-counter-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1829,
+      "source_key": "language_specific_catalog_202608:Python:chat-counter-state",
+      "problem_family_id": "language-specific-python-chat-counter-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1830,
+      "source_key": "language_specific_catalog_202608:Python:chat-counter-adversarial",
+      "problem_family_id": "language-specific-python-chat-counter-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1831,
+      "source_key": "language_specific_catalog_202608:Python:course-sets-edge",
+      "problem_family_id": "language-specific-python-course-sets-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1832,
+      "source_key": "language_specific_catalog_202608:Python:course-sets-state",
+      "problem_family_id": "language-specific-python-course-sets-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1833,
+      "source_key": "language_specific_catalog_202608:Python:course-sets-adversarial",
+      "problem_family_id": "language-specific-python-course-sets-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1834,
+      "source_key": "language_specific_catalog_202608:Python:log-generator-edge",
+      "problem_family_id": "language-specific-python-log-generator-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1835,
+      "source_key": "language_specific_catalog_202608:Python:log-generator-state",
+      "problem_family_id": "language-specific-python-log-generator-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1836,
+      "source_key": "language_specific_catalog_202608:Python:log-generator-adversarial",
+      "problem_family_id": "language-specific-python-log-generator-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1837,
+      "source_key": "language_specific_catalog_202608:Python:expiry-date-edge",
+      "problem_family_id": "language-specific-python-expiry-date-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1838,
+      "source_key": "language_specific_catalog_202608:Python:expiry-date-state",
+      "problem_family_id": "language-specific-python-expiry-date-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1839,
+      "source_key": "language_specific_catalog_202608:Python:expiry-date-adversarial",
+      "problem_family_id": "language-specific-python-expiry-date-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1840,
+      "source_key": "language_specific_catalog_202608:Python:dataclass-podium-edge",
+      "problem_family_id": "language-specific-python-dataclass-podium-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1841,
+      "source_key": "language_specific_catalog_202608:Python:dataclass-podium-state",
+      "problem_family_id": "language-specific-python-dataclass-podium-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1842,
+      "source_key": "language_specific_catalog_202608:Python:dataclass-podium-adversarial",
+      "problem_family_id": "language-specific-python-dataclass-podium-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1843,
+      "source_key": "language_specific_catalog_202608:Python:bus-counter-edge",
+      "problem_family_id": "language-specific-python-bus-counter-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1844,
+      "source_key": "language_specific_catalog_202608:Python:bus-counter-state",
+      "problem_family_id": "language-specific-python-bus-counter-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1845,
+      "source_key": "language_specific_catalog_202608:Python:bus-counter-adversarial",
+      "problem_family_id": "language-specific-python-bus-counter-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1846,
+      "source_key": "language_specific_catalog_202608:Python:deck-deal-edge",
+      "problem_family_id": "language-specific-python-deck-deal-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1847,
+      "source_key": "language_specific_catalog_202608:Python:deck-deal-state",
+      "problem_family_id": "language-specific-python-deck-deal-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1848,
+      "source_key": "language_specific_catalog_202608:Python:deck-deal-adversarial",
+      "problem_family_id": "language-specific-python-deck-deal-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1849,
+      "source_key": "language_specific_catalog_202608:Python:text-similarity-edge",
+      "problem_family_id": "language-specific-python-text-similarity-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1850,
+      "source_key": "language_specific_catalog_202608:Python:text-similarity-state",
+      "problem_family_id": "language-specific-python-text-similarity-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1851,
+      "source_key": "language_specific_catalog_202608:Python:text-similarity-adversarial",
+      "problem_family_id": "language-specific-python-text-similarity-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1852,
+      "source_key": "language_specific_catalog_202608:Python:suffix-report-edge",
+      "problem_family_id": "language-specific-python-suffix-report-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1853,
+      "source_key": "language_specific_catalog_202608:Python:suffix-report-state",
+      "problem_family_id": "language-specific-python-suffix-report-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1854,
+      "source_key": "language_specific_catalog_202608:Python:suffix-report-adversarial",
+      "problem_family_id": "language-specific-python-suffix-report-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1855,
+      "source_key": "language_specific_catalog_202608:Python:schedule-conflict-edge",
+      "problem_family_id": "language-specific-python-schedule-conflict-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1856,
+      "source_key": "language_specific_catalog_202608:Python:schedule-conflict-state",
+      "problem_family_id": "language-specific-python-schedule-conflict-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1857,
+      "source_key": "language_specific_catalog_202608:Python:schedule-conflict-adversarial",
+      "problem_family_id": "language-specific-python-schedule-conflict-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1858,
+      "source_key": "language_specific_catalog_202608:Python:itertools-pairs-edge",
+      "problem_family_id": "language-specific-python-itertools-pairs-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1859,
+      "source_key": "language_specific_catalog_202608:Python:itertools-pairs-state",
+      "problem_family_id": "language-specific-python-itertools-pairs-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1860,
+      "source_key": "language_specific_catalog_202608:Python:itertools-pairs-adversarial",
+      "problem_family_id": "language-specific-python-itertools-pairs-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1861,
+      "source_key": "language_specific_catalog_202608:Python:exception-filter-edge",
+      "problem_family_id": "language-specific-python-exception-filter-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1862,
+      "source_key": "language_specific_catalog_202608:Python:exception-filter-state",
+      "problem_family_id": "language-specific-python-exception-filter-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1863,
+      "source_key": "language_specific_catalog_202608:Python:exception-filter-adversarial",
+      "problem_family_id": "language-specific-python-exception-filter-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1864,
+      "source_key": "language_specific_catalog_202608:Python:deque-history-edge",
+      "problem_family_id": "language-specific-python-deque-history-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1865,
+      "source_key": "language_specific_catalog_202608:Python:deque-history-state",
+      "problem_family_id": "language-specific-python-deque-history-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1866,
+      "source_key": "language_specific_catalog_202608:Python:deque-history-adversarial",
+      "problem_family_id": "language-specific-python-deque-history-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1867,
+      "source_key": "language_specific_catalog_202608:Python:heap-reminder-edge",
+      "problem_family_id": "language-specific-python-heap-reminder-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1868,
+      "source_key": "language_specific_catalog_202608:Python:heap-reminder-state",
+      "problem_family_id": "language-specific-python-heap-reminder-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1869,
+      "source_key": "language_specific_catalog_202608:Python:heap-reminder-adversarial",
+      "problem_family_id": "language-specific-python-heap-reminder-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1870,
+      "source_key": "language_specific_catalog_202608:Python:bisect-rank-edge",
+      "problem_family_id": "language-specific-python-bisect-rank-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1871,
+      "source_key": "language_specific_catalog_202608:Python:bisect-rank-state",
+      "problem_family_id": "language-specific-python-bisect-rank-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1872,
+      "source_key": "language_specific_catalog_202608:Python:bisect-rank-adversarial",
+      "problem_family_id": "language-specific-python-bisect-rank-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1873,
+      "source_key": "language_specific_catalog_202608:Python:recursive-island-edge",
+      "problem_family_id": "language-specific-python-recursive-island-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1874,
+      "source_key": "language_specific_catalog_202608:Python:recursive-island-state",
+      "problem_family_id": "language-specific-python-recursive-island-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1875,
+      "source_key": "language_specific_catalog_202608:Python:recursive-island-adversarial",
+      "problem_family_id": "language-specific-python-recursive-island-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1876,
+      "source_key": "language_specific_catalog_202608:Python:cached-stairs-edge",
+      "problem_family_id": "language-specific-python-cached-stairs-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1877,
+      "source_key": "language_specific_catalog_202608:Python:cached-stairs-state",
+      "problem_family_id": "language-specific-python-cached-stairs-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1878,
+      "source_key": "language_specific_catalog_202608:Python:cached-stairs-adversarial",
+      "problem_family_id": "language-specific-python-cached-stairs-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1879,
+      "source_key": "language_specific_catalog_202608:Python:config-merge-edge",
+      "problem_family_id": "language-specific-python-config-merge-edge",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1880,
+      "source_key": "language_specific_catalog_202608:Python:config-merge-state",
+      "problem_family_id": "language-specific-python-config-merge-state",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1881,
+      "source_key": "language_specific_catalog_202608:Python:config-merge-adversarial",
+      "problem_family_id": "language-specific-python-config-merge-adversarial",
+      "duplicate_languages": [],
+      "title_similarity": 0.0,
+      "statement_similarity": 0.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 0.0,
+      "language_specific_value": true,
+      "language_markers_found": [
+        "sys.stdin",
+        "list(map",
+        "dict.fromkeys",
+        "sorted(",
+        "bisect",
+        "math.",
+        "set(",
+        "for x in"
+      ],
+      "keep_or_replace": "keep",
+      "replacement_reason": "保留在六个共享基础题族名额内。"
+    }
+  ],
+  "pair_overlaps": [
+    {
+      "left": {
+        "language": "C",
+        "exercise_id": 1489,
+        "source_key": "first_party_original_v2|C|checksum-0"
+      },
+      "right": {
+        "language": "C++",
+        "exercise_id": 1549,
+        "source_key": "first_party_original_v2|C++|checksum-0"
+      },
+      "problem_family_id": "catalog240-checksum-0",
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "same_problem_family": true,
+      "shared_allowed": true
+    },
+    {
+      "left": {
+        "language": "C",
+        "exercise_id": 1504,
+        "source_key": "first_party_original_v2|C|unique-0"
+      },
+      "right": {
+        "language": "C++",
+        "exercise_id": 1564,
+        "source_key": "first_party_original_v2|C++|unique-0"
+      },
+      "problem_family_id": "catalog240-unique-0",
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "same_problem_family": true,
+      "shared_allowed": true
+    },
+    {
+      "left": {
+        "language": "C",
+        "exercise_id": 1507,
+        "source_key": "first_party_original_v2|C|words-0"
+      },
+      "right": {
+        "language": "C++",
+        "exercise_id": 1567,
+        "source_key": "first_party_original_v2|C++|words-0"
+      },
+      "problem_family_id": "catalog240-words-0",
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "same_problem_family": true,
+      "shared_allowed": true
+    },
+    {
+      "left": {
+        "language": "C",
+        "exercise_id": 1510,
+        "source_key": "first_party_original_v2|C|brackets-0"
+      },
+      "right": {
+        "language": "C++",
+        "exercise_id": 1570,
+        "source_key": "first_party_original_v2|C++|brackets-0"
+      },
+      "problem_family_id": "catalog240-brackets-0",
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "same_problem_family": true,
+      "shared_allowed": true
+    },
+    {
+      "left": {
+        "language": "C",
+        "exercise_id": 1534,
+        "source_key": "first_party_original_v2|C|coins-0"
+      },
+      "right": {
+        "language": "C++",
+        "exercise_id": 1594,
+        "source_key": "first_party_original_v2|C++|coins-0"
+      },
+      "problem_family_id": "catalog240-coins-0",
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "same_problem_family": true,
+      "shared_allowed": true
+    },
+    {
+      "left": {
+        "language": "C",
+        "exercise_id": 1537,
+        "source_key": "first_party_original_v2|C|bfs-0"
+      },
+      "right": {
+        "language": "C++",
+        "exercise_id": 1597,
+        "source_key": "first_party_original_v2|C++|bfs-0"
+      },
+      "problem_family_id": "catalog240-bfs-0",
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "same_problem_family": true,
+      "shared_allowed": true
+    },
+    {
+      "left": {
+        "language": "C",
+        "exercise_id": 1489,
+        "source_key": "first_party_original_v2|C|checksum-0"
+      },
+      "right": {
+        "language": "Python",
+        "exercise_id": 1609,
+        "source_key": "first_party_original_v2|Python|checksum-0"
+      },
+      "problem_family_id": "catalog240-checksum-0",
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "same_problem_family": true,
+      "shared_allowed": true
+    },
+    {
+      "left": {
+        "language": "C",
+        "exercise_id": 1504,
+        "source_key": "first_party_original_v2|C|unique-0"
+      },
+      "right": {
+        "language": "Python",
+        "exercise_id": 1624,
+        "source_key": "first_party_original_v2|Python|unique-0"
+      },
+      "problem_family_id": "catalog240-unique-0",
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "same_problem_family": true,
+      "shared_allowed": true
+    },
+    {
+      "left": {
+        "language": "C",
+        "exercise_id": 1507,
+        "source_key": "first_party_original_v2|C|words-0"
+      },
+      "right": {
+        "language": "Python",
+        "exercise_id": 1627,
+        "source_key": "first_party_original_v2|Python|words-0"
+      },
+      "problem_family_id": "catalog240-words-0",
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "same_problem_family": true,
+      "shared_allowed": true
+    },
+    {
+      "left": {
+        "language": "C",
+        "exercise_id": 1510,
+        "source_key": "first_party_original_v2|C|brackets-0"
+      },
+      "right": {
+        "language": "Python",
+        "exercise_id": 1630,
+        "source_key": "first_party_original_v2|Python|brackets-0"
+      },
+      "problem_family_id": "catalog240-brackets-0",
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "same_problem_family": true,
+      "shared_allowed": true
+    },
+    {
+      "left": {
+        "language": "C",
+        "exercise_id": 1534,
+        "source_key": "first_party_original_v2|C|coins-0"
+      },
+      "right": {
+        "language": "Python",
+        "exercise_id": 1654,
+        "source_key": "first_party_original_v2|Python|coins-0"
+      },
+      "problem_family_id": "catalog240-coins-0",
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "same_problem_family": true,
+      "shared_allowed": true
+    },
+    {
+      "left": {
+        "language": "C",
+        "exercise_id": 1537,
+        "source_key": "first_party_original_v2|C|bfs-0"
+      },
+      "right": {
+        "language": "Python",
+        "exercise_id": 1657,
+        "source_key": "first_party_original_v2|Python|bfs-0"
+      },
+      "problem_family_id": "catalog240-bfs-0",
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "same_problem_family": true,
+      "shared_allowed": true
+    },
+    {
+      "left": {
+        "language": "C",
+        "exercise_id": 1504,
+        "source_key": "first_party_original_v2|C|unique-0"
+      },
+      "right": {
+        "language": "Java",
+        "exercise_id": 1684,
+        "source_key": "first_party_original_v2|Java|unique-0"
+      },
+      "problem_family_id": "catalog240-unique-0",
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "same_problem_family": true,
+      "shared_allowed": true
+    },
+    {
+      "left": {
+        "language": "C",
+        "exercise_id": 1507,
+        "source_key": "first_party_original_v2|C|words-0"
+      },
+      "right": {
+        "language": "Java",
+        "exercise_id": 1687,
+        "source_key": "first_party_original_v2|Java|words-0"
+      },
+      "problem_family_id": "catalog240-words-0",
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "same_problem_family": true,
+      "shared_allowed": true
+    },
+    {
+      "left": {
+        "language": "C",
+        "exercise_id": 1510,
+        "source_key": "first_party_original_v2|C|brackets-0"
+      },
+      "right": {
+        "language": "Java",
+        "exercise_id": 1690,
+        "source_key": "first_party_original_v2|Java|brackets-0"
+      },
+      "problem_family_id": "catalog240-brackets-0",
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "same_problem_family": true,
+      "shared_allowed": true
+    },
+    {
+      "left": {
+        "language": "C",
+        "exercise_id": 1534,
+        "source_key": "first_party_original_v2|C|coins-0"
+      },
+      "right": {
+        "language": "Java",
+        "exercise_id": 1714,
+        "source_key": "first_party_original_v2|Java|coins-0"
+      },
+      "problem_family_id": "catalog240-coins-0",
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "same_problem_family": true,
+      "shared_allowed": true
+    },
+    {
+      "left": {
+        "language": "C",
+        "exercise_id": 1537,
+        "source_key": "first_party_original_v2|C|bfs-0"
+      },
+      "right": {
+        "language": "Java",
+        "exercise_id": 1717,
+        "source_key": "first_party_original_v2|Java|bfs-0"
+      },
+      "problem_family_id": "catalog240-bfs-0",
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "same_problem_family": true,
+      "shared_allowed": true
+    },
+    {
+      "left": {
+        "language": "C++",
+        "exercise_id": 1549,
+        "source_key": "first_party_original_v2|C++|checksum-0"
+      },
+      "right": {
+        "language": "Python",
+        "exercise_id": 1609,
+        "source_key": "first_party_original_v2|Python|checksum-0"
+      },
+      "problem_family_id": "catalog240-checksum-0",
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "same_problem_family": true,
+      "shared_allowed": true
+    },
+    {
+      "left": {
+        "language": "C++",
+        "exercise_id": 1564,
+        "source_key": "first_party_original_v2|C++|unique-0"
+      },
+      "right": {
+        "language": "Python",
+        "exercise_id": 1624,
+        "source_key": "first_party_original_v2|Python|unique-0"
+      },
+      "problem_family_id": "catalog240-unique-0",
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "same_problem_family": true,
+      "shared_allowed": true
+    },
+    {
+      "left": {
+        "language": "C++",
+        "exercise_id": 1567,
+        "source_key": "first_party_original_v2|C++|words-0"
+      },
+      "right": {
+        "language": "Python",
+        "exercise_id": 1627,
+        "source_key": "first_party_original_v2|Python|words-0"
+      },
+      "problem_family_id": "catalog240-words-0",
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "same_problem_family": true,
+      "shared_allowed": true
+    },
+    {
+      "left": {
+        "language": "C++",
+        "exercise_id": 1570,
+        "source_key": "first_party_original_v2|C++|brackets-0"
+      },
+      "right": {
+        "language": "Python",
+        "exercise_id": 1630,
+        "source_key": "first_party_original_v2|Python|brackets-0"
+      },
+      "problem_family_id": "catalog240-brackets-0",
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "same_problem_family": true,
+      "shared_allowed": true
+    },
+    {
+      "left": {
+        "language": "C++",
+        "exercise_id": 1594,
+        "source_key": "first_party_original_v2|C++|coins-0"
+      },
+      "right": {
+        "language": "Python",
+        "exercise_id": 1654,
+        "source_key": "first_party_original_v2|Python|coins-0"
+      },
+      "problem_family_id": "catalog240-coins-0",
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "same_problem_family": true,
+      "shared_allowed": true
+    },
+    {
+      "left": {
+        "language": "C++",
+        "exercise_id": 1597,
+        "source_key": "first_party_original_v2|C++|bfs-0"
+      },
+      "right": {
+        "language": "Python",
+        "exercise_id": 1657,
+        "source_key": "first_party_original_v2|Python|bfs-0"
+      },
+      "problem_family_id": "catalog240-bfs-0",
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "same_problem_family": true,
+      "shared_allowed": true
+    },
+    {
+      "left": {
+        "language": "C++",
+        "exercise_id": 1564,
+        "source_key": "first_party_original_v2|C++|unique-0"
+      },
+      "right": {
+        "language": "Java",
+        "exercise_id": 1684,
+        "source_key": "first_party_original_v2|Java|unique-0"
+      },
+      "problem_family_id": "catalog240-unique-0",
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "same_problem_family": true,
+      "shared_allowed": true
+    },
+    {
+      "left": {
+        "language": "C++",
+        "exercise_id": 1567,
+        "source_key": "first_party_original_v2|C++|words-0"
+      },
+      "right": {
+        "language": "Java",
+        "exercise_id": 1687,
+        "source_key": "first_party_original_v2|Java|words-0"
+      },
+      "problem_family_id": "catalog240-words-0",
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "same_problem_family": true,
+      "shared_allowed": true
+    },
+    {
+      "left": {
+        "language": "C++",
+        "exercise_id": 1570,
+        "source_key": "first_party_original_v2|C++|brackets-0"
+      },
+      "right": {
+        "language": "Java",
+        "exercise_id": 1690,
+        "source_key": "first_party_original_v2|Java|brackets-0"
+      },
+      "problem_family_id": "catalog240-brackets-0",
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "same_problem_family": true,
+      "shared_allowed": true
+    },
+    {
+      "left": {
+        "language": "C++",
+        "exercise_id": 1594,
+        "source_key": "first_party_original_v2|C++|coins-0"
+      },
+      "right": {
+        "language": "Java",
+        "exercise_id": 1714,
+        "source_key": "first_party_original_v2|Java|coins-0"
+      },
+      "problem_family_id": "catalog240-coins-0",
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "same_problem_family": true,
+      "shared_allowed": true
+    },
+    {
+      "left": {
+        "language": "C++",
+        "exercise_id": 1597,
+        "source_key": "first_party_original_v2|C++|bfs-0"
+      },
+      "right": {
+        "language": "Java",
+        "exercise_id": 1717,
+        "source_key": "first_party_original_v2|Java|bfs-0"
+      },
+      "problem_family_id": "catalog240-bfs-0",
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0,
+      "test_similarity": 1.0,
+      "same_problem_family": true,
+      "shared_allowed": true
+    },
+    {
+      "left": {
+        "language": "Python",
+        "exercise_id": 1624,
+        "source_key": "first_party_original_v2|Python|unique-0"
+      },
+      "right": {
+        "language": "Java",
+        "exercise_id": 1684,
+        "source_key": "first_party_original_v2|Java|unique-0"
+      },
+      "problem_family_id": "catalog240-unique-0",
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.4111,
+      "test_similarity": 1.0,
+      "same_problem_family": true,
+      "shared_allowed": true
+    },
+    {
+      "left": {
+        "language": "Python",
+        "exercise_id": 1627,
+        "source_key": "first_party_original_v2|Python|words-0"
+      },
+      "right": {
+        "language": "Java",
+        "exercise_id": 1687,
+        "source_key": "first_party_original_v2|Java|words-0"
+      },
+      "problem_family_id": "catalog240-words-0",
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.1235,
+      "test_similarity": 1.0,
+      "same_problem_family": true,
+      "shared_allowed": true
+    },
+    {
+      "left": {
+        "language": "Python",
+        "exercise_id": 1630,
+        "source_key": "first_party_original_v2|Python|brackets-0"
+      },
+      "right": {
+        "language": "Java",
+        "exercise_id": 1690,
+        "source_key": "first_party_original_v2|Java|brackets-0"
+      },
+      "problem_family_id": "catalog240-brackets-0",
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0805,
+      "test_similarity": 1.0,
+      "same_problem_family": true,
+      "shared_allowed": true
+    },
+    {
+      "left": {
+        "language": "Python",
+        "exercise_id": 1654,
+        "source_key": "first_party_original_v2|Python|coins-0"
+      },
+      "right": {
+        "language": "Java",
+        "exercise_id": 1714,
+        "source_key": "first_party_original_v2|Java|coins-0"
+      },
+      "problem_family_id": "catalog240-coins-0",
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0494,
+      "test_similarity": 1.0,
+      "same_problem_family": true,
+      "shared_allowed": true
+    },
+    {
+      "left": {
+        "language": "Python",
+        "exercise_id": 1657,
+        "source_key": "first_party_original_v2|Python|bfs-0"
+      },
+      "right": {
+        "language": "Java",
+        "exercise_id": 1717,
+        "source_key": "first_party_original_v2|Java|bfs-0"
+      },
+      "problem_family_id": "catalog240-bfs-0",
+      "title_similarity": 1.0,
+      "statement_similarity": 1.0,
+      "solution_similarity": 0.0391,
+      "test_similarity": 1.0,
+      "same_problem_family": true,
+      "shared_allowed": true
+    }
+  ]
+}

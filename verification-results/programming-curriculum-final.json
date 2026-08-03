@@ -1,0 +1,208 @@
+{
+  "generated_at": "2026-08-03T13:08:12.245138+00:00",
+  "objective_total": 32,
+  "covered_total": 32,
+  "all_covered": true,
+  "languages": {
+    "C": [
+      {
+        "objective_id": "c-io-types",
+        "objective": "标准输入输出与类型",
+        "count": 8,
+        "covered": true
+      },
+      {
+        "objective_id": "c-control-flow",
+        "objective": "条件与循环",
+        "count": 8,
+        "covered": true
+      },
+      {
+        "objective_id": "c-arrays-strings",
+        "objective": "数组与字符数组",
+        "count": 7,
+        "covered": true
+      },
+      {
+        "objective_id": "c-functions-pointers",
+        "objective": "函数与指针",
+        "count": 8,
+        "covered": true
+      },
+      {
+        "objective_id": "c-structs-files",
+        "objective": "结构体与记录",
+        "count": 8,
+        "covered": true
+      },
+      {
+        "objective_id": "c-data-structures",
+        "objective": "基础数据结构",
+        "count": 7,
+        "covered": true
+      },
+      {
+        "objective_id": "c-algorithms",
+        "objective": "搜索与排序",
+        "count": 7,
+        "covered": true
+      },
+      {
+        "objective_id": "c-graphs-dp",
+        "objective": "图与动态规划",
+        "count": 7,
+        "covered": true
+      }
+    ],
+    "C++": [
+      {
+        "objective_id": "cpp-io-stl",
+        "objective": "输入输出与 STL",
+        "count": 8,
+        "covered": true
+      },
+      {
+        "objective_id": "cpp-control",
+        "objective": "控制流与函数",
+        "count": 8,
+        "covered": true
+      },
+      {
+        "objective_id": "cpp-sequence",
+        "objective": "序列与迭代器",
+        "count": 7,
+        "covered": true
+      },
+      {
+        "objective_id": "cpp-ordered",
+        "objective": "有序容器",
+        "count": 8,
+        "covered": true
+      },
+      {
+        "objective_id": "cpp-stack-queue",
+        "objective": "栈队列与优先级",
+        "count": 8,
+        "covered": true
+      },
+      {
+        "objective_id": "cpp-search",
+        "objective": "搜索与窗口",
+        "count": 7,
+        "covered": true
+      },
+      {
+        "objective_id": "cpp-graphs",
+        "objective": "图与连通性",
+        "count": 7,
+        "covered": true
+      },
+      {
+        "objective_id": "cpp-dp",
+        "objective": "动态规划",
+        "count": 7,
+        "covered": true
+      }
+    ],
+    "Python": [
+      {
+        "objective_id": "python-io-types",
+        "objective": "输入解析与类型",
+        "count": 8,
+        "covered": true
+      },
+      {
+        "objective_id": "python-control",
+        "objective": "控制流与函数",
+        "count": 7,
+        "covered": true
+      },
+      {
+        "objective_id": "python-sequences",
+        "objective": "序列与切片",
+        "count": 8,
+        "covered": true
+      },
+      {
+        "objective_id": "python-mapping",
+        "objective": "字典与集合",
+        "count": 8,
+        "covered": true
+      },
+      {
+        "objective_id": "python-stack-queue",
+        "objective": "栈队列与堆",
+        "count": 8,
+        "covered": true
+      },
+      {
+        "objective_id": "python-search",
+        "objective": "搜索与排序",
+        "count": 7,
+        "covered": true
+      },
+      {
+        "objective_id": "python-graphs",
+        "objective": "图与遍历",
+        "count": 7,
+        "covered": true
+      },
+      {
+        "objective_id": "python-dp",
+        "objective": "动态规划",
+        "count": 7,
+        "covered": true
+      }
+    ],
+    "Java": [
+      {
+        "objective_id": "java-io-types",
+        "objective": "输入输出与类型",
+        "count": 8,
+        "covered": true
+      },
+      {
+        "objective_id": "java-control",
+        "objective": "控制流与方法",
+        "count": 7,
+        "covered": true
+      },
+      {
+        "objective_id": "java-arrays-strings",
+        "objective": "数组与字符串",
+        "count": 8,
+        "covered": true
+      },
+      {
+        "objective_id": "java-collections",
+        "objective": "集合与泛型",
+        "count": 8,
+        "covered": true
+      },
+      {
+        "objective_id": "java-stack-queue",
+        "objective": "栈队列与比较器",
+        "count": 8,
+        "covered": true
+      },
+      {
+        "objective_id": "java-search",
+        "objective": "搜索与排序",
+        "count": 7,
+        "covered": true
+      },
+      {
+        "objective_id": "java-graphs",
+        "objective": "图与遍历",
+        "count": 7,
+        "covered": true
+      },
+      {
+        "objective_id": "java-dp",
+        "objective": "动态规划",
+        "count": 7,
+        "covered": true
+      }
+    ]
+  }
+}
