@@ -61,7 +61,10 @@ def seed(dry_run: bool = False) -> dict:
             ~ProgrammingExercise.source_key.in_(keys),
         ).update({"is_active": False}, synchronize_session=False)
         db.commit()
-        active = db.query(ProgrammingExercise).filter(ProgrammingExercise.is_active.is_(True), ProgrammingExercise.quality_status == "approved", ProgrammingExercise.source_key.like("first_party_original_v2|%" )).all()
+        active = db.query(ProgrammingExercise).filter(
+            ProgrammingExercise.is_active.is_(True),
+            ProgrammingExercise.quality_status == "approved",
+        ).all()
         counts = {language: sum(row.language == language for row in active) for language in LANGUAGES}
         if counts != EXPECTED or len(active) != 240: raise RuntimeError(f"post-seed counts invalid: {counts}")
         result = {"dry_run": False, "inserted": inserted, "updated": updated, "deactivated": deactivated, "written": inserted + updated + deactivated, "active_approved_total": len(active), "counts": counts}

@@ -25,7 +25,6 @@ def main() -> None:
         rows = db.query(ProgrammingExercise).filter(
             ProgrammingExercise.is_active.is_(True),
             ProgrammingExercise.quality_status == "approved",
-            ProgrammingExercise.source_key.like("first_party_original_v2|%"),
         ).order_by(ProgrammingExercise.language, ProgrammingExercise.id).all()
         counts = {language: sum(row.language == language for row in rows) for language in LANGUAGES}
         if counts != EXPECTED or len(rows) != 240:
