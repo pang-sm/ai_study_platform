@@ -9965,7 +9965,10 @@ def test_programming_exercise(exercise_id: int, req: schemas.ProgrammingExercise
     project = get_code_project_or_404(req.project_id, user.username, db)
     if not exercise or not exercise.is_active or exercise.quality_status != "approved" or project.programming_exercise_id != exercise.id:
         raise HTTPException(status_code=404, detail="题目项目不存在")
-    public_samples = _public_exercise_samples(exercise)
+    # Standard I/O exercises store their canonical samples in the OJ bundle.
+    # Keep the same fallback used by the detail serializer so the Workbench
+    # can submit the visible sample ids instead of returning a misleading 400.
+    public_samples = _public_exercise_samples(exercise) or _standard_oj_cases(exercise, hidden=False)
     selected_ids = {str(value) for value in (req.public_case_ids or []) if str(value).strip()}
     if not selected_ids:
         raise HTTPException(status_code=400, detail="至少选择一个公开测试样例")
