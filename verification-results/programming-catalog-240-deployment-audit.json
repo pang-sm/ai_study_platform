@@ -2,6 +2,8 @@
   "commit": "359cba99957e97261844f57d541672af42fdb370",
   "actions_run": 30817287283,
   "actions_conclusion": "success",
+  "report_sync_actions_run": 30818488019,
+  "report_sync_actions_conclusion": "success",
   "deployment": {
     "prepare_ssh": "passed",
     "git_update": "passed",
@@ -19,8 +21,8 @@
     "quick_check": "ok",
     "integrity_check": "ok",
     "backup": {
-      "path": "/home/ubuntu/ai_study_platform/backend/backups/app.db.before-catalog-reform.20260803_211909.db",
-      "size_bytes": 498835456
+      "path": "/home/ubuntu/ai_study_platform/backend/backups/app.db.before-catalog-reform.20260803_213440.db",
+      "size_bytes": 502300672
     },
     "disk": {
       "available": "21G",

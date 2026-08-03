@@ -4,13 +4,14 @@
 
 - Commit：`359cba99957e97261844f57d541672af42fdb370`
 - Actions：`30817287283`，结论 `success`
+- 报告同步 Actions：`30818488019`，结论 `success`
 - SSH、Git 更新、数据库备份、schema 初始化、240 题幂等 seed、后端重启、前端发布和 health check 均通过。
 
 ## 线上真实数据库
 
 - 数据库：`/var/lib/ai_study_platform/app.db`
 - `quick_check=ok`，`integrity_check=ok`
-- 备份：`/home/ubuntu/ai_study_platform/backend/backups/app.db.before-catalog-reform.20260803_211909.db`，`498835456` bytes
+- 最新备份：`/home/ubuntu/ai_study_platform/backend/backups/app.db.before-catalog-reform.20260803_213440.db`，`502300672` bytes
 - 磁盘：可用约 21GB，使用率 47%，inode 使用率 8%
 - approved：C 60、C++ 60、Python 60、Java 60，共 240
 - source_key 重复 0，active rejected 0，中文标题/题干缺失 0
