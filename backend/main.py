@@ -8820,7 +8820,7 @@ def _public_exercise_samples(exercise: models.ProgrammingExercise, include_backe
                 "input_display": sample.get("input_display"),
                 "raw_arguments": sample.get("raw_arguments", sample.get("arguments")),
             })
-            is_standard_oj = _exercise_manifest(exercise).get("runner") == "standard_io"
+            is_standard_oj = _is_standard_oj_exercise(exercise)
             if (is_standard_oj and safe.get("stdin_text") is not None and safe.get("expected_stdout") is not None) or (safe.get("test_path") and safe.get("selector") and safe.get("expected") is not None):
                 safe["name"] = _localized_exercise_sample_name(safe.get("name"), len(samples))
                 if include_backend_fields:
@@ -8872,6 +8872,23 @@ def _exercise_manifest(exercise: models.ProgrammingExercise) -> dict:
         "test_framework": "junit5" if normalize_project_language(exercise.language) == "Java" else None,
         "build_type": "gradle" if normalize_project_language(exercise.language) == "Java" else None,
     }
+
+
+def _is_standard_oj_exercise(exercise: models.ProgrammingExercise) -> bool:
+    """Recognize canonical stdin/stdout exercises even when runner metadata is incomplete."""
+    if _exercise_manifest(exercise).get("runner") == "standard_io":
+        return True
+    for group in _exercise_json(exercise.public_tests_json, []):
+        for sample in group.get("samples", []) if isinstance(group, dict) else []:
+            if (
+                isinstance(sample, dict)
+                and sample.get("stdin_text") is not None
+                and sample.get("expected_stdout") is not None
+                and not sample.get("test_path")
+                and not sample.get("selector")
+            ):
+                return True
+    return False
 
 
 PROGRAMMING_KNOWLEDGE_ALIASES = {
@@ -9555,7 +9572,7 @@ def _parse_exercise_test_counts(language: str, output: str, total: int, exit_cod
 
 def _run_official_exercise_tests(project: models.CodeProject, exercise: models.ProgrammingExercise, files: list[models.CodeProjectFile], submission: bool) -> dict:
     language = normalize_project_language(exercise.language)
-    if _exercise_manifest(exercise).get("runner") == "standard_io":
+    if _is_standard_oj_exercise(exercise):
         cases = _standard_oj_cases(exercise, hidden=False)
         if submission:
             cases.extend(_standard_oj_cases(exercise, hidden=True))
@@ -9941,7 +9958,7 @@ def run_programming_exercise_sample(exercise_id: int, req: schemas.ProgrammingEx
     project = get_code_project_or_404(req.project_id, user.username, db)
     if not exercise or not exercise.is_active or exercise.quality_status != "approved" or project.programming_exercise_id != exercise.id:
         raise HTTPException(status_code=404, detail="题目项目不存在")
-    samples = _public_exercise_samples(exercise)
+    samples = _public_exercise_samples(exercise) or _standard_oj_cases(exercise, hidden=False)
     if req.sample_index < 0 or req.sample_index >= len(samples):
         raise HTTPException(status_code=400, detail="公开测试样例不存在")
     result = _run_public_sample(project, exercise, list_project_files(project.id, db), samples[req.sample_index])
@@ -10044,7 +10061,7 @@ def submit_programming_exercise(exercise_id: int, req: schemas.ProgrammingExerci
         raise HTTPException(status_code=404, detail="题目项目不存在")
     project_files = list_project_files(project.id, db)
     result = _run_official_exercise_tests(project, exercise, project_files, submission=True)
-    public_samples = _public_exercise_samples(exercise)
+    public_samples = _public_exercise_samples(exercise) or _standard_oj_cases(exercise, hidden=False)
     if result.get("compile_error") or "compile" in result.get("failed_categories", []):
         result["cases"] = [
             {
