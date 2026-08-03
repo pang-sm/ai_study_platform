@@ -1680,6 +1680,12 @@ export default function ProgrammingWorkbench({
       const message = JSON.parse(event.data || "{}");
       if (message.type === "stdout" || message.type === "stderr" || message.type === "terminal") terminal?.write(message.data || "");
       if (message.type === "status") { setTerminalRunStatus(message.message || "运行中"); setStatus(message.message); terminal?.focus(); }
+      if (message.type === "exit" && Number(message.exit_code ?? -1) !== 0 && (message.error_message || message.stderr)) {
+        const exitError = message.error_message || message.stderr;
+        terminal?.writeln(`\r\n${exitError}`);
+        setRunDetailsOpen(true);
+        window.setTimeout(() => setStatus(exitError), 0);
+      }
       if (message.type === "compile_error" || message.type === "error") {
         const logLabel = message.error_id ? `（日志 ${message.error_id}）` : "";
         terminal?.writeln(`\r\n${message.message || "执行失败"}${logLabel}`);

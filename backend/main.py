@@ -28389,7 +28389,12 @@ async def programming_exercise_interactive(exercise_id: int, ws: WebSocket, init
                     return
                 runtime_command = [java_path, "-cp", classes_dir, main_class]
         if use_docker:
-            launch_command = ["docker", "run", "--rm", "-i", "-t", "--network", "none", "--memory", memory,
+            # The backend is managed by systemd and does not have a real
+            # terminal.  Passing Docker's ``-t`` flag makes the CLI reject
+            # the launch with exit code 1 ("the input device is not a TTY")
+            # even though the host-side PTY is valid.  ``-i`` is sufficient
+            # here: the host PTY still streams stdin/stdout to the browser.
+            launch_command = ["docker", "run", "--rm", "-i", "--network", "none", "--memory", memory,
                               "--cpus", str(DOCKER_CPU_LIMIT), "--pids-limit", str(DOCKER_PIDS_LIMIT), "--read-only", "--tmpfs", "/tmp:rw,exec,nosuid,size=128m",
                               "-v", f"{tmp_dir}:/code:ro", runtime_image, *runtime_command]
         else:
@@ -28445,8 +28450,18 @@ async def programming_exercise_interactive(exercise_id: int, ws: WebSocket, init
                 proc.kill(); break
         proc.wait(timeout=3)
         reader_thread.join(timeout=1)
-        await ws.send_text(json.dumps({"type": "exit", "exit_code": proc.returncode, "run_session_id": run_session_id,
-                                       "stdout": "".join(collected)[-8000:]}, ensure_ascii=False))
+        terminal_output = "".join(collected)[-8000:]
+        exit_payload = {
+            "type": "exit",
+            "exit_code": proc.returncode,
+            "run_session_id": run_session_id,
+            "stdout": terminal_output,
+            "stderr": terminal_output if proc.returncode else "",
+        }
+        if proc.returncode and "input device is not a TTY" in terminal_output:
+            exit_payload["failure_type"] = "runtime_error"
+            exit_payload["error_message"] = "运行终端初始化失败，请重新运行。"
+        await ws.send_text(json.dumps(exit_payload, ensure_ascii=False))
     except Exception as exc:
         try: await ws.send_text(json.dumps({"type": "error", "message": str(exc)[:500]}, ensure_ascii=False))
         except Exception: pass
