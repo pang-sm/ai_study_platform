@@ -1,0 +1,188 @@
+{
+  "audit": "run-test-submit",
+  "status": "incomplete_browser_tool_timeout",
+  "target": 40,
+  "browser_buttons_used": true,
+  "confirmed_submit_8_of_8": 13,
+  "confirmed_public_3_of_3": 10,
+  "run_not_captured": [
+    1678
+  ],
+  "content_or_protocol_mismatch": [
+    1692
+  ],
+  "root_cause_fixes": [
+    "76eaa51",
+    "c95c98a",
+    "c00e370"
+  ],
+  "actions": [
+    "30827615494",
+    "30828416329",
+    "30829122361"
+  ],
+  "remaining": [
+    "C++:1734,1756,1758,1762,1767",
+    "Python:1629,1819,1822,1833,1845,1846,1847,1849,1865,1866",
+    "Java:1546,1549,1551,1552,1554,1556,1569,1775,1795,1809"
+  ],
+  "last_updated": "2026-08-05",
+  "not_verified_policy": "???????????? not_verified??? API/??????????",
+  "new_confirmed_web_records": [
+    {
+      "language": "C++",
+      "exercise_id": 1817,
+      "run": "passed",
+      "public": "3/3",
+      "submit": "8/8",
+      "status": "partial_content_protocol_mismatch"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1822,
+      "run": "passed",
+      "public": "3/3",
+      "submit": "8/8",
+      "status": "partial_content_protocol_mismatch"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1609,
+      "run": "passed",
+      "public": "3/3",
+      "submit": "8/8",
+      "status": "passed"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1624,
+      "run": "passed",
+      "public": "3/3",
+      "submit": "8/8",
+      "status": "passed"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1627,
+      "run": "passed",
+      "public": "3/3",
+      "submit": "8/8",
+      "status": "passed"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1630,
+      "run": "not_stable",
+      "public": "3/3",
+      "submit": "8/8",
+      "status": "partial"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1654,
+      "run": "not_stable",
+      "public": "3/3",
+      "submit": "8/8",
+      "status": "partial"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1660,
+      "run": "failed_exit_-9",
+      "public": "1/3",
+      "submit": "4/8",
+      "status": "failed",
+      "failure_reason": "multifile run exit -9; valid public booking cases returned REJECTED; starter Movie.java had no TODO"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1661,
+      "run": "failed_or_unstable",
+      "public": "0/3",
+      "submit": "2/8",
+      "status": "failed",
+      "failure_reason": "all public cases returned REJECTED; terminal showed running and failed without reliable stdout"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1662,
+      "run": "failed_or_unstable",
+      "public": "0/3",
+      "submit": "0/8",
+      "status": "failed",
+      "failure_reason": "all cases returned PARKED null 0; terminal disconnected/failed"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1663,
+      "run": "failed_exit_-9",
+      "public": "0/3",
+      "submit": "0/8",
+      "status": "failed",
+      "failure_reason": "terminal exit_code -9; public and full tests returned empty actual output"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1664,
+      "run": "not_verified",
+      "public": null,
+      "submit": null,
+      "status": "failed",
+      "failure_reason": "statement, public samples, Test button, and Submit button were absent from Workbench; only Run was visible"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1546,
+      "run": "not_captured",
+      "public": "not_executed",
+      "submit": "not_executed",
+      "status": "failed",
+      "failure_reason": "five Java files, 3 public samples, explanations, TODOs and hidden/reference isolation visible. Top Test action timed out twice; after retries Test and Submit disappeared from DOM. URL http://101.32.190.42/. Statsig telemetry timed out; no site 4xx/5xx observed. Run stdout/exit, public tests and submit were not verified."
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1549,
+      "run": "not_captured",
+      "public": "not_executed",
+      "submit": "not_executed",
+      "status": "failed",
+      "failure_reason": "five Java files, 3 public samples, explanations, TODOs and hidden/reference isolation visible. Test action attempted twice but browser action timed out and the kernel reset before result read. URL http://101.32.190.42/. Statsig telemetry timed out; no site 4xx/5xx observed. Run stdout/exit, public tests and submit were not verified."
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1551,
+      "run": "not_verified",
+      "public": null,
+      "submit": null,
+      "status": "failed",
+      "failure_reason": "only Run was visible; statement, public samples, Test, and Submit controls were absent"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1552,
+      "run": "not_verified",
+      "public": null,
+      "submit": null,
+      "status": "failed",
+      "failure_reason": "only Run was visible; statement, public samples, Test, and Submit controls were absent"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1554,
+      "run": "not_verified",
+      "public": null,
+      "submit": null,
+      "status": "failed",
+      "failure_reason": "only Run was visible; statement, public samples, Test, and Submit controls were absent"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1556,
+      "run": "failed_exit_-9",
+      "public": null,
+      "submit": null,
+      "status": "failed",
+      "failure_reason": "five editable Java files and three public samples were visible; Run ended with terminal exit_code -9 and disconnect. The correct top Test action timed out on two attempts; Submit and public-test results were not verified. Screenshot: verification-screenshots/programming-workbench-random-40/java-1556-run-test-timeout.png"
+    }
+  ]
+}

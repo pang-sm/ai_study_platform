@@ -1,0 +1,353 @@
+{
+  "audit": "programming-workbench-random-40",
+  "base_url": "http://101.32.190.42/",
+  "sample_manifest": "verification-results/programming-workbench-random-40-sample.json",
+  "target_total": 40,
+  "browser_surface": "Codex In-app Browser",
+  "status": "incomplete_browser_tool_timeout",
+  "confirmed_exercises": 13,
+  "code_synced_but_result_unread": 1,
+  "not_completed": 26,
+  "statsig_note": "Statsig/ab.chatgpt.com requests timed out repeatedly; these are browser-tool telemetry failures, not site business responses.",
+  "deployed_fixes": [
+    {
+      "commit": "76eaa51",
+      "description": "public test endpoint falls back to standard OJ cases"
+    },
+    {
+      "commit": "c95c98a",
+      "description": "canonical stdin/stdout exercises use the standard runner"
+    },
+    {
+      "commit": "c00e370",
+      "description": "samples with stdin_text/expected_stdout route directly to the standard OJ runner"
+    }
+  ],
+  "actions": [
+    "30827615494:success",
+    "30828416329:success",
+    "30829122361:success"
+  ],
+  "root_causes": [
+    "Visible standard-I/O samples were present in exercise details, but /test did not select them when the manifest omitted runner=standard_io.",
+    "The adapter path was selected for canonical samples without test_path/selector and returned 400: 文件路径不能为空."
+  ],
+  "results": [
+    {
+      "language": "C",
+      "exercise_id": 1479,
+      "run": "passed",
+      "public": "3/3",
+      "submit": "8/8",
+      "status": "passed"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1668,
+      "run": "passed",
+      "public": "3/3",
+      "submit": "8/8",
+      "status": "passed"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1674,
+      "run": "passed",
+      "public": "3/3",
+      "submit": "8/8",
+      "status": "passed"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1678,
+      "run": "not_captured",
+      "public": "3/3",
+      "submit": "8/8",
+      "status": "passed_public_submit_run_uncaptured"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1681,
+      "run": "passed",
+      "public": "3/3",
+      "submit": "8/8",
+      "status": "passed"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1692,
+      "run": "passed_after_protocol_consistent_code",
+      "public": "3/3",
+      "submit": "8/8",
+      "status": "content_protocol_mismatch_not_fixed"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1699,
+      "run": "passed",
+      "public": "3/3",
+      "submit": "8/8",
+      "status": "passed"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1707,
+      "run": "passed",
+      "public": "3/3",
+      "submit": "8/8",
+      "status": "passed"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1710,
+      "run": "executed",
+      "public": "executed",
+      "submit": "8/8",
+      "status": "submit_confirmed_public_count_not_captured"
+    },
+    {
+      "language": "C",
+      "exercise_id": 1714,
+      "run": "executed",
+      "public": "executed",
+      "submit": "8/8",
+      "status": "submit_confirmed_public_count_not_captured"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1539,
+      "run": "executed",
+      "public": "executed",
+      "submit": "8/8",
+      "status": "submit_confirmed"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1724,
+      "run": "passed",
+      "public": "3/3",
+      "submit": "8/8",
+      "status": "passed"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1730,
+      "run": "passed",
+      "public": "3/3",
+      "submit": "8/8",
+      "status": "passed"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1734,
+      "run": null,
+      "public": null,
+      "submit": null,
+      "status": "code_synced_only"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1817,
+      "source_key": "language_specific_catalog_202608:C++:stack-parser-state",
+      "title": "????????????",
+      "run": "passed",
+      "public": "3/3",
+      "submit": "8/8",
+      "status": "partial",
+      "failure_reason": "content_protocol_mismatch:????/???????????????????????"
+    },
+    {
+      "language": "C++",
+      "exercise_id": 1822,
+      "source_key": "language_specific_catalog_202608:C++:graph-bfs-edge",
+      "title": "???????????",
+      "run": "passed",
+      "public": "3/3",
+      "submit": "8/8",
+      "status": "partial",
+      "failure_reason": "content_protocol_mismatch:????/?????????????????????????"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1609,
+      "source_key": "first_party_original_v2|Python|checksum-0",
+      "title": "???????",
+      "run": "passed",
+      "public": "3/3",
+      "submit": "8/8",
+      "status": "passed"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1624,
+      "source_key": "first_party_original_v2|Python|unique-0",
+      "title": "??????",
+      "run": "passed",
+      "public": "3/3",
+      "submit": "8/8",
+      "status": "passed"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1627,
+      "source_key": "first_party_original_v2|Python|words-0",
+      "title": "???????",
+      "run": "passed",
+      "public": "3/3",
+      "submit": "8/8",
+      "status": "passed"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1630,
+      "source_key": "first_party_original_v2|Python|brackets-0",
+      "title": "?????????",
+      "run": "failed",
+      "public": "3/3",
+      "submit": "8/8",
+      "status": "partial",
+      "failure_reason": "run_terminal_session_timeout_or_reset; public test and submit actually passed"
+    },
+    {
+      "language": "Python",
+      "exercise_id": 1654,
+      "source_key": "first_party_original_v2|Python|coins-0",
+      "title": "?????????",
+      "run": "failed",
+      "public": "3/3",
+      "submit": "8/8",
+      "status": "partial",
+      "failure_reason": "run_terminal_session_timeout_or_reset; public test and submit actually passed"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1660,
+      "title": "电影院的座位预订",
+      "run": "failed_exit_-9",
+      "public": "1/3",
+      "submit": "4/8",
+      "status": "failed",
+      "failure_reason": "multifile_run_exit_-9; starter Movie.java contains complete implementation and no TODO; public valid booking cases returned REJECTED"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1661,
+      "title": "图书馆的借阅登记",
+      "run": "failed_or_unstable",
+      "public": "0/3",
+      "submit": "2/8",
+      "status": "failed",
+      "failure_reason": "multifile starter contains TODO but all public cases returned REJECTED; terminal showed running and failed without reliable stdout"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1662,
+      "title": "停车场的分时计费",
+      "run": "failed_or_unstable",
+      "public": "0/3",
+      "submit": "0/8",
+      "status": "failed",
+      "failure_reason": "seven-file Java workbench; BaseFeePolicy starter has TODO; all cases returned PARKED null 0; terminal disconnected/failed"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1663,
+      "title": "餐厅预约与候位",
+      "run": "failed_exit_-9",
+      "public": "0/3",
+      "submit": "0/8",
+      "status": "failed",
+      "failure_reason": "six-file Java exercise with enum; terminal exit_code -9; public and full tests returned empty actual output"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1664,
+      "title": "学生选课登记",
+      "run": "not_verified",
+      "public": null,
+      "submit": null,
+      "status": "failed",
+      "failure_reason": "Workbench rendered five Java files and TODOs but omitted statement, public samples, Test button, and Submit button; current URL http://101.32.190.42/"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1546,
+      "title": "图书馆的借阅登记",
+      "run": "not_captured",
+      "public": "not_executed",
+      "submit": "not_executed",
+      "status": "failed",
+      "failure_reason": "five Java files visible (Book.java, Library.java, LoanRecord.java, Main.java, Reader.java), entry file and last file reachable, Book.java has distributed TODOs, 3 public samples and explanations visible, hidden/reference content not visible. Current URL http://101.32.190.42/. Top Test action timed out twice (Console/Network only Statsig telemetry timeouts); after the retries the Test and Submit controls disappeared from the DOM, so run stdout/exit, public tests, submit, and clean topic switch were not verified."
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1549,
+      "title": "学生选课登记",
+      "status": "failed",
+      "run": "not_captured",
+      "public": "not_executed",
+      "submit": "not_executed",
+      "failure_reason": "five Java files visible (Course.java, Enrollment.java, Main.java, Registrar.java, Student.java), entry/last files reachable, Course.java TODOs visible, 3 public samples and explanations visible, hidden/reference content not visible. Current URL http://101.32.190.42/. Test entry was attempted twice; browser action timed out and the kernel reset before a result could be read. Console/Network showed only Statsig telemetry timeouts. Run stdout/exit, public tests, submit, and clean topic switch remain unverified."
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1551,
+      "title": "电商订单与优惠券",
+      "run": "not_verified",
+      "public": null,
+      "submit": null,
+      "status": "failed",
+      "failure_reason": "six Java files visible and Product.java has TODOs, but statement, public samples, Test, and Submit controls were absent; current URL http://101.32.190.42/"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1552,
+      "title": "酒店房间预订",
+      "run": "not_verified",
+      "public": null,
+      "submit": null,
+      "status": "failed",
+      "failure_reason": "five Java files visible and Room.java has TODOs, but statement, public samples, Test, and Submit controls were absent; current URL http://101.32.190.42/"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1554,
+      "title": "棋类比赛积分榜",
+      "run": "not_verified",
+      "public": null,
+      "submit": null,
+      "status": "failed",
+      "failure_reason": "four Java files visible and Player.java has TODOs, but statement, public samples, Test, and Submit controls were absent; current URL http://101.32.190.42/"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1556,
+      "title": "快递分拣与配送",
+      "run": "failed_exit_-9",
+      "public": null,
+      "submit": null,
+      "status": "failed",
+      "failure_reason": "five editable Java files and three public samples were visible; starter TODO and sample explanations were visible; Run executed but terminal disconnected with exit_code -9. The correct top Test action could not be completed after two attempts because the browser action timed out while the result panel/page state was active. Submit and public-test results were not verified. URL http://101.32.190.42/. Console showed only Statsig telemetry timeouts; screenshot: verification-screenshots/programming-workbench-random-40/java-1556-run-test-timeout.png"
+    }
+  ],
+  "screenshots": [
+    "verification-screenshots/programming-workbench-random-40/c-contact-list-editor.png",
+    "verification-screenshots/programming-workbench-random-40/c-contact-list-synced.png",
+    "verification-screenshots/programming-workbench-random-40/c-contact-list-test-picker.png",
+    "verification-screenshots/programming-workbench-random-40/c-contact-list-test-pass.png"
+  ],
+  "not_completed_languages": {
+    "C++": 7,
+    "Python": 10,
+    "Java": 5
+  },
+  "java_multifile_scroll_status": "not_completed_for_current_random-40_sample",
+  "verified_records_appended": 7,
+  "last_updated": "2026-08-05",
+  "remaining_not_verified": {
+    "C++": "remaining sample items not verified in this continuation",
+    "Python": "5 remaining sample items not verified",
+    "Java": "1556 remains; 1660-1664 audited; 1546 Test action timed out twice and controls disappeared; 1549,1551,1552,1554 missing test/submit verification",
+    "Java_multifile_scroll": "not completed"
+  }
+}
