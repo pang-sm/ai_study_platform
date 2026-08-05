@@ -121,7 +121,7 @@ function ExerciseLibrary({ user, apiBase, onStart }) {
         <button type="button" onClick={load} disabled={loading}>刷新</button>
       </div>
       <div className="ph-exercise-filters">
-        {['C', 'C++', 'Python', 'Java'].map((item) => <button key={item} type="button" className={language === item ? 'is-active' : ''} onClick={() => { setItems([]); setLanguage(item); }}>{item}</button>)}
+        {['C', 'C++', 'Python', 'Java'].map((item) => <button key={item} type="button" className={language === item ? 'is-active' : ''} onClick={() => { requestIdRef.current += 1; setItems([]); setPage(1); setLanguage(item); }}>{item}</button>)}
         <input value={tag} onChange={(event) => setTag(event.target.value)} placeholder="知识点标签" />
       </div>
       {error && <div className="ph-error">{error}</div>}
