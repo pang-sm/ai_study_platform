@@ -19,3 +19,10 @@ Root-cause fixes already recorded: 76eaa51, c95c98a, c00e370. Actions already re
 - Java 1554 Board game ranking: four Java files visible and TODOs present, but statement, public samples, Test, and Submit controls were absent; only Run was visible. Current URL: http://101.32.190.42/.
 - Java 1556 Parcel sorting and delivery: five Java files and three public samples were visible; starter TODOs and sample explanations were present. Run ended with terminal exit_code -9 and disconnect. The correct top Test action timed out on two attempts; Submit and public-test results were not verified. Screenshot: `verification-screenshots/programming-workbench-random-40/java-1556-run-test-timeout.png`. Console showed only Statsig telemetry timeouts. Current URL: http://101.32.190.42/.
 - Java 1551 was reopened during the continuation attempt, but the browser operation timed out while switching back to the exact card; no result was recorded or inferred.
+
+## Continuation 2026-08-05
+
+- Java 1809: official submit passed 8/8 after adding the required trailing space; public-1/2/3 each passed with real input/output, exit code 0, and duration. Interactive Run was not captured.
+- A real frontend race was reproduced during C++ filtering: a stale Python list response could overwrite the newly selected C++ list. The fix is limited to `frontend/src/components/ProgrammingHome.jsx`; local `npm run build` passed.
+- C++ 1734, 1756, 1758, 1762, and 1767 remain unverified and are not inferred from API data.
+- Actions `31017023422` completed successfully for `7cda62c`; fresh online UI validation showed C++ content on both the first and second pages with no Python-card overwrite.

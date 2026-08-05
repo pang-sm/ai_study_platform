@@ -3,8 +3,8 @@
   "status": "incomplete_browser_tool_timeout",
   "target": 40,
   "browser_buttons_used": true,
-  "confirmed_submit_8_of_8": 13,
-  "confirmed_public_3_of_3": 10,
+  "confirmed_submit_8_of_8": 14,
+  "confirmed_public_3_of_3": 11,
   "run_not_captured": [
     1678
   ],
@@ -21,10 +21,25 @@
     "30828416329",
     "30829122361"
   ],
+  "business_fixes": [
+    {
+      "file": "frontend/src/components/ProgrammingHome.jsx",
+      "reason": "C++ 筛选后旧 Python 列表响应可回写",
+      "local_build": "passed",
+      "deployed": false
+    }
+  ],
+  "continuation_deployment": {
+    "commit": "7cda62c",
+    "actions_run": "31017023422",
+    "status_at_last_check": "completed_success",
+    "deployment_completed": true,
+    "online_filter_regression": "C++ first and second pages showed C++ cards; no Python-card overwrite observed"
+  },
   "remaining": [
     "C++:1734,1756,1758,1762,1767",
     "Python:1629,1819,1822,1833,1845,1846,1847,1849,1865,1866",
-    "Java:1546,1549,1551,1552,1554,1556,1569,1775,1795,1809"
+    "Java:1546,1549,1551,1552,1554,1556,1795"
   ],
   "last_updated": "2026-08-05",
   "not_verified_policy": "???????????? not_verified??? API/??????????",
@@ -155,7 +170,7 @@
       "public": null,
       "submit": null,
       "status": "failed",
-      "failure_reason": "only Run was visible; statement, public samples, Test, and Submit controls were absent"
+      "failure_reason": "Could not enter Workbench for exercise 1552: opening the hotel card timed out twice and URL stayed http://101.32.190.42/. Statsig telemetry to ab.chatgpt.com timed out; no business 4xx/5xx observed. Saved screenshot: verification-screenshots/programming-workbench-random-40/java-1552-open-timeout.png. Run, public tests, Submit, and no-residual-state remain unverified."
     },
     {
       "language": "Java",
@@ -169,20 +184,99 @@
     {
       "language": "Java",
       "exercise_id": 1554,
-      "run": "not_verified",
-      "public": null,
-      "submit": null,
-      "status": "failed",
+      "run": "failed_after_sample_input_no_stdout",
+      "public": "3/3 (single 1/1)",
+      "submit": "8/8",
+      "status": "partial",
       "failure_reason": "only Run was visible; statement, public samples, Test, and Submit controls were absent"
     },
     {
       "language": "Java",
       "exercise_id": 1556,
-      "run": "failed_exit_-9",
-      "public": null,
-      "submit": null,
+      "run": "failed_exit_-9_after_sample_input",
+      "public": "3/3",
+      "submit": "8/8",
       "status": "failed",
-      "failure_reason": "five editable Java files and three public samples were visible; Run ended with terminal exit_code -9 and disconnect. The correct top Test action timed out on two attempts; Submit and public-test results were not verified. Screenshot: verification-screenshots/programming-workbench-random-40/java-1556-run-test-timeout.png"
+      "failure_reason": "five editable Java files; single public test 1/1, all public tests 3/3, and full official tests 8/8 passed after synchronizing each file. Interactive Run accepted sample input but ended with exit_code -9 and no stdout. Screenshot: verification-screenshots/programming-workbench-random-40/java-1556-run-test-timeout.png"
+    },
+    {
+      "language": "Java",
+      "exercise_id": 1809,
+      "run": "not_captured",
+      "public": "3/3_via_submit_modal",
+      "submit": "8/8",
+      "status": "partial",
+      "failure_reason": "First submission failed on missing trailing spaces. After the output was corrected to print a trailing space after each value, the official test modal showed 8/8 and all public cases passed with exit code 0. Interactive Run was not captured."
     }
-  ]
+  ],
+  "continuation_results": {
+    "1546": {
+      "public_cases": "3/3_via_submit_modal",
+      "submit": "8/8",
+      "interactive_run": "not_captured",
+      "note": "All five Java files synchronized in Workbench; result modal exposed public-1/2/3 passed with input, expected/actual output, exit code 0 and duration."
+    },
+    "1549": {
+      "public_cases": "3/3_via_submit_modal",
+      "submit": "8/8",
+      "interactive_run": "not_captured",
+      "note": "All five Java files synchronized in Workbench; submit result modal showed public-1/2/3 passed."
+    },
+    "1551": {
+      "public_cases": "3/3_via_submit_modal",
+      "submit": "8/8",
+      "interactive_run": "not_captured",
+      "note": "All six Java files synchronized in Workbench; submit result modal showed public-1/2/3 passed."
+    },
+    "1554": {
+      "language": "Java",
+      "files": 4,
+      "run": "failed_after_sample_input_no_stdout",
+      "single_public": "1/1",
+      "public": "3/3",
+      "submit": "8/8",
+      "hidden_leakage": false,
+      "failure_reason": "Interactive Run failed after sample input; no stdout/exit detail was exposed. Console/Network had only Statsig telemetry timeouts.",
+      "screenshot": "verification-screenshots/programming-workbench-random-40/java-1554-run-failed-after-sample.png"
+    },
+    "1556": {
+      "files": 5,
+      "public_cases": "3/3",
+      "single_public_case": "1/1",
+      "submit": "8/8",
+      "hidden_leakage": false,
+      "interactive_run": "failed_exit_-9_after_sample_input",
+      "failure_reason": "Interactive Run accepted sample input but ended with exit_code -9 and no stdout; public tests and submission passed.",
+      "screenshot": "verification-screenshots/programming-workbench-random-40/java-1556-run-test-timeout.png"
+    },
+    "1569": {
+      "language": "Java",
+      "run": "passed",
+      "single_public": "1/1",
+      "public": "3/3",
+      "submit": "8/8",
+      "starter_todo_replaced_for_execution": true,
+      "hidden_leakage": false,
+      "note": "Single-file Java starter was synchronized with the题意一致 implementation; Run with swiss produced w; public and official tests passed."
+    },
+    "1775": {
+      "language": "Java",
+      "run": "failed_exit_-9_after_sample_input",
+      "single_public": "not_captured",
+      "public": "3/3_via_submit_modal",
+      "submit": "8/8",
+      "starter_todo_replaced_for_execution": true,
+      "hidden_leakage": false,
+      "failure_reason": "Interactive Run received red blue red green blue red then disconnected with exit_code -9; raw test log showed the echoed input and no stdout."
+    },
+    "1809": {
+      "language": "Java",
+      "run": "not_captured",
+      "single_public": "not_captured",
+      "public": "3/3_via_submit_modal",
+      "submit": "8/8",
+      "hidden_leakage": false,
+      "failure_reason": "First submission failed on missing trailing spaces. After the output was corrected to print a trailing space after each value, the official test modal showed 8/8 and all public cases passed with exit code 0. Interactive Run was not captured."
+    }
+  }
 }

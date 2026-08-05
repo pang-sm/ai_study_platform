@@ -41,3 +41,9 @@ Observed defect: Movie.java starter is a complete implementation with no TODO. T
 1556 displayed DeliveryStatus.java, DispatchCenter.java, Main.java, Parcel.java, and Route.java. The file list was independently visible, the last file was reachable, and the starter contained TODOs. Three public samples and explanations were visible. Run ended with a terminal disconnect and exit_code -9. The top public Test action timed out on two attempts after the result pane was active; Submit and public-test execution were not verified. Screenshot: `verification-screenshots/programming-workbench-random-40/java-1556-run-test-timeout.png`. URL: http://101.32.190.42/.
 
 Pending current random sample: 1549, 1551, 1552, 1554. 1546 remains incomplete for run/test/submit despite its UI content now being verified. Previous specialized 12-exercise audit is not substituted for this browser sample.
+
+## Continuation 2026-08-05
+
+Java 1809 is a single-file Java exercise and therefore does not change the multi-file scroll count. Its official submit passed 8/8 after the trailing-space correction; no hidden/reference content was visible. The Java multi-file pending list remains unchanged.
+
+The C++ catalog filter fix was deployed in Actions `31017023422`; it does not alter this Java multi-file audit.
