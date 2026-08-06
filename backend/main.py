@@ -9284,7 +9284,8 @@ def start_programming_exercise(exercise_id: int, req: schemas.ProgrammingExercis
         raise HTTPException(status_code=404, detail="题目不存在")
     language = normalize_project_language(exercise.language)
     exercise_manifest = _exercise_manifest(exercise)
-    manifest_entry_file = safe_project_path(str(exercise_manifest.get("entry_file") or ""))
+    manifest_entry_file_raw = str(exercise_manifest.get("entry_file") or "").strip()
+    manifest_entry_file = safe_project_path(manifest_entry_file_raw) if manifest_entry_file_raw else ""
     resumed = False
     project = db.query(models.CodeProject).filter(
         models.CodeProject.user_id == user.id,

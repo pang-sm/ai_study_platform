@@ -113,7 +113,10 @@ function buildTargets() {
   else ids = [...titleMap.keys()];
   if (options.language) {
     const normalized = options.language.toLowerCase().replace("cpp", "c++");
-    ids = ids.filter((id) => String(titleMap.get(id)?.language || "").toLowerCase().replace("cpp", "c++") === normalized);
+    ids = ids.filter((id) => {
+      const mappedLanguage = String(titleMap.get(id)?.language || "").toLowerCase().replace("cpp", "c++");
+      return !mappedLanguage || mappedLanguage === normalized;
+    });
   }
   return ids.map((id) => ({ id, language: titleMap.get(id)?.language || options.language || "", title: titleMap.get(id)?.title || "" }));
 }
@@ -575,23 +578,36 @@ async function chooseLibraryExercise(page, target, audit = {}) {
     audit.pages_visited.push({ page: pageNumber, total_pages: totalPages, dom_page: pageState.page, api_total: apiPage.total, api_ids: apiPage.exercises.map((item) => item.id) });
     const targetIndex = apiPage.exercises.findIndex((item) => item.id === Number(target.id));
     const cards = page.locator(".ph-exercise-card");
-    const targetCard = targetIndex >= 0 ? cards.nth(targetIndex) : null;
-    if (targetCard) await targetCard.waitFor({ state: "visible", timeoutMs: 15_000 });
+    if (targetIndex >= 0) await page.waitForTimeout(500);
     const count = await cards.count();
     const texts = count ? await cards.allTextContents({ timeoutMs: 12_000 }) : [];
     if (targetIndex >= 0) {
-      if (targetIndex >= count) throw new Error(`target ${target.id} is in API page ${pageNumber} but its UI card is not rendered`);
-      const card = cards.nth(targetIndex);
-      const cardText = texts[targetIndex] || "";
       const apiTarget = apiPage.exercises[targetIndex];
       const expectedTitle = cleanText(apiTarget.title || target.title);
+      const exactCards = expectedTitle
+        ? cards.filter({ hasText: apiTarget.title || target.title })
+        : cards.nth(targetIndex);
+      const exactCount = await exactCards.count();
+      const card = exactCount === 1 ? exactCards : cards.nth(targetIndex);
+      if (exactCount !== 1 && targetIndex >= count) throw new Error(`target ${target.id} is in API page ${pageNumber} but its UI card is not rendered`);
+      await card.waitFor({ state: "visible", timeoutMs: 15_000 });
+      const cardText = await card.innerText({ timeoutMs: 12_000 });
       if (!expectedTitle || !cleanText(cardText).includes(expectedTitle)) throw new Error(`target ${target.id} card title did not match API title`);
       const startButton = card.locator("button");
       const buttonCount = await startButton.count();
       if (buttonCount < 1) throw new Error("exercise card has no start button");
       audit.search_used = false;
+      const startResponsePromise = page.waitForResponse((response) => (
+        response.request().method() === "POST" && response.status() >= 400
+          && /\/api\/programming\/exercises\/\d+\/start$/.test(new URL(response.url()).pathname)
+      ), { timeout: 12_000 }).catch(() => null);
       await startButton.nth(buttonCount - 1).click({ timeoutMs: 15_000 });
-      audit.found_by = "api_page_index_then_exact_title_card";
+      const startResponse = await startResponsePromise;
+      if (startResponse) {
+        const pageError = await page.locator(".ph-error").innerText({ timeoutMs: 2_000 }).catch(() => "");
+        throw new Error(`exercise start failed: HTTP ${startResponse.status()}${pageError ? `; ${pageError.slice(0, 300)}` : ""}`);
+      }
+      audit.found_by = exactCount === 1 ? "api_page_then_exact_title_card" : "api_page_index_then_exact_title_card";
       audit.found_page = pageNumber;
       audit.found_title = apiTarget.title;
       return { page: pageNumber, card_text: cardText.slice(0, 800), api_target: apiTarget, audit };
@@ -869,18 +885,35 @@ async function cleanTopicSwitch(page, record) {
   return true;
 }
 
-async function loadAuditedImplementation(target) {
+async function loadAuditedImplementation(target, record) {
   if (!options.implementationMap) return null;
   const map = safeReadJson(path.resolve(options.implementationMap), {});
-  const entries = Object.values(map).filter((item) => Number(item.exercise_id) === target.id);
+  const expectedLanguage = cleanText(target.language).toLowerCase();
+  const expectedTitle = cleanText(record?.workbench_identity?.title || target.title || "").toLowerCase();
+  const entries = Object.values(map).filter((item) => {
+    if (Number(item.exercise_id) === target.id) return true;
+    if (!expectedTitle) return false;
+    return cleanText(item.language).toLowerCase() === expectedLanguage
+      && cleanText(item.title).toLowerCase() === expectedTitle;
+  });
   if (!entries.length) return null;
   return entries[0].reference_files || null;
 }
 
 async function applyAuditedImplementation(page, target, record) {
-  const files = await loadAuditedImplementation(target);
+  const files = await loadAuditedImplementation(target, record);
   if (!Array.isArray(files) || !files.length) return { applied: false };
-  const fileList = page.locator(".pw-file-list-popover button");
+  const trigger = page.locator(".pw-file-list-trigger");
+  const popover = page.locator(".pw-file-list-popover");
+  const ensureFilePopover = async () => {
+    const visible = await popover.count() === 1 && await popover.isVisible().catch(() => false);
+    if (!visible) {
+      await clickUnique(trigger, "Java file list trigger");
+      await popover.waitFor({ state: "visible", timeoutMs: 12000 });
+    }
+  };
+  await ensureFilePopover();
+  const fileList = popover.locator("button");
   let count = await fileList.count();
   if (!count) {
     const trigger = page.locator(".pw-file-list-trigger");
@@ -892,17 +925,20 @@ async function applyAuditedImplementation(page, target, record) {
   const applied = [];
   if (count) {
     for (let index = 0; index < count; index += 1) {
-      if (index > 0) {
-        const trigger = page.locator(".pw-file-list-trigger");
-        await clickUnique(trigger, "Java file list trigger");
-        await page.locator(".pw-file-list-popover").waitFor({ state: "visible", timeoutMs: 12000 });
-      }
-      const currentFileList = page.locator(".pw-file-list-popover button");
+      await ensureFilePopover();
+      const currentFileList = popover.locator("button");
       const button = currentFileList.nth(index);
       const filePath = await button.getAttribute("title", { timeoutMs: 12000 });
       const buttonText = await button.innerText({ timeoutMs: 12000 }).catch(() => "");
-      const fileIdentity = `${filePath || ""} ${buttonText || ""}`.replace(/\s+/g, "");
-      const implementation = files.find((item) => fileIdentity.includes(String(item.path).replace(/\s+/g, "")) || (filePath && (item.path === filePath || filePath.endsWith(`/${item.path}`) || filePath.endsWith(item.path))));
+      const normalizeFileName = (value) => String(value || "")
+        .replace(/\\/g, "/")
+        .split("/")
+        .pop()
+        .replace(/\s+/g, "")
+        .replace(/^J(?=[A-Z][A-Za-z0-9_]*\.java(?:入口)?$)/, "")
+        .replace(/入口.*$/, "");
+      const candidateNames = [normalizeFileName(filePath), normalizeFileName(buttonText.split("\n")[0])].filter(Boolean);
+      const implementation = files.find((item) => candidateNames.includes(normalizeFileName(item.path)));
       if (!implementation) continue;
       await button.click({ timeoutMs: 12000 });
       await page.locator(".pw-editor-card .monaco-editor").waitFor({ state: "visible", timeoutMs: 30000 });
