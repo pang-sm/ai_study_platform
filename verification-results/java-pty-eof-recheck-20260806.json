@@ -1,0 +1,66 @@
+{
+  "audit": "java-pty-eof-recheck",
+  "generated_at": "2026-08-06",
+  "base_url": "http://101.32.190.42/",
+  "commit_deployed": "f5d3626",
+  "auth_check": "passed",
+  "database": {
+    "path": "/var/lib/ai_study_platform/app.db",
+    "integrity_check": "ok",
+    "quick_check": "ok"
+  },
+  "health": {
+    "backend": 200,
+    "public_proxy": 200
+  },
+  "fixes": [
+    "Java exercise project entry_file follows manifest Main.java",
+    "WebSocket terminal controls queue while CONNECTING",
+    "PTY EOF adds a final line delimiter when needed before Ctrl+D",
+    "Acceptance runner waits for the new sample-input WebSocket session",
+    "Acceptance runner rejects non-all-passed public and official summaries"
+  ],
+  "exercises": [
+    {
+      "exercise_id": 1546,
+      "language": "Java",
+      "file_count": 5,
+      "entry_file": "Main.java",
+      "stdin_bytes": 19,
+      "eof_sent": true,
+      "eof_delimiter_added": true,
+      "stdout": "BORROWED B42 R7 14",
+      "exit_code": 0,
+      "timed_out": false,
+      "interactive_run": "passed",
+      "public": "3/3",
+      "submit": "8/8",
+      "clean_topic_switch": true,
+      "hidden_leakage": false
+    },
+    {
+      "exercise_id": 1556,
+      "language": "Java",
+      "file_count": 6,
+      "entry_file": "Main.java",
+      "stdin_bytes": 19,
+      "eof_sent": true,
+      "eof_delimiter_added": true,
+      "stdout": "V1 compact 50 Han 3",
+      "exit_code": 0,
+      "timed_out": false,
+      "interactive_run": "passed",
+      "current_starter_public": "0/3",
+      "current_starter_submit": "0/8",
+      "historical_correct_implementation_public": "3/3",
+      "historical_correct_implementation_submit": "8/8",
+      "clean_topic_switch": true,
+      "hidden_leakage": false
+    }
+  ],
+  "remaining": [
+    "1556 requires a correct user implementation before current-draft public/submit can pass",
+    "Other previously not_verified Workbench exercises remain to be resumed from the CLI report"
+  ],
+  "sensitive_values_written": false
+}

@@ -47,6 +47,7 @@ const options = {
   exercise: readArg("--exercise", ""),
   group: readArg("--group", ""),
   resume: hasFlag("--resume"),
+  force: hasFlag("--force"),
   headed: (hasFlag("--headed") || hasFlag("--headed-login")) && !hasFlag("--headless"),
   storageState: path.resolve(readArg("--auth-state", readArg("--storage-state", DEFAULT_AUTH_STATE))),
   authCheckOnly: hasFlag("--auth-check-only"),
@@ -405,10 +406,22 @@ function createUiContext(browser, record) {
       }
     });
     page.on("websocket", (socket) => {
-      const item = { url: safeUrl(socket.url()), opened: now(), frames_sent: 0, frames_received: 0 };
+      const item = { url: safeUrl(socket.url()), opened: now(), frames_sent: 0, frames_received: 0, sent_types: [], received_types: [] };
       record.websocket_events.push(item);
-      socket.on("framesent", () => { item.frames_sent += 1; });
-      socket.on("framereceived", () => { item.frames_received += 1; });
+      socket.on("framesent", (payload) => {
+        item.frames_sent += 1;
+        try {
+          const type = JSON.parse(String(payload || "")).type;
+          if (type && !item.sent_types.includes(type)) item.sent_types.push(type);
+        } catch { /* keep payloads out of the report */ }
+      });
+      socket.on("framereceived", (payload) => {
+        item.frames_received += 1;
+        try {
+          const type = JSON.parse(String(payload || "")).type;
+          if (type && !item.received_types.includes(type)) item.received_types.push(type);
+        } catch { /* keep payloads out of the report */ }
+      });
       socket.on("close", () => { item.closed = now(); });
     });
     return { context, page };
@@ -696,36 +709,48 @@ async function runInteractive(page, target, record) {
   const sampleCodeBlocks = sampleCards.nth(0).locator("code");
   const sampleCodeCount = await sampleCodeBlocks.count();
   const stableSampleInput = sampleCodeCount >= 1 ? await sampleCodeBlocks.nth(0).innerText({ timeoutMs: 12000 }) : "";
-  const sendSample = sampleCards.nth(0).locator(".pw-send-sample-input");
-  const sendSampleCount = await sendSample.count();
   let stableInputSent = false;
   let stableEofSent = false;
+  const sendSample = sampleCards.nth(0).locator(".pw-send-sample-input");
+  const sendSampleCount = await sendSample.count();
   if (sendSampleCount === 1) {
+    const socketCountBefore = record.websocket_events.length;
     await sendSample.click({ timeoutMs: 12000 });
+    let activeSocket = null;
+    for (let attempt = 0; attempt < 120; attempt += 1) {
+      activeSocket = record.websocket_events[socketCountBefore] || null;
+      if (activeSocket && activeSocket.frames_received >= 2) break;
+      await page.waitForTimeout(100);
+    }
+    if (!activeSocket || activeSocket.frames_received < 2) {
+      throw new Error("Sample input session did not become active before EOF");
+    }
     stableInputSent = true;
+  } else if (stableSampleInput.trim()) {
     const runningStatus = page.locator(".pw-terminal-status").filter({ hasText: "程序正在运行" });
     await runningStatus.waitFor({ state: "visible", timeoutMs: 12000 });
-    const eofButton = page.locator(".pw-terminal-input-actions button").filter({ hasText: "发送 EOF" });
-    try {
-      await eofButton.waitFor({ state: "visible", timeoutMs: 12000 });
-      await eofButton.click({ timeoutMs: 12000 });
-      stableEofSent = true;
-    } catch (error) {
-      record.interactive_run = {
-        input_sent: stableInputSent,
-        eof_sent: false,
-        exit_observed: false,
-        output_excerpt: "",
-        failure_reason: `EOF control was not available after sending the sample: ${String(error?.message || error).slice(0, 300)}`,
-      };
-      throw new Error(record.interactive_run.failure_reason);
-    }
-  }
-  if (!stableInputSent && stableSampleInput.trim()) {
     await terminal.click({ timeoutMs: 12000 });
-    await page.keyboard.type(stableSampleInput.trimEnd());
-    await page.keyboard.press("Enter");
-    await page.keyboard.press("Control+D");
+    const inputLines = stableSampleInput.replace(/\r\n/g, "\n").split("\n");
+    for (let index = 0; index < inputLines.length; index += 1) {
+      if (inputLines[index]) await page.keyboard.type(inputLines[index]);
+      if (index < inputLines.length - 1 || !stableSampleInput.endsWith("\n")) await page.keyboard.press("Enter");
+    }
+    stableInputSent = true;
+  }
+  const eofButton = page.locator(".pw-terminal-input-actions button").filter({ hasText: "发送 EOF" });
+  try {
+    await eofButton.waitFor({ state: "visible", timeoutMs: 12000 });
+    await eofButton.click({ timeoutMs: 12000 });
+    stableEofSent = true;
+  } catch (error) {
+    record.interactive_run = {
+      input_sent: stableInputSent,
+      eof_sent: false,
+      exit_observed: false,
+      output_excerpt: "",
+      failure_reason: `EOF control was not available after sending the sample: ${String(error?.message || error).slice(0, 300)}`,
+    };
+    throw new Error(record.interactive_run.failure_reason);
   }
   const finishedStatus = page.locator(".pw-terminal-status").filter({ hasText: "运行结束" });
   try {
@@ -782,6 +807,7 @@ async function runPublicTest(page, record) {
   const stableMatch = `${stableSummaryText} ${stableText}`.match(/(\d+)\s*[\/／]\s*(\d+)/);
   record.public_test = { picker_case_count: stableCount, summary: stableMatch ? `${stableMatch[1]}/${stableMatch[2]}` : "not_parsed", summary_text: stableSummaryText.slice(0, 120), modal_text_excerpt: stableText.slice(0, 300), hidden_visible: /reference_solution|reference_files|hidden_cases|hidden_tests/i.test(stableText) };
   if (record.public_test.hidden_visible) throw new Error("hidden test detail appeared in public test modal");
+  if (!stableMatch || Number(stableMatch[1]) !== Number(stableMatch[2])) throw new Error(`public tests did not all pass: ${record.public_test.summary}`);
   return record.public_test;
   const test = page.locator("button.pw-top-exercise-action").filter({ hasText: "测试" });
   await clickUnique(test, "Test");
@@ -813,6 +839,7 @@ async function runSubmit(page, record) {
   const stableMatch = `${stableSummaryText} ${stableText}`.match(/(\d+)\s*[\/／]\s*(\d+)/);
   record.submit = { summary: stableMatch ? `${stableMatch[1]}/${stableMatch[2]}` : "not_parsed", summary_text: stableSummaryText.slice(0, 120), modal_text_excerpt: stableText.slice(0, 300), hidden_visible: /reference_solution|reference_files|hidden_cases|hidden_tests/i.test(stableText) };
   if (record.submit.hidden_visible) throw new Error("hidden test detail appeared in submit modal");
+  if (!stableMatch || Number(stableMatch[1]) !== Number(stableMatch[2])) throw new Error(`official tests did not all pass: ${record.submit.summary}`);
   return record.submit;
   const modal = page.locator("section.pw-result-modal");
   const close = modal.locator("button[aria-label='关闭']");
@@ -1016,7 +1043,7 @@ if (options.authCheckOnly) {
           // no failed steps and therefore carries final_status=passed.
           const existingRecord = activeReport.records[target.id];
           const fullAcceptancePassed = existingRecord?.final_status === "passed" && existingRecord?.open_only !== true;
-          if (options.resume && fullAcceptancePassed) continue;
+      if (options.resume && !options.force && fullAcceptancePassed) continue;
           await runTarget(browser, target);
         }
         activeReport.status = activeReport.totals.incomplete ? "incomplete" : activeReport.totals.failed ? "failed" : "passed";
