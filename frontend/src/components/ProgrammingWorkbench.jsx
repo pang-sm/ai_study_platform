@@ -728,6 +728,7 @@ export default function ProgrammingWorkbench({
   const terminalRef = useRef(null);
   const terminalSocketRef = useRef(null);
   const terminalFitRef = useRef(null);
+  const terminalExitRef = useRef(false);
   const [terminalConnection, setTerminalConnection] = useState("disconnected");
   const [terminalRunStatus, setTerminalRunStatus] = useState("");
   const runSessionRef = useRef(null);
@@ -1666,11 +1667,12 @@ export default function ProgrammingWorkbench({
     const socket = new WebSocket(`${scheme}://${window.location.host}/code/interactive-run`);
     terminalSocketRef.current = socket;
     runSessionRef.current = crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`;
+    terminalExitRef.current = false;
     setTerminalConnection("connecting");
     socket.onopen = () => {
       setTerminalConnection("connected");
       terminal?.focus();
-      socket.send(JSON.stringify({ type: "start", username: user.username, user_id: user.id, exercise_id: exercise.id, project_id: project.id, run_session_id: runSessionRef.current, language }));
+      socket.send(JSON.stringify({ type: "start", username: user.username, user_id: user.id, exercise_id: exercise.id, project_id: project.id, run_session_id: runSessionRef.current, request_id: crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`, language }));
       if (terminal?.pendingInput) {
         socket.send(JSON.stringify({ type: "stdin", data: terminal.pendingInput }));
         terminal.pendingInput = "";
@@ -1693,7 +1695,15 @@ export default function ProgrammingWorkbench({
         setTerminalRunStatus(message.type === "compile_error" ? "编译失败" : "连接失败");
         setRunDetailsOpen(true);
       }
-      if (message.type === "exit") { terminal?.writeln(`\r\n进程结束，退出代码 ${message.exit_code}`); setTerminalRunStatus(""); setRunResult(message); setStatus(`退出代码 ${message.exit_code}`); setBusy(""); }
+      if (message.type === "exit") {
+        terminalExitRef.current = true;
+        terminal?.writeln(`\r\n进程结束，退出代码 ${message.exit_code}`);
+        setTerminalRunStatus("运行结束");
+        setTerminalConnection("disconnected");
+        setRunResult(message);
+        setStatus(`退出代码 ${message.exit_code}`);
+        setBusy("");
+      }
     };
     socket.onerror = () => {
       const errorId = `WS-${Date.now().toString(36)}`;
@@ -1705,12 +1715,16 @@ export default function ProgrammingWorkbench({
     };
     socket.onclose = (event) => {
       if (terminalSocketRef.current === socket) terminalSocketRef.current = null;
-      setTerminalRunStatus("");
-      if (event.code !== 1000 && terminalConnection !== "failed") {
+      if (terminalExitRef.current) {
+        setTerminalConnection("disconnected");
+        setTerminalRunStatus("运行结束");
+      } else if (event.code !== 1000) {
         setTerminalConnection("failed");
         terminal?.writeln(`\r\n[终端连接已关闭，代码 ${event.code}，请点击重新连接]`);
-      } else if (terminalConnection !== "failed") {
+        setTerminalRunStatus("连接失败");
+      } else {
         setTerminalConnection("disconnected");
+        setTerminalRunStatus("终端已断开，未收到进程结束事件");
       }
       setBusy("");
     };

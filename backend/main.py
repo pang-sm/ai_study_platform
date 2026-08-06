@@ -16,6 +16,7 @@ import asyncio
 import uuid
 import importlib.util
 import threading
+import signal
 import time
 import zipfile
 from collections import defaultdict
@@ -28311,9 +28312,44 @@ async def programming_exercise_interactive(exercise_id: int, ws: WebSocket, init
     proc = None
     tmp_dir = None
     acquired = False
+    master_fd = None
+    reader_thread = None
+    request_id = ""
+    run_session_id = ""
+    process_started_at = None
+    compile_started_at = None
+    compile_finished_at = None
+    stdin_bytes = 0
+    stdin_has_newline = False
+    eof_sent = False
+    stdin_closed = False
+    timed_out = False
+    websocket_close_code = None
+    exit_sent = False
+
+    def terminate_process_group():
+        """Stop the launcher and all descendants without leaving an orphan."""
+        if not proc or proc.poll() is not None:
+            return
+        try:
+            if os.name == "posix":
+                os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+            else:
+                proc.terminate()
+            proc.wait(timeout=2)
+        except Exception:
+            try:
+                if os.name == "posix":
+                    os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                else:
+                    proc.kill()
+            except Exception:
+                pass
+
     try:
         config = initial_config or json.loads(await ws.receive_text())
         username = str(config.get("username") or "").strip()
+        request_id = str(config.get("request_id") or uuid.uuid4())
         run_session_id = str(config.get("run_session_id") or uuid.uuid4())
         if not username:
             raise ValueError("username is required")
@@ -28332,6 +28368,12 @@ async def programming_exercise_interactive(exercise_id: int, ws: WebSocket, init
             db.close()
         if language not in {"C", "C++", "Python", "Java"} or not files:
             raise ValueError("unsupported language or empty project")
+        print(
+            f"[WS-TERMINAL] exercise_start request_id={request_id} "
+            f"run_session_id={run_session_id} exercise_id={exercise_id} "
+            f"language={language} file_count={len(files)} entry_file={entry_file}",
+            flush=True,
+        )
         if not _check_code_run_rate(username, CODE_RUN_RATE_EXECUTE):
             raise ValueError("运行过于频繁，请稍后再试")
         acquired = DOCKER_SEMAPHORE.acquire(timeout=DOCKER_SEMAPHORE_TIMEOUT)
@@ -28379,11 +28421,20 @@ async def programming_exercise_interactive(exercise_id: int, ws: WebSocket, init
                     raise ValueError(f"服务器未安装 {compiler_name}，无法运行 {language} 项目")
                 local_binary = os.path.join(tmp_dir, "program.exe" if os.name == "nt" else "program")
                 compile_cmd = [compiler_path, *compiler_flags, *source_files, "-o", local_binary]
+            compile_started_at = time.time()
+            print(f"[WS-TERMINAL] compile_start request_id={request_id} exercise_id={exercise_id} language={language} file_count={len(source_files)}", flush=True)
             compiled = subprocess.run(compile_cmd, capture_output=True, text=True, timeout=20, cwd=tmp_dir)
+            compile_finished_at = time.time()
+            print(
+                f"[WS-TERMINAL] compile_end request_id={request_id} exercise_id={exercise_id} "
+                f"return_code={compiled.returncode} duration_ms={int((compile_finished_at - compile_started_at) * 1000)}",
+                flush=True,
+            )
             if compiled.returncode != 0:
                 raw_error = (compiled.stderr or compiled.stdout or "编译失败").strip()
                 await ws.send_text(json.dumps({"type": "compile_error", "message": _friendly_compile_error(raw_error), "technical_details": raw_error[:8000]}, ensure_ascii=False))
                 await ws.send_text(json.dumps({"type": "exit", "exit_code": compiled.returncode, "run_session_id": run_session_id}, ensure_ascii=False))
+                exit_sent = True
                 return
             runtime_image, runtime_command = DOCKER_IMAGE_C, ["/code/program"] if use_docker else [local_binary]
         elif language == "Java":
@@ -28404,6 +28455,8 @@ async def programming_exercise_interactive(exercise_id: int, ws: WebSocket, init
                     raise ValueError("项目中没有可编译的 Java 文件")
                 classes_dir = os.path.join(tmp_dir, "classes")
                 os.makedirs(classes_dir, exist_ok=True)
+                compile_started_at = time.time()
+                print(f"[WS-TERMINAL] compile_start request_id={request_id} exercise_id={exercise_id} language=Java file_count={len(java_files)}", flush=True)
                 compiled = subprocess.run(
                     [javac_path, "-encoding", "UTF-8", "-d", classes_dir, *java_files],
                     capture_output=True,
@@ -28411,10 +28464,17 @@ async def programming_exercise_interactive(exercise_id: int, ws: WebSocket, init
                     timeout=20,
                     cwd=tmp_dir,
                 )
+                compile_finished_at = time.time()
+                print(
+                    f"[WS-TERMINAL] compile_end request_id={request_id} exercise_id={exercise_id} "
+                    f"return_code={compiled.returncode} duration_ms={int((compile_finished_at - compile_started_at) * 1000)}",
+                    flush=True,
+                )
                 if compiled.returncode != 0:
                     raw_error = (compiled.stderr or compiled.stdout or "编译失败").strip()
                     await ws.send_text(json.dumps({"type": "compile_error", "message": f"编译错误：{raw_error[:500]}", "technical_details": raw_error[:8000]}, ensure_ascii=False))
                     await ws.send_text(json.dumps({"type": "exit", "exit_code": compiled.returncode, "run_session_id": run_session_id}, ensure_ascii=False))
+                    exit_sent = True
                     return
                 runtime_command = [java_path, "-cp", classes_dir, main_class]
         if use_docker:
@@ -28435,10 +28495,18 @@ async def programming_exercise_interactive(exercise_id: int, ws: WebSocket, init
         master_fd = None
         if use_pty:
             master_fd, slave_fd = os.openpty()
-            proc = subprocess.Popen(launch_command, stdin=slave_fd, stdout=slave_fd, stderr=slave_fd, close_fds=True, cwd=tmp_dir)
+            popen_options = {"stdin": slave_fd, "stdout": slave_fd, "stderr": slave_fd, "close_fds": True, "cwd": tmp_dir}
+            if os.name == "posix":
+                popen_options["start_new_session"] = True
+            proc = subprocess.Popen(launch_command, **popen_options)
             os.close(slave_fd)
         else:
-            proc = subprocess.Popen(launch_command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=False, cwd=tmp_dir)
+            popen_options = {"stdin": subprocess.PIPE, "stdout": subprocess.PIPE, "stderr": subprocess.STDOUT, "text": False, "cwd": tmp_dir}
+            if os.name == "posix":
+                popen_options["start_new_session"] = True
+            proc = subprocess.Popen(launch_command, **popen_options)
+        process_started_at = time.time()
+        print(f"[WS-TERMINAL] process_start request_id={request_id} exercise_id={exercise_id} pid={proc.pid} pty={bool(master_fd is not None)}", flush=True)
         await ws.send_text(json.dumps({"type": "status", "message": "程序正在运行"}, ensure_ascii=False))
         collected = []
         def reader():
@@ -28458,49 +28526,91 @@ async def programming_exercise_interactive(exercise_id: int, ws: WebSocket, init
         started = time.time()
         while proc.poll() is None:
             if time.time() - started > INTERACTIVE_TIMEOUT:
-                proc.kill()
+                timed_out = True
+                terminate_process_group()
                 await ws.send_text(json.dumps({"type": "status", "message": "运行超时，进程已停止"}, ensure_ascii=False))
                 break
             try:
                 message = json.loads(await asyncio.wait_for(ws.receive_text(), timeout=0.25))
                 kind, data = message.get("type"), str(message.get("data") or "")
-                if kind in {"stop", "interrupt"}: proc.kill(); break
+                if kind in {"stop", "interrupt"}:
+                    terminate_process_group()
+                    break
                 if kind == "eof":
-                    if master_fd is not None: os.close(master_fd); master_fd = None
-                    elif proc.stdin: proc.stdin.close()
+                    if not eof_sent:
+                        eof_sent = True
+                        stdin_closed = True
+                        if master_fd is not None:
+                            # In canonical PTY mode, closing the master drops
+                            # the session but does not deliver the buffered
+                            # input to Scanner.  Ctrl+D is the real EOF signal.
+                            try:
+                                os.write(master_fd, b"\x04")
+                            except OSError:
+                                pass
+                        elif proc.stdin:
+                            proc.stdin.close()
+                        print(f"[WS-TERMINAL] stdin_eof request_id={request_id} exercise_id={exercise_id} stdin_bytes={stdin_bytes} has_newline={stdin_has_newline}", flush=True)
                     continue
-                if kind == "stdin" and data:
+                if kind == "stdin" and data and not stdin_closed:
                     raw_data = data.encode("utf-8")
-                    if master_fd is not None: os.write(master_fd, raw_data)
-                    elif proc.stdin: proc.stdin.write(raw_data); proc.stdin.flush()
+                    stdin_bytes += len(raw_data)
+                    stdin_has_newline = stdin_has_newline or b"\n" in raw_data or b"\r" in raw_data
+                    if master_fd is not None:
+                        os.write(master_fd, raw_data)
+                    elif proc.stdin:
+                        proc.stdin.write(raw_data)
+                        proc.stdin.flush()
             except asyncio.TimeoutError:
                 continue
-            except WebSocketDisconnect:
-                proc.kill(); break
+            except WebSocketDisconnect as exc:
+                websocket_close_code = getattr(exc, "code", None)
+                terminate_process_group()
+                break
         proc.wait(timeout=3)
         reader_thread.join(timeout=1)
         terminal_output = "".join(collected)[-8000:]
+        return_code = proc.returncode
+        duration_ms = int((time.time() - process_started_at) * 1000) if process_started_at else None
         exit_payload = {
             "type": "exit",
-            "exit_code": proc.returncode,
+            "exit_code": return_code,
             "run_session_id": run_session_id,
+            "request_id": request_id,
+            "duration_ms": duration_ms,
+            "timed_out": timed_out,
+            "signal": -return_code if isinstance(return_code, int) and return_code < 0 else None,
             "stdout": terminal_output,
-            "stderr": terminal_output if proc.returncode else "",
+            "stderr": terminal_output if return_code else "",
         }
-        if proc.returncode and "input device is not a TTY" in terminal_output:
+        if return_code and "input device is not a TTY" in terminal_output:
             exit_payload["failure_type"] = "runtime_error"
             exit_payload["error_message"] = "运行终端初始化失败，请重新运行。"
+        print(
+            f"[WS-TERMINAL] process_exit request_id={request_id} exercise_id={exercise_id} "
+            f"pid={proc.pid if proc else None} return_code={return_code} timed_out={timed_out} "
+            f"stdin_bytes={stdin_bytes} has_newline={stdin_has_newline} eof_sent={eof_sent} "
+            f"ws_close_code={websocket_close_code}",
+            flush=True,
+        )
         await ws.send_text(json.dumps(exit_payload, ensure_ascii=False))
+        exit_sent = True
     except Exception as exc:
         try: await ws.send_text(json.dumps({"type": "error", "message": str(exc)[:500]}, ensure_ascii=False))
         except Exception: pass
     finally:
         if proc and proc.poll() is None:
-            try: proc.kill()
-            except Exception: pass
+            terminate_process_group()
+        if reader_thread:
+            reader_thread.join(timeout=1)
         try:
-            if 'master_fd' in locals() and master_fd is not None: os.close(master_fd)
+            if master_fd is not None: os.close(master_fd)
         except OSError: pass
+        if proc:
+            try: proc.wait(timeout=2)
+            except Exception: pass
+        if not exit_sent and request_id:
+            print(f"[WS-TERMINAL] exit_not_sent request_id={request_id} exercise_id={exercise_id} ws_close_code={websocket_close_code}", flush=True)
         if acquired: DOCKER_SEMAPHORE.release()
         if tmp_dir: shutil.rmtree(tmp_dir, ignore_errors=True)
         try: await ws.close()
