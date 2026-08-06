@@ -280,5 +280,32 @@
       "hidden_leakage": false,
       "failure_reason": "First submission failed on missing trailing spaces. After the output was corrected to print a trailing space after each value, the official test modal showed 8/8 and all public cases passed with exit code 0. Interactive Run was not captured."
     }
+  },
+  "followup_online_acceptance": {
+    "report": "verification-results/programming-workbench-cli-acceptance-final-3.json",
+    "results": {
+      "1546": {
+        "status": "partial",
+        "public": "3/3",
+        "submit": "8/8",
+        "run": "exit_event_missing",
+        "java_files": 5,
+        "hidden_leakage": false
+      },
+      "1629": {
+        "status": "passed",
+        "run": "exit_code=0",
+        "public": "3/3",
+        "submit": "8/8",
+        "hidden_leakage": false
+      },
+      "1734": {
+        "status": "passed",
+        "run": "exit_code=0",
+        "public": "3/3",
+        "submit": "8/8",
+        "hidden_leakage": false
+      }
+    }
   }
 }

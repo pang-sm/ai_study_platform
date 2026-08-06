@@ -53,3 +53,6 @@ The C++ catalog filter fix was deployed in Actions `31017023422`; it does not al
 - Java IDs `1546,1549,1556,1551,1552,1554,1660,1661,1662,1663,1664,1775,1795,1809` were each attempted in fresh Playwright contexts.
 - The formal runner stopped before file-list inspection because the unauthenticated landing page exposed zero programming-navigation buttons. It did not claim file scrolling, independent models, `javac`, Run, Test, Submit, or leakage results.
 - Evidence is in `verification-results/programming-workbench-cli-acceptance.json`; screenshots are `verification-screenshots/programming-workbench-random-40/cli-*.png`; trace ZIPs are Git-ignored.
+
+## Online follow-up
+Follow-up Java 1546: five files visible, scroll reachable, public 3/3, submit 8/8, hidden/reference leakage 0; interactive exit event remains missing.

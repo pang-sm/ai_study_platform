@@ -562,6 +562,8 @@ async function chooseLibraryExercise(page, target, audit = {}) {
     audit.pages_visited.push({ page: pageNumber, total_pages: totalPages, dom_page: pageState.page, api_total: apiPage.total, api_ids: apiPage.exercises.map((item) => item.id) });
     const targetIndex = apiPage.exercises.findIndex((item) => item.id === Number(target.id));
     const cards = page.locator(".ph-exercise-card");
+    const targetCard = targetIndex >= 0 ? cards.nth(targetIndex) : null;
+    if (targetCard) await targetCard.waitFor({ state: "visible", timeoutMs: 15_000 });
     const count = await cards.count();
     const texts = count ? await cards.allTextContents({ timeoutMs: 12_000 }) : [];
     if (targetIndex >= 0) {
@@ -617,7 +619,9 @@ async function inspectWorkbench(page, record) {
   const title = await getText(page.locator(".pw-exercise-sidebar h1"), "exercise title");
   const statementCount = await page.locator(".pw-exercise-statement-copy").count();
   const sampleCount = await page.locator(".pw-exercise-example-card").count();
-  const editorCount = await page.locator(".pw-editor-card .monaco-editor").count();
+  const editor = page.locator(".pw-editor-card .monaco-editor");
+  await editor.waitFor({ state: "visible", timeoutMs: 30_000 });
+  const editorCount = await editor.count();
   if (statementCount !== 1 || sampleCount < 3 || editorCount !== 1) throw new Error(`workbench content incomplete: statement=${statementCount}, samples=${sampleCount}, editor=${editorCount}`);
   const snapshot = await page.locator(".pw-exercise-sidebar").innerText({ timeoutMs: 12000 });
   record.hidden_leakage = /reference_solution|reference_files|hidden_cases|hidden_tests/i.test(snapshot);
@@ -648,6 +652,7 @@ async function inspectJavaFiles(page, record) {
 }
 
 async function inspectMonaco(page) {
+  await page.locator(".pw-editor-card .monaco-editor").waitFor({ state: "visible", timeoutMs: 30_000 });
   const result = await page.evaluate(() => {
     const models = globalThis.monaco?.editor?.getModels?.() || [];
     return {
@@ -662,11 +667,62 @@ async function inspectMonaco(page) {
 }
 
 async function runInteractive(page, target, record) {
+  const fileTrigger = page.locator(".pw-file-list-trigger");
+  if (await fileTrigger.count() === 1) {
+    await clickUnique(fileTrigger, "entry file list trigger");
+    const fileButtons = page.locator(".pw-file-list-popover button");
+    const fileCount = await fileButtons.count();
+    let entryIndex = -1;
+    for (let index = 0; index < fileCount; index += 1) {
+      const title = await fileButtons.nth(index).getAttribute("title", { timeoutMs: 12000 });
+      const text = await fileButtons.nth(index).innerText({ timeoutMs: 12000 }).catch(() => "");
+      if (/Main\.java|main\.cpp|main\.py/i.test(`${title || ""} ${text}`)) { entryIndex = index; break; }
+    }
+    if (entryIndex >= 0) {
+      await fileButtons.nth(entryIndex).click({ timeoutMs: 12000 });
+      await page.waitForTimeout(700);
+    }
+  }
   const run = page.locator("button[data-action='top-run']");
   await clickUnique(run, "Run");
   await page.waitForTimeout(1200);
   const terminal = page.locator(".pw-xterm");
   if (await terminal.count() !== 1) throw new Error("terminal not rendered after Run");
+  // Read the first sample's input from its protocol code block. This avoids
+  // relying on localized rendered labels, which may be mojibake in old builds.
+  const sampleCards = page.locator(".pw-exercise-example-card");
+  const sampleCardCount = await sampleCards.count();
+  if (!sampleCardCount) throw new Error("no public sample card available for interactive run");
+  const sampleCodeBlocks = sampleCards.nth(0).locator("code");
+  const sampleCodeCount = await sampleCodeBlocks.count();
+  const stableSampleInput = sampleCodeCount >= 1 ? await sampleCodeBlocks.nth(0).innerText({ timeoutMs: 12000 }) : "";
+  const sendSample = sampleCards.nth(0).locator(".pw-send-sample-input");
+  const sendSampleCount = await sendSample.count();
+  let stableInputSent = false;
+  if (sendSampleCount === 1) {
+    await sendSample.click({ timeoutMs: 12000 });
+    stableInputSent = true;
+    await page.waitForTimeout(1200);
+    const eofButton = page.locator(".pw-terminal-input-actions button").filter({ hasText: "发送 EOF" });
+    if (await eofButton.count() === 1) await eofButton.click({ timeoutMs: 12000 });
+  }
+  if (!stableInputSent && stableSampleInput.trim()) {
+    await terminal.click({ timeoutMs: 12000 });
+    await page.keyboard.type(stableSampleInput.trimEnd());
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Control+D");
+  }
+  await page.waitForTimeout(5000);
+  const runDetailsToggle = page.locator("button.pw-run-details-toggle");
+  if (await runDetailsToggle.count() === 1) await runDetailsToggle.click({ timeoutMs: 12000 });
+  const stableResultText = await page.locator(".pw-run-result").innerText({ timeoutMs: 12000 }).catch(() => "");
+  const stableBodyText = await page.locator(".pw-bottom-toolwindow").innerText({ timeoutMs: 12000 }).catch(() => "");
+  const stableCombinedText = `${stableResultText}\n${stableBodyText}`;
+  const stableHasExit = /退出码|exit(?:[_ -]?code)?|程序已结束|进程已结束|process\s+exited/i.test(stableCombinedText);
+  record.interactive_run = { input_sent: stableInputSent || Boolean(stableSampleInput.trim()), exit_observed: stableHasExit, output_excerpt: stableResultText.slice(0, 600) };
+  if (!stableHasExit) throw new Error("Run did not expose an exit state within bounded wait");
+  return record.interactive_run;
+
   const sample = page.locator(".pw-exercise-example-card");
   const sampleText = await sample.nth(0).innerText({ timeoutMs: 12000 });
   const inputMatch = sampleText.match(/(?:输入|杈撳叆)\s*([\s\S]*?)(?:标准输出|鏍囧噯杈撳嚭)/i);
@@ -684,6 +740,24 @@ async function runInteractive(page, target, record) {
 }
 
 async function runPublicTest(page, record) {
+  const stableTest = page.locator("button.pw-top-exercise-action:not(.pw-top-exercise-action--primary):not(.pw-file-list-trigger)");
+  await clickUnique(stableTest, "Test");
+  const stablePicker = page.locator("section.pw-test-picker");
+  if (await stablePicker.count() !== 1) throw new Error("public test picker did not open");
+  const stableCheckboxes = stablePicker.locator("input[type='checkbox']");
+  const stableCount = await stableCheckboxes.count();
+  if (stableCount < 3) throw new Error(`public test picker expected at least 3 cases, got ${stableCount}`);
+  await clickUnique(stablePicker.locator("button.pw-top-exercise-action--primary"), "start public tests");
+  await stablePicker.waitFor({ state: "hidden", timeoutMs: 30000 });
+  const stableModal = page.locator("section.pw-result-modal:not(.pw-test-picker)");
+  await stableModal.waitFor({ state: "visible", timeoutMs: 30000 });
+  const stableText = await stableModal.innerText({ timeoutMs: 12000 });
+  const stableSummary = stableModal.locator(".pw-result-modal-summary strong");
+  const stableSummaryText = await stableSummary.count() === 1 ? await stableSummary.innerText({ timeoutMs: 12000 }) : "";
+  const stableMatch = `${stableSummaryText} ${stableText}`.match(/(\d+)\s*[\/／]\s*(\d+)/);
+  record.public_test = { picker_case_count: stableCount, summary: stableMatch ? `${stableMatch[1]}/${stableMatch[2]}` : "not_parsed", summary_text: stableSummaryText.slice(0, 120), modal_text_excerpt: stableText.slice(0, 300), hidden_visible: /reference_solution|reference_files|hidden_cases|hidden_tests/i.test(stableText) };
+  if (record.public_test.hidden_visible) throw new Error("hidden test detail appeared in public test modal");
+  return record.public_test;
   const test = page.locator("button.pw-top-exercise-action").filter({ hasText: "测试" });
   await clickUnique(test, "Test");
   const picker = page.locator("section.pw-test-picker");
@@ -703,6 +777,18 @@ async function runPublicTest(page, record) {
 }
 
 async function runSubmit(page, record) {
+  const stableModal = page.locator("section.pw-result-modal");
+  const stableClose = stableModal.locator("button.pw-modal-close");
+  if (await stableClose.count() === 1) await stableClose.click({ timeoutMs: 12000 });
+  await clickUnique(page.locator("button.pw-top-exercise-action--primary"), "Submit");
+  await stableModal.waitFor({ state: "visible", timeoutMs: 45000 });
+  const stableText = await stableModal.innerText({ timeoutMs: 12000 });
+  const stableSummary = stableModal.locator(".pw-result-modal-summary strong");
+  const stableSummaryText = await stableSummary.count() === 1 ? await stableSummary.innerText({ timeoutMs: 12000 }) : "";
+  const stableMatch = `${stableSummaryText} ${stableText}`.match(/(\d+)\s*[\/／]\s*(\d+)/);
+  record.submit = { summary: stableMatch ? `${stableMatch[1]}/${stableMatch[2]}` : "not_parsed", summary_text: stableSummaryText.slice(0, 120), modal_text_excerpt: stableText.slice(0, 300), hidden_visible: /reference_solution|reference_files|hidden_cases|hidden_tests/i.test(stableText) };
+  if (record.submit.hidden_visible) throw new Error("hidden test detail appeared in submit modal");
+  return record.submit;
   const modal = page.locator("section.pw-result-modal");
   const close = modal.locator("button[aria-label='关闭']");
   if (await close.count() === 1) await close.click({ timeoutMs: 12000 });
@@ -717,6 +803,9 @@ async function runSubmit(page, record) {
 }
 
 async function cleanTopicSwitch(page, record) {
+  const openModal = page.locator("section.pw-result-modal");
+  const closeModal = openModal.locator("button.pw-modal-close");
+  if (await closeModal.count() === 1) await closeModal.click({ timeoutMs: 12000 });
   const nav = page.locator(".ph-nav button");
   const count = await nav.count();
   if (count !== 4) throw new Error(`navigation disappeared after Workbench: ${count}`);
@@ -734,6 +823,63 @@ async function loadAuditedImplementation(target) {
   const entries = Object.values(map).filter((item) => Number(item.exercise_id) === target.id);
   if (!entries.length) return null;
   return entries[0].reference_files || null;
+}
+
+async function applyAuditedImplementation(page, target, record) {
+  const files = await loadAuditedImplementation(target);
+  if (!Array.isArray(files) || !files.length) return { applied: false };
+  const fileList = page.locator(".pw-file-list-popover button");
+  let count = await fileList.count();
+  if (!count) {
+    const trigger = page.locator(".pw-file-list-trigger");
+    if (await trigger.count() === 1) {
+      await trigger.click({ timeoutMs: 12000 });
+      count = await fileList.count();
+    }
+  }
+  const applied = [];
+  if (count) {
+    for (let index = 0; index < count; index += 1) {
+      if (index > 0) {
+        const trigger = page.locator(".pw-file-list-trigger");
+        await clickUnique(trigger, "Java file list trigger");
+        await page.locator(".pw-file-list-popover").waitFor({ state: "visible", timeoutMs: 12000 });
+      }
+      const currentFileList = page.locator(".pw-file-list-popover button");
+      const button = currentFileList.nth(index);
+      const filePath = await button.getAttribute("title", { timeoutMs: 12000 });
+      const buttonText = await button.innerText({ timeoutMs: 12000 }).catch(() => "");
+      const fileIdentity = `${filePath || ""} ${buttonText || ""}`.replace(/\s+/g, "");
+      const implementation = files.find((item) => fileIdentity.includes(String(item.path).replace(/\s+/g, "")) || (filePath && (item.path === filePath || filePath.endsWith(`/${item.path}`) || filePath.endsWith(item.path))));
+      if (!implementation) continue;
+      await button.click({ timeoutMs: 12000 });
+      await page.locator(".pw-editor-card .monaco-editor").waitFor({ state: "visible", timeoutMs: 30000 });
+      await page.waitForTimeout(700);
+      await page.evaluate(({ expectedPath, content }) => {
+        const models = globalThis.monaco?.editor?.getModels?.() || [];
+        const normalize = (value) => decodeURIComponent(String(value || "")).replace(/\\/g, "/");
+        const model = models.find((item) => normalize(item.uri?.path).endsWith(expectedPath) || normalize(item.uri).endsWith(expectedPath)) || (models.length === 1 ? models[0] : null);
+        if (!model) throw new Error(`Monaco model not found for ${expectedPath}`);
+        model.setValue(content || "");
+      }, { expectedPath: implementation.path, content: implementation.content });
+      applied.push(implementation.path);
+      await page.waitForTimeout(900);
+    }
+  } else {
+    const implementation = files[0];
+    await page.waitForTimeout(700);
+    await page.evaluate(({ expectedPath, content }) => {
+      const models = globalThis.monaco?.editor?.getModels?.() || [];
+      const normalize = (value) => decodeURIComponent(String(value || "")).replace(/\\/g, "/");
+      const model = models.find((item) => normalize(item.uri?.path).endsWith(expectedPath) || normalize(item.uri).endsWith(expectedPath)) || (models.length === 1 ? models[0] : null);
+      if (!model) throw new Error(`Monaco model not found for ${expectedPath}`);
+      model.setValue(content || "");
+    }, { expectedPath: implementation.path, content: implementation.content });
+    applied.push(implementation.path);
+  }
+  record.implementation_applied = { file_count: applied.length, paths: applied };
+  await page.waitForTimeout(1200);
+  return record.implementation_applied;
 }
 
 async function runTarget(browser, target) {
@@ -782,6 +928,7 @@ async function runTarget(browser, target) {
     await step(page, record, "inspect_statement_samples_and_leakage", () => inspectWorkbench(page, record));
     await step(page, record, "inspect_starter_layout_and_monaco", () => inspectMonaco(page));
     if (target.language === "Java") await step(page, record, "inspect_java_files_and_scroll", () => inspectJavaFiles(page, record));
+    if (options.implementationMap) await step(page, record, "apply_audited_implementation", () => applyAuditedImplementation(page, target, record));
     await step(page, record, "run_current_code", () => runInteractive(page, target, record));
     await step(page, record, "run_single_and_all_public_tests", () => runPublicTest(page, record));
     await step(page, record, "submit_current_code", () => runSubmit(page, record));
@@ -839,7 +986,12 @@ if (options.authCheckOnly) {
       } else {
         browser = await chromium.launch({ headless: !options.headed });
         for (const target of targets) {
-          if (options.resume && activeReport.records[target.id]?.final_status === "passed") continue;
+          // An open-only probe proves navigation/identity only. It must be
+          // re-run for the full acceptance chain even though the record has
+          // no failed steps and therefore carries final_status=passed.
+          const existingRecord = activeReport.records[target.id];
+          const fullAcceptancePassed = existingRecord?.final_status === "passed" && existingRecord?.open_only !== true;
+          if (options.resume && fullAcceptancePassed) continue;
           await runTarget(browser, target);
         }
         activeReport.status = activeReport.totals.incomplete ? "incomplete" : activeReport.totals.failed ? "failed" : "passed";

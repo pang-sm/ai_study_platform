@@ -403,7 +403,12 @@
     },
     "1554": {
       "files": 4,
-      "file_list": ["Main.java", "MatchResult.java", "Player.java", "RankingService.java"],
+      "file_list": [
+        "Main.java",
+        "MatchResult.java",
+        "Player.java",
+        "RankingService.java"
+      ],
       "public_cases": "3/3",
       "single_public_case": "1/1",
       "submit": "8/8",
@@ -415,7 +420,13 @@
     },
     "1556": {
       "files": 5,
-      "file_list": ["DeliveryStatus.java", "DispatchCenter.java", "Main.java", "Parcel.java", "Route.java"],
+      "file_list": [
+        "DeliveryStatus.java",
+        "DispatchCenter.java",
+        "Main.java",
+        "Parcel.java",
+        "Route.java"
+      ],
       "public_cases": "3/3",
       "single_public_case": "1/1",
       "submit": "8/8",
@@ -460,5 +471,32 @@
     "Python": "5 remaining sample items not verified",
     "Java": "1660-1664 audited; 1546 Test action timed out twice and controls disappeared; 1549,1551,1552,1554 missing test/submit verification; 1556 and 1775 interactive Run returned exit_code -9; 1809 official tests passed after trailing-space correction but interactive Run was not captured",
     "Java_multifile_scroll": "not completed"
+  },
+  "followup_online_acceptance": {
+    "report": "verification-results/programming-workbench-cli-acceptance-final-3.json",
+    "results": {
+      "1546": {
+        "status": "partial",
+        "public": "3/3",
+        "submit": "8/8",
+        "run": "exit_event_missing",
+        "java_files": 5,
+        "hidden_leakage": false
+      },
+      "1629": {
+        "status": "passed",
+        "run": "exit_code=0",
+        "public": "3/3",
+        "submit": "8/8",
+        "hidden_leakage": false
+      },
+      "1734": {
+        "status": "passed",
+        "run": "exit_code=0",
+        "public": "3/3",
+        "submit": "8/8",
+        "hidden_leakage": false
+      }
+    }
   }
 }

@@ -12,7 +12,14 @@
       "exercise_id": 1660,
       "title": "电影院的座位预订",
       "file_count": 6,
-      "files": ["BookingService.java", "Customer.java", "Main.java", "Movie.java", "Screening.java", "Seat.java"],
+      "files": [
+        "BookingService.java",
+        "Customer.java",
+        "Main.java",
+        "Movie.java",
+        "Screening.java",
+        "Seat.java"
+      ],
       "entry_file_visible": true,
       "last_file_reachable": true,
       "independent_file_list": true,
@@ -28,7 +35,13 @@
       "exercise_id": 1661,
       "title": "图书馆的借阅登记",
       "file_count": 5,
-      "files": ["Book.java", "Library.java", "LoanRecord.java", "Main.java", "Reader.java"],
+      "files": [
+        "Book.java",
+        "Library.java",
+        "LoanRecord.java",
+        "Main.java",
+        "Reader.java"
+      ],
       "entry_file_visible": true,
       "last_file_reachable": true,
       "independent_file_list": true,
@@ -44,7 +57,15 @@
       "exercise_id": 1662,
       "title": "停车场的分时计费",
       "file_count": 7,
-      "files": ["BaseFeePolicy.java", "FeePolicy.java", "Main.java", "ParkingLot.java", "ParkingTicket.java", "StandardFeePolicy.java", "Vehicle.java"],
+      "files": [
+        "BaseFeePolicy.java",
+        "FeePolicy.java",
+        "Main.java",
+        "ParkingLot.java",
+        "ParkingTicket.java",
+        "StandardFeePolicy.java",
+        "Vehicle.java"
+      ],
       "entry_file_visible": true,
       "last_file_reachable": true,
       "independent_file_list": true,
@@ -62,7 +83,14 @@
       "exercise_id": 1663,
       "title": "餐厅预约与候位",
       "file_count": 6,
-      "files": ["Guest.java", "Main.java", "Reservation.java", "ReservationStatus.java", "Restaurant.java", "Table.java"],
+      "files": [
+        "Guest.java",
+        "Main.java",
+        "Reservation.java",
+        "ReservationStatus.java",
+        "Restaurant.java",
+        "Table.java"
+      ],
       "entry_file_visible": true,
       "last_file_reachable": true,
       "independent_file_list": true,
@@ -78,7 +106,13 @@
       "exercise_id": 1664,
       "title": "学生选课登记",
       "file_count": 5,
-      "files": ["Course.java", "Enrollment.java", "Main.java", "Registrar.java", "Student.java"],
+      "files": [
+        "Course.java",
+        "Enrollment.java",
+        "Main.java",
+        "Registrar.java",
+        "Student.java"
+      ],
       "entry_file_visible": true,
       "last_file_reachable": true,
       "independent_file_list": true,
@@ -94,7 +128,13 @@
       "exercise_id": 1546,
       "title": "图书馆的借阅登记",
       "file_count": 5,
-      "files": ["Book.java", "Library.java", "LoanRecord.java", "Main.java", "Reader.java"],
+      "files": [
+        "Book.java",
+        "Library.java",
+        "LoanRecord.java",
+        "Main.java",
+        "Reader.java"
+      ],
       "entry_file_visible": true,
       "last_file_reachable": true,
       "independent_file_list": true,
@@ -110,7 +150,13 @@
       "exercise_id": 1549,
       "title": "学生选课登记",
       "file_count": 5,
-      "files": ["Course.java", "Enrollment.java", "Main.java", "Registrar.java", "Student.java"],
+      "files": [
+        "Course.java",
+        "Enrollment.java",
+        "Main.java",
+        "Registrar.java",
+        "Student.java"
+      ],
       "entry_file_visible": true,
       "last_file_reachable": true,
       "independent_file_list": true,
@@ -126,7 +172,14 @@
       "exercise_id": 1551,
       "title": "电商订单与优惠券",
       "file_count": 6,
-      "files": ["Coupon.java", "DiscountPolicy.java", "Main.java", "Order.java", "OrderItem.java", "Product.java"],
+      "files": [
+        "Coupon.java",
+        "DiscountPolicy.java",
+        "Main.java",
+        "Order.java",
+        "OrderItem.java",
+        "Product.java"
+      ],
       "entry_file_visible": true,
       "last_file_reachable": true,
       "independent_file_list": true,
@@ -142,7 +195,13 @@
       "exercise_id": 1552,
       "title": "酒店房间预订",
       "file_count": 5,
-      "files": ["Booking.java", "Guest.java", "Hotel.java", "Main.java", "Room.java"],
+      "files": [
+        "Booking.java",
+        "Guest.java",
+        "Hotel.java",
+        "Main.java",
+        "Room.java"
+      ],
       "entry_file_visible": true,
       "last_file_reachable": true,
       "independent_file_list": true,
@@ -158,7 +217,12 @@
       "exercise_id": 1554,
       "title": "棋类比赛积分榜",
       "file_count": 4,
-      "files": ["Main.java", "MatchResult.java", "Player.java", "RankingService.java"],
+      "files": [
+        "Main.java",
+        "MatchResult.java",
+        "Player.java",
+        "RankingService.java"
+      ],
       "entry_file_visible": true,
       "last_file_reachable": true,
       "independent_file_list": true,
@@ -174,7 +238,13 @@
       "exercise_id": 1556,
       "title": "快递分拣与配送",
       "file_count": 5,
-      "files": ["DeliveryStatus.java", "DispatchCenter.java", "Main.java", "Parcel.java", "Route.java"],
+      "files": [
+        "DeliveryStatus.java",
+        "DispatchCenter.java",
+        "Main.java",
+        "Parcel.java",
+        "Route.java"
+      ],
       "entry_file_visible": true,
       "last_file_reachable": true,
       "independent_file_list": true,
@@ -220,7 +290,12 @@
     },
     "1554": {
       "file_count": 4,
-      "files": ["Main.java", "MatchResult.java", "Player.java", "RankingService.java"],
+      "files": [
+        "Main.java",
+        "MatchResult.java",
+        "Player.java",
+        "RankingService.java"
+      ],
       "public_cases": "3/3",
       "single_public_case": "1/1",
       "submit": "8/8",
@@ -231,7 +306,13 @@
     },
     "1556": {
       "file_count": 5,
-      "files": ["DeliveryStatus.java", "DispatchCenter.java", "Main.java", "Parcel.java", "Route.java"],
+      "files": [
+        "DeliveryStatus.java",
+        "DispatchCenter.java",
+        "Main.java",
+        "Parcel.java",
+        "Route.java"
+      ],
       "public_cases": "3/3",
       "single_public_case": "1/1",
       "submit": "8/8",
@@ -246,7 +327,9 @@
     },
     "1569": {
       "file_count": 1,
-      "files": ["Main.java"],
+      "files": [
+        "Main.java"
+      ],
       "starter_todo_present": true,
       "public_cases": "3/3",
       "single_public_case": "1/1",
@@ -257,7 +340,9 @@
     },
     "1775": {
       "file_count": 1,
-      "files": ["Main.java"],
+      "files": [
+        "Main.java"
+      ],
       "public_cases": "3/3_via_submit_modal",
       "submit": "8/8",
       "interactive_run": "failed_exit_-9_after_sample_input",
@@ -278,5 +363,17 @@
   "browser_followup": {
     "java_multifile_scroll": "not_verified",
     "reason": "???????????? Java????????/??/????????"
+  },
+  "followup_1546": {
+    "file_count": 5,
+    "visible_files": 5,
+    "scroll_height": 224,
+    "client_height": 224,
+    "overflow_y": "auto",
+    "last_file_reachable": true,
+    "public": "3/3",
+    "submit": "8/8",
+    "hidden_reference_leakage": 0,
+    "interactive_run": "exit_event_missing"
   }
 }

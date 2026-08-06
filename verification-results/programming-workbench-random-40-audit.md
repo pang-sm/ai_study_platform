@@ -59,3 +59,6 @@ Remaining current sample work: Java 1549, 1551, 1552, 1554, 1556 and the remaini
 - Ran the remaining non-C targets in independent contexts: Java `1546,1549,1556,1551,1552,1554,1660-1664,1775,1795,1809`, C++ `1734,1756,1758,1762,1767`, and Python `1629,1819,1822,1833,1845,1846,1847,1849,1865,1866`.
 - All 29 attempts reached `http://101.32.190.42/` with page HTTP 200, but stopped at `open_correct_exercise`: the unauthenticated page had zero programming-navigation buttons. Only `/api/settings/public` and `/api/announcements/active` were observed; no Workbench API, Run/Test/Submit, or WebSocket result was inferred.
 - Detailed evidence: `verification-results/programming-workbench-cli-acceptance.json`; screenshots: `verification-screenshots/programming-workbench-random-40/cli-*.png`; optional traces are under `verification-traces/programming-workbench-random-40/` and are Git-ignored.
+
+## Online follow-up
+Follow-up 3: 1546 partial (five files, public 3/3, submit 8/8, interactive exit event missing); 1734 passed; 1629 passed. Evidence: programming-workbench-cli-acceptance-final-3.json

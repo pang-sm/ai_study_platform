@@ -1,0 +1,2726 @@
+{
+  "audit": "programming-workbench-cli-acceptance-followup-3",
+  "base_url": "http://101.32.190.42/",
+  "browser_surface": "Playwright CLI",
+  "generated_at": "2026-08-06T14:07:02.606Z",
+  "followup_scope": [
+    "Java 1546",
+    "C++ 1734",
+    "Python 1629"
+  ],
+  "auth_probe": "passed",
+  "auth_state_valid": true,
+  "records": {
+    "1546": {
+      "exercise_id": 1546,
+      "language": "Java",
+      "title": "图书馆的借阅登记",
+      "final_status": "failed",
+      "url": "http://101.32.190.42/",
+      "steps": {
+        "open_site": {
+          "started_at": "2026-08-06T14:03:02.666Z",
+          "passed": true,
+          "details": {
+            "url": "http://101.32.190.42/",
+            "title": "AI 学习平台",
+            "visible_chars": 331
+          },
+          "attempts": 1,
+          "finished_at": "2026-08-06T14:03:05.443Z"
+        },
+        "open_correct_exercise": {
+          "started_at": "2026-08-06T14:03:05.444Z",
+          "passed": true,
+          "details": {
+            "page": 1,
+            "card_text": "已通过Java进阶原创题目图书馆的借阅登记请实现一个小型图书馆的借阅登记。再次练习",
+            "api_target": {
+              "id": 1546,
+              "language": "Java",
+              "title": "图书馆的借阅登记"
+            },
+            "audit": {
+              "language": "Java",
+              "target_exercise_id": 1546,
+              "search_available": false,
+              "search_used": false,
+              "pages_visited": [
+                {
+                  "page": 1,
+                  "total_pages": 2,
+                  "dom_page": 1,
+                  "api_total": 60,
+                  "api_ids": [
+                    1545,
+                    1547,
+                    1548,
+                    1549,
+                    1550,
+                    1551,
+                    1552,
+                    1553,
+                    1554,
+                    1555,
+                    1556,
+                    1569,
+                    1572,
+                    1575,
+                    1599,
+                    1602,
+                    1546,
+                    1773,
+                    1774,
+                    1775,
+                    1776,
+                    1777,
+                    1778,
+                    1779,
+                    1780,
+                    1781,
+                    1782,
+                    1783,
+                    1784,
+                    1785,
+                    1786,
+                    1787,
+                    1788,
+                    1789,
+                    1790,
+                    1791,
+                    1792,
+                    1793,
+                    1794,
+                    1795,
+                    1796,
+                    1797,
+                    1798,
+                    1799,
+                    1800,
+                    1801,
+                    1802,
+                    1803
+                  ]
+                }
+              ],
+              "list_requests": [
+                {
+                  "status": 200,
+                  "url": "http://101.32.190.42/api/programming/exercises?language=Java&page=1&page_size=12&username=%3Credacted%3E"
+                },
+                {
+                  "status": 200,
+                  "url": "http://101.32.190.42/api/programming/exercises?language=Java&page=1&page_size=48&username=%3Credacted%3E"
+                }
+              ],
+              "found_by": "api_page_index_then_exact_title_card",
+              "found_page": 1,
+              "found_title": "图书馆的借阅登记"
+            }
+          },
+          "attempts": 1,
+          "finished_at": "2026-08-06T14:03:06.817Z"
+        },
+        "verify_workbench_identity": {
+          "started_at": "2026-08-06T14:03:06.818Z",
+          "passed": true,
+          "details": {
+            "exercise_id": 1546,
+            "language": "Java",
+            "title": "图书馆的借阅登记",
+            "page_url": "http://101.32.190.42/"
+          },
+          "attempts": 1,
+          "finished_at": "2026-08-06T14:03:07.832Z"
+        },
+        "inspect_statement_samples_and_leakage": {
+          "started_at": "2026-08-06T14:03:07.833Z",
+          "passed": true,
+          "details": {
+            "title": "图书馆的借阅登记",
+            "file_count": 5,
+            "public_sample_count": 3,
+            "hidden_leakage": false
+          },
+          "attempts": 1,
+          "finished_at": "2026-08-06T14:03:09.213Z"
+        },
+        "inspect_starter_layout_and_monaco": {
+          "started_at": "2026-08-06T14:03:09.216Z",
+          "passed": true,
+          "details": {
+            "monaco_api_available": true,
+            "models": [
+              {
+                "uri": "exercise://58:java:1546/Book.java",
+                "line_count": 11,
+                "value_length": 423
+              }
+            ],
+            "visible_line_nodes": 16,
+            "todo_visible": false
+          },
+          "attempts": 1,
+          "finished_at": "2026-08-06T14:03:09.232Z"
+        },
+        "inspect_java_files_and_scroll": {
+          "started_at": "2026-08-06T14:03:09.234Z",
+          "passed": true,
+          "details": {
+            "file_count": 5,
+            "files": [
+              "JBook.java",
+              "JLibrary.java",
+              "JLoanRecord.java",
+              "JMain.java入口",
+              "JReader.java"
+            ],
+            "scroll": {
+              "scrollHeight": 224,
+              "clientHeight": 224,
+              "overflowY": "auto"
+            },
+            "last_file_reached": true,
+            "active_file": "J\nReader.java\n×"
+          },
+          "attempts": 1,
+          "finished_at": "2026-08-06T14:03:09.708Z"
+        },
+        "apply_audited_implementation": {
+          "started_at": "2026-08-06T14:03:09.709Z",
+          "passed": true,
+          "details": {
+            "file_count": 5,
+            "paths": [
+              "Book.java",
+              "Library.java",
+              "LoanRecord.java",
+              "Main.java",
+              "Reader.java"
+            ]
+          },
+          "attempts": 1,
+          "finished_at": "2026-08-06T14:03:19.532Z"
+        },
+        "run_current_code": {
+          "started_at": "2026-08-06T14:03:19.535Z",
+          "passed": false,
+          "attempts": 1,
+          "error": "Run did not expose an exit state within bounded wait",
+          "finished_at": "2026-08-06T14:03:27.879Z"
+        },
+        "run_single_and_all_public_tests": {
+          "started_at": "2026-08-06T14:03:27.881Z",
+          "passed": true,
+          "details": {
+            "picker_case_count": 3,
+            "summary": "3/3",
+            "summary_text": "通过 3/3",
+            "modal_text_excerpt": "公开测试样例\n全部测试结果\n×\n通过 3/3\n未通过 0\n耗时 2.4s\n全部\n仅失败\n仅通过\n重新运行全部测试\n公开样例 1\n通过\n公开样例 2\n通过\n公开样例 3\n通过",
+            "hidden_visible": false
+          },
+          "attempts": 1,
+          "finished_at": "2026-08-06T14:03:31.321Z"
+        },
+        "submit_current_code": {
+          "started_at": "2026-08-06T14:03:31.322Z",
+          "passed": true,
+          "details": {
+            "summary": "8/8",
+            "summary_text": "通过 8/8",
+            "modal_text_excerpt": "完整官方测试集\n提交结果\n×\n通过 8/8\n未通过 0\n耗时 6.6s\n全部\n仅失败\n仅通过\n重新运行全部测试\n公开样例 1\n通过\n公开样例 2\n通过\n公开样例 3\n通过",
+            "hidden_visible": false
+          },
+          "attempts": 1,
+          "finished_at": "2026-08-06T14:03:41.333Z"
+        },
+        "switch_topic_without_residue": {
+          "started_at": "2026-08-06T14:03:41.334Z",
+          "passed": true,
+          "details": true,
+          "attempts": 1,
+          "finished_at": "2026-08-06T14:03:41.749Z"
+        }
+      },
+      "failure_steps": [
+        "run_current_code"
+      ],
+      "screenshots": [
+        "verification-screenshots/acceptance-public-final-1546/cli-1546-run_current_code.png"
+      ],
+      "traces": [],
+      "console_errors": [],
+      "websocket_events": [
+        {
+          "url": "ws://101.32.190.42/code/interactive-run",
+          "opened": "2026-08-06T14:03:20.722Z",
+          "frames_sent": 2,
+          "frames_received": 2,
+          "closed": "2026-08-06T14:03:21.785Z"
+        },
+        {
+          "url": "ws://101.32.190.42/code/interactive-run",
+          "opened": "2026-08-06T14:03:21.833Z",
+          "frames_sent": 4,
+          "frames_received": 3,
+          "closed": "2026-08-06T14:03:41.560Z"
+        }
+      ],
+      "business_responses": [
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:04.272Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T14:03:04.273Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T14:03:04.274Z"
+        },
+        {
+          "phase": "request",
+          "method": "POST",
+          "url": "http://101.32.190.42/api/me",
+          "at": "2026-08-06T14:03:04.275Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/chat/history?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:04.276Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/materials?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:04.276Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T14:03:04.462Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:04.470Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/materials?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:04.584Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/chat/history?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:04.604Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T14:03:04.611Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/me",
+          "at": "2026-08-06T14:03:04.619Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/me/profile?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:04.620Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/me/profile?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:04.804Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/exercises?language=Python&page=1&page_size=12&username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:05.484Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/exercises?language=Java&page=1&page_size=12&username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:05.533Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/exercises?language=Python&page=1&page_size=12&username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:05.863Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/exercises?language=Java&page=1&page_size=12&username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:05.899Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/exercises?language=Java&page=1&page_size=48&username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:05.909Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/exercises?language=Java&page=1&page_size=48&username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:06.292Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/exercises?language=Java&page=1&page_size=48&username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:06.296Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/exercises?language=Java&page=1&page_size=48&username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:06.544Z"
+        },
+        {
+          "phase": "request",
+          "method": "POST",
+          "url": "http://101.32.190.42/api/programming/exercises/1546/start",
+          "at": "2026-08-06T14:03:06.815Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/exercises/1546/start",
+          "at": "2026-08-06T14:03:07.315Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/code/projects/135?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:07.380Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/exercises/1546",
+          "at": "2026-08-06T14:03:07.381Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/exercises/1546",
+          "at": "2026-08-06T14:03:07.572Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/135?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:07.598Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/code/projects/135?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:07.599Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/exercises/1546",
+          "at": "2026-08-06T14:03:07.633Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/135?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:07.789Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/exercises/1546",
+          "at": "2026-08-06T14:03:07.798Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/exercises/1546",
+          "at": "2026-08-06T14:03:07.832Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/exercises/1546",
+          "at": "2026-08-06T14:03:07.990Z"
+        },
+        {
+          "phase": "request",
+          "method": "PUT",
+          "url": "http://101.32.190.42/api/code/projects/135/files/359",
+          "at": "2026-08-06T14:03:11.236Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/135/files/359",
+          "at": "2026-08-06T14:03:11.443Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:11.444Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:11.636Z"
+        },
+        {
+          "phase": "request",
+          "method": "PUT",
+          "url": "http://101.32.190.42/api/code/projects/135/files/362",
+          "at": "2026-08-06T14:03:12.972Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/135/files/362",
+          "at": "2026-08-06T14:03:13.166Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:13.166Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:13.363Z"
+        },
+        {
+          "phase": "request",
+          "method": "PUT",
+          "url": "http://101.32.190.42/api/code/projects/135/files/361",
+          "at": "2026-08-06T14:03:14.697Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/135/files/361",
+          "at": "2026-08-06T14:03:14.890Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:14.891Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:15.087Z"
+        },
+        {
+          "phase": "request",
+          "method": "PUT",
+          "url": "http://101.32.190.42/api/code/projects/135/files/363",
+          "at": "2026-08-06T14:03:16.419Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/135/files/363",
+          "at": "2026-08-06T14:03:16.613Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:16.614Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:16.806Z"
+        },
+        {
+          "phase": "request",
+          "method": "PUT",
+          "url": "http://101.32.190.42/api/code/projects/135/files/360",
+          "at": "2026-08-06T14:03:18.124Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/135/files/360",
+          "at": "2026-08-06T14:03:18.326Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:18.328Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:18.527Z"
+        },
+        {
+          "phase": "request",
+          "method": "PUT",
+          "url": "http://101.32.190.42/api/code/projects/135/files/359",
+          "at": "2026-08-06T14:03:20.350Z"
+        },
+        {
+          "phase": "request",
+          "method": "PUT",
+          "url": "http://101.32.190.42/api/code/projects/135/files/362",
+          "at": "2026-08-06T14:03:20.351Z"
+        },
+        {
+          "phase": "request",
+          "method": "PUT",
+          "url": "http://101.32.190.42/api/code/projects/135/files/361",
+          "at": "2026-08-06T14:03:20.351Z"
+        },
+        {
+          "phase": "request",
+          "method": "PUT",
+          "url": "http://101.32.190.42/api/code/projects/135/files/363",
+          "at": "2026-08-06T14:03:20.351Z"
+        },
+        {
+          "phase": "request",
+          "method": "PUT",
+          "url": "http://101.32.190.42/api/code/projects/135/files/360",
+          "at": "2026-08-06T14:03:20.352Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/135/files/361",
+          "at": "2026-08-06T14:03:20.544Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:20.545Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/135/files/362",
+          "at": "2026-08-06T14:03:20.568Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:20.569Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/135/files/359",
+          "at": "2026-08-06T14:03:20.572Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:20.573Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/135/files/363",
+          "at": "2026-08-06T14:03:20.671Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:20.672Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/135/files/360",
+          "at": "2026-08-06T14:03:20.714Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:20.716Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:20.738Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:20.774Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:20.780Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:20.863Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:20.916Z"
+        },
+        {
+          "phase": "request",
+          "method": "PUT",
+          "url": "http://101.32.190.42/api/code/projects/135/files/359",
+          "at": "2026-08-06T14:03:21.599Z"
+        },
+        {
+          "phase": "request",
+          "method": "PUT",
+          "url": "http://101.32.190.42/api/code/projects/135/files/362",
+          "at": "2026-08-06T14:03:21.600Z"
+        },
+        {
+          "phase": "request",
+          "method": "PUT",
+          "url": "http://101.32.190.42/api/code/projects/135/files/361",
+          "at": "2026-08-06T14:03:21.600Z"
+        },
+        {
+          "phase": "request",
+          "method": "PUT",
+          "url": "http://101.32.190.42/api/code/projects/135/files/363",
+          "at": "2026-08-06T14:03:21.601Z"
+        },
+        {
+          "phase": "request",
+          "method": "PUT",
+          "url": "http://101.32.190.42/api/code/projects/135/files/360",
+          "at": "2026-08-06T14:03:21.601Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/135/files/360",
+          "at": "2026-08-06T14:03:21.799Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:21.800Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/135/files/361",
+          "at": "2026-08-06T14:03:21.823Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:21.823Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/135/files/363",
+          "at": "2026-08-06T14:03:21.826Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:21.827Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/135/files/362",
+          "at": "2026-08-06T14:03:21.830Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:21.830Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/135/files/359",
+          "at": "2026-08-06T14:03:21.831Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:21.832Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:21.992Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:22.025Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:22.040Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:22.041Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:22.050Z"
+        },
+        {
+          "phase": "request",
+          "method": "PUT",
+          "url": "http://101.32.190.42/api/code/projects/135/files/359",
+          "at": "2026-08-06T14:03:27.966Z"
+        },
+        {
+          "phase": "request",
+          "method": "PUT",
+          "url": "http://101.32.190.42/api/code/projects/135/files/362",
+          "at": "2026-08-06T14:03:27.967Z"
+        },
+        {
+          "phase": "request",
+          "method": "PUT",
+          "url": "http://101.32.190.42/api/code/projects/135/files/361",
+          "at": "2026-08-06T14:03:27.967Z"
+        },
+        {
+          "phase": "request",
+          "method": "PUT",
+          "url": "http://101.32.190.42/api/code/projects/135/files/363",
+          "at": "2026-08-06T14:03:27.967Z"
+        },
+        {
+          "phase": "request",
+          "method": "PUT",
+          "url": "http://101.32.190.42/api/code/projects/135/files/360",
+          "at": "2026-08-06T14:03:27.967Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/135/files/361",
+          "at": "2026-08-06T14:03:28.170Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/135/files/360",
+          "at": "2026-08-06T14:03:28.170Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/135/files/362",
+          "at": "2026-08-06T14:03:28.170Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:28.170Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:28.173Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:28.173Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/135/files/363",
+          "at": "2026-08-06T14:03:28.176Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:28.177Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/135/files/359",
+          "at": "2026-08-06T14:03:28.182Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:28.183Z"
+        },
+        {
+          "phase": "request",
+          "method": "POST",
+          "url": "http://101.32.190.42/api/programming/exercises/1546/test",
+          "at": "2026-08-06T14:03:28.184Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:28.371Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:28.373Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:28.378Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:28.388Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:28.393Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/exercises/1546/test",
+          "at": "2026-08-06T14:03:30.908Z"
+        },
+        {
+          "phase": "request",
+          "method": "PUT",
+          "url": "http://101.32.190.42/api/code/projects/135/files/359",
+          "at": "2026-08-06T14:03:31.384Z"
+        },
+        {
+          "phase": "request",
+          "method": "PUT",
+          "url": "http://101.32.190.42/api/code/projects/135/files/362",
+          "at": "2026-08-06T14:03:31.384Z"
+        },
+        {
+          "phase": "request",
+          "method": "PUT",
+          "url": "http://101.32.190.42/api/code/projects/135/files/361",
+          "at": "2026-08-06T14:03:31.384Z"
+        },
+        {
+          "phase": "request",
+          "method": "PUT",
+          "url": "http://101.32.190.42/api/code/projects/135/files/363",
+          "at": "2026-08-06T14:03:31.384Z"
+        },
+        {
+          "phase": "request",
+          "method": "PUT",
+          "url": "http://101.32.190.42/api/code/projects/135/files/360",
+          "at": "2026-08-06T14:03:31.384Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/135/files/359",
+          "at": "2026-08-06T14:03:31.588Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:31.588Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/135/files/363",
+          "at": "2026-08-06T14:03:31.593Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:31.593Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/135/files/361",
+          "at": "2026-08-06T14:03:31.594Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:31.595Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/135/files/362",
+          "at": "2026-08-06T14:03:31.599Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:31.599Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/135/files/360",
+          "at": "2026-08-06T14:03:31.600Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:31.601Z"
+        },
+        {
+          "phase": "request",
+          "method": "POST",
+          "url": "http://101.32.190.42/api/programming/exercises/1546/submit",
+          "at": "2026-08-06T14:03:31.602Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:31.786Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:31.799Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:31.807Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:31.813Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:31.819Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/exercises/1546/submit",
+          "at": "2026-08-06T14:03:40.853Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/exercises?language=Python&page=1&page_size=12&username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:41.388Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/exercises?language=Python&page=1&page_size=12&username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:41.625Z"
+        }
+      ],
+      "hidden_leakage": false,
+      "networkidle_used": false,
+      "page_title": "AI 学习平台",
+      "library_probe": {
+        "language": "Java",
+        "target_exercise_id": 1546,
+        "search_available": false,
+        "search_used": false,
+        "pages_visited": [
+          {
+            "page": 1,
+            "total_pages": 2,
+            "dom_page": 1,
+            "api_total": 60,
+            "api_ids": [
+              1545,
+              1547,
+              1548,
+              1549,
+              1550,
+              1551,
+              1552,
+              1553,
+              1554,
+              1555,
+              1556,
+              1569,
+              1572,
+              1575,
+              1599,
+              1602,
+              1546,
+              1773,
+              1774,
+              1775,
+              1776,
+              1777,
+              1778,
+              1779,
+              1780,
+              1781,
+              1782,
+              1783,
+              1784,
+              1785,
+              1786,
+              1787,
+              1788,
+              1789,
+              1790,
+              1791,
+              1792,
+              1793,
+              1794,
+              1795,
+              1796,
+              1797,
+              1798,
+              1799,
+              1800,
+              1801,
+              1802,
+              1803
+            ]
+          }
+        ],
+        "list_requests": [
+          {
+            "status": 200,
+            "url": "http://101.32.190.42/api/programming/exercises?language=Java&page=1&page_size=12&username=%3Credacted%3E"
+          },
+          {
+            "status": 200,
+            "url": "http://101.32.190.42/api/programming/exercises?language=Java&page=1&page_size=48&username=%3Credacted%3E"
+          }
+        ],
+        "found_by": "api_page_index_then_exact_title_card",
+        "found_page": 1,
+        "found_title": "图书馆的借阅登记"
+      },
+      "workbench_identity": {
+        "exercise_id": 1546,
+        "language": "Java",
+        "title": "图书馆的借阅登记",
+        "page_url": "http://101.32.190.42/"
+      },
+      "java_multifile": {
+        "file_count": 5,
+        "files": [
+          "JBook.java",
+          "JLibrary.java",
+          "JLoanRecord.java",
+          "JMain.java入口",
+          "JReader.java"
+        ],
+        "scroll": {
+          "scrollHeight": 224,
+          "clientHeight": 224,
+          "overflowY": "auto"
+        },
+        "last_file_reached": true,
+        "active_file": "J\nReader.java\n×"
+      },
+      "implementation_applied": {
+        "file_count": 5,
+        "paths": [
+          "Book.java",
+          "Library.java",
+          "LoanRecord.java",
+          "Main.java",
+          "Reader.java"
+        ]
+      },
+      "interactive_run": {
+        "input_sent": true,
+        "exit_observed": false,
+        "output_excerpt": "程序正在运行\n清空终端\n重新运行\n停止程序\n发送 EOF\n复制输出\nEnter 发送当前行 · Ctrl+C 终止 · Ctrl+D EOF · Ctrl+L 清屏\n点击运行后，当前练习的真实程序输出会显示在这里。"
+      },
+      "public_test": {
+        "picker_case_count": 3,
+        "summary": "3/3",
+        "summary_text": "通过 3/3",
+        "modal_text_excerpt": "公开测试样例\n全部测试结果\n×\n通过 3/3\n未通过 0\n耗时 2.4s\n全部\n仅失败\n仅通过\n重新运行全部测试\n公开样例 1\n通过\n公开样例 2\n通过\n公开样例 3\n通过",
+        "hidden_visible": false
+      },
+      "submit": {
+        "summary": "8/8",
+        "summary_text": "通过 8/8",
+        "modal_text_excerpt": "完整官方测试集\n提交结果\n×\n通过 8/8\n未通过 0\n耗时 6.6s\n全部\n仅失败\n仅通过\n重新运行全部测试\n公开样例 1\n通过\n公开样例 2\n通过\n公开样例 3\n通过",
+        "hidden_visible": false
+      },
+      "clean_topic_switch": true,
+      "finished_at": "2026-08-06T14:03:41.750Z"
+    },
+    "1629": {
+      "exercise_id": 1629,
+      "language": "Python",
+      "title": "首个独特字符",
+      "final_status": "passed",
+      "url": "http://101.32.190.42/",
+      "steps": {
+        "open_site": {
+          "started_at": "2026-08-06T14:03:55.442Z",
+          "passed": true,
+          "details": {
+            "url": "http://101.32.190.42/",
+            "title": "AI 学习平台",
+            "visible_chars": 331
+          },
+          "attempts": 1,
+          "finished_at": "2026-08-06T14:03:58.005Z"
+        },
+        "open_correct_exercise": {
+          "started_at": "2026-08-06T14:03:58.006Z",
+          "passed": true,
+          "details": {
+            "page": 1,
+            "card_text": "已通过Python中等原创题目首个独特字符围绕“首个独特字符”完成一项有明确输入输出协议的数据处理任务。再次练习",
+            "api_target": {
+              "id": 1629,
+              "language": "Python",
+              "title": "首个独特字符"
+            },
+            "audit": {
+              "language": "Python",
+              "target_exercise_id": 1629,
+              "search_available": false,
+              "search_used": false,
+              "pages_visited": [
+                {
+                  "page": 1,
+                  "total_pages": 2,
+                  "dom_page": 1,
+                  "api_total": 60,
+                  "api_ids": [
+                    1614,
+                    1632,
+                    1635,
+                    1659,
+                    1662,
+                    1629,
+                    1816,
+                    1817,
+                    1818,
+                    1819,
+                    1820,
+                    1821,
+                    1822,
+                    1823,
+                    1824,
+                    1825,
+                    1826,
+                    1827,
+                    1828,
+                    1829,
+                    1830,
+                    1831,
+                    1832,
+                    1833,
+                    1834,
+                    1835,
+                    1836,
+                    1837,
+                    1838,
+                    1839,
+                    1840,
+                    1841,
+                    1842,
+                    1843,
+                    1844,
+                    1845,
+                    1846,
+                    1847,
+                    1848,
+                    1849,
+                    1850,
+                    1851,
+                    1852,
+                    1853,
+                    1854,
+                    1855,
+                    1856,
+                    1857
+                  ]
+                }
+              ],
+              "list_requests": [
+                {
+                  "status": 200,
+                  "url": "http://101.32.190.42/api/programming/exercises?language=Python&page=1&page_size=12&username=%3Credacted%3E"
+                },
+                {
+                  "status": 200,
+                  "url": "http://101.32.190.42/api/programming/exercises?language=Python&page=1&page_size=48&username=%3Credacted%3E"
+                }
+              ],
+              "found_by": "api_page_index_then_exact_title_card",
+              "found_page": 1,
+              "found_title": "首个独特字符"
+            }
+          },
+          "attempts": 1,
+          "finished_at": "2026-08-06T14:03:58.930Z"
+        },
+        "verify_workbench_identity": {
+          "started_at": "2026-08-06T14:03:58.931Z",
+          "passed": true,
+          "details": {
+            "exercise_id": 1629,
+            "language": "Python",
+            "title": "首个独特字符",
+            "page_url": "http://101.32.190.42/"
+          },
+          "attempts": 1,
+          "finished_at": "2026-08-06T14:03:59.578Z"
+        },
+        "inspect_statement_samples_and_leakage": {
+          "started_at": "2026-08-06T14:03:59.579Z",
+          "passed": true,
+          "details": {
+            "title": "首个独特字符",
+            "file_count": 1,
+            "public_sample_count": 3,
+            "hidden_leakage": false
+          },
+          "attempts": 1,
+          "finished_at": "2026-08-06T14:04:00.933Z"
+        },
+        "inspect_starter_layout_and_monaco": {
+          "started_at": "2026-08-06T14:04:00.934Z",
+          "passed": true,
+          "details": {
+            "monaco_api_available": true,
+            "models": [
+              {
+                "uri": "exercise://58:python:1629/main.py",
+                "line_count": 11,
+                "value_length": 196
+              }
+            ],
+            "visible_line_nodes": 11,
+            "todo_visible": false
+          },
+          "attempts": 1,
+          "finished_at": "2026-08-06T14:04:00.937Z"
+        },
+        "apply_audited_implementation": {
+          "started_at": "2026-08-06T14:04:00.938Z",
+          "passed": true,
+          "details": {
+            "file_count": 1,
+            "paths": [
+              "main.py"
+            ]
+          },
+          "attempts": 1,
+          "finished_at": "2026-08-06T14:04:03.838Z"
+        },
+        "run_current_code": {
+          "started_at": "2026-08-06T14:04:03.841Z",
+          "passed": true,
+          "details": {
+            "input_sent": true,
+            "exit_observed": true,
+            "output_excerpt": "终端：已断开\n清空终端\n重新运行\n停止程序\n发送 EOF\n复制输出\nEnter 发送当前行 · Ctrl+C 终止 · Ctrl+D EOF · Ctrl+L 清屏\nswiss\r\nw\n[收起运行详情]\nexit_code: 0"
+          },
+          "attempts": 1,
+          "finished_at": "2026-08-06T14:04:12.098Z"
+        },
+        "run_single_and_all_public_tests": {
+          "started_at": "2026-08-06T14:04:12.099Z",
+          "passed": true,
+          "details": {
+            "picker_case_count": 3,
+            "summary": "3/3",
+            "summary_text": "通过 3/3",
+            "modal_text_excerpt": "公开测试样例\n全部测试结果\n×\n通过 3/3\n未通过 0\n耗时 0.1s\n全部\n仅失败\n仅通过\n重新运行全部测试\n公开样例 1\n通过\n公开样例 2\n通过\n公开样例 3\n通过",
+            "hidden_visible": false
+          },
+          "attempts": 1,
+          "finished_at": "2026-08-06T14:04:12.989Z"
+        },
+        "submit_current_code": {
+          "started_at": "2026-08-06T14:04:12.990Z",
+          "passed": true,
+          "details": {
+            "summary": "8/8",
+            "summary_text": "通过 8/8",
+            "modal_text_excerpt": "完整官方测试集\n提交结果\n×\n通过 8/8\n未通过 0\n耗时 0.1s\n全部\n仅失败\n仅通过\n重新运行全部测试\n公开样例 1\n通过\n公开样例 2\n通过\n公开样例 3\n通过",
+            "hidden_visible": false
+          },
+          "attempts": 1,
+          "finished_at": "2026-08-06T14:04:13.869Z"
+        },
+        "switch_topic_without_residue": {
+          "started_at": "2026-08-06T14:04:13.870Z",
+          "passed": true,
+          "details": true,
+          "attempts": 1,
+          "finished_at": "2026-08-06T14:04:14.293Z"
+        }
+      },
+      "failure_steps": [],
+      "screenshots": [],
+      "traces": [],
+      "console_errors": [
+        {
+          "type": "error",
+          "text": "WebSocket is already in CLOSING or CLOSED state."
+        }
+      ],
+      "websocket_events": [
+        {
+          "url": "ws://101.32.190.42/code/interactive-run",
+          "opened": "2026-08-06T14:04:04.799Z",
+          "frames_sent": 2,
+          "frames_received": 2,
+          "closed": "2026-08-06T14:04:06.020Z"
+        },
+        {
+          "url": "ws://101.32.190.42/code/interactive-run",
+          "opened": "2026-08-06T14:04:06.142Z",
+          "frames_sent": 2,
+          "frames_received": 6,
+          "closed": "2026-08-06T14:04:07.234Z"
+        }
+      ],
+      "business_responses": [
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:56.837Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T14:03:56.838Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T14:03:56.838Z"
+        },
+        {
+          "phase": "request",
+          "method": "POST",
+          "url": "http://101.32.190.42/api/me",
+          "at": "2026-08-06T14:03:56.839Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/chat/history?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:56.839Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/materials?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:56.840Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:57.031Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T14:03:57.031Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/materials?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:57.148Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T14:03:57.150Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/me",
+          "at": "2026-08-06T14:03:57.156Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/chat/history?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:57.156Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/me/profile?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:57.157Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/me/profile?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:57.337Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/exercises?language=Python&page=1&page_size=12&username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:58.046Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/exercises?language=Python&page=1&page_size=12&username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:58.270Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/exercises?language=Python&page=1&page_size=48&username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:58.280Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/exercises?language=Python&page=1&page_size=48&username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:58.510Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/exercises?language=Python&page=1&page_size=48&username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:58.514Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/exercises?language=Python&page=1&page_size=48&username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:58.752Z"
+        },
+        {
+          "phase": "request",
+          "method": "POST",
+          "url": "http://101.32.190.42/api/programming/exercises/1629/start",
+          "at": "2026-08-06T14:03:58.929Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/exercises/1629/start",
+          "at": "2026-08-06T14:03:59.114Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/code/projects/139?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:59.181Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/exercises/1629",
+          "at": "2026-08-06T14:03:59.181Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/exercises/1629",
+          "at": "2026-08-06T14:03:59.362Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/139?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:59.389Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/code/projects/139?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:59.390Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/exercises/1629",
+          "at": "2026-08-06T14:03:59.399Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/139?username=%3Credacted%3E",
+          "at": "2026-08-06T14:03:59.573Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/exercises/1629",
+          "at": "2026-08-06T14:03:59.573Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/exercises/1629",
+          "at": "2026-08-06T14:03:59.580Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/exercises/1629",
+          "at": "2026-08-06T14:03:59.757Z"
+        },
+        {
+          "phase": "request",
+          "method": "PUT",
+          "url": "http://101.32.190.42/api/code/projects/139/files/367",
+          "at": "2026-08-06T14:04:02.430Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/139/files/367",
+          "at": "2026-08-06T14:04:02.610Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:04:02.611Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:04:02.792Z"
+        },
+        {
+          "phase": "request",
+          "method": "PUT",
+          "url": "http://101.32.190.42/api/code/projects/139/files/367",
+          "at": "2026-08-06T14:04:04.614Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/139/files/367",
+          "at": "2026-08-06T14:04:04.792Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:04:04.793Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:04:04.981Z"
+        },
+        {
+          "phase": "request",
+          "method": "PUT",
+          "url": "http://101.32.190.42/api/code/projects/139/files/367",
+          "at": "2026-08-06T14:04:05.846Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/139/files/367",
+          "at": "2026-08-06T14:04:06.139Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:04:06.141Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:04:06.319Z"
+        },
+        {
+          "phase": "request",
+          "method": "PUT",
+          "url": "http://101.32.190.42/api/code/projects/139/files/367",
+          "at": "2026-08-06T14:04:12.162Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/139/files/367",
+          "at": "2026-08-06T14:04:12.339Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:04:12.340Z"
+        },
+        {
+          "phase": "request",
+          "method": "POST",
+          "url": "http://101.32.190.42/api/programming/exercises/1629/test",
+          "at": "2026-08-06T14:04:12.341Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:04:12.520Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/exercises/1629/test",
+          "at": "2026-08-06T14:04:12.735Z"
+        },
+        {
+          "phase": "request",
+          "method": "PUT",
+          "url": "http://101.32.190.42/api/code/projects/139/files/367",
+          "at": "2026-08-06T14:04:13.046Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/139/files/367",
+          "at": "2026-08-06T14:04:13.244Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:04:13.246Z"
+        },
+        {
+          "phase": "request",
+          "method": "POST",
+          "url": "http://101.32.190.42/api/programming/exercises/1629/submit",
+          "at": "2026-08-06T14:04:13.246Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:04:13.447Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/exercises/1629/submit",
+          "at": "2026-08-06T14:04:13.636Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/exercises?language=Python&page=1&page_size=12&username=%3Credacted%3E",
+          "at": "2026-08-06T14:04:13.940Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/exercises?language=Python&page=1&page_size=12&username=%3Credacted%3E",
+          "at": "2026-08-06T14:04:14.158Z"
+        }
+      ],
+      "hidden_leakage": false,
+      "networkidle_used": false,
+      "page_title": "AI 学习平台",
+      "library_probe": {
+        "language": "Python",
+        "target_exercise_id": 1629,
+        "search_available": false,
+        "search_used": false,
+        "pages_visited": [
+          {
+            "page": 1,
+            "total_pages": 2,
+            "dom_page": 1,
+            "api_total": 60,
+            "api_ids": [
+              1614,
+              1632,
+              1635,
+              1659,
+              1662,
+              1629,
+              1816,
+              1817,
+              1818,
+              1819,
+              1820,
+              1821,
+              1822,
+              1823,
+              1824,
+              1825,
+              1826,
+              1827,
+              1828,
+              1829,
+              1830,
+              1831,
+              1832,
+              1833,
+              1834,
+              1835,
+              1836,
+              1837,
+              1838,
+              1839,
+              1840,
+              1841,
+              1842,
+              1843,
+              1844,
+              1845,
+              1846,
+              1847,
+              1848,
+              1849,
+              1850,
+              1851,
+              1852,
+              1853,
+              1854,
+              1855,
+              1856,
+              1857
+            ]
+          }
+        ],
+        "list_requests": [
+          {
+            "status": 200,
+            "url": "http://101.32.190.42/api/programming/exercises?language=Python&page=1&page_size=12&username=%3Credacted%3E"
+          },
+          {
+            "status": 200,
+            "url": "http://101.32.190.42/api/programming/exercises?language=Python&page=1&page_size=48&username=%3Credacted%3E"
+          }
+        ],
+        "found_by": "api_page_index_then_exact_title_card",
+        "found_page": 1,
+        "found_title": "首个独特字符"
+      },
+      "workbench_identity": {
+        "exercise_id": 1629,
+        "language": "Python",
+        "title": "首个独特字符",
+        "page_url": "http://101.32.190.42/"
+      },
+      "implementation_applied": {
+        "file_count": 1,
+        "paths": [
+          "main.py"
+        ]
+      },
+      "interactive_run": {
+        "input_sent": true,
+        "exit_observed": true,
+        "output_excerpt": "终端：已断开\n清空终端\n重新运行\n停止程序\n发送 EOF\n复制输出\nEnter 发送当前行 · Ctrl+C 终止 · Ctrl+D EOF · Ctrl+L 清屏\nswiss\r\nw\n[收起运行详情]\nexit_code: 0"
+      },
+      "public_test": {
+        "picker_case_count": 3,
+        "summary": "3/3",
+        "summary_text": "通过 3/3",
+        "modal_text_excerpt": "公开测试样例\n全部测试结果\n×\n通过 3/3\n未通过 0\n耗时 0.1s\n全部\n仅失败\n仅通过\n重新运行全部测试\n公开样例 1\n通过\n公开样例 2\n通过\n公开样例 3\n通过",
+        "hidden_visible": false
+      },
+      "submit": {
+        "summary": "8/8",
+        "summary_text": "通过 8/8",
+        "modal_text_excerpt": "完整官方测试集\n提交结果\n×\n通过 8/8\n未通过 0\n耗时 0.1s\n全部\n仅失败\n仅通过\n重新运行全部测试\n公开样例 1\n通过\n公开样例 2\n通过\n公开样例 3\n通过",
+        "hidden_visible": false
+      },
+      "clean_topic_switch": true,
+      "finished_at": "2026-08-06T14:04:14.295Z"
+    },
+    "1734": {
+      "exercise_id": 1734,
+      "language": "C++",
+      "title": "RAII 报表读取器：边界保护",
+      "final_status": "passed",
+      "url": "http://101.32.190.42/",
+      "steps": {
+        "open_site": {
+          "started_at": "2026-08-06T14:02:21.483Z",
+          "passed": true,
+          "details": {
+            "url": "http://101.32.190.42/",
+            "title": "AI 学习平台",
+            "visible_chars": 331
+          },
+          "attempts": 1,
+          "finished_at": "2026-08-06T14:02:24.247Z"
+        },
+        "open_correct_exercise": {
+          "started_at": "2026-08-06T14:02:24.249Z",
+          "passed": true,
+          "details": {
+            "page": 2,
+            "card_text": "已通过C++中等经典练习RAII 报表读取器：边界保护用资源管理对象读取记录并在离开作用域时完成统计。再次练习",
+            "api_target": {
+              "id": 1734,
+              "language": "C++",
+              "title": "RAII 报表读取器：边界保护"
+            },
+            "audit": {
+              "language": "C++",
+              "target_exercise_id": 1734,
+              "search_available": false,
+              "search_used": false,
+              "pages_visited": [
+                {
+                  "page": 1,
+                  "total_pages": 2,
+                  "dom_page": 1,
+                  "api_total": 60,
+                  "api_ids": [
+                    1494,
+                    1509,
+                    1512,
+                    1515,
+                    1539,
+                    1542,
+                    1724,
+                    1730,
+                    1719,
+                    1720,
+                    1721,
+                    1722,
+                    1723,
+                    1725,
+                    1726,
+                    1727,
+                    1728,
+                    1729,
+                    1731,
+                    1732,
+                    1733,
+                    1735,
+                    1736,
+                    1737,
+                    1738,
+                    1739,
+                    1740,
+                    1741,
+                    1742,
+                    1743,
+                    1744,
+                    1745,
+                    1746,
+                    1747,
+                    1748,
+                    1749,
+                    1750,
+                    1751,
+                    1752,
+                    1753,
+                    1754,
+                    1755,
+                    1756,
+                    1757,
+                    1758,
+                    1759,
+                    1760,
+                    1761
+                  ]
+                },
+                {
+                  "page": 2,
+                  "total_pages": 2,
+                  "dom_page": 2,
+                  "api_total": 60,
+                  "api_ids": [
+                    1762,
+                    1763,
+                    1764,
+                    1765,
+                    1766,
+                    1767,
+                    1768,
+                    1769,
+                    1770,
+                    1771,
+                    1772,
+                    1734
+                  ]
+                }
+              ],
+              "list_requests": [
+                {
+                  "status": 200,
+                  "url": "http://101.32.190.42/api/programming/exercises?language=C%2B%2B&page=1&page_size=12&username=%3Credacted%3E"
+                },
+                {
+                  "status": 200,
+                  "url": "http://101.32.190.42/api/programming/exercises?language=C%2B%2B&page=1&page_size=48&username=%3Credacted%3E"
+                },
+                {
+                  "status": 200,
+                  "url": "http://101.32.190.42/api/programming/exercises?language=C%2B%2B&page=2&page_size=48&username=%3Credacted%3E"
+                }
+              ],
+              "found_by": "api_page_index_then_exact_title_card",
+              "found_page": 2,
+              "found_title": "RAII 报表读取器：边界保护"
+            }
+          },
+          "attempts": 1,
+          "finished_at": "2026-08-06T14:02:26.268Z"
+        },
+        "verify_workbench_identity": {
+          "started_at": "2026-08-06T14:02:26.269Z",
+          "passed": true,
+          "details": {
+            "exercise_id": 1734,
+            "language": "C++",
+            "title": "RAII 报表读取器：边界保护",
+            "page_url": "http://101.32.190.42/"
+          },
+          "attempts": 1,
+          "finished_at": "2026-08-06T14:02:26.917Z"
+        },
+        "inspect_statement_samples_and_leakage": {
+          "started_at": "2026-08-06T14:02:26.919Z",
+          "passed": true,
+          "details": {
+            "title": "RAII 报表读取器：边界保护",
+            "file_count": 1,
+            "public_sample_count": 3,
+            "hidden_leakage": false
+          },
+          "attempts": 1,
+          "finished_at": "2026-08-06T14:02:28.748Z"
+        },
+        "inspect_starter_layout_and_monaco": {
+          "started_at": "2026-08-06T14:02:28.749Z",
+          "passed": true,
+          "details": {
+            "monaco_api_available": true,
+            "models": [
+              {
+                "uri": "exercise://58:c%2B%2B:1734/main.cpp",
+                "line_count": 19,
+                "value_length": 684
+              }
+            ],
+            "visible_line_nodes": 27,
+            "todo_visible": false
+          },
+          "attempts": 1,
+          "finished_at": "2026-08-06T14:02:28.752Z"
+        },
+        "apply_audited_implementation": {
+          "started_at": "2026-08-06T14:02:28.753Z",
+          "passed": true,
+          "details": {
+            "file_count": 1,
+            "paths": [
+              "main.cpp"
+            ]
+          },
+          "attempts": 1,
+          "finished_at": "2026-08-06T14:02:31.691Z"
+        },
+        "run_current_code": {
+          "started_at": "2026-08-06T14:02:31.692Z",
+          "passed": true,
+          "details": {
+            "input_sent": true,
+            "exit_observed": true,
+            "output_excerpt": "终端：已断开\n清空终端\n重新运行\n停止程序\n发送 EOF\n复制输出\nEnter 发送当前行 · Ctrl+C 终止 · Ctrl+D EOF · Ctrl+L 清屏\n([]){}\r\nYES\n[收起运行详情]\nexit_code: 0"
+          },
+          "attempts": 1,
+          "finished_at": "2026-08-06T14:02:39.985Z"
+        },
+        "run_single_and_all_public_tests": {
+          "started_at": "2026-08-06T14:02:39.987Z",
+          "passed": true,
+          "details": {
+            "picker_case_count": 3,
+            "summary": "3/3",
+            "summary_text": "通过 3/3",
+            "modal_text_excerpt": "公开测试样例\n全部测试结果\n×\n通过 3/3\n未通过 0\n耗时 1.1s\n全部\n仅失败\n仅通过\n重新运行全部测试\n公开样例 1\n通过\n公开样例 2\n通过\n公开样例 3\n通过",
+            "hidden_visible": false
+          },
+          "attempts": 1,
+          "finished_at": "2026-08-06T14:02:41.887Z"
+        },
+        "submit_current_code": {
+          "started_at": "2026-08-06T14:02:41.889Z",
+          "passed": true,
+          "details": {
+            "summary": "8/8",
+            "summary_text": "通过 8/8",
+            "modal_text_excerpt": "完整官方测试集\n提交结果\n×\n通过 8/8\n未通过 0\n耗时 3.0s\n全部\n仅失败\n仅通过\n重新运行全部测试\n公开样例 1\n通过\n公开样例 2\n通过\n公开样例 3\n通过",
+            "hidden_visible": false
+          },
+          "attempts": 1,
+          "finished_at": "2026-08-06T14:02:46.821Z"
+        },
+        "switch_topic_without_residue": {
+          "started_at": "2026-08-06T14:02:46.823Z",
+          "passed": true,
+          "details": true,
+          "attempts": 1,
+          "finished_at": "2026-08-06T14:02:47.260Z"
+        }
+      },
+      "failure_steps": [],
+      "screenshots": [],
+      "traces": [],
+      "console_errors": [],
+      "websocket_events": [
+        {
+          "url": "ws://101.32.190.42/code/interactive-run",
+          "opened": "2026-08-06T14:02:32.679Z",
+          "frames_sent": 2,
+          "frames_received": 0,
+          "closed": "2026-08-06T14:02:33.913Z"
+        },
+        {
+          "url": "ws://101.32.190.42/code/interactive-run",
+          "opened": "2026-08-06T14:02:33.918Z",
+          "frames_sent": 3,
+          "frames_received": 5,
+          "closed": "2026-08-06T14:02:35.559Z"
+        }
+      ],
+      "business_responses": [
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:02:23.084Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T14:02:23.085Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T14:02:23.085Z"
+        },
+        {
+          "phase": "request",
+          "method": "POST",
+          "url": "http://101.32.190.42/api/me",
+          "at": "2026-08-06T14:02:23.085Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/chat/history?username=%3Credacted%3E",
+          "at": "2026-08-06T14:02:23.086Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/materials?username=%3Credacted%3E",
+          "at": "2026-08-06T14:02:23.088Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T14:02:23.306Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:02:23.310Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/me",
+          "at": "2026-08-06T14:02:23.385Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/me/profile?username=%3Credacted%3E",
+          "at": "2026-08-06T14:02:23.386Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T14:02:23.402Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/materials?username=%3Credacted%3E",
+          "at": "2026-08-06T14:02:23.402Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/chat/history?username=%3Credacted%3E",
+          "at": "2026-08-06T14:02:23.423Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/me/profile?username=%3Credacted%3E",
+          "at": "2026-08-06T14:02:23.564Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/exercises?language=Python&page=1&page_size=12&username=%3Credacted%3E",
+          "at": "2026-08-06T14:02:24.302Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/exercises?language=C%2B%2B&page=1&page_size=12&username=%3Credacted%3E",
+          "at": "2026-08-06T14:02:24.350Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/exercises?language=Python&page=1&page_size=12&username=%3Credacted%3E",
+          "at": "2026-08-06T14:02:24.519Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/exercises?language=C%2B%2B&page=1&page_size=12&username=%3Credacted%3E",
+          "at": "2026-08-06T14:02:24.561Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/exercises?language=C%2B%2B&page=1&page_size=48&username=%3Credacted%3E",
+          "at": "2026-08-06T14:02:24.571Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/exercises?language=C%2B%2B&page=1&page_size=48&username=%3Credacted%3E",
+          "at": "2026-08-06T14:02:24.799Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/exercises?language=C%2B%2B&page=1&page_size=48&username=%3Credacted%3E",
+          "at": "2026-08-06T14:02:24.804Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/exercises?language=C%2B%2B&page=1&page_size=48&username=%3Credacted%3E",
+          "at": "2026-08-06T14:02:25.031Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/exercises?language=C%2B%2B&page=2&page_size=48&username=%3Credacted%3E",
+          "at": "2026-08-06T14:02:25.783Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/exercises?language=C%2B%2B&page=2&page_size=48&username=%3Credacted%3E",
+          "at": "2026-08-06T14:02:26.009Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/exercises?language=C%2B%2B&page=2&page_size=48&username=%3Credacted%3E",
+          "at": "2026-08-06T14:02:26.011Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/exercises?language=C%2B%2B&page=2&page_size=48&username=%3Credacted%3E",
+          "at": "2026-08-06T14:02:26.223Z"
+        },
+        {
+          "phase": "request",
+          "method": "POST",
+          "url": "http://101.32.190.42/api/programming/exercises/1734/start",
+          "at": "2026-08-06T14:02:26.267Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/exercises/1734/start",
+          "at": "2026-08-06T14:02:26.467Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/code/projects/182?username=%3Credacted%3E",
+          "at": "2026-08-06T14:02:26.527Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/exercises/1734",
+          "at": "2026-08-06T14:02:26.528Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/exercises/1734",
+          "at": "2026-08-06T14:02:26.707Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/182?username=%3Credacted%3E",
+          "at": "2026-08-06T14:02:26.734Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/code/projects/182?username=%3Credacted%3E",
+          "at": "2026-08-06T14:02:26.736Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/exercises/1734",
+          "at": "2026-08-06T14:02:26.741Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/exercises/1734",
+          "at": "2026-08-06T14:02:26.917Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/182?username=%3Credacted%3E",
+          "at": "2026-08-06T14:02:26.927Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/exercises/1734",
+          "at": "2026-08-06T14:02:26.934Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/exercises/1734",
+          "at": "2026-08-06T14:02:27.119Z"
+        },
+        {
+          "phase": "request",
+          "method": "PUT",
+          "url": "http://101.32.190.42/api/code/projects/182/files/450",
+          "at": "2026-08-06T14:02:30.273Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/182/files/450",
+          "at": "2026-08-06T14:02:30.459Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:02:30.460Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:02:30.643Z"
+        },
+        {
+          "phase": "request",
+          "method": "PUT",
+          "url": "http://101.32.190.42/api/code/projects/182/files/450",
+          "at": "2026-08-06T14:02:32.484Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/182/files/450",
+          "at": "2026-08-06T14:02:32.672Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:02:32.673Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:02:32.862Z"
+        },
+        {
+          "phase": "request",
+          "method": "PUT",
+          "url": "http://101.32.190.42/api/code/projects/182/files/450",
+          "at": "2026-08-06T14:02:33.733Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/182/files/450",
+          "at": "2026-08-06T14:02:33.917Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:02:33.918Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:02:34.102Z"
+        },
+        {
+          "phase": "request",
+          "method": "PUT",
+          "url": "http://101.32.190.42/api/code/projects/182/files/450",
+          "at": "2026-08-06T14:02:40.051Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/182/files/450",
+          "at": "2026-08-06T14:02:40.254Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:02:40.255Z"
+        },
+        {
+          "phase": "request",
+          "method": "POST",
+          "url": "http://101.32.190.42/api/programming/exercises/1734/test",
+          "at": "2026-08-06T14:02:40.256Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:02:40.454Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/exercises/1734/test",
+          "at": "2026-08-06T14:02:41.572Z"
+        },
+        {
+          "phase": "request",
+          "method": "PUT",
+          "url": "http://101.32.190.42/api/code/projects/182/files/450",
+          "at": "2026-08-06T14:02:41.949Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/code/projects/182/files/450",
+          "at": "2026-08-06T14:02:42.128Z"
+        },
+        {
+          "phase": "request",
+          "method": "POST",
+          "url": "http://101.32.190.42/api/programming/exercises/1734/submit",
+          "at": "2026-08-06T14:02:42.130Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:02:42.132Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/home?username=%3Credacted%3E",
+          "at": "2026-08-06T14:02:42.319Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/exercises/1734/submit",
+          "at": "2026-08-06T14:02:46.472Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/programming/exercises?language=Python&page=1&page_size=12&username=%3Credacted%3E",
+          "at": "2026-08-06T14:02:46.894Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/programming/exercises?language=Python&page=1&page_size=12&username=%3Credacted%3E",
+          "at": "2026-08-06T14:02:47.116Z"
+        }
+      ],
+      "hidden_leakage": false,
+      "networkidle_used": false,
+      "page_title": "AI 学习平台",
+      "library_probe": {
+        "language": "C++",
+        "target_exercise_id": 1734,
+        "search_available": false,
+        "search_used": false,
+        "pages_visited": [
+          {
+            "page": 1,
+            "total_pages": 2,
+            "dom_page": 1,
+            "api_total": 60,
+            "api_ids": [
+              1494,
+              1509,
+              1512,
+              1515,
+              1539,
+              1542,
+              1724,
+              1730,
+              1719,
+              1720,
+              1721,
+              1722,
+              1723,
+              1725,
+              1726,
+              1727,
+              1728,
+              1729,
+              1731,
+              1732,
+              1733,
+              1735,
+              1736,
+              1737,
+              1738,
+              1739,
+              1740,
+              1741,
+              1742,
+              1743,
+              1744,
+              1745,
+              1746,
+              1747,
+              1748,
+              1749,
+              1750,
+              1751,
+              1752,
+              1753,
+              1754,
+              1755,
+              1756,
+              1757,
+              1758,
+              1759,
+              1760,
+              1761
+            ]
+          },
+          {
+            "page": 2,
+            "total_pages": 2,
+            "dom_page": 2,
+            "api_total": 60,
+            "api_ids": [
+              1762,
+              1763,
+              1764,
+              1765,
+              1766,
+              1767,
+              1768,
+              1769,
+              1770,
+              1771,
+              1772,
+              1734
+            ]
+          }
+        ],
+        "list_requests": [
+          {
+            "status": 200,
+            "url": "http://101.32.190.42/api/programming/exercises?language=C%2B%2B&page=1&page_size=12&username=%3Credacted%3E"
+          },
+          {
+            "status": 200,
+            "url": "http://101.32.190.42/api/programming/exercises?language=C%2B%2B&page=1&page_size=48&username=%3Credacted%3E"
+          },
+          {
+            "status": 200,
+            "url": "http://101.32.190.42/api/programming/exercises?language=C%2B%2B&page=2&page_size=48&username=%3Credacted%3E"
+          }
+        ],
+        "found_by": "api_page_index_then_exact_title_card",
+        "found_page": 2,
+        "found_title": "RAII 报表读取器：边界保护"
+      },
+      "workbench_identity": {
+        "exercise_id": 1734,
+        "language": "C++",
+        "title": "RAII 报表读取器：边界保护",
+        "page_url": "http://101.32.190.42/"
+      },
+      "implementation_applied": {
+        "file_count": 1,
+        "paths": [
+          "main.cpp"
+        ]
+      },
+      "interactive_run": {
+        "input_sent": true,
+        "exit_observed": true,
+        "output_excerpt": "终端：已断开\n清空终端\n重新运行\n停止程序\n发送 EOF\n复制输出\nEnter 发送当前行 · Ctrl+C 终止 · Ctrl+D EOF · Ctrl+L 清屏\n([]){}\r\nYES\n[收起运行详情]\nexit_code: 0"
+      },
+      "public_test": {
+        "picker_case_count": 3,
+        "summary": "3/3",
+        "summary_text": "通过 3/3",
+        "modal_text_excerpt": "公开测试样例\n全部测试结果\n×\n通过 3/3\n未通过 0\n耗时 1.1s\n全部\n仅失败\n仅通过\n重新运行全部测试\n公开样例 1\n通过\n公开样例 2\n通过\n公开样例 3\n通过",
+        "hidden_visible": false
+      },
+      "submit": {
+        "summary": "8/8",
+        "summary_text": "通过 8/8",
+        "modal_text_excerpt": "完整官方测试集\n提交结果\n×\n通过 8/8\n未通过 0\n耗时 3.0s\n全部\n仅失败\n仅通过\n重新运行全部测试\n公开样例 1\n通过\n公开样例 2\n通过\n公开样例 3\n通过",
+        "hidden_visible": false
+      },
+      "clean_topic_switch": true,
+      "finished_at": "2026-08-06T14:02:47.261Z"
+    }
+  },
+  "totals": {
+    "passed": 2,
+    "failed": 1,
+    "incomplete": 0
+  },
+  "hidden_reference_leakage": 0,
+  "reference_source_used_for_execution": true,
+  "reference_source_written_to_report": false,
+  "networkidle_used": false
+}

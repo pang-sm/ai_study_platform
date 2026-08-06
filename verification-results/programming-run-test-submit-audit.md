@@ -32,3 +32,6 @@ Root-cause fixes already recorded: 76eaa51, c95c98a, c00e370. Actions already re
 - The new UI-only runner was executed for all remaining non-C targets with one fresh context per exercise and no `networkidle` wait.
 - Because neither an authenticated storage state nor a controllable Chrome session was available, each target stopped before Workbench entry with the concrete error `programming navigation expected 4 buttons, got 0` at `http://101.32.190.42/`.
 - This is recorded as an authentication/environment blocker, not as a Run/Test/Submit business result. See `verification-results/programming-workbench-cli-acceptance.json` and the per-target screenshots in `verification-screenshots/programming-workbench-random-40/`.
+
+## Online follow-up
+Follow-up 3: C++ 1734 and Python 1629 passed run/public/submit; Java 1546 public 3/3 and submit 8/8, interactive exit event missing.
