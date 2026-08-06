@@ -3,7 +3,7 @@
 - 站点：http://101.32.190.42/
 - 状态：failed
 - 页面验收方式：Playwright CLI
-- 通过：41，失败：6，未完成：0
+- 通过：44，失败：6，未完成：0
 - storage state：已提供（内容未写入报告）
 
 | 语言 | exercise_id | 题名 | 状态 | 失败步骤 | 当前 URL | 截图 |
@@ -45,9 +45,9 @@
 | Java | 1554 | 棋类比赛积分榜 | passed |  | http://101.32.190.42/ |  |
 | Java | 1556 | 租车订单管理 | passed |  | http://101.32.190.42/ |  |
 | Java | 1569 | 首个独特字符 | not_started |  |  |  |
-| Java | 1775 | StringBuilder 文本规范化：反例处理 | not_started |  |  |  |
-| Java | 1795 | 异常输入解析：状态转移 | not_started |  |  |  |
-| Java | 1809 | Deque 标记解析：边界保护 | not_started |  |  |  |
+| Java | 1775 | StringBuilder 文本规范化：反例处理 | passed |  | http://101.32.190.42/ |  |
+| Java | 1795 | 异常输入解析：状态转移 | passed |  | http://101.32.190.42/ |  |
+| Java | 1809 | Deque 标记解析：边界保护 | passed |  | http://101.32.190.42/ |  |
 | C++ | 1817 | ???????????? | not_started |  |  |  |
 | Python | 1609 | ??????? | not_started |  |  |  |
 | Python | 1624 | ?????? | not_started |  |  |  |

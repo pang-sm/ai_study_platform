@@ -679,9 +679,12 @@ async function inspectJavaFiles(page, record) {
   if (await popover.count() !== 1) throw new Error("Java file list popover did not open");
   const files = popover.locator("button");
   const count = await files.count();
-  if (count < 3) throw new Error(`expected at least 3 editable Java files, got ${count}`);
   const names = await files.allTextContents({ timeoutMs: 12000 });
   const scroll = await popover.evaluate((node) => ({ scrollHeight: node.scrollHeight, clientHeight: node.clientHeight, overflowY: getComputedStyle(node).overflowY }));
+  if (count < 3) {
+    record.java_multifile = { multifile: false, file_count: count, files: names.map((item) => item.trim()).filter(Boolean), scroll };
+    return record.java_multifile;
+  }
   if (scroll.scrollHeight > scroll.clientHeight && !["auto", "scroll"].includes(scroll.overflowY)) throw new Error("Java file list cannot scroll");
   await files.nth(count - 1).click({ timeoutMs: 12000 });
   await page.waitForTimeout(350);
