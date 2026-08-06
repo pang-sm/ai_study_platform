@@ -50,6 +50,7 @@ const options = {
   headed: (hasFlag("--headed") || hasFlag("--headed-login")) && !hasFlag("--headless"),
   storageState: path.resolve(readArg("--auth-state", readArg("--storage-state", DEFAULT_AUTH_STATE))),
   authCheckOnly: hasFlag("--auth-check-only"),
+  openOnly: hasFlag("--open-only"),
   bootstrapAuth: hasFlag("--bootstrap-auth"),
   reportDir: path.resolve(readArg("--report-dir", DEFAULT_REPORT_DIR)),
   screenshotDir: path.resolve(readArg("--screenshot-dir", DEFAULT_SCREENSHOT_DIR)),
@@ -133,6 +134,7 @@ function initialReport(targets) {
       storage_state_supplied: Boolean(options.storageState),
       auth_state_path: path.relative(PROJECT_ROOT, options.storageState).replaceAll("\\", "/"),
       auth_check_only: options.authCheckOnly,
+      open_only: options.openOnly,
       implementation_map_supplied: Boolean(options.implementationMap),
     },
     policy: {
@@ -252,6 +254,8 @@ function writeAuthCheckReport(result) {
       ...(result.authentication || {}),
     },
     validation: result.validation || null,
+    auth_state_valid: result.validation?.auth_state_valid === true || existing.auth_state_valid === true,
+    auth_probe: result.validation?.auth_probe || existing.auth_probe || "not_verified",
     policy: {
       ...(existing.policy || {}),
       sensitive_values_written: false,
@@ -270,6 +274,8 @@ function writeAuthCheckReport(result) {
     `- localStorage key：${(report.authentication.local_storage_keys || []).join(", ") || "未读取"}`,
     `- 用户标识（脱敏）：${report.authentication.redacted_identity || "未读取"}`,
     `- /api/me 状态：${report.authentication.me_status ?? "未调用"}`,
+    `- auth_state_valid：${report.auth_state_valid === true ? "true" : "false"}`,
+    `- auth_probe：${report.auth_probe || "未执行"}`,
     `- 认证验证：${report.validation?.status || "未执行"}`,
     report.error ? `- 错误：${report.error}` : "- 敏感值未写入报告。",
   ].join("\n");
@@ -295,7 +301,7 @@ async function inspectAuthState(page) {
       me_status: meStatus,
       local_storage_keys: Object.keys(localStorage),
       nav_count: document.querySelectorAll(".ph-nav button").length,
-      workbench: Boolean(document.querySelector(".practice-workbench")),
+      workbench: Boolean(document.querySelector(".pw-shell")),
       login_form: Boolean(document.querySelector("input[type='password']")),
       url: location.href,
     };
@@ -341,36 +347,21 @@ async function runAuthCheck() {
       me_status: snapshot.me_status,
       origin_in_storage_state: true,
     };
-    // The application uses the saved page when it boots. Set only the page
-    // selector in this isolated context so the probe can reach the library.
-    if (snapshot.nav_count !== 4) {
-      await page.evaluate(() => localStorage.setItem("ai_study_current_page", "programmingHome"));
-      await page.reload({ waitUntil: "domcontentloaded", timeout: 45_000 });
-      snapshot = await inspectAuthState(page);
-    }
-    if (snapshot.login_form || snapshot.nav_count !== 4) {
+    if (snapshot.login_form) {
       throw Object.assign(new Error(`LOGIN_REDIRECT: url=${snapshot.url}`), { code: "login_redirect" });
     }
-    const target = loadTitleManifest().get(1546) || { id: 1546, language: "Java", title: "" };
-    const navigation = await chooseLibraryExercise(page, target);
-    const shell = page.locator(".practice-workbench");
-    await shell.waitFor({ state: "visible", timeout: 30_000 });
-    const fileCount = await page.locator(".pw-file-tabs button").count();
-    const details = await page.locator(".pw-exercise-sidebar").innerText({ timeoutMs: 12000 });
-    if (!details.trim() || fileCount < 1) throw Object.assign(new Error("WORKBENCH_LOAD_TIMEOUT: Java 1546 shell or file list missing"), { code: "workbench_load_timeout" });
     result.validation = {
       status: "passed",
-      exercise_id: 1546,
-      language: "Java",
-      workbench_loaded: true,
-      file_count: fileCount,
-      navigation,
+      auth_state_valid: true,
+      auth_probe: "passed",
+      auth_only: true,
       login_form_visible: false,
       current_url: page.url(),
     };
     result.status = "passed";
     writeAuthCheckReport(result);
-    console.log(`AUTH_CHECK_PASSED exercise=1546 files=${fileCount}`);
+    console.log("AUTH_CHECK_PASSED");
+    console.log("Authentication state is valid.");
     return true;
   } catch (error) {
     result.error = `${error?.code || "business_request_failed"}: ${String(error?.message || error).slice(0, 600)}`;
@@ -474,51 +465,154 @@ async function getText(locator, label) {
   return locator.innerText({ timeoutMs: 12000 });
 }
 
-async function chooseLibraryExercise(page, target) {
+function isExerciseListUrl(value) {
+  try {
+    const url = new URL(value);
+    return /\/api\/programming\/exercises$/.test(url.pathname);
+  } catch { return false; }
+}
+
+async function waitForLibraryResponse(page, language, pageNumber, action) {
+  const expectedLanguage = cleanText(language).toLowerCase();
+  const responsePromise = page.waitForResponse((response) => {
+    if (response.status() !== 200 || !isExerciseListUrl(response.url())) return false;
+    try {
+      const url = new URL(response.url());
+      return cleanText(url.searchParams.get("language")).toLowerCase() === expectedLanguage && Number(url.searchParams.get("page") || 1) === pageNumber;
+    } catch { return false; }
+  }, { timeout: 30_000 }).then((response) => ({
+    status: response.status(),
+    url: safeUrl(response.url()),
+  })).catch(() => null);
+  await action();
+  return responsePromise;
+}
+
+async function fetchLibraryPage(page, language, pageNumber, pageSize) {
+  return page.evaluate(async ({ language: selectedLanguage, pageNumber: selectedPage, pageSize: selectedPageSize }) => {
+    const raw = localStorage.getItem("ai_study_platform_user");
+    let user = null;
+    try { user = raw ? JSON.parse(raw) : null; } catch { user = null; }
+    const query = new URLSearchParams({ language: selectedLanguage, page: String(selectedPage), page_size: String(selectedPageSize) });
+    if (user?.username) query.set("username", user.username);
+    const response = await fetch(`/api/programming/exercises?${query.toString()}`);
+    const data = await response.json().catch(() => ({}));
+    return {
+      status: response.status,
+      total: Number(data.total || 0),
+      total_pages: Number(data.total_pages || 1),
+      page: Number(data.page || selectedPage),
+      page_size: Number(data.page_size || selectedPageSize),
+      exercises: (data.exercises || []).map((item) => ({
+        id: Number(item.id),
+        language: item.language || "",
+        title: item.title || item.title_zh || "",
+      })),
+    };
+  }, { language, pageNumber, pageSize });
+}
+
+async function readLibraryPageNumber(page) {
+  const text = await page.locator(".ph-pagination span").innerText({ timeoutMs: 30_000 }).catch(() => "");
+  const match = text.match(/第\s*(\d+)\s*\/\s*(\d+)\s*页/);
+  return match ? { page: Number(match[1]), total_pages: Number(match[2]), text } : { page: null, total_pages: null, text };
+}
+
+async function chooseLibraryExercise(page, target, audit = {}) {
+  audit.language = target.language || "";
+  audit.target_exercise_id = Number(target.id);
+  audit.search_available = false;
+  audit.search_used = false;
+  audit.pages_visited = [];
+  audit.list_requests = [];
   const nav = page.locator(".ph-nav button");
+  await nav.nth(3).waitFor({ state: "visible", timeout: 30_000 });
   const navCount = await nav.count();
   if (navCount !== 4) throw new Error(`programming navigation expected 4 buttons, got ${navCount}`);
   await nav.nth(3).click({ timeoutMs: 12000 });
   const languageButtons = page.locator(".ph-exercise-filters:not(.ph-exercise-status-filters) button");
+  await languageButtons.first().waitFor({ state: "visible", timeout: 30_000 });
   const languageCount = await languageButtons.count();
   if (languageCount !== 4) throw new Error(`language filter expected 4 buttons, got ${languageCount}`);
   const labels = await languageButtons.allTextContents({ timeoutMs: 12000 });
-  const language = target.language || (target.id >= 1775 ? "Java" : "");
+  const language = target.language || "";
   const index = labels.findIndex((label) => cleanText(label).toLowerCase() === cleanText(language).toLowerCase());
   if (index < 0) throw new Error(`language filter not found: ${language}`);
-  await languageButtons.nth(index).click({ timeoutMs: 12000 });
+  const canonicalLanguage = String(labels[index]).trim();
+  audit.language = canonicalLanguage;
+  const languageResponse = await waitForLibraryResponse(page, canonicalLanguage, 1, () => languageButtons.nth(index).click({ timeoutMs: 12000 }));
+  if (languageResponse) audit.list_requests.push(languageResponse);
+  const activeLanguage = await page.locator(".ph-exercise-filters button.is-active").innerText({ timeoutMs: 12000 }).catch(() => "");
+  if (cleanText(activeLanguage).toLowerCase() !== cleanText(canonicalLanguage).toLowerCase()) throw new Error(`language filter did not settle on ${canonicalLanguage}`);
   const selects = page.locator(".ph-exercise-status-filters select");
   const selectCount = await selects.count();
-  if (selectCount >= 3) await selects.nth(2).selectOption("48");
-  for (let pageNumber = 1; pageNumber <= 4; pageNumber += 1) {
+  if (selectCount >= 3) {
+    const pageSizeResponse = await waitForLibraryResponse(page, canonicalLanguage, 1, () => selects.nth(2).selectOption("48"));
+    if (pageSizeResponse) audit.list_requests.push(pageSizeResponse);
+  }
+  const titleSearch = page.locator("input[placeholder*='搜索'], input[aria-label*='搜索']");
+  audit.search_available = (await titleSearch.count()) > 0;
+  let pageNumber = 1;
+  let totalPages = 1;
+  while (pageNumber <= totalPages) {
+    const apiPage = await fetchLibraryPage(page, canonicalLanguage, pageNumber, 48);
+    if (apiPage.status !== 200) throw new Error(`Java list API returned ${apiPage.status} on page ${pageNumber}`);
+    totalPages = Math.max(1, apiPage.total_pages);
+    const pageState = await readLibraryPageNumber(page);
+    audit.pages_visited.push({ page: pageNumber, total_pages: totalPages, dom_page: pageState.page, api_total: apiPage.total, api_ids: apiPage.exercises.map((item) => item.id) });
+    const targetIndex = apiPage.exercises.findIndex((item) => item.id === Number(target.id));
     const cards = page.locator(".ph-exercise-card");
     const count = await cards.count();
-    const texts = count ? await cards.allTextContents({ timeoutMs: 12000 }) : [];
-    const wanted = cleanText(target.title);
-    let indexInPage = texts.findIndex((text) => wanted && cleanText(text).includes(wanted));
-    if (indexInPage < 0 && target.title) {
-      const pieces = cleanText(target.title).slice(0, 8);
-      indexInPage = pieces.length >= 4 ? texts.findIndex((text) => cleanText(text).includes(pieces)) : -1;
-    }
-    if (indexInPage >= 0) {
-      const card = cards.nth(indexInPage);
+    const texts = count ? await cards.allTextContents({ timeoutMs: 12_000 }) : [];
+    if (targetIndex >= 0) {
+      if (targetIndex >= count) throw new Error(`target ${target.id} is in API page ${pageNumber} but its UI card is not rendered`);
+      const card = cards.nth(targetIndex);
+      const cardText = texts[targetIndex] || "";
+      const apiTarget = apiPage.exercises[targetIndex];
+      const expectedTitle = cleanText(apiTarget.title || target.title);
+      if (!expectedTitle || !cleanText(cardText).includes(expectedTitle)) throw new Error(`target ${target.id} card title did not match API title`);
       const startButton = card.locator("button");
       const buttonCount = await startButton.count();
       if (buttonCount < 1) throw new Error("exercise card has no start button");
-      await startButton.nth(buttonCount - 1).click({ timeoutMs: 15000 });
-      return { page: pageNumber, card_text: texts[indexInPage].slice(0, 800) };
+      audit.search_used = false;
+      await startButton.nth(buttonCount - 1).click({ timeoutMs: 15_000 });
+      audit.found_by = "api_page_index_then_exact_title_card";
+      audit.found_page = pageNumber;
+      audit.found_title = apiTarget.title;
+      return { page: pageNumber, card_text: cardText.slice(0, 800), api_target: apiTarget, audit };
     }
+    if (pageNumber >= totalPages) break;
     const pagingButtons = page.locator(".ph-pagination button");
     const pagingCount = await pagingButtons.count();
     if (pagingCount !== 2 || !(await pagingButtons.nth(1).isEnabled())) break;
-    await pagingButtons.nth(1).click({ timeoutMs: 12000 });
-    await page.waitForTimeout(500);
+    pageNumber += 1;
+    const nextResponse = await waitForLibraryResponse(page, canonicalLanguage, pageNumber, () => pagingButtons.nth(1).click({ timeoutMs: 12_000 }));
+    if (nextResponse) audit.list_requests.push(nextResponse);
   }
-  throw new Error(`exercise card not found in visible library: ${target.id} ${target.title}`);
+  throw new Error(`exercise card not found in Java approved library: ${target.id} ${target.title}`);
+}
+
+async function verifyWorkbenchIdentity(page, target, record) {
+  const shell = page.locator(".pw-shell");
+  await shell.waitFor({ state: "visible", timeout: 30_000 });
+  const titleLocator = page.locator(".pw-exercise-sidebar h1");
+  await titleLocator.waitFor({ state: "visible", timeout: 30_000 });
+  const title = await getText(titleLocator, "Workbench exercise title");
+  const detail = await page.evaluate(async (exerciseId) => {
+    const response = await fetch(`/api/programming/exercises/${exerciseId}`);
+    const data = await response.json().catch(() => ({}));
+    const exercise = data.exercise || data;
+    return { status: response.status, id: Number(exercise?.id || 0), language: exercise?.language || "", title: exercise?.title || exercise?.title_zh || "" };
+  }, Number(target.id));
+  if (detail.status !== 200 || detail.id !== Number(target.id)) throw new Error(`Workbench detail identity mismatch: expected ${target.id}, got ${detail.id || detail.status}`);
+  if (cleanText(detail.language).toLowerCase() !== cleanText(target.language).toLowerCase()) throw new Error(`Workbench language mismatch: expected ${target.language}, got ${detail.language}`);
+  if (!cleanText(title).includes(cleanText(detail.title || target.title))) throw new Error(`Workbench title mismatch for exercise ${target.id}`);
+  record.workbench_identity = { exercise_id: detail.id, language: detail.language, title: detail.title, page_url: page.url() };
+  return record.workbench_identity;
 }
 
 async function inspectWorkbench(page, record) {
-  const shell = page.locator(".practice-workbench");
+  const shell = page.locator(".pw-shell");
   if (await shell.count() !== 1) throw new Error("Workbench shell not rendered");
   const title = await getText(page.locator(".pw-exercise-sidebar h1"), "exercise title");
   const statementCount = await page.locator(".pw-exercise-statement-copy").count();
@@ -628,7 +722,7 @@ async function cleanTopicSwitch(page, record) {
   if (count !== 4) throw new Error(`navigation disappeared after Workbench: ${count}`);
   await nav.nth(3).click({ timeoutMs: 12000 });
   await page.waitForTimeout(350);
-  const workbench = page.locator(".practice-workbench");
+  const workbench = page.locator(".pw-shell");
   if (await workbench.count() !== 0) throw new Error("old Workbench remained after switching to library");
   record.clean_topic_switch = true;
   return true;
@@ -649,6 +743,15 @@ async function runTarget(browser, target) {
   record.steps = {};
   record.final_status = "in_progress";
   delete record.top_level_error;
+  delete record.failure_category;
+  delete record.open_only;
+  delete record.workbench_identity;
+  delete record.library_probe;
+  record.screenshots = [];
+  record.traces = [];
+  record.console_errors = [];
+  record.websocket_events = [];
+  record.business_responses = [];
   let context;
   let page;
   try {
@@ -664,11 +767,18 @@ async function runTarget(browser, target) {
     });
     if (!record.steps.open_site?.passed) throw new Error("open_site failed");
     await step(page, record, "open_correct_exercise", async () => {
-      const found = await chooseLibraryExercise(page, target);
+      const found = await chooseLibraryExercise(page, target, record.library_probe || (record.library_probe = {}));
       record.url = page.url();
       return found;
     });
     if (!record.steps.open_correct_exercise?.passed) throw new Error("open_correct_exercise failed");
+    await step(page, record, "verify_workbench_identity", () => verifyWorkbenchIdentity(page, target, record));
+    if (!record.steps.verify_workbench_identity?.passed) throw new Error("Workbench identity verification failed");
+    if (options.openOnly) {
+      await screenshot(page, record, "workbench-opened");
+      record.open_only = true;
+      return;
+    }
     await step(page, record, "inspect_statement_samples_and_leakage", () => inspectWorkbench(page, record));
     await step(page, record, "inspect_starter_layout_and_monaco", () => inspectMonaco(page));
     if (target.language === "Java") await step(page, record, "inspect_java_files_and_scroll", () => inspectJavaFiles(page, record));
@@ -678,6 +788,9 @@ async function runTarget(browser, target) {
     await step(page, record, "switch_topic_without_residue", () => cleanTopicSwitch(page, record));
   } catch (error) {
     record.top_level_error = String(error?.message || error).slice(0, 800);
+    record.failure_category = record.steps.open_correct_exercise && !record.steps.open_correct_exercise.passed
+      ? "workbench_probe_failed"
+      : "workbench_acceptance_failed";
   } finally {
     record.url = page ? String(page.url()) : record.url;
     record.final_status = record.failure_steps.length || record.top_level_error ? "failed" : "passed";
@@ -689,6 +802,9 @@ async function runTarget(browser, target) {
       if (fs.existsSync(traceFile)) record.traces.push(path.relative(PROJECT_ROOT, traceFile).replaceAll("\\", "/"));
     }
     writeReport(activeReport);
+    if (record.failure_category === "workbench_probe_failed") {
+      console.error(`WORKBENCH_PROBE_FAILED: exercise ${record.exercise_id} was not opened.`);
+    }
     if (context) await context.close().catch(() => {});
   }
 }
@@ -727,6 +843,8 @@ if (options.authCheckOnly) {
           await runTarget(browser, target);
         }
         activeReport.status = activeReport.totals.incomplete ? "incomplete" : activeReport.totals.failed ? "failed" : "passed";
+        const selectedFailed = targets.filter((target) => activeReport.records[target.id]?.final_status === "failed").length;
+        if (selectedFailed) process.exitCode = 30;
       }
     } catch (error) {
       activeReport.status = "runner_error";
