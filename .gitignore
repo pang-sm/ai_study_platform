@@ -30,6 +30,9 @@ backend/backups/
 backend/data/backups/
 *.storage-state.json
 storage-state/
+.playwright/.auth/
+verification-auth/
+storage-state*.json
 verification-traces/
 frontend/node_modules/
 frontend/dist/

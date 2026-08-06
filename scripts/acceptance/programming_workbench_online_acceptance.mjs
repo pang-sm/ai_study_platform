@@ -11,6 +11,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 
@@ -20,7 +21,9 @@ const DEFAULT_BASE_URL = "http://101.32.190.42/";
 const DEFAULT_REPORT_DIR = path.join(PROJECT_ROOT, "verification-results");
 const DEFAULT_SCREENSHOT_DIR = path.join(PROJECT_ROOT, "verification-screenshots", "programming-workbench-random-40");
 const DEFAULT_TRACE_DIR = path.join(PROJECT_ROOT, "verification-traces", "programming-workbench-random-40");
+const DEFAULT_AUTH_STATE = path.join(PROJECT_ROOT, ".playwright", ".auth", "programming-workbench-online.json");
 const REPORT_NAME = "programming-workbench-cli-acceptance.json";
+const AUTH_REPORT_NAME = "programming-workbench-auth-bootstrap.json";
 const MARKER = "/* acceptance probe: reversible UI save check */";
 
 const GROUPS = {
@@ -44,13 +47,16 @@ const options = {
   exercise: readArg("--exercise", ""),
   group: readArg("--group", ""),
   resume: hasFlag("--resume"),
-  headed: hasFlag("--headed") && !hasFlag("--headless"),
-  storageState: readArg("--storage-state", ""),
+  headed: (hasFlag("--headed") || hasFlag("--headed-login")) && !hasFlag("--headless"),
+  storageState: path.resolve(readArg("--auth-state", readArg("--storage-state", DEFAULT_AUTH_STATE))),
+  authCheckOnly: hasFlag("--auth-check-only"),
+  bootstrapAuth: hasFlag("--bootstrap-auth"),
   reportDir: path.resolve(readArg("--report-dir", DEFAULT_REPORT_DIR)),
   screenshotDir: path.resolve(readArg("--screenshot-dir", DEFAULT_SCREENSHOT_DIR)),
   trace: hasFlag("--trace"),
   implementationMap: readArg("--implementation-map", ""),
 };
+let activeReport = null;
 
 function ensureDir(dir) { fs.mkdirSync(dir, { recursive: true }); }
 function safeReadJson(file, fallback) {
@@ -67,6 +73,12 @@ function safeUrl(value) {
   } catch { return String(value || "").replace(/(token|authorization|access_token)=[^&\s]+/gi, "$1=<redacted>"); }
 }
 function now() { return new Date().toISOString(); }
+
+if (options.bootstrapAuth) {
+  const bootstrapScript = path.join(SCRIPT_DIR, "programming_workbench_login_bootstrap.mjs");
+  const result = spawnSync(process.execPath, [bootstrapScript, "--base-url", options.baseUrl, "--auth-state", options.storageState], { stdio: "inherit" });
+  process.exit(result.status == null ? 20 : result.status);
+}
 
 function loadTitleManifest() {
   const files = [
@@ -119,6 +131,8 @@ function initialReport(targets) {
       headed: options.headed,
       trace_enabled: options.trace,
       storage_state_supplied: Boolean(options.storageState),
+      auth_state_path: path.relative(PROJECT_ROOT, options.storageState).replaceAll("\\", "/"),
+      auth_check_only: options.authCheckOnly,
       implementation_map_supplied: Boolean(options.implementationMap),
     },
     policy: {
@@ -219,6 +233,155 @@ function buildRecord(target) {
     hidden_leakage: false,
     networkidle_used: false,
   };
+}
+
+function authReportPath() { return path.join(options.reportDir, AUTH_REPORT_NAME); }
+
+function writeAuthCheckReport(result) {
+  ensureDir(options.reportDir);
+  const existing = safeReadJson(authReportPath(), {});
+  const report = {
+    ...existing,
+    audit: "programming-workbench-auth-bootstrap",
+    generated_at: now(),
+    origin: new URL(options.baseUrl).origin,
+    storage_state_path: path.relative(PROJECT_ROOT, options.storageState).replaceAll("\\", "/"),
+    status: result.status,
+    authentication: {
+      ...(existing.authentication || {}),
+      ...(result.authentication || {}),
+    },
+    validation: result.validation || null,
+    policy: {
+      ...(existing.policy || {}),
+      sensitive_values_written: false,
+      cookies_written_to_report: false,
+    },
+    error: result.error || undefined,
+  };
+  fs.writeFileSync(authReportPath(), `${JSON.stringify(report, null, 2)}\n`, "utf8");
+  const markdown = [
+    "# Workbench 登录态引导验收",
+    "",
+    `- origin：${report.origin}`,
+    `- 状态：${report.status}`,
+    `- storageState：${report.storage_state_path}`,
+    `- Cookie 数量：${report.authentication.cookie_count ?? "未读取"}`,
+    `- localStorage key：${(report.authentication.local_storage_keys || []).join(", ") || "未读取"}`,
+    `- 用户标识（脱敏）：${report.authentication.redacted_identity || "未读取"}`,
+    `- /api/me 状态：${report.authentication.me_status ?? "未调用"}`,
+    `- 认证验证：${report.validation?.status || "未执行"}`,
+    report.error ? `- 错误：${report.error}` : "- 敏感值未写入报告。",
+  ].join("\n");
+  fs.writeFileSync(path.join(options.reportDir, AUTH_REPORT_NAME.replace(/\.json$/, ".md")), `${markdown}\n`, "utf8");
+}
+
+async function inspectAuthState(page) {
+  return page.evaluate(async () => {
+    const raw = localStorage.getItem("ai_study_platform_user");
+    let user = null;
+    try { user = raw ? JSON.parse(raw) : null; } catch { user = null; }
+    const username = typeof user?.username === "string" ? user.username : "";
+    let meStatus = null;
+    if (username) {
+      try {
+        const response = await fetch("/api/me", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username }) });
+        meStatus = response.status;
+      } catch { meStatus = "network_error"; }
+    }
+    return {
+      has_user: Boolean(username),
+      username,
+      me_status: meStatus,
+      local_storage_keys: Object.keys(localStorage),
+      nav_count: document.querySelectorAll(".ph-nav button").length,
+      workbench: Boolean(document.querySelector(".practice-workbench")),
+      login_form: Boolean(document.querySelector("input[type='password']")),
+      url: location.href,
+    };
+  });
+}
+
+function maskIdentity(value) {
+  const text = String(value || "");
+  if (!text) return "";
+  if (text.length <= 2) return `${text[0]}*`;
+  return `${text.slice(0, 1)}${"*".repeat(Math.min(6, text.length - 2))}${text.slice(-1)}`;
+}
+
+async function runAuthCheck() {
+  const result = { status: "failed", authentication: {}, validation: { status: "not_verified" } };
+  if (!options.storageState || !fs.existsSync(options.storageState)) {
+    result.error = `AUTH_STATE_MISSING: ${path.relative(PROJECT_ROOT, options.storageState || DEFAULT_AUTH_STATE).replaceAll("\\", "/")}`;
+    writeAuthCheckReport(result);
+    console.error(result.error);
+    return false;
+  }
+  let browser;
+  let context;
+  try {
+    const state = safeReadJson(options.storageState, null);
+    const origin = new URL(options.baseUrl).origin;
+    const stateOrigins = (state?.origins || []).map((item) => item.origin);
+    const cookieCount = Array.isArray(state?.cookies) ? state.cookies.length : 0;
+    if (!state || !stateOrigins.includes(origin)) throw Object.assign(new Error("AUTH_STATE_EXPIRED: formal site origin missing from storageState"), { code: "auth_state_expired" });
+    browser = await chromium.launch({ headless: !options.headed });
+    context = await browser.newContext({ storageState: options.storageState, viewport: { width: 1366, height: 768 } });
+    await context.route("**/*", async (route) => telemetryUrl(route.request().url()) ? route.abort() : route.continue());
+    const page = await context.newPage();
+    await page.goto(options.baseUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
+    let snapshot = await inspectAuthState(page);
+    if (!snapshot.has_user || snapshot.me_status !== 200) {
+      throw Object.assign(new Error(`AUTH_STATE_EXPIRED: /api/me status=${snapshot.me_status ?? "missing"}`), { code: "auth_state_expired" });
+    }
+    result.authentication = {
+      cookie_count: cookieCount,
+      local_storage_keys: snapshot.local_storage_keys,
+      redacted_identity: maskIdentity(snapshot.username),
+      me_status: snapshot.me_status,
+      origin_in_storage_state: true,
+    };
+    // The application uses the saved page when it boots. Set only the page
+    // selector in this isolated context so the probe can reach the library.
+    if (snapshot.nav_count !== 4) {
+      await page.evaluate(() => localStorage.setItem("ai_study_current_page", "programmingHome"));
+      await page.reload({ waitUntil: "domcontentloaded", timeout: 45_000 });
+      snapshot = await inspectAuthState(page);
+    }
+    if (snapshot.login_form || snapshot.nav_count !== 4) {
+      throw Object.assign(new Error(`LOGIN_REDIRECT: url=${snapshot.url}`), { code: "login_redirect" });
+    }
+    const target = loadTitleManifest().get(1546) || { id: 1546, language: "Java", title: "" };
+    const navigation = await chooseLibraryExercise(page, target);
+    const shell = page.locator(".practice-workbench");
+    await shell.waitFor({ state: "visible", timeout: 30_000 });
+    const fileCount = await page.locator(".pw-file-tabs button").count();
+    const details = await page.locator(".pw-exercise-sidebar").innerText({ timeoutMs: 12000 });
+    if (!details.trim() || fileCount < 1) throw Object.assign(new Error("WORKBENCH_LOAD_TIMEOUT: Java 1546 shell or file list missing"), { code: "workbench_load_timeout" });
+    result.validation = {
+      status: "passed",
+      exercise_id: 1546,
+      language: "Java",
+      workbench_loaded: true,
+      file_count: fileCount,
+      navigation,
+      login_form_visible: false,
+      current_url: page.url(),
+    };
+    result.status = "passed";
+    writeAuthCheckReport(result);
+    console.log(`AUTH_CHECK_PASSED exercise=1546 files=${fileCount}`);
+    return true;
+  } catch (error) {
+    result.error = `${error?.code || "business_request_failed"}: ${String(error?.message || error).slice(0, 600)}`;
+    result.validation = { status: "failed", category: error?.code || "business_request_failed" };
+    writeAuthCheckReport(result);
+    console.error(`AUTH_CHECK_FAILED ${result.error}`);
+    return false;
+  } finally {
+    if (context) await context.close().catch(() => {});
+    if (browser) await browser.close().catch(() => {});
+  }
 }
 
 function createUiContext(browser, record) {
@@ -530,31 +693,48 @@ async function runTarget(browser, target) {
   }
 }
 
-const targets = buildTargets();
-if (!targets.length) {
-  console.error("No target exercises selected. Use --exercise, --group, or --language.");
-  process.exitCode = 2;
-}
-const activeReport = loadOrCreateReport(targets);
-writeReport(activeReport);
+if (options.authCheckOnly) {
+  const authOk = await runAuthCheck();
+  process.exitCode = authOk ? 0 : 20;
+} else {
+  const targets = buildTargets();
+  if (!targets.length) {
+    console.error("No target exercises selected. Use --exercise, --group, or --language.");
+    process.exitCode = 2;
+  }
+  activeReport = loadOrCreateReport(targets);
+  writeReport(activeReport);
 
-if (targets.length) {
-  let browser;
-  try {
-    const storageState = options.storageState ? path.resolve(options.storageState) : undefined;
-    if (storageState && !fs.existsSync(storageState)) throw new Error(`storage state file not found: ${storageState}`);
-    browser = await chromium.launch({ headless: !options.headed });
-    for (const target of targets) {
-      if (options.resume && activeReport.records[target.id]?.final_status === "passed") continue;
-      await runTarget(browser, target);
+  if (targets.length) {
+    let browser;
+    try {
+      if (!options.storageState || !fs.existsSync(options.storageState)) {
+        activeReport.status = "auth_state_missing";
+        activeReport.auth_error = `AUTH_STATE_MISSING: ${path.relative(PROJECT_ROOT, options.storageState || DEFAULT_AUTH_STATE).replaceAll("\\", "/")}`;
+        writeReport(activeReport);
+        console.error(activeReport.auth_error);
+        process.exitCode = 20;
+      } else if (!(await runAuthCheck())) {
+        activeReport.status = "auth_state_expired";
+        activeReport.auth_error = "AUTH_STATE_EXPIRED_OR_LOGIN_REDIRECT: see programming-workbench-auth-bootstrap.json";
+        writeReport(activeReport);
+        console.error(activeReport.auth_error);
+        process.exitCode = 20;
+      } else {
+        browser = await chromium.launch({ headless: !options.headed });
+        for (const target of targets) {
+          if (options.resume && activeReport.records[target.id]?.final_status === "passed") continue;
+          await runTarget(browser, target);
+        }
+        activeReport.status = activeReport.totals.incomplete ? "incomplete" : activeReport.totals.failed ? "failed" : "passed";
+      }
+    } catch (error) {
+      activeReport.status = "runner_error";
+      activeReport.runner_error = String(error?.message || error).slice(0, 800);
+      writeReport(activeReport);
+    } finally {
+      if (browser) await browser.close().catch(() => {});
+      writeReport(activeReport);
     }
-    activeReport.status = activeReport.totals.incomplete ? "incomplete" : activeReport.totals.failed ? "failed" : "passed";
-  } catch (error) {
-    activeReport.status = "runner_error";
-    activeReport.runner_error = String(error?.message || error).slice(0, 800);
-  } finally {
-    if (browser) await browser.close().catch(() => {});
-    delete activeReport.runner_error;
-    writeReport(activeReport);
   }
 }
