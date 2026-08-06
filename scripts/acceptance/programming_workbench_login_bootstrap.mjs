@@ -28,7 +28,8 @@ function readArg(name, fallback = "") {
 }
 const baseUrl = readArg("--base-url", DEFAULT_ORIGIN).replace(/\/$/, "/");
 const authStatePath = path.resolve(readArg("--auth-state", DEFAULT_AUTH_STATE));
-const timeoutMs = Math.max(60_000, Number(readArg("--timeout-ms", "600000")) || 600_000);
+const timeoutMs = Math.min(900_000, Math.max(60_000, Number(readArg("--timeout-ms", "900000")) || 900_000));
+const screenshotDir = path.join(PROJECT_ROOT, "verification-screenshots", "programming-workbench-auth");
 
 function ensureDir(dir) { fs.mkdirSync(dir, { recursive: true }); }
 function now() { return new Date().toISOString(); }
@@ -108,6 +109,7 @@ const report = {
   storage_state_path: path.relative(PROJECT_ROOT, authStatePath).replaceAll("\\", "/"),
   status: "in_progress",
   authentication: {},
+  screenshots: [],
   policy: {
     headed_chromium: true,
     independent_context: true,
@@ -117,29 +119,33 @@ const report = {
 };
 
 let browser;
+let primaryContext;
+let primaryPage;
+let probeContext;
+let probePage;
 try {
   ensureDir(path.dirname(authStatePath));
   browser = await chromium.launch({ headless: false });
-  const context = await browser.newContext({ viewport: { width: 1366, height: 768 } });
-  await context.route("**/*", async (route) => {
+  primaryContext = await browser.newContext({ viewport: { width: 1366, height: 768 } });
+  await primaryContext.route("**/*", async (route) => {
     const host = new URL(route.request().url()).hostname.toLowerCase();
     if (host.includes("statsig") || host === "ab.chatgpt.com" || host.includes("analytics") || host.includes("telemetry")) return route.abort();
     return route.continue();
   });
-  const page = await context.newPage();
-  await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
+  primaryPage = await primaryContext.newPage();
+  await primaryPage.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
   console.log(`LOGIN_BOOTSTRAP_OPENED origin=${new URL(baseUrl).origin}`);
   console.log("请在新打开的独立 Chromium 窗口中手动完成登录；脚本会自动检测成功，不会记录密码、Cookie 或 token。");
 
   const deadline = Date.now() + timeoutMs;
-  let snapshot = await inspectAuth(page);
+  let snapshot = await inspectAuth(primaryPage);
   while (!isAuthenticated(snapshot) && Date.now() < deadline) {
-    await page.waitForTimeout(1000);
-    snapshot = await inspectAuth(page);
+    await primaryPage.waitForTimeout(1000);
+    snapshot = await inspectAuth(primaryPage);
   }
   if (!isAuthenticated(snapshot)) throw new Error("manual login was not detected before timeout");
 
-  await context.storageState({ path: authStatePath });
+  await primaryContext.storageState({ path: authStatePath });
   const state = JSON.parse(fs.readFileSync(authStatePath, "utf8"));
   const stateOrigins = (state.origins || []).map((item) => item.origin);
   const cookies = Array.isArray(state.cookies) ? state.cookies : [];
@@ -152,17 +158,50 @@ try {
     detected_route: snapshot.workbench ? "workbench" : snapshot.nav_count === 4 ? "programming_home" : "authenticated_page",
     origin_in_storage_state: true,
   };
+  await primaryContext.close();
+  primaryContext = null;
+
+  // Validate persistence in a brand-new context, not the context that performed
+  // the manual login. This catches wrong origins and session-only state.
+  probeContext = await browser.newContext({ storageState: authStatePath, viewport: { width: 1366, height: 768 } });
+  await probeContext.route("**/*", async (route) => {
+    const host = new URL(route.request().url()).hostname.toLowerCase();
+    if (host.includes("statsig") || host === "ab.chatgpt.com" || host.includes("analytics") || host.includes("telemetry")) return route.abort();
+    return route.continue();
+  });
+  probePage = await probeContext.newPage();
+  await probePage.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
+  const probeSnapshot = await inspectAuth(probePage);
+  if (!isAuthenticated(probeSnapshot) || probeSnapshot.login_form) throw new Error(`fresh context auth probe failed: /api/me=${probeSnapshot.me_status ?? "missing"}`);
+  report.authentication.fresh_context_probe = {
+    passed: true,
+    me_status: probeSnapshot.me_status,
+    origin: new URL(baseUrl).origin,
+    local_storage_keys: probeSnapshot.local_storage_keys,
+  };
   report.status = "passed";
   writeReports(report);
   console.log(`AUTH_STORAGE_SAVED path=${report.storage_state_path}`);
   console.log(`AUTH_VERIFY origin=${report.origin} cookies=${cookies.length} localStorageKeys=${snapshot.local_storage_keys.join(",")} user=${report.authentication.redacted_identity} result=passed`);
-  await context.close();
+  await probeContext.close();
+  probeContext = null;
 } catch (error) {
+  const screenshotPath = path.join(screenshotDir, "login-bootstrap-failure.png");
+  try {
+    ensureDir(screenshotDir);
+    const pageForScreenshot = probePage || primaryPage;
+    if (pageForScreenshot) {
+      await pageForScreenshot.screenshot({ path: screenshotPath, fullPage: false });
+      report.screenshots.push(path.relative(PROJECT_ROOT, screenshotPath).replaceAll("\\", "/"));
+    }
+  } catch { /* preserve the primary error */ }
   report.status = "failed";
   report.error = safeError(error);
   writeReports(report);
   console.error(`AUTH_BOOTSTRAP_FAILED ${report.error}`);
   process.exitCode = 20;
 } finally {
+  if (probeContext) await probeContext.close().catch(() => {});
+  if (primaryContext) await primaryContext.close().catch(() => {});
   if (browser) await browser.close().catch(() => {});
 }
