@@ -3,6 +3,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$exitCode = 1
 
 try {
     $projectRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..\..")).Path
@@ -63,7 +64,10 @@ try {
     if ($authStateInfo.Length -le 0) { throw "Authentication state file is empty: $authState" }
 
     & $nodeCommand.Source $acceptanceScript --base-url "http://101.32.190.42/" --auth-state $authState --auth-check-only
-    if ($LASTEXITCODE -ne 0) { throw "Authentication probe failed with exit code $LASTEXITCODE." }
+    if ($LASTEXITCODE -ne 0) {
+        $exitCode = 20
+        throw "Authentication state is invalid. Authentication probe failed with exit code $LASTEXITCODE."
+    }
 
     Write-Output "Login completed."
     Write-Output "Authentication state saved."
@@ -72,6 +76,10 @@ try {
     exit 0
 }
 catch {
-    Write-Error ("Login bootstrap failed.`n" + $_.Exception.Message)
-    exit 1
+    if ($exitCode -eq 20) {
+        Write-Error ("Authentication state invalid.`n" + $_.Exception.Message)
+    } else {
+        Write-Error ("Login bootstrap failed.`n" + $_.Exception.Message)
+    }
+    exit $exitCode
 }
