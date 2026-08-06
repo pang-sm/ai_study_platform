@@ -28343,6 +28343,7 @@ async def programming_exercise_interactive(exercise_id: int, ws: WebSocket, init
     stdin_bytes = 0
     stdin_has_newline = False
     eof_sent = False
+    eof_delimiter_added = False
     stdin_closed = False
     timed_out = False
     websocket_close_code = None
@@ -28566,6 +28567,12 @@ async def programming_exercise_interactive(exercise_id: int, ws: WebSocket, init
                             # the session but does not deliver the buffered
                             # input to Scanner.  Ctrl+D is the real EOF signal.
                             try:
+                                if stdin_bytes and not stdin_has_newline:
+                                    # A canonical PTY needs a line delimiter to
+                                    # release a final Scanner.nextLine/readline
+                                    # buffer before the real Ctrl+D EOF signal.
+                                    os.write(master_fd, b"\n")
+                                    eof_delimiter_added = True
                                 os.write(master_fd, b"\x04")
                             except OSError:
                                 pass
@@ -28601,6 +28608,7 @@ async def programming_exercise_interactive(exercise_id: int, ws: WebSocket, init
             "duration_ms": duration_ms,
             "timed_out": timed_out,
             "signal": -return_code if isinstance(return_code, int) and return_code < 0 else None,
+            "eof_delimiter_added": eof_delimiter_added,
             "stdout": terminal_output,
             "stderr": terminal_output if return_code else "",
         }
@@ -28611,6 +28619,7 @@ async def programming_exercise_interactive(exercise_id: int, ws: WebSocket, init
             f"[WS-TERMINAL] process_exit request_id={request_id} exercise_id={exercise_id} "
             f"pid={proc.pid if proc else None} return_code={return_code} timed_out={timed_out} "
             f"stdin_bytes={stdin_bytes} has_newline={stdin_has_newline} eof_sent={eof_sent} "
+            f"eof_delimiter_added={eof_delimiter_added} "
             f"ws_close_code={websocket_close_code}",
             flush=True,
         )
