@@ -9282,6 +9282,9 @@ def start_programming_exercise(exercise_id: int, req: schemas.ProgrammingExercis
     exercise = db.query(models.ProgrammingExercise).filter_by(id=exercise_id).first()
     if not exercise or not exercise.reference_verified or not exercise.starter_verified or not exercise.is_active or exercise.quality_status != "approved":
         raise HTTPException(status_code=404, detail="题目不存在")
+    language = normalize_project_language(exercise.language)
+    exercise_manifest = _exercise_manifest(exercise)
+    manifest_entry_file = safe_project_path(str(exercise_manifest.get("entry_file") or ""))
     resumed = False
     project = db.query(models.CodeProject).filter(
         models.CodeProject.user_id == user.id,
@@ -9297,15 +9300,23 @@ def start_programming_exercise(exercise_id: int, req: schemas.ProgrammingExercis
     if not project:
         starter_files = _exercise_json(exercise.starter_files_json, [])
         source_paths = [str(item.get("path") or "") for item in starter_files if item.get("path")]
-        entry_file = source_paths[0] if source_paths else PROJECT_LANGUAGE_DEFAULT_ENTRY[normalize_project_language(exercise.language)]
+        preferred_java_entry = next(
+            (path for path in source_paths if PurePosixPath(path).name.lower() == "main.java"),
+            "",
+        )
+        entry_file = (
+            manifest_entry_file
+            or (preferred_java_entry if language == "Java" else "")
+            or (source_paths[0] if source_paths else PROJECT_LANGUAGE_DEFAULT_ENTRY[language])
+        )
         project = models.CodeProject(
             user_id=user.id,
             username=user.username,
             course_id="programming",
             name=f"{exercise.title} · 练习",
-            language=normalize_project_language(exercise.language),
+            language=language,
             entry_file=entry_file,
-            main_class="Main" if normalize_project_language(exercise.language) == "Java" else None,
+            main_class="Main" if language == "Java" else None,
             programming_exercise_id=exercise.id,
         )
         db.add(project)
@@ -9351,6 +9362,16 @@ def start_programming_exercise(exercise_id: int, req: schemas.ProgrammingExercis
             project.updated_at = utc_now()
             db.commit()
             db.refresh(project)
+        if language == "Java" and manifest_entry_file and project.entry_file != manifest_entry_file:
+            existing_paths = {
+                str(file.relative_path).replace("\\", "/")
+                for file in list_project_files(project.id, db)
+            }
+            if manifest_entry_file in existing_paths:
+                project.entry_file = manifest_entry_file
+                project.updated_at = utc_now()
+                db.commit()
+                db.refresh(project)
     files = list_project_files(project.id, db)
     return {"exercise": serialize_programming_exercise(exercise, include_starter=True), "project": serialize_code_project(project, files), "resumed": resumed}
 

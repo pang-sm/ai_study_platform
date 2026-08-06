@@ -699,12 +699,25 @@ async function runInteractive(page, target, record) {
   const sendSample = sampleCards.nth(0).locator(".pw-send-sample-input");
   const sendSampleCount = await sendSample.count();
   let stableInputSent = false;
+  let stableEofSent = false;
   if (sendSampleCount === 1) {
     await sendSample.click({ timeoutMs: 12000 });
     stableInputSent = true;
-    await page.waitForTimeout(1200);
     const eofButton = page.locator(".pw-terminal-input-actions button").filter({ hasText: "发送 EOF" });
-    if (await eofButton.count() === 1) await eofButton.click({ timeoutMs: 12000 });
+    try {
+      await eofButton.waitFor({ state: "visible", timeoutMs: 12000 });
+      await eofButton.click({ timeoutMs: 12000 });
+      stableEofSent = true;
+    } catch (error) {
+      record.interactive_run = {
+        input_sent: stableInputSent,
+        eof_sent: false,
+        exit_observed: false,
+        output_excerpt: "",
+        failure_reason: `EOF control was not available after sending the sample: ${String(error?.message || error).slice(0, 300)}`,
+      };
+      throw new Error(record.interactive_run.failure_reason);
+    }
   }
   if (!stableInputSent && stableSampleInput.trim()) {
     await terminal.click({ timeoutMs: 12000 });
@@ -712,14 +725,24 @@ async function runInteractive(page, target, record) {
     await page.keyboard.press("Enter");
     await page.keyboard.press("Control+D");
   }
-  await page.waitForTimeout(5000);
+  const finishedStatus = page.locator(".pw-terminal-status").filter({ hasText: "运行结束" });
+  try {
+    await finishedStatus.waitFor({ state: "visible", timeoutMs: 12000 });
+  } catch {
+    await page.waitForTimeout(500);
+  }
   const runDetailsToggle = page.locator("button.pw-run-details-toggle");
   if (await runDetailsToggle.count() === 1) await runDetailsToggle.click({ timeoutMs: 12000 });
   const stableResultText = await page.locator(".pw-run-result").innerText({ timeoutMs: 12000 }).catch(() => "");
   const stableBodyText = await page.locator(".pw-bottom-toolwindow").innerText({ timeoutMs: 12000 }).catch(() => "");
   const stableCombinedText = `${stableResultText}\n${stableBodyText}`;
   const stableHasExit = /退出码|exit(?:[_ -]?code)?|程序已结束|进程已结束|process\s+exited/i.test(stableCombinedText);
-  record.interactive_run = { input_sent: stableInputSent || Boolean(stableSampleInput.trim()), exit_observed: stableHasExit, output_excerpt: stableResultText.slice(0, 600) };
+  record.interactive_run = {
+    input_sent: stableInputSent || Boolean(stableSampleInput.trim()),
+    eof_sent: stableEofSent,
+    exit_observed: stableHasExit,
+    output_excerpt: stableResultText.slice(0, 600),
+  };
   if (!stableHasExit) throw new Error("Run did not expose an exit state within bounded wait");
   return record.interactive_run;
 
