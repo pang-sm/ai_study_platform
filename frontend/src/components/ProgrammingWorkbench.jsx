@@ -727,6 +727,7 @@ export default function ProgrammingWorkbench({
   const terminalNodeRef = useRef(null);
   const terminalRef = useRef(null);
   const terminalSocketRef = useRef(null);
+  const terminalControlQueueRef = useRef([]);
   const terminalFitRef = useRef(null);
   const terminalExitRef = useRef(false);
   const [terminalConnection, setTerminalConnection] = useState("disconnected");
@@ -1030,6 +1031,7 @@ export default function ProgrammingWorkbench({
   }, [exercise?.id]);
 
   useEffect(() => () => {
+    terminalControlQueueRef.current = [];
     terminalSocketRef.current?.send(JSON.stringify({ type: "stop" }));
     terminalSocketRef.current?.close();
     terminalSocketRef.current = null;
@@ -1650,6 +1652,7 @@ export default function ProgrammingWorkbench({
 
   const startInteractiveSession = async (queuedInput = "") => {
     if (!exercise?.id || !project?.id || !user?.username) return;
+    terminalControlQueueRef.current = [];
     if (terminalSocketRef.current) {
       try { terminalSocketRef.current.send(JSON.stringify({ type: "stop" })); } catch { /* already closed */ }
       terminalSocketRef.current.close();
@@ -1677,6 +1680,9 @@ export default function ProgrammingWorkbench({
         socket.send(JSON.stringify({ type: "stdin", data: terminal.pendingInput }));
         terminal.pendingInput = "";
       }
+      if (queuedInput) socket.send(JSON.stringify({ type: "stdin", data: queuedInput }));
+      const queuedControls = terminalControlQueueRef.current.splice(0);
+      queuedControls.forEach((control) => socket.send(JSON.stringify(control)));
     };
     socket.onmessage = (event) => {
       const message = JSON.parse(event.data || "{}");
@@ -1728,7 +1734,20 @@ export default function ProgrammingWorkbench({
       }
       setBusy("");
     };
-    if (queuedInput) window.setTimeout(() => socket.readyState === WebSocket.OPEN && socket.send(JSON.stringify({ type: "stdin", data: queuedInput })), 500);
+  };
+
+  const sendTerminalControl = (type) => {
+    const control = { type };
+    const socket = terminalSocketRef.current;
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify(control));
+      return;
+    }
+    if (socket?.readyState === WebSocket.CONNECTING) {
+      terminalControlQueueRef.current.push(control);
+      return;
+    }
+    setStatus("终端尚未连接，请稍后重试。");
   };
 
   const runExerciseInteractive = () => startInteractiveSession();
@@ -2390,8 +2409,8 @@ export default function ProgrammingWorkbench({
                         <button type="button" onClick={() => terminalRef.current?.clear()}>清空终端</button>
                         <button type="button" onClick={() => startInteractiveSession()}>重新运行</button>
                         {terminalConnection === "failed" && <button type="button" onClick={() => startInteractiveSession()}>重新连接</button>}
-                        <button type="button" onClick={() => terminalSocketRef.current?.send(JSON.stringify({ type: "stop" }))}>停止程序</button>
-                        <button type="button" onClick={() => terminalSocketRef.current?.send(JSON.stringify({ type: "eof" }))}>发送 EOF</button>
+                        <button type="button" onClick={() => sendTerminalControl("stop")}>停止程序</button>
+                        <button type="button" onClick={() => sendTerminalControl("eof")}>发送 EOF</button>
                         <button type="button" onClick={() => {
                           const buffer = terminalRef.current?.buffer?.active;
                           const output = buffer ? Array.from({ length: buffer.length }, (_, index) => buffer.getLine(index)?.translateToString(true) || "").join("\n").trimEnd() : "";

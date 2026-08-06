@@ -703,6 +703,8 @@ async function runInteractive(page, target, record) {
   if (sendSampleCount === 1) {
     await sendSample.click({ timeoutMs: 12000 });
     stableInputSent = true;
+    const runningStatus = page.locator(".pw-terminal-status").filter({ hasText: "程序正在运行" });
+    await runningStatus.waitFor({ state: "visible", timeoutMs: 12000 });
     const eofButton = page.locator(".pw-terminal-input-actions button").filter({ hasText: "发送 EOF" });
     try {
       await eofButton.waitFor({ state: "visible", timeoutMs: 12000 });
