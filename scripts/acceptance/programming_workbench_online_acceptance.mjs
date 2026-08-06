@@ -209,6 +209,17 @@ function loadOrCreateReport(targets) {
           }
         } else report.targets.push(target);
       }
+      for (const item of Object.values(report.records || {})) {
+        if (!item.workbench_identity) continue;
+        const identity = item.workbench_identity;
+        item.language = identity.language || item.language;
+        item.title = identity.title || item.title;
+        const target = report.targets.find((entry) => Number(entry.id) === Number(item.exercise_id));
+        if (target) {
+          target.language = identity.language || target.language;
+          target.title = identity.title || target.title;
+        }
+      }
       return report;
     }
   }

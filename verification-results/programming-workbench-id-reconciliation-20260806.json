@@ -1,0 +1,16 @@
+{
+  "audit": "programming-workbench-id-reconciliation",
+  "base_url": "http://101.32.190.42/",
+  "generated_at": "2026-08-06T17:05:00.000Z",
+  "policy": "Obsolete exercise IDs are not silently treated as business failures; each replacement is recorded by exact current online title and language.",
+  "replacements": [
+    {"original_id": 1660, "original_title": "电影院的座位预订", "replacement_id": 1545, "replacement_title": "电影院的座位预订", "language": "Java", "reason": "1660 is absent from the current Java approved directory; 1545 is the exact current approved title."},
+    {"original_id": 1661, "original_title": "图书馆的借阅登记", "replacement_id": 1546, "replacement_title": "图书馆的借阅登记", "language": "Java", "reason": "1661 is absent from the current Java approved directory; 1546 was already fully verified."},
+    {"original_id": 1662, "original_title": "停车场的分时计费", "replacement_id": 1547, "replacement_title": "停车场的分时计费", "language": "Java", "reason": "1662 is absent from the current Java approved directory; 1547 is the exact current approved title."},
+    {"original_id": 1663, "original_title": "餐厅预约与候位", "replacement_id": 1548, "replacement_title": "餐厅预约与候位", "language": "Java", "reason": "1663 is absent from the current Java approved directory; 1548 is the exact current approved title."},
+    {"original_id": 1664, "original_title": "学生选课登记", "replacement_id": 1549, "replacement_title": "学生选课登记", "language": "Java", "reason": "1664 is absent from the current Java approved directory; 1549 is the exact current approved title."},
+    {"original_id": 1556, "original_title": "快递分拣与配送", "replacement_id": 1553, "replacement_title": "快递分拣与配送", "language": "Java", "reason": "The historical report title for 1556 was stale; current online identity 1556 is 租车订单管理, while 快递分拣与配送 is 1553."}
+  ],
+  "current_online_identity": {"id": 1556, "title": "租车订单管理", "language": "Java", "verified": true},
+  "current_online_directory_check": {"1660": false, "1661": false, "1662": false, "1663": false, "1664": false, "1545": true, "1546": true, "1547": true, "1548": true, "1549": true, "1553": true, "1556": true}
+}
