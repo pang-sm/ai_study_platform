@@ -1,0 +1,2438 @@
+{
+  "audit": "programming-workbench-cli-acceptance",
+  "base_url": "http://101.32.190.42/",
+  "browser_surface": "Playwright CLI",
+  "generated_at": "2026-08-06T00:13:33.335Z",
+  "options": {
+    "language": null,
+    "exercise": null,
+    "group": "python",
+    "headed": false,
+    "trace_enabled": true,
+    "storage_state_supplied": false,
+    "implementation_map_supplied": false
+  },
+  "policy": {
+    "ui_only_acceptance": true,
+    "networkidle_used": false,
+    "telemetry_blocked": true,
+    "storage_state_written_to_report": false,
+    "response_bodies_written_to_report": false
+  },
+  "targets": [
+    {
+      "id": 1546,
+      "language": "Java",
+      "title": "图书馆的借阅登记"
+    },
+    {
+      "id": 1549,
+      "language": "Java",
+      "title": "学生选课登记"
+    },
+    {
+      "id": 1556,
+      "language": "Java",
+      "title": "快递分拣与配送"
+    },
+    {
+      "id": 1551,
+      "language": "Java",
+      "title": "电商订单与优惠券"
+    },
+    {
+      "id": 1552,
+      "language": "Java",
+      "title": "酒店房间预订"
+    },
+    {
+      "id": 1554,
+      "language": "Java",
+      "title": "棋类比赛积分榜"
+    },
+    {
+      "id": 1660,
+      "language": "Java",
+      "title": "电影院的座位预订"
+    },
+    {
+      "id": 1661,
+      "language": "Java",
+      "title": "图书馆的借阅登记"
+    },
+    {
+      "id": 1662,
+      "language": "Java",
+      "title": "停车场的分时计费"
+    },
+    {
+      "id": 1663,
+      "language": "Java",
+      "title": "餐厅预约与候位"
+    },
+    {
+      "id": 1664,
+      "language": "Java",
+      "title": "学生选课登记"
+    },
+    {
+      "id": 1775,
+      "language": "Java",
+      "title": "StringBuilder 文本规范化：反例处理"
+    },
+    {
+      "id": 1795,
+      "language": "Java",
+      "title": "异常输入解析：状态转移"
+    },
+    {
+      "id": 1809,
+      "language": "Java",
+      "title": "Deque 标记解析：边界保护"
+    },
+    {
+      "id": 1734,
+      "language": "C++",
+      "title": "RAII 报表读取器：边界保护"
+    },
+    {
+      "id": 1756,
+      "language": "C++",
+      "title": "迭代器差分统计：状态转移"
+    },
+    {
+      "id": 1758,
+      "language": "C++",
+      "title": "哈希频次摘要：边界保护"
+    },
+    {
+      "id": 1762,
+      "language": "C++",
+      "title": "配置语法解析栈：状态转移"
+    },
+    {
+      "id": 1767,
+      "language": "C++",
+      "title": "地铁换乘层数：边界保护"
+    },
+    {
+      "id": 1629,
+      "language": "Python",
+      "title": "首个独特字符"
+    },
+    {
+      "id": 1819,
+      "language": "Python",
+      "title": "课程集合合并：边界保护"
+    },
+    {
+      "id": 1822,
+      "language": "Python",
+      "title": "???????????"
+    },
+    {
+      "id": 1833,
+      "language": "Python",
+      "title": "公交客流摘要：反例处理"
+    },
+    {
+      "id": 1845,
+      "language": "Python",
+      "title": "日程冲突检测：反例处理"
+    },
+    {
+      "id": 1846,
+      "language": "Python",
+      "title": "商品搭配枚举：边界保护"
+    },
+    {
+      "id": 1847,
+      "language": "Python",
+      "title": "商品搭配枚举：状态转移"
+    },
+    {
+      "id": 1849,
+      "language": "Python",
+      "title": "异常记录过滤：边界保护"
+    },
+    {
+      "id": 1865,
+      "language": "Python",
+      "title": "缓存爬楼方案：状态转移"
+    },
+    {
+      "id": 1866,
+      "language": "Python",
+      "title": "缓存爬楼方案：反例处理"
+    }
+  ],
+  "records": {
+    "1546": {
+      "exercise_id": 1546,
+      "language": "Java",
+      "title": "图书馆的借阅登记",
+      "final_status": "failed",
+      "url": "http://101.32.190.42/",
+      "steps": {
+        "open_site": {
+          "started_at": "2026-08-06T00:10:10.600Z",
+          "passed": true,
+          "details": {
+            "url": "http://101.32.190.42/",
+            "title": "AI 学习平台",
+            "visible_chars": 68
+          },
+          "finished_at": "2026-08-06T00:10:13.140Z"
+        },
+        "open_correct_exercise": {
+          "started_at": "2026-08-06T00:10:13.141Z",
+          "passed": false,
+          "error": "programming navigation expected 4 buttons, got 0",
+          "finished_at": "2026-08-06T00:10:13.181Z"
+        }
+      },
+      "failure_steps": [
+        "open_correct_exercise"
+      ],
+      "screenshots": [
+        "verification-screenshots/programming-workbench-random-40/cli-1546-open_correct_exercise.png",
+        "verification-screenshots/programming-workbench-random-40/cli-1546-open_correct_exercise.png",
+        "verification-screenshots/programming-workbench-random-40/cli-1546-open_correct_exercise.png",
+        "verification-screenshots/programming-workbench-random-40/cli-1546-open_correct_exercise.png"
+      ],
+      "console_errors": [],
+      "websocket_events": [],
+      "business_responses": [
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:07:51.059Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:07:51.060Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:07:51.250Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:07:51.251Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:08:20.418Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:08:20.419Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:08:20.600Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:08:20.606Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:08:59.010Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:08:59.011Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:08:59.193Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:08:59.193Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:10:11.958Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:10:11.958Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:10:12.134Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:10:12.151Z"
+        }
+      ],
+      "hidden_leakage": false,
+      "networkidle_used": false,
+      "page_title": "AI 学习平台",
+      "finished_at": "2026-08-06T00:10:13.182Z",
+      "top_level_error": "open_correct_exercise failed"
+    },
+    "1549": {
+      "exercise_id": 1549,
+      "language": "Java",
+      "title": "学生选课登记",
+      "final_status": "failed",
+      "url": "http://101.32.190.42/",
+      "steps": {
+        "open_site": {
+          "started_at": "2026-08-06T00:10:13.239Z",
+          "passed": true,
+          "details": {
+            "url": "http://101.32.190.42/",
+            "title": "AI 学习平台",
+            "visible_chars": 68
+          },
+          "finished_at": "2026-08-06T00:10:15.710Z"
+        },
+        "open_correct_exercise": {
+          "started_at": "2026-08-06T00:10:15.712Z",
+          "passed": false,
+          "error": "programming navigation expected 4 buttons, got 0",
+          "finished_at": "2026-08-06T00:10:15.745Z"
+        }
+      },
+      "failure_steps": [
+        "open_correct_exercise"
+      ],
+      "screenshots": [
+        "verification-screenshots/programming-workbench-random-40/cli-1549-open_correct_exercise.png"
+      ],
+      "traces": [],
+      "console_errors": [],
+      "websocket_events": [],
+      "business_responses": [
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:10:14.538Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:10:14.540Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:10:14.721Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:10:14.724Z"
+        }
+      ],
+      "hidden_leakage": false,
+      "networkidle_used": false,
+      "page_title": "AI 学习平台",
+      "top_level_error": "open_correct_exercise failed",
+      "finished_at": "2026-08-06T00:10:15.746Z"
+    },
+    "1551": {
+      "exercise_id": 1551,
+      "language": "Java",
+      "title": "电商订单与优惠券",
+      "final_status": "failed",
+      "url": "http://101.32.190.42/",
+      "steps": {
+        "open_site": {
+          "started_at": "2026-08-06T00:10:37.917Z",
+          "passed": true,
+          "details": {
+            "url": "http://101.32.190.42/",
+            "title": "AI 学习平台",
+            "visible_chars": 68
+          },
+          "finished_at": "2026-08-06T00:10:40.308Z"
+        },
+        "open_correct_exercise": {
+          "started_at": "2026-08-06T00:10:40.310Z",
+          "passed": false,
+          "error": "programming navigation expected 4 buttons, got 0",
+          "finished_at": "2026-08-06T00:10:40.346Z"
+        }
+      },
+      "failure_steps": [
+        "open_correct_exercise"
+      ],
+      "screenshots": [
+        "verification-screenshots/programming-workbench-random-40/cli-1551-open_correct_exercise.png"
+      ],
+      "traces": [
+        "verification-traces/programming-workbench-random-40/cli-1551.zip"
+      ],
+      "console_errors": [],
+      "websocket_events": [],
+      "business_responses": [
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:10:39.069Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:10:39.070Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:10:39.251Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:10:39.254Z"
+        }
+      ],
+      "hidden_leakage": false,
+      "networkidle_used": false,
+      "page_title": "AI 学习平台",
+      "top_level_error": "open_correct_exercise failed",
+      "finished_at": "2026-08-06T00:10:40.347Z"
+    },
+    "1552": {
+      "exercise_id": 1552,
+      "language": "Java",
+      "title": "酒店房间预订",
+      "final_status": "failed",
+      "url": "http://101.32.190.42/",
+      "steps": {
+        "open_site": {
+          "started_at": "2026-08-06T00:10:40.452Z",
+          "passed": true,
+          "details": {
+            "url": "http://101.32.190.42/",
+            "title": "AI 学习平台",
+            "visible_chars": 68
+          },
+          "finished_at": "2026-08-06T00:10:43.060Z"
+        },
+        "open_correct_exercise": {
+          "started_at": "2026-08-06T00:10:43.062Z",
+          "passed": false,
+          "error": "programming navigation expected 4 buttons, got 0",
+          "finished_at": "2026-08-06T00:10:43.097Z"
+        }
+      },
+      "failure_steps": [
+        "open_correct_exercise"
+      ],
+      "screenshots": [
+        "verification-screenshots/programming-workbench-random-40/cli-1552-open_correct_exercise.png"
+      ],
+      "traces": [
+        "verification-traces/programming-workbench-random-40/cli-1552.zip"
+      ],
+      "console_errors": [],
+      "websocket_events": [],
+      "business_responses": [
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:10:41.832Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:10:41.834Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:10:42.014Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:10:42.015Z"
+        }
+      ],
+      "hidden_leakage": false,
+      "networkidle_used": false,
+      "page_title": "AI 学习平台",
+      "top_level_error": "open_correct_exercise failed",
+      "finished_at": "2026-08-06T00:10:43.098Z"
+    },
+    "1554": {
+      "exercise_id": 1554,
+      "language": "Java",
+      "title": "棋类比赛积分榜",
+      "final_status": "failed",
+      "url": "http://101.32.190.42/",
+      "steps": {
+        "open_site": {
+          "started_at": "2026-08-06T00:10:43.187Z",
+          "passed": true,
+          "details": {
+            "url": "http://101.32.190.42/",
+            "title": "AI 学习平台",
+            "visible_chars": 68
+          },
+          "finished_at": "2026-08-06T00:10:45.891Z"
+        },
+        "open_correct_exercise": {
+          "started_at": "2026-08-06T00:10:45.892Z",
+          "passed": false,
+          "error": "programming navigation expected 4 buttons, got 0",
+          "finished_at": "2026-08-06T00:10:45.933Z"
+        }
+      },
+      "failure_steps": [
+        "open_correct_exercise"
+      ],
+      "screenshots": [
+        "verification-screenshots/programming-workbench-random-40/cli-1554-open_correct_exercise.png"
+      ],
+      "traces": [
+        "verification-traces/programming-workbench-random-40/cli-1554.zip"
+      ],
+      "console_errors": [],
+      "websocket_events": [],
+      "business_responses": [
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:10:44.657Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:10:44.657Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:10:44.836Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:10:44.850Z"
+        }
+      ],
+      "hidden_leakage": false,
+      "networkidle_used": false,
+      "page_title": "AI 学习平台",
+      "top_level_error": "open_correct_exercise failed",
+      "finished_at": "2026-08-06T00:10:45.934Z"
+    },
+    "1556": {
+      "exercise_id": 1556,
+      "language": "Java",
+      "title": "快递分拣与配送",
+      "final_status": "failed",
+      "url": "http://101.32.190.42/",
+      "steps": {
+        "open_site": {
+          "started_at": "2026-08-06T00:10:15.800Z",
+          "passed": true,
+          "details": {
+            "url": "http://101.32.190.42/",
+            "title": "AI 学习平台",
+            "visible_chars": 68
+          },
+          "finished_at": "2026-08-06T00:10:18.243Z"
+        },
+        "open_correct_exercise": {
+          "started_at": "2026-08-06T00:10:18.244Z",
+          "passed": false,
+          "error": "programming navigation expected 4 buttons, got 0",
+          "finished_at": "2026-08-06T00:10:18.279Z"
+        }
+      },
+      "failure_steps": [
+        "open_correct_exercise"
+      ],
+      "screenshots": [
+        "verification-screenshots/programming-workbench-random-40/cli-1556-open_correct_exercise.png"
+      ],
+      "traces": [],
+      "console_errors": [],
+      "websocket_events": [],
+      "business_responses": [
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:10:17.064Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:10:17.064Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:10:17.241Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:10:17.242Z"
+        }
+      ],
+      "hidden_leakage": false,
+      "networkidle_used": false,
+      "page_title": "AI 学习平台",
+      "top_level_error": "open_correct_exercise failed",
+      "finished_at": "2026-08-06T00:10:18.281Z"
+    },
+    "1629": {
+      "exercise_id": 1629,
+      "language": "Python",
+      "title": "首个独特字符",
+      "final_status": "failed",
+      "url": "http://101.32.190.42/",
+      "steps": {
+        "open_site": {
+          "started_at": "2026-08-06T00:13:06.242Z",
+          "passed": true,
+          "details": {
+            "url": "http://101.32.190.42/",
+            "title": "AI 学习平台",
+            "visible_chars": 68
+          },
+          "finished_at": "2026-08-06T00:13:08.930Z"
+        },
+        "open_correct_exercise": {
+          "started_at": "2026-08-06T00:13:08.932Z",
+          "passed": false,
+          "error": "programming navigation expected 4 buttons, got 0",
+          "finished_at": "2026-08-06T00:13:08.976Z"
+        }
+      },
+      "failure_steps": [
+        "open_correct_exercise"
+      ],
+      "screenshots": [
+        "verification-screenshots/programming-workbench-random-40/cli-1629-open_correct_exercise.png",
+        "verification-screenshots/programming-workbench-random-40/cli-1629-open_correct_exercise.png"
+      ],
+      "traces": [
+        "verification-traces/programming-workbench-random-40/cli-1629.zip"
+      ],
+      "console_errors": [],
+      "websocket_events": [],
+      "business_responses": [
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:11:51.273Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:11:51.273Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:11:51.459Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:11:51.461Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:13:07.694Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:13:07.695Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:13:07.890Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:13:07.891Z"
+        }
+      ],
+      "hidden_leakage": false,
+      "networkidle_used": false,
+      "page_title": "AI 学习平台",
+      "finished_at": "2026-08-06T00:13:08.979Z",
+      "top_level_error": "open_correct_exercise failed"
+    },
+    "1660": {
+      "exercise_id": 1660,
+      "language": "Java",
+      "title": "电影院的座位预订",
+      "final_status": "failed",
+      "url": "http://101.32.190.42/",
+      "steps": {
+        "open_site": {
+          "started_at": "2026-08-06T00:10:46.087Z",
+          "passed": true,
+          "details": {
+            "url": "http://101.32.190.42/",
+            "title": "AI 学习平台",
+            "visible_chars": 68
+          },
+          "finished_at": "2026-08-06T00:10:48.532Z"
+        },
+        "open_correct_exercise": {
+          "started_at": "2026-08-06T00:10:48.533Z",
+          "passed": false,
+          "error": "programming navigation expected 4 buttons, got 0",
+          "finished_at": "2026-08-06T00:10:48.582Z"
+        }
+      },
+      "failure_steps": [
+        "open_correct_exercise"
+      ],
+      "screenshots": [
+        "verification-screenshots/programming-workbench-random-40/cli-1660-open_correct_exercise.png"
+      ],
+      "traces": [
+        "verification-traces/programming-workbench-random-40/cli-1660.zip"
+      ],
+      "console_errors": [],
+      "websocket_events": [],
+      "business_responses": [
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:10:47.303Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:10:47.304Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:10:47.483Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:10:47.486Z"
+        }
+      ],
+      "hidden_leakage": false,
+      "networkidle_used": false,
+      "page_title": "AI 学习平台",
+      "top_level_error": "open_correct_exercise failed",
+      "finished_at": "2026-08-06T00:10:48.583Z"
+    },
+    "1661": {
+      "exercise_id": 1661,
+      "language": "Java",
+      "title": "图书馆的借阅登记",
+      "final_status": "failed",
+      "url": "http://101.32.190.42/",
+      "steps": {
+        "open_site": {
+          "started_at": "2026-08-06T00:10:48.702Z",
+          "passed": true,
+          "details": {
+            "url": "http://101.32.190.42/",
+            "title": "AI 学习平台",
+            "visible_chars": 68
+          },
+          "finished_at": "2026-08-06T00:10:51.370Z"
+        },
+        "open_correct_exercise": {
+          "started_at": "2026-08-06T00:10:51.371Z",
+          "passed": false,
+          "error": "programming navigation expected 4 buttons, got 0",
+          "finished_at": "2026-08-06T00:10:51.412Z"
+        }
+      },
+      "failure_steps": [
+        "open_correct_exercise"
+      ],
+      "screenshots": [
+        "verification-screenshots/programming-workbench-random-40/cli-1661-open_correct_exercise.png"
+      ],
+      "traces": [
+        "verification-traces/programming-workbench-random-40/cli-1661.zip"
+      ],
+      "console_errors": [],
+      "websocket_events": [],
+      "business_responses": [
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:10:50.139Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:10:50.140Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:10:50.318Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:10:50.319Z"
+        }
+      ],
+      "hidden_leakage": false,
+      "networkidle_used": false,
+      "page_title": "AI 学习平台",
+      "top_level_error": "open_correct_exercise failed",
+      "finished_at": "2026-08-06T00:10:51.413Z"
+    },
+    "1662": {
+      "exercise_id": 1662,
+      "language": "Java",
+      "title": "停车场的分时计费",
+      "final_status": "failed",
+      "url": "http://101.32.190.42/",
+      "steps": {
+        "open_site": {
+          "started_at": "2026-08-06T00:10:51.555Z",
+          "passed": true,
+          "details": {
+            "url": "http://101.32.190.42/",
+            "title": "AI 学习平台",
+            "visible_chars": 68
+          },
+          "finished_at": "2026-08-06T00:10:53.964Z"
+        },
+        "open_correct_exercise": {
+          "started_at": "2026-08-06T00:10:53.965Z",
+          "passed": false,
+          "error": "programming navigation expected 4 buttons, got 0",
+          "finished_at": "2026-08-06T00:10:54.015Z"
+        }
+      },
+      "failure_steps": [
+        "open_correct_exercise"
+      ],
+      "screenshots": [
+        "verification-screenshots/programming-workbench-random-40/cli-1662-open_correct_exercise.png"
+      ],
+      "traces": [
+        "verification-traces/programming-workbench-random-40/cli-1662.zip"
+      ],
+      "console_errors": [],
+      "websocket_events": [],
+      "business_responses": [
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:10:52.739Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:10:52.739Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:10:52.922Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:10:52.932Z"
+        }
+      ],
+      "hidden_leakage": false,
+      "networkidle_used": false,
+      "page_title": "AI 学习平台",
+      "top_level_error": "open_correct_exercise failed",
+      "finished_at": "2026-08-06T00:10:54.016Z"
+    },
+    "1663": {
+      "exercise_id": 1663,
+      "language": "Java",
+      "title": "餐厅预约与候位",
+      "final_status": "failed",
+      "url": "http://101.32.190.42/",
+      "steps": {
+        "open_site": {
+          "started_at": "2026-08-06T00:10:54.108Z",
+          "passed": true,
+          "details": {
+            "url": "http://101.32.190.42/",
+            "title": "AI 学习平台",
+            "visible_chars": 68
+          },
+          "finished_at": "2026-08-06T00:10:56.503Z"
+        },
+        "open_correct_exercise": {
+          "started_at": "2026-08-06T00:10:56.504Z",
+          "passed": false,
+          "error": "programming navigation expected 4 buttons, got 0",
+          "finished_at": "2026-08-06T00:10:56.548Z"
+        }
+      },
+      "failure_steps": [
+        "open_correct_exercise"
+      ],
+      "screenshots": [
+        "verification-screenshots/programming-workbench-random-40/cli-1663-open_correct_exercise.png"
+      ],
+      "traces": [
+        "verification-traces/programming-workbench-random-40/cli-1663.zip"
+      ],
+      "console_errors": [],
+      "websocket_events": [],
+      "business_responses": [
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:10:55.281Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:10:55.281Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:10:55.461Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:10:55.463Z"
+        }
+      ],
+      "hidden_leakage": false,
+      "networkidle_used": false,
+      "page_title": "AI 学习平台",
+      "top_level_error": "open_correct_exercise failed",
+      "finished_at": "2026-08-06T00:10:56.550Z"
+    },
+    "1664": {
+      "exercise_id": 1664,
+      "language": "Java",
+      "title": "学生选课登记",
+      "final_status": "failed",
+      "url": "http://101.32.190.42/",
+      "steps": {
+        "open_site": {
+          "started_at": "2026-08-06T00:10:56.643Z",
+          "passed": true,
+          "details": {
+            "url": "http://101.32.190.42/",
+            "title": "AI 学习平台",
+            "visible_chars": 68
+          },
+          "finished_at": "2026-08-06T00:10:59.278Z"
+        },
+        "open_correct_exercise": {
+          "started_at": "2026-08-06T00:10:59.279Z",
+          "passed": false,
+          "error": "programming navigation expected 4 buttons, got 0",
+          "finished_at": "2026-08-06T00:10:59.311Z"
+        }
+      },
+      "failure_steps": [
+        "open_correct_exercise"
+      ],
+      "screenshots": [
+        "verification-screenshots/programming-workbench-random-40/cli-1664-open_correct_exercise.png"
+      ],
+      "traces": [
+        "verification-traces/programming-workbench-random-40/cli-1664.zip"
+      ],
+      "console_errors": [],
+      "websocket_events": [],
+      "business_responses": [
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:10:58.055Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:10:58.056Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:10:58.230Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:10:58.234Z"
+        }
+      ],
+      "hidden_leakage": false,
+      "networkidle_used": false,
+      "page_title": "AI 学习平台",
+      "top_level_error": "open_correct_exercise failed",
+      "finished_at": "2026-08-06T00:10:59.312Z"
+    },
+    "1734": {
+      "exercise_id": 1734,
+      "language": "C++",
+      "title": "RAII 报表读取器：边界保护",
+      "final_status": "failed",
+      "url": "http://101.32.190.42/",
+      "steps": {
+        "open_site": {
+          "started_at": "2026-08-06T00:11:22.731Z",
+          "passed": true,
+          "details": {
+            "url": "http://101.32.190.42/",
+            "title": "AI 学习平台",
+            "visible_chars": 68
+          },
+          "finished_at": "2026-08-06T00:11:25.337Z"
+        },
+        "open_correct_exercise": {
+          "started_at": "2026-08-06T00:11:25.338Z",
+          "passed": false,
+          "error": "programming navigation expected 4 buttons, got 0",
+          "finished_at": "2026-08-06T00:11:25.387Z"
+        }
+      },
+      "failure_steps": [
+        "open_correct_exercise"
+      ],
+      "screenshots": [
+        "verification-screenshots/programming-workbench-random-40/cli-1734-open_correct_exercise.png"
+      ],
+      "traces": [
+        "verification-traces/programming-workbench-random-40/cli-1734.zip"
+      ],
+      "console_errors": [],
+      "websocket_events": [],
+      "business_responses": [
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:11:24.114Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:11:24.115Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:11:24.294Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:11:24.295Z"
+        }
+      ],
+      "hidden_leakage": false,
+      "networkidle_used": false,
+      "page_title": "AI 学习平台",
+      "top_level_error": "open_correct_exercise failed",
+      "finished_at": "2026-08-06T00:11:25.388Z"
+    },
+    "1756": {
+      "exercise_id": 1756,
+      "language": "C++",
+      "title": "迭代器差分统计：状态转移",
+      "final_status": "failed",
+      "url": "http://101.32.190.42/",
+      "steps": {
+        "open_site": {
+          "started_at": "2026-08-06T00:11:25.503Z",
+          "passed": true,
+          "details": {
+            "url": "http://101.32.190.42/",
+            "title": "AI 学习平台",
+            "visible_chars": 68
+          },
+          "finished_at": "2026-08-06T00:11:27.921Z"
+        },
+        "open_correct_exercise": {
+          "started_at": "2026-08-06T00:11:27.923Z",
+          "passed": false,
+          "error": "programming navigation expected 4 buttons, got 0",
+          "finished_at": "2026-08-06T00:11:27.988Z"
+        }
+      },
+      "failure_steps": [
+        "open_correct_exercise"
+      ],
+      "screenshots": [
+        "verification-screenshots/programming-workbench-random-40/cli-1756-open_correct_exercise.png"
+      ],
+      "traces": [
+        "verification-traces/programming-workbench-random-40/cli-1756.zip"
+      ],
+      "console_errors": [],
+      "websocket_events": [],
+      "business_responses": [
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:11:26.698Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:11:26.699Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:11:26.885Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:11:26.885Z"
+        }
+      ],
+      "hidden_leakage": false,
+      "networkidle_used": false,
+      "page_title": "AI 学习平台",
+      "top_level_error": "open_correct_exercise failed",
+      "finished_at": "2026-08-06T00:11:27.989Z"
+    },
+    "1758": {
+      "exercise_id": 1758,
+      "language": "C++",
+      "title": "哈希频次摘要：边界保护",
+      "final_status": "failed",
+      "url": "http://101.32.190.42/",
+      "steps": {
+        "open_site": {
+          "started_at": "2026-08-06T00:11:28.092Z",
+          "passed": true,
+          "details": {
+            "url": "http://101.32.190.42/",
+            "title": "AI 学习平台",
+            "visible_chars": 68
+          },
+          "finished_at": "2026-08-06T00:11:30.466Z"
+        },
+        "open_correct_exercise": {
+          "started_at": "2026-08-06T00:11:30.467Z",
+          "passed": false,
+          "error": "programming navigation expected 4 buttons, got 0",
+          "finished_at": "2026-08-06T00:11:30.511Z"
+        }
+      },
+      "failure_steps": [
+        "open_correct_exercise"
+      ],
+      "screenshots": [
+        "verification-screenshots/programming-workbench-random-40/cli-1758-open_correct_exercise.png"
+      ],
+      "traces": [
+        "verification-traces/programming-workbench-random-40/cli-1758.zip"
+      ],
+      "console_errors": [],
+      "websocket_events": [],
+      "business_responses": [
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:11:29.242Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:11:29.243Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:11:29.422Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:11:29.422Z"
+        }
+      ],
+      "hidden_leakage": false,
+      "networkidle_used": false,
+      "page_title": "AI 学习平台",
+      "top_level_error": "open_correct_exercise failed",
+      "finished_at": "2026-08-06T00:11:30.512Z"
+    },
+    "1762": {
+      "exercise_id": 1762,
+      "language": "C++",
+      "title": "配置语法解析栈：状态转移",
+      "final_status": "failed",
+      "url": "http://101.32.190.42/",
+      "steps": {
+        "open_site": {
+          "started_at": "2026-08-06T00:11:30.634Z",
+          "passed": true,
+          "details": {
+            "url": "http://101.32.190.42/",
+            "title": "AI 学习平台",
+            "visible_chars": 68
+          },
+          "finished_at": "2026-08-06T00:11:33.017Z"
+        },
+        "open_correct_exercise": {
+          "started_at": "2026-08-06T00:11:33.019Z",
+          "passed": false,
+          "error": "programming navigation expected 4 buttons, got 0",
+          "finished_at": "2026-08-06T00:11:33.065Z"
+        }
+      },
+      "failure_steps": [
+        "open_correct_exercise"
+      ],
+      "screenshots": [
+        "verification-screenshots/programming-workbench-random-40/cli-1762-open_correct_exercise.png"
+      ],
+      "traces": [
+        "verification-traces/programming-workbench-random-40/cli-1762.zip"
+      ],
+      "console_errors": [],
+      "websocket_events": [],
+      "business_responses": [
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:11:31.796Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:11:31.797Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:11:31.977Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:11:31.977Z"
+        }
+      ],
+      "hidden_leakage": false,
+      "networkidle_used": false,
+      "page_title": "AI 学习平台",
+      "top_level_error": "open_correct_exercise failed",
+      "finished_at": "2026-08-06T00:11:33.067Z"
+    },
+    "1767": {
+      "exercise_id": 1767,
+      "language": "C++",
+      "title": "地铁换乘层数：边界保护",
+      "final_status": "failed",
+      "url": "http://101.32.190.42/",
+      "steps": {
+        "open_site": {
+          "started_at": "2026-08-06T00:11:33.173Z",
+          "passed": true,
+          "details": {
+            "url": "http://101.32.190.42/",
+            "title": "AI 学习平台",
+            "visible_chars": 68
+          },
+          "finished_at": "2026-08-06T00:11:35.538Z"
+        },
+        "open_correct_exercise": {
+          "started_at": "2026-08-06T00:11:35.539Z",
+          "passed": false,
+          "error": "programming navigation expected 4 buttons, got 0",
+          "finished_at": "2026-08-06T00:11:35.582Z"
+        }
+      },
+      "failure_steps": [
+        "open_correct_exercise"
+      ],
+      "screenshots": [
+        "verification-screenshots/programming-workbench-random-40/cli-1767-open_correct_exercise.png"
+      ],
+      "traces": [
+        "verification-traces/programming-workbench-random-40/cli-1767.zip"
+      ],
+      "console_errors": [],
+      "websocket_events": [],
+      "business_responses": [
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:11:34.313Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:11:34.313Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:11:34.494Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:11:34.497Z"
+        }
+      ],
+      "hidden_leakage": false,
+      "networkidle_used": false,
+      "page_title": "AI 学习平台",
+      "top_level_error": "open_correct_exercise failed",
+      "finished_at": "2026-08-06T00:11:35.584Z"
+    },
+    "1775": {
+      "exercise_id": 1775,
+      "language": "Java",
+      "title": "StringBuilder 文本规范化：反例处理",
+      "final_status": "failed",
+      "url": "http://101.32.190.42/",
+      "steps": {
+        "open_site": {
+          "started_at": "2026-08-06T00:11:08.373Z",
+          "passed": true,
+          "details": {
+            "url": "http://101.32.190.42/",
+            "title": "AI 学习平台",
+            "visible_chars": 68
+          },
+          "finished_at": "2026-08-06T00:11:10.951Z"
+        },
+        "open_correct_exercise": {
+          "started_at": "2026-08-06T00:11:10.952Z",
+          "passed": false,
+          "error": "programming navigation expected 4 buttons, got 0",
+          "finished_at": "2026-08-06T00:11:10.996Z"
+        }
+      },
+      "failure_steps": [
+        "open_correct_exercise"
+      ],
+      "screenshots": [
+        "verification-screenshots/programming-workbench-random-40/cli-1775-open_correct_exercise.png"
+      ],
+      "traces": [
+        "verification-traces/programming-workbench-random-40/cli-1775.zip"
+      ],
+      "console_errors": [],
+      "websocket_events": [],
+      "business_responses": [
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:11:09.725Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:11:09.725Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:11:09.906Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:11:09.907Z"
+        }
+      ],
+      "hidden_leakage": false,
+      "networkidle_used": false,
+      "page_title": "AI 学习平台",
+      "top_level_error": "open_correct_exercise failed",
+      "finished_at": "2026-08-06T00:11:10.997Z"
+    },
+    "1795": {
+      "exercise_id": 1795,
+      "language": "Java",
+      "title": "异常输入解析：状态转移",
+      "final_status": "failed",
+      "url": "http://101.32.190.42/",
+      "steps": {
+        "open_site": {
+          "started_at": "2026-08-06T00:11:11.108Z",
+          "passed": true,
+          "details": {
+            "url": "http://101.32.190.42/",
+            "title": "AI 学习平台",
+            "visible_chars": 68
+          },
+          "finished_at": "2026-08-06T00:11:13.922Z"
+        },
+        "open_correct_exercise": {
+          "started_at": "2026-08-06T00:11:13.923Z",
+          "passed": false,
+          "error": "programming navigation expected 4 buttons, got 0",
+          "finished_at": "2026-08-06T00:11:13.960Z"
+        }
+      },
+      "failure_steps": [
+        "open_correct_exercise"
+      ],
+      "screenshots": [
+        "verification-screenshots/programming-workbench-random-40/cli-1795-open_correct_exercise.png"
+      ],
+      "traces": [
+        "verification-traces/programming-workbench-random-40/cli-1795.zip"
+      ],
+      "console_errors": [],
+      "websocket_events": [],
+      "business_responses": [
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:11:12.692Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:11:12.693Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:11:12.870Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:11:12.874Z"
+        }
+      ],
+      "hidden_leakage": false,
+      "networkidle_used": false,
+      "page_title": "AI 学习平台",
+      "top_level_error": "open_correct_exercise failed",
+      "finished_at": "2026-08-06T00:11:13.961Z"
+    },
+    "1809": {
+      "exercise_id": 1809,
+      "language": "Java",
+      "title": "Deque 标记解析：边界保护",
+      "final_status": "failed",
+      "url": "http://101.32.190.42/",
+      "steps": {
+        "open_site": {
+          "started_at": "2026-08-06T00:11:14.044Z",
+          "passed": true,
+          "details": {
+            "url": "http://101.32.190.42/",
+            "title": "AI 学习平台",
+            "visible_chars": 68
+          },
+          "finished_at": "2026-08-06T00:11:16.405Z"
+        },
+        "open_correct_exercise": {
+          "started_at": "2026-08-06T00:11:16.406Z",
+          "passed": false,
+          "error": "programming navigation expected 4 buttons, got 0",
+          "finished_at": "2026-08-06T00:11:16.446Z"
+        }
+      },
+      "failure_steps": [
+        "open_correct_exercise"
+      ],
+      "screenshots": [
+        "verification-screenshots/programming-workbench-random-40/cli-1809-open_correct_exercise.png"
+      ],
+      "traces": [
+        "verification-traces/programming-workbench-random-40/cli-1809.zip"
+      ],
+      "console_errors": [],
+      "websocket_events": [],
+      "business_responses": [
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:11:15.182Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:11:15.182Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:11:15.363Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:11:15.365Z"
+        }
+      ],
+      "hidden_leakage": false,
+      "networkidle_used": false,
+      "page_title": "AI 学习平台",
+      "top_level_error": "open_correct_exercise failed",
+      "finished_at": "2026-08-06T00:11:16.447Z"
+    },
+    "1819": {
+      "exercise_id": 1819,
+      "language": "Python",
+      "title": "课程集合合并：边界保护",
+      "final_status": "failed",
+      "url": "http://101.32.190.42/",
+      "steps": {
+        "open_site": {
+          "started_at": "2026-08-06T00:13:09.092Z",
+          "passed": true,
+          "details": {
+            "url": "http://101.32.190.42/",
+            "title": "AI 学习平台",
+            "visible_chars": 68
+          },
+          "finished_at": "2026-08-06T00:13:11.461Z"
+        },
+        "open_correct_exercise": {
+          "started_at": "2026-08-06T00:13:11.463Z",
+          "passed": false,
+          "error": "programming navigation expected 4 buttons, got 0",
+          "finished_at": "2026-08-06T00:13:11.510Z"
+        }
+      },
+      "failure_steps": [
+        "open_correct_exercise"
+      ],
+      "screenshots": [
+        "verification-screenshots/programming-workbench-random-40/cli-1819-open_correct_exercise.png",
+        "verification-screenshots/programming-workbench-random-40/cli-1819-open_correct_exercise.png"
+      ],
+      "traces": [
+        "verification-traces/programming-workbench-random-40/cli-1819.zip"
+      ],
+      "console_errors": [],
+      "websocket_events": [],
+      "business_responses": [
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:11:53.779Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:11:53.780Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:11:53.970Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:11:53.975Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:13:10.244Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:13:10.244Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:13:10.426Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:13:10.429Z"
+        }
+      ],
+      "hidden_leakage": false,
+      "networkidle_used": false,
+      "page_title": "AI 学习平台",
+      "finished_at": "2026-08-06T00:13:11.511Z",
+      "top_level_error": "open_correct_exercise failed"
+    },
+    "1822": {
+      "exercise_id": 1822,
+      "language": "Python",
+      "title": "???????????",
+      "final_status": "failed",
+      "url": "http://101.32.190.42/",
+      "steps": {
+        "open_site": {
+          "started_at": "2026-08-06T00:13:11.598Z",
+          "passed": true,
+          "details": {
+            "url": "http://101.32.190.42/",
+            "title": "AI 学习平台",
+            "visible_chars": 68
+          },
+          "finished_at": "2026-08-06T00:13:14.122Z"
+        },
+        "open_correct_exercise": {
+          "started_at": "2026-08-06T00:13:14.123Z",
+          "passed": false,
+          "error": "programming navigation expected 4 buttons, got 0",
+          "finished_at": "2026-08-06T00:13:14.164Z"
+        }
+      },
+      "failure_steps": [
+        "open_correct_exercise"
+      ],
+      "screenshots": [
+        "verification-screenshots/programming-workbench-random-40/cli-1822-open_correct_exercise.png",
+        "verification-screenshots/programming-workbench-random-40/cli-1822-open_correct_exercise.png"
+      ],
+      "traces": [
+        "verification-traces/programming-workbench-random-40/cli-1822.zip"
+      ],
+      "console_errors": [],
+      "websocket_events": [],
+      "business_responses": [
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:11:56.270Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:11:56.271Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:11:56.451Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:11:56.460Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:13:12.898Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:13:12.898Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:13:13.073Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:13:13.076Z"
+        }
+      ],
+      "hidden_leakage": false,
+      "networkidle_used": false,
+      "page_title": "AI 学习平台",
+      "finished_at": "2026-08-06T00:13:14.166Z",
+      "top_level_error": "open_correct_exercise failed"
+    },
+    "1833": {
+      "exercise_id": 1833,
+      "language": "Python",
+      "title": "公交客流摘要：反例处理",
+      "final_status": "failed",
+      "url": "http://101.32.190.42/",
+      "steps": {
+        "open_site": {
+          "started_at": "2026-08-06T00:13:14.265Z",
+          "passed": true,
+          "details": {
+            "url": "http://101.32.190.42/",
+            "title": "AI 学习平台",
+            "visible_chars": 68
+          },
+          "finished_at": "2026-08-06T00:13:16.625Z"
+        },
+        "open_correct_exercise": {
+          "started_at": "2026-08-06T00:13:16.628Z",
+          "passed": false,
+          "error": "programming navigation expected 4 buttons, got 0",
+          "finished_at": "2026-08-06T00:13:16.674Z"
+        }
+      },
+      "failure_steps": [
+        "open_correct_exercise"
+      ],
+      "screenshots": [
+        "verification-screenshots/programming-workbench-random-40/cli-1833-open_correct_exercise.png",
+        "verification-screenshots/programming-workbench-random-40/cli-1833-open_correct_exercise.png"
+      ],
+      "traces": [
+        "verification-traces/programming-workbench-random-40/cli-1833.zip"
+      ],
+      "console_errors": [],
+      "websocket_events": [],
+      "business_responses": [
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:11:58.754Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:11:58.754Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:11:58.935Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:11:58.942Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:13:15.389Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:13:15.390Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:13:15.565Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:13:15.567Z"
+        }
+      ],
+      "hidden_leakage": false,
+      "networkidle_used": false,
+      "page_title": "AI 学习平台",
+      "finished_at": "2026-08-06T00:13:16.676Z",
+      "top_level_error": "open_correct_exercise failed"
+    },
+    "1845": {
+      "exercise_id": 1845,
+      "language": "Python",
+      "title": "日程冲突检测：反例处理",
+      "final_status": "failed",
+      "url": "http://101.32.190.42/",
+      "steps": {
+        "open_site": {
+          "started_at": "2026-08-06T00:13:16.778Z",
+          "passed": true,
+          "details": {
+            "url": "http://101.32.190.42/",
+            "title": "AI 学习平台",
+            "visible_chars": 68
+          },
+          "finished_at": "2026-08-06T00:13:19.391Z"
+        },
+        "open_correct_exercise": {
+          "started_at": "2026-08-06T00:13:19.393Z",
+          "passed": false,
+          "error": "programming navigation expected 4 buttons, got 0",
+          "finished_at": "2026-08-06T00:13:19.424Z"
+        }
+      },
+      "failure_steps": [
+        "open_correct_exercise"
+      ],
+      "screenshots": [
+        "verification-screenshots/programming-workbench-random-40/cli-1845-open_correct_exercise.png",
+        "verification-screenshots/programming-workbench-random-40/cli-1845-open_correct_exercise.png"
+      ],
+      "traces": [
+        "verification-traces/programming-workbench-random-40/cli-1845.zip"
+      ],
+      "console_errors": [],
+      "websocket_events": [],
+      "business_responses": [
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:12:01.343Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:12:01.344Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:12:01.667Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:12:01.667Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:13:18.171Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:13:18.172Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:13:18.350Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:13:18.356Z"
+        }
+      ],
+      "hidden_leakage": false,
+      "networkidle_used": false,
+      "page_title": "AI 学习平台",
+      "finished_at": "2026-08-06T00:13:19.425Z",
+      "top_level_error": "open_correct_exercise failed"
+    },
+    "1846": {
+      "exercise_id": 1846,
+      "language": "Python",
+      "title": "商品搭配枚举：边界保护",
+      "final_status": "failed",
+      "url": "http://101.32.190.42/",
+      "steps": {
+        "open_site": {
+          "started_at": "2026-08-06T00:13:19.521Z",
+          "passed": true,
+          "details": {
+            "url": "http://101.32.190.42/",
+            "title": "AI 学习平台",
+            "visible_chars": 68
+          },
+          "finished_at": "2026-08-06T00:13:22.226Z"
+        },
+        "open_correct_exercise": {
+          "started_at": "2026-08-06T00:13:22.227Z",
+          "passed": false,
+          "error": "programming navigation expected 4 buttons, got 0",
+          "finished_at": "2026-08-06T00:13:22.276Z"
+        }
+      },
+      "failure_steps": [
+        "open_correct_exercise"
+      ],
+      "screenshots": [
+        "verification-screenshots/programming-workbench-random-40/cli-1846-open_correct_exercise.png",
+        "verification-screenshots/programming-workbench-random-40/cli-1846-open_correct_exercise.png"
+      ],
+      "traces": [
+        "verification-traces/programming-workbench-random-40/cli-1846.zip"
+      ],
+      "console_errors": [],
+      "websocket_events": [],
+      "business_responses": [
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:12:03.889Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:12:03.890Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:12:04.076Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:12:04.076Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:13:20.998Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:13:20.999Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:13:21.186Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:13:21.190Z"
+        }
+      ],
+      "hidden_leakage": false,
+      "networkidle_used": false,
+      "page_title": "AI 学习平台",
+      "finished_at": "2026-08-06T00:13:22.279Z",
+      "top_level_error": "open_correct_exercise failed"
+    },
+    "1847": {
+      "exercise_id": 1847,
+      "language": "Python",
+      "title": "商品搭配枚举：状态转移",
+      "final_status": "failed",
+      "url": "http://101.32.190.42/",
+      "steps": {
+        "open_site": {
+          "started_at": "2026-08-06T00:13:22.388Z",
+          "passed": true,
+          "details": {
+            "url": "http://101.32.190.42/",
+            "title": "AI 学习平台",
+            "visible_chars": 68
+          },
+          "finished_at": "2026-08-06T00:13:25.026Z"
+        },
+        "open_correct_exercise": {
+          "started_at": "2026-08-06T00:13:25.027Z",
+          "passed": false,
+          "error": "programming navigation expected 4 buttons, got 0",
+          "finished_at": "2026-08-06T00:13:25.088Z"
+        }
+      },
+      "failure_steps": [
+        "open_correct_exercise"
+      ],
+      "screenshots": [
+        "verification-screenshots/programming-workbench-random-40/cli-1847-open_correct_exercise.png",
+        "verification-screenshots/programming-workbench-random-40/cli-1847-open_correct_exercise.png"
+      ],
+      "traces": [
+        "verification-traces/programming-workbench-random-40/cli-1847.zip"
+      ],
+      "console_errors": [],
+      "websocket_events": [],
+      "business_responses": [
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:12:06.521Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:12:06.521Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:12:06.712Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:12:06.713Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:13:23.800Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:13:23.801Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:13:23.982Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:13:23.987Z"
+        }
+      ],
+      "hidden_leakage": false,
+      "networkidle_used": false,
+      "page_title": "AI 学习平台",
+      "finished_at": "2026-08-06T00:13:25.090Z",
+      "top_level_error": "open_correct_exercise failed"
+    },
+    "1849": {
+      "exercise_id": 1849,
+      "language": "Python",
+      "title": "异常记录过滤：边界保护",
+      "final_status": "failed",
+      "url": "http://101.32.190.42/",
+      "steps": {
+        "open_site": {
+          "started_at": "2026-08-06T00:13:25.213Z",
+          "passed": true,
+          "details": {
+            "url": "http://101.32.190.42/",
+            "title": "AI 学习平台",
+            "visible_chars": 68
+          },
+          "finished_at": "2026-08-06T00:13:27.689Z"
+        },
+        "open_correct_exercise": {
+          "started_at": "2026-08-06T00:13:27.691Z",
+          "passed": false,
+          "error": "programming navigation expected 4 buttons, got 0",
+          "finished_at": "2026-08-06T00:13:27.740Z"
+        }
+      },
+      "failure_steps": [
+        "open_correct_exercise"
+      ],
+      "screenshots": [
+        "verification-screenshots/programming-workbench-random-40/cli-1849-open_correct_exercise.png",
+        "verification-screenshots/programming-workbench-random-40/cli-1849-open_correct_exercise.png"
+      ],
+      "traces": [
+        "verification-traces/programming-workbench-random-40/cli-1849.zip"
+      ],
+      "console_errors": [],
+      "websocket_events": [],
+      "business_responses": [
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:12:09.085Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:12:09.086Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:12:09.274Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:12:09.278Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:13:26.457Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:13:26.459Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:13:26.646Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:13:26.650Z"
+        }
+      ],
+      "hidden_leakage": false,
+      "networkidle_used": false,
+      "page_title": "AI 学习平台",
+      "finished_at": "2026-08-06T00:13:27.741Z",
+      "top_level_error": "open_correct_exercise failed"
+    },
+    "1865": {
+      "exercise_id": 1865,
+      "language": "Python",
+      "title": "缓存爬楼方案：状态转移",
+      "final_status": "failed",
+      "url": "http://101.32.190.42/",
+      "steps": {
+        "open_site": {
+          "started_at": "2026-08-06T00:13:27.840Z",
+          "passed": true,
+          "details": {
+            "url": "http://101.32.190.42/",
+            "title": "AI 学习平台",
+            "visible_chars": 68
+          },
+          "finished_at": "2026-08-06T00:13:30.356Z"
+        },
+        "open_correct_exercise": {
+          "started_at": "2026-08-06T00:13:30.357Z",
+          "passed": false,
+          "error": "programming navigation expected 4 buttons, got 0",
+          "finished_at": "2026-08-06T00:13:30.391Z"
+        }
+      },
+      "failure_steps": [
+        "open_correct_exercise"
+      ],
+      "screenshots": [
+        "verification-screenshots/programming-workbench-random-40/cli-1865-open_correct_exercise.png",
+        "verification-screenshots/programming-workbench-random-40/cli-1865-open_correct_exercise.png"
+      ],
+      "traces": [
+        "verification-traces/programming-workbench-random-40/cli-1865.zip"
+      ],
+      "console_errors": [],
+      "websocket_events": [],
+      "business_responses": [
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:12:11.538Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:12:11.539Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:12:11.730Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:12:11.730Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:13:29.124Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:13:29.125Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:13:29.309Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:13:29.318Z"
+        }
+      ],
+      "hidden_leakage": false,
+      "networkidle_used": false,
+      "page_title": "AI 学习平台",
+      "finished_at": "2026-08-06T00:13:30.392Z",
+      "top_level_error": "open_correct_exercise failed"
+    },
+    "1866": {
+      "exercise_id": 1866,
+      "language": "Python",
+      "title": "缓存爬楼方案：反例处理",
+      "final_status": "failed",
+      "url": "http://101.32.190.42/",
+      "steps": {
+        "open_site": {
+          "started_at": "2026-08-06T00:13:30.493Z",
+          "passed": true,
+          "details": {
+            "url": "http://101.32.190.42/",
+            "title": "AI 学习平台",
+            "visible_chars": 68
+          },
+          "finished_at": "2026-08-06T00:13:33.050Z"
+        },
+        "open_correct_exercise": {
+          "started_at": "2026-08-06T00:13:33.052Z",
+          "passed": false,
+          "error": "programming navigation expected 4 buttons, got 0",
+          "finished_at": "2026-08-06T00:13:33.090Z"
+        }
+      },
+      "failure_steps": [
+        "open_correct_exercise"
+      ],
+      "screenshots": [
+        "verification-screenshots/programming-workbench-random-40/cli-1866-open_correct_exercise.png",
+        "verification-screenshots/programming-workbench-random-40/cli-1866-open_correct_exercise.png"
+      ],
+      "traces": [
+        "verification-traces/programming-workbench-random-40/cli-1866.zip"
+      ],
+      "console_errors": [],
+      "websocket_events": [],
+      "business_responses": [
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:12:14.173Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:12:14.174Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:12:14.358Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:12:14.360Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:13:31.818Z"
+        },
+        {
+          "phase": "request",
+          "method": "GET",
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:13:31.819Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/announcements/active",
+          "at": "2026-08-06T00:13:32.007Z"
+        },
+        {
+          "phase": "response",
+          "status": 200,
+          "url": "http://101.32.190.42/api/settings/public",
+          "at": "2026-08-06T00:13:32.010Z"
+        }
+      ],
+      "hidden_leakage": false,
+      "networkidle_used": false,
+      "page_title": "AI 学习平台",
+      "finished_at": "2026-08-06T00:13:33.092Z",
+      "top_level_error": "open_correct_exercise failed"
+    }
+  },
+  "totals": {
+    "passed": 0,
+    "failed": 29,
+    "incomplete": 0
+  },
+  "status": "failed"
+}

@@ -47,3 +47,9 @@ Pending current random sample: 1549, 1551, 1552, 1554. 1546 remains incomplete f
 Java 1809 is a single-file Java exercise and therefore does not change the multi-file scroll count. Its official submit passed 8/8 after the trailing-space correction; no hidden/reference content was visible. The Java multi-file pending list remains unchanged.
 
 The C++ catalog filter fix was deployed in Actions `31017023422`; it does not alter this Java multi-file audit.
+
+## CLI continuation 2026-08-06
+
+- Java IDs `1546,1549,1556,1551,1552,1554,1660,1661,1662,1663,1664,1775,1795,1809` were each attempted in fresh Playwright contexts.
+- The formal runner stopped before file-list inspection because the unauthenticated landing page exposed zero programming-navigation buttons. It did not claim file scrolling, independent models, `javac`, Run, Test, Submit, or leakage results.
+- Evidence is in `verification-results/programming-workbench-cli-acceptance.json`; screenshots are `verification-screenshots/programming-workbench-random-40/cli-*.png`; trace ZIPs are Git-ignored.

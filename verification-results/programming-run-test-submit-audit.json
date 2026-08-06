@@ -1,6 +1,8 @@
 {
   "audit": "run-test-submit",
   "status": "incomplete_browser_tool_timeout",
+  "cli_runner_report": "verification-results/programming-workbench-cli-acceptance.json",
+  "cli_runner_last_attempt": "2026-08-06: no storage state and no controllable Chrome session; Run/Test/Submit were not inferred from unauthenticated pages.",
   "target": 40,
   "browser_buttons_used": true,
   "confirmed_submit_8_of_8": 14,

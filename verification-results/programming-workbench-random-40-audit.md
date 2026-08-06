@@ -52,3 +52,10 @@ Remaining current sample work: Java 1549, 1551, 1552, 1554, 1556 and the remaini
 - C++ filter regression: switching from the stale Python list to C++ and paginating could briefly show the prior language's cards. This was reproduced as a stale list-response race and fixed in `frontend/src/components/ProgrammingHome.jsx` by invalidating pending requests and resetting to page 1 on language change. `npm run build` passed locally.
 - The remaining C++ IDs 1734, 1756, 1758, 1762, and 1767 were not counted as verified because the browser context was consumed by the reproduced filter race before their individual Workbench runs could be completed.
 - Deployment follow-up: Actions run `31017023422` completed successfully for commit `7cda62c`. After a fresh page load, C++ selection showed C++ cards and no Python cards; moving to page 2 continued to show C++ cards. This validates the filter/pagination fix only, not the five remaining exercise workflows.
+
+## CLI continuation 2026-08-06
+
+- Added `scripts/acceptance/programming_workbench_online_acceptance.mjs`, a resumable UI-only Playwright runner with per-exercise contexts, immediate JSON/Markdown writes, bounded steps, telemetry blocking, screenshots, optional traces, and no `networkidle`.
+- Ran the remaining non-C targets in independent contexts: Java `1546,1549,1556,1551,1552,1554,1660-1664,1775,1795,1809`, C++ `1734,1756,1758,1762,1767`, and Python `1629,1819,1822,1833,1845,1846,1847,1849,1865,1866`.
+- All 29 attempts reached `http://101.32.190.42/` with page HTTP 200, but stopped at `open_correct_exercise`: the unauthenticated page had zero programming-navigation buttons. Only `/api/settings/public` and `/api/announcements/active` were observed; no Workbench API, Run/Test/Submit, or WebSocket result was inferred.
+- Detailed evidence: `verification-results/programming-workbench-cli-acceptance.json`; screenshots: `verification-screenshots/programming-workbench-random-40/cli-*.png`; optional traces are under `verification-traces/programming-workbench-random-40/` and are Git-ignored.

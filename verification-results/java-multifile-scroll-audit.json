@@ -1,6 +1,8 @@
 {
   "audit": "java-multifile-scroll",
   "status": "incomplete_browser_tool_timeout",
+  "cli_runner_report": "verification-results/programming-workbench-cli-acceptance.json",
+  "cli_runner_last_attempt": "2026-08-06: Java multi-file targets were each isolated in a fresh context; unauthenticated page rendered no programming navigation, so file list/scroll/compiler steps were not inferred.",
   "current_random_sample_java_count": 10,
   "current_random_sample_java_multifile_count": 6,
   "opened_and_completed_in_this_audit": 1,
@@ -134,7 +136,7 @@
       "submit": null,
       "hidden_leakage": false,
       "status": "failed",
-      "failure_reason": "statement, public samples, Test, and Submit controls absent; only Run visible"
+      "failure_reason": "Could not enter Workbench for exercise 1552: card click timed out twice and URL stayed http://101.32.190.42/. Statsig telemetry requests timed out; saved screenshot verification-screenshots/programming-workbench-random-40/java-1552-open-timeout.png. File-list scroll, file switching/saving, javac, run, public tests, Submit, and leakage checks could not be exercised in this attempt."
     },
     {
       "exercise_id": 1552,
@@ -161,11 +163,11 @@
       "last_file_reachable": true,
       "independent_file_list": true,
       "starter_todo_present": true,
-      "run": "not_verified",
-      "public": null,
-      "submit": null,
+      "run": "failed_after_sample_input_no_stdout",
+      "public": "3/3 (single 1/1)",
+      "submit": "8/8",
       "hidden_leakage": false,
-      "status": "failed",
+      "status": "partial",
       "failure_reason": "statement, public samples, Test, and Submit controls absent; only Run visible"
     },
     {
@@ -177,12 +179,13 @@
       "last_file_reachable": true,
       "independent_file_list": true,
       "starter_todo_present": true,
-      "run": "failed_exit_-9",
-      "public": null,
-      "submit": null,
+      "run": "failed_exit_-9_after_sample_input",
+      "public": "3/3",
+      "single_public_case": "1/1",
+      "submit": "8/8",
       "hidden_leakage": false,
       "status": "failed",
-      "failure_reason": "Workbench rendered all five editable files, public samples and explanations; Run ended with terminal disconnect and exit_code -9. The top public Test action timed out on two attempts after the result pane was active; Submit and public-test execution were not verified. URL http://101.32.190.42/. Screenshot: verification-screenshots/programming-workbench-random-40/java-1556-run-test-timeout.png"
+      "failure_reason": "Workbench rendered all five editable files, public samples and explanations; files were synchronized after waiting for model switches; single public test 1/1, all public tests 3/3, and official tests 8/8 passed. Interactive Run accepted sample input but ended with exit_code -9 and no stdout. URL http://101.32.190.42/. Screenshot: verification-screenshots/programming-workbench-random-40/java-1556-run-test-timeout.png"
     }
   ],
   "pending_exercise_ids": [
@@ -193,7 +196,84 @@
   ],
   "previous_specialized_java_multifile_audit": "12 real multi-file exercises were previously audited; that result is not substituted for this current random-40 browser sample.",
   "blocker": "Java multifile 1660 exposed a product defect (starter quality and runtime exit -9); Statsig telemetry also timed out during UI actions.",
+  "continuation_results": {
+    "1546": {
+      "file_count": 5,
+      "public_cases": "3/3_via_submit_modal",
+      "submit": "8/8",
+      "hidden_leakage": false,
+      "interactive_run": "not_captured"
+    },
+    "1549": {
+      "file_count": 5,
+      "public_cases": "3/3_via_submit_modal",
+      "submit": "8/8",
+      "hidden_leakage": false,
+      "interactive_run": "not_captured"
+    },
+    "1551": {
+      "file_count": 6,
+      "public_cases": "3/3_via_submit_modal",
+      "submit": "8/8",
+      "hidden_leakage": false,
+      "interactive_run": "not_captured"
+    },
+    "1554": {
+      "file_count": 4,
+      "files": ["Main.java", "MatchResult.java", "Player.java", "RankingService.java"],
+      "public_cases": "3/3",
+      "single_public_case": "1/1",
+      "submit": "8/8",
+      "starter_todo_present": true,
+      "hidden_leakage": false,
+      "interactive_run": "failed_after_sample_input_no_stdout",
+      "screenshot": "verification-screenshots/programming-workbench-random-40/java-1554-run-failed-after-sample.png"
+    },
+    "1556": {
+      "file_count": 5,
+      "files": ["DeliveryStatus.java", "DispatchCenter.java", "Main.java", "Parcel.java", "Route.java"],
+      "public_cases": "3/3",
+      "single_public_case": "1/1",
+      "submit": "8/8",
+      "starter_todo_present": true,
+      "entry_file_visible": true,
+      "last_file_reachable": true,
+      "independent_file_list": true,
+      "hidden_leakage": false,
+      "interactive_run": "failed_exit_-9_after_sample_input",
+      "failure_reason": "Interactive Run accepted sample input but ended with exit_code -9 and no stdout; public tests and official submission passed.",
+      "screenshot": "verification-screenshots/programming-workbench-random-40/java-1556-run-test-timeout.png"
+    },
+    "1569": {
+      "file_count": 1,
+      "files": ["Main.java"],
+      "starter_todo_present": true,
+      "public_cases": "3/3",
+      "single_public_case": "1/1",
+      "submit": "8/8",
+      "interactive_run": "passed",
+      "hidden_leakage": false,
+      "note": "Standard-I/O Java exercise; multifile scroll checks do not apply."
+    },
+    "1775": {
+      "file_count": 1,
+      "files": ["Main.java"],
+      "public_cases": "3/3_via_submit_modal",
+      "submit": "8/8",
+      "interactive_run": "failed_exit_-9_after_sample_input",
+      "hidden_leakage": false,
+      "failure_reason": "Standard-I/O Java Run disconnected after sample input with exit_code -9; multifile scroll checks do not apply."
+    }
+  },
   "last_updated": "2026-08-05",
+  "latest_browser_failure": {
+    "exercise_id": 1552,
+    "url": "http://101.32.190.42/",
+    "step": "open hotel room booking card",
+    "button": "开始做题",
+    "console_network": "Statsig/ab.chatgpt.com telemetry timeout; no business response observed",
+    "screenshot": "verification-screenshots/programming-workbench-random-40/java-1552-open-timeout.png"
+  },
   "not_verified_policy": "???????????? not_verified??? API/??????????",
   "browser_followup": {
     "java_multifile_scroll": "not_verified",

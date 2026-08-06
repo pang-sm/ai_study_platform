@@ -26,3 +26,9 @@ Root-cause fixes already recorded: 76eaa51, c95c98a, c00e370. Actions already re
 - A real frontend race was reproduced during C++ filtering: a stale Python list response could overwrite the newly selected C++ list. The fix is limited to `frontend/src/components/ProgrammingHome.jsx`; local `npm run build` passed.
 - C++ 1734, 1756, 1758, 1762, and 1767 remain unverified and are not inferred from API data.
 - Actions `31017023422` completed successfully for `7cda62c`; fresh online UI validation showed C++ content on both the first and second pages with no Python-card overwrite.
+
+## CLI continuation 2026-08-06
+
+- The new UI-only runner was executed for all remaining non-C targets with one fresh context per exercise and no `networkidle` wait.
+- Because neither an authenticated storage state nor a controllable Chrome session was available, each target stopped before Workbench entry with the concrete error `programming navigation expected 4 buttons, got 0` at `http://101.32.190.42/`.
+- This is recorded as an authentication/environment blocker, not as a Run/Test/Submit business result. See `verification-results/programming-workbench-cli-acceptance.json` and the per-target screenshots in `verification-screenshots/programming-workbench-random-40/`.

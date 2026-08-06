@@ -5,6 +5,8 @@
   "target_total": 40,
   "browser_surface": "Codex In-app Browser",
   "status": "incomplete_browser_tool_timeout",
+  "cli_runner_report": "verification-results/programming-workbench-cli-acceptance.json",
+  "cli_runner_last_attempt": "2026-08-06: 29 non-C remaining targets used independent Playwright contexts; all stopped at open_correct_exercise because the public page had no authenticated programming navigation. No API bypass was used.",
   "confirmed_exercises": 14,
   "code_synced_but_result_unread": 0,
   "not_completed": 25,
