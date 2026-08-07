@@ -73,9 +73,7 @@ export default function ProgrammingOnboardingStep({
   useEffect(() => {
     if (initialData || !user?.username) return;
     let alive = true;
-    fetch(`${apiBase}/programming/onboarding`, {
-      headers: { Authorization: `Bearer ${encodeURIComponent(user.username)}` },
-    })
+    fetch(`${apiBase}/programming/onboarding`, { credentials: "include" })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (!alive || !data) return;
@@ -112,9 +110,9 @@ export default function ProgrammingOnboardingStep({
     try {
       const res = await fetch(`${apiBase}/programming/onboarding`, {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${encodeURIComponent(user.username)}`,
         },
         body: JSON.stringify({
           main_language: language,

@@ -50,6 +50,20 @@ class User(Base):
     created_at = Column(DateTime, default=utc_now)
 
 
+class AuthSession(Base):
+    """Server-side login session; only a hash of the client token is stored."""
+
+    __tablename__ = "auth_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=False)
+    token_hash = Column(String(64), unique=True, index=True, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    last_seen_at = Column(DateTime, nullable=True)
+    revoked_at = Column(DateTime, nullable=True)
+
+
 class ChatMessage(Base):
     __tablename__ = "chat_messages"
 

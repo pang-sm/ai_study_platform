@@ -592,7 +592,7 @@ export default function ExamChat({
         formData.append("save_to_materials", "true");
         const res = await fetch(`${API_BASE}/materials/upload`, {
           method: "POST",
-          headers: { Authorization: `Bearer ${user.username}` },
+          credentials: "include",
           body: formData,
         });
         const data = await res.json().catch(() => ({}));

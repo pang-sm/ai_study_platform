@@ -90,9 +90,9 @@ export default function CourseLearningOnboarding({
     try {
       const res = await fetch(`${apiBase}/course-learning/onboarding`, {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${encodeURIComponent(user.username)}`,
         },
         body: JSON.stringify({
           major,
@@ -204,4 +204,3 @@ export default function CourseLearningOnboarding({
     </div>
   );
 }
-

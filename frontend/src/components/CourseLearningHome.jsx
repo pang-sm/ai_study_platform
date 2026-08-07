@@ -114,9 +114,7 @@ export default function CourseLearningHome({
     loadMaterialsRef.current = loadMaterials;
   }, [loadMaterials]);
 
-  const authHeaders = useMemo(() => ({
-    Authorization: `Bearer ${encodeURIComponent(user?.username || "")}`,
-  }), [user?.username]);
+  const authHeaders = useMemo(() => ({}), []);
 
   const loadOnboarding = async () => {
     if (!user?.username) return null;

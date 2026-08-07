@@ -64,6 +64,15 @@ PROFILE_COLUMNS = {
     "deleted_at": "TEXT",
 }
 
+AUTH_SESSION_COLUMNS = {
+    "user_id": "INTEGER NOT NULL",
+    "token_hash": "VARCHAR(64) NOT NULL",
+    "created_at": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+    "expires_at": "DATETIME NOT NULL",
+    "last_seen_at": "DATETIME",
+    "revoked_at": "DATETIME",
+}
+
 CHAT_SESSION_COLUMNS = {
     "course": "VARCHAR(100)",
     "subject": "VARCHAR(100)",
@@ -724,7 +733,7 @@ def seed_default_reference_materials(conn):
                     allow_download, allow_public_rag, allow_private_rag,
                     allow_generate_knowledge, is_default_reference, extract_method,
                     parse_status, parse_error, qwen_used, parsed_at, total_pages,
-                    parsed_pages, chunk_count, ocr_required, parse_progress,
+                    parsed_pages, chunk_count, ocr_required, ocr_page_limit, parse_progress,
                     parse_started_at, parse_completed_at, is_deleted, created_at, updated_at
                 ) VALUES (
                     :username, :subject, :file_type, :original_filename, :mime_type,
@@ -733,7 +742,7 @@ def seed_default_reference_materials(conn):
                     0, 0, 0,
                     1, 1, 'metadata',
                     'success', NULL, 0, CURRENT_TIMESTAMP, 0,
-                    0, 0, 0, 100,
+                    0, 0, 0, 0, 100,
                     NULL, CURRENT_TIMESTAMP, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 )
                 """
@@ -1757,6 +1766,19 @@ def normalize_existing_subjects(conn):
 def init_user_profile_schema():
     with engine.begin() as conn:
         ensure_columns(conn, "users", PROFILE_COLUMNS)
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS auth_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL REFERENCES users(id),
+                token_hash VARCHAR(64) NOT NULL UNIQUE,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                expires_at DATETIME NOT NULL,
+                last_seen_at DATETIME,
+                revoked_at DATETIME
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_auth_sessions_user_id ON auth_sessions (user_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_auth_sessions_expires_at ON auth_sessions (expires_at)"))
         ensure_admin_roles_schema(conn)
         ensure_columns(conn, "chat_sessions", CHAT_SESSION_COLUMNS)
         ensure_columns(conn, "chat_messages", CHAT_MESSAGE_COLUMNS)

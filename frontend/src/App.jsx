@@ -1067,8 +1067,9 @@ function App() {
   const fetchCurrentUser = async (targetUsername) => {
     const res = await fetch(`${API_BASE}/me`, {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: targetUsername }),
+      body: JSON.stringify(targetUsername ? { username: targetUsername } : {}),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -1083,7 +1084,7 @@ function App() {
   const loadCourseLearningOnboardingStatus = async (targetUser = user) => {
     if (!targetUser?.username) return null;
     const res = await fetch(`${API_BASE}/course-learning/onboarding`, {
-      headers: { Authorization: `Bearer ${encodeURIComponent(targetUser.username)}` },
+      credentials: "include",
     });
     const data = await res.json();
     if (!res.ok) {
@@ -1161,6 +1162,7 @@ function App() {
   };
 
   const logout = () => {
+    fetch(`${API_BASE}/logout`, { method: "POST", credentials: "include" }).catch(() => {});
     setUser(null);
     localStorage.removeItem(USER_STORAGE_KEY);
     localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
@@ -2160,6 +2162,7 @@ function App() {
       try {
         const res = await fetch(`${API_BASE}/me`, {
           method: "POST",
+          credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ username: savedUser.username }),
         });
@@ -2296,6 +2299,7 @@ function App() {
     try {
       const res = await fetch(`${API_BASE}/register`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       });
@@ -2328,6 +2332,7 @@ function App() {
     try {
       const res = await fetch(`${API_BASE}/login`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       });
@@ -2543,9 +2548,7 @@ function App() {
     try {
       const res = await fetch(`${API_BASE}/materials/upload`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${encodeURIComponent(user.username)}`,
-        },
+        credentials: "include",
         body: formData,
       });
 
@@ -3373,9 +3376,9 @@ function App() {
       try {
         const res = await fetch(`${API_BASE}/course-learning/onboarding`, {
           method: "POST",
+          credentials: "include",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${encodeURIComponent(user.username)}`,
           },
           body: JSON.stringify({
             major: details.major || user.major || "",

@@ -88,9 +88,9 @@ export default function CourseLearningPlan({ user, setPage, API_BASE }) {
     try {
       const res = await fetch(`${API_BASE}/course-learning/onboarding`, {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${encodeURIComponent(user?.username || "")}`,
         },
         body: JSON.stringify({ plan: pkgKey, onboarding_completed: true }),
       });

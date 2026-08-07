@@ -1348,6 +1348,79 @@ def ensure_user_can_access(user: models.User):
         raise HTTPException(status_code=403, detail="账号已被停用，请联系管理员")
 
 
+AUTH_SESSION_COOKIE = "ai_session"
+AUTH_SESSION_TTL = timedelta(days=30)
+
+
+def _hash_session_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _session_expired(value: datetime | None) -> bool:
+    if not value:
+        return True
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value <= utc_now()
+
+
+def create_auth_session(db: Session, user: models.User, response: Response) -> None:
+    raw_token = secrets.token_urlsafe(48)
+    session = models.AuthSession(
+        user_id=user.id,
+        token_hash=_hash_session_token(raw_token),
+        expires_at=utc_now() + AUTH_SESSION_TTL,
+        last_seen_at=utc_now(),
+    )
+    db.add(session)
+    db.commit()
+    response.set_cookie(
+        key=AUTH_SESSION_COOKIE,
+        value=raw_token,
+        max_age=int(AUTH_SESSION_TTL.total_seconds()),
+        httponly=True,
+        samesite="lax",
+        secure=False,
+        path="/",
+    )
+
+
+def get_current_user(request: Request, db: Session = Depends(get_db)):
+    """Resolve identity from the server-issued session, never from username input."""
+    raw_token = request.cookies.get(AUTH_SESSION_COOKIE)
+    if not raw_token:
+        authorization = request.headers.get("authorization", "")
+        if authorization.lower().startswith("bearer "):
+            raw_token = authorization[7:].strip()
+    if not raw_token:
+        raise HTTPException(status_code=401, detail="请先登录")
+
+    session = (
+        db.query(models.AuthSession)
+        .filter(
+            models.AuthSession.token_hash == _hash_session_token(raw_token),
+            models.AuthSession.revoked_at.is_(None),
+        )
+        .first()
+    )
+    if not session or _session_expired(session.expires_at):
+        raise HTTPException(status_code=401, detail="登录状态已失效，请重新登录")
+
+    user = db.query(models.User).filter(models.User.id == session.user_id).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="登录状态已失效，请重新登录")
+    ensure_user_can_access(user)
+    session.last_seen_at = utc_now()
+    db.commit()
+    return user
+
+
+def assert_username_matches_current_user(username: str | None, current_user: models.User) -> None:
+    requested = (username or "").strip()
+    if requested and requested != current_user.username:
+        raise HTTPException(status_code=403, detail="请求用户与当前登录用户不一致")
+
+
 def get_username_from_upload(username: str | None, authorization: str | None):
     if username and username.strip():
         return username.strip()
@@ -1362,8 +1435,20 @@ def get_current_user_from_bearer(authorization: str | None, db: Session):
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="请先登录")
 
-    username = unquote(authorization.replace("Bearer ", "", 1).strip())
-    user = get_user_by_username(username, db)
+    raw_token = authorization.replace("Bearer ", "", 1).strip()
+    session = (
+        db.query(models.AuthSession)
+        .filter(
+            models.AuthSession.token_hash == _hash_session_token(raw_token),
+            models.AuthSession.revoked_at.is_(None),
+        )
+        .first()
+    )
+    if not session or _session_expired(session.expires_at):
+        raise HTTPException(status_code=401, detail="登录状态已失效，请重新登录")
+    user = db.query(models.User).filter(models.User.id == session.user_id).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="登录状态已失效，请重新登录")
     ensure_user_can_access(user)
     return user
 
@@ -4905,7 +4990,7 @@ def get_qwen_status():
 
 
 @app.post("/register")
-def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
+def register(user: schemas.UserCreate, response: Response, db: Session = Depends(get_db)):
     username = user.username.strip()
     password = user.password.strip()
 
@@ -4932,11 +5017,13 @@ def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_user)
 
+    create_auth_session(db, new_user, response)
+
     return {"message": "注册成功", "user": user_profile(new_user), "profile": user_profile(new_user)}
 
 
 @app.post("/login")
-def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
+def login(user: schemas.UserLogin, response: Response, db: Session = Depends(get_db)):
     username = user.username.strip()
     password = user.password.strip()
 
@@ -4952,7 +5039,23 @@ def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="密码错误")
 
     ensure_user_can_access(db_user)
+    create_auth_session(db, db_user, response)
     return {"message": "登录成功", "user": user_profile(db_user), "profile": user_profile(db_user)}
+
+
+@app.post("/logout")
+def logout(request: Request, response: Response, db: Session = Depends(get_db)):
+    raw_token = request.cookies.get(AUTH_SESSION_COOKIE)
+    if raw_token:
+        session = db.query(models.AuthSession).filter(
+            models.AuthSession.token_hash == _hash_session_token(raw_token),
+            models.AuthSession.revoked_at.is_(None),
+        ).first()
+        if session:
+            session.revoked_at = utc_now()
+            db.commit()
+    response.delete_cookie(AUTH_SESSION_COOKIE, path="/")
+    return {"success": True}
 
 
 # ═══════════════════════════════════════════════════════════
@@ -4992,8 +5095,9 @@ def admin_login_deprecated():
 
 
 @app.post("/me")
-def me(req: MeRequest, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def me(req: MeRequest | None = None, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    user = current_user
+    assert_username_matches_current_user(req.username if req else None, current_user)
     ensure_user_can_access(user)
     # Auto-migrate old 408 users
     ensure_exam_408_track(db, user)
@@ -5017,8 +5121,9 @@ def me(req: MeRequest, db: Session = Depends(get_db)):
 
 
 @app.get("/me/tracks")
-def get_my_tracks(username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def get_my_tracks(username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     # Auto-migrate old 408 users
     ensure_exam_408_track(db, user)
     tracks = [serialize_track(t) for t in get_user_tracks(db, user.id)]
@@ -5026,14 +5131,16 @@ def get_my_tracks(username: str, db: Session = Depends(get_db)):
     return {"tracks": tracks, "active_track_type": active}
 
 @app.get("/me/profile")
-def get_profile(username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def get_profile(username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     return {"profile": user_profile(user)}
 
 
 @app.put("/me/profile")
-def update_profile(req: ProfileUpdateRequest, username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def update_profile(req: ProfileUpdateRequest, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
 
     ALLOWED_GRADES = {"大一", "大二", "大三", "大四", "研究生", ""}
     nickname = (req.nickname or "").strip()[:30]
@@ -5101,8 +5208,9 @@ def update_profile(req: ProfileUpdateRequest, username: str, db: Session = Depen
 
 
 @app.post("/me/onboarding")
-def complete_onboarding(req: OnboardingUpdateRequest, username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def complete_onboarding(req: OnboardingUpdateRequest, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
 
     if req.nickname is not None:
         user.nickname = (req.nickname or "").strip()[:30]
@@ -5216,8 +5324,9 @@ def _course_learning_onboarding_payload(user: models.User, track: models.UserLea
 def get_course_learning_onboarding(
     authorization: str | None = Header(None),
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    user = get_current_user_from_bearer(authorization, db)
+    user = current_user
     track = get_user_track(db, user.id, "university_course")
     return _course_learning_onboarding_payload(user, track)
 
@@ -5227,8 +5336,9 @@ def save_course_learning_onboarding(
     req: CourseLearningOnboardingRequest,
     authorization: str | None = Header(None),
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    user = get_current_user_from_bearer(authorization, db)
+    user = current_user
 
     major = (req.major or "").strip()[:80]
     grade = (req.grade or "").strip()[:30]
@@ -5376,8 +5486,10 @@ def get_programming_onboarding(
     authorization: str | None = Header(None),
     username: str = "",
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    user = get_current_user_from_bearer(authorization, db) if authorization else get_user_by_username(username, db)
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     track = get_user_track(db, user.id, "programming")
     return _programming_onboarding_payload(user, track, db)
 
@@ -5387,8 +5499,9 @@ def save_programming_onboarding(
     req: ProgrammingOnboardingRequest,
     authorization: str | None = Header(None),
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    user = get_current_user_from_bearer(authorization, db)
+    user = current_user
     language = (req.main_language or "").strip()[:30]
     level = (req.level or "").strip()[:30]
     if not language:
@@ -5476,8 +5589,9 @@ def get_programming_packages():
 
 
 @app.get("/programming/entitlements")
-def get_programming_entitlements(username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def get_programming_entitlements(username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     plan = get_effective_service_plan(db, user.id, "programming")
     entitlements = get_programming_package_entitlements(plan)
     entitlements["upload_limits"] = {
@@ -5487,8 +5601,9 @@ def get_programming_entitlements(username: str, db: Session = Depends(get_db)):
 
 
 @app.get("/programming/home")
-def get_programming_home(username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def get_programming_home(username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     track = get_user_track(db, user.id, "programming")
     payload = _programming_onboarding_payload(user, track, db)
     plan = normalize_programming_plan(get_effective_service_plan(db, user.id, "programming"))
@@ -5622,8 +5737,13 @@ def get_programming_home(username: str, db: Session = Depends(get_db)):
 # ── Course Learning Registration ──
 
 @app.get("/programming/file-library")
-def get_programming_file_library(username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def get_programming_file_library(
+    username: str = "",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     projects = (
         db.query(models.CodeProject)
         .filter(
@@ -5659,8 +5779,10 @@ def get_course_learning_courses(
     username: str = "",
     authorization: str | None = Header(None),
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    user = get_current_user_from_bearer(authorization, db) if authorization else get_user_by_username(username, db)
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     track = get_user_track(db, user.id, "university_course")
     detail = _parse_track_onboarding_detail(track)
     selected_courses = get_course_learning_selected_courses(user, track)
@@ -5726,8 +5848,10 @@ def update_course_learning_course_settings(
     username: str = "",
     authorization: str | None = Header(None),
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    user = get_current_user_from_bearer(authorization, db) if authorization else get_user_by_username(username, db)
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     track = get_user_track(db, user.id, "university_course")
     selected = set(get_course_learning_selected_courses(user, track))
     normalized_course = normalize_subject_course_learning(course_id) or normalize_course_learning_key(course_id)
@@ -5758,8 +5882,10 @@ def get_course_learning_today_plan(
     username: str = "",
     authorization: str | None = Header(None),
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    user = get_current_user_from_bearer(authorization, db) if authorization else get_user_by_username(username, db)
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     track = get_user_track(db, user.id, "university_course")
     detail = _parse_track_onboarding_detail(track)
     selected_courses = get_course_learning_selected_courses(user, track)
@@ -5850,8 +5976,10 @@ def update_course_learning_today_plan_order(
     req: CourseLearningTodayPlanOrderRequest,
     authorization: str | None = Header(None),
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    user = get_current_user_from_bearer(authorization, db) if authorization else get_user_by_username(req.username or "", db)
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
     track = get_user_track(db, user.id, "university_course")
     if not track:
         raise HTTPException(status_code=404, detail="course learning track not found")
@@ -5867,11 +5995,13 @@ def update_course_learning_today_plan_order(
 
 @app.get("/course-learning/exam-settings")
 def get_course_learning_exam_settings(
-    username: str,
-    course_id: str,
+    username: str = "",
+    course_id: str = "",
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    user = get_user_by_username(username, db)
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     course_key = normalize_course_learning_key(course_id)
     if not course_key:
         raise HTTPException(status_code=400, detail="course_id is required")
@@ -5887,8 +6017,10 @@ def get_course_learning_exam_settings(
 def save_course_learning_exam_settings(
     req: CourseLearningExamSettingsRequest,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    user = get_user_by_username(req.username, db)
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
     course_key = normalize_course_learning_key(req.course_id)
     if not course_key:
         raise HTTPException(status_code=400, detail="course_id is required")
@@ -5932,9 +6064,14 @@ class CourseLearningRegisterRequest(BaseModel):
 
 
 @app.post("/course-learning/register")
-def register_course_learning(req: CourseLearningRegisterRequest, db: Session = Depends(get_db)):
+def register_course_learning(
+    req: CourseLearningRegisterRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
     """Register/enable course_learning service for a user."""
-    user = get_user_by_username(req.username, db)
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
     if not user:
         raise HTTPException(status_code=404, detail="用户不存在")
 
@@ -5988,9 +6125,14 @@ def register_course_learning(req: CourseLearningRegisterRequest, db: Session = D
 
 
 @app.get("/course-learning/status")
-def check_course_learning_status(username: str, db: Session = Depends(get_db)):
+def check_course_learning_status(
+    username: str = "",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
     """Check if a user has course_learning registered/enabled."""
-    user = get_user_by_username(username, db)
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     plan = get_effective_service_plan(db, user.id, "course_learning")
     membership = get_user_service_membership(db, user.id, "course_learning")
     return {
@@ -6007,7 +6149,7 @@ class ChangePasswordRequest(BaseModel):
 
 
 @app.put("/me/password")
-def change_password(req: ChangePasswordRequest, username: str, db: Session = Depends(get_db)):
+def change_password(req: ChangePasswordRequest, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     old_pw = req.old_password.strip()
     new_pw = req.new_password.strip()
     confirm_pw = req.confirm_password.strip()
@@ -6021,7 +6163,8 @@ def change_password(req: ChangePasswordRequest, username: str, db: Session = Dep
     if new_pw == old_pw:
         raise HTTPException(status_code=400, detail="新密码不能与旧密码相同")
 
-    user = get_user_by_username(username, db)
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     if not verify_password(old_pw, user.hashed_password):
         raise HTTPException(status_code=401, detail="旧密码不正确")
 
@@ -6087,12 +6230,18 @@ class VerifyEmailRequest(BaseModel):
 
 
 @app.post("/me/email/send-code")
-def send_email_code(req: SendEmailCodeRequest, username: str, db: Session = Depends(get_db)):
+def send_email_code(
+    req: SendEmailCodeRequest,
+    username: str = "",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
     email = req.email.strip()
     if not email or "@" not in email or "." not in email.split("@")[-1]:
         raise HTTPException(status_code=400, detail="请输入有效的邮箱地址")
 
-    user = get_user_by_username(username, db)
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
 
     # Rate limit: 60s per email
     one_min_ago = datetime.utcnow() - timedelta(seconds=60)
@@ -6124,13 +6273,19 @@ def send_email_code(req: SendEmailCodeRequest, username: str, db: Session = Depe
 
 
 @app.put("/me/email/verify")
-def verify_email_code(req: VerifyEmailRequest, username: str, db: Session = Depends(get_db)):
+def verify_email_code(
+    req: VerifyEmailRequest,
+    username: str = "",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
     email = req.email.strip()
     code = req.code.strip()
     if not email or not code:
         raise HTTPException(status_code=400, detail="邮箱和验证码不能为空")
 
-    user = get_user_by_username(username, db)
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
 
     code_hash = _hash_code(code)
     now = datetime.utcnow()
@@ -6218,7 +6373,7 @@ def email_login_send_code(req: EmailLoginSendCodeRequest, db: Session = Depends(
 
 
 @app.post("/auth/email-login")
-def email_login(req: EmailLoginRequest, db: Session = Depends(get_db)):
+def email_login(req: EmailLoginRequest, response: Response, db: Session = Depends(get_db)):
     email = req.email.strip()
     code = req.code.strip()
     if not email or not code:
@@ -6255,14 +6410,16 @@ def email_login(req: EmailLoginRequest, db: Session = Depends(get_db)):
 
     record.used = True
     db.commit()
+    create_auth_session(db, user, response)
 
     profile = user_profile(user)
     return {"message": "登录成功", "user": profile, "profile": profile}
 
 
 @app.get("/me/quota")
-def get_my_quota(username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def get_my_quota(username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     exam_track = ensure_exam_408_track(db, user)
     plan_info = get_user_plan(user.username, db)
     limits = get_plan_limits(plan_info["plan"])
@@ -6310,8 +6467,13 @@ def get_my_quota(username: str, db: Session = Depends(get_db)):
 
 
 @app.get("/course-learning/entitlements")
-def get_course_learning_entitlements(username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def get_course_learning_entitlements(
+    username: str = "",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     plan = get_effective_service_plan(db, user.id, "course_learning")
     entitlement = get_course_package_entitlements(plan)
     permissions = entitlement["permissions"]
@@ -6397,8 +6559,14 @@ def _course_learning_task_subject_key(course_id: str) -> str:
 
 
 @app.get("/course-learning/study-plan")
-def get_course_learning_study_plan(username: str, course_id: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def get_course_learning_study_plan(
+    username: str = "",
+    course_id: str = "",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     normalized_course, seed_course_id, _seed_path, payload = _resolve_course_learning_study_plan_context(course_id)
     task_subject_key = f"course_learning:{seed_course_id}"
 
@@ -6505,10 +6673,12 @@ def get_course_learning_study_plan(username: str, course_id: str, db: Session = 
 @app.post("/me/avatar")
 async def upload_avatar(
     file: UploadFile = File(...),
-    username: str = Form(...),
+    username: str = Form(""),
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    user = get_user_by_username(username, db)
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
 
     if file.content_type not in ALLOWED_AVATAR_TYPES:
         raise HTTPException(status_code=400, detail="头像仅支持 JPG、PNG、WebP 或 GIF 格式")
@@ -6566,8 +6736,13 @@ def serve_avatar(filename: str):
 
 
 @app.delete("/me/avatar")
-def delete_avatar(username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def delete_avatar(
+    username: str = "",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     old_avatar = (user.avatar or "").strip()
     if old_avatar and old_avatar not in ALLOWED_AVATARS:
         try:
@@ -6923,13 +7098,12 @@ def apply_knowledge_progress_event(
 
 
 @app.post("/chat")
-def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
-    if not req.username:
-        raise HTTPException(status_code=401, detail="请先登录后再使用 AI 聊天")
+def chat(req: schemas.ChatRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(req.username, current_user)
 
     ensure_feature_enabled(db, "feature_ai_chat_enabled", "AI 问答功能暂时维护中，请稍后再试")
 
-    user = get_user_by_username(req.username, db)
+    user = current_user
     subject = _normalize_course_or_11408_optional(req.subject or req.course)
     exam_subject = normalize_exam_subject_key(req.exam_subject, req.subject_key)
     material_ids = sorted({int(item) for item in (req.material_ids or []) if int(item) > 0})
@@ -7178,10 +7352,10 @@ async def upload_chat_file(
     save_to_materials: bool = Form(False),
     authorization: str | None = Header(None),
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    upload_username = get_username_from_upload(username, authorization)
-    if not upload_username:
-        raise HTTPException(status_code=401, detail="请先登录后再上传文件")
+    assert_username_matches_current_user(username, current_user)
+    upload_username = current_user.username
 
     return await handle_material_upload(
         db=db,
@@ -7206,14 +7380,14 @@ async def upload_material(
     source_type: str | None = Form(None),
     authorization: str | None = Header(None),
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    upload_username = get_username_from_upload(username, authorization)
-    if not upload_username:
-        raise HTTPException(status_code=401, detail="请先登录后再上传文件")
+    assert_username_matches_current_user(username, current_user)
+    upload_username = current_user.username
 
     ensure_feature_enabled(db, "feature_material_upload_enabled", "资料上传功能暂时维护中，请稍后再试")
 
-    user = get_user_by_username(upload_username, db)
+    user = current_user
     normalized_subject = _normalize_course_or_11408(subject)
     normalized_source_type = normalize_material_source_type(source_type)
 
@@ -7472,8 +7646,13 @@ async def upload_material(
 
 
 @app.post("/materials/add-from-message")
-def add_material_from_message(req: AddMaterialFromMessageRequest, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def add_material_from_message(
+    req: AddMaterialFromMessageRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
     message = (
         db.query(models.ChatMessage)
         .filter(
@@ -7501,8 +7680,13 @@ def add_material_from_message(req: AddMaterialFromMessageRequest, db: Session = 
 
 
 @app.post("/materials/reindex")
-def reindex_user_materials(req: ReindexMaterialsRequest, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def reindex_user_materials(
+    req: ReindexMaterialsRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
 
     try:
         indexed_material_count, indexed_chunk_count = reindex_materials(
@@ -7521,9 +7705,15 @@ def reindex_user_materials(req: ReindexMaterialsRequest, db: Session = Depends(g
 
 
 @app.post("/materials/{material_id}/reparse")
-def reparse_single_material(material_id: int, username: str, db: Session = Depends(get_db)):
+def reparse_single_material(
+    material_id: int,
+    username: str = "",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
     """Re-parse a single material from its source file: re-extract text, re-OCR if needed, re-chunk."""
-    user = get_user_by_username(username, db)
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     material = get_accessible_material_or_404(db, user.username, material_id)
     if not can_user_modify_material(material, user.username):
         raise HTTPException(status_code=403, detail="只有本人上传的私有资料可以重新解析")
@@ -7700,13 +7890,15 @@ def reparse_single_material(material_id: int, username: str, db: Session = Depen
 
 @app.get("/materials/search")
 def search_materials(
-    username: str,
-    q: str,
+    username: str = "",
+    q: str = "",
     subject: str = "",
     top_k: int = 8,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    user = get_user_by_username(username, db)
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     keyword = (q or "").strip()
     normalized_subject = normalize_subject(subject, default="")
 
@@ -7724,8 +7916,9 @@ def search_materials(
 
 
 @app.get("/materials")
-def get_materials(username: str, subject: str | None = None, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def get_materials(username: str = "", subject: str | None = None, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     query = query_accessible_materials(db, user.username)
 
     normalized_subject = _normalize_course_or_11408_optional(subject)
@@ -7737,8 +7930,9 @@ def get_materials(username: str, subject: str | None = None, db: Session = Depen
 
 
 @app.get("/materials/{material_id}/download")
-def download_material_file(material_id: int, username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def download_material_file(material_id: int, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     material = get_accessible_material_or_404(db, user.username, material_id)
     if not can_user_modify_material(material, user.username) or not bool(getattr(material, "allow_download", True)):
         raise HTTPException(status_code=403, detail="没有权限下载该资料")
@@ -7764,8 +7958,9 @@ def download_material_file(material_id: int, username: str, db: Session = Depend
 
 
 @app.get("/materials/{material_id}/preview")
-def preview_material_file(material_id: int, username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def preview_material_file(material_id: int, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     material = get_accessible_material_or_404(db, user.username, material_id)
     if not can_user_modify_material(material, user.username):
         raise HTTPException(status_code=403, detail="没有权限查看该资料原文")
@@ -7806,24 +8001,27 @@ def preview_material_file(material_id: int, username: str, db: Session = Depends
 
 
 @app.get("/materials/{material_id}/status")
-def get_material_status(material_id: int, username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def get_material_status(material_id: int, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     material = get_accessible_material_or_404(db, user.username, material_id)
 
     return serialize_material_status(material)
 
 
 @app.get("/materials/{material_id}")
-def get_material_detail(material_id: int, username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def get_material_detail(material_id: int, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     material = get_accessible_material_or_404(db, user.username, material_id)
 
     return {"material": serialize_material_detail(material)}
 
 
 @app.delete("/materials/{material_id}")
-def delete_material(material_id: int, username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def delete_material(material_id: int, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     material = get_accessible_material_or_404(db, user.username, material_id)
     if not can_user_modify_material(material, user.username):
         raise HTTPException(status_code=403, detail="只有本人上传的私有资料可以删除")
@@ -7837,8 +8035,9 @@ def delete_material(material_id: int, username: str, db: Session = Depends(get_d
 
 
 @app.post("/learning-records")
-def create_learning_record(req: CreateLearningRecordRequest, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def create_learning_record(req: CreateLearningRecordRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
     normalized_subject = normalize_subject(req.subject)
     record_type = normalize_record_type(req.record_type)
     question = (req.question or "").strip()
@@ -7902,13 +8101,15 @@ def create_learning_record(req: CreateLearningRecordRequest, db: Session = Depen
 
 @app.get("/learning-records")
 def get_learning_records(
-    username: str,
+    username: str = "",
     subject: str = "",
     record_type: str = "",
     review_status: str = "",
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    user = get_user_by_username(username, db)
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     query = db.query(models.LearningRecord).filter(
         models.LearningRecord.user_id == user.id,
         models.LearningRecord.is_deleted.is_(False),
@@ -7932,8 +8133,9 @@ def get_learning_records(
 
 
 @app.get("/learning-records/stats")
-def get_learning_record_stats(username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def get_learning_record_stats(username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     records = (
         db.query(models.LearningRecord)
         .filter(
@@ -7973,8 +8175,14 @@ def get_learning_record_stats(username: str, db: Session = Depends(get_db)):
 
 
 @app.post("/learning-records/{record_id}/reviewed")
-def mark_learning_record_reviewed(record_id: int, username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def mark_learning_record_reviewed(
+    record_id: int,
+    username: str = "",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     record = (
         db.query(models.LearningRecord)
         .filter(
@@ -8000,10 +8208,12 @@ def mark_learning_record_reviewed(record_id: int, username: str, db: Session = D
 def update_learning_record(
     record_id: int,
     req: UpdateLearningRecordRequest,
-    username: str,
+    username: str = "",
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    user = get_user_by_username(username, db)
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     record = (
         db.query(models.LearningRecord)
         .filter(
@@ -8034,8 +8244,9 @@ def update_learning_record(
 
 
 @app.delete("/learning-records/{record_id}")
-def delete_learning_record(record_id: int, username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def delete_learning_record(record_id: int, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     record = (
         db.query(models.LearningRecord)
         .filter(
@@ -8056,8 +8267,14 @@ def delete_learning_record(record_id: int, username: str, db: Session = Depends(
 
 
 @app.get("/course-progress")
-def get_course_progress(username: str, course: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def get_course_progress(
+    username: str = "",
+    course: str = "",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     normalized_course = normalize_subject(course)
     progress = build_course_progress(
         normalized_course,
@@ -8073,8 +8290,13 @@ def get_course_progress(username: str, course: str, db: Session = Depends(get_db
 
 
 @app.patch("/course-progress")
-def update_course_progress(req: CourseProgressUpdateRequest, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def update_course_progress(
+    req: CourseProgressUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
     normalized_course = normalize_subject(req.course)
     knowledge_point = (req.knowledge_point or "").strip()
     raw_status = (req.status or "").strip()
@@ -8125,14 +8347,27 @@ def update_course_progress(req: CourseProgressUpdateRequest, db: Session = Depen
 
 
 @app.get("/course-dashboard")
-def get_course_dashboard(username: str, course: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def get_course_dashboard(
+    username: str = "",
+    course: str = "",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     return build_course_dashboard_payload(db, user, course)
 
 
 @app.get("/course-preferences")
-def get_course_preference(username: str, subject: str = "", course_id: str = "", db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def get_course_preference(
+    username: str = "",
+    subject: str = "",
+    course_id: str = "",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     normalized_course = normalize_subject(course_id or subject, default="")
     if not normalized_course:
         raise HTTPException(status_code=400, detail="请提供课程")
@@ -8140,8 +8375,13 @@ def get_course_preference(username: str, subject: str = "", course_id: str = "",
 
 
 @app.post("/course-preferences")
-def save_course_preference(req: schemas.CourseLearningPreferenceUpsert, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def save_course_preference(
+    req: schemas.CourseLearningPreferenceUpsert,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
     normalized_course = normalize_subject(req.course_id or req.subject, default="")
     mastery_level = (req.mastery_level or "").strip()
     learning_goal = (req.learning_goal or "").strip()
@@ -8178,14 +8418,16 @@ def save_course_preference(req: schemas.CourseLearningPreferenceUpsert, db: Sess
 
 @app.get("/chat/history")
 def get_chat_history(
-    username: str,
+    username: str = "",
     subject: str = "",
     course: str = "",
     subject_key: str = "",
     exam_subject: str = "",
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    user = get_user_by_username(username, db)
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     normalized_subject = normalize_subject(subject, course, default="") if (subject or course) else ""
     normalized_exam_subject = normalize_exam_subject_key(exam_subject, subject_key)
 
@@ -8208,14 +8450,16 @@ def get_chat_history(
 @app.get("/chat/sessions/{session_id}")
 def get_chat_session_messages(
     session_id: int,
-    username: str,
+    username: str = "",
     subject: str = "",
     course: str = "",
     subject_key: str = "",
     exam_subject: str = "",
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    user = get_user_by_username(username, db)
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     normalized_subject = normalize_subject(subject, course, default="") if (subject or course) else ""
     normalized_exam_subject = normalize_exam_subject_key(exam_subject, subject_key)
 
@@ -8256,12 +8500,14 @@ def get_chat_session_messages(
 @app.delete("/chat/sessions/{session_id}")
 def delete_chat_session(
     session_id: int,
-    username: str,
+    username: str = "",
     subject_key: str = "",
     exam_subject: str = "",
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    user = get_user_by_username(username, db)
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
 
     chat_session = (
         db.query(models.ChatSession)
@@ -8418,8 +8664,14 @@ CODE_ANALYZE_SYSTEM_PROMPT = """你是编程学习助手。根据用户提供的
 
 
 @app.get("/code/sessions")
-def get_code_sessions(username: str, course_id: str = "", db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def get_code_sessions(
+    username: str = "",
+    course_id: str = "",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     query = db.query(models.CodeSession).filter(
         models.CodeSession.username == user.username,
     )
@@ -8464,8 +8716,13 @@ def get_code_sessions(username: str, course_id: str = "", db: Session = Depends(
 
 
 @app.post("/code/sessions")
-def create_code_session(req: schemas.CodeSessionCreate, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def create_code_session(
+    req: schemas.CodeSessionCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
     language = (req.language or "Python").strip()
     if language not in CODE_TEMPLATES:
         language = "Python"
@@ -8499,8 +8756,14 @@ def create_code_session(req: schemas.CodeSessionCreate, db: Session = Depends(ge
 
 
 @app.get("/code/sessions/{session_id}")
-def get_code_session(session_id: int, username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def get_code_session(
+    session_id: int,
+    username: str = "",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     session = (
         db.query(models.CodeSession)
         .filter(
@@ -8515,8 +8778,14 @@ def get_code_session(session_id: int, username: str, db: Session = Depends(get_d
 
 
 @app.put("/code/sessions/{session_id}")
-def update_code_session(session_id: int, req: schemas.CodeSessionUpdate, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def update_code_session(
+    session_id: int,
+    req: schemas.CodeSessionUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
     session = (
         db.query(models.CodeSession)
         .filter(
@@ -8546,8 +8815,14 @@ def update_code_session(session_id: int, req: schemas.CodeSessionUpdate, db: Ses
 
 
 @app.delete("/code/sessions/{session_id}")
-def delete_code_session(session_id: int, username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def delete_code_session(
+    session_id: int,
+    username: str = "",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     session = (
         db.query(models.CodeSession)
         .filter(
@@ -9280,7 +9555,10 @@ def serialize_programming_recent_item(item_type: str, payload: dict):
 def list_programming_exercises(language: str | None = None, difficulty: str | None = None, tag: str | None = None,
                                keyword: str | None = None, knowledge_point: str | None = None,
                                status: str | None = None, source: str | None = None, page: int = 1, page_size: int = 12,
-                               username: str = "", db: Session = Depends(get_db)):
+                               username: str = "", db: Session = Depends(get_db),
+                               current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(username, current_user)
+    username = current_user.username
     query = db.query(models.ProgrammingExercise).filter(
         models.ProgrammingExercise.reference_verified.is_(True),
         models.ProgrammingExercise.starter_verified.is_(True),
@@ -9331,7 +9609,11 @@ def list_programming_exercises(language: str | None = None, difficulty: str | No
 
 
 @app.get("/programming/exercises/{exercise_id}")
-def get_programming_exercise(exercise_id: int, db: Session = Depends(get_db)):
+def get_programming_exercise(
+    exercise_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
     exercise = db.query(models.ProgrammingExercise).filter_by(id=exercise_id).first()
     if not exercise or not exercise.reference_verified or not exercise.starter_verified or not exercise.is_active or exercise.quality_status != "approved":
         raise HTTPException(status_code=404, detail="题目不存在")
@@ -9339,8 +9621,9 @@ def get_programming_exercise(exercise_id: int, db: Session = Depends(get_db)):
 
 
 @app.post("/programming/exercises/{exercise_id}/start")
-def start_programming_exercise(exercise_id: int, req: schemas.ProgrammingExerciseStartRequest, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def start_programming_exercise(exercise_id: int, req: schemas.ProgrammingExerciseStartRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
     exercise = db.query(models.ProgrammingExercise).filter_by(id=exercise_id).first()
     if not exercise or not exercise.reference_verified or not exercise.starter_verified or not exercise.is_active or exercise.quality_status != "approved":
         raise HTTPException(status_code=404, detail="题目不存在")
@@ -10043,8 +10326,9 @@ def _run_public_sample_cases(
 
 
 @app.post("/programming/exercises/{exercise_id}/samples/run")
-def run_programming_exercise_sample(exercise_id: int, req: schemas.ProgrammingExerciseSampleRunRequest, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def run_programming_exercise_sample(exercise_id: int, req: schemas.ProgrammingExerciseSampleRunRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
     exercise = db.query(models.ProgrammingExercise).filter_by(id=exercise_id).first()
     project = get_code_project_or_404(req.project_id, user.username, db)
     if not exercise or not exercise.is_active or exercise.quality_status != "approved" or project.programming_exercise_id != exercise.id:
@@ -10067,8 +10351,9 @@ def run_programming_exercise_sample(exercise_id: int, req: schemas.ProgrammingEx
 
 
 @app.post("/programming/exercises/{exercise_id}/test")
-def test_programming_exercise(exercise_id: int, req: schemas.ProgrammingExerciseRunRequest, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def test_programming_exercise(exercise_id: int, req: schemas.ProgrammingExerciseRunRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
     exercise = db.query(models.ProgrammingExercise).filter_by(id=exercise_id).first()
     project = get_code_project_or_404(req.project_id, user.username, db)
     if not exercise or not exercise.is_active or exercise.quality_status != "approved" or project.programming_exercise_id != exercise.id:
@@ -10109,13 +10394,14 @@ def test_programming_exercise(exercise_id: int, req: schemas.ProgrammingExercise
 
 
 @app.post("/programming/exercises/{exercise_id}/run")
-def run_programming_exercise(exercise_id: int, req: schemas.ProgrammingExerciseRunRequest, db: Session = Depends(get_db)):
+def run_programming_exercise(exercise_id: int, req: schemas.ProgrammingExerciseRunRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     """Run the learner's current program with user-provided stdin only.
 
     This endpoint intentionally does not load or execute any official test
     bundle and does not update exercise, knowledge, or mastery state.
     """
-    user = get_user_by_username(req.username, db)
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
     exercise = db.query(models.ProgrammingExercise).filter_by(id=exercise_id).first()
     project = get_code_project_or_404(req.project_id, user.username, db)
     if not exercise or not exercise.is_active or exercise.quality_status != "approved" or project.programming_exercise_id != exercise.id:
@@ -10144,8 +10430,9 @@ def run_programming_exercise(exercise_id: int, req: schemas.ProgrammingExerciseR
 
 
 @app.post("/programming/exercises/{exercise_id}/submit")
-def submit_programming_exercise(exercise_id: int, req: schemas.ProgrammingExerciseRunRequest, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def submit_programming_exercise(exercise_id: int, req: schemas.ProgrammingExerciseRunRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
     exercise = db.query(models.ProgrammingExercise).filter_by(id=exercise_id).first()
     project = get_code_project_or_404(req.project_id, user.username, db)
     if not exercise or not exercise.is_active or exercise.quality_status != "approved" or project.programming_exercise_id != exercise.id:
@@ -10180,8 +10467,9 @@ def submit_programming_exercise(exercise_id: int, req: schemas.ProgrammingExerci
 
 
 @app.get("/code/projects")
-def get_code_projects(username: str, course_id: str = "programming", db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def get_code_projects(username: str = "", course_id: str = "programming", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     query = db.query(models.CodeProject).filter(
         models.CodeProject.user_id == user.id,
         models.CodeProject.username == user.username,
@@ -10201,8 +10489,9 @@ def get_code_projects(username: str, course_id: str = "programming", db: Session
 
 
 @app.post("/code/projects")
-def create_code_project(req: schemas.CodeProjectCreate, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def create_code_project(req: schemas.CodeProjectCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
     language = normalize_project_language(req.language)
     entry_file = PROJECT_LANGUAGE_DEFAULT_ENTRY[language]
     project = models.CodeProject(
@@ -10224,8 +10513,9 @@ def create_code_project(req: schemas.CodeProjectCreate, db: Session = Depends(ge
 
 
 @app.get("/code/projects/{project_id}")
-def get_code_project(project_id: int, username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def get_code_project(project_id: int, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     project = get_code_project_or_404(project_id, user.username, db)
     files = list_project_files(project.id, db)
     if not files:
@@ -10237,8 +10527,9 @@ def get_code_project(project_id: int, username: str, db: Session = Depends(get_d
 
 
 @app.put("/code/projects/{project_id}")
-def update_code_project(project_id: int, req: schemas.CodeProjectUpdate, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def update_code_project(project_id: int, req: schemas.CodeProjectUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
     project = get_code_project_or_404(project_id, user.username, db)
     if req.name is not None:
         project.name = (req.name or "未命名项目").strip()[:255] or "未命名项目"
@@ -10255,8 +10546,9 @@ def update_code_project(project_id: int, req: schemas.CodeProjectUpdate, db: Ses
 
 
 @app.delete("/code/projects/{project_id}")
-def delete_code_project(project_id: int, username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def delete_code_project(project_id: int, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     project = get_code_project_or_404(project_id, user.username, db)
     now = utc_now()
     project.is_deleted = True
@@ -10276,8 +10568,9 @@ def delete_code_project(project_id: int, username: str, db: Session = Depends(ge
 
 
 @app.post("/code/projects/{project_id}/files")
-def create_code_project_file(project_id: int, req: schemas.CodeProjectFileCreate, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def create_code_project_file(project_id: int, req: schemas.CodeProjectFileCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
     project = get_code_project_or_404(project_id, user.username, db)
     relative_path = safe_project_path(req.relative_path)
     existing = (
@@ -10307,8 +10600,9 @@ def create_code_project_file(project_id: int, req: schemas.CodeProjectFileCreate
 
 
 @app.put("/code/projects/{project_id}/files/{file_id}")
-def update_code_project_file(project_id: int, file_id: int, req: schemas.CodeProjectFileUpdate, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def update_code_project_file(project_id: int, file_id: int, req: schemas.CodeProjectFileUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
     project = get_code_project_or_404(project_id, user.username, db)
     file = (
         db.query(models.CodeProjectFile)
@@ -10354,8 +10648,9 @@ def update_code_project_file(project_id: int, file_id: int, req: schemas.CodePro
 
 
 @app.delete("/code/projects/{project_id}/files/{file_id}")
-def delete_code_project_file(project_id: int, file_id: int, username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def delete_code_project_file(project_id: int, file_id: int, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     project = get_code_project_or_404(project_id, user.username, db)
     file = (
         db.query(models.CodeProjectFile)
@@ -10501,8 +10796,14 @@ def _detect_project_java_main_classes(files: list[models.CodeProjectFile]) -> li
 
 
 @app.post("/code/projects/{project_id}/execute")
-def execute_code_project(project_id: int, req: schemas.CodeProjectExecuteRequest, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def execute_code_project(
+    project_id: int,
+    req: schemas.CodeProjectExecuteRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
     project = get_code_project_or_404(project_id, user.username, db)
     files = list_project_files(project.id, db)
     if not files:
@@ -11237,7 +11538,13 @@ def diagnose_code(req: schemas.CodeDiagnoseRequest):
 
 
 @app.post("/code/execute")
-def execute_code(req: schemas.CodeExecuteRequest, db: Session = Depends(get_db)):
+def execute_code(
+    req: schemas.CodeExecuteRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
     language = (req.language or "").strip().lower()
 
     if language not in ("python", "c"):
@@ -11289,9 +11596,7 @@ def execute_code(req: schemas.CodeExecuteRequest, db: Session = Depends(get_db))
     stdin = (req.stdin or "")[:MAX_STDIN_CHARS]
 
     # Session ownership check (if session_id provided)
-    user = None
     if req.session_id:
-        user = get_user_by_username(req.username, db)
         session = (
             db.query(models.CodeSession)
             .filter(
@@ -11304,8 +11609,7 @@ def execute_code(req: schemas.CodeExecuteRequest, db: Session = Depends(get_db))
             raise HTTPException(status_code=404, detail="代码练习不存在")
 
     # Rate limit check (use same limit for both languages)
-    username = user.username if user else req.username
-    if not _check_code_run_rate(username, CODE_RUN_RATE_EXECUTE):
+    if not _check_code_run_rate(user.username, CODE_RUN_RATE_EXECUTE):
         raise HTTPException(status_code=429, detail="运行过于频繁，每分钟最多运行 10 次，请稍后再试。")
 
     # Acquire semaphore with timeout
@@ -11325,8 +11629,13 @@ def execute_code(req: schemas.CodeExecuteRequest, db: Session = Depends(get_db))
 
 
 @app.post("/code/analyze")
-def analyze_code(req: schemas.CodeAnalyzeRequest, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def analyze_code(
+    req: schemas.CodeAnalyzeRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
     code = (req.code or "").strip()
     question = (req.question or "").strip()
 
@@ -11596,8 +11905,14 @@ def serialize_code_ai_message(msg):
 
 
 @app.get("/code/sessions/{session_id}/messages")
-def get_code_session_messages(session_id: int, username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def get_code_session_messages(
+    session_id: int,
+    username: str = "",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     session = (
         db.query(models.CodeSession)
         .filter(
@@ -11619,8 +11934,14 @@ def get_code_session_messages(session_id: int, username: str, db: Session = Depe
 
 
 @app.delete("/code/sessions/{session_id}/messages")
-def delete_code_session_messages(session_id: int, username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def delete_code_session_messages(
+    session_id: int,
+    username: str = "",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     session = (
         db.query(models.CodeSession)
         .filter(
@@ -11656,8 +11977,13 @@ def serialize_saved_chat(sc):
 
 
 @app.post("/code/ai-coach/saved-chats")
-def save_ai_coach_chat(req: schemas.CodeAISavedChatCreate, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def save_ai_coach_chat(
+    req: schemas.CodeAISavedChatCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
     if not req.challenge_id:
         raise HTTPException(status_code=400, detail="当前题目未加载完成，暂不能保存记录")
 
@@ -11678,11 +12004,13 @@ def save_ai_coach_chat(req: schemas.CodeAISavedChatCreate, db: Session = Depends
 
 @app.get("/code/ai-coach/saved-chats")
 def get_saved_ai_coach_chats(
-    username: str,
-    challenge_id: int,
+    username: str = "",
+    challenge_id: int = 0,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    user = get_user_by_username(username, db)
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     items = (
         db.query(models.CodeAISavedChat)
         .filter(
@@ -11698,10 +12026,12 @@ def get_saved_ai_coach_chats(
 @app.delete("/code/ai-coach/saved-chats/{saved_id}")
 def delete_saved_ai_coach_chat(
     saved_id: int,
-    username: str,
+    username: str = "",
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    user = get_user_by_username(username, db)
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     saved = (
         db.query(models.CodeAISavedChat)
         .filter(
@@ -11983,11 +12313,16 @@ CODE_CHALLENGE_GENERATE_PROMPT = """你是编程学习出题助手。根据用�
 
 
 @app.post("/code/challenges/generate")
-def generate_code_challenge(req: schemas.CodeChallengeGenerateRequest, db: Session = Depends(get_db)):
+def generate_code_challenge(
+    req: schemas.CodeChallengeGenerateRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
     import json as json_module
     import re as re_module
 
-    user = get_user_by_username(req.username, db)
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
     language = (req.language or "Python").strip()
     if language not in CODE_TEMPLATES:
         language = "Python"
@@ -12276,8 +12611,14 @@ def generate_code_challenge(req: schemas.CodeChallengeGenerateRequest, db: Sessi
 
 
 @app.get("/code/challenges/{challenge_id}")
-def get_code_challenge(challenge_id: int, username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def get_code_challenge(
+    challenge_id: int,
+    username: str = "",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     challenge = (
         db.query(models.CodeChallenge)
         .filter(
@@ -12320,8 +12661,14 @@ CODE_CHALLENGE_SUBMIT_PROMPT = """你是编程学习判题助手。请根据题�
 
 
 @app.post("/code/challenges/{challenge_id}/submit")
-def submit_code_challenge(challenge_id: int, req: schemas.CodeChallengeSubmitRequest, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def submit_code_challenge(
+    challenge_id: int,
+    req: schemas.CodeChallengeSubmitRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
 
     challenge = (
         db.query(models.CodeChallenge)
@@ -12467,7 +12814,12 @@ def submit_code_challenge(challenge_id: int, req: schemas.CodeChallengeSubmitReq
 
 
 @app.post("/code/challenges/{challenge_id}/run-tests")
-def run_challenge_tests(challenge_id: int, req: schemas.CodeChallengeRunTestsRequest, db: Session = Depends(get_db)):
+def run_challenge_tests(
+    challenge_id: int,
+    req: schemas.CodeChallengeRunTestsRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
     language = (req.language or "").strip().lower()
 
     if language not in ("python", "c"):
@@ -12479,7 +12831,8 @@ def run_challenge_tests(challenge_id: int, req: schemas.CodeChallengeRunTestsReq
             "error_message": f"当前测试运行暂支持 Python 和 C，{req.language or '该语言'} 暂不支持。",
         }
 
-    user = get_user_by_username(req.username, db)
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
 
     challenge = (
         db.query(models.CodeChallenge)
@@ -12673,7 +13026,12 @@ CODE_CHALLENGE_EXPLAIN_FAILURE_PROMPT = """你是编程学习辅导助手。用�
 
 
 @app.post("/code/challenges/{challenge_id}/explain-failure")
-def explain_challenge_failure(challenge_id: int, req: schemas.CodeChallengeExplainFailureRequest, db: Session = Depends(get_db)):
+def explain_challenge_failure(
+    challenge_id: int,
+    req: schemas.CodeChallengeExplainFailureRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
     language = (req.language or "").strip().lower()
 
     if language not in ("python", "c"):
@@ -12682,7 +13040,8 @@ def explain_challenge_failure(challenge_id: int, req: schemas.CodeChallengeExpla
             "explanation": f"当前 AI 解释暂支持 Python 和 C，{req.language or '该语言'} 暂不支持。",
         }
 
-    user = get_user_by_username(req.username, db)
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
 
     challenge = (
         db.query(models.CodeChallenge)
@@ -12714,7 +13073,7 @@ def explain_challenge_failure(challenge_id: int, req: schemas.CodeChallengeExpla
         }
 
     # Check usage limit
-    check_usage_limit(req.username, "challenge_explain", db)
+    check_usage_limit(user.username, "challenge_explain", db)
 
     # Build hints based on failure characteristics
     timed_out_hint = ""
@@ -12768,7 +13127,7 @@ def explain_challenge_failure(challenge_id: int, req: schemas.CodeChallengeExpla
 
     try:
         explanation = call_deepseek(messages)
-        record_ai_usage(req.username, "challenge_explain", db, estimated_tokens=len(code) // 2 + 500)
+        record_ai_usage(user.username, "challenge_explain", db, estimated_tokens=len(code) // 2 + 500)
         return {"success": True, "explanation": explanation}
     except HTTPException:
         raise
@@ -12808,7 +13167,12 @@ CODE_CHALLENGE_GENERATE_TESTS_PROMPT = """你是编程教学助手。你需要�
 
 
 @app.post("/code/challenges/{challenge_id}/generate-tests")
-def generate_challenge_tests(challenge_id: int, req: schemas.CodeChallengeGenerateTestsRequest, db: Session = Depends(get_db)):
+def generate_challenge_tests(
+    challenge_id: int,
+    req: schemas.CodeChallengeGenerateTestsRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
     language = (req.language or "").strip().lower()
 
     if language not in ("python", "c"):
@@ -12818,7 +13182,8 @@ def generate_challenge_tests(challenge_id: int, req: schemas.CodeChallengeGenera
             "message": f"当前测试用例生成暂支持 Python 和 C，{req.language or '该语言'} 暂不支持。",
         }
 
-    user = get_user_by_username(req.username, db)
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
 
     challenge = (
         db.query(models.CodeChallenge)
@@ -12955,14 +13320,16 @@ def generate_challenge_tests(challenge_id: int, req: schemas.CodeChallengeGenera
 
 @app.get("/code/attempts")
 def list_code_attempts(
-    username: str,
+    username: str = "",
     status: str | None = None,
     course_id: str = "",
     language: str | None = None,
     limit: int = 30,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    user = get_user_by_username(username, db)
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
 
     query = (
         db.query(models.CodeChallengeAttempt)
@@ -13015,8 +13382,14 @@ def list_code_attempts(
 
 
 @app.get("/code/attempts/{attempt_id}")
-def get_code_attempt(attempt_id: int, username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def get_code_attempt(
+    attempt_id: int,
+    username: str = "",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
 
     attempt = (
         db.query(models.CodeChallengeAttempt)
@@ -13063,8 +13436,14 @@ def get_code_attempt(attempt_id: int, username: str, db: Session = Depends(get_d
 
 
 @app.put("/code/attempts/{attempt_id}/mastered")
-def update_attempt_mastered(attempt_id: int, req: schemas.CodeAttemptMasteredUpdate, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def update_attempt_mastered(
+    attempt_id: int,
+    req: schemas.CodeAttemptMasteredUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
 
     attempt = (
         db.query(models.CodeChallengeAttempt)
@@ -13146,8 +13525,13 @@ CODE_LEARNING_DIAGNOSIS_PROMPT = """你是编程学习诊断助手。根据用�
 
 
 @app.post("/code/learning-diagnosis")
-def generate_learning_diagnosis(req: schemas.CodeLearningDiagnosisRequest, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def generate_learning_diagnosis(
+    req: schemas.CodeLearningDiagnosisRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
     course_id = normalize_subject(req.course_id, default="")
     language_filter = (req.language or "").strip()
 
@@ -13378,8 +13762,14 @@ def generate_learning_diagnosis(req: schemas.CodeLearningDiagnosisRequest, db: S
 
 
 @app.get("/code/progress")
-def get_code_progress(username: str, course_id: str = "", db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def get_code_progress(
+    username: str = "",
+    course_id: str = "",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     query = db.query(models.CodeSession).filter(
         models.CodeSession.username == user.username,
     )
@@ -14494,11 +14884,14 @@ def get_learning_dashboard(username: str, db: Session = Depends(get_db)):
 
 @app.get("/learning/report")
 def get_learning_report(
-    username: str,
+    username: str = "",
     start: str = "",
     end: str = "",
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
+    assert_username_matches_current_user(username, current_user)
+    username = current_user.username
     dashboard = get_learning_dashboard(username=username, db=db)
     overview = dashboard.get("overview") or {}
     weak_points = dashboard.get("weak_points") or []
@@ -14587,10 +14980,11 @@ def get_learning_report(
 
 
 @app.post("/learning-report/ai-generate")
-def ai_generate_learning_report(req: schemas.LearningReportAiGenerateRequest, db: Session = Depends(get_db)):
+def ai_generate_learning_report(req: schemas.LearningReportAiGenerateRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     """Generate an AI-powered learning report for the given time range.
     Returns structured data; frontend handles display formatting."""
-    user = get_user_by_username(req.username, db)
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
     range_type = (req.range_type or "7d").strip()
     now = utc_now()
 
@@ -15142,11 +15536,13 @@ def generate_tasks_from_diagnosis(req: schemas.GenerateTasksFromDiagnosisRequest
 
 @app.get("/knowledge-points")
 def list_knowledge_points(
-    username: str,
+    username: str = "",
     course_id: str = "",
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    user = get_user_by_username(username, db)
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     normalized_course = normalize_subject(course_id, default="")
     if not normalized_course:
         raise HTTPException(status_code=400, detail="course_id 不能为空")
@@ -15234,8 +15630,9 @@ def list_knowledge_points(
 
 
 @app.post("/knowledge-points")
-def create_knowledge_point(req: schemas.KnowledgePointCreate, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def create_knowledge_point(req: schemas.KnowledgePointCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
     normalized_course = normalize_subject(req.course_id, default="")
     if not normalized_course:
         raise HTTPException(status_code=400, detail="course_id 不能为空")
@@ -15383,8 +15780,10 @@ def update_knowledge_point(
     point_id: int,
     req: schemas.KnowledgePointUpdate,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    user = get_user_by_username(req.username, db)
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
     point = (
         db.query(models.KnowledgePoint)
         .filter(
@@ -15439,10 +15838,12 @@ def update_knowledge_point(
 @app.delete("/knowledge-points/{point_id}")
 def delete_knowledge_point(
     point_id: int,
-    username: str,
+    username: str = "",
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    user = get_user_by_username(username, db)
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     point = (
         db.query(models.KnowledgePoint)
         .filter(
@@ -15793,7 +16194,9 @@ def _append_user_generated_course_points(raw_chapters: list[dict], username: str
 
 
 @app.get("/knowledge-map")
-def get_knowledge_map(course_id: str, username: str = "", db: Session = Depends(get_db)):
+def get_knowledge_map(course_id: str, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(username, current_user)
+    username = current_user.username
     normalized_course = normalize_subject_course_learning(course_id) or (course_id or "").strip()
     if not normalized_course:
         raise HTTPException(status_code=400, detail="course_id 不能为空")
@@ -15883,8 +16286,9 @@ def get_knowledge_map(course_id: str, username: str = "", db: Session = Depends(
 
 
 @app.patch("/knowledge-map/progress")
-def update_knowledge_map_progress(req: schemas.KnowledgeMapProgressUpdate, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def update_knowledge_map_progress(req: schemas.KnowledgeMapProgressUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
     course_id = normalize_subject_course_learning(req.course_id) or (req.course_id or "").strip()
     code = (req.knowledge_point_code or "").strip()
     title = (req.knowledge_point_title or "").strip()
@@ -15994,20 +16398,22 @@ def update_knowledge_map_progress(req: schemas.KnowledgeMapProgressUpdate, db: S
 
 
 @app.get("/knowledge-map/review-settings")
-def get_knowledge_map_review_settings(course_id: str, username: str = "", db: Session = Depends(get_db)):
+def get_knowledge_map_review_settings(course_id: str, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     course_id = normalize_subject_course_learning(course_id) or (course_id or "").strip()
     if not course_id:
         raise HTTPException(status_code=400, detail="course_id is required")
     if course_id.endswith("_11408") and not _knowledge_map_seed_path(course_id).exists():
         raise HTTPException(status_code=404, detail="knowledge map not found")
-    user = get_user_by_username(username, db) if username else None
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     interval = _get_review_interval_days(db, user.username, course_id) if user else 7
     return {"course_id": course_id, "review_interval_days": interval}
 
 
 @app.patch("/knowledge-map/review-settings")
-def update_knowledge_map_review_settings(req: schemas.KnowledgeMapReviewSettingsUpdate, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def update_knowledge_map_review_settings(req: schemas.KnowledgeMapReviewSettingsUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
     course_id = normalize_subject_course_learning(req.course_id) or (req.course_id or "").strip()
     if not course_id:
         raise HTTPException(status_code=400, detail="course_id is required")
@@ -16852,7 +17258,9 @@ def delete_exam_study_plan_task(
 def create_course_learning_study_plan_task(
     req: schemas.ExamStudyPlanTaskCreate,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
+    assert_username_matches_current_user(req.username, current_user)
     course_id = req.subject_key or ""
     task_subject_key = _course_learning_task_subject_key(course_id)
     if not (req.knowledge_point_name or "").strip() and (req.scope_type or "single") != "all":
@@ -16863,7 +17271,7 @@ def create_course_learning_study_plan_task(
     if task_type not in {"knowledge", "review"}:
         raise HTTPException(status_code=400, detail=f"Invalid task_type: {task_type}")
 
-    user = get_user_by_username(req.username, db)
+    user = current_user
     now = utc_now()
     task = models.ExamStudyPlanTask(
         username=user.username,
@@ -16889,10 +17297,12 @@ def update_course_learning_study_plan_task(
     task_id: int,
     req: schemas.ExamStudyPlanTaskUpdate,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
     course_id = req.subject_key or ""
     task_subject_key = _course_learning_task_subject_key(course_id)
-    user = get_user_by_username(req.username, db)
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
     task = db.query(models.ExamStudyPlanTask).filter(
         models.ExamStudyPlanTask.id == task_id,
         models.ExamStudyPlanTask.username == user.username,
@@ -16930,9 +17340,11 @@ def delete_course_learning_study_plan_task(
     username: str = "",
     course_id: str = "",
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
     task_subject_key = _course_learning_task_subject_key(course_id)
-    user = get_user_by_username(username, db)
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     task = db.query(models.ExamStudyPlanTask).filter(
         models.ExamStudyPlanTask.id == task_id,
         models.ExamStudyPlanTask.username == user.username,
@@ -17908,12 +18320,13 @@ def _update_course_learning_progress(
 
 
 @app.post("/course-learning/practice/generate")
-def generate_course_learning_practice(req: dict, db: Session = Depends(get_db)):
-    username = (req.get("username") or "").strip()
+def generate_course_learning_practice(req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(req.get("username"), current_user)
+    username = current_user.username
     course_id = (req.get("course_id") or "").strip()
     if not username or not course_id:
         raise HTTPException(status_code=400, detail="username and course_id are required")
-    user = get_user_by_username(username, db)
+    user = current_user
     track = get_user_track(db, user.id, "university_course")
     selected_courses = get_course_learning_selected_courses(user, track)
     normalized_course = normalize_subject_course_learning(course_id) or course_id
@@ -18031,8 +18444,9 @@ def generate_course_learning_practice(req: dict, db: Session = Depends(get_db)):
 
 
 @app.post("/course-learning/practice/{attempt_id}/submit")
-def submit_course_learning_practice(attempt_id: int, req: dict, db: Session = Depends(get_db)):
-    username = (req.get("username") or "").strip()
+def submit_course_learning_practice(attempt_id: int, req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(req.get("username"), current_user)
+    username = current_user.username
     attempt = db.query(models.AIQuestionAttempt).filter(
         models.AIQuestionAttempt.id == attempt_id,
         models.AIQuestionAttempt.username == username,
@@ -18065,7 +18479,7 @@ def submit_course_learning_practice(attempt_id: int, req: dict, db: Session = De
     attempt.status = "submitted"
     attempt.submitted_at = utc_now()
     attempt.result_json = json.dumps(result, ensure_ascii=False)
-    user = get_user_by_username(username, db)
+    user = current_user
     point = {"code": item.knowledge_point_id or "", "title": item.knowledge_point_name or ""}
     _update_course_learning_progress(db, user=user, course_id=attempt.subject_key, point=point, is_correct=is_correct)
     db.add(models.LearningRecord(
@@ -18083,8 +18497,9 @@ def submit_course_learning_practice(attempt_id: int, req: dict, db: Session = De
 
 
 @app.get("/course-learning/practice/history")
-def get_course_learning_practice_history(username: str, course_id: str = "", db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def get_course_learning_practice_history(username: str = "", course_id: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     normalized_course = normalize_subject_course_learning(course_id) if course_id else ""
     query = db.query(models.AIQuestionAttempt).filter(
         models.AIQuestionAttempt.username == user.username,
@@ -19371,8 +19786,10 @@ def update_knowledge_point_progress(
     point_id: int,
     req: schemas.KnowledgeProgressUpdate,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    user = get_user_by_username(req.username, db)
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
     point = (
         db.query(models.KnowledgePoint)
         .filter(
@@ -19455,10 +19872,12 @@ def update_knowledge_point_progress(
 @app.get("/knowledge-points/{point_id}/progress-events")
 def get_knowledge_point_progress_events(
     point_id: int,
-    username: str,
+    username: str = "",
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    user = get_user_by_username(username, db)
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     point = (
         db.query(models.KnowledgePoint)
         .filter(
@@ -19529,8 +19948,9 @@ KP_GENERATION_PROMPT = """你是课程大纲设计助手。根据给定的课程
 
 
 @app.post("/knowledge-points/generate-preview")
-def generate_knowledge_points_preview(req: schemas.KnowledgePointGeneratePreviewRequest, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def generate_knowledge_points_preview(req: schemas.KnowledgePointGeneratePreviewRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
     course_id = normalize_subject(req.course_id, default="")
     if not course_id:
         raise HTTPException(status_code=400, detail="course_id 不能为空")
@@ -19634,8 +20054,9 @@ def generate_knowledge_points_preview(req: schemas.KnowledgePointGeneratePreview
 
 
 @app.post("/knowledge-points/import-generated")
-def import_generated_knowledge_points(req: schemas.KnowledgePointImportRequest, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def import_generated_knowledge_points(req: schemas.KnowledgePointImportRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
     course_id = normalize_subject(req.course_id, default="")
     if not course_id:
         raise HTTPException(status_code=400, detail="course_id 不能为空")
@@ -19897,8 +20318,10 @@ def _replace_material_learning_points(db: Session, username: str, subject: str, 
 def generate_knowledge_path_from_materials(
     req: schemas.KnowledgePathGenerateFromMaterialsRequest,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    user = get_user_by_username(req.username, db)
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
     subject = normalize_subject(req.subject, default="")
     if not subject:
         raise HTTPException(status_code=400, detail="subject 不能为空")
@@ -24252,8 +24675,15 @@ def _get_knowledge_base_dashboard_data(username: str, course_id: str, db: Sessio
 
 
 @app.get("/knowledge-base/dashboard")
-def get_knowledge_base_dashboard(username: str, course_id: str = "", db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def get_knowledge_base_dashboard(
+    username: str = "",
+    course_id: str = "",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
+    username = user.username
     dd = _get_knowledge_base_dashboard_data(username, course_id, db)
 
     # ── Course summaries ──
@@ -24402,8 +24832,14 @@ def get_knowledge_base_dashboard(username: str, course_id: str = "", db: Session
 
 
 @app.get("/materials/{material_id}/knowledge-links")
-def get_material_knowledge_links(material_id: int, username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def get_material_knowledge_links(
+    material_id: int,
+    username: str = "",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
 
     material = (
         db.query(models.StudyMaterial)
@@ -24452,8 +24888,14 @@ def get_material_knowledge_links(material_id: int, username: str, db: Session = 
 
 
 @app.post("/materials/{material_id}/knowledge-links")
-def add_material_knowledge_link(material_id: int, req: schemas.MaterialKnowledgeLinkCreate, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def add_material_knowledge_link(
+    material_id: int,
+    req: schemas.MaterialKnowledgeLinkCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
     normalized_course = normalize_subject(req.course_id, default="")
 
     material = (
@@ -24518,8 +24960,15 @@ def add_material_knowledge_link(material_id: int, req: schemas.MaterialKnowledge
 
 
 @app.delete("/materials/{material_id}/knowledge-links/{link_id}")
-def delete_material_knowledge_link(material_id: int, link_id: int, username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def delete_material_knowledge_link(
+    material_id: int,
+    link_id: int,
+    username: str = "",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
 
     link = (
         db.query(models.MaterialKnowledgeLink)
@@ -24553,8 +25002,14 @@ Rules:
 
 
 @app.post("/materials/{material_id}/knowledge-links/recommend")
-def recommend_material_knowledge_links(material_id: int, req: schemas.MaterialKnowledgeRecommendRequest, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def recommend_material_knowledge_links(
+    material_id: int,
+    req: schemas.MaterialKnowledgeRecommendRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
     normalized_course = normalize_subject(req.course_id, default="")
 
     material = (
@@ -24669,8 +25124,14 @@ def recommend_material_knowledge_links(material_id: int, req: schemas.MaterialKn
 
 
 @app.post("/materials/{material_id}/knowledge-links/apply")
-def apply_material_knowledge_recommendations(material_id: int, req: schemas.MaterialKnowledgeApplyRequest, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def apply_material_knowledge_recommendations(
+    material_id: int,
+    req: schemas.MaterialKnowledgeApplyRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
 
     material = (
         db.query(models.StudyMaterial)
@@ -24792,8 +25253,9 @@ JSON 格式：
 
 
 @app.post("/materials/analyze-knowledge-preview")
-def analyze_knowledge_preview(req: schemas.MaterialAnalyzeKnowledgeRequest, db: Session = Depends(get_db)):
-    return _analyze_knowledge_preview_impl(req, db)
+def analyze_knowledge_preview(req: schemas.MaterialAnalyzeKnowledgeRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(req.username, current_user)
+    return _analyze_knowledge_preview_impl(req.model_copy(update={"username": current_user.username}), db)
 
 
 def _analyze_knowledge_preview_impl(req, db):
@@ -24996,8 +25458,9 @@ def _analyze_knowledge_preview_impl(req, db):
 
 
 @app.post("/materials/confirm-knowledge-tree")
-def confirm_knowledge_tree(req: schemas.MaterialConfirmKnowledgeTreeRequest, db: Session = Depends(get_db)):
-    return _confirm_knowledge_tree_impl(req, db)
+def confirm_knowledge_tree(req: schemas.MaterialConfirmKnowledgeTreeRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(req.username, current_user)
+    return _confirm_knowledge_tree_impl(req.model_copy(update={"username": current_user.username}), db)
 
 
 def _confirm_knowledge_tree_impl(req, db):
@@ -25180,9 +25643,14 @@ class ManualRecommendRequest(BaseModel):
 
 
 @app.get("/membership/plans")
-def get_membership_plans(username: str, db: Session = Depends(get_db)):
+def get_membership_plans(
+    username: str = "",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
     """Return visible plans. Developer accounts also get their special plan."""
-    user = get_user_by_username(username, db)
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     effective = get_effective_plan(user, db)
     is_dev = effective["is_developer"]
 
@@ -25216,14 +25684,15 @@ def get_membership_plans(username: str, db: Session = Depends(get_db)):
 
 
 @app.get("/membership/summary")
-def get_membership_summary(username: str, db: Session = Depends(get_db)):
+def get_membership_summary(username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     """Return user's membership status summary."""
-    user = get_user_by_username(username, db)
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     effective = get_effective_plan(user, db)
     limits = get_plan_limits_v2(effective["plan_code"])
 
     return {
-        "username": username,
+        "username": user.username,
         "current_plan": user.plan or "free",
         "effective_plan": effective,
         "limits": limits,
@@ -25235,9 +25704,14 @@ def get_membership_summary(username: str, db: Session = Depends(get_db)):
 
 
 @app.get("/membership/recommendation")
-def get_membership_recommendation(username: str, db: Session = Depends(get_db)):
+def get_membership_recommendation(
+    username: str = "",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
     """Get plan recommendation based on user's major."""
-    user = get_user_by_username(username, db)
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     effective = get_effective_plan(user, db)
 
     if effective["is_developer"]:
@@ -25276,12 +25750,18 @@ def get_membership_recommendation(username: str, db: Session = Depends(get_db)):
 
 
 @app.post("/membership/recommendation/manual")
-def manual_recommendation(req: ManualRecommendRequest, username: str, db: Session = Depends(get_db)):
+def manual_recommendation(
+    req: ManualRecommendRequest,
+    username: str = "",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
     """User manually selects a plan preference. Only affects this user."""
     if req.selected_plan not in ("python_basic", "engineering_plus", "cs_pro"):
         raise HTTPException(status_code=400, detail="无效的套餐选择")
 
-    user = get_user_by_username(username, db)
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     user.plan_source = f"manual:{req.selected_plan}"
     db.commit()
 
@@ -25293,12 +25773,18 @@ def manual_recommendation(req: ManualRecommendRequest, username: str, db: Sessio
 
 
 @app.post("/membership/redeem")
-def redeem_membership_code(req: RedeemRequest, username: str, db: Session = Depends(get_db)):
+def redeem_membership_code(
+    req: RedeemRequest,
+    username: str = "",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
     """Redeem a membership code."""
     if not req.code or not req.code.strip():
         raise HTTPException(status_code=400, detail="请输入兑换码")
 
-    result = redeem_code(username, req.code.strip(), db)
+    assert_username_matches_current_user(username, current_user)
+    result = redeem_code(current_user.username, req.code.strip(), db)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result["message"])
 
@@ -27535,8 +28021,9 @@ def _kp_title(kp_progress, db):
 
 
 @app.post("/learning/reports/generate-preview")
-def generate_report_preview(req: schemas.LearningReportGenerateRequest, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def generate_report_preview(req: schemas.LearningReportGenerateRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
 
     if is_exam_408_context(req.course_id, req.course_name):
         check_exam_408_usage_limit(user, "learning_report_generate", db)
@@ -27701,8 +28188,9 @@ def generate_report_preview(req: schemas.LearningReportGenerateRequest, db: Sess
 
 
 @app.post("/learning/reports/save")
-def save_report(req: schemas.LearningReportSaveRequest, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def save_report(req: schemas.LearningReportSaveRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(req.username, current_user)
+    user = current_user
 
     title = (req.title or "未命名报告").strip()[:200]
     content = (req.content or "").strip()
@@ -27748,14 +28236,16 @@ def save_report(req: schemas.LearningReportSaveRequest, db: Session = Depends(ge
 
 @app.get("/learning/reports")
 def list_reports(
-    username: str,
+    username: str = "",
     course_id: str = "",
     report_type: str = "",
     page: int = 1,
     page_size: int = 20,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    user = get_user_by_username(username, db)
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
 
     page = max(1, page)
     page_size = min(100, max(1, page_size))
@@ -27791,8 +28281,9 @@ def list_reports(
 
 
 @app.get("/learning/reports/{report_id}")
-def get_report_detail(report_id: int, username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def get_report_detail(report_id: int, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     report = (
         db.query(models.LearningReport)
         .filter(models.LearningReport.id == report_id, models.LearningReport.username == user.username)
@@ -27836,8 +28327,9 @@ def get_report_detail(report_id: int, username: str, db: Session = Depends(get_d
 
 
 @app.delete("/learning/reports/{report_id}")
-def delete_report(report_id: int, username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def delete_report(report_id: int, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     report = (
         db.query(models.LearningReport)
         .filter(models.LearningReport.id == report_id, models.LearningReport.username == user.username)
@@ -27940,8 +28432,9 @@ def _parse_report_meta(report):
 
 
 @app.get("/learning/reports/{report_id}/export/markdown")
-def export_report_markdown(report_id: int, username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def export_report_markdown(report_id: int, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     report = (
         db.query(models.LearningReport)
         .filter(models.LearningReport.id == report_id, models.LearningReport.username == user.username)
@@ -27960,8 +28453,9 @@ def export_report_markdown(report_id: int, username: str, db: Session = Depends(
 
 
 @app.get("/learning/reports/{report_id}/export/text")
-def export_report_text(report_id: int, username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def export_report_text(report_id: int, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     report = (
         db.query(models.LearningReport)
         .filter(models.LearningReport.id == report_id, models.LearningReport.username == user.username)
@@ -28051,8 +28545,9 @@ def create_report_share(report_id: int, req: schemas.LearningReportShareCreateRe
 
 
 @app.delete("/learning/reports/{report_id}/share")
-def revoke_report_share(report_id: int, username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def revoke_report_share(report_id: int, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     share = (
         db.query(models.LearningReportShare)
         .filter(
@@ -28078,8 +28573,9 @@ def revoke_report_share(report_id: int, username: str, db: Session = Depends(get
 
 
 @app.get("/learning/reports/{report_id}/share")
-def get_report_share_status(report_id: int, username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def get_report_share_status(report_id: int, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    assert_username_matches_current_user(username, current_user)
+    user = current_user
     share = (
         db.query(models.LearningReportShare)
         .filter(
