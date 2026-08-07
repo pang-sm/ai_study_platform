@@ -1,6 +1,6 @@
 {
   "scope": "first business loop patch",
-  "status": "partially_verified",
+  "status": "deployed_local_verified_production_browser_blocked",
   "local_environment": {
     "frontend": "http://127.0.0.1:5173/",
     "backend": "http://127.0.0.1:8000/",
@@ -8,6 +8,15 @@
     "backend_compile": "passed",
     "frontend_build": "passed",
     "pytest": "not_run_no_backend_tests_directory"
+  },
+  "deployment": {
+    "commit": "0612f51",
+    "actions_run": 31153563330,
+    "actions_status": "success",
+    "production_health": 200,
+    "production_home": 200,
+    "static_assets": "200",
+    "production_browser": "blocked: in-app browser remained at Loading... and DOM inspection timed out"
   },
   "course_catalog": {
     "before": 17,
@@ -50,7 +59,7 @@
     "web_result": "passed locally: selected indexed PDF, previewed 4 modules/20 points, confirmed, knowledge map showed 资料补充知识点",
     "ownership_and_course_scope": "implemented",
     "deduplication": "implemented",
-    "remaining_web_step": "none for local test material; production deployment verification pending"
+    "remaining_web_step": "production authenticated browser verification blocked"
   },
   "learning_reports": {
     "generate": "POST /learning-report/ai-generate",
@@ -80,7 +89,7 @@
   },
   "risks_and_unfinished": [
     "No backend/tests directory exists, so automated backend test execution could not be reported as passed.",
-    "Formal production deployment and production browser verification are still pending.",
+    "Formal deployment succeeded, but authenticated production browser verification is still blocked because the in-app browser remained at Loading... and DOM inspection timed out.",
     "Local browser telemetry emitted an external Statsig timeout; no application console errors were observed.",
     "Existing source files contain historical mojibake in some strings; this patch did not perform a broad encoding refactor."
   ]
