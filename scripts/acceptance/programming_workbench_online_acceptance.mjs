@@ -78,7 +78,7 @@ function now() { return new Date().toISOString(); }
 
 if (options.bootstrapAuth) {
   const bootstrapScript = path.join(SCRIPT_DIR, "programming_workbench_login_bootstrap.mjs");
-  const result = spawnSync(process.execPath, [bootstrapScript, "--base-url", options.baseUrl, "--auth-state", options.storageState], { stdio: "inherit" });
+  const result = spawnSync(process.execPath, [bootstrapScript, "--auto", "--base-url", options.baseUrl, "--auth-state", options.storageState], { stdio: "inherit" });
   process.exit(result.status == null ? 20 : result.status);
 }
 
@@ -257,6 +257,13 @@ function authReportPath() { return path.join(options.reportDir, AUTH_REPORT_NAME
 function writeAuthCheckReport(result) {
   ensureDir(options.reportDir);
   const existing = safeReadJson(authReportPath(), {});
+  const authentication = {
+    ...(existing.authentication || {}),
+    ...(result.authentication || {}),
+  };
+  if (result.validation?.auth_state_valid !== true) {
+    delete authentication.fresh_context_probe;
+  }
   const report = {
     ...existing,
     audit: "programming-workbench-auth-bootstrap",
@@ -264,10 +271,7 @@ function writeAuthCheckReport(result) {
     origin: new URL(options.baseUrl).origin,
     storage_state_path: path.relative(PROJECT_ROOT, options.storageState).replaceAll("\\", "/"),
     status: result.status,
-    authentication: {
-      ...(existing.authentication || {}),
-      ...(result.authentication || {}),
-    },
+    authentication,
     validation: result.validation || null,
     // A failed probe must not inherit a previous successful probe result.
     // Keep old authentication metadata for diagnostics, but make the current
@@ -305,17 +309,23 @@ async function inspectAuthState(page) {
     const raw = localStorage.getItem("ai_study_platform_user");
     let user = null;
     try { user = raw ? JSON.parse(raw) : null; } catch { user = null; }
-    const username = typeof user?.username === "string" ? user.username : "";
+    const storageUsername = typeof user?.username === "string" ? user.username : "";
     let meStatus = null;
-    if (username) {
-      try {
-        const response = await fetch("/api/me", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username }) });
-        meStatus = response.status;
-      } catch { meStatus = "network_error"; }
-    }
+    let serverUsername = "";
+    try {
+      const response = await fetch("/api/me", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      const data = await response.json().catch(() => ({}));
+      meStatus = response.status;
+      serverUsername = typeof data?.user?.username === "string" ? data.user.username : "";
+    } catch { meStatus = "network_error"; }
     return {
-      has_user: Boolean(username),
-      username,
+      has_user: Boolean(serverUsername || storageUsername),
+      username: serverUsername || storageUsername,
       me_status: meStatus,
       local_storage_keys: Object.keys(localStorage),
       nav_count: document.querySelectorAll(".ph-nav button").length,
