@@ -23729,6 +23729,34 @@ body.exam-attempt-body #root {
 .rpt-modal-generate:hover { background: linear-gradient(135deg, #6d28d9, #8b5cf6); }
 .rpt-modal-generate:disabled { opacity: 0.6; cursor: not-allowed; }
 
+.report-fallback-notice {
+  margin: 12px 0;
+  padding: 12px 14px;
+  border: 1px solid #f4d38b;
+  border-radius: 10px;
+  color: #92400e;
+  background: #fffbeb;
+}
+
+.report-history-card { margin-top: 20px; }
+.report-history-list { display: grid; gap: 8px; }
+.report-history-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+  color: #334155;
+  text-align: left;
+  cursor: pointer;
+}
+.report-history-item:hover,
+.report-history-item.is-active { border-color: #7c5cff; background: #f8f6ff; }
+.report-history-item span { color: #64748b; font-size: 12px; }
+
 /* ── Admin Membership Management ── */
 .adm-membership-cell {
   display: flex; flex-direction: column; gap: 3px;

@@ -794,7 +794,8 @@ function AIQuestionPracticePage({ subjectInfo, user, onBack }) {
         body: JSON.stringify(payload),
       });
       setAiQuestions((prev) => [...(result.items || []), ...prev]);
-      const modeText = result.fallback_used ? "mock fallback 题" : "AI 题";
+      const generationMode = result.generation_mode || (result.fallback_used ? "fallback" : "ai");
+      const modeText = generationMode === "fallback" ? "备用题（AI 不可用）" : generationMode === "failed" ? "生成失败" : "AI 题";
       setAiMessage(`已生成 ${result.items?.length || 0} 道${modeText}。`);
     } catch (err) {
       setAiError(`生成失败：${err.message || "服务器错误"}`);
@@ -910,7 +911,7 @@ function AIQuestionPracticePage({ subjectInfo, user, onBack }) {
                 }).map(item => {
                   const editing = editingQuestionId === item.id;
                   return (<article key={item.id} className="ai-question-bank-item">
-                    <div className="past-paper-question-meta"><span className="past-paper-q-type">{item.question_type}</span><span className="past-paper-q-number">{item.difficulty || "中等"}</span>{item.knowledge_point_path && <span className="past-paper-q-year">{item.knowledge_point_path}</span>}{item.generation_mode && <span className="past-paper-q-year" style={{ background: item.generation_mode==="deepseek"?"#dcfce7":"#fef3c7" }}>{item.generation_mode==="deepseek"?"DeepSeek":"Mock"}</span>}</div>
+                    <div className="past-paper-question-meta"><span className="past-paper-q-type">{item.question_type}</span><span className="past-paper-q-number">{item.difficulty || "中等"}</span>{item.knowledge_point_path && <span className="past-paper-q-year">{item.knowledge_point_path}</span>}{item.generation_mode && <span className="past-paper-q-year" style={{ background: item.generation_mode==="ai"?"#dcfce7":"#fef3c7" }}>{item.generation_mode==="ai"?"AI":"备用题"}</span>}</div>
                     {editing ? (<div className="ai-question-edit-form"><textarea className="field" rows={4} value={editDraft.stem} onChange={e=>setEditDraft(p=>({...p,stem:e.target.value}))}/><input className="field" value={editDraft.standard_answer} onChange={e=>setEditDraft(p=>({...p,standard_answer:e.target.value}))}/><textarea className="field" rows={3} value={editDraft.analysis} onChange={e=>setEditDraft(p=>({...p,analysis:e.target.value}))}/></div>)
                     : (<><div className="past-paper-q-content">{item.stem}</div>{item.options&&Object.keys(item.options).length>0&&<div className="ai-question-options">{Object.entries(item.options).map(([k,v])=><div key={k}><strong>{k}.</strong> {v}</div>)}</div>}<div className="past-paper-q-answer-row"><span className="past-paper-q-label">答案：</span><span>{item.standard_answer}</span></div>{item.analysis&&<div className="past-paper-q-feedback"><p>{item.analysis}</p></div>}</>)}
                     <div className="past-paper-q-answer-row" style={{marginTop:4}}><span className="past-paper-q-label">质量：</span><span>{item.quality_status||"unchecked"}</span></div>
@@ -934,8 +935,8 @@ function AIQuestionPracticePage({ subjectInfo, user, onBack }) {
                   <div className="ai-group-stats">
                     <span>选择题 {g.choice_count}</span>
                     <span>大题 {g.big_count}</span>
-                    <span style={{color:"#16a34a"}}>DeepSeek {g.deepseek_count}</span>
-                    <span style={{color:"#d97706"}}>Mock {g.mock_count}</span>
+                    <span style={{color:"#16a34a"}}>AI {g.ai_count || 0}</span>
+                    <span style={{color:"#d97706"}}>备用题 {g.fallback_count || 0}</span>
                   </div>
                   <div className="ai-group-quality">
                     <span>可用 {g.quality_summary?.usable||0}</span>

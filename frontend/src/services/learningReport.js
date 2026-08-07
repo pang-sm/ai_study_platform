@@ -61,7 +61,7 @@ function adaptDashboardReport(data, { start, end }) {
   };
 }
 
-export async function generateAIReport({ rangeType, startDate, endDate, username, mode, courseName } = {}) {
+export async function generateAIReport({ rangeType, startDate, endDate, username, mode, courseId, courseName } = {}) {
   const body = {
     username,
     range_type: rangeType || "7d",
@@ -70,6 +70,7 @@ export async function generateAIReport({ rangeType, startDate, endDate, username
   };
   if (mode === "course_learning" && courseName) {
     body.mode = "course_learning";
+    body.course_id = courseId || courseName;
     body.course_name = courseName;
   }
   const res = await fetch(`${API_BASE}/learning-report/ai-generate`, {
@@ -105,4 +106,52 @@ export async function fetchLearningReport({ start, end, username } = {}) {
   }
 
   throw new Error(data.detail || "学习报告加载失败，请稍后重试。");
+}
+
+export async function saveLearningReport({ username, report, courseId = "", courseName = "", mode = "" } = {}) {
+  const data = report && typeof report === "object" ? report : {};
+  const ai = data.ai_report && typeof data.ai_report === "object" ? data.ai_report : {};
+  const res = await fetch(`${API_BASE}/learning/reports/save`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      username,
+      course_id: courseId || data.course_id || "",
+      course_name: courseName || data.course_name || "",
+      report_type: mode === "course_learning" ? "course" : "weekly",
+      title: data.title || `${courseName || "学习"}阶段报告`,
+      summary: ai.summary || data.summary || "",
+      content: data.content || [
+        ai.summary,
+        ...(Array.isArray(ai.strengths) && ai.strengths.length ? ["优势：" + ai.strengths.join("；")] : []),
+        ...(Array.isArray(ai.weaknesses) && ai.weaknesses.length ? ["薄弱点：" + ai.weaknesses.join("；")] : []),
+        ...(Array.isArray(ai.suggestions) && ai.suggestions.length ? ["建议：" + ai.suggestions.join("；")] : []),
+      ].filter(Boolean).join("\n\n"),
+      metrics: data.metrics || {},
+      suggestions: ai.suggestions || data.suggestions || [],
+      start_date: data.range?.start_date || data.start_date || null,
+      end_date: data.range?.end_date || data.end_date || null,
+    }),
+  });
+  const payload = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(payload.detail || "学习报告保存失败");
+  return payload;
+}
+
+export async function listLearningReports({ username, courseId = "", reportType = "" } = {}) {
+  const params = new URLSearchParams({ username: username || "" });
+  if (courseId) params.set("course_id", courseId);
+  if (reportType) params.set("report_type", reportType);
+  const res = await fetch(`${API_BASE}/learning/reports?${params.toString()}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || "历史报告读取失败");
+  return data;
+}
+
+export async function getLearningReport(reportId, username) {
+  const params = new URLSearchParams({ username: username || "" });
+  const res = await fetch(`${API_BASE}/learning/reports/${encodeURIComponent(reportId)}?${params.toString()}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || "报告详情读取失败");
+  return data;
 }

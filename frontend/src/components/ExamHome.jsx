@@ -1,26 +1,26 @@
 import { useEffect, useRef, useState } from "react";
 
 function calcDaysUntil(examTimeStr) {
-  if (!examTimeStr || examTimeStr === "暂不确定") return 128;
+  if (!examTimeStr || examTimeStr === "暂不确定") return null;
   const m = examTimeStr.match(/(\d{4}).*?(\d{1,2})/);
-  if (!m) return 128;
+  if (!m) return null;
   const year = parseInt(m[1], 10);
   const month = parseInt(m[2], 10);
   const target = new Date(year, month - 1, 24);
   const now = new Date();
   const diff = Math.ceil((target - now) / (1000 * 60 * 60 * 24));
-  return diff > 0 ? diff : 128;
+  return diff > 0 ? diff : null;
 }
 
 const SUBJECTS = [
-  { key: "data_structure", name: "数据结构", icon: "📊", progress: 72, correctRate: 72 },
-  { key: "computer_organization", name: "计算机组成原理", icon: "💻", progress: 65, correctRate: 65 },
-  { key: "operating_system", name: "操作系统", icon: "⚙️", progress: 70, correctRate: 70 },
-  { key: "computer_network", name: "计算机网络", icon: "🌐", progress: 58, correctRate: 58 },
+  { key: "data_structure", name: "数据结构", icon: "📊" },
+  { key: "computer_organization", name: "计算机组成原理", icon: "💻" },
+  { key: "operating_system", name: "操作系统", icon: "⚙️" },
+  { key: "computer_network", name: "计算机网络", icon: "🌐" },
 ];
 
 export default function ExamHome({ user, setPage, subject, setSubject, apiBase, onLogout }) {
-  const [daysLeft, setDaysLeft] = useState(128);
+  const [daysLeft, setDaysLeft] = useState(null);
   const [targetSchool, setTargetSchool] = useState("");
   const [examStage, setExamStage] = useState("");
   const [examDaily, setExamDaily] = useState("");
@@ -191,7 +191,7 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
             欢迎回来，开始今天的 <span className="eh-welcome-em">11408 备考</span>
           </h1>
           <p className="eh-countdown">
-            📅 距离考试还有 <strong>{daysLeft}</strong> 天，继续保持稳定的复习节奏
+            📅 距离考试还有 <strong>{daysLeft === null ? "暂无数据" : daysLeft}</strong>{daysLeft === null ? "" : " 天"}，继续保持稳定的复习节奏
           </p>
           {/* Target school — read-only, displayed inline */}
           <div className="eh-target-info">
@@ -225,7 +225,7 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
               const realProgress = studyPlanSummary?.subjects?.find(
                 (sp) => sp.subject_key === s.key
               );
-              const pct = realProgress?.overall_progress ?? s.progress;
+              const pct = realProgress?.has_activity ? realProgress.overall_progress : null;
               const sectionsDone = realProgress?.sections_completed ?? 0;
               const sectionsTotal = realProgress?.total_sections ?? 0;
               return (
@@ -233,11 +233,11 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
                   <span className="eh-progress-icon">{s.icon}</span>
                   <span className="eh-progress-name">{s.name}</span>
                   <div className="eh-progress-bar-wrap">
-                    <div className="eh-progress-bar" style={{ width: `${pct}%` }} />
+                    <div className="eh-progress-bar" style={{ width: `${pct || 0}%` }} />
                   </div>
-                  <span className="eh-progress-pct">{pct}%</span>
+                  <span className="eh-progress-pct">{pct === null ? "暂无数据" : `${pct}%`}</span>
                   <span className="eh-progress-rate">
-                    {sectionsDone}/{sectionsTotal} 章节
+                    {realProgress?.has_activity ? `${sectionsDone}/${sectionsTotal} 章节` : "暂无数据"}
                   </span>
                 </div>
               );

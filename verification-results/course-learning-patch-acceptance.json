@@ -1,0 +1,87 @@
+{
+  "scope": "first business loop patch",
+  "status": "partially_verified",
+  "local_environment": {
+    "frontend": "http://127.0.0.1:5173/",
+    "backend": "http://127.0.0.1:8000/",
+    "health": 200,
+    "backend_compile": "passed",
+    "frontend_build": "passed",
+    "pytest": "not_run_no_backend_tests_directory"
+  },
+  "course_catalog": {
+    "before": 17,
+    "retained": 17,
+    "hidden": [],
+    "audit_basis": "All 17 catalog entries have a course-learning knowledge-map seed and the shared course dashboard/materials/chat/practice/report flow is available. Materials are optional user data, not a missing course implementation.",
+    "seed_leaf_counts": {
+      "cpp_programming": 28,
+      "programming_fundamentals": 80,
+      "c_programming": 71,
+      "python_programming": 99,
+      "java_programming": 80,
+      "oop": 80,
+      "data_structure": 121,
+      "algorithm_design": 80,
+      "discrete_math": 84,
+      "digital_logic": 80,
+      "computer_organization": 96,
+      "operating_system": 87,
+      "computer_network": 116,
+      "database_systems": 74,
+      "software_engineering": 80,
+      "compiler_principles": 80,
+      "linux_basics": 80
+    }
+  },
+  "course_practice": {
+    "generate": "POST /course-learning/practice/generate",
+    "submit": "POST /course-learning/practice/{attempt_id}/submit",
+    "history": "GET /course-learning/practice/history",
+    "context": ["course_id", "chapter", "knowledge_point", "material_ids"],
+    "answer_leak_on_generate": "not_present",
+    "persistence": ["AIGeneratedQuestion", "AIQuestionAttempt", "LearningRecord", "UserKnowledgeProgress"],
+    "web_result": "passed locally: generated, answered, explanation shown, refreshed history restored",
+    "separation_from_11408": "passed: course practice uses /course-learning/practice/* and does not call /exam/11408/course/*"
+  },
+  "materials_to_knowledge_map": {
+    "preview": "POST /materials/analyze-knowledge-preview",
+    "confirm": "POST /materials/confirm-knowledge-tree",
+    "web_result": "passed locally: selected indexed PDF, previewed 4 modules/20 points, confirmed, knowledge map showed 资料补充知识点",
+    "ownership_and_course_scope": "implemented",
+    "deduplication": "implemented",
+    "remaining_web_step": "none for local test material; production deployment verification pending"
+  },
+  "learning_reports": {
+    "generate": "POST /learning-report/ai-generate",
+    "save": "POST /learning/reports/save",
+    "list": "GET /learning/reports",
+    "detail": "GET /learning/reports/{id}",
+    "web_result": "passed locally: generated, saved, refreshed, history restored, detail reopened",
+    "generation_mode": "ai|fallback",
+    "database_rows_at_audit": 3
+  },
+  "ai_generation_status": {
+    "normalization": "ai|fallback|failed-compatible",
+    "course_practice": "ai or fallback is returned explicitly",
+    "11408": "ai or fallback is returned explicitly",
+    "learning_report": "ai or fallback is returned explicitly",
+    "fallback_disclosure": "frontend labels fallback separately"
+  },
+  "exam_11408": {
+    "hardcoded_progress_removed": ["72%", "65%", "70%", "58%", "128 days"],
+    "empty_state": "暂无数据",
+    "web_result": "passed locally: no activity showed 暂无数据"
+  },
+  "programming_home": {
+    "data_sources": ["CodeSession", "ProgrammingExerciseSubmission", "ProgrammingExerciseProgress", "CodeAIMessage"],
+    "web_result": "passed locally for empty activity state: no fabricated streak or task completion",
+    "production_before_after_submission": "pending production browser verification"
+  },
+  "risks_and_unfinished": [
+    "No backend/tests directory exists, so automated backend test execution could not be reported as passed.",
+    "Formal production deployment and production browser verification are still pending.",
+    "Local browser telemetry emitted an external Statsig timeout; no application console errors were observed.",
+    "Existing source files contain historical mojibake in some strings; this patch did not perform a broad encoding refactor."
+  ]
+}

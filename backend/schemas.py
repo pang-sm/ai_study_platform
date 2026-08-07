@@ -824,6 +824,9 @@ class LearningReportAiGenerateRequest(BaseModel):
     range_type: str = "7d"  # 7d / 15d / 30d / month / custom
     start_date: str | None = None
     end_date: str | None = None
+    mode: str = ""
+    course_id: str = ""
+    course_name: str = ""
 
 
 class LearningReportShareCreateRequest(BaseModel):

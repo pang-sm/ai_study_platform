@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { key: "chat", label: "AI 问答", icon: "☵" },
   { key: "materials", label: "资料库", icon: "▣" },
   { key: "knowledge", label: "知识脉络", icon: "⌘" },
+  { key: "practice", label: "章节练习", icon: "✓" },
   { key: "plan", label: "学习计划", icon: "▤" },
   { key: "report", label: "学习报告", icon: "▧" },
 ];
@@ -344,6 +345,7 @@ export default function CourseSubjectDashboard({
   // Content props — if provided, render them; otherwise render fallback overview placeholders
   materialsContent = null,
   knowledgeContent = null,
+  practiceContent = null,
   reportContent = null,
   planContent = null,
   knowledgeContext = null,
@@ -372,8 +374,8 @@ export default function CourseSubjectDashboard({
     coursePreference?.learning_goal === "考试突击";
   const navItems = isExamCramMode ? EXAM_CRAM_NAV_ITEMS : NAV_ITEMS;
   const allowedPanels = isExamCramMode
-    ? ["overview", "chat", "materials", "knowledge", "plan"]
-    : ["overview", "chat", "materials", "knowledge", "plan", "report"];
+    ? ["overview", "chat", "materials", "knowledge", "practice", "plan"]
+    : ["overview", "chat", "materials", "knowledge", "practice", "plan", "report"];
 
   const normalizePanel = (panel) =>
     allowedPanels.includes(panel)
@@ -964,6 +966,19 @@ export default function CourseSubjectDashboard({
       );
     }
 
+    if (activeSection === "practice") {
+      if (practiceContent) return practiceContent;
+      return (
+        <section className="csd-section">
+          <div className="csd-section-header">
+            <span>Course Practice</span>
+            <h2>{courseName} · 章节练习</h2>
+            <p>请从知识脉络选择知识点后生成当前课程练习。</p>
+          </div>
+        </section>
+      );
+    }
+
     // Study Plan — use content prop if available, else use ExamStudyPlan with course_learning mode
     if (activeSection === "plan") {
       if (planContent) return planContent;
@@ -991,6 +1006,7 @@ export default function CourseSubjectDashboard({
           <LearningReportCenter
             user={user}
             mode="course_learning"
+            courseId={courseId}
             courseName={courseName}
           />
         </Suspense>
@@ -1039,7 +1055,7 @@ export default function CourseSubjectDashboard({
         </div>
       </aside>
 
-      <main className={`csd-main${isExamCramMode ? " csd-main--cram" : ""}${activeSection === "chat" ? " csd-main--chat" : ""}${activeSection === "materials" ? " csd-main--materials" : ""}${activeSection === "knowledge" ? " csd-main--knowledge" : ""}${activeSection === "plan" ? " csd-main--plan" : ""}${activeSection === "report" ? " csd-main--report" : ""}`}>
+      <main className={`csd-main${isExamCramMode ? " csd-main--cram" : ""}${activeSection === "chat" ? " csd-main--chat" : ""}${activeSection === "materials" ? " csd-main--materials" : ""}${activeSection === "knowledge" ? " csd-main--knowledge" : ""}${activeSection === "practice" ? " csd-main--practice" : ""}${activeSection === "plan" ? " csd-main--plan" : ""}${activeSection === "report" ? " csd-main--report" : ""}`}>
         {loading ? (
           <section className="csd-card csd-loading">课程工作台加载中...</section>
         ) : (

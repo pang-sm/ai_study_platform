@@ -311,6 +311,7 @@ export default function CourseMaterialsPage({
   reparseMaterial,
   setPage,
   onQuoteMaterial,
+  onKnowledgeConfirmed,
   initialSearchQuery = "",
   examCramMode = false,
 }) {
@@ -580,6 +581,11 @@ export default function CourseMaterialsPage({
             <button className="cmp-btn cmp-btn--primary" type="button" onClick={() => triggerUpload("user_upload")}>
               {examCramMode ? "上传复习资料" : "上传课程资料"}
             </button>
+            {isCourseMode && !examCramMode && (
+              <button className="cmp-btn cmp-btn--ghost" type="button" onClick={openKnowledgeModal}>
+                从资料生成知识点
+              </button>
+            )}
             <button className="cmp-btn cmp-btn--ghost" type="button" onClick={refreshAll} disabled={materialsLoading}>
               刷新
             </button>
@@ -899,7 +905,7 @@ export default function CourseMaterialsPage({
                       <p>新增模块 {confirmResult.created_modules || 0} 个，新增知识点 {confirmResult.created_points || 0} 个。</p>
                       <div className="kam-confirm-success-actions">
                         <button className="cmp-btn cmp-btn--ghost" type="button" onClick={closeKnowledgeModal}>关闭</button>
-                        <button className="cmp-btn cmp-btn--primary" type="button" onClick={() => { closeKnowledgeModal(); setPage?.("knowledgeLearning"); }}>查看知识点</button>
+                        <button className="cmp-btn cmp-btn--primary" type="button" onClick={() => { closeKnowledgeModal(); onKnowledgeConfirmed?.(); }}>查看知识点</button>
                       </div>
                     </div>
                   ) : (

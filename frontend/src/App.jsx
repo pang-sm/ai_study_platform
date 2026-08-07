@@ -10,6 +10,7 @@ import CourseLearningOnboarding from "./components/CourseLearningOnboarding.jsx"
 import CourseLearningPackageStep from "./components/CourseLearningPackageStep.jsx";
 import CourseLearningProfile from "./components/CourseLearningProfile.jsx";
 import CourseLearningPlan from "./components/CourseLearningPlan.jsx";
+import CoursePracticeCenter from "./components/CoursePracticeCenter.jsx";
 import ProgrammingOnboardingStep from "./components/ProgrammingOnboardingStep.jsx";
 import ProgrammingPackageStep from "./components/ProgrammingPackageStep.jsx";
 import ProgrammingHome from "./components/ProgrammingHome.jsx";
@@ -531,6 +532,7 @@ function App() {
   const [examInitialMaterialReference, setExamInitialMaterialReference] = useState(null);
   const [examKnowledgeContext, setExamKnowledgeContext] = useState(null);
   const [courseSubjectContext, setCourseSubjectContext] = useState(null);
+  const [courseDashboardPanelIntent, setCourseDashboardPanelIntent] = useState(null);
 
   const setPage = (nextPage, context = null) => {
     // Feature gating: intercept navigation to disabled features
@@ -573,6 +575,7 @@ function App() {
       }
     }
     if (nextPage === "dashboard") {
+      setCourseDashboardPanelIntent(null);
       const rawCourseName = context?.courseName || context?.courseTitle || context?.name || context?.title || context?.subject || context?.courseId;
       const rawLearningGoal = context?.learningGoal || context?.learning_goal || context?.study_goal || context?.mode || "";
       setCourseSubjectContext({
@@ -3793,8 +3796,17 @@ function App() {
         downloadMaterial={downloadMaterial}
         reparseMaterial={reparseMaterial}
         setPage={setPage}
+        onKnowledgeConfirmed={() => setCourseDashboardPanelIntent({ panel: "knowledge", nonce: Date.now() })}
         onQuoteMaterial={quoteMaterialFromLibrary}
     />
+    );
+    const coursePracticeContent = (
+      <CoursePracticeCenter
+        user={user}
+        courseId={activeCourseContext.courseId || activeCourseContext.subject}
+        courseName={activeCourseContext.courseName || activeCourseContext.subject}
+        materials={courseLearningMaterials}
+      />
     );
 
     return (
@@ -3808,10 +3820,11 @@ function App() {
         getSubjectLabel={getSubjectLabel}
         materials={courseLearningMaterials}
         learningGoal={activeCourseLearningGoal}
+        panelIntent={courseDashboardPanelIntent}
         // Pass mature content components — same pattern as ExamSubjectDashboard
         materialsContent={courseDashboardMaterials}
         knowledgeContent={null}
-        practiceContent={null}
+        practiceContent={coursePracticeContent}
         reportContent={null}
         planContent={null}
         knowledgeContext={examKnowledgeContext}

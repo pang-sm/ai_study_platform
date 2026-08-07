@@ -331,8 +331,8 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
                 <h1>你好，开始今天的<br />编程学习</h1>
                 <p>坚持每天进步一点点，编程能力持续提升。</p>
                 <div className="ph-status-tags">
-                  <span>连续学习 {homeData?.stats?.streak_days ?? 0} 天</span>
-                  <span>{homeData?.stats?.momentum || "初始状态"}</span>
+                  <span>连续学习 {homeData?.stats?.streak_days ?? "暂无数据"}{homeData?.stats?.streak_days == null ? "" : " 天"}</span>
+                  <span>{homeData?.stats?.momentum || "暂无学习记录"}</span>
                 </div>
               </div>
               <div className="ph-hero-art" aria-hidden="true">

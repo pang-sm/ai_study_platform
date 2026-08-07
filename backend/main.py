@@ -291,6 +291,7 @@ ALLOWED_RECORD_TYPES = {
     "wrong_question",
     "important",
     "review",
+    "practice",
 }
 
 ALLOWED_REVIEW_STATUSES = {
@@ -5521,12 +5522,69 @@ def get_programming_home(username: str, db: Session = Depends(get_db)):
         for material in materials
     ]
     recent_files.sort(key=lambda item: item.get("updated_at") or item.get("created_at") or "", reverse=True)
+
+    today = utc_now().date()
+    def activity_date(value):
+        if not value:
+            return None
+        if isinstance(value, str):
+            value = parse_optional_datetime(value)
+        if not isinstance(value, datetime):
+            return None
+        if value.tzinfo:
+            value = value.astimezone(timezone.utc)
+        return value.date()
+
+    code_sessions = db.query(models.CodeSession).filter(
+        models.CodeSession.username == user.username,
+    ).all()
+    submissions = db.query(models.ProgrammingExerciseSubmission).filter(
+        models.ProgrammingExerciseSubmission.username == user.username,
+    ).all()
+    exercise_progress = db.query(models.ProgrammingExerciseProgress).filter(
+        models.ProgrammingExerciseProgress.username == user.username,
+    ).all()
+    coach_messages = db.query(models.CodeAIMessage).filter(
+        models.CodeAIMessage.username == user.username,
+    ).all()
+
+    session_today = [item for item in code_sessions if activity_date(item.updated_at or item.created_at) == today]
+    submissions_today = [item for item in submissions if activity_date(item.passed_at or item.created_at) == today]
+    progress_today = [item for item in exercise_progress if any(
+        activity_date(value) == today
+        for value in (item.last_run_at, item.last_test_at, item.last_submit_at, item.last_updated_at)
+    )]
+    coach_today = [item for item in coach_messages if activity_date(item.created_at) == today]
+
+    activity_dates = {
+        activity_date(item.updated_at or item.created_at) for item in code_sessions
+    }
+    activity_dates.update(activity_date(item.passed_at or item.created_at) for item in submissions)
+    for item in exercise_progress:
+        activity_dates.update(activity_date(value) for value in (
+            item.last_run_at, item.last_test_at, item.last_submit_at, item.last_updated_at,
+        ))
+    activity_dates.update(activity_date(item.created_at) for item in coach_messages)
+    activity_dates.discard(None)
+    streak_days = 0
+    cursor = today
+    while cursor in activity_dates:
+        streak_days += 1
+        cursor -= timedelta(days=1)
+
     tasks = [
-        {"id": "practice-array-list", "title": "练习数组与链表", "completed": False},
-        {"id": "solve-medium-problem", "title": "完成一道编程题（中等难度）", "completed": False},
-        {"id": "review-function-recursion", "title": "复习函数与递归", "completed": False},
-        {"id": "read-solution-summary", "title": "阅读算法题解并总结", "completed": False},
+        {"id": "practice-today", "title": "完成一次代码练习", "completed": bool(session_today or progress_today), "count": len(session_today) + len(progress_today)},
+        {"id": "submit-exercise-today", "title": "通过一道编程题", "completed": bool(submissions_today), "count": len(submissions_today)},
+        {"id": "review-code-today", "title": "回顾最近一次代码", "completed": bool(session_today), "count": len(session_today)},
+        {"id": "ask-coach-today", "title": "向 AI Coach 提出一个问题", "completed": bool(coach_today), "count": len(coach_today)},
     ]
+    if today in activity_dates:
+        momentum = "今日已学习"
+    elif activity_dates:
+        latest_activity = max(activity_dates)
+        momentum = f"最近一次学习距今 {(today - latest_activity).days} 天"
+    else:
+        momentum = "暂无学习记录"
     return {
         "onboarding": payload,
         "plan": plan,
@@ -5551,8 +5609,12 @@ def get_programming_home(username: str, db: Session = Depends(get_db)):
         "tasks": tasks,
         "files": recent_files[:5] if quota["file_library"] else [],
         "stats": {
-            "streak_days": 0,
-            "momentum": "初始状态",
+            "streak_days": streak_days,
+            "momentum": momentum,
+            "today_practice_count": len(session_today) + len(progress_today),
+            "today_submission_count": len(submissions_today),
+            "today_coach_message_count": len(coach_today),
+            "last_activity_date": max(activity_dates).isoformat() if activity_dates else None,
         },
     }
 
@@ -14554,9 +14616,11 @@ def ai_generate_learning_report(req: schemas.LearningReportAiGenerateRequest, db
         "month": "本月", "custom": "自定义",
     }.get(range_type, "近7天")
 
-    # Build real data using existing function
+    course_id = normalize_subject_course_learning(req.course_id or req.course_name or "")
+
+    # Build real data using existing function, scoped to the selected course when provided.
     report_data = build_learning_report_data(
-        user.username, "weekly", "", start, end, db
+        user.username, "weekly", course_id, start, end, db
     )
 
     # ── Structured metrics (numbers only, no display strings) ──
@@ -14625,6 +14689,8 @@ def ai_generate_learning_report(req: schemas.LearningReportAiGenerateRequest, db
 
     # Try AI generation
     ai_summary = None
+    generation_mode = "ai"
+    fallback_reason = ""
     try:
         raw = call_deepseek([
             {"role": "system", "content": "你是一个专业学习教练。只输出JSON，不要加```json标记。严格按照提示中的约束进行分析。"},
@@ -14639,7 +14705,9 @@ def ai_generate_learning_report(req: schemas.LearningReportAiGenerateRequest, db
         record_ai_usage(user.username, "learning_report_ai_generate", db,
                         estimated_tokens=estimate_tokens_from_text(prompt) + estimate_tokens_from_text(raw),
                         status="success")
-    except Exception:
+    except Exception as exc:
+        generation_mode = "fallback"
+        fallback_reason = "模型不可用或返回格式无效"
         # Fallback with data-aware logic
         if not has_data:
             ai_summary = {
@@ -14669,6 +14737,10 @@ def ai_generate_learning_report(req: schemas.LearningReportAiGenerateRequest, db
         },
         "metrics": metrics,
         "ai_report": ai_summary or {},
+        "generation_mode": generation_mode,
+        "fallback_reason": fallback_reason,
+        "course_id": course_id,
+        "course_name": req.course_name or course_id,
         "trend": trend,
         "errors": [
             {"knowledge_point": w.get("title", ""), "count": 0, "mastery": w.get("score", 0) or 0}
@@ -15674,9 +15746,55 @@ def _empty_course_learning_knowledge_map(course_id: str, username: str = "", db:
     }
 
 
+def _append_user_generated_course_points(raw_chapters: list[dict], username: str, course_id: str, db: Session) -> list[dict]:
+    """Expose user-confirmed material points alongside the seeded course map."""
+    if not username:
+        return raw_chapters
+    points = db.query(models.KnowledgePoint).filter(
+        models.KnowledgePoint.username == username,
+        models.KnowledgePoint.course_id == course_id,
+    ).order_by(models.KnowledgePoint.order_index.asc(), models.KnowledgePoint.id.asc()).all()
+    if not points:
+        return raw_chapters
+
+    seed_titles = set()
+    def collect_titles(nodes):
+        for node in nodes or []:
+            title = str(node.get("title") or node.get("name") or "").strip()
+            if title:
+                seed_titles.add(title)
+            collect_titles(node.get("children") or [])
+    collect_titles(raw_chapters)
+
+    by_parent: dict[int | None, list[models.KnowledgePoint]] = defaultdict(list)
+    for point in points:
+        by_parent[point.parent_id].append(point)
+
+    def serialize_point(point: models.KnowledgePoint) -> dict:
+        children = [serialize_point(child) for child in by_parent.get(point.id, [])]
+        return {
+            "id": f"material:{point.id}",
+            "code": f"material:{point.id}",
+            "title": point.title,
+            "description": point.description or "",
+            "children": children,
+        }
+
+    roots = [point for point in by_parent.get(None, []) if (point.title or "").strip() not in seed_titles]
+    if not roots:
+        return raw_chapters
+    return list(raw_chapters) + [{
+        "id": "material-generated",
+        "code": "material-generated",
+        "title": "资料补充知识点",
+        "description": "由当前用户确认的课程资料生成",
+        "children": [serialize_point(point) for point in roots],
+    }]
+
+
 @app.get("/knowledge-map")
 def get_knowledge_map(course_id: str, username: str = "", db: Session = Depends(get_db)):
-    normalized_course = (course_id or "").strip()
+    normalized_course = normalize_subject_course_learning(course_id) or (course_id or "").strip()
     if not normalized_course:
         raise HTTPException(status_code=400, detail="course_id 不能为空")
 
@@ -15719,6 +15837,7 @@ def get_knowledge_map(course_id: str, username: str = "", db: Session = Depends(
         }
 
     raw_chapters = _clean_knowledge_map_titles(payload.get("chapters") or [])
+    raw_chapters = _append_user_generated_course_points(raw_chapters, username, normalized_course, db)
     chapters = _attach_knowledge_map_status(raw_chapters, progress_by_code)
     total = _count_knowledge_map_points(chapters)
     mastered = 0
@@ -15766,7 +15885,7 @@ def get_knowledge_map(course_id: str, username: str = "", db: Session = Depends(
 @app.patch("/knowledge-map/progress")
 def update_knowledge_map_progress(req: schemas.KnowledgeMapProgressUpdate, db: Session = Depends(get_db)):
     user = get_user_by_username(req.username, db)
-    course_id = (req.course_id or "").strip()
+    course_id = normalize_subject_course_learning(req.course_id) or (req.course_id or "").strip()
     code = (req.knowledge_point_code or "").strip()
     title = (req.knowledge_point_title or "").strip()
     next_status = (req.status or "").strip()
@@ -15876,7 +15995,7 @@ def update_knowledge_map_progress(req: schemas.KnowledgeMapProgressUpdate, db: S
 
 @app.get("/knowledge-map/review-settings")
 def get_knowledge_map_review_settings(course_id: str, username: str = "", db: Session = Depends(get_db)):
-    course_id = (course_id or "").strip()
+    course_id = normalize_subject_course_learning(course_id) or (course_id or "").strip()
     if not course_id:
         raise HTTPException(status_code=400, detail="course_id is required")
     if course_id.endswith("_11408") and not _knowledge_map_seed_path(course_id).exists():
@@ -15889,7 +16008,7 @@ def get_knowledge_map_review_settings(course_id: str, username: str = "", db: Se
 @app.patch("/knowledge-map/review-settings")
 def update_knowledge_map_review_settings(req: schemas.KnowledgeMapReviewSettingsUpdate, db: Session = Depends(get_db)):
     user = get_user_by_username(req.username, db)
-    course_id = (req.course_id or "").strip()
+    course_id = normalize_subject_course_learning(req.course_id) or (req.course_id or "").strip()
     if not course_id:
         raise HTTPException(status_code=400, detail="course_id is required")
     if course_id.endswith("_11408") and not _knowledge_map_seed_path(course_id).exists():
@@ -16337,6 +16456,7 @@ def get_exam_study_plan_summary(username: str = "", db: Session = Depends(get_db
         total_leaves = 0
         mastered_leaves = 0
         learning_leaves = 0
+        has_activity = False
 
         if seed_path.exists():
             try:
@@ -16364,6 +16484,7 @@ def get_exam_study_plan_summary(username: str = "", db: Session = Depends(get_db
                     )
                     .all()
                 )
+                has_activity = bool(progress_rows)
                 for p in progress_rows:
                     status = _display_map_progress_status(p)
                     if status == "mastered":
@@ -16378,6 +16499,7 @@ def get_exam_study_plan_summary(username: str = "", db: Session = Depends(get_db
                 models.ExamStudyPlanChapterPractice.completed == True,
             ).all()
             sections_completed = len(cp_rows)
+            has_activity = has_activity or bool(cp_rows)
 
         # Overall progress as percentage
         overall_progress = round(mastered_leaves / total_leaves * 100) if total_leaves > 0 else 0
@@ -16391,6 +16513,7 @@ def get_exam_study_plan_summary(username: str = "", db: Session = Depends(get_db
             "sections_completed": sections_completed,
             "total_knowledge_points": total_leaves,
             "mastered_knowledge_points": mastered_leaves,
+            "has_activity": has_activity,
             "is_completed": is_completed,
         })
 
@@ -17559,6 +17682,18 @@ def delete_exam_favorite(subject_key: str, favorite_id: int, username: str, db: 
     return {"success": True}
 
 
+def _normalize_ai_generation_mode(value: str | None) -> str:
+    """Expose one stable status contract for current and legacy generated questions."""
+    raw = str(value or "").strip().lower()
+    if raw in {"ai", "deepseek", "openai", "model"}:
+        return "ai"
+    if raw in {"fallback", "mock", "mock_fallback", "fallback_mock"}:
+        return "fallback"
+    if raw == "failed":
+        return "failed"
+    return "fallback" if raw else "failed"
+
+
 def _serialize_ai_generated_question(item: models.AIGeneratedQuestion):
     options = {}
     if item.options_json:
@@ -17581,7 +17716,7 @@ def _serialize_ai_generated_question(item: models.AIGeneratedQuestion):
         "analysis": item.analysis or "",
         "difficulty": item.difficulty or "",
         "requirement": item.requirement or "",
-        "generation_mode": getattr(item, "generation_mode", None) or "deepseek",
+        "generation_mode": _normalize_ai_generation_mode(getattr(item, "generation_mode", None)),
         "quality_status": getattr(item, "quality_status", None) or "unchecked",
         "has_raw_response": bool(getattr(item, "raw_ai_response", None)),
         "has_generation_prompt": bool(getattr(item, "generation_prompt", None)),
@@ -17626,6 +17761,358 @@ def _build_mock_ai_question(subject_name: str, kp_name: str, kp_path: str, quest
         "standard_answer": "B",
         "analysis": f"本题为 {difficulty} 难度 mock 选择题。数据结构知识点通常需要从逻辑结构、存储结构和运算三个层面综合判断，因此 B 更符合考查要求。",
     }
+
+
+def _course_learning_seed_context(course_id: str, knowledge_point_code: str = "", knowledge_point_title: str = "") -> dict:
+    """Resolve a course-learning knowledge point from the same map used by the UI."""
+    normalized_course = normalize_subject_course_learning(course_id) or (course_id or "").strip()
+    seed_course_id = normalized_course
+    seed_path = _knowledge_map_seed_path(seed_course_id)
+    if not seed_path.exists():
+        mapped = resolve_course_id_from_display(normalized_course)
+        if mapped:
+            seed_course_id = mapped
+            seed_path = _knowledge_map_seed_path(mapped)
+    if not seed_path.exists():
+        raise HTTPException(status_code=404, detail="当前课程暂无可用知识脉络")
+    try:
+        payload = json.loads(seed_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=500, detail="当前课程知识脉络数据格式错误") from exc
+
+    requested_code = (knowledge_point_code or "").strip()
+    requested_title = (knowledge_point_title or "").strip()
+    leaves: list[dict] = []
+
+    def walk(nodes: list[dict], chapter_title: str = "", path_prefix: str = ""):
+        for index, node in enumerate(nodes or [], start=1):
+            node_path = f"{path_prefix}.{index}" if path_prefix else str(index)
+            children = node.get("children") or []
+            next_chapter = chapter_title or str(node.get("title") or "").strip()
+            if children:
+                walk(children, next_chapter, node_path)
+                continue
+            leaves.append({
+                "code": str(node.get("code") or f"_leaf:{node_path}").strip(),
+                "title": str(node.get("title") or node.get("name") or "").strip(),
+                "description": str(node.get("description") or "").strip(),
+                "chapter": next_chapter,
+            })
+
+    walk(payload.get("chapters") or [])
+    point = next((item for item in leaves if requested_code and item["code"] == requested_code), None)
+    if point is None and requested_title:
+        point = next((item for item in leaves if item["title"] == requested_title), None)
+    if point is None:
+        point = leaves[0] if leaves else None
+    if point is None:
+        raise HTTPException(status_code=404, detail="当前课程暂无可练习的知识点")
+    return {
+        "course_id": normalized_course,
+        "seed_course_id": seed_course_id,
+        "course_name": str(payload.get("course_name") or normalized_course).strip(),
+        "point": point,
+    }
+
+
+def _build_course_learning_prompt(course_name: str, chapter: str, point: dict, material_context: str, difficulty: str) -> str:
+    return f"""你是大学课程学习平台的命题助手。请围绕当前课程上下文生成一道单项选择练习题。
+
+课程：{course_name}
+章节：{chapter or point.get('chapter') or '未指定章节'}
+知识点：{point.get('title') or '未指定知识点'}
+知识点说明：{point.get('description') or '无'}
+难度：{difficulty}
+用户资料摘要（仅作上下文，不要照抄）：{material_context or '暂无用户资料'}
+
+要求：题干必须能检验上述知识点，不得脱离课程；提供 A/B/C/D 四个不重复选项；只有一个正确答案；解析要说明判断依据。只输出 JSON，不要 Markdown：
+{{
+  "stem": "...",
+  "options": {{"A": "...", "B": "...", "C": "...", "D": "..."}},
+  "standard_answer": "A",
+  "analysis": "..."
+}}"""
+
+
+def _build_course_learning_fallback_question(course_name: str, chapter: str, point: dict) -> dict:
+    title = point.get("title") or "当前知识点"
+    return {
+        "stem": f"关于“{title}”的学习，下面哪项做法最符合当前课程的复习目标？",
+        "options": {
+            "A": f"先解释{title}的核心概念，再用一个例子验证边界条件",
+            "B": "只记住术语名称，不关注适用条件",
+            "C": "跳过章节背景，直接背诵结论",
+            "D": "只看课程标题，不进行任何练习",
+        },
+        "standard_answer": "A",
+        "analysis": f"这是一道 fallback 练习题，当前课程为“{course_name}”，章节为“{chapter or point.get('chapter') or '未指定章节'}”。围绕“{title}”学习时，需要先理解概念，再通过例子检查适用条件；其余选项都缺少有效验证。",
+    }
+
+
+def _public_course_ai_question(item: models.AIGeneratedQuestion) -> dict:
+    payload = _serialize_ai_generated_question(item)
+    payload.pop("standard_answer", None)
+    payload.pop("analysis", None)
+    payload.pop("username", None)
+    payload.pop("has_raw_response", None)
+    payload.pop("has_generation_prompt", None)
+    return payload
+
+
+def _update_course_learning_progress(
+    db: Session,
+    *,
+    user: models.User,
+    course_id: str,
+    point: dict,
+    is_correct: bool,
+):
+    code = (point.get("code") or "").strip()
+    if not code:
+        return
+    progress = (
+        db.query(models.UserKnowledgeProgress)
+        .filter(
+            models.UserKnowledgeProgress.user_id == user.id,
+            models.UserKnowledgeProgress.course_id == course_id,
+            models.UserKnowledgeProgress.knowledge_point_code == code,
+        )
+        .first()
+    )
+    now = utc_now()
+    if not progress:
+        progress = models.UserKnowledgeProgress(
+            user_id=user.id,
+            username=user.username,
+            course_id=course_id,
+            knowledge_point_id=0,
+            knowledge_point_code=code,
+            knowledge_point_title=point.get("title") or "",
+            mastery_score=0,
+            status="not_started",
+            user_confirmed_status="not_started",
+            practice_count=0,
+            task_count=0,
+            created_at=now,
+        )
+        db.add(progress)
+    progress.username = user.username
+    progress.knowledge_point_title = point.get("title") or progress.knowledge_point_title or ""
+    progress.practice_count = (progress.practice_count or 0) + 1
+    score = max(0, min(100, (progress.mastery_score or 0) + (15 if is_correct else -8)))
+    progress.mastery_score = score
+    progress.status = "mastered" if score >= 80 else ("learning" if score > 0 else "not_started")
+    progress.user_confirmed_status = progress.status
+    progress.last_studied_at = now
+    progress.updated_at = now
+
+
+@app.post("/course-learning/practice/generate")
+def generate_course_learning_practice(req: dict, db: Session = Depends(get_db)):
+    username = (req.get("username") or "").strip()
+    course_id = (req.get("course_id") or "").strip()
+    if not username or not course_id:
+        raise HTTPException(status_code=400, detail="username and course_id are required")
+    user = get_user_by_username(username, db)
+    track = get_user_track(db, user.id, "university_course")
+    selected_courses = get_course_learning_selected_courses(user, track)
+    normalized_course = normalize_subject_course_learning(course_id) or course_id
+    if selected_courses and normalized_course not in selected_courses and course_id not in selected_courses:
+        raise HTTPException(status_code=403, detail="该课程不是当前用户已选择的课程")
+
+    context = _course_learning_seed_context(
+        normalized_course,
+        str(req.get("knowledge_point_code") or req.get("knowledge_point_id") or ""),
+        str(req.get("knowledge_point_title") or ""),
+    )
+    point = context["point"]
+    chapter = str(req.get("chapter") or point.get("chapter") or "").strip()[:255]
+    difficulty = _normalize_ai_difficulty(str(req.get("difficulty") or "基础"))
+    material_ids = [int(value) for value in (req.get("material_ids") or []) if str(value).isdigit()]
+    material_context = ""
+    if material_ids:
+        materials = query_accessible_materials(db, user.username).filter(
+            models.StudyMaterial.id.in_(material_ids),
+            models.StudyMaterial.subject.in_(list(course_learning_subject_variants(normalized_course))),
+            models.StudyMaterial.is_deleted.is_(False),
+        ).limit(3).all()
+        material_context = "\n---\n".join(
+            (item.summary or item.extracted_text or "").strip()[:1800]
+            for item in materials
+            if (item.summary or item.extracted_text or "").strip()
+        )[:5000]
+
+    generation_mode = "ai"
+    fallback_reason = ""
+    generated = None
+    prompt = _build_course_learning_prompt(context["course_name"], chapter, point, material_context, difficulty)
+    try:
+        raw = call_deepseek([
+            {"role": "system", "content": "你只输出符合要求的 JSON 对象。"},
+            {"role": "user", "content": prompt},
+        ], timeout_seconds=60)
+        text = raw.strip()
+        if text.startswith("```"):
+            text = text.split("```", 2)[1]
+            if text.lstrip().startswith("json"):
+                text = text.lstrip()[4:].strip()
+        parsed = json.loads(text[text.find("{"):text.rfind("}") + 1])
+        options = _normalize_ai_choice_options(parsed.get("options"))
+        answer = str(parsed.get("standard_answer") or "").strip().upper()
+        if (
+            not str(parsed.get("stem") or "").strip()
+            or any(not options[label] for label in ("A", "B", "C", "D"))
+            or len(set(options.values())) != 4
+            or answer not in {"A", "B", "C", "D"}
+            or not str(parsed.get("analysis") or "").strip()
+        ):
+            raise ValueError("AI question payload failed validation")
+        generated = {
+            "stem": str(parsed["stem"]).strip(),
+            "options": options,
+            "standard_answer": answer,
+            "analysis": str(parsed["analysis"]).strip(),
+        }
+    except Exception as exc:
+        generation_mode = "fallback"
+        fallback_reason = str(exc)[:300]
+        generated = _build_course_learning_fallback_question(context["course_name"], chapter, point)
+
+    item = models.AIGeneratedQuestion(
+        username=user.username,
+        subject_key=normalized_course,
+        subject_name=context["course_name"],
+        knowledge_point_id=point.get("code") or None,
+        knowledge_point_name=point.get("title") or None,
+        knowledge_point_path=chapter or point.get("chapter") or None,
+        question_type="选择题",
+        stem=generated["stem"],
+        options_json=json.dumps(generated["options"], ensure_ascii=False),
+        standard_answer=generated["standard_answer"],
+        analysis=generated["analysis"],
+        difficulty=difficulty,
+        requirement="课程章节练习",
+        generation_prompt=prompt,
+        raw_ai_response=json.dumps({"fallback_reason": fallback_reason}, ensure_ascii=False) if fallback_reason else None,
+        generation_mode=generation_mode,
+        quality_status="unchecked",
+        created_at=utc_now(),
+        updated_at=utc_now(),
+    )
+    db.add(item)
+    db.flush()
+    attempt = models.AIQuestionAttempt(
+        username=user.username,
+        mode="course_learning",
+        subject_key=normalized_course,
+        subject_name=context["course_name"],
+        knowledge_point_id=point.get("code") or None,
+        knowledge_point_name=point.get("title") or None,
+        knowledge_point_path=chapter or point.get("chapter") or None,
+        question_ids_json=json.dumps([item.id]),
+        total_questions=1,
+        status="in_progress",
+        started_at=utc_now(),
+    )
+    db.add(attempt)
+    db.commit()
+    db.refresh(item)
+    db.refresh(attempt)
+    return {
+        "success": True,
+        "generation_mode": generation_mode,
+        "fallback_reason": fallback_reason if generation_mode == "fallback" else "",
+        "attempt_id": attempt.id,
+        "course_id": normalized_course,
+        "chapter": chapter,
+        "knowledge_point": {"code": point.get("code") or "", "title": point.get("title") or ""},
+        "question": _public_course_ai_question(item),
+    }
+
+
+@app.post("/course-learning/practice/{attempt_id}/submit")
+def submit_course_learning_practice(attempt_id: int, req: dict, db: Session = Depends(get_db)):
+    username = (req.get("username") or "").strip()
+    attempt = db.query(models.AIQuestionAttempt).filter(
+        models.AIQuestionAttempt.id == attempt_id,
+        models.AIQuestionAttempt.username == username,
+        models.AIQuestionAttempt.mode == "course_learning",
+    ).first()
+    if not attempt or attempt.status != "in_progress":
+        raise HTTPException(status_code=404, detail="课程练习不存在或已经提交")
+    qids = json.loads(attempt.question_ids_json or "[]")
+    item = db.query(models.AIGeneratedQuestion).filter(
+        models.AIGeneratedQuestion.id == (qids[0] if qids else 0),
+        models.AIGeneratedQuestion.username == username,
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="课程练习题目不存在")
+    answer = str(req.get("answer") or (req.get("answers") or {}).get(str(item.id)) or "").strip().upper()
+    if answer not in {"A", "B", "C", "D"}:
+        raise HTTPException(status_code=400, detail="请选择 A、B、C 或 D")
+    is_correct = answer == (item.standard_answer or "").strip().upper()
+    result = {
+        "question_id": item.id,
+        "user_answer": answer,
+        "standard_answer": item.standard_answer or "",
+        "correct": is_correct,
+        "analysis": item.analysis or "",
+        "generation_mode": _normalize_ai_generation_mode(getattr(item, "generation_mode", None)),
+    }
+    attempt.answers_json = json.dumps({str(item.id): answer}, ensure_ascii=False)
+    attempt.correct_count = 1 if is_correct else 0
+    attempt.accuracy = 100.0 if is_correct else 0.0
+    attempt.status = "submitted"
+    attempt.submitted_at = utc_now()
+    attempt.result_json = json.dumps(result, ensure_ascii=False)
+    user = get_user_by_username(username, db)
+    point = {"code": item.knowledge_point_id or "", "title": item.knowledge_point_name or ""}
+    _update_course_learning_progress(db, user=user, course_id=attempt.subject_key, point=point, is_correct=is_correct)
+    db.add(models.LearningRecord(
+        user_id=user.id,
+        subject=attempt.subject_key,
+        record_type="practice",
+        question=item.stem or "",
+        answer=json.dumps(result, ensure_ascii=False),
+        tags=json.dumps(["course_learning", item.knowledge_point_name or ""], ensure_ascii=False),
+        review_status="pending",
+        is_deleted=False,
+    ))
+    db.commit()
+    return {"success": True, "attempt_id": attempt.id, "result": result}
+
+
+@app.get("/course-learning/practice/history")
+def get_course_learning_practice_history(username: str, course_id: str = "", db: Session = Depends(get_db)):
+    user = get_user_by_username(username, db)
+    normalized_course = normalize_subject_course_learning(course_id) if course_id else ""
+    query = db.query(models.AIQuestionAttempt).filter(
+        models.AIQuestionAttempt.username == user.username,
+        models.AIQuestionAttempt.mode == "course_learning",
+    )
+    if normalized_course:
+        query = query.filter(models.AIQuestionAttempt.subject_key == normalized_course)
+    attempts = query.order_by(models.AIQuestionAttempt.created_at.desc()).limit(50).all()
+    history_items = []
+    for attempt in attempts:
+        question_ids = json.loads(attempt.question_ids_json or "[]")
+        source_item = (
+            db.query(models.AIGeneratedQuestion)
+            .filter(models.AIGeneratedQuestion.id == (question_ids[0] if question_ids else 0))
+            .first()
+        )
+        history_items.append({
+            "id": attempt.id,
+            "course_id": attempt.subject_key,
+            "knowledge_point_name": attempt.knowledge_point_name or "",
+            "status": attempt.status,
+            "correct_count": attempt.correct_count,
+            "accuracy": attempt.accuracy,
+            "generation_mode": _normalize_ai_generation_mode(getattr(source_item, "generation_mode", None)),
+            "created_at": serialize_datetime(attempt.created_at),
+            "submitted_at": serialize_datetime(attempt.submitted_at) if attempt.submitted_at else None,
+        })
+    return {"items": history_items, "total": len(history_items)}
 
 
 def _build_exam_ai_choice_prompt(subject_name: str, kp_name: str, kp_path: str, count: int, difficulty: str, requirement: str) -> str:
@@ -17833,16 +18320,16 @@ def get_exam_ai_question_groups(subject_key: str, username: str, db: Session = D
                 "group_key": gkey, "knowledge_point_id": kp_id,
                 "knowledge_point_name": kp_name, "knowledge_point_path": kp_path,
                 "total": 0, "choice_count": 0, "big_count": 0,
-                "deepseek_count": 0, "mock_count": 0,
+                "ai_count": 0, "fallback_count": 0,
                 "quality_summary": {"unchecked": 0, "usable": 0, "needs_edit": 0, "discarded": 0},
             }
         g = groups[gkey]
         g["total"] += 1
         if item.question_type == "选择题": g["choice_count"] += 1
         else: g["big_count"] += 1
-        gm = (getattr(item, "generation_mode", None) or "deepseek")
-        if gm == "deepseek": g["deepseek_count"] += 1
-        else: g["mock_count"] += 1
+        gm = _normalize_ai_generation_mode(getattr(item, "generation_mode", None))
+        if gm == "ai": g["ai_count"] += 1
+        else: g["fallback_count"] += 1
         qs = (getattr(item, "quality_status", None) or "unchecked")
         if qs in g["quality_summary"]: g["quality_summary"][qs] += 1
     return {"groups": list(groups.values()), "total_questions": len(items)}
@@ -18410,8 +18897,9 @@ def generate_exam_ai_questions(subject_key: str, req: dict, db: Session = Depend
         )
         return {
             "success": True,
-            "generation_mode": "mock",
-            "fallback_used": False,
+            "generation_mode": "fallback",
+            "fallback_used": True,
+            "fallback_reason": "该题型当前使用备用题生成器。",
             "requested_count": count,
             "generated_count": len(created_items),
             "items": [_serialize_ai_generated_question(item) for item in created_items],
@@ -18451,7 +18939,7 @@ def generate_exam_ai_questions(subject_key: str, req: dict, db: Session = Depend
         )
         return {
             "success": True,
-            "generation_mode": "mock_fallback",
+            "generation_mode": "fallback",
             "fallback_used": True,
             "message": "DeepSeek 未配置，已使用 mock fallback 生成选择题。",
             "requested_count": count,
@@ -18487,7 +18975,7 @@ def generate_exam_ai_questions(subject_key: str, req: dict, db: Session = Depend
         )
         return {
             "success": True,
-            "generation_mode": "mock_fallback",
+            "generation_mode": "fallback",
             "fallback_used": True,
             "message": "DeepSeek 调用失败，已使用 mock fallback 生成选择题。",
             "requested_count": count,
@@ -18528,7 +19016,7 @@ def generate_exam_ai_questions(subject_key: str, req: dict, db: Session = Depend
         db.refresh(item)
     return {
         "success": True,
-        "generation_mode": "deepseek",
+        "generation_mode": "ai",
         "fallback_used": False,
         "requested_count": count,
         "generated_count": len(created_items),
@@ -24305,12 +24793,12 @@ JSON 格式：
 
 @app.post("/materials/analyze-knowledge-preview")
 def analyze_knowledge_preview(req: schemas.MaterialAnalyzeKnowledgeRequest, db: Session = Depends(get_db)):
-    """DEPRECATED: Knowledge脉络由系统预置维护，不支持从用户资料生成。"""
-    raise HTTPException(status_code=403, detail="知识脉络由系统预置维护，不支持从用户资料生成或写入。")
-# -- old analyze body removed --
-def _dead_analyze_knowledge_preview_old_body(req, db):
+    return _analyze_knowledge_preview_impl(req, db)
+
+
+def _analyze_knowledge_preview_impl(req, db):
     user = get_user_by_username(req.username, db)
-    course_id = normalize_subject(req.course_id)
+    course_id = normalize_subject_course_learning(req.course_id) or normalize_subject(req.course_id)
 
     if not course_id:
         raise HTTPException(status_code=400, detail="课程不能为空")
@@ -24321,7 +24809,7 @@ def _dead_analyze_knowledge_preview_old_body(req, db):
     # Validate and fetch materials
     materials = query_accessible_materials(db, user.username).filter(
         models.StudyMaterial.id.in_(req.material_ids),
-        models.StudyMaterial.subject == course_id,
+        models.StudyMaterial.subject.in_(list(course_learning_subject_variants(course_id))),
         models.StudyMaterial.allow_generate_knowledge.is_(True),
     ).all()
 
@@ -24509,12 +24997,12 @@ def _dead_analyze_knowledge_preview_old_body(req, db):
 
 @app.post("/materials/confirm-knowledge-tree")
 def confirm_knowledge_tree(req: schemas.MaterialConfirmKnowledgeTreeRequest, db: Session = Depends(get_db)):
-    """DEPRECATED: Knowledge脉络由系统预置维护，不支持从用户资料写入。"""
-    raise HTTPException(status_code=403, detail="知识脉络由系统预置维护，不支持从用户资料生成或写入。")
-# -- old confirm body removed --
-def _dead_confirm_knowledge_tree_old_body(req, db):
+    return _confirm_knowledge_tree_impl(req, db)
+
+
+def _confirm_knowledge_tree_impl(req, db):
     user = get_user_by_username(req.username, db)
-    course_id = normalize_subject(req.course_id)
+    course_id = normalize_subject_course_learning(req.course_id) or normalize_subject(req.course_id)
 
     if not course_id:
         raise HTTPException(status_code=400, detail="课程不能为空")
@@ -24526,11 +25014,13 @@ def _dead_confirm_knowledge_tree_old_body(req, db):
     if req.material_ids:
         valid_materials = query_accessible_materials(db, user.username).filter(
             models.StudyMaterial.id.in_(req.material_ids),
-            models.StudyMaterial.subject == course_id,
+            models.StudyMaterial.subject.in_(list(course_learning_subject_variants(course_id))),
             models.StudyMaterial.allow_generate_knowledge.is_(True),
-        ).count()
-        # Non-fatal: just log, don't block the write
-        _ = valid_materials
+        ).all()
+        if len(valid_materials) != len(set(req.material_ids)):
+            raise HTTPException(status_code=404, detail="所选资料不存在或不属于当前课程")
+    else:
+        valid_materials = []
 
     created_modules = 0
     created_points = 0
@@ -24562,6 +25052,7 @@ def _dead_confirm_knowledge_tree_old_body(req, db):
 
             # Dedup: check if module with same title exists in this course (parent_id=None)
             module_key = (None, module_title)
+            module_is_new = False
             if module_key in existing_by_title:
                 parent_kp = existing_by_title[module_key]
                 # Update description if empty
@@ -24592,8 +25083,9 @@ def _dead_confirm_knowledge_tree_old_body(req, db):
                 db.flush()
                 existing_by_title[module_key] = parent_kp
                 created_modules += 1
+                module_is_new = True
 
-            all_created.append({"id": parent_kp.id, "title": parent_kp.title, "level": 1, "is_new": not (module_key in existing_by_title and skipped_duplicates > 0)})
+            all_created.append({"id": parent_kp.id, "title": parent_kp.title, "level": 1, "is_new": module_is_new})
 
             # Process children
             children = module.get("children", [])
@@ -24641,6 +25133,25 @@ def _dead_confirm_knowledge_tree_old_body(req, db):
                     created_points += 1
                     all_created.append({"id": child_kp.id, "title": child_kp.title, "level": 2, "is_new": True})
 
+        if valid_materials:
+            point_ids = [item["id"] for item in all_created if item.get("id")]
+            for material in valid_materials:
+                for point_id in point_ids:
+                    existing_link = db.query(models.MaterialKnowledgeLink).filter(
+                        models.MaterialKnowledgeLink.username == user.username,
+                        models.MaterialKnowledgeLink.material_id == material.id,
+                        models.MaterialKnowledgeLink.knowledge_point_id == point_id,
+                    ).first()
+                    if not existing_link:
+                        db.add(models.MaterialKnowledgeLink(
+                            username=user.username,
+                            course_id=course_id,
+                            material_id=material.id,
+                            knowledge_point_id=point_id,
+                            source="ai_material_tree",
+                            confidence=100,
+                            reason="用户确认资料生成的知识点",
+                        ))
         db.commit()
     except Exception:
         db.rollback()
@@ -26857,8 +27368,30 @@ def build_learning_report_data(username: str, report_type: str, course_id: str,
 
     # ── Practice (from learning_records) ──
     def _parse_tags(ts):
-        try: return json.loads(ts) if ts else {}
-        except: return {}
+        try:
+            parsed = json.loads(ts) if ts else {}
+        except (TypeError, json.JSONDecodeError):
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+
+    def _record_stats(record):
+        tags = _parse_tags(record.tags)
+        if tags:
+            return tags
+        # Course AI practice stores a compact tag list and the graded result in answer.
+        try:
+            answer = json.loads(record.answer or "{}")
+        except (TypeError, json.JSONDecodeError):
+            answer = {}
+        if not isinstance(answer, dict):
+            answer = {}
+        return {
+            "total_questions": 1,
+            "graded_questions": 1,
+            "correct": 1 if answer.get("correct") is True else 0,
+            "accuracy": 100 if answer.get("correct") is True else 0,
+            "duration_seconds": 0,
+        }
     practice_query = db.query(models.LearningRecord).filter(
         models.LearningRecord.user_id == get_user_by_username(username, db).id,
         models.LearningRecord.record_type == "practice",
@@ -26878,19 +27411,19 @@ def build_learning_report_data(username: str, report_type: str, course_id: str,
         # graded_questions if available (auto-graded), else total (backward compat)
         return tags_dict.get("graded_questions", tags_dict.get("total", 0))
 
-    practice_q = sum(_pq_total(_parse_tags(r.tags)) for r in practice_records)
-    practice_q_graded = sum(_pq_graded(_parse_tags(r.tags)) for r in practice_records)
-    practice_c = sum(_parse_tags(r.tags).get("correct", 0) for r in practice_records)
+    practice_q = sum(_pq_total(_record_stats(r)) for r in practice_records)
+    practice_q_graded = sum(_pq_graded(_record_stats(r)) for r in practice_records)
+    practice_c = sum(_record_stats(r).get("correct", 0) for r in practice_records)
     practice_acc = round(practice_c / practice_q_graded * 100, 1) if practice_q_graded > 0 else 0
-    practice_dur = sum(_parse_tags(r.tags).get("duration_seconds", 0) for r in practice_records)
-    task_practice_count = sum(1 for r in practice_records if _parse_tags(r.tags).get("task_id"))
+    practice_dur = sum(_record_stats(r).get("duration_seconds", 0) for r in practice_records)
+    task_practice_count = sum(1 for r in practice_records if _record_stats(r).get("task_id"))
 
     # Course-level practice aggregation
     course_practice = {}
     for r in practice_records:
         cid = r.subject or ""
         if cid not in course_practice: course_practice[cid] = {"q": 0, "q_graded": 0, "c": 0, "dur": 0}
-        t = _parse_tags(r.tags)
+        t = _record_stats(r)
         course_practice[cid]["q"] += _pq_total(t)
         course_practice[cid]["q_graded"] += _pq_graded(t)
         course_practice[cid]["c"] += t.get("correct", 0)
@@ -26901,7 +27434,7 @@ def build_learning_report_data(username: str, report_type: str, course_id: str,
 
     # Latest practice activities
     recent_practice_activities = [
-        {"title": r.question or "完成练习", "summary": f"完成 {_parse_tags(r.tags).get('total',0)} 题，正确 {_parse_tags(r.tags).get('correct',0)} 题，正确率 {_parse_tags(r.tags).get('accuracy',0)}%"}
+        {"title": r.question or "完成练习", "summary": f"完成 {_record_stats(r).get('total_questions', _record_stats(r).get('total', 0))} 题，正确 {_record_stats(r).get('correct',0)} 题，正确率 {_record_stats(r).get('accuracy',0)}%"}
         for r in practice_records[-5:]
     ]
 

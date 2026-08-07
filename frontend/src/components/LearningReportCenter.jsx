@@ -4,7 +4,12 @@ import { LineChart } from "echarts/charts";
 import { GridComponent, TooltipComponent } from "echarts/components";
 import { CanvasRenderer } from "echarts/renderers";
 import AIReportPanel from "./AIReportPanel.jsx";
-import { generateAIReport } from "../services/learningReport.js";
+import {
+  generateAIReport,
+  getLearningReport,
+  listLearningReports,
+  saveLearningReport,
+} from "../services/learningReport.js";
 
 echarts.use([LineChart, GridComponent, TooltipComponent, CanvasRenderer]);
 
@@ -51,22 +56,35 @@ function normalizeReport(raw) {
   const data = raw && typeof raw === "object" ? raw : {};
   const m = data.metrics && typeof data.metrics === "object" ? data.metrics : {};
   const ai = data.ai_report && typeof data.ai_report === "object" ? data.ai_report : {};
+  const summary = ai.summary || data.summary || "";
+  const strengths = Array.isArray(ai.strengths) ? ai.strengths : [];
+  const weaknesses = Array.isArray(ai.weaknesses) ? ai.weaknesses : [];
+  const suggestions = Array.isArray(ai.suggestions) ? ai.suggestions : (Array.isArray(data.suggestions) ? data.suggestions : []);
   return {
-    range: data.range || { start_date: "", end_date: "", label: "" },
+    id: data.id || null,
+    title: data.title || "学习报告",
+    content: data.content || "",
+    generation_mode: data.generation_mode || "",
+    fallback_reason: data.fallback_reason || "",
+    range: data.range || {
+      start_date: data.start_date || "",
+      end_date: data.end_date || "",
+      label: data.range_label || "",
+    },
     metrics: {
-      study_minutes: Number.isFinite(Number(m.study_minutes)) ? Number(m.study_minutes) : 0,
-      completed_knowledge_count: Number.isFinite(Number(m.completed_knowledge_count)) ? Number(m.completed_knowledge_count) : 0,
-      practice_accuracy: Number.isFinite(Number(m.practice_accuracy)) ? Number(m.practice_accuracy) : null,
+      study_minutes: Number.isFinite(Number(m.study_minutes ?? m.practice_duration_minutes)) ? Number(m.study_minutes ?? m.practice_duration_minutes) : 0,
+      completed_knowledge_count: Number.isFinite(Number(m.completed_knowledge_count ?? m.mastered_point_count)) ? Number(m.completed_knowledge_count ?? m.mastered_point_count) : 0,
+      practice_accuracy: Number.isFinite(Number(m.practice_accuracy)) ? Number(m.practice_accuracy) : (Number.isFinite(Number(m.correct_rate)) ? Number(m.correct_rate) * 100 : null),
       study_days: Number.isFinite(Number(m.study_days)) ? Number(m.study_days) : 0,
     },
     summary: {
-      overall_summary: ai.summary || "",
-      strengths: Array.isArray(ai.strengths) ? ai.strengths : [],
-      weaknesses: Array.isArray(ai.weaknesses) ? ai.weaknesses : [],
-      suggestions: Array.isArray(ai.suggestions) ? ai.suggestions : [],
+      overall_summary: summary,
+      strengths,
+      weaknesses,
+      suggestions,
     },
     trend: Array.isArray(data.trend) ? data.trend : [],
-    errors: Array.isArray(data.errors) ? data.errors : [],
+    errors: Array.isArray(data.errors) ? data.errors : weaknesses.map((item) => ({ knowledge_point: item })),
   };
 }
 
@@ -252,6 +270,7 @@ export default function LearningReportCenter({
   user,
   mode = "exam_11408",        // "exam_11408" | "course_learning"
   courseName = "",             // used in course_learning mode
+  courseId = "",
 }) {
   const isCourseMode = mode === "course_learning";
   const contextName = isCourseMode ? (courseName || "课程学习") : "11408";
@@ -261,6 +280,37 @@ export default function LearningReportCenter({
   const [showModal, setShowModal] = useState(false);
   const [error, setError] = useState("");
   const [hasReport, setHasReport] = useState(false);
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [selectedReportId, setSelectedReportId] = useState(null);
+
+  const loadHistory = async () => {
+    if (!user?.username) return;
+    setHistoryLoading(true);
+    try {
+      const data = await listLearningReports({
+        username: user.username,
+        courseId: isCourseMode ? (courseId || courseName) : "",
+        reportType: isCourseMode ? "course" : "",
+      });
+      const items = Array.isArray(data.items) ? data.items : [];
+      setHistory(items);
+      if (items[0]?.id && !selectedReportId) {
+        const detail = await getLearningReport(items[0].id, user.username);
+        setReport(normalizeReport(detail));
+        setSelectedReportId(items[0].id);
+        setHasReport(true);
+      }
+    } catch (historyError) {
+      setError(historyError.message || "历史报告读取失败");
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadHistory();
+  }, [user?.username, isCourseMode, courseId, courseName]);
 
   const handleGenerate = async ({ rangeType, startDate, endDate }) => {
     setGenerating(true);
@@ -270,11 +320,21 @@ export default function LearningReportCenter({
         rangeType, startDate, endDate,
         username: user?.username,
         mode: isCourseMode ? "course_learning" : "exam_11408",
+        courseId: isCourseMode ? courseId : "",
         courseName: isCourseMode ? courseName : undefined,
       });
-      setReport(normalizeReport(data));
+      const saved = await saveLearningReport({
+        username: user?.username,
+        report: data,
+        courseId: isCourseMode ? courseId : "",
+        courseName: isCourseMode ? courseName : "",
+        mode,
+      });
+      setReport(normalizeReport({ ...data, id: saved.report_id }));
+      setSelectedReportId(saved.report_id);
       setHasReport(true);
       setShowModal(false);
+      await loadHistory();
     } catch (e) {
       setError(e.message || "AI报告生成失败");
     } finally {
@@ -314,6 +374,10 @@ export default function LearningReportCenter({
 
       {error && <div className="report-error">{error}</div>}
 
+      {report.generation_mode === "fallback" && (
+        <div className="report-fallback-notice">当前报告使用备用分析：AI 模型暂不可用，内容仅基于已保存学习数据整理。</div>
+      )}
+
       {/* Loading overlay during generation */}
       {generating && (
         <div className="rpt-generating-banner">
@@ -342,6 +406,39 @@ export default function LearningReportCenter({
         <KnowledgeListCard title="AI 建议" type="review"
           items={report.summary.suggestions.map((s, i) => ({ title: s, meta: `建议 ${i + 1}` }))}
           emptyText="生成AI报告后将显示个性化建议。" />
+      </section>
+
+      <section className="report-card report-history-card">
+        <div className="report-section-head">
+          <div><h3>历史报告</h3><p>报告已保存到当前账号，可刷新后继续查看。</p></div>
+          {historyLoading && <span>读取中...</span>}
+        </div>
+        {history.length === 0 ? (
+          <div className="report-empty-mini">暂无历史报告</div>
+        ) : (
+          <div className="report-history-list">
+            {history.map((item) => (
+              <button
+                type="button"
+                key={item.id}
+                className={`report-history-item${selectedReportId === item.id ? " is-active" : ""}`}
+                onClick={async () => {
+                  try {
+                    const detail = await getLearningReport(item.id, user?.username);
+                    setReport(normalizeReport(detail));
+                    setSelectedReportId(item.id);
+                    setHasReport(true);
+                  } catch (detailError) {
+                    setError(detailError.message || "报告详情读取失败");
+                  }
+                }}
+              >
+                <strong>{item.title || "学习报告"}</strong>
+                <span>{item.created_at || ""}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </section>
 
       {/* Modal */}
