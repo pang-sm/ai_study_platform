@@ -903,6 +903,11 @@ def course_learning_urgency_rank(due_dt: datetime | None, mode: str, exam_dt: da
     return rank, label
 
 
+def get_current_user(request: Request, db: Session = Depends(get_db)):
+    """Forward declaration used by routes defined before the auth helpers."""
+    return _get_current_user_impl(request, db)
+
+
 EXAM_408_SCHOOLS = [
     "北京大学",
     "南京大学",
@@ -937,10 +942,10 @@ def search_exam_408_schools(q: str = ""):
 
 
 @app.put("/exam-408/target-school")
-def update_target_school(req: dict, db: Session = Depends(get_db)):
-    username = str(req.get("username", "")).strip()
+def update_target_school(req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    username = request_username(req, current_user)
     school = str(req.get("school", "")).strip()
-    user = get_user_by_username(username, db)
+    user = current_user
     if school and school not in EXAM_408_SCHOOLS:
         raise HTTPException(status_code=400, detail="请选择 11408 院校库中的学校")
     track = ensure_exam_408_track(db, user)
@@ -960,10 +965,10 @@ def update_target_school(req: dict, db: Session = Depends(get_db)):
 
 
 @app.put("/exam-408/motto")
-def update_exam_motto(req: dict, db: Session = Depends(get_db)):
-    username = str(req.get("username", "")).strip()
+def update_exam_motto(req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    username = request_username(req, current_user)
     motto = str(req.get("motto", "")).strip()
-    user = get_user_by_username(username, db)
+    user = current_user
     track = ensure_exam_408_track(db, user)
     if not track:
         raise HTTPException(status_code=404, detail="尚未开通 11408 备考方向")
@@ -981,13 +986,13 @@ def update_exam_motto(req: dict, db: Session = Depends(get_db)):
 
 
 @app.put("/me/tracks/exam_408/package")
-def upgrade_exam_package(req: dict, db: Session = Depends(get_db)):
-    username = str(req.get("username", "")).strip()
+def upgrade_exam_package(req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    username = request_username(req, current_user)
     raw_pkg = str(req.get("package_type", "")).strip()
     new_pkg = normalize_package_type(raw_pkg)
     if new_pkg not in EXAM_PACKAGE_TIERS:
         raise HTTPException(status_code=400, detail="无效的套餐类型")
-    user = get_user_by_username(username, db)
+    user = current_user
     track = ensure_exam_408_track(db, user)
     if not track:
         raise HTTPException(status_code=404, detail="尚未开通 11408 备考方向")
@@ -1385,7 +1390,7 @@ def create_auth_session(db: Session, user: models.User, response: Response) -> N
     )
 
 
-def get_current_user(request: Request, db: Session = Depends(get_db)):
+def _get_current_user_impl(request: Request, db: Session = Depends(get_db)):
     """Resolve identity from the server-issued session, never from username input."""
     raw_token = request.cookies.get(AUTH_SESSION_COOKIE)
     if not raw_token:
@@ -1421,6 +1426,13 @@ def assert_username_matches_current_user(username: str | None, current_user: mod
         raise HTTPException(status_code=403, detail="请求用户与当前登录用户不一致")
 
 
+def request_username(value, current_user: models.User) -> str:
+    """Return the authenticated username while preserving legacy request fields."""
+    requested = value.get("username") if isinstance(value, dict) else getattr(value, "username", None)
+    assert_username_matches_current_user(requested, current_user)
+    return current_user.username
+
+
 def get_username_from_upload(username: str | None, authorization: str | None):
     if username and username.strip():
         return username.strip()
@@ -1450,6 +1462,35 @@ def get_current_user_from_bearer(authorization: str | None, db: Session):
     if not user:
         raise HTTPException(status_code=401, detail="登录状态已失效，请重新登录")
     ensure_user_can_access(user)
+    return user
+
+
+def get_current_user_from_websocket(websocket: WebSocket, db: Session):
+    """Resolve a WebSocket identity from the server-issued session cookie."""
+    raw_token = websocket.cookies.get(AUTH_SESSION_COOKIE)
+    if not raw_token:
+        authorization = websocket.headers.get("authorization", "")
+        if authorization.lower().startswith("bearer "):
+            raw_token = authorization[7:].strip()
+    if not raw_token:
+        raise HTTPException(status_code=401, detail="请先登录")
+
+    session = (
+        db.query(models.AuthSession)
+        .filter(
+            models.AuthSession.token_hash == _hash_session_token(raw_token),
+            models.AuthSession.revoked_at.is_(None),
+        )
+        .first()
+    )
+    if not session or _session_expired(session.expires_at):
+        raise HTTPException(status_code=401, detail="登录状态已失效，请重新登录")
+    user = db.query(models.User).filter(models.User.id == session.user_id).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="登录状态已失效，请重新登录")
+    ensure_user_can_access(user)
+    session.last_seen_at = utc_now()
+    db.commit()
     return user
 
 
@@ -4306,7 +4347,8 @@ async def handle_material_upload(
     conversation_id: int | None = None,
     save_to_materials: bool = False,
 ):
-    user = get_user_by_username(username, db)
+    request_username(username, current_user)
+    user = current_user
     normalized_subject = normalize_subject(subject)
 
     file_bytes = await file.read()
@@ -4593,9 +4635,10 @@ def api_health():
 
 
 @app.get("/home/summary")
-def get_home_summary(username: str, db: Session = Depends(get_db)):
+def get_home_summary(username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     """Minimal dashboard summary for the homepage. Aggregates real data only."""
-    user = get_user_by_username(username, db)
+    request_username(username, current_user)
+    user = current_user
     today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
 
     # ── 学习进度 (average mastery across all knowledge points) ──
@@ -4758,10 +4801,11 @@ def _build_snippet(text: str, keyword: str, max_len: int = 120) -> str:
 @app.get("/search/global")
 def global_search(
     q: str,
-    username: str,
+    username: str = "",
     limit: int = 5,
     include_chunks: bool = True,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
     """Unified global search across courses, materials, knowledge points, tasks, questions, and chats."""
     t_start = time.perf_counter()
@@ -4769,7 +4813,8 @@ def global_search(
     if not keyword:
         return {"query": "", "total": 0, "groups": [], "search_time_ms": 0}
 
-    user = get_user_by_username(username, db)
+    request_username(username, current_user)
+    user = current_user
     limit = max(1, min(limit, SEARCH_MAX_RESULTS))
     pattern = _safe_like_pattern(keyword)
     results = []
@@ -11445,7 +11490,7 @@ def _parse_python_diagnostics(output: str) -> list[dict]:
 
 
 @app.post("/code/diagnose")
-def diagnose_code(req: schemas.CodeDiagnoseRequest):
+def diagnose_code(req: schemas.CodeDiagnoseRequest, current_user: models.User = Depends(get_current_user)):
     """Perform syntax/compile diagnostics without executing code."""
     language = (req.language or "").strip().lower()
     code = (req.code or "")
@@ -13857,12 +13902,14 @@ def get_code_progress(
 def rename_conversation(
     conversation_id: int,
     req: RenameConversationRequest,
-    username: str,
+    username: str = "",
     subject_key: str = "",
     exam_subject: str = "",
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    user = get_user_by_username(username, db)
+    request_username(username, current_user)
+    user = current_user
 
     title = req.title.strip()
     if not title:
@@ -13898,8 +13945,9 @@ def rename_conversation(
 # ── Learning Task Center ──
 
 @app.get("/learning/tasks")
-def get_learning_tasks(username: str, course_id: str = "", status: str = "", db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def get_learning_tasks(username: str = "", course_id: str = "", status: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    request_username(username, current_user)
+    user = current_user
     query = db.query(models.LearningTask).filter(
         models.LearningTask.username == user.username,
     )
@@ -13981,8 +14029,9 @@ def get_learning_tasks(username: str, course_id: str = "", status: str = "", db:
 
 
 @app.post("/learning/tasks")
-def create_learning_task(req: schemas.LearningTaskCreate, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def create_learning_task(req: schemas.LearningTaskCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    request_username(req, current_user)
+    user = current_user
     task_type = (req.task_type or "").strip()
     if not task_type:
         task_type = "custom"
@@ -14037,13 +14086,13 @@ def create_learning_task(req: schemas.LearningTaskCreate, db: Session = Depends(
 
 
 @app.put("/learning/tasks/reorder")
-def reorder_learning_tasks_v2(req: dict, db: Session = Depends(get_db)):
-    username = str(req.get("username", "")).strip()
+def reorder_learning_tasks_v2(req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    username = request_username(req, current_user)
     course_id = normalize_subject(str(req.get("course_id", "") or ""), default="")
     task_ids = req.get("task_ids", [])
     if not username or not isinstance(task_ids, list) or len(task_ids) == 0:
         raise HTTPException(status_code=400, detail="请求参数无效")
-    user = get_user_by_username(username, db)
+    user = current_user
     normalized_ids = [int(task_id) for task_id in task_ids if task_id]
     if len(normalized_ids) != len(task_ids):
         raise HTTPException(status_code=400, detail="任务 ID 无效")
@@ -14066,8 +14115,9 @@ def reorder_learning_tasks_v2(req: dict, db: Session = Depends(get_db)):
 
 
 @app.put("/learning/tasks/{task_id}")
-def update_learning_task(task_id: int, req: schemas.LearningTaskUpdate, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def update_learning_task(task_id: int, req: schemas.LearningTaskUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    request_username(req, current_user)
+    user = current_user
     task = (
         db.query(models.LearningTask)
         .filter(
@@ -14174,13 +14224,13 @@ def update_learning_task(task_id: int, req: schemas.LearningTaskUpdate, db: Sess
 
 
 @app.post("/learning/tasks/reorder")
-def reorder_learning_tasks(req: dict, db: Session = Depends(get_db)):
+def reorder_learning_tasks(req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     """Reorder tasks by updating order_index for each task."""
-    username = str(req.get("username", "")).strip()
+    username = request_username(req, current_user)
     items = req.get("items", [])
     if not username or not isinstance(items, list) or len(items) == 0:
         raise HTTPException(status_code=400, detail="请求参数无效")
-    user = get_user_by_username(username, db)
+    user = current_user
     task_ids = [int(item.get("id", 0)) for item in items if isinstance(item, dict) and item.get("id")]
     if not task_ids:
         raise HTTPException(status_code=400, detail="未提供有效的任务ID")
@@ -14206,8 +14256,9 @@ def reorder_learning_tasks(req: dict, db: Session = Depends(get_db)):
 
 
 @app.delete("/learning/tasks/{task_id}")
-def delete_learning_task(task_id: int, username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def delete_learning_task(task_id: int, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    request_username(username, current_user)
+    user = current_user
     task = (
         db.query(models.LearningTask)
         .filter(
@@ -14224,8 +14275,9 @@ def delete_learning_task(task_id: int, username: str, db: Session = Depends(get_
 
 
 @app.get("/learning/tasks/summary")
-def get_learning_tasks_summary(username: str, course_id: str = "", db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def get_learning_tasks_summary(username: str = "", course_id: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    request_username(username, current_user)
+    user = current_user
     query = db.query(models.LearningTask).filter(
         models.LearningTask.username == user.username,
     )
@@ -14271,8 +14323,9 @@ def get_learning_tasks_summary(username: str, course_id: str = "", db: Session =
 
 
 @app.get("/learning/dashboard")
-def get_learning_dashboard(username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def get_learning_dashboard(username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    request_username(username, current_user)
+    user = current_user
 
     now = utc_now()
     today = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -15144,8 +15197,9 @@ def ai_generate_learning_report(req: schemas.LearningReportAiGenerateRequest, db
 
 
 @app.get("/review/center")
-def get_review_center(username: str, course_id: str = "", db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def get_review_center(username: str = "", course_id: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    request_username(username, current_user)
+    user = current_user
     normalized_course = normalize_subject(course_id, default="")
 
     # ── Wrong Questions ──
@@ -15304,8 +15358,9 @@ class ReviewTaskCreateRequest(BaseModel):
 
 
 @app.post("/review/tasks/create")
-def create_review_task(req: ReviewTaskCreateRequest, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def create_review_task(req: ReviewTaskCreateRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    request_username(req, current_user)
+    user = current_user
     course_id = normalize_subject(req.course_id, default="") or None
 
     if req.knowledge_point_id:
@@ -15392,8 +15447,9 @@ LEARNING_TASKS_FROM_DIAGNOSIS_PROMPT = """你是学习任务规划助手。根�
 
 
 @app.post("/learning/tasks/from-diagnosis")
-def generate_tasks_from_diagnosis(req: schemas.GenerateTasksFromDiagnosisRequest, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def generate_tasks_from_diagnosis(req: schemas.GenerateTasksFromDiagnosisRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    request_username(req, current_user)
+    user = current_user
     course_name = (req.course_name or "").strip()
     language = (req.language or "").strip()
     diagnosis_summary = (req.diagnosis_summary or "").strip()
@@ -16522,13 +16578,13 @@ def _build_study_plan_tree(chapters: list[dict], chapter_practice_by_code: dict)
 
 
 @app.get("/exam/11408/subjects/{subject_key}/study-plan")
-def get_exam_subject_study_plan(subject_key: str, username: str = "", db: Session = Depends(get_db)):
+def get_exam_subject_study_plan(subject_key: str, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     """Get the full study plan for a 11408 subject, including knowledge map,
     user progress, settings, and chapter practice status."""
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
 
-    username = (username or "").strip()
+    username = request_username(username, current_user)
     course_id = f"{subject_key}_11408"
     subject_name = EXAM_SUBJECT_DIRS[subject_key]
 
@@ -16546,7 +16602,7 @@ def get_exam_subject_study_plan(subject_key: str, username: str = "", db: Sessio
     progress_by_code: dict[str, models.UserKnowledgeProgress] = {}
     review_interval_days = 7
     if username:
-        user = get_user_by_username(username, db)
+        user = current_user
         review_interval_days = _get_review_interval_days(db, user.username, course_id)
         progress_rows = (
             db.query(models.UserKnowledgeProgress)
@@ -16652,12 +16708,14 @@ def update_exam_study_plan_settings(
     subject_key: str,
     req: schemas.ExamStudyPlanSettingsUpdate,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
     """Update study plan settings for a 11408 subject."""
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
 
-    user = get_user_by_username(req.username, db)
+    request_username(req, current_user)
+    user = current_user
     now = utc_now()
 
     setting = db.query(models.ExamStudyPlanSetting).filter(
@@ -16709,6 +16767,7 @@ def update_exam_study_plan_knowledge_item(
     item_code: str,
     req: schemas.ExamStudyPlanKnowledgeItemUpdate,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
     """Update a leaf knowledge point status within the study plan.
     Wraps the existing knowledge-map/progress endpoint but validates
@@ -16723,7 +16782,8 @@ def update_exam_study_plan_knowledge_item(
     if req.status not in valid_statuses:
         raise HTTPException(status_code=400, detail=f"Invalid status: {req.status}")
 
-    user = get_user_by_username(req.username, db)
+    request_username(req, current_user)
+    user = current_user
 
     seed_path = _knowledge_map_seed_path(course_id)
     if not seed_path.exists():
@@ -16807,12 +16867,14 @@ def update_exam_study_plan_chapter_practice(
     node_code: str,
     req: schemas.ExamStudyPlanChapterPracticeUpdate,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
     """Update chapter practice completion status for a section (二级知识点)."""
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
 
-    user = get_user_by_username(req.username, db)
+    request_username(req, current_user)
+    user = current_user
     now = utc_now()
 
     record = db.query(models.ExamStudyPlanChapterPractice).filter(
@@ -16848,9 +16910,9 @@ def update_exam_study_plan_chapter_practice(
 
 
 @app.get("/exam/11408/study-plan/summary")
-def get_exam_study_plan_summary(username: str = "", db: Session = Depends(get_db)):
+def get_exam_study_plan_summary(username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     """Get a four-subject summary of study plan progress for the 11408 home page."""
-    username = (username or "").strip()
+    username = request_username(username, current_user)
     subjects = []
 
     for subject_key, subject_name in EXAM_SUBJECT_DIRS.items():
@@ -16880,7 +16942,7 @@ def get_exam_study_plan_summary(username: str = "", db: Session = Depends(get_db
                     total_leaves += sum(leaf_counts.values())
 
             if username:
-                user = get_user_by_username(username, db)
+                user = current_user
                 # Progress from user_knowledge_progress
                 progress_rows = (
                     db.query(models.UserKnowledgeProgress)
@@ -17169,12 +17231,14 @@ def create_exam_study_plan_task(
     subject_key: str,
     req: schemas.ExamStudyPlanTaskCreate,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
     if not (req.knowledge_point_name or "").strip() and (req.scope_type or "single") != "all":
         raise HTTPException(status_code=400, detail="knowledge_point_name is required when scope_type is not 'all'")
-    user = get_user_by_username(req.username, db)
+    request_username(req, current_user)
+    user = current_user
     now = utc_now()
     kp_name = req.knowledge_point_name or ""
     task = models.ExamStudyPlanTask(
@@ -17202,10 +17266,12 @@ def update_exam_study_plan_task(
     task_id: int,
     req: schemas.ExamStudyPlanTaskUpdate,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
-    user = get_user_by_username(req.username, db)
+    request_username(req, current_user)
+    user = current_user
     task = db.query(models.ExamStudyPlanTask).filter(
         models.ExamStudyPlanTask.id == task_id,
         models.ExamStudyPlanTask.username == user.username,
@@ -17238,10 +17304,12 @@ def delete_exam_study_plan_task(
     task_id: int,
     username: str = "",
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
-    user = get_user_by_username(username, db)
+    request_username(username, current_user)
+    user = current_user
     task = db.query(models.ExamStudyPlanTask).filter(
         models.ExamStudyPlanTask.id == task_id,
         models.ExamStudyPlanTask.username == user.username,
@@ -17358,12 +17426,10 @@ def delete_course_learning_study_plan_task(
 
 
 @app.get("/exam/11408/study-plan/tasks/summary")
-def get_exam_study_plan_tasks_summary(username: str = "", db: Session = Depends(get_db)):
+def get_exam_study_plan_tasks_summary(username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     """Get all current-stage tasks across all four 11408 subjects for the home page."""
-    username = (username or "").strip()
-    if not username:
-        return {"tasks": [], "by_subject": {}}
-    user = get_user_by_username(username, db)
+    username = request_username(username, current_user)
+    user = current_user
     tasks = db.query(models.ExamStudyPlanTask).filter(
         models.ExamStudyPlanTask.username == user.username,
         models.ExamStudyPlanTask.subject_key.in_(list(EXAM_SUBJECT_DIRS.keys())),
@@ -17393,11 +17459,12 @@ def get_exam_study_plan_tasks_summary(username: str = "", db: Session = Depends(
 
 
 @app.get("/exam/11408/subjects/{subject_key}/dashboard-summary")
-def get_exam_subject_dashboard_summary(subject_key: str, username: str = "", db: Session = Depends(get_db)):
+def get_exam_subject_dashboard_summary(subject_key: str, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     """Return a lightweight dashboard summary for the 11408 subject home page."""
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
-    user = get_user_by_username(username, db) if username else None
+    request_username(username, current_user)
+    user = current_user
 
     course_id = f"{subject_key}_11408"
     subject_name = EXAM_SUBJECT_DIRS[subject_key]
@@ -17627,13 +17694,10 @@ def _minutes_between(start, end) -> int:
 
 
 @app.get("/exam/11408/{subject_key}/practice/stats")
-def get_exam_practice_stats(subject_key: str, username: str, db: Session = Depends(get_db)):
+def get_exam_practice_stats(subject_key: str, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
-    username = (username or "").strip()
-    if not username:
-        raise HTTPException(status_code=400, detail="username is required")
-
+    username = request_username(username, current_user)
     breakdown = {
         "past_paper": {"total": 0, "completed": 0},
         "chapter": {"total": 0, "completed": 0},
@@ -17719,13 +17783,13 @@ def get_past_paper_questions(subject_key: str, year: int = 0):
 
 
 @app.post("/exam/11408/{subject_key}/past-paper-attempts")
-def create_past_paper_attempt(subject_key: str, req: dict, db: Session = Depends(get_db)):
+def create_past_paper_attempt(subject_key: str, req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
-    username = (req.get("username") or "").strip()
+    username = request_username(req, current_user)
     year = int(req.get("year", 0))
-    if not username or year <= 0:
-        raise HTTPException(status_code=400, detail="username and year required")
+    if year <= 0:
+        raise HTTPException(status_code=400, detail="year is required")
     # Count ALL questions (both ready and need_review) — all are visible
     total = db.query(models.ExamQuestionBank).filter(
         models.ExamQuestionBank.subject_key == subject_key,
@@ -17803,8 +17867,11 @@ def get_question_images(subject_key, year, question_number):
 
 
 @app.get("/exam/11408/{subject_key}/past-paper-attempts/{attempt_id}")
-def get_past_paper_attempt(subject_key: str, attempt_id: int, db: Session = Depends(get_db)):
-    attempt = db.query(models.PastPaperAttempt).filter(models.PastPaperAttempt.id == attempt_id).first()
+def get_past_paper_attempt(subject_key: str, attempt_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    attempt = db.query(models.PastPaperAttempt).filter(
+        models.PastPaperAttempt.id == attempt_id,
+        models.PastPaperAttempt.username == current_user.username,
+    ).first()
     if not attempt:
         raise HTTPException(status_code=404, detail="Attempt not found")
     # Get ALL questions (both ready and need_review) for full visibility
@@ -17862,8 +17929,12 @@ def get_past_paper_attempt(subject_key: str, attempt_id: int, db: Session = Depe
 
 
 @app.post("/exam/11408/{subject_key}/past-paper-attempts/{attempt_id}/answers")
-def save_attempt_answers(subject_key: str, attempt_id: int, req: dict, db: Session = Depends(get_db)):
-    attempt = db.query(models.PastPaperAttempt).filter(models.PastPaperAttempt.id == attempt_id).first()
+def save_attempt_answers(subject_key: str, attempt_id: int, req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    request_username(req, current_user)
+    attempt = db.query(models.PastPaperAttempt).filter(
+        models.PastPaperAttempt.id == attempt_id,
+        models.PastPaperAttempt.username == current_user.username,
+    ).first()
     if not attempt:
         raise HTTPException(status_code=404, detail="Attempt not found")
     if attempt.status != "in_progress":
@@ -17874,8 +17945,12 @@ def save_attempt_answers(subject_key: str, attempt_id: int, req: dict, db: Sessi
 
 
 @app.post("/exam/11408/{subject_key}/past-paper-attempts/{attempt_id}/submit")
-def submit_attempt(subject_key: str, attempt_id: int, req: dict, db: Session = Depends(get_db)):
-    attempt = db.query(models.PastPaperAttempt).filter(models.PastPaperAttempt.id == attempt_id).first()
+def submit_attempt(subject_key: str, attempt_id: int, req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    request_username(req, current_user)
+    attempt = db.query(models.PastPaperAttempt).filter(
+        models.PastPaperAttempt.id == attempt_id,
+        models.PastPaperAttempt.username == current_user.username,
+    ).first()
     if not attempt:
         raise HTTPException(status_code=404, detail="Attempt not found")
     if attempt.status != "in_progress":
@@ -17964,7 +18039,7 @@ def submit_attempt(subject_key: str, attempt_id: int, req: dict, db: Session = D
     attempt.result_json = json.dumps(result, ensure_ascii=False)
     db.commit()
     # Save wrong questions
-    username = (req.get("username") or attempt.username or "").strip()
+    username = current_user.username
     if username and result.get("wrong_questions"):
         for wq in result["wrong_questions"]:
             db.add(models.PastPaperWrongQuestion(
@@ -18024,10 +18099,10 @@ def _serialize_exam_favorite(item: models.ExamFavoriteQuestion):
 
 
 @app.get("/exam/11408/{subject_key}/favorites")
-def get_exam_favorites(subject_key: str, username: str, source: str = "", db: Session = Depends(get_db)):
+def get_exam_favorites(subject_key: str, username: str = "", source: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
-    username = (username or "").strip()
+    username = request_username(username, current_user)
     if not username:
         raise HTTPException(status_code=400, detail="username is required")
     query = db.query(models.ExamFavoriteQuestion).filter(
@@ -18041,10 +18116,10 @@ def get_exam_favorites(subject_key: str, username: str, source: str = "", db: Se
 
 
 @app.post("/exam/11408/{subject_key}/favorites")
-def create_exam_favorite(subject_key: str, req: dict, db: Session = Depends(get_db)):
+def create_exam_favorite(subject_key: str, req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
-    username = (req.get("username") or "").strip()
+    username = request_username(req, current_user)
     source = (req.get("source") or "past_paper").strip()
     source_question_id = str(req.get("source_question_id") or "").strip()
     if not username or not source_question_id:
@@ -18080,8 +18155,8 @@ def create_exam_favorite(subject_key: str, req: dict, db: Session = Depends(get_
 
 
 @app.delete("/exam/11408/{subject_key}/favorites/{favorite_id}")
-def delete_exam_favorite(subject_key: str, favorite_id: int, username: str, db: Session = Depends(get_db)):
-    username = (username or "").strip()
+def delete_exam_favorite(subject_key: str, favorite_id: int, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    username = request_username(username, current_user)
     item = db.query(models.ExamFavoriteQuestion).filter(
         models.ExamFavoriteQuestion.id == favorite_id,
         models.ExamFavoriteQuestion.username == username,
@@ -18699,12 +18774,11 @@ def _create_mock_exam_ai_questions(
 
 
 @app.get("/exam/11408/{subject_key}/ai-questions")
-def get_exam_ai_questions(subject_key: str, username: str, db: Session = Depends(get_db)):
+def get_exam_ai_questions(subject_key: str, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    username = request_username(username, current_user)
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
-    username = (username or "").strip()
-    if not username:
-        raise HTTPException(status_code=400, detail="username is required")
+    username = request_username(username, current_user)
     items = db.query(models.AIGeneratedQuestion).filter(
         models.AIGeneratedQuestion.username == username,
         models.AIGeneratedQuestion.subject_key == subject_key,
@@ -18713,12 +18787,11 @@ def get_exam_ai_questions(subject_key: str, username: str, db: Session = Depends
 
 
 @app.get("/exam/11408/{subject_key}/ai-questions/groups")
-def get_exam_ai_question_groups(subject_key: str, username: str, db: Session = Depends(get_db)):
+def get_exam_ai_question_groups(subject_key: str, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    username = request_username(username, current_user)
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
-    username = (username or "").strip()
-    if not username:
-        raise HTTPException(status_code=400, detail="username is required")
+    username = request_username(username, current_user)
     items = db.query(models.AIGeneratedQuestion).filter(
         models.AIGeneratedQuestion.username == username,
         models.AIGeneratedQuestion.subject_key == subject_key,
@@ -18751,10 +18824,10 @@ def get_exam_ai_question_groups(subject_key: str, username: str, db: Session = D
 
 
 @app.post("/exam/11408/{subject_key}/ai-questions/attempts")
-def create_ai_question_attempt(subject_key: str, req: dict, db: Session = Depends(get_db)):
+def create_ai_question_attempt(subject_key: str, req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
-    username = (req.get("username") or "").strip()
+    username = request_username(req, current_user)
     if not username:
         raise HTTPException(status_code=400, detail="username is required")
     qids = req.get("question_ids") or []
@@ -18783,10 +18856,11 @@ def create_ai_question_attempt(subject_key: str, req: dict, db: Session = Depend
 
 
 @app.get("/exam/11408/{subject_key}/ai-questions/attempts/{attempt_id}")
-def get_ai_question_attempt(subject_key: str, attempt_id: int, username: str, db: Session = Depends(get_db)):
+def get_ai_question_attempt(subject_key: str, attempt_id: int, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    username = request_username(username, current_user)
     attempt = db.query(models.AIQuestionAttempt).filter(
         models.AIQuestionAttempt.id == attempt_id,
-        models.AIQuestionAttempt.username == (username or "").strip(),
+        models.AIQuestionAttempt.username == username,
     ).first()
     if not attempt:
         raise HTTPException(status_code=404, detail="Attempt not found")
@@ -18808,8 +18882,13 @@ def get_ai_question_attempt(subject_key: str, attempt_id: int, username: str, db
 
 
 @app.post("/exam/11408/{subject_key}/ai-questions/attempts/{attempt_id}/answers")
-def save_ai_question_answers(subject_key: str, attempt_id: int, req: dict, db: Session = Depends(get_db)):
-    attempt = db.query(models.AIQuestionAttempt).filter(models.AIQuestionAttempt.id == attempt_id).first()
+def save_ai_question_answers(subject_key: str, attempt_id: int, req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    request_username(req, current_user)
+    attempt = db.query(models.AIQuestionAttempt).filter(
+        models.AIQuestionAttempt.id == attempt_id,
+        models.AIQuestionAttempt.username == current_user.username,
+        models.AIQuestionAttempt.subject_key == subject_key,
+    ).first()
     if not attempt or attempt.status != "in_progress":
         raise HTTPException(status_code=404, detail="Attempt not found or already submitted")
     attempt.answers_json = json.dumps(req.get("answers", {}), ensure_ascii=False)
@@ -18818,15 +18897,19 @@ def save_ai_question_answers(subject_key: str, attempt_id: int, req: dict, db: S
 
 
 @app.post("/exam/11408/{subject_key}/ai-questions/attempts/{attempt_id}/submit")
-def submit_ai_question_attempt(subject_key: str, attempt_id: int, req: dict, db: Session = Depends(get_db)):
-    attempt = db.query(models.AIQuestionAttempt).filter(models.AIQuestionAttempt.id == attempt_id).first()
+def submit_ai_question_attempt(subject_key: str, attempt_id: int, req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    request_username(req, current_user)
+    attempt = db.query(models.AIQuestionAttempt).filter(
+        models.AIQuestionAttempt.id == attempt_id,
+        models.AIQuestionAttempt.username == current_user.username,
+    ).first()
     if not attempt or attempt.status != "in_progress":
         raise HTTPException(status_code=404, detail="Attempt not found or already submitted")
     answers = req.get("answers", {})
     qids = json.loads(attempt.question_ids_json or "[]")
     items = {i.id: i for i in db.query(models.AIGeneratedQuestion).filter(models.AIGeneratedQuestion.id.in_(qids)).all()}
     results, correct, wrong, big_count, mistake_saved = [], 0, 0, 0, 0
-    username = (req.get("username") or "").strip()
+    username = current_user.username
     now = utc_now()
     for qid in qids:
         item = items.get(qid)
@@ -18940,21 +19023,22 @@ def get_question_bank_stats(subject_key: str, db: Session = Depends(get_db)):
 
 @app.get("/exam/11408/{subject_key}/question-bank/questions")
 def get_question_bank_questions(subject_key: str, source_type: str = "", knowledge_point_id: str = "",
-                                 username: str = "", db: Session = Depends(get_db)):
+                                 username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
     q = db.query(models.ExamQuestionBank).filter(
         models.ExamQuestionBank.subject_key == subject_key, models.ExamQuestionBank.is_active == True)
     if source_type: q = q.filter(models.ExamQuestionBank.source_type == source_type)
     if knowledge_point_id: q = q.filter(models.ExamQuestionBank.knowledge_point_id == knowledge_point_id)
-    if username: q = q.filter((models.ExamQuestionBank.visibility == "public") |
-                               (models.ExamQuestionBank.owner_username == username.strip()))
+    username = request_username(username, current_user)
+    q = q.filter((models.ExamQuestionBank.visibility == "public") |
+                 (models.ExamQuestionBank.owner_username == username))
     items = q.order_by(models.ExamQuestionBank.created_at.desc()).all()
     return {"items": [_serialize_question_bank(i) for i in items], "total": len(items)}
 
 
 @app.post("/exam/11408/{subject_key}/question-bank/questions")
-def create_question_bank_question(subject_key: str, req: dict, db: Session = Depends(get_db)):
+def create_question_bank_question(subject_key: str, req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
     stem = (req.get("stem") or "").strip()
@@ -18964,7 +19048,7 @@ def create_question_bank_question(subject_key: str, req: dict, db: Session = Dep
         subject_key=subject_key, subject_name=EXAM_SUBJECT_DIRS.get(subject_key, subject_key),
         source_type=(req.get("source_type") or "chapter").strip(),
         visibility=(req.get("visibility") or "public").strip(),
-        owner_username=(req.get("owner_username") or "").strip() or None,
+        owner_username=current_user.username,
         knowledge_point_id=(req.get("knowledge_point_id") or "").strip() or None,
         knowledge_point_name=(req.get("knowledge_point_name") or "").strip() or None,
         knowledge_point_path=(req.get("knowledge_point_path") or "").strip() or None,
@@ -19024,19 +19108,18 @@ def db_query_chapter_questions(subject_key):
 
 @app.get("/exam/11408/{subject_key}/chapter-practice/questions")
 def get_chapter_practice_questions(subject_key: str, knowledge_point_id: str = "",
-                                     knowledge_point_path: str = "", include_children: bool = False,
-                                     username: str = "", db: Session = Depends(get_db)):
+                                      knowledge_point_path: str = "", include_children: bool = False,
+                                      username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
     items = db_query_chapter_questions(subject_key)
 
     # Load done records to tag practiced questions
     done_q_ids: set[int] = set()
-    u = (username or "").strip()
+    u = request_username(username, current_user)
     if u:
-        u2 = get_user_by_username(u, db)
         done_rows = db.query(models.ExamQuestionDoneRecord).filter(
-            models.ExamQuestionDoneRecord.username == u2.username,
+            models.ExamQuestionDoneRecord.username == current_user.username,
             models.ExamQuestionDoneRecord.subject_key == subject_key,
             models.ExamQuestionDoneRecord.practice_type == "chapter",
         ).all()
@@ -19079,7 +19162,7 @@ def get_chapter_practice_questions(subject_key: str, knowledge_point_id: str = "
     return result
 
 @app.get("/exam/11408/{subject_key}/chapter/analytics")
-def get_chapter_analytics(subject_key: str, username: str = "", db: Session = Depends(get_db)):
+def get_chapter_analytics(subject_key: str, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
     # Stats per knowledge point
@@ -19099,7 +19182,7 @@ def get_chapter_analytics(subject_key: str, username: str = "", db: Session = De
         else: kp_stats[kp]["hard"] += 1
 
     # Right/wrong per KP from attempts
-    u = (username or "").strip()
+    u = request_username(username, current_user)
     kp_accuracy = {}
     if u:
         attempts = db.query(models.ExamPracticeAttempt).filter(
@@ -19138,11 +19221,10 @@ def get_chapter_analytics(subject_key: str, username: str = "", db: Session = De
 
 
 @app.post("/exam/11408/{subject_key}/chapter-practice/attempts")
-def create_chapter_practice_attempt(subject_key: str, req: dict, db: Session = Depends(get_db)):
+def create_chapter_practice_attempt(subject_key: str, req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
-    username = (req.get("username") or "").strip()
-    if not username: raise HTTPException(status_code=400, detail="username required")
+    username = request_username(req, current_user)
     qids = req.get("question_ids") or []
     if not qids: raise HTTPException(status_code=400, detail="question_ids required")
     items = db.query(models.ExamQuestionBank).filter(
@@ -19161,10 +19243,10 @@ def create_chapter_practice_attempt(subject_key: str, req: dict, db: Session = D
     return {"attempt_id": a.id, "status": "in_progress", "total_questions": len(items)}
 
 @app.get("/exam/11408/{subject_key}/chapter-practice/attempts/{attempt_id}")
-def get_chapter_practice_attempt(subject_key: str, attempt_id: int, username: str = "", db: Session = Depends(get_db)):
+def get_chapter_practice_attempt(subject_key: str, attempt_id: int, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     a = db.query(models.ExamPracticeAttempt).filter(
         models.ExamPracticeAttempt.id == attempt_id,
-        models.ExamPracticeAttempt.username == (username or "").strip()).first()
+        models.ExamPracticeAttempt.username == current_user.username).first()
     if not a: raise HTTPException(status_code=404, detail="Attempt not found")
     qids = json.loads(a.question_ids_json or "[]")
     items = db.query(models.ExamQuestionBank).filter(models.ExamQuestionBank.id.in_(qids)).all()
@@ -19182,21 +19264,30 @@ def get_chapter_practice_attempt(subject_key: str, attempt_id: int, username: st
             "questions": questions, "saved_answers": saved}
 
 @app.post("/exam/11408/{subject_key}/chapter-practice/attempts/{attempt_id}/answers")
-def save_chapter_attempt_answers(subject_key: str, attempt_id: int, req: dict, db: Session = Depends(get_db)):
-    a = db.query(models.ExamPracticeAttempt).filter(models.ExamPracticeAttempt.id == attempt_id).first()
+def save_chapter_attempt_answers(subject_key: str, attempt_id: int, req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    request_username(req, current_user)
+    a = db.query(models.ExamPracticeAttempt).filter(
+        models.ExamPracticeAttempt.id == attempt_id,
+        models.ExamPracticeAttempt.username == current_user.username,
+    ).first()
     if not a or a.status != "in_progress": raise HTTPException(status_code=404, detail="Attempt not found")
     a.answers_json = json.dumps(req.get("answers", {}), ensure_ascii=False)
     db.commit()
     return {"success": True}
 
 @app.post("/exam/11408/{subject_key}/chapter-practice/attempts/{attempt_id}/submit")
-def submit_chapter_attempt(subject_key: str, attempt_id: int, req: dict, db: Session = Depends(get_db)):
-    a = db.query(models.ExamPracticeAttempt).filter(models.ExamPracticeAttempt.id == attempt_id).first()
+def submit_chapter_attempt(subject_key: str, attempt_id: int, req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    request_username(req, current_user)
+    a = db.query(models.ExamPracticeAttempt).filter(
+        models.ExamPracticeAttempt.id == attempt_id,
+        models.ExamPracticeAttempt.username == current_user.username,
+        models.ExamPracticeAttempt.subject_key == subject_key,
+    ).first()
     if not a or a.status != "in_progress": raise HTTPException(status_code=404, detail="Attempt not found")
     answers = req.get("answers", {})
     qids = json.loads(a.question_ids_json or "[]")
     items = {i.id: i for i in db.query(models.ExamQuestionBank).filter(models.ExamQuestionBank.id.in_(qids)).all()}
-    results, correct, wrong, big_count, mistake_saved = [], 0, 0, 0, 0; now = utc_now(); username = (req.get("username") or "").strip()
+    results, correct, wrong, big_count, mistake_saved = [], 0, 0, 0, 0; now = utc_now(); username = current_user.username
     for qid in qids:
         item = items.get(qid)
         if not item: continue
@@ -19275,12 +19366,10 @@ def submit_chapter_attempt(subject_key: str, attempt_id: int, req: dict, db: Ses
 
 
 @app.post("/exam/11408/{subject_key}/ai-questions/generate")
-def generate_exam_ai_questions(subject_key: str, req: dict, db: Session = Depends(get_db)):
+def generate_exam_ai_questions(subject_key: str, req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
-    username = (req.get("username") or "").strip()
-    if not username:
-        raise HTTPException(status_code=400, detail="请先登录")
+    username = request_username(req, current_user)
     try:
         count = int(req.get("count") or 0)
     except Exception:
@@ -19440,8 +19529,8 @@ def generate_exam_ai_questions(subject_key: str, req: dict, db: Session = Depend
 
 
 @app.patch("/exam/11408/{subject_key}/ai-questions/{question_id}")
-def update_exam_ai_question(subject_key: str, question_id: int, req: dict, db: Session = Depends(get_db)):
-    username = (req.get("username") or "").strip()
+def update_exam_ai_question(subject_key: str, question_id: int, req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    username = request_username(req, current_user)
     item = db.query(models.AIGeneratedQuestion).filter(
         models.AIGeneratedQuestion.id == question_id,
         models.AIGeneratedQuestion.username == username,
@@ -19471,8 +19560,8 @@ def update_exam_ai_question(subject_key: str, question_id: int, req: dict, db: S
 
 
 @app.get("/exam/11408/{subject_key}/ai-questions/{question_id}/raw-response")
-def get_ai_question_raw_response(subject_key: str, question_id: int, username: str, db: Session = Depends(get_db)):
-    username = (username or "").strip()
+def get_ai_question_raw_response(subject_key: str, question_id: int, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    username = request_username(username, current_user)
     item = db.query(models.AIGeneratedQuestion).filter(
         models.AIGeneratedQuestion.id == question_id,
         models.AIGeneratedQuestion.username == username,
@@ -19487,7 +19576,7 @@ def get_ai_question_raw_response(subject_key: str, question_id: int, username: s
 
 
 @app.post("/exam/11408/{subject_key}/question-analysis")
-def generate_question_analysis(subject_key: str, req: dict):
+def generate_question_analysis(subject_key: str, req: dict, current_user: models.User = Depends(get_current_user)):
     """Generate on-demand AI analysis for a question. Not persisted."""
     stem = (req.get("stem") or "").strip()
     opts = req.get("options") or {}
@@ -19527,8 +19616,8 @@ def generate_question_analysis(subject_key: str, req: dict):
 
 
 @app.delete("/exam/11408/{subject_key}/ai-questions/{question_id}")
-def delete_exam_ai_question(subject_key: str, question_id: int, username: str, db: Session = Depends(get_db)):
-    username = (username or "").strip()
+def delete_exam_ai_question(subject_key: str, question_id: int, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    username = request_username(username, current_user)
     item = db.query(models.AIGeneratedQuestion).filter(
         models.AIGeneratedQuestion.id == question_id,
         models.AIGeneratedQuestion.username == username,
@@ -19623,13 +19712,11 @@ def _marshal_wrong_item(row, source):
 
 
 @app.get("/exam/11408/{subject_key}/wrong-questions")
-def get_exam_wrong_questions_v2(subject_key: str, username: str, source: str = "", mastered: str = "",
-                                 db: Session = Depends(get_db)):
+def get_exam_wrong_questions_v2(subject_key: str, username: str = "", source: str = "", mastered: str = "",
+                                 db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
-    username = (username or "").strip()
-    if not username:
-        raise HTTPException(status_code=400, detail="username is required")
+    username = request_username(username, current_user)
     # Parse multi-source filter (comma-separated)
     src_set = set(s.strip() for s in source.split(",") if s.strip()) if source else set()
     # Parse mastered filter: "1"/"true" → mastered only, "0"/"false" → not mastered, "" → all
@@ -19678,8 +19765,8 @@ def get_exam_wrong_questions_v2(subject_key: str, username: str, source: str = "
 
 
 @app.delete("/exam/11408/{subject_key}/wrong-questions/{wrong_id}")
-def delete_exam_wrong_question_v2(subject_key: str, wrong_id: int, username: str, db: Session = Depends(get_db)):
-    username = (username or "").strip()
+def delete_exam_wrong_question_v2(subject_key: str, wrong_id: int, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    username = request_username(username, current_user)
     # Try past_paper table first
     item = db.query(models.PastPaperWrongQuestion).filter(
         models.PastPaperWrongQuestion.id == wrong_id,
@@ -19702,8 +19789,8 @@ def delete_exam_wrong_question_v2(subject_key: str, wrong_id: int, username: str
 
 
 @app.patch("/exam/11408/{subject_key}/wrong-questions/{wrong_id}/mastered")
-def toggle_exam_wrong_question_mastered(subject_key: str, wrong_id: int, req: dict, db: Session = Depends(get_db)):
-    username = (req.get("username") or "").strip()
+def toggle_exam_wrong_question_mastered(subject_key: str, wrong_id: int, req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    username = request_username(req, current_user)
     mastered_val = req.get("mastered", True)
     now = utc_now()
     # Try past_paper
@@ -19738,9 +19825,8 @@ def toggle_exam_wrong_question_mastered(subject_key: str, wrong_id: int, req: di
 # ── Done records (已做过) ──
 
 @app.get("/exam/11408/{subject_key}/done-records")
-def get_done_records(subject_key: str, username: str, practice_type: str = "", db: Session = Depends(get_db)):
-    username = (username or "").strip()
-    if not username: raise HTTPException(status_code=400, detail="username required")
+def get_done_records(subject_key: str, username: str = "", practice_type: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    username = request_username(username, current_user)
     q = db.query(models.ExamQuestionDoneRecord).filter(
         models.ExamQuestionDoneRecord.username == username,
         models.ExamQuestionDoneRecord.subject_key == subject_key,
@@ -20594,8 +20680,9 @@ def is_programming_question_type(value: str | None) -> bool:
 
 
 @app.get("/learning/practice/stats")
-def get_course_learning_practice_stats(username: str, course_id: str = "", db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def get_course_learning_practice_stats(username: str = "", course_id: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    request_username(username, current_user)
+    user = current_user
     normalized_course = re.sub(r"\s+", "_", (course_id or "").strip())
 
     question_query = db.query(models.Question).filter(models.Question.username == user.username)
@@ -20656,12 +20743,13 @@ def get_course_learning_practice_stats(username: str, course_id: str = "", db: S
 
 @app.get("/practice/questions")
 def list_questions(
-    username: str,
+    username: str = "",
     course_id: str = "",
     knowledge_point_id: int | None = None,
     type: str = "",
     include_programming: bool = False,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
     user = get_user_by_username(username, db)
     query = db.query(models.Question).filter(models.Question.username == user.username)
@@ -20740,12 +20828,10 @@ def list_questions(
 
 
 @app.post("/practice/submit-result")
-def submit_practice_result(req: dict, db: Session = Depends(get_db)):
+def submit_practice_result(req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     """Save practice results to learning_records and update knowledge mastery."""
-    username = str(req.get("username", "")).strip()
-    if not username:
-        raise HTTPException(status_code=400, detail="缺少 username")
-    user = get_user_by_username(username, db)
+    username = request_username(req, current_user)
+    user = current_user
     course_id = str(req.get("course_id", "")).strip() or ""
     task_id = req.get("task_id")
     question_results = req.get("question_results", [])
@@ -20862,8 +20948,9 @@ def submit_practice_result(req: dict, db: Session = Depends(get_db)):
 
 
 @app.post("/practice/questions")
-def create_question(req: schemas.QuestionCreate, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def create_question(req: schemas.QuestionCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    request_username(req, current_user)
+    user = current_user
     qtype = (req.type or "").strip()
     if is_programming_question_type(qtype):
         raise HTTPException(status_code=400, detail="编程题请前往编程中心生成和练习。")
@@ -20928,9 +21015,10 @@ def _normalize_judge_answer(ans: str) -> str:
 
 
 @app.post("/practice/questions/batch-create-from-ai")
-def batch_create_questions_from_ai(req: schemas.AiQuestionBatchCreate, db: Session = Depends(get_db)):
+def batch_create_questions_from_ai(req: schemas.AiQuestionBatchCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     """Save selected AI-generated questions to the formal question bank with validation and dedup."""
-    user = get_user_by_username(req.username, db)
+    request_username(req, current_user)
+    user = current_user
     course_id = normalize_subject(req.course_id)
     if not course_id:
         raise HTTPException(status_code=400, detail="课程不能为空")
@@ -21733,15 +21821,17 @@ def run_practice_import_job(job_id: int):
 @app.post("/practice/import-paper/jobs")
 async def create_practice_import_job(
     background_tasks: BackgroundTasks,
-    username: str = Form(...),
+    username: str = Form(""),
     course_id: str = Form(""),
     course: str = Form(""),
     module_id: str | None = Form(None),
     knowledge_point_id: int | None = Form(None),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    user = get_user_by_username(username, db)
+    username = request_username(username, current_user)
+    user = current_user
     file_bytes = await file.read()
     original_filename = Path(file.filename or "未命名试卷").name
     if len(file_bytes) > 50 * 1024 * 1024:
@@ -21785,8 +21875,11 @@ async def create_practice_import_job(
 
 
 @app.get("/practice/import-paper/jobs/{job_id}")
-def get_practice_import_job(job_id: int, db: Session = Depends(get_db)):
-    job = db.query(models.PracticeImportJob).filter(models.PracticeImportJob.id == job_id).first()
+def get_practice_import_job(job_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    job = db.query(models.PracticeImportJob).filter(
+        models.PracticeImportJob.id == job_id,
+        models.PracticeImportJob.username == current_user.username,
+    ).first()
     if not job:
         raise HTTPException(status_code=404, detail="识别任务不存在")
 
@@ -21829,14 +21922,16 @@ def get_practice_import_job(job_id: int, db: Session = Depends(get_db)):
 
 @app.post("/practice/import-paper/parse")
 async def parse_practice_paper(
-    username: str = Form(...),
+    username: str = Form(""),
     course_id: str = Form(""),
     knowledge_point_id: int | None = Form(None),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
     t_start = time.perf_counter()
-    user = get_user_by_username(username, db)
+    username = request_username(username, current_user)
+    user = current_user
     file_bytes = await file.read()
     original_filename = file.filename or "未命名试卷"
     logger.info("[practice-paper-import] start user=%s file=%s size=%d course=%s",
@@ -21884,8 +21979,9 @@ async def parse_practice_paper(
 
 
 @app.post("/practice/import-paper/confirm")
-def confirm_practice_paper_import(req: schemas.PaperImportConfirmRequest, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def confirm_practice_paper_import(req: schemas.PaperImportConfirmRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    request_username(req, current_user)
+    user = current_user
     course_norm = normalize_subject(req.course_id, default="")
     created = []
     selected_drafts = [draft for draft in req.questions[:50] if (draft.question_text or "").strip()]
@@ -21941,11 +22037,13 @@ def confirm_practice_paper_import(req: schemas.PaperImportConfirmRequest, db: Se
 
 @app.get("/practice/papers")
 def list_practice_papers(
-    username: str,
+    username: str = "",
     course_id: str = "",
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    user = get_user_by_username(username, db)
+    request_username(username, current_user)
+    user = current_user
     query = db.query(models.PracticePaper).filter(models.PracticePaper.username == user.username)
     normalized_course = normalize_subject(course_id, default="")
     if normalized_course:
@@ -21955,8 +22053,9 @@ def list_practice_papers(
 
 
 @app.get("/practice/papers/{paper_id}")
-def get_practice_paper(paper_id: int, username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def get_practice_paper(paper_id: int, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    request_username(username, current_user)
+    user = current_user
     paper = (
         db.query(models.PracticePaper)
         .filter(models.PracticePaper.id == paper_id, models.PracticePaper.username == user.username)
@@ -21983,8 +22082,9 @@ def get_practice_paper(paper_id: int, username: str, db: Session = Depends(get_d
 
 
 @app.delete("/practice/papers/{paper_id}")
-def delete_practice_paper(paper_id: int, username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def delete_practice_paper(paper_id: int, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    request_username(username, current_user)
+    user = current_user
     paper = (
         db.query(models.PracticePaper)
         .filter(models.PracticePaper.id == paper_id, models.PracticePaper.username == user.username)
@@ -22002,8 +22102,9 @@ def delete_practice_paper(paper_id: int, username: str, db: Session = Depends(ge
 
 
 @app.get("/practice/questions/{question_id}")
-def get_question(question_id: int, username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def get_question(question_id: int, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    request_username(username, current_user)
+    user = current_user
     question = (
         db.query(models.Question)
         .filter(models.Question.id == question_id, models.Question.username == user.username)
@@ -22022,8 +22123,9 @@ def get_question(question_id: int, username: str, db: Session = Depends(get_db))
 
 
 @app.put("/practice/questions/{question_id}")
-def update_question(question_id: int, req: schemas.QuestionUpdate, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def update_question(question_id: int, req: schemas.QuestionUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    request_username(req, current_user)
+    user = current_user
     question = (
         db.query(models.Question)
         .filter(models.Question.id == question_id, models.Question.username == user.username)
@@ -22081,8 +22183,9 @@ def update_question(question_id: int, req: schemas.QuestionUpdate, db: Session =
 
 
 @app.post("/practice/questions/{question_id}/ai-explain")
-def explain_practice_question(question_id: int, req: schemas.QuestionAiExplainRequest, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def explain_practice_question(question_id: int, req: schemas.QuestionAiExplainRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    request_username(req, current_user)
+    user = current_user
     question = (
         db.query(models.Question)
         .filter(models.Question.id == question_id, models.Question.username == user.username)
@@ -22176,8 +22279,9 @@ def explain_practice_question(question_id: int, req: schemas.QuestionAiExplainRe
 
 
 @app.delete("/practice/questions/{question_id}")
-def delete_question(question_id: int, username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def delete_question(question_id: int, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    request_username(username, current_user)
+    user = current_user
     question = (
         db.query(models.Question)
         .filter(models.Question.id == question_id, models.Question.username == user.username)
@@ -22193,8 +22297,9 @@ def delete_question(question_id: int, username: str, db: Session = Depends(get_d
 
 
 @app.post("/practice/questions/{question_id}/attempts")
-def submit_attempt(question_id: int, req: schemas.QuestionAttemptCreate, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def submit_attempt(question_id: int, req: schemas.QuestionAttemptCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    request_username(req, current_user)
+    user = current_user
     question = (
         db.query(models.Question)
         .filter(models.Question.id == question_id, models.Question.username == user.username)
@@ -22268,8 +22373,9 @@ def submit_attempt(question_id: int, req: schemas.QuestionAttemptCreate, db: Ses
 
 
 @app.get("/practice/questions/{question_id}/attempts")
-def list_attempts(question_id: int, username: str, db: Session = Depends(get_db)):
-    user = get_user_by_username(username, db)
+def list_attempts(question_id: int, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    request_username(username, current_user)
+    user = current_user
     question = (
         db.query(models.Question)
         .filter(models.Question.id == question_id, models.Question.username == user.username)
@@ -22306,8 +22412,9 @@ PRACTICE_FEEDBACK_PROMPT = """你是学习辅导助手。根据题目、参考�
 
 
 @app.post("/practice/questions/{question_id}/feedback")
-def request_feedback(question_id: int, req: schemas.QuestionFeedbackRequest, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def request_feedback(question_id: int, req: schemas.QuestionFeedbackRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    request_username(req, current_user)
+    user = current_user
     question = (
         db.query(models.Question)
         .filter(models.Question.id == question_id, models.Question.username == user.username)
@@ -22404,12 +22511,14 @@ def request_feedback(question_id: int, req: schemas.QuestionFeedbackRequest, db:
 
 @app.get("/practice/summary")
 def get_practice_summary(
-    username: str,
+    username: str = "",
     course_id: str = "",
     knowledge_point_id: int | None = None,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    user = get_user_by_username(username, db)
+    request_username(username, current_user)
+    user = current_user
     q_query = db.query(models.Question).filter(models.Question.username == user.username)
     normalized_course = normalize_subject(course_id, default="")
     if normalized_course:
@@ -22931,8 +23040,9 @@ def normalize_generated_question_item(item: dict, expected_type: str, difficulty
 
 
 @app.post("/practice/questions/generate")
-def generate_questions(req: schemas.GenerateQuestionRequest, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def generate_questions(req: schemas.GenerateQuestionRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    request_username(req, current_user)
+    user = current_user
     count = min(max(req.count, 1), 10)
     qtype = normalize_question_type(req.type or "choice", "choice")
     if is_programming_question_type(qtype):
@@ -23246,9 +23356,10 @@ JSON 格式：
 
 
 @app.post("/practice/generate-task-preview")
-def generate_task_question_preview(req: schemas.GenerateTaskQuestionPreviewRequest, db: Session = Depends(get_db)):
+def generate_task_question_preview(req: schemas.GenerateTaskQuestionPreviewRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     """Generate AI question preview for a task when no matching questions exist. Preview only — no DB write."""
-    user = get_user_by_username(req.username, db)
+    request_username(req, current_user)
+    user = current_user
     course_id = normalize_subject(req.course_id)
 
     if not course_id:
@@ -24450,13 +24561,14 @@ def _generate_plan_preview_core(
 
 
 @app.post("/learning/plans/generate-preview")
-def generate_plan_preview(req: PlanGeneratePreviewRequest, db: Session = Depends(get_db)):
+def generate_plan_preview(req: PlanGeneratePreviewRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    request_username(req, current_user)
     return _generate_plan_preview_core(req, db)
 
 
 @app.post("/learning/plans/generate-preview-advanced")
 async def generate_plan_preview_advanced(
-    username: str = Form(...),
+    username: str = Form(""),
     course_id: str = Form(""),
     plan_type: str = Form("seven_day"),
     plan_scene: str = Form("daily"),
@@ -24468,7 +24580,9 @@ async def generate_plan_preview_advanced(
     scope_files: list[UploadFile] = File(default=[]),
     paper_files: list[UploadFile] = File(default=[]),
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
+    username = request_username(username, current_user)
     try:
         parsed_ids = json.loads(selected_material_ids or "[]")
         if not isinstance(parsed_ids, list):
@@ -24492,8 +24606,9 @@ async def generate_plan_preview_advanced(
 
 
 @app.post("/learning/plans/import-tasks")
-def import_plan_tasks(req: PlanImportTasksRequest, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def import_plan_tasks(req: PlanImportTasksRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    request_username(req, current_user)
+    user = current_user
 
     if not req.items:
         raise HTTPException(status_code=400, detail="没有可导入的计划项")
@@ -28488,8 +28603,9 @@ def export_report_text(report_id: int, username: str = "", db: Session = Depends
 
 
 @app.post("/learning/reports/{report_id}/share")
-def create_report_share(report_id: int, req: schemas.LearningReportShareCreateRequest, db: Session = Depends(get_db)):
-    user = get_user_by_username(req.username, db)
+def create_report_share(report_id: int, req: schemas.LearningReportShareCreateRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    request_username(req, current_user)
+    user = current_user
     report = (
         db.query(models.LearningReport)
         .filter(models.LearningReport.id == report_id, models.LearningReport.username == user.username)
@@ -29407,7 +29523,9 @@ async def programming_exercise_interactive(exercise_id: int, ws: WebSocket, init
             raise ValueError("username is required")
         db = SessionLocal()
         try:
-            user = get_user_by_username(username, db)
+            user = get_current_user_from_websocket(ws, db)
+            assert_username_matches_current_user(username, user)
+            username = user.username
             exercise = db.query(models.ProgrammingExercise).filter_by(id=exercise_id).first()
             project = get_code_project_or_404(int(config.get("project_id") or 0), user.username, db)
             if not exercise or not exercise.is_active or exercise.quality_status != "approved" or project.programming_exercise_id != exercise.id:
@@ -29704,7 +29822,18 @@ async def interactive_run(ws: WebSocket):
 
     language = (config.get("language", "") or "").strip().lower()
     code = (config.get("code", "") or "")
-    username = config.get("username", "anonymous")
+    auth_db = SessionLocal()
+    try:
+        current_user = get_current_user_from_websocket(ws, auth_db)
+        username = request_username(config, current_user)
+    except HTTPException as exc:
+        await ws.send_text(json.dumps({"type": "error", "message": exc.detail}, ensure_ascii=False))
+        await ws.close(code=1008)
+        auth_db.close()
+        return
+    finally:
+        if auth_db.is_active:
+            auth_db.close()
     print(f"[WS-TERMINAL] start username={username} language={language} code_chars={len(code)}")
 
     if language not in ("python", "c"):

@@ -27,6 +27,14 @@ def test_wrong_password_and_invalid_session(client: TestClient):
     assert invalid.status_code == 401
 
 
+def test_logout_revokes_server_session(client: TestClient):
+    register_and_login(client, "logout-owner")
+    assert client.get("/me/profile").status_code == 200
+    logged_out = client.post("/logout")
+    assert logged_out.status_code == 200
+    assert client.get("/me/profile").status_code == 401
+
+
 def test_users_cannot_switch_identity_with_username(client):
     register_and_login(client, "owner-a")
     other = TestClient(client.app)
