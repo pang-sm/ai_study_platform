@@ -355,9 +355,6 @@ async function runAuthCheck() {
     const page = await context.newPage();
     await page.goto(options.baseUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
     let snapshot = await inspectAuthState(page);
-    if (!snapshot.has_user || snapshot.me_status !== 200) {
-      throw Object.assign(new Error(`AUTH_STATE_EXPIRED: /api/me status=${snapshot.me_status ?? "missing"}`), { code: "auth_state_expired" });
-    }
     result.authentication = {
       cookie_count: cookieCount,
       local_storage_keys: snapshot.local_storage_keys,
@@ -365,6 +362,9 @@ async function runAuthCheck() {
       me_status: snapshot.me_status,
       origin_in_storage_state: true,
     };
+    if (!snapshot.has_user || snapshot.me_status !== 200) {
+      throw Object.assign(new Error(`AUTH_STATE_EXPIRED: /api/me status=${snapshot.me_status ?? "missing"}`), { code: "auth_state_expired" });
+    }
     if (snapshot.login_form) {
       throw Object.assign(new Error(`LOGIN_REDIRECT: url=${snapshot.url}`), { code: "login_redirect" });
     }
