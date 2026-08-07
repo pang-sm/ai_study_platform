@@ -301,7 +301,7 @@ ALLOWED_REVIEW_STATUSES = {
 
 
 class MeRequest(BaseModel):
-    username: str
+    username: str | None = None
 
 
 class RenameConversationRequest(BaseModel):
