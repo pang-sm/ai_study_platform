@@ -269,8 +269,11 @@ function writeAuthCheckReport(result) {
       ...(result.authentication || {}),
     },
     validation: result.validation || null,
-    auth_state_valid: result.validation?.auth_state_valid === true || existing.auth_state_valid === true,
-    auth_probe: result.validation?.auth_probe || existing.auth_probe || "not_verified",
+    // A failed probe must not inherit a previous successful probe result.
+    // Keep old authentication metadata for diagnostics, but make the current
+    // validation status authoritative.
+    auth_state_valid: result.validation?.auth_state_valid === true,
+    auth_probe: result.validation?.auth_probe || (result.status === "passed" ? existing.auth_probe || "passed" : "failed"),
     policy: {
       ...(existing.policy || {}),
       sensitive_values_written: false,
