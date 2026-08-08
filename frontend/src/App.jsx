@@ -9,7 +9,6 @@ import CourseLearningHome from "./components/CourseLearningHome.jsx";
 import CourseLearningOnboarding from "./components/CourseLearningOnboarding.jsx";
 import CourseLearningPackageStep from "./components/CourseLearningPackageStep.jsx";
 import CourseLearningProfile from "./components/CourseLearningProfile.jsx";
-import CourseLearningPlan from "./components/CourseLearningPlan.jsx";
 import CoursePracticeCenter from "./components/CoursePracticeCenter.jsx";
 import ProgrammingOnboardingStep from "./components/ProgrammingOnboardingStep.jsx";
 import ProgrammingPackageStep from "./components/ProgrammingPackageStep.jsx";
@@ -22,7 +21,6 @@ import ProfilePage from "./components/ProfilePage.jsx";
 import Onboarding from "./components/Onboarding.jsx";
 import ExamHome from "./components/ExamHome.jsx";
 import ExamProfile from "./components/ExamProfile.jsx";
-import ExamPlan from "./components/ExamPlan.jsx";
 import ExamSubjectDashboard, { EXAM_SUBJECTS, getExamCourseId } from "./components/ExamSubjectDashboard.jsx";
 import MembershipPage from "./components/MembershipPage.jsx";
 import CheckoutPage from "./components/CheckoutPage.jsx";
@@ -61,6 +59,24 @@ const CURRENT_EXAM_SUBJECT_KEY = "ai_study_current_exam_subject";
 const CURRENT_COURSE_CONTEXT_KEY = "ai_study_current_course_context";
 const API_BASE = "/api";
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
+
+function getMembershipServiceKey(trackType) {
+  if (trackType === "university_course") return "course_learning";
+  if (trackType === "programming") return "programming";
+  return "exam_11408";
+}
+
+function getMembershipReturnPage(serviceKey) {
+  if (serviceKey === "course_learning") return "home";
+  if (serviceKey === "programming") return "programmingHome";
+  return "examHome";
+}
+
+function getMembershipDirectionLabel(serviceKey) {
+  if (serviceKey === "course_learning") return "课程学习";
+  if (serviceKey === "programming") return "编程学习";
+  return "11408 考研";
+}
 
 const AVATARS = [
   { id: "avatar_1", label: "A1", background: "#2563eb" },
@@ -452,6 +468,8 @@ function getRecordAnswerPreview(answer) {
 
 const LEGACY_PAGE_ALIASES = {
   codeStudio: "programmingHome",
+  coursePlan: "membership",
+  examPlan: "membership",
 };
 
 function normalizePageName(pageName) {
@@ -469,7 +487,7 @@ const VALID_PAGES = new Set([
   "adminUsageCenter", "adminCenter",
   "materials", "workspaceMaterials", "chat", "records", "history",
   "knowledgeLearning", "searchResults",
-  "profileEdit", "onboarding", "courseLearningOnboarding", "courseLearningPackageStep", "courseLearningComplete", "courseProfile", "coursePlan", "programmingOnboarding", "programmingPackageStep", "programmingHome", "programmingProfile", "examHome", "examProfile", "examPlan", "examSubjectDashboard",
+  "profileEdit", "onboarding", "courseLearningOnboarding", "courseLearningPackageStep", "courseLearningComplete", "courseProfile", "programmingOnboarding", "programmingPackageStep", "programmingHome", "programmingProfile", "examHome", "examProfile", "examSubjectDashboard",
   "login", "adminLogin",
 ]);
 
@@ -566,13 +584,17 @@ function App() {
   const [courseSubjectContext, setCourseSubjectContext] = useState(getInitialCourseContext);
   const [courseDashboardPanelIntent, setCourseDashboardPanelIntent] = useState(null);
   const [membershipCheckoutContext, setMembershipCheckoutContext] = useState(getInitialMembershipCheckoutContext);
+  const [membershipPageContext, setMembershipPageContext] = useState(getInitialMembershipCheckoutContext);
 
   const setPage = (nextPage, context = null) => {
     nextPage = normalizePageName(nextPage);
     if (nextPage === "membershipCheckout") {
       const checkoutContext = context || membershipCheckoutContext;
       setMembershipCheckoutContext(checkoutContext);
+      setMembershipPageContext(checkoutContext || null);
       try { sessionStorage.setItem(MEMBERSHIP_CHECKOUT_CONTEXT_KEY, JSON.stringify(checkoutContext || {})); } catch { /* ignore */ }
+    } else if (nextPage === "membership" && context?.serviceKey) {
+      setMembershipPageContext(context);
     } else if (membershipCheckoutContext) {
       setMembershipCheckoutContext(null);
       try { sessionStorage.removeItem(MEMBERSHIP_CHECKOUT_CONTEXT_KEY); } catch { /* ignore */ }
@@ -3502,7 +3524,7 @@ function App() {
     );
   }
 
-  const wrapPage = (children) => {
+  const wrapPage = (children, layoutContext = {}) => {
     const visibleAnnouncements = userAnnouncements.filter((a) => !dismissedAnnounceIds.includes(a.id));
     return (
     <AppLayout
@@ -3511,6 +3533,7 @@ function App() {
       isAdmin={!!user?.is_admin}
       showMembershipAd={shouldShowMembershipAd(user)}
       onLogout={logout}
+      serviceKey={layoutContext.serviceKey || getMembershipServiceKey(user?.active_track_type)}
     >
       {visibleAnnouncements.length > 0 && (
         <div className="announce-banner-area">
@@ -3969,18 +3992,6 @@ function App() {
     );
   }
 
-  if (page === "coursePlan") {
-    return (
-      <CourseLearningPlan user={user} setPage={setPage} API_BASE={API_BASE} />
-    );
-  }
-
-  if (page === "examPlan") {
-    return (
-      <ExamPlan user={user} setPage={setPage} API_BASE={API_BASE} />
-    );
-  }
-
   // Map active_track_type to the correct profile page name
   const activeTrackType = user?.active_track_type || "";
   const currentProfilePage = activeTrackType === "exam_408" ? "examProfile"
@@ -3995,28 +4006,54 @@ function App() {
   }
 
   if (page === "membership") {
+    const membershipServiceKey = membershipPageContext?.serviceKey || getMembershipServiceKey(activeTrackType);
+    const membershipProfilePage = membershipPageContext?.profilePage || currentProfilePage;
+    const membershipReturnPage = membershipPageContext?.returnPage || getMembershipReturnPage(membershipServiceKey);
     return wrapPage(
       <MembershipPage
         user={user}
         apiBase={API_BASE}
         setPage={setPage}
         onPlanUpdate={handleProfileUpdate}
-        profilePage={currentProfilePage}
-        serviceKey={activeTrackType === "university_course" ? "course_learning" : activeTrackType === "programming" ? "programming" : "exam_11408"}
-      />
+        profilePage={membershipProfilePage}
+        serviceKey={membershipServiceKey}
+        returnPage={membershipReturnPage}
+        directionLabel={getMembershipDirectionLabel(membershipServiceKey)}
+      />,
+      { serviceKey: membershipServiceKey },
     );
   }
 
   if (page === "membershipCheckout") {
-    const checkoutServiceKey = membershipCheckoutContext?.serviceKey || (activeTrackType === "university_course" ? "course_learning" : activeTrackType === "programming" ? "programming" : "exam_11408");
+    const checkoutServiceKey = membershipCheckoutContext?.serviceKey || getMembershipServiceKey(activeTrackType);
+    const checkoutContext = membershipCheckoutContext || membershipPageContext || {};
+    const checkoutReturnPage = checkoutContext.returnPage || getMembershipReturnPage(checkoutServiceKey);
+    const refreshUserAfterCheckout = async (action) => {
+      try {
+        const refreshedUser = await fetchCurrentUser();
+        saveLoginUser(refreshedUser);
+      } catch (error) {
+        console.error("Failed to refresh membership after checkout:", error);
+      }
+      if (action === "membership") {
+        setPage("membership", checkoutContext);
+      } else {
+        setPage(checkoutReturnPage);
+      }
+    };
     return wrapPage(
       <CheckoutPage
         apiBase={API_BASE}
         serviceKey={checkoutServiceKey}
-        planCode={membershipCheckoutContext?.planCode || ""}
-        onBack={() => setPage("membership")}
-        onComplete={() => setPage(membershipCheckoutContext?.returnPage || "membership")}
-      />
+        planCode={checkoutContext.targetPlan || checkoutContext.planCode || ""}
+        orderId={checkoutContext.orderId || checkoutContext.order_id || null}
+        currentPlan={checkoutContext.currentPlan || checkoutContext.current_plan || "free"}
+        directionLabel={getMembershipDirectionLabel(checkoutServiceKey)}
+        onBack={() => setPage("membership", checkoutContext)}
+        onComplete={() => refreshUserAfterCheckout("membership")}
+        onReturnHome={() => refreshUserAfterCheckout("learning")}
+      />,
+      { serviceKey: checkoutServiceKey },
     );
   }
 

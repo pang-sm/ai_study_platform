@@ -309,7 +309,14 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
           <div className="ph-member-card">
             <strong>会员权益</strong>
             <p>开通会员解锁更多功能</p>
-            <button type="button" onClick={() => setPage?.("programmingPackageStep")}>了解会员</button>
+            <button
+              type="button"
+              onClick={() => setPage?.("membership", {
+                serviceKey: "programming",
+                profilePage: "programmingProfile",
+                returnPage: "programmingHome",
+              })}
+            >了解会员</button>
           </div>
         ) : (
           <div className="ph-member-card ph-member-card--active">

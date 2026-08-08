@@ -18,8 +18,14 @@ export default function Figure2Sidebar({
   collapsed,
   onToggle,
   onLogout,
+  serviceKey = "exam_11408",
 }) {
   const isActive = (key) => activePage === key;
+  const directionLabel = serviceKey === "course_learning"
+    ? "课程学习"
+    : serviceKey === "programming"
+      ? "编程学习"
+      : "11408 考研";
 
   const renderNavItem = (item) => (
     <button
@@ -59,7 +65,7 @@ export default function Figure2Sidebar({
         </button>
         {!collapsed && (
           <div className="fig2-brand-copy">
-            <strong>11408 学习系统</strong>
+             <strong>{directionLabel}</strong>
             <span>AI Study Platform</span>
           </div>
         )}

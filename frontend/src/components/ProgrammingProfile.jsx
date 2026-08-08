@@ -391,7 +391,15 @@ export default function ProgrammingProfile({ user, apiBase = "/api", setPage, on
               </ul>
             </div>
             <div className="ep-package-action">
-              <button type="button" className="ep-outline-btn" onClick={() => setPage?.("programmingPackageStep")}>查看套餐详情</button>
+              <button
+                type="button"
+                className="ep-outline-btn"
+                onClick={() => setPage?.("membership", {
+                  serviceKey: "programming",
+                  profilePage: "programmingProfile",
+                  returnPage: "programmingHome",
+                })}
+              >查看套餐详情</button>
             </div>
           </div>
         </div>

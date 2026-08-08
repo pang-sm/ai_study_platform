@@ -7,6 +7,7 @@ export default function AppLayout({
   isAdmin,
   showMembershipAd = true,
   onLogout,
+  serviceKey,
   children,
 }) {
   const { collapsed, toggle } = useFigure2SidebarCollapsed();
@@ -21,6 +22,7 @@ export default function AppLayout({
         collapsed={collapsed}
         onToggle={toggle}
         onLogout={onLogout}
+        serviceKey={serviceKey}
       />
       <main className="al-main">
         {children}
