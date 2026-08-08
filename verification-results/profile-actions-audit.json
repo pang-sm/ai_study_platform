@@ -163,5 +163,9 @@
     "database_changes": false,
     "backend_changes_expected": false
   },
-  "status": "AUDIT_COMPLETE_BEFORE_PATCH"
+  "patch_commit": "836ae2b",
+  "production_deploy_run": "31243485053",
+  "production_report": "verification-results/profile-actions-production/profile-actions-final-summary.json",
+  "status": "PATCH_APPLIED_PRODUCTION_RETEST_PENDING",
+  "final_gate": "PROFILE_ACTIONS_CLEANUP_NOT_VERIFIED"
 }

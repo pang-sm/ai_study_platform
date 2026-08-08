@@ -1,0 +1,83 @@
+{
+  "audit": "profile-actions-production-acceptance",
+  "base_url": "http://101.32.190.42/",
+  "auth_state_supplied": true,
+  "records": {
+    "authenticated": {
+      "status": 200,
+      "has_user": true
+    },
+    "profile_load": {
+      "passed": true,
+      "forbidden_controls": []
+    },
+    "profile_save": {
+      "passed": true
+    },
+    "profile_persistence": {
+      "passed": true,
+      "api_status": 200,
+      "ui_visible": false
+    },
+    "profile_restored": {
+      "passed": true,
+      "api_status": 200,
+      "ui_visible": false
+    },
+    "membership_quota": {
+      "passed": true,
+      "api_status": 200,
+      "has_plan": true
+    },
+    "direction_switch": {
+      "programming_to_course": {
+        "passed": true
+      },
+      "course_to_exam": {
+        "passed": true
+      },
+      "exam_to_programming": {
+        "passed": true
+      }
+    },
+    "logout": {
+      "passed": true,
+      "logout_status": 200,
+      "me_after_logout": 401,
+      "reload_login_form_visible": true
+    }
+  },
+  "console_errors": [
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    }
+  ],
+  "failed_business_network": [
+    {
+      "status": 401,
+      "url": "http://101.32.190.42/api/programming/entitlements?username=<redacted>"
+    },
+    {
+      "status": 401,
+      "url": "http://101.32.190.42/api/me"
+    },
+    {
+      "status": 401,
+      "url": "http://101.32.190.42/api/me"
+    }
+  ],
+  "password_change": {
+    "status": "not_executed",
+    "reason": "No test password was available; no password was guessed or logged."
+  },
+  "status": "failed"
+}

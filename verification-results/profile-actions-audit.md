@@ -49,3 +49,17 @@ The legacy `page=profile` entry is redirected by `App.jsx` to the active directi
 - Remove the generic self-service account deletion control.
 - Leave existing backend compatibility APIs and historical data untouched.
 - Regress real profile save, logout, password, direction, membership/quota and main entry points in production.
+
+## Patch and production evidence
+
+- Patch commit: `836ae2b`
+- Deployment Actions run: `31243485053` (successful)
+- `/api/health`: `200`, `{"status":"ok"}`
+- Raw browser report: `verification-results/profile-actions-production/profile-actions-acceptance.json`
+- Final summary: `verification-results/profile-actions-production/profile-actions-final-summary.md`
+
+The last real browser run passed Profile load, fake-action removal, profile-save persistence at the API, membership/quota, all three direction switches, logout, `/api/me=401` after logout, and reload-to-login. Its raw report counted the expected post-logout 401s as failures, so the acceptance script was corrected to exclude only those expected responses and to wait for the initial `/api/me` response before checking the refreshed Profile UI.
+
+The corrected script has not yet been rerun because the final logout intentionally revoked the saved test session. Final gate remains:
+
+`PROFILE_ACTIONS_CLEANUP_NOT_VERIFIED`
