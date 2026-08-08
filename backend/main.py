@@ -27453,6 +27453,7 @@ def admin_usage_summary(admin_username: str = "", db: Session = Depends(get_db))
     require_admin_permission(db, admin_username, "dashboard.view")
     from sqlalchemy import func as sqlfunc
 
+    registered_user_scope = db.query(models.User).filter(models.User.is_deleted == 0)
     today_start = utc_now().replace(hour=0, minute=0, second=0, microsecond=0)
     week_ago = today_start - timedelta(days=7)
 
