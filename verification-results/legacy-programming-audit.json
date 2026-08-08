@@ -2,7 +2,8 @@
   "audit": "legacy-programming-static-and-production-audit",
   "generated_at": "2026-08-08",
   "baseline_commit": "7fe140f",
-  "cleanup_commit": "be37cce",
+  "cleanup_commit": "4491967",
+  "final_report_commit": "8cb73db",
   "baseline_status": "PRODUCTION_UI_VERIFIED",
   "final_status": "LEGACY_PROGRAMMING_CLEANUP_VERIFIED",
   "production_url": "http://101.32.190.42/",
@@ -101,9 +102,9 @@
     "python_compile": "passed",
     "pytest": "14 passed",
     "actions_run": {
-      "id": 31241549720,
+      "id": 31242211662,
       "status": "success",
-      "url": "https://github.com/pang-sm/ai_study_platform/actions/runs/31241549720"
+      "url": "https://github.com/pang-sm/ai_study_platform/actions/runs/31242211662"
     },
     "production_health": {
       "url": "http://101.32.190.42/api/health",
@@ -126,6 +127,11 @@
       "verification-results/p2-legacy-audit/screenshots/navigation-cpp-workbench.png",
       "verification-results/p2-legacy-audit/screenshots/navigation-java-workbench.png"
     ]
+  },
+  "report_actions_run": {
+    "id": 31242398452,
+    "status": "success",
+    "url": "https://github.com/pang-sm/ai_study_platform/actions/runs/31242398452"
   },
   "security_follow_up": "HTTPS_REQUIRED_BEFORE_PRODUCTION_SECURITY_FREEZE"
 }

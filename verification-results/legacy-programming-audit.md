@@ -1,7 +1,8 @@
 # Legacy programming cleanup audit
 
 - Baseline commit: `7fe140f`
-- Cleanup commit: `be37cce`
+- Cleanup commit: `4491967`
+- Final report commit: `8cb73db`
 - Baseline production status: `PRODUCTION_UI_VERIFIED`
 - Final cleanup status: `LEGACY_PROGRAMMING_CLEANUP_VERIFIED`
 - Production URL: `http://101.32.190.42/`
@@ -63,7 +64,8 @@ Evidence:
 - Python compile: passed
 - Backend tests: `14 passed`
 - Production health: `GET http://101.32.190.42/api/health` -> `200`, `{"status":"ok"}`
-- Actions: [31241549720](https://github.com/pang-sm/ai_study_platform/actions/runs/31241549720) -> success
+- Business deployment: [31242211662](https://github.com/pang-sm/ai_study_platform/actions/runs/31242211662) -> success
+- Final report deployment run: [31242398452](https://github.com/pang-sm/ai_study_platform/actions/runs/31242398452) -> success
 
 ## Navigation regression after the home-button patch
 
