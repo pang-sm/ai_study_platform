@@ -1,0 +1,78 @@
+{
+  "audit": "p2-programming-navigation",
+  "base_url": "http://101.32.190.42/",
+  "auth_state_supplied": true,
+  "targets": [
+    {
+      "language": "Python",
+      "exerciseId": 1629
+    },
+    {
+      "language": "C++",
+      "exerciseId": 1734
+    },
+    {
+      "language": "Java",
+      "exerciseId": 1546
+    }
+  ],
+  "records": {
+    "Python": {
+      "language": "Python",
+      "exercise_id": 1629,
+      "steps": {
+        "open_from_library": {
+          "passed": true,
+          "page": 1,
+          "card_index": 5
+        },
+        "refresh_restored_workbench": {
+          "passed": true
+        },
+        "back_to_programming_home": {
+          "passed": true,
+          "legacy_code_studio_count": 0
+        }
+      }
+    },
+    "C++": {
+      "language": "C++",
+      "exercise_id": 1734,
+      "steps": {
+        "open_from_library": {
+          "passed": true,
+          "page": 2,
+          "card_index": 11
+        },
+        "refresh_restored_workbench": {
+          "passed": true
+        },
+        "back_to_programming_home": {
+          "passed": true,
+          "legacy_code_studio_count": 0
+        }
+      }
+    },
+    "Java": {
+      "language": "Java",
+      "exercise_id": 1546,
+      "steps": {
+        "open_from_library": {
+          "passed": true,
+          "page": 1,
+          "card_index": 6
+        },
+        "refresh_restored_workbench": {
+          "passed": true
+        },
+        "back_to_programming_home": {
+          "passed": true,
+          "legacy_code_studio_count": 0
+        }
+      }
+    }
+  },
+  "console_errors": [],
+  "failed_network": [],
+  "status": "passed"
+}

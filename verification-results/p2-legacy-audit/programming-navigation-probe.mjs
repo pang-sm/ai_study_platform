@@ -78,7 +78,12 @@ try {
     await page.locator(".ph-nav button").nth(3).click();
     await page.locator(".ph-exercise-panel").waitFor({ state: "visible", timeout: 30000 });
     const languageButton = page.locator(".ph-exercise-filters:not(.ph-exercise-status-filters) button").filter({ hasText: target.language }).first();
-    await waitForLibrary(page, target.language, 1, () => languageButton.click());
+    const activeLanguage = await page.locator(".ph-exercise-filters:not(.ph-exercise-status-filters) button.is-active").first().innerText().catch(() => "");
+    if (activeLanguage.trim() !== target.language) {
+      await waitForLibrary(page, target.language, 1, () => languageButton.click());
+    } else {
+      await page.locator(".ph-exercise-card").first().waitFor({ state: "visible", timeout: 30000 });
+    }
     await page.locator(".ph-exercise-filters:not(.ph-exercise-status-filters) button.is-active").filter({ hasText: target.language }).waitFor({ state: "visible", timeout: 12000 });
     await page.locator(".ph-exercise-status-filters select").nth(2).selectOption("48");
     await page.locator(".ph-exercise-card").first().waitFor({ state: "visible", timeout: 30000 });

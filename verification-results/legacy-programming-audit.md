@@ -65,6 +65,21 @@ Evidence:
 - Production health: `GET http://101.32.190.42/api/health` -> `200`, `{"status":"ok"}`
 - Actions: [31241549720](https://github.com/pang-sm/ai_study_platform/actions/runs/31241549720) -> success
 
+## Navigation regression after the home-button patch
+
+The production navigation probe verified the complete user-facing path for the three baseline exercises:
+
+| Language | Exercise | Library page | Open | Refresh restores | Back to Programming Home | Legacy shell |
+|---|---:|---:|---|---|---|---:|
+| Python | `1629` | 1 | PASS | PASS | PASS | 0 |
+| C++ | `1734` | 2 | PASS | PASS | PASS | 0 |
+| Java | `1546` | 1 | PASS | PASS | PASS | 0 |
+
+The Workbench now renders the existing `onGoHome` callback as a small top-bar button. No new API or database behavior was introduced. The navigation probe recorded zero console errors and zero failed business API responses.
+
+- Navigation report: `verification-results/p2-legacy-audit/programming-navigation.json`
+- Navigation screenshots: `verification-results/p2-legacy-audit/screenshots/navigation-*-workbench.png`
+
 ## Final classification
 
 - Remove/replace user-visible legacy entry references: completed.
