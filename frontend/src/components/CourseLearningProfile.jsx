@@ -33,6 +33,10 @@ export default function CourseLearningProfile({ user, setPage, onLogout, API_BAS
   const [courseEntitlements, setCourseEntitlements] = useState(null);
   const avatarInputRef = useRef(null);
 
+  useEffect(() => {
+    if (!editing) setNickname(user?.nickname || "");
+  }, [user?.nickname, editing]);
+
   const servicePlan = servicePlans?.course_learning?.plan || user?.service_plans?.course_learning?.plan || "free";
   const pkgType = courseEntitlements?.plan || servicePlan || courseTrack?.package_type || "free";
   const permissions = courseEntitlements?.permissions || courseTrack?.permissions || {};

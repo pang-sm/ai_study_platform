@@ -43,6 +43,10 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
   const [schoolFocused, setSchoolFocused] = useState(false);
   const schoolRef = useRef(null);
 
+  useEffect(() => {
+    if (!editing) setNickname(user?.nickname || "");
+  }, [user?.nickname, editing]);
+
   const pkgType = examTrack?.package_type || "free";
   const permissions = examTrack?.permissions || {};
   const onboardingDetail = (() => {

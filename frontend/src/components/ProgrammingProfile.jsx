@@ -41,6 +41,10 @@ export default function ProgrammingProfile({ user, apiBase = "/api", setPage, on
   const [actionErr, setActionErr] = useState("");
   const avatarInputRef = useRef(null);
 
+  useEffect(() => {
+    if (!editing) setNickname(user?.nickname || "");
+  }, [user?.nickname, editing]);
+
   const fetchProgrammingProfileData = async () => {
     if (!user?.username) return;
     try {
