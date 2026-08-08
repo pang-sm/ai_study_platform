@@ -52,14 +52,15 @@ The legacy `page=profile` entry is redirected by `App.jsx` to the active directi
 
 ## Patch and production evidence
 
-- Patch commit: `836ae2b`
-- Deployment Actions run: `31243485053` (successful)
+- Fake-action patch commit: `836ae2b`
+- Nickname refresh fix commit: `0ed3100`
+- Latest deployment Actions run: `31254372766` (successful)
 - `/api/health`: `200`, `{"status":"ok"}`
 - Raw browser report: `verification-results/profile-actions-production/profile-actions-acceptance.json`
 - Final summary: `verification-results/profile-actions-production/profile-actions-final-summary.md`
 
-The last real browser run passed Profile load, fake-action removal, profile-save persistence at the API, membership/quota, all three direction switches, logout, `/api/me=401` after logout, and reload-to-login. Its raw report counted the expected post-logout 401s as failures, so the acceptance script was corrected to exclude only those expected responses and to wait for the initial `/api/me` response before checking the refreshed Profile UI.
+The last real browser run passed Profile load, fake-action removal, profile-save persistence at the API, membership/quota, all three direction switches, logout, `/api/me=401` after logout, and reload-to-login. It also exposed a real UI bug: after refresh the API returned the temporary nickname but the direction Profile UI still showed the old nickname. The three direction Profile components now synchronize local nickname state from the refreshed App user while not editing.
 
-The corrected script has not yet been rerun because the final logout intentionally revoked the saved test session. Final gate remains:
+The business fix is deployed and `/api/health=200`, but the post-deployment auth probe now returns `AUTH_STATE_EXPIRED` because the final logout revoked the saved test session. A fresh manual login is required before the final browser rerun. Final gate remains:
 
 `PROFILE_ACTIONS_CLEANUP_NOT_VERIFIED`

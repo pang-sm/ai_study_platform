@@ -1,8 +1,10 @@
 # Profile actions production acceptance summary
 
 - Target: `http://101.32.190.42/`
-- Business patch: `836ae2b` (`fix: remove fake profile actions`)
-- Production deploy for that patch: successful Actions run `31243485053`
+- Fake-action patch: `836ae2b` (`fix: remove fake profile actions`)
+- Nickname UI fix: `0ed3100` (`fix: sync profile nickname after user refresh`)
+- Production deploy for the UI fix: successful Actions run `31254372766`
+- `/api/health`: `200`, `{"status":"ok"}`
 - Raw browser evidence: `profile-actions-acceptance.json`
 
 ## Last real browser run
@@ -23,11 +25,13 @@
 
 The 401 responses after logout are expected evidence of session revocation. The first version of the acceptance script incorrectly counted them as failures; the script now excludes only these expected post-logout responses.
 
+The run also found a real UI synchronization bug: after refresh, `/api/me` returned the temporary nickname but the Profile UI still displayed the old nickname. This was fixed in the three direction Profile components and deployed in `0ed3100`.
+
 ## Script correction pending rerun
 
 `scripts/acceptance/profile_actions_acceptance.mjs` now waits for the initial `/api/me` response after reload before checking the Profile UI, uses the refreshed API user for persistence, and records direction destination completion without depending on a response-listener race.
 
-The complete run intentionally ended with logout, so the saved test session is revoked. A fresh manual login is required before rerunning the corrected script. The raw report is preserved and is not overwritten.
+The complete run intentionally ended with logout, so the saved test session is now expired. Post-deployment `--auth-check-only` returned `AUTH_STATE_EXPIRED` / 401. A fresh manual login is required before rerunning the corrected script. The raw report is preserved.
 
 ## Evidence
 

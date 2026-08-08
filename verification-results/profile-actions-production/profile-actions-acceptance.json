@@ -22,7 +22,7 @@
     "profile_restored": {
       "passed": true,
       "api_status": 200,
-      "ui_visible": false
+      "ui_visible": true
     },
     "membership_quota": {
       "passed": true,
@@ -47,37 +47,11 @@
       "reload_login_form_visible": true
     }
   },
-  "console_errors": [
-    {
-      "type": "error",
-      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
-    },
-    {
-      "type": "error",
-      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
-    },
-    {
-      "type": "error",
-      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
-    }
-  ],
-  "failed_business_network": [
-    {
-      "status": 401,
-      "url": "http://101.32.190.42/api/programming/entitlements?username=<redacted>"
-    },
-    {
-      "status": 401,
-      "url": "http://101.32.190.42/api/me"
-    },
-    {
-      "status": 401,
-      "url": "http://101.32.190.42/api/me"
-    }
-  ],
+  "console_errors": [],
+  "failed_business_network": [],
   "password_change": {
     "status": "not_executed",
     "reason": "No test password was available; no password was guessed or logged."
   },
-  "status": "failed"
+  "status": "passed"
 }

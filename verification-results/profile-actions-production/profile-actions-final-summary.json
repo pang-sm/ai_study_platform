@@ -2,7 +2,8 @@
   "audit": "profile-actions-production-final-summary",
   "base_url": "http://101.32.190.42/",
   "raw_report": "verification-results/profile-actions-production/profile-actions-acceptance.json",
-  "business_code_commit": "836ae2b",
+  "business_code_commit": "0ed3100",
+  "previous_profile_cleanup_commit": "836ae2b",
   "records_from_last_real_browser_run": {
     "profile_load": "passed",
     "fake_profile_controls_removed": "passed",
@@ -21,8 +22,19 @@
     "reason": "The final logout intentionally revoked the test session; subsequent private API requests returned 401.",
     "not_a_business_failure": true
   },
+  "profile_ui_bug": {
+    "status": "found_and_fixed",
+    "symptom": "After refresh, /api/me returned the temporary nickname but the direction Profile UI still displayed the old nickname.",
+    "root_cause": "Direction Profile components initialized local nickname state once and did not synchronize it when App refreshed the user object asynchronously.",
+    "fix": "Synchronize nickname from user.nickname while the Profile is not in edit mode.",
+    "files": [
+      "frontend/src/components/ProgrammingProfile.jsx",
+      "frontend/src/components/CourseLearningProfile.jsx",
+      "frontend/src/components/ExamProfile.jsx"
+    ]
+  },
   "acceptance_script_fix": {
-    "status": "implemented_not_rerun",
+    "status": "implemented_and_rerun_before_business_fix",
     "file": "scripts/acceptance/profile_actions_acceptance.mjs",
     "changes": [
       "wait for the initial /api/me response after reload before checking Profile",
@@ -31,8 +43,14 @@
       "allow direction destination-page completion when response observation races the navigation"
     ]
   },
+  "deployment": {
+    "actions_run": "31254372766",
+    "conclusion": "success",
+    "health_status": 200,
+    "health_body": "{\"status\":\"ok\"}"
+  },
   "auth_state": {
-    "status": "revoked_by_final_logout",
+    "status": "expired_after_final_logout",
     "requires_manual_login_for_rerun": true,
     "state_file_not_committed": true
   },
@@ -43,5 +61,5 @@
     "verification-results/profile-actions-production/screenshots/failure.png"
   ],
   "status": "PROFILE_ACTIONS_CLEANUP_NOT_VERIFIED",
-  "blocker": "A fresh authenticated rerun is required after the acceptance-script fix; the previous full run ended by design with session revocation."
+  "blocker": "A fresh authenticated rerun is required after business fix 0ed3100; --auth-check-only currently returns AUTH_STATE_EXPIRED (401)."
 }
