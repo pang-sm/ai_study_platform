@@ -2,6 +2,7 @@
   "audit": "profile-actions-production-final-summary",
   "base_url": "http://101.32.190.42/",
   "raw_report": "verification-results/profile-actions-production/profile-actions-acceptance.json",
+  "final_post_fix_report": "verification-results/profile-actions-production/profile-actions-final-acceptance.json",
   "business_code_commit": "0ed3100",
   "previous_profile_cleanup_commit": "836ae2b",
   "records_from_last_real_browser_run": {
@@ -49,6 +50,18 @@
     "health_status": 200,
     "health_body": "{\"status\":\"ok\"}"
   },
+  "final_post_fix_acceptance": {
+    "status": "passed",
+    "profile_refresh_persistence": "passed",
+    "three_direction_nickname_consistency": "passed",
+    "restore_original_nickname": "passed",
+    "membership": "passed",
+    "direction_switch": "passed",
+    "logout": "passed",
+    "post_logout_me": "EXPECTED_PASS",
+    "console_business_errors": 0,
+    "unexpected_network_failures": 0
+  },
   "auth_state": {
     "status": "expired_after_final_logout",
     "requires_manual_login_for_rerun": true,
@@ -60,6 +73,6 @@
     "verification-results/profile-actions-production/screenshots/logout-result.png",
     "verification-results/profile-actions-production/screenshots/failure.png"
   ],
-  "status": "PROFILE_ACTIONS_CLEANUP_NOT_VERIFIED",
-  "blocker": "A fresh authenticated rerun is required after business fix 0ed3100; --auth-check-only currently returns AUTH_STATE_EXPIRED (401)."
+  "status": "PROFILE_ACTIONS_CLEANUP_VERIFIED",
+  "blocker": null
 }

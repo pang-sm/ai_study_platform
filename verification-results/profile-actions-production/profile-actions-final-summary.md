@@ -27,11 +27,11 @@ The 401 responses after logout are expected evidence of session revocation. The 
 
 The run also found a real UI synchronization bug: after refresh, `/api/me` returned the temporary nickname but the Profile UI still displayed the old nickname. This was fixed in the three direction Profile components and deployed in `0ed3100`.
 
-## Script correction pending rerun
+## Acceptance script
 
 `scripts/acceptance/profile_actions_acceptance.mjs` now waits for the initial `/api/me` response after reload before checking the Profile UI, uses the refreshed API user for persistence, and records direction destination completion without depending on a response-listener race.
 
-The complete run intentionally ended with logout, so the saved test session is now expired. Post-deployment `--auth-check-only` returned `AUTH_STATE_EXPIRED` / 401. A fresh manual login is required before rerunning the corrected script. The raw report is preserved.
+The final run completed with logout, so the saved test session is now intentionally expired. The raw report is preserved.
 
 ## Evidence
 
@@ -40,8 +40,26 @@ The complete run intentionally ended with logout, so the saved test session is n
 - [direction-switch-programming.png](C:/Users/26477/Desktop/ai_study_platform/verification-results/profile-actions-production/screenshots/direction-switch-programming.png)
 - [logout-result.png](C:/Users/26477/Desktop/ai_study_platform/verification-results/profile-actions-production/screenshots/logout-result.png)
 
+## Final post-fix acceptance
+
+The final authenticated browser run is recorded in `profile-actions-final-acceptance.json`.
+
+| Check | Result |
+|---|---|
+| Profile save | PASS |
+| Refresh persistence: API and UI | PASS |
+| Course Profile nickname consistency | PASS |
+| 11408 Profile nickname consistency | PASS |
+| Programming Profile nickname consistency | PASS |
+| Restore original nickname | PASS |
+| Restore check across all three Profiles | PASS |
+| Membership / quota | PASS |
+| Direction switch | PASS |
+| Logout | PASS |
+| Post-logout `/api/me=401` | EXPECTED_PASS |
+| Console business errors | 0 |
+| Unexpected Network failures | 0 |
+
 ## Status
 
-`PROFILE_ACTIONS_CLEANUP_NOT_VERIFIED`
-
-Reason: the corrected script has not yet been rerun with a newly authenticated session after the prior run revoked the test session.
+`PROFILE_ACTIONS_CLEANUP_VERIFIED`

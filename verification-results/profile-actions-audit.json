@@ -167,6 +167,7 @@
   "previous_profile_cleanup_commit": "836ae2b",
   "production_deploy_run": "31254372766",
   "production_report": "verification-results/profile-actions-production/profile-actions-final-summary.json",
-  "status": "BUSINESS_FIX_DEPLOYED_PRODUCTION_RETEST_PENDING",
-  "final_gate": "PROFILE_ACTIONS_CLEANUP_NOT_VERIFIED"
+  "status": "PRODUCTION_FINAL_ACCEPTANCE_PASSED",
+  "final_gate": "PROFILE_ACTIONS_CLEANUP_VERIFIED",
+  "final_post_fix_report": "verification-results/profile-actions-production/profile-actions-final-acceptance.json"
 }

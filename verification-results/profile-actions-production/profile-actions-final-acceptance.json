@@ -1,0 +1,108 @@
+{
+  "audit": "profile-actions-final-production-acceptance",
+  "base_url": "http://101.32.190.42/",
+  "auth_state_supplied": true,
+  "records": {
+    "auth": {
+      "passed": true,
+      "status": 200
+    },
+    "profile_load": {
+      "passed": true,
+      "forbidden_controls": []
+    },
+    "profile_save": {
+      "api_status": 200,
+      "passed": true
+    },
+    "refresh_persistence": {
+      "passed": true,
+      "api_status": 200,
+      "api_matches": true,
+      "ui_matches": true
+    },
+    "membership": {
+      "passed": true,
+      "status": 200,
+      "has_plan": true
+    },
+    "course_profile_nickname": {
+      "passed": true,
+      "api_status": 200,
+      "api_matches": true,
+      "ui_matches": true
+    },
+    "exam_profile_nickname": {
+      "passed": true,
+      "api_status": 200,
+      "api_matches": true,
+      "ui_matches": true
+    },
+    "programming_profile_nickname": {
+      "passed": true,
+      "api_status": 200,
+      "api_matches": true,
+      "ui_matches": true
+    },
+    "direction_nickname_consistency": {
+      "passed": true,
+      "details": {
+        "course_profile": true,
+        "exam_profile": true,
+        "programming_profile": true
+      }
+    },
+    "restore_original": {
+      "passed": true,
+      "save_status": 200,
+      "api_status": 200,
+      "api_matches": true,
+      "ui_matches": true
+    },
+    "restored_course_profile": {
+      "passed": true,
+      "api_status": 200,
+      "api_matches": true,
+      "ui_matches": true
+    },
+    "restored_exam_profile": {
+      "passed": true,
+      "api_status": 200,
+      "api_matches": true,
+      "ui_matches": true
+    },
+    "restored_programming_profile": {
+      "passed": true,
+      "api_status": 200,
+      "api_matches": true,
+      "ui_matches": true
+    },
+    "restored_direction_consistency": {
+      "passed": true
+    },
+    "logout": {
+      "passed": true,
+      "status": 200
+    },
+    "post_logout_me": {
+      "status": 401,
+      "classification": "EXPECTED_PASS"
+    },
+    "reload_login": {
+      "passed": true
+    }
+  },
+  "console_business_errors": [],
+  "unexpected_network_failures": [],
+  "expected_post_logout_401": [
+    {
+      "status": 401,
+      "url": "http://101.32.190.42/api/me"
+    },
+    {
+      "status": 401,
+      "url": "http://101.32.190.42/api/me"
+    }
+  ],
+  "status": "passed"
+}
