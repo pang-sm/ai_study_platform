@@ -26352,10 +26352,12 @@ def admin_dashboard(admin_username: str = "", db: Session = Depends(get_db)):
 
     today_start = utc_now().replace(hour=0, minute=0, second=0, microsecond=0)
 
-    total_users = db.query(models.User).count()
+    registered_user_scope = db.query(models.User).filter(models.User.is_deleted == 0)
+    active_user_scope = registered_user_scope.filter(models.User.is_active != 0)
+    total_users = registered_user_scope.count()
     plan_counts = {}
     for p in ("free", "pro", "admin"):
-        plan_counts[p] = db.query(models.User).filter(models.User.plan == p).count()
+        plan_counts[p] = registered_user_scope.filter(models.User.plan == p).count()
 
     total_materials = (
         db.query(models.StudyMaterial)
@@ -26412,7 +26414,7 @@ def admin_dashboard(admin_username: str = "", db: Session = Depends(get_db)):
 
     # Recent users
     recent_users = (
-        db.query(models.User)
+        registered_user_scope
         .order_by(models.User.created_at.desc())
         .limit(10)
         .all()
@@ -26442,12 +26444,14 @@ def admin_dashboard(admin_username: str = "", db: Session = Depends(get_db)):
 
     active_users_today = (
         db.query(func.count(func.distinct(models.AiUsageLog.username)))
+        .join(models.User, models.User.username == models.AiUsageLog.username)
         .filter(models.AiUsageLog.created_at >= today_start)
+        .filter(models.User.is_deleted == 0, models.User.is_active != 0)
         .scalar()
         or 0
     )
     average_daily_minutes = (
-        db.query(func.coalesce(func.avg(models.User.daily_study_minutes), 0)).scalar()
+        active_user_scope.with_entities(func.coalesce(func.avg(models.User.daily_study_minutes), 0)).scalar()
         or 0
     )
     user_growth = []
@@ -26455,7 +26459,7 @@ def admin_dashboard(admin_username: str = "", db: Session = Depends(get_db)):
         day_start = today_start - timedelta(days=offset)
         next_day = day_start + timedelta(days=1)
         count = (
-            db.query(models.User)
+            registered_user_scope
             .filter(models.User.created_at >= day_start, models.User.created_at < next_day)
             .count()
         )
@@ -26501,8 +26505,6 @@ def admin_dashboard(admin_username: str = "", db: Session = Depends(get_db)):
             "total_courses": total_courses,
             "average_learning_hours": round(float(average_daily_minutes) / 60, 1),
             "active_users_today": active_users_today,
-            "total_orders": 0,
-            "total_revenue": 0,
         },
         "user_growth": user_growth,
         "announcements": announcements,
@@ -26518,9 +26520,11 @@ def admin_operations_dashboard(admin_username: str, db: Session = Depends(get_db
     week_ago = today - timedelta(days=7)
 
     # Overview
-    total_users = db.query(models.User).count()
-    active_users = db.query(models.User).filter(models.User.is_active != 0).count()
-    today_new = db.query(models.User).filter(models.User.created_at >= today).count()
+    registered_user_scope = db.query(models.User).filter(models.User.is_deleted == 0)
+    active_user_scope = registered_user_scope.filter(models.User.is_active != 0)
+    total_users = registered_user_scope.count()
+    active_users = active_user_scope.count()
+    today_new = registered_user_scope.filter(models.User.created_at >= today).count()
     total_materials = db.query(models.StudyMaterial).filter(models.StudyMaterial.is_deleted.is_(False)).count()
     total_ai = db.query(models.AiUsageLog).filter(models.AiUsageLog.status == "success").count()
     today_ai = db.query(models.AiUsageLog).filter(models.AiUsageLog.status == "success", models.AiUsageLog.created_at >= today).count()
@@ -26538,7 +26542,7 @@ def admin_operations_dashboard(admin_username: str, db: Session = Depends(get_db
             results.append({"date": d.strftime("%m-%d"), "count": q.scalar() or 0})
         return results
 
-    users_7d = _daily_count(models.User, models.User.created_at, today)
+    users_7d = _daily_count(models.User, models.User.created_at, today, models.User.is_deleted == 0)
     materials_7d = _daily_count(models.StudyMaterial, models.StudyMaterial.created_at, today, models.StudyMaterial.is_deleted.is_(False))
     ai_7d_data = []
     for i in range(6, -1, -1):
@@ -26549,7 +26553,13 @@ def admin_operations_dashboard(admin_username: str, db: Session = Depends(get_db
     # Rankings (Top 5)
     # AiUsageLog has no course_id field; course-level AI ranking not available
     top_courses_ai = []
-    top_users_ai = db.query(models.AiUsageLog.username, sqlfunc.count(models.AiUsageLog.id)).filter(models.AiUsageLog.status == "success").group_by(models.AiUsageLog.username).order_by(sqlfunc.count(models.AiUsageLog.id).desc()).limit(5).all()
+    top_users_ai = db.query(models.AiUsageLog.username, sqlfunc.count(models.AiUsageLog.id)).join(
+        models.User, models.User.username == models.AiUsageLog.username
+    ).filter(
+        models.AiUsageLog.status == "success",
+        models.User.is_deleted == 0,
+        models.User.is_active != 0,
+    ).group_by(models.AiUsageLog.username).order_by(sqlfunc.count(models.AiUsageLog.id).desc()).limit(5).all()
     top_courses_mat = db.query(models.StudyMaterial.subject, sqlfunc.count(models.StudyMaterial.id)).filter(models.StudyMaterial.is_deleted.is_(False), models.StudyMaterial.subject.isnot(None), models.StudyMaterial.subject != "").group_by(models.StudyMaterial.subject).order_by(sqlfunc.count(models.StudyMaterial.id).desc()).limit(5).all()
 
     # Risks
@@ -27510,7 +27520,7 @@ def admin_usage_summary(admin_username: str = "", db: Session = Depends(get_db))
         "cost_estimate": {"total_tokens": total_tokens_all, "today_tokens": today_tokens,
                           "estimated_cost_cny": total_cost, "pricing_note": "按估算单价计算，仅供参考", "by_model": model_cost},
         "alerts": alerts,
-        "plan_counts": {p: db.query(models.User).filter(models.User.plan == p).count() for p in ["free", "pro", "admin"]},
+        "plan_counts": {p: registered_user_scope.filter(models.User.plan == p).count() for p in ["free", "pro", "admin"]},
         "recent_logs": [{"username": log.username, "feature": log.feature, "model": log.model, "estimated_tokens": log.estimated_tokens, "status": log.status, "error_message": log.error_message, "created_at": serialize_datetime(log.created_at)} for log in recent_logs],
     }
 

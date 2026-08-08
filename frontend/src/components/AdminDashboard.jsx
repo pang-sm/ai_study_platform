@@ -215,12 +215,10 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
 
   const overview = dashboard?.overview || {};
   const statCards = useMemo(() => ([
-    { label: "用户总数", value: formatNumber(overview.total_users), sub: "较昨日 ↑ 12.5%", icon: "U", tone: "purple" },
-    { label: "课程总数", value: formatNumber(overview.total_courses), sub: "较昨日 ↑ 8.3%", icon: "C", tone: "blue" },
-    { label: "平均学习时长", value: `${formatNumber(overview.average_learning_hours, 1)} 小时`, sub: "较昨日 ↑ 15.7%", icon: "H", tone: "green" },
-    { label: "今日活跃用户", value: formatNumber(overview.active_users_today), sub: "较昨日 ↑ 9.4%", icon: "A", tone: "orange" },
-    { label: "订单总数", value: formatNumber(overview.total_orders), sub: "较昨日 ↑ 4.6%", icon: "O", tone: "violet" },
-    { label: "总营收（元）", value: `¥ ${formatNumber(overview.total_revenue)}`, sub: "较昨日 ↑ 11.3%", icon: "¥", tone: "pink" },
+    { label: "用户总数", value: formatNumber(overview.total_users), sub: "当前数据库统计", icon: "U", tone: "purple" },
+    { label: "课程总数", value: formatNumber(overview.total_courses), sub: "资料与知识点关联课程", icon: "C", tone: "blue" },
+    { label: "平均学习时长", value: `${formatNumber(overview.average_learning_hours, 1)} 小时`, sub: "按用户学习时长计算", icon: "H", tone: "green" },
+    { label: "今日活跃用户", value: formatNumber(overview.active_users_today), sub: "今日 AI 活动用户数", icon: "A", tone: "orange" },
   ]), [overview]);
 
   const memberRows = (membersData?.items || []).filter((item) => item.plan && item.plan !== "free");

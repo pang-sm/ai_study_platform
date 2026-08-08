@@ -1,0 +1,105 @@
+{
+  "status": "ADMIN_DASHBOARD_DATA_CLEANUP_NOT_VERIFIED",
+  "scope": "Admin Dashboard data authenticity cleanup",
+  "production": {
+    "url": "http://101.32.190.42/",
+    "health_status": 200,
+    "admin_ui_verified": false,
+    "blocker": "The available browser session was unauthenticated and showed the login page. No administrator credentials or administrator storage state were available.",
+    "auth_action": "Stopped before submitting credentials; no authentication architecture or business code was changed."
+  },
+  "static_audit": [
+    {
+      "area": "User total",
+      "before": "Admin dashboard displayed the value from /admin/dashboard; the query included inactive and deleted accounts.",
+      "source": "/api/admin/dashboard -> User",
+      "real": true,
+      "final": "Counts non-deleted registered users; plan counts use the same scope."
+    },
+    {
+      "area": "Active users",
+      "before": "The label was backed by an AI-log distinct-user count without filtering account state.",
+      "source": "/api/admin/dashboard -> AiUsageLog joined to User",
+      "real": true,
+      "final": "Counts distinct users with today's AI activity and excludes inactive/deleted accounts."
+    },
+    {
+      "area": "New users and user trend",
+      "before": "The trend was database-backed but did not consistently exclude deleted accounts.",
+      "source": "/api/admin/operations-dashboard -> User.created_at",
+      "real": true,
+      "final": "Uses created_at and excludes deleted accounts; the window is the last 7 calendar days."
+    },
+    {
+      "area": "Learning/content metrics",
+      "before": "Database-backed counts were shown with generic or misleading comparison copy.",
+      "source": "/api/admin/dashboard and /api/admin/operations-dashboard",
+      "real": true,
+      "final": "Shows database counts for non-deleted materials, distinct material/knowledge-point courses, knowledge points, tasks, questions, and AI logs."
+    },
+    {
+      "area": "Orders",
+      "before": "The dashboard had an order card and an empty order API payload in older code.",
+      "source": "No order/payment model or admin order aggregation is present.",
+      "real": false,
+      "final": "Removed the order metric card. The order page remains an explicit empty state: the order/payment system is not connected."
+    },
+    {
+      "area": "Revenue",
+      "before": "The dashboard had a total revenue card backed by a hardcoded zero field.",
+      "source": "No order/payment/revenue model or aggregation is present.",
+      "real": false,
+      "final": "Removed the revenue card. No payment system was added."
+    },
+    {
+      "area": "Growth rates",
+      "before": "Fixed values 12.5%, 8.3%, 15.7%, 9.4%, 4.6%, and 11.3% were displayed as yesterday comparisons.",
+      "source": "Frontend constants in AdminDashboard.jsx",
+      "real": false,
+      "final": "Removed. The UI now uses explicit database-statistics copy and real date-bucket trends."
+    },
+    {
+      "area": "AI trends and cost estimate",
+      "before": "Charts were at risk of being interpreted as promotional metrics.",
+      "source": "/api/admin/usage-trend and /api/admin/usage-summary",
+      "real": true,
+      "final": "Retained real successful AI-log counts and token sums. Estimated cost remains explicitly labeled as an estimate, not revenue."
+    },
+    {
+      "area": "Plan distribution",
+      "before": "Plan counts were database-backed but could include deleted accounts.",
+      "source": "/api/admin/dashboard and /api/admin/usage-summary -> User.plan",
+      "real": true,
+      "final": "Counts non-deleted users; the main dashboard and usage summary use the same validity rule."
+    }
+  ],
+  "removed_fake_data": [
+    "AdminDashboard fixed growth labels: 12.5%, 8.3%, 15.7%, 9.4%, 4.6%, 11.3%.",
+    "AdminDashboard order total card and revenue card.",
+    "Backend /admin/dashboard total_orders and total_revenue fields.",
+    "AdminCenter unreachable legacy overview comparison labels such as '较昨日 +1', '较昨日 +3', and '较昨日 0'."
+  ],
+  "residual_scan": {
+    "12.5_or_8.3_admin_dashboard": "none",
+    "total_orders_or_total_revenue_in_admin_dashboard_code": "none",
+    "mock_or_fake_in_admin_dashboard_components": "none",
+    "placeholder": "input placeholder attributes remain legitimate form guidance, not statistics",
+    "mock_in_backend": "course/exam AI fallback implementation remains outside Admin Dashboard scope and is not presented as admin metrics",
+    "8.3_elsewhere": "course chapter identifiers and catalog scripts only; no admin statistic"
+  },
+  "validation": {
+    "python_compile": "passed",
+    "pytest": "14 passed",
+    "frontend_build": "passed",
+    "health": "HTTP 200 {\"status\":\"ok\"}",
+    "production_admin_login": "not verified: no administrator auth state",
+    "production_dashboard": "not verified: blocked at login page",
+    "production_console": "not collected from admin dashboard because the dashboard was not reached",
+    "production_network": "not collected from admin dashboard because the dashboard was not reached"
+  },
+  "files_changed": [
+    "backend/main.py",
+    "frontend/src/components/AdminDashboard.jsx",
+    "frontend/src/components/AdminCenter.jsx"
+  ]
+}

@@ -1240,11 +1240,11 @@ export default function AdminCenter({ user }) {
               {/* ── Stat Cards row 1 ── */}
               <div className="admin-stat-row">
                 {[
-                  { label: "总用户", value: dashboard.overview?.total_users, icon: "👥", bg: "#eff6ff", sub: "较昨日 +1" },
-                  { label: "免费用户", value: dashboard.overview?.free_users, icon: "🆓", bg: "#f0fdf4", sub: "较昨日 0" },
+                  { label: "总用户", value: dashboard.overview?.total_users, icon: "👥", bg: "#eff6ff", sub: "数据库统计" },
+                  { label: "免费用户", value: dashboard.overview?.free_users, icon: "🆓", bg: "#f0fdf4", sub: "当前套餐统计" },
                   { label: "专业版用户", value: dashboard.overview?.pro_users, icon: "💎", bg: "#fef3c7", sub: `共 ${dashboard.overview?.pro_users || 0} 人` },
                   { label: "管理员", value: dashboard.overview?.admin_users, icon: "🛡️", bg: "#faf5ff", sub: "系统管理" },
-                  { label: "总资料", value: dashboard.overview?.total_materials, icon: "📁", bg: "#f0fdf4", sub: "较昨日 0" },
+                  { label: "总资料", value: dashboard.overview?.total_materials, icon: "📁", bg: "#f0fdf4", sub: "数据库统计" },
                 ].map(({ label, value, icon, bg, sub }) => (
                   <div key={label} className="admin-stat-card-v2">
                     <div className="admin-stat-top">
@@ -1260,10 +1260,10 @@ export default function AdminCenter({ user }) {
               {/* ── Stat Cards row 2 ── */}
               <div className="admin-stat-row admin-stat-row--6col">
                 {[
-                  { label: "总课程", value: dashboard.overview?.total_courses, icon: "📚", bg: "#eff6ff", sub: "较昨日 0" },
-                  { label: "总知识点", value: dashboard.overview?.total_knowledge_points, icon: "🎯", bg: "#fef3c7", sub: "较昨日 0" },
-                  { label: "总任务", value: dashboard.overview?.total_tasks, icon: "✅", bg: "#f0fdf4", sub: "较昨日 +3" },
-                  { label: "总题目", value: dashboard.overview?.total_questions, icon: "📝", bg: "#faf5ff", sub: "较昨日 0" },
+                  { label: "总课程", value: dashboard.overview?.total_courses, icon: "📚", bg: "#eff6ff", sub: "数据库统计" },
+                  { label: "总知识点", value: dashboard.overview?.total_knowledge_points, icon: "🎯", bg: "#fef3c7", sub: "数据库统计" },
+                  { label: "总任务", value: dashboard.overview?.total_tasks, icon: "✅", bg: "#f0fdf4", sub: "数据库统计" },
+                  { label: "总题目", value: dashboard.overview?.total_questions, icon: "📝", bg: "#faf5ff", sub: "数据库统计" },
                   { label: "今日 AI 调用", value: todayCalls, icon: "🤖", bg: "#eff6ff", sub: "今日调用" },
                   { label: "累计 AI 调用", value: totalCalls, icon: "⚡", bg: "#fef3c7", sub: "总计" },
                 ].map(({ label, value, icon, bg, sub }) => (
