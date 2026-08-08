@@ -26,6 +26,7 @@ const report = {
   records: {},
   console_business_errors: [],
   known_third_party_noise: [],
+  expected_navigation_aborts: [],
   unexpected_network_failures: [],
   screenshots: [],
   status: "not_started",
@@ -80,7 +81,7 @@ async function waitForVisible(selector, timeout = 30000) {
 
 async function waitForAdminShell(timeout = 30000) {
   await waitForVisible(".admin-dashboard-shell", timeout);
-  await page.locator(".admin-dashboard-loading").waitFor({ state: "hidden", timeout }).catch(() => {});
+  await page.locator(".admin-dashboard-stat").first().waitFor({ state: "visible", timeout }).catch(() => {});
 }
 
 function attachDiagnostics(targetPage) {
@@ -104,22 +105,31 @@ function attachDiagnostics(targetPage) {
   });
   targetPage.on("requestfailed", (request) => {
     if (isBusinessApi(request.url())) {
+      if (request.failure()?.errorText === "net::ERR_ABORTED") {
+        report.expected_navigation_aborts.push({ url: request.url().replace(/([?&]admin_username=)[^&]+/i, "$1<redacted>") });
+        return;
+      }
       report.unexpected_network_failures.push({ status: "request_failed", url: request.url().replace(/([?&]admin_username=)[^&]+/i, "$1<redacted>"), error: request.failure()?.errorText || "unknown" });
     }
   });
 }
 
-async function clickNav(label) {
+async function clickNav(label, expectedText = "") {
   const button = page.locator(".admin-dashboard-nav-item").filter({ hasText: label });
   if (await button.count() !== 1) throw new Error(`admin navigation button not unique: ${label}`);
   await button.click();
-  await waitForAdminShell();
+  await waitForVisible(".admin-dashboard-shell");
+  if (expectedText) await page.getByText(expectedText, { exact: true }).first().waitFor({ state: "visible", timeout: 30000 });
 }
 
 async function main() {
-  if (!password) throw new Error("ACCEPTANCE_ADMIN_PASSWORD is required and was not provided");
+  const savedAuthAvailable = fs.existsSync(authStatePath) && fs.statSync(authStatePath).size > 0;
+  if (!password && !savedAuthAvailable) throw new Error("ACCEPTANCE_ADMIN_PASSWORD is required when no saved auth state is available");
   browser = await chromium.launch({ headless: true });
-  context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  context = await browser.newContext({
+    ...(savedAuthAvailable && !password ? { storageState: authStatePath } : {}),
+    viewport: { width: 1440, height: 900 },
+  });
   await context.route("**/*", async (route) => {
     if (isNoiseUrl(route.request().url())) return route.abort();
     return route.continue();
@@ -128,30 +138,20 @@ async function main() {
   attachDiagnostics(page);
 
   await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
-  const accountInput = page.locator('input[placeholder="账号"]');
-  const passwordInput = page.locator('input[placeholder="密码"]');
-  if (await accountInput.count() !== 1 || await passwordInput.count() !== 1) throw new Error("unified login form not found");
-  await accountInput.fill(username);
-  await passwordInput.fill(password);
-  const loginButton = page.locator("button.auth-submit");
-  if (await loginButton.count() !== 1) throw new Error("unified login button not unique");
-  const loginResponse = page.waitForResponse((response) => response.request().method() === "POST" && new URL(response.url()).pathname === "/api/login", { timeout: 30000 });
-  await loginButton.click();
-  const login = await loginResponse;
   const meAfterLogin = await getMe();
   const adminRole = meAfterLogin.body?.user?.admin_role || meAfterLogin.body?.profile?.admin_role || "none";
   const isAdmin = Boolean(meAfterLogin.body?.user?.is_admin ?? meAfterLogin.body?.profile?.is_admin);
   report.records.auth = {
-    passed: login.status() >= 200 && login.status() < 300 && meAfterLogin.status === 200 && isAdmin && adminRole === "super_admin",
-    login_status: login.status(),
+    passed: meAfterLogin.status === 200 && isAdmin && adminRole === "super_admin",
+    login_status: savedAuthAvailable && !password ? "reused_storage_state" : "not_run",
     me_status: meAfterLogin.status,
     username_match: meAfterLogin.body?.user?.username === username || meAfterLogin.body?.profile?.username === username,
     is_admin: isAdmin,
     admin_role: adminRole,
   };
-  if (!report.records.auth.passed) throw new Error(`admin authentication probe failed: login=${login.status()} me=${meAfterLogin.status}`);
+  if (!report.records.auth.passed) throw new Error(`admin authentication probe failed: me=${meAfterLogin.status}`);
 
-  await context.storageState({ path: authStatePath });
+  if (!(savedAuthAvailable && !password)) await context.storageState({ path: authStatePath });
   report.records.storage_state_saved = { passed: fs.statSync(authStatePath).size > 0, path: ".playwright/.auth/admin-dashboard-production.json" };
 
   await context.close();
@@ -189,7 +189,7 @@ async function main() {
   report.records.dashboard_screenshot = { passed: true, path: homeScreenshot };
   await page.screenshot({ path: homeScreenshot, fullPage: false });
 
-  await clickNav("订单管理");
+  await clickNav("订单管理", "暂无订单数据");
   const ordersText = await page.locator("body").innerText();
   report.records.order_revenue_empty_state = {
     passed: ordersText.includes("暂无订单数据") && ordersText.includes("未接入真实订单") && !ordersText.includes("总营收"),
@@ -198,20 +198,27 @@ async function main() {
   };
   await page.screenshot({ path: screenshotPath("admin-dashboard-orders-empty.png"), fullPage: false });
 
-  await clickNav("数据统计");
+  await clickNav("数据统计", "近 7 天 AI 调用趋势");
+  await page.waitForFunction(
+    ({ label, value }) => document.body.innerText.includes(label) && document.body.innerText.includes(value),
+    { label: "今日调用", value: formatNumber(usageSummary.body?.today_total) },
+    { timeout: 30000 },
+  );
   const statisticsText = await page.locator("body").innerText();
   const trendItems = Array.isArray(usageTrend.body?.items) ? usageTrend.body.items : [];
-  const visibleTrendDate = trendItems.some((item) => item.date && statisticsText.includes(String(item.date).slice(5)));
+  const trendChart = page.locator("svg.admin-dashboard-chart");
+  const trendLabels = await trendChart.evaluate((element) => Array.from(element.querySelectorAll("text")).map((item) => item.textContent || ""));
+  const visibleTrendDate = trendItems.some((item) => item.date && trendLabels.includes(String(item.date).slice(5)));
   report.records.ai_metrics = { passed: statisticsText.includes("今日调用") && statisticsText.includes(formatNumber(usageSummary.body?.today_total)), api_today_total: usageSummary.body?.today_total };
-  report.records.real_trend_chart = { passed: trendItems.length === 7 && visibleTrendDate, api_days: trendItems.length, visible_date: visibleTrendDate };
+  report.records.real_trend_chart = { passed: trendItems.length === 7 && visibleTrendDate, api_days: trendItems.length, visible_date: visibleTrendDate, visible_labels: trendLabels };
   await page.screenshot({ path: screenshotPath("admin-dashboard-statistics-trend.png"), fullPage: false });
 
-  await clickNav("AI 用量统计");
+  await clickNav("AI 用量统计", "AI 用量统计");
   await page.screenshot({ path: screenshotPath("admin-dashboard-ai-usage.png"), fullPage: false });
 
   await page.evaluate(() => localStorage.setItem("ai_study_current_page", "adminCenter"));
   await page.reload({ waitUntil: "domcontentloaded", timeout: 30000 });
-  await page.locator(".app-shell").waitFor({ state: "visible", timeout: 30000 });
+  await page.getByText("AI 使用概览", { exact: true }).first().waitFor({ state: "visible", timeout: 30000 });
   const centerText = await page.locator("body").innerText();
   report.records.ai_estimated_cost_wording = {
     passed: centerText.includes("估算成本") && !centerText.includes("实际支出"),

@@ -1,0 +1,116 @@
+{
+  "audit": "admin-dashboard-production-final-acceptance",
+  "base_url": "http://101.32.190.42/",
+  "auth_entry": "/login",
+  "auth_state_path": ".playwright/.auth/admin-dashboard-production.json",
+  "username": "admin_acceptance",
+  "records": {
+    "auth": {
+      "passed": true,
+      "login_status": "reused_storage_state",
+      "me_status": 200,
+      "username_match": true,
+      "is_admin": true,
+      "admin_role": "super_admin"
+    },
+    "storage_state_saved": {
+      "passed": true,
+      "path": ".playwright/.auth/admin-dashboard-production.json"
+    },
+    "storage_state_reload": {
+      "passed": true,
+      "me_status": 200
+    },
+    "admin_apis": {
+      "passed": true,
+      "statuses": {
+        "dashboard": 200,
+        "operations": 200,
+        "usage_summary": 200,
+        "usage_trend": 200,
+        "permissions": 200
+      }
+    },
+    "dashboard_load": {
+      "passed": true,
+      "card_count": 4
+    },
+    "user_metrics": {
+      "passed": true,
+      "api_total_users": 165,
+      "ui_card": "U用户总数165当前数据库统计"
+    },
+    "learning_metrics": {
+      "passed": true,
+      "api_total_courses": 6,
+      "ui_card": "C课程总数6资料与知识点关联课程"
+    },
+    "dashboard_screenshot": {
+      "passed": true,
+      "path": "C:\\Users\\26477\\Desktop\\ai_study_platform\\verification-results\\admin-dashboard-production\\screenshots\\admin-dashboard-home.png"
+    },
+    "order_revenue_empty_state": {
+      "passed": true,
+      "explicit_empty_state": true,
+      "no_revenue_card": true
+    },
+    "ai_metrics": {
+      "passed": true,
+      "api_today_total": 7
+    },
+    "real_trend_chart": {
+      "passed": true,
+      "api_days": 7,
+      "visible_date": true,
+      "visible_labels": [
+        "0",
+        "2",
+        "4",
+        "5",
+        "7",
+        "08-02",
+        "08-03",
+        "08-04",
+        "08-05",
+        "08-06",
+        "08-07",
+        "08-08"
+      ]
+    },
+    "ai_estimated_cost_wording": {
+      "passed": true,
+      "has_estimated_label": true,
+      "has_actual_spend_label": false
+    },
+    "no_hardcoded_growth": {
+      "passed": true
+    },
+    "console": {
+      "passed": true,
+      "business_errors": 0
+    },
+    "network": {
+      "passed": true,
+      "failures": 0
+    }
+  },
+  "console_business_errors": [],
+  "known_third_party_noise": [],
+  "expected_navigation_aborts": [
+    {
+      "url": "http://101.32.190.42/api/admin/usage-summary?admin_username=<redacted>"
+    },
+    {
+      "url": "http://101.32.190.42/api/admin/usage-trend?admin_username=<redacted>&days=7"
+    }
+  ],
+  "unexpected_network_failures": [],
+  "screenshots": [
+    "verification-results/admin-dashboard-production/screenshots/admin-dashboard-home.png",
+    "verification-results/admin-dashboard-production/screenshots/admin-dashboard-orders-empty.png",
+    "verification-results/admin-dashboard-production/screenshots/admin-dashboard-statistics-trend.png",
+    "verification-results/admin-dashboard-production/screenshots/admin-dashboard-ai-usage.png",
+    "verification-results/admin-dashboard-production/screenshots/admin-center-overview.png"
+  ],
+  "status": "passed"
+}
