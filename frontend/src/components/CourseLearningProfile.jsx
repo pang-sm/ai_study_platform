@@ -351,7 +351,6 @@ export default function CourseLearningProfile({ user, setPage, onLogout, API_BAS
                 <p>用于接收验证码和安全验证</p>
                 <span>{user?.phone ? maskEmail(user.phone).replace("@","") : "未绑定"}</span>
               </div>
-              <button type="button" className="ep-outline-btn" onClick={() => setActionErr("手机号绑定功能暂未开放")}>修改</button>
             </div>
             <div className="ep-sec-item">
               <div>

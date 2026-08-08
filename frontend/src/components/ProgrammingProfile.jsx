@@ -356,7 +356,6 @@ export default function ProgrammingProfile({ user, apiBase = "/api", setPage, on
             </div>
             <div className="ep-sec-item">
               <div><strong>绑定手机号</strong><p>用于接收验证码和安全验证</p><span>{user?.phone || "未绑定"}</span></div>
-              <button type="button" className="ep-outline-btn" onClick={() => setActionErr("手机号绑定功能暂未开放")}>修改</button>
             </div>
             <div className="ep-sec-item">
               <div><strong>绑定邮箱</strong><p>用于接收重要通知和找回密码</p><span>{emailDisplay}</span></div>

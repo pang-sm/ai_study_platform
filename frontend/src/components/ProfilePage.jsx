@@ -19,7 +19,6 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage, onProfil
   const [draft, setDraft] = useState({});
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState("");
-  const [confirmAction, setConfirmAction] = useState(null);
   const [quota, setQuota] = useState(null);
   const fileInputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
@@ -198,19 +197,6 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage, onProfil
       {toast && <div className="pp-toast">{toast}</div>}
       <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleAvatarUpload} style={{display:"none"}} />
 
-      {/* Confirm modal */}
-      {confirmAction && (
-        <div className="pp-overlay" onClick={() => setConfirmAction(null)}>
-          <div className="pp-modal" onClick={e => e.stopPropagation()}>
-            <h3>{confirmAction.title}</h3><p>{confirmAction.desc}</p>
-            <div className="pp-modal-actions">
-              <button className="pp-btn pp-btn-cancel" onClick={() => setConfirmAction(null)}>取消</button>
-              <button className="pp-btn pp-btn-danger" onClick={() => { confirmAction.action(); setConfirmAction(null); }}>确认</button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ── Edit Modal ── */}
       {editOpen && (
         <div className="pp-overlay">
@@ -357,7 +343,7 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage, onProfil
         <div className="pp-col">
           <div className="pp-card"><h3 className="pp-card-title"><span className="pp-card-icon">🔒</span>账号安全</h3>
             <div className="pp-rows">
-              <InfoRow icon="📱" label="手机号" value="暂未绑定"><button className="pp-btn pp-btn-mini" onClick={()=>showToast("手机号绑定需要接入短信服务，暂未开放。")}>绑定</button></InfoRow>
+              <InfoRow icon="📱" label="手机号" value={profile.phone || "暂未绑定"} />
               <InfoRow icon="📧" label="邮箱" value={profile.email||"暂未绑定"}><button className="pp-btn pp-btn-mini" onClick={()=>{setEmailForm({email:profile.email||"",code:""});setEmailError("");setEmailCountdown(0);setEmailOpen(true);}}>{profile.email?"更换":"绑定"}</button></InfoRow>
               <InfoRow icon="🔑" label="密码" value="●●●●●●"><button className="pp-btn pp-btn-mini" onClick={()=>{setPwdForm({old_password:"",new_password:"",confirm_password:""});setPwdError("");setPwdOpen(true);}}>修改密码</button></InfoRow>
               <InfoRow icon="💻" label="登录设备" value="当前设备 — Windows Chrome" />
@@ -372,16 +358,8 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage, onProfil
             </div>
             <button className="pp-btn pp-btn-outline" style={{marginTop:12,width:"100%"}} onClick={()=>setPage("quotaCenter")}>查看我的额度 →</button>
           </div>
-          <div className="pp-card"><h3 className="pp-card-title"><span className="pp-card-icon">🗄️</span>隐私与数据</h3>
-            <div className="pp-rows">
-              <InfoRow icon="🗑️" label="清空聊天记录" value=""><button className="pp-btn pp-btn-mini pp-btn-warn" onClick={()=>setConfirmAction({title:"清空聊天记录",desc:"此操作不可恢复",action:()=>showToast("功能开发中")})}>清空</button></InfoRow>
-              <InfoRow icon="📝" label="清空学习记录" value=""><button className="pp-btn pp-btn-mini pp-btn-warn" onClick={()=>setConfirmAction({title:"清空学习记录",desc:"此操作不可恢复",action:()=>showToast("功能开发中")})}>清空</button></InfoRow>
-              <InfoRow icon="✏️" label="清空练习记录" value=""><button className="pp-btn pp-btn-mini pp-btn-warn" onClick={()=>setConfirmAction({title:"清空练习记录",desc:"此操作不可恢复",action:()=>showToast("功能开发中")})}>清空</button></InfoRow>
-            </div>
-          </div>
           <div className="pp-card pp-danger-card"><h3 className="pp-card-title" style={{color:"#b91c1c"}}><span className="pp-card-icon">⚠️</span>账号操作</h3>
             <div className="pp-danger-row"><div><div className="pp-danger-title">退出登录</div><div className="pp-danger-desc">退出后需要重新登录</div></div><button className="pp-btn pp-btn-danger" onClick={onLogout}>退出登录</button></div>
-            <div className="pp-danger-row" style={{marginTop:12,paddingTop:12,borderTop:"1px solid #fecaca"}}><div><div className="pp-danger-title">注销账号</div><div className="pp-danger-desc">永久删除账号及所有数据</div></div><button className="pp-btn pp-btn-danger-outline" onClick={()=>setConfirmAction({title:"注销账号",desc:"永久删除不可恢复",action:()=>showToast("注销功能需要后端支持，暂未开放")})}>注销账号</button></div>
           </div>
         </div>
       </div>

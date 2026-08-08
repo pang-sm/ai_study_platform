@@ -1,0 +1,167 @@
+{
+  "audit": "profile-actions-static-audit",
+  "generated_at": "2026-08-08",
+  "baseline_status": "PRODUCTION_UI_VERIFIED",
+  "scope": [
+    "frontend/src/components/ProfilePage.jsx",
+    "frontend/src/components/CourseLearningProfile.jsx",
+    "frontend/src/components/ExamProfile.jsx",
+    "frontend/src/components/ProgrammingProfile.jsx",
+    "frontend/src/utils/serviceSwitch.js",
+    "frontend/src/App.jsx",
+    "backend/main.py",
+    "backend/models.py"
+  ],
+  "routing": {
+    "legacy_profile_page": "App maps page=profile to the active direction profile",
+    "course_profile": "courseProfile -> CourseLearningProfile",
+    "exam_profile": "examProfile -> ExamProfile",
+    "programming_profile": "programmingProfile -> ProgrammingProfile"
+  },
+  "actions": [
+    {
+      "action": "basic_profile",
+      "components": ["ProfilePage", "CourseLearningProfile", "ExamProfile", "ProgrammingProfile"],
+      "handler": "handleSave or saveBasicInfo",
+      "api": "PUT /api/me/profile",
+      "persistence": "User.nickname, school, grade, major and learning settings",
+      "status": "A_real",
+      "frontend_implemented": true,
+      "backend_implemented": true,
+      "database_supported": true
+    },
+    {
+      "action": "avatar",
+      "components": ["ProfilePage", "CourseLearningProfile", "ExamProfile", "ProgrammingProfile"],
+      "handler": "handleAvatarUpload or uploadAvatar",
+      "api": "POST /api/me/avatar",
+      "persistence": "User.avatar plus uploaded file",
+      "status": "A_real",
+      "frontend_implemented": true,
+      "backend_implemented": true,
+      "database_supported": true
+    },
+    {
+      "action": "password",
+      "components": ["ProfilePage", "CourseLearningProfile", "ExamProfile", "ProgrammingProfile"],
+      "handler": "handleChangePassword or changePassword",
+      "api": "PUT /api/me/password",
+      "persistence": "User.hashed_password",
+      "status": "A_real_needs_production_regression",
+      "frontend_implemented": true,
+      "backend_implemented": true,
+      "database_supported": true
+    },
+    {
+      "action": "email_binding",
+      "components": ["ProfilePage", "CourseLearningProfile", "ExamProfile", "ProgrammingProfile"],
+      "handler": "sendEmailCode and verifyEmailCode",
+      "api": "POST /api/me/email/send-code; PUT /api/me/email/verify",
+      "persistence": "User.email and User.email_verified",
+      "status": "A_real_but_requires_SMTP_configuration",
+      "frontend_implemented": true,
+      "backend_implemented": true,
+      "database_supported": true
+    },
+    {
+      "action": "logout",
+      "components": ["ProfilePage", "CourseLearningProfile", "ExamProfile", "ProgrammingProfile"],
+      "handler": "App.logout",
+      "api": "POST /api/logout",
+      "persistence": "AuthSession.revoked_at and ai_session cookie deletion",
+      "status": "A_real",
+      "frontend_implemented": true,
+      "backend_implemented": true,
+      "database_supported": true
+    },
+    {
+      "action": "membership_and_quota",
+      "components": ["ProfilePage", "CourseLearningProfile", "ExamProfile", "ProgrammingProfile"],
+      "handler": "loadData or direction profile fetchers",
+      "api": "GET /api/me, GET /api/me/quota, GET /api/programming/entitlements",
+      "persistence": "UserServiceMembership and quota usage records",
+      "status": "A_read_only_real",
+      "frontend_implemented": true,
+      "backend_implemented": true,
+      "database_supported": true
+    },
+    {
+      "action": "direction_switch",
+      "components": ["CourseLearningProfile", "ExamProfile", "ProgrammingProfile", "serviceSwitch.js"],
+      "handler": "switchLearningDirection",
+      "api": "POST /api/me",
+      "persistence": "User tracks and UserServiceMembership; navigation changes only after entitlement check",
+      "status": "A_real_needs_production_regression",
+      "frontend_implemented": true,
+      "backend_implemented": true,
+      "database_supported": true
+    },
+    {
+      "action": "phone_change",
+      "components": ["ProfilePage", "CourseLearningProfile", "ExamProfile", "ProgrammingProfile"],
+      "handler": "toast or setActionErr only",
+      "api": "none",
+      "persistence": "none; no user-facing SMS verification flow",
+      "status": "B_fake_remove_entry",
+      "frontend_implemented": false,
+      "backend_implemented": false,
+      "database_supported": false,
+      "reason": "No SMS provider, verification-code flow, anti-abuse controls, or phone update API was found."
+    },
+    {
+      "action": "clear_chat_history",
+      "components": ["ProfilePage"],
+      "handler": "confirmation then showToast('功能开发中')",
+      "api": "none",
+      "persistence": "none",
+      "status": "B_fake_remove_entry",
+      "frontend_implemented": false,
+      "backend_implemented": false,
+      "database_supported": false,
+      "reason": "Single chat/session deletion exists elsewhere; account-center bulk deletion is not required for this patch."
+    },
+    {
+      "action": "clear_learning_records",
+      "components": ["ProfilePage"],
+      "handler": "confirmation then showToast('功能开发中')",
+      "api": "none",
+      "persistence": "none",
+      "status": "B_fake_remove_entry",
+      "frontend_implemented": false,
+      "backend_implemented": false,
+      "database_supported": false,
+      "reason": "Bulk deletion would invalidate progress, streaks, reports and mastery state."
+    },
+    {
+      "action": "clear_practice_records",
+      "components": ["ProfilePage"],
+      "handler": "confirmation then showToast('功能开发中')",
+      "api": "none",
+      "persistence": "none",
+      "status": "B_fake_remove_entry",
+      "frontend_implemented": false,
+      "backend_implemented": false,
+      "database_supported": false,
+      "reason": "Bulk deletion would invalidate exercise history, mistakes and reports."
+    },
+    {
+      "action": "account_deletion",
+      "components": ["ProfilePage"],
+      "handler": "confirmation then showToast('注销功能需要后端支持，暂未开放')",
+      "api": "none for self-service",
+      "persistence": "User has inactive/deleted fields, but no safe self-service endpoint",
+      "status": "B_fake_remove_entry",
+      "frontend_implemented": false,
+      "backend_implemented": false,
+      "database_supported": "partial",
+      "reason": "No password re-confirmation, soft-delete endpoint, session revocation workflow, or user-facing recovery policy is wired."
+    }
+  ],
+  "planned_patch": {
+    "remove_fake_entries": ["phone_change", "clear_chat_history", "clear_learning_records", "clear_practice_records", "account_deletion"],
+    "keep_and_regress": ["basic_profile", "avatar", "password", "email_binding", "logout", "membership_and_quota", "direction_switch"],
+    "database_changes": false,
+    "backend_changes_expected": false
+  },
+  "status": "AUDIT_COMPLETE_BEFORE_PATCH"
+}
