@@ -57,6 +57,7 @@ const ACTIVE_SESSION_STORAGE_KEY = "ai_study_platform_active_session_id";
 const CURRENT_PAGE_KEY = "ai_study_current_page";
 const CURRENT_SUBJECT_KEY = "ai_study_current_subject";
 const CURRENT_EXAM_SUBJECT_KEY = "ai_study_current_exam_subject";
+const CURRENT_COURSE_CONTEXT_KEY = "ai_study_current_course_context";
 const API_BASE = "/api";
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
@@ -196,6 +197,17 @@ function getInitialSubject() {
   } catch {
     return DEFAULT_SUBJECT;
   }
+}
+
+function getInitialCourseContext() {
+  try {
+    const raw = localStorage.getItem(CURRENT_COURSE_CONTEXT_KEY);
+    const saved = raw ? JSON.parse(raw) : null;
+    if (saved && typeof saved === "object" && saved.courseId && saved.courseName) return saved;
+  } catch {
+    // Ignore malformed navigation state and use the default course surface.
+  }
+  return null;
 }
 
 function getExamSubjectKeyFromCourse(courseId) {
@@ -531,7 +543,7 @@ function App() {
   const [examSubjectPanelIntent, setExamSubjectPanelIntent] = useState(null);
   const [examInitialMaterialReference, setExamInitialMaterialReference] = useState(null);
   const [examKnowledgeContext, setExamKnowledgeContext] = useState(null);
-  const [courseSubjectContext, setCourseSubjectContext] = useState(null);
+  const [courseSubjectContext, setCourseSubjectContext] = useState(getInitialCourseContext);
   const [courseDashboardPanelIntent, setCourseDashboardPanelIntent] = useState(null);
 
   const setPage = (nextPage, context = null) => {
@@ -578,7 +590,7 @@ function App() {
       setCourseDashboardPanelIntent(null);
       const rawCourseName = context?.courseName || context?.courseTitle || context?.name || context?.title || context?.subject || context?.courseId;
       const rawLearningGoal = context?.learningGoal || context?.learning_goal || context?.study_goal || context?.mode || "";
-      setCourseSubjectContext({
+      const nextCourseContext = {
         ...(context || {}),
         courseId: context?.courseId || rawCourseName,
         courseName: rawCourseName,
@@ -588,7 +600,9 @@ function App() {
         learning_goal: rawLearningGoal,
         track: "course_learning",
         serviceKey: "course_learning",
-      });
+      };
+      setCourseSubjectContext(nextCourseContext);
+      try { localStorage.setItem(CURRENT_COURSE_CONTEXT_KEY, JSON.stringify(nextCourseContext)); } catch { /* ignore */ }
     } else {
       setCourseSubjectContext(null);
     }
@@ -2185,7 +2199,8 @@ function App() {
         const savedPage = (() => {
           try { return localStorage.getItem(CURRENT_PAGE_KEY); } catch { return null; }
         })();
-        setPage(getPostAuthPage(checkedUser, savedPage));
+        const nextPage = getPostAuthPage(checkedUser, savedPage);
+        setPage(nextPage, nextPage === "dashboard" ? getInitialCourseContext() : null);
       } catch (error) {
         console.error("Failed to verify login status:", error);
       }
@@ -2265,14 +2280,14 @@ function App() {
   useEffect(() => {
     if (page === "dashboard" && user?.username) {
       const timer = window.setTimeout(() => {
-        loadCourseDashboard(subject);
+        loadCourseDashboard(courseSubjectContext?.courseId || subject);
       }, 0);
 
       return () => window.clearTimeout(timer);
     }
 
     return undefined;
-  }, [page, user?.username, subject]);
+  }, [page, user?.username, subject, courseSubjectContext?.courseId]);
 
   useEffect(() => {
     if (page === "workspaceMaterials" && user?.username) {
