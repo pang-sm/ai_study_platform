@@ -4,7 +4,8 @@
     "local_url": "http://127.0.0.1:5173/",
     "backend_url": "http://127.0.0.1:8000/",
     "production_url": "http://101.32.190.42/",
-    "production_ui_verified": false
+    "production_ui_verified": false,
+    "deployment": {"actions_run": 31262840479, "status": "success", "health": 200}
   },
   "verification": {
     "python_compile": "PASS",
@@ -32,7 +33,16 @@
   },
   "screenshots": [
     "verification-results/p2-scroll-membership-v1/profile-11408-1366x768.png",
-    "verification-results/p2-scroll-membership-v1/11408-home-1920x1080.png"
+    "verification-results/p2-scroll-membership-v1/11408-home-1920x1080.png",
+    "verification-results/p2-scroll-membership-v1/production-1366x768.png",
+    "verification-results/p2-scroll-membership-v1/production-admin-1366x768.png"
   ],
-  "production_blocker": "Formal production UI verification still requires a valid production test session after deployment."
+  "production": {
+    "admin_storage_state": "valid",
+    "admin_dashboard": {"status": "PASS", "console_business_errors": 0, "unexpected_api_failures": 0, "hardcoded_growth_visible": false},
+    "member_storage_state": "expired",
+    "member_auth_check": {"status": 401, "result": "BLOCKED_BEFORE_UI_FLOW"},
+    "browser_fallback": "In-app Browser timed out twice on the production page; project Playwright was used only to document the valid admin state and the expired member state."
+  },
+  "production_blocker": "Formal production membership UI verification still requires a valid authenticated member test session after deployment."
 }

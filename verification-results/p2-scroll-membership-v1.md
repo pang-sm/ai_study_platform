@@ -32,11 +32,19 @@ Flow: course onboarding -> course details -> quarterly plan -> Checkout -> creat
 
 ## Production state
 
-Production deployment and formal production UI verification are still pending in this report. The final status must not be upgraded until the deployed site is opened with a valid authenticated test session and the checkout, persistence, expiry display, quota consistency, reminder, and scroll flows are rechecked.
+Deployment completed successfully through Actions run `31262840479` for commit `8dbc691`. `http://101.32.190.42/api/health` returned HTTP 200.
+
+The existing admin storage state remained valid. A production headless browser check opened the unified site and reached the Admin Dashboard with zero business console errors and zero unexpected API failures. The deployed page did not show the removed fixed growth percentages. Evidence: `production-admin-1366x768.png`.
+
+The ordinary member storage state was expired: production `/api/me` returned HTTP 401 and the page correctly rendered the login screen. The in-app Browser also timed out while opening the production page, so it was not used as evidence of a passing member flow. The project Playwright fallback was used only to document this authentication blocker and the valid admin state; it did not fabricate a session or bypass login.
+
+Therefore the member-side production flow remains not verified. The Checkout, paid persistence after reload, expiry display, quota consistency, reminder, and member scroll checks must be rerun with a valid member test session before changing the final status to `MEMBERSHIP_COMMERCIALIZATION_V1_VERIFIED`.
 
 ## Evidence
 
 - `verification-results/p2-scroll-membership-v1/profile-11408-1366x768.png`
 - `verification-results/p2-scroll-membership-v1/11408-home-1920x1080.png`
+- `verification-results/p2-scroll-membership-v1/production-1366x768.png`
+- `verification-results/p2-scroll-membership-v1/production-admin-1366x768.png`
 
 No password, token, Cookie value, or payment credential is stored in this report.
