@@ -1766,6 +1766,7 @@
 .pw-sample-explanation { color: #5f5873; font-size: 11px; font-weight: 500; line-height: 1.55; white-space: normal; }
 .pw-exercise-example-empty { color: #766b91; font-size: 12px; line-height: 1.6; }
 .pw-current-language, .pw-run-target { color: #4a3c72; font-size: 12px; font-weight: 800; }
+.pw-back-to-programming { color: #6541b8; font-size: 12px; font-weight: 800; padding: 0 6px; border-right: 1px solid #ded7ed; }
 .pw-run-target { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pw-sample-result { display: grid; gap: 5px; margin-bottom: 10px; padding: 12px 14px; border-left: 3px solid #8b5cf6; background: #faf8ff; color: #40365b; font-size: 12px; }
 .pw-sample-result--passed { border-left-color: #26a269; }

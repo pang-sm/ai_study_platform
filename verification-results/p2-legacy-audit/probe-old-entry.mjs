@@ -15,7 +15,7 @@ const result = {
   base_url: baseUrl,
   auth_state_supplied: fs.existsSync(authState),
   storage_state_written_to_report: false,
-  legacy_state: "ai_study_current_page=home",
+  legacy_state: "ai_study_current_page=codeStudio",
   console_errors: [],
   failed_network: [],
   steps: {},
@@ -28,7 +28,7 @@ try {
   browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ storageState: authState, viewport: { width: 1440, height: 900 } });
   await context.addInitScript(() => {
-    try { localStorage.setItem("ai_study_current_page", "home"); } catch {}
+    try { localStorage.setItem("ai_study_current_page", "codeStudio"); } catch {}
   });
   await context.route("**/*", async (route) => {
     const url = route.request().url().toLowerCase();
@@ -49,29 +49,20 @@ try {
   });
 
   await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
-  await page.locator(".fig2-sidebar").waitFor({ state: "visible", timeout: 30000 });
-  result.steps.open_home = { passed: true, url: page.url() };
-
-  const oldEntry = page.locator(".fig2-nav-item").filter({ hasText: "编程学习助手" });
-  const oldEntryCount = await oldEntry.count();
-  result.steps.legacy_entry_visible = { passed: oldEntryCount === 1, count: oldEntryCount };
-  if (oldEntryCount !== 1) throw new Error(`legacy entry count=${oldEntryCount}`);
-
-  await oldEntry.click({ timeout: 15000 });
-  await page.waitForTimeout(1500);
-  const newWorkbenchCount = await page.locator(".pw-shell").count();
-  const legacyCodeStudioCount = await page.locator(".code-studio-shell").count();
-  const unavailableCount = await page.locator("text=功能暂时维护中").count();
-  result.steps.legacy_entry_target = {
-    passed: legacyCodeStudioCount === 1,
+  await page.locator(".ph-page").waitFor({ state: "visible", timeout: 30000 });
+  result.steps.stale_page_migration = {
+    passed: true,
     url: page.url(),
-    new_workbench_count: newWorkbenchCount,
-    legacy_code_studio_count: legacyCodeStudioCount,
-    feature_unavailable_count: unavailableCount,
+    programming_home_count: await page.locator(".ph-page").count(),
+    legacy_code_studio_count: await page.locator(".code-studio-shell").count(),
+    legacy_sidebar_count: await page.locator(".fig2-sidebar").count(),
+  };
+  result.steps.legacy_entry_hidden = {
+    passed: (await page.locator(".fig2-sidebar").count()) === 0 && (await page.locator(".code-studio-shell").count()) === 0,
   };
   await page.screenshot({ path: screenshot, fullPage: false });
   result.screenshot = path.relative(root, screenshot).replaceAll("\\", "/");
-  result.status = result.steps.legacy_entry_target.passed ? "legacy_reachable" : "legacy_not_reached";
+  result.status = result.steps.legacy_entry_hidden.passed ? "stale_state_migrated" : "legacy_reachable";
 } catch (error) {
   result.status = "probe_failed";
   result.error = String(error?.message || error).slice(0, 800);
@@ -90,4 +81,4 @@ try {
 }
 
 console.log(JSON.stringify(result, null, 2));
-process.exitCode = result.status === "legacy_reachable" ? 0 : 1;
+process.exitCode = result.status === "stale_state_migrated" ? 0 : 1;

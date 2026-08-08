@@ -2,10 +2,12 @@
   "audit": "legacy-programming-static-and-production-audit",
   "generated_at": "2026-08-08",
   "baseline_commit": "7fe140f",
+  "cleanup_commit": "be37cce",
   "baseline_status": "PRODUCTION_UI_VERIFIED",
+  "final_status": "LEGACY_PROGRAMMING_CLEANUP_VERIFIED",
   "production_url": "http://101.32.190.42/",
   "scope": "CodeStudio and ProgrammingWorkbench entry/API/state coexistence",
-  "static_conclusion": "Legacy CodeStudio still has frontend entry references, while the new ProgrammingWorkbench is the verified exercise workflow. Current Workbench dependencies must remain.",
+  "static_conclusion": "User-facing programming entry points resolve to ProgrammingHome and ProgrammingWorkbench. CodeStudio remains only as hidden compatibility code for historical data and is not mounted by the current App route.",
   "new_chain": {
     "entry": "programmingHome",
     "components": [
@@ -25,7 +27,6 @@
       "/code/projects/{project_id}/files",
       "/code/projects/{project_id}/execute",
       "/code/interactive-run",
-      "/api/code/interactive-run",
       "/code/analyze"
     ],
     "models": [
@@ -37,9 +38,11 @@
     ],
     "production_smoke": {
       "status": "passed",
-      "report": "verification-results/p2-legacy-audit/programming-workbench-cli-acceptance.json",
+      "report": "verification-results/p2-legacy-audit/full-regression/programming-workbench-cli-acceptance.json",
       "targets": [1629, 1734, 1546],
-      "steps": ["open_site", "open_correct_exercise", "verify_workbench_identity"]
+      "all_targets_passed": true,
+      "console_errors": 0,
+      "failed_business_network_requests": 0
     }
   },
   "legacy_chain": {
@@ -49,26 +52,12 @@
       "frontend/src/components/codeStudio/index.js",
       "frontend/src/components/codeStudio/CodeStudioStatusBar.jsx"
     ],
-    "frontend_entry_references": [
-      "frontend/src/App.jsx",
-      "frontend/src/config/navigation.js",
-      "frontend/src/components/HomePage.jsx",
-      "frontend/src/components/GlobalSearchBox.jsx",
-      "frontend/src/components/PracticeCenter.jsx"
-    ],
     "apis": [
       "/code/sessions",
-      "/code/sessions/{session_id}",
-      "/code/sessions/{session_id}/messages",
       "/code/challenges",
-      "/code/challenges/generate",
-      "/code/challenges/{challenge_id}/run-tests",
-      "/code/challenges/{challenge_id}/submit",
       "/code/execute",
-      "/code/diagnose",
       "/code/attempts",
       "/code/progress",
-      "/code/learning-diagnosis",
       "/code/ai-coach/saved-chats"
     ],
     "models": [
@@ -78,39 +67,27 @@
       "CodeAIMessage",
       "CodeAISavedChat"
     ],
-    "production_entry_probe": {
-      "status": "not_reached",
-      "reason": "The authenticated production session opened the current CourseLearningHome, which has no legacy sidebar. Static references remain and require compatibility cleanup.",
-      "report": "verification-results/p2-legacy-audit/old-entry-click.json",
-      "screenshot": "verification-results/p2-legacy-audit/old-entry-click.png"
-    }
+    "final_user_visible_status": "hidden_compatibility_only",
+    "historical_data_deleted": false
   },
   "classification": {
-    "A_remove_direct_entry_references": [
-      "codeStudio item in unified sidebar/search configuration",
-      "HomePage codeStudio shortcut",
-      "PracticeCenter links labelled 编程学习助手"
-    ],
-    "B_keep_hidden_compatibility": [
-      "CodeStudio.jsx and its private codeStudio subcomponents until historical data dependence is retired",
-      "legacy CodeSession/CodeChallenge/CodeChallengeAttempt/CodeAIMessage/CodeAISavedChat models",
-      "legacy /code/sessions, /code/challenges, /code/execute, /code/attempts, /code/progress and AI endpoints",
-      "mapping of saved codeStudio page state to programmingHome"
-    ],
-    "C_current_business_must_remain": [
-      "ProgrammingHome and ProgrammingWorkbench",
-      "ProgrammingExercise and ProgrammingExerciseProgress/Submission",
-      "CodeProject and CodeProjectFile",
-      "/programming/exercises*",
-      "/code/projects*",
-      "/code/analyze",
-      "/code/interactive-run and /api/code/interactive-run"
-    ]
+    "A_replace_user_visible_legacy_entries": "completed",
+    "B_keep_hidden_compatibility": "kept_for_historical_data",
+    "C_keep_verified_workbench_dependencies": "completed"
   },
-  "database_action": "No database changes and no data deletion in the audit phase.",
-  "browser_control_note": "In-app browser navigation timed out before page layout discovery; Playwright CLI with the verified storage state passed the new-chain open/identity smoke for all three baseline exercises.",
+  "stale_state_probe": {
+    "status": "passed",
+    "report": "verification-results/p2-legacy-audit/old-entry-click.json",
+    "screenshot": "verification-results/p2-legacy-audit/old-entry-click.png",
+    "injected_state": "ai_study_current_page=codeStudio",
+    "programming_home_count": 1,
+    "legacy_code_studio_count": 0,
+    "legacy_sidebar_count": 0,
+    "console_errors": 0,
+    "failed_business_network_requests": 0
+  },
   "cleanup_patch": {
-    "status": "implemented_locally",
+    "status": "deployed_and_verified",
     "frontend_files": [
       "frontend/src/App.jsx",
       "frontend/src/config/navigation.js",
@@ -118,25 +95,21 @@
       "frontend/src/components/GlobalSearchBox.jsx",
       "frontend/src/components/PracticeCenter.jsx"
     ],
-    "backend_files": [
-      "backend/main.py"
-    ],
-    "changes": [
-      "All visible codeStudio navigation/search/practice targets now use programmingHome.",
-      "Saved codeStudio page state is normalized to programmingHome.",
-      "The legacy CodeStudio lazy render path is no longer mounted.",
-      "Backend search/activity/practice targets now return programmingHome.",
-      "Legacy backend APIs and historical models remain unchanged and are not deleted."
-    ],
+    "backend_files": ["backend/main.py"],
     "database_changed": false,
     "frontend_build": "passed",
     "python_compile": "passed",
-    "pytest": "14 passed"
+    "pytest": "14 passed",
+    "actions_run": {
+      "id": 31241549720,
+      "status": "success",
+      "url": "https://github.com/pang-sm/ai_study_platform/actions/runs/31241549720"
+    },
+    "production_health": {
+      "url": "http://101.32.190.42/api/health",
+      "status": 200,
+      "body_status": "ok"
+    }
   },
-  "next_minimal_patch": [
-    "Route all user-facing codeStudio references to programmingHome.",
-    "Map stale ai_study_current_page=codeStudio to programmingHome.",
-    "Remove only the unused lazy CodeStudio render path after the alias is in place.",
-    "Do not delete legacy backend APIs or models in this patch."
-  ]
+  "security_follow_up": "HTTPS_REQUIRED_BEFORE_PRODUCTION_SECURITY_FREEZE"
 }
