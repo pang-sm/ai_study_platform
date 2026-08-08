@@ -57,8 +57,14 @@ from database_schema import ensure_database_schema
 from membership import (
     PLAN_DEFINITIONS,
     VALID_PLANS,
+    SERVICE_PLAN_CATALOG,
+    canonical_service_key,
     get_effective_plan,
+    get_service_plan,
+    get_service_plan_catalog,
     get_plan_limits_v2,
+    serialize_service_plan,
+    service_plan_rank,
     check_user_entitlement,
     normalize_major,
     recommend_plan_by_major,
@@ -992,6 +998,8 @@ def upgrade_exam_package(req: dict, db: Session = Depends(get_db), current_user:
     new_pkg = normalize_package_type(raw_pkg)
     if new_pkg not in EXAM_PACKAGE_TIERS:
         raise HTTPException(status_code=400, detail="无效的套餐类型")
+    if new_pkg != "free" and service_plan_rank("exam_11408", new_pkg) > service_plan_rank("exam_11408", get_effective_service_plan(db, current_user.id, "exam_11408")):
+        raise HTTPException(status_code=409, detail="付费套餐必须先通过会员订单开通")
     user = current_user
     track = ensure_exam_408_track(db, user)
     if not track:
@@ -1039,9 +1047,10 @@ def get_user_service_membership(db: Session, user_id: int, service_key: str):
         - course and programming should use get_user_service_membership
           with their respective service_key when they are implemented.
     """
+    canonical_key = canonical_service_key(service_key) or service_key
     return db.query(models.UserServiceMembership).filter(
         models.UserServiceMembership.user_id == user_id,
-        models.UserServiceMembership.service_key == service_key,
+        models.UserServiceMembership.service_key == canonical_key,
     ).first()
 
 
@@ -1053,10 +1062,26 @@ def get_effective_service_plan(db: Session, user_id: int, service_key: str) -> s
 
     This is the SINGLE source of truth for service-direction plan lookups.
     """
-    m = get_user_service_membership(db, user_id, service_key)
-    if m and m.is_enabled:
+    canonical_key = canonical_service_key(service_key) or service_key
+    m = get_user_service_membership(db, user_id, canonical_key)
+    if m and m.is_enabled and (getattr(m, "status", None) or "active") == "active":
+        expires_at = getattr(m, "expires_at", None)
+        if expires_at:
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if expires_at <= utc_now():
+                return "free"
         return m.plan or "free"
     return "free"
+
+
+def ensure_paid_service_plan_is_activated(db: Session, user_id: int, service_key: str, plan: str) -> None:
+    """Prevent legacy onboarding payloads from bypassing the order flow."""
+    if plan == "free":
+        return
+    current_plan = get_effective_service_plan(db, user_id, service_key)
+    if service_plan_rank(service_key, plan) > service_plan_rank(service_key, current_plan):
+        raise HTTPException(status_code=409, detail="付费套餐必须先通过会员订单开通")
 
 
 def normalize_course_plan(raw: str | None) -> str:
@@ -5440,6 +5465,7 @@ def save_course_learning_onboarding(
     plan = (req.plan or (track.plan if track else None) or "free").strip()
     if plan not in allowed_plans:
         raise HTTPException(status_code=400, detail="invalid course learning plan")
+    ensure_paid_service_plan_is_activated(db, user.id, "course_learning", plan)
 
     # Downgrade protection
     PLAN_TIER = {"free": 0, "monthly": 1, "quarterly": 2, "full": 3}
@@ -5566,6 +5592,8 @@ def save_programming_onboarding(
     now_text = serialize_datetime(utc_now())
     completed = bool(req.onboarding_completed)
     plan = requested_plan if completed else normalize_programming_plan(detail.get("programming_plan") or requested_plan)
+    if completed:
+        ensure_paid_service_plan_is_activated(db, user.id, "programming", plan)
     detail.update({
         "service_key": "programming",
         "main_language": language,
@@ -25755,6 +25783,248 @@ class RedeemRequest(BaseModel):
 
 class ManualRecommendRequest(BaseModel):
     selected_plan: str
+
+
+class MembershipOrderCreateRequest(BaseModel):
+    service_key: str
+    target_plan: str
+
+
+def _serialize_membership_order(order: models.MembershipOrder) -> dict:
+    return {
+        "id": order.id,
+        "service_key": order.service_key,
+        "target_plan": order.target_plan,
+        "amount": order.amount,
+        "amount_yuan": order.amount / 100,
+        "currency": order.currency,
+        "payment_provider": order.payment_provider,
+        "status": order.status,
+        "created_at": serialize_datetime(order.created_at),
+        "order_expires_at": serialize_datetime(order.order_expires_at),
+        "paid_at": serialize_datetime(order.paid_at),
+        "membership_started_at": serialize_datetime(order.membership_started_at),
+        "membership_expires_at": serialize_datetime(order.membership_expires_at),
+    }
+
+
+def _expire_pending_membership_order(order: models.MembershipOrder) -> None:
+    if order.status != "pending":
+        return
+    expires_at = order.order_expires_at
+    if expires_at and expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at and expires_at <= utc_now():
+        order.status = "expired"
+
+
+def _current_membership_payload(db: Session, user: models.User, service_key: str) -> dict:
+    canonical = canonical_service_key(service_key)
+    membership = get_user_service_membership(db, user.id, canonical)
+    effective_plan = get_effective_service_plan(db, user.id, canonical)
+    expired = False
+    if membership and membership.expires_at:
+        membership_expiry = membership.expires_at
+        if membership_expiry.tzinfo is None:
+            membership_expiry = membership_expiry.replace(tzinfo=timezone.utc)
+        expired = membership_expiry <= utc_now()
+    return {
+        "service_key": canonical,
+        "plan": effective_plan,
+        "status": (membership.status if membership else "inactive") if effective_plan != "free" else "expired" if expired else "active",
+        "expires_at": serialize_datetime(membership.expires_at) if membership and effective_plan != "free" else None,
+    }
+
+
+@app.get("/membership/catalog")
+def get_service_membership_catalog(
+    service_key: str = "course_learning",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    canonical = canonical_service_key(service_key)
+    if not canonical:
+        raise HTTPException(status_code=400, detail="不支持的学习方向")
+    catalog = get_service_plan_catalog(canonical)
+    current = _current_membership_payload(db, current_user, canonical)
+    return {
+        "service_key": canonical,
+        "payment_available": True,
+        "payment_provider": "mock",
+        "payment_notice": "当前为模拟支付环境，不产生真实扣款",
+        "current": current,
+        "plans": [serialize_service_plan(canonical, code, definition) for code, definition in catalog.items()],
+    }
+
+
+@app.post("/membership/orders")
+def create_membership_order(
+    req: MembershipOrderCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    canonical = canonical_service_key(req.service_key)
+    if not canonical:
+        raise HTTPException(status_code=400, detail="不支持的学习方向")
+    target_plan = (req.target_plan or "").strip().lower()
+    definition = get_service_plan(canonical, target_plan)
+    if not definition or target_plan == "free":
+        raise HTTPException(status_code=400, detail="无效的付费套餐")
+
+    current_plan = get_effective_service_plan(db, current_user.id, canonical)
+    if service_plan_rank(canonical, target_plan) <= service_plan_rank(canonical, current_plan):
+        raise HTTPException(status_code=409, detail="当前套餐已达到该等级或更高等级")
+
+    pending_orders = db.query(models.MembershipOrder).filter(
+        models.MembershipOrder.user_id == current_user.id,
+        models.MembershipOrder.service_key == canonical,
+        models.MembershipOrder.target_plan == target_plan,
+        models.MembershipOrder.status == "pending",
+    ).order_by(models.MembershipOrder.id.desc()).all()
+    for pending in pending_orders:
+        _expire_pending_membership_order(pending)
+        if pending.status == "pending":
+            db.commit()
+            return {"order": _serialize_membership_order(pending), "reused": True}
+
+    order = models.MembershipOrder(
+        user_id=current_user.id,
+        service_key=canonical,
+        target_plan=target_plan,
+        amount=int(definition["price_cents"]),
+        currency="CNY",
+        payment_provider="mock",
+        status="pending",
+        order_expires_at=utc_now() + timedelta(minutes=30),
+    )
+    db.add(order)
+    db.commit()
+    db.refresh(order)
+    return {"order": _serialize_membership_order(order), "reused": False}
+
+
+@app.get("/membership/orders")
+def list_membership_orders(
+    service_key: str = "",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    canonical = canonical_service_key(service_key) if service_key else ""
+    if service_key and not canonical:
+        raise HTTPException(status_code=400, detail="不支持的学习方向")
+    query = db.query(models.MembershipOrder).filter(models.MembershipOrder.user_id == current_user.id)
+    if canonical:
+        query = query.filter(models.MembershipOrder.service_key == canonical)
+    orders = query.order_by(models.MembershipOrder.id.desc()).limit(50).all()
+    changed = False
+    for order in orders:
+        before = order.status
+        _expire_pending_membership_order(order)
+        changed = changed or before != order.status
+    if changed:
+        db.commit()
+    return {"orders": [_serialize_membership_order(order) for order in orders]}
+
+
+def _get_membership_order_for_user(db: Session, order_id: int, user_id: int) -> models.MembershipOrder:
+    order = db.query(models.MembershipOrder).filter(
+        models.MembershipOrder.id == order_id,
+        models.MembershipOrder.user_id == user_id,
+    ).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="订单不存在")
+    _expire_pending_membership_order(order)
+    return order
+
+
+@app.get("/membership/orders/{order_id}")
+def get_membership_order(order_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    order = _get_membership_order_for_user(db, order_id, current_user.id)
+    db.commit()
+    return {"order": _serialize_membership_order(order)}
+
+
+@app.post("/membership/orders/{order_id}/pay")
+def pay_membership_order(order_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    order = _get_membership_order_for_user(db, order_id, current_user.id)
+    if order.status == "paid":
+        return {"order": _serialize_membership_order(order), "idempotent": True}
+    if order.status != "pending":
+        raise HTTPException(status_code=409, detail="订单当前不可支付")
+
+    current_plan = get_effective_service_plan(db, current_user.id, order.service_key)
+    if service_plan_rank(order.service_key, order.target_plan) <= service_plan_rank(order.service_key, current_plan):
+        raise HTTPException(status_code=409, detail="当前套餐已达到该等级或更高等级")
+    definition = get_service_plan(order.service_key, order.target_plan)
+    now = utc_now()
+    membership_expires = now + timedelta(days=int(definition["duration_days"]))
+    membership = get_user_service_membership(db, current_user.id, order.service_key)
+    if not membership:
+        membership = models.UserServiceMembership(
+            user_id=current_user.id,
+            service_key=order.service_key,
+            is_enabled=True,
+            plan=order.target_plan,
+            status="active",
+            activated_at=now,
+            expires_at=membership_expires,
+        )
+        db.add(membership)
+    else:
+        membership.is_enabled = True
+        membership.plan = order.target_plan
+        membership.status = "active"
+        membership.activated_at = now
+        membership.expires_at = membership_expires
+        membership.updated_at = now
+    order.status = "paid"
+    order.paid_at = now
+    order.membership_started_at = now
+    order.membership_expires_at = membership_expires
+    if order.service_key == "exam_11408":
+        db.flush()
+        _sync_membership_to_track(db, current_user)
+    db.commit()
+    db.refresh(order)
+    return {"order": _serialize_membership_order(order), "idempotent": False}
+
+
+@app.post("/membership/orders/{order_id}/cancel")
+def cancel_membership_order(order_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    order = _get_membership_order_for_user(db, order_id, current_user.id)
+    if order.status == "pending":
+        order.status = "cancelled"
+        db.commit()
+    elif order.status not in ("cancelled", "expired"):
+        raise HTTPException(status_code=409, detail="已支付订单不能取消")
+    return {"order": _serialize_membership_order(order)}
+
+
+@app.get("/membership/reminders")
+def get_membership_reminders(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    now = utc_now()
+    reminders = []
+    memberships = db.query(models.UserServiceMembership).filter(
+        models.UserServiceMembership.user_id == current_user.id,
+        models.UserServiceMembership.is_enabled.is_(True),
+        models.UserServiceMembership.service_key.in_(list(SERVICE_PLAN_CATALOG.keys())),
+    ).all()
+    for membership in memberships:
+        if not membership.expires_at:
+            continue
+        expires_at = membership.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        days_left = (expires_at - now).total_seconds() / 86400
+        if days_left <= 7:
+            reminders.append({
+                "service_key": membership.service_key,
+                "plan": membership.plan or "free",
+                "expires_at": serialize_datetime(membership.expires_at),
+                "days_left": max(0, int(days_left)),
+                "level": "expired" if days_left <= 0 else "urgent" if days_left <= 1 else "soon",
+            })
+    return {"reminders": reminders}
 
 
 @app.get("/membership/plans")

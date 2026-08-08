@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import "./MembershipPage.css";
 
-export default function MembershipPage({ user, apiBase, setPage, onPlanUpdate, profilePage = "examProfile" }) {
+export default function MembershipPage({ user, apiBase, setPage, onPlanUpdate, profilePage = "examProfile", serviceKey = "exam_11408" }) {
   const [effectivePlan, setEffectivePlan] = useState(null);
   const [plans, setPlans] = useState([]);
+  const [catalog, setCatalog] = useState(null);
+  const [reminders, setReminders] = useState([]);
   const [recommendation, setRecommendation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [redeemOpen, setRedeemOpen] = useState(false);
@@ -26,18 +28,47 @@ export default function MembershipPage({ user, apiBase, setPage, onPlanUpdate, p
     Promise.all([
       fetch(`${apiBase}/membership/summary?username=${encodeURIComponent(user.username)}`).then((r) => r.json()),
       fetch(`${apiBase}/membership/recommendation?username=${encodeURIComponent(user.username)}`).then((r) => r.json().catch(() => null)),
-      fetch(`${apiBase}/membership/plans?username=${encodeURIComponent(user.username)}`).then((r) => r.json()),
+      fetch(`${apiBase}/membership/catalog?service_key=${encodeURIComponent(serviceKey)}`).then((r) => {
+        if (!r.ok) throw new Error("无法加载当前方向套餐");
+        return r.json();
+      }),
     ])
-      .then(([summary, rec, plansData]) => {
-        setEffectivePlan(summary.effective_plan);
+      .then(([summary, rec, catalogData]) => {
+        setCatalog(catalogData);
+        setEffectivePlan({
+          ...(summary.effective_plan || {}),
+          plan_code: catalogData.current?.plan || "free",
+          plan_expires_at: catalogData.current?.expires_at || null,
+        });
         setRecommendation(rec);
-        setPlans(plansData.plans || []);
+        setPlans(catalogData.plans || []);
       })
       .catch(() => {
         showToast("加载会员信息失败");
       })
       .finally(() => setLoading(false));
-  }, [user?.username, apiBase, showToast]);
+  }, [user?.username, apiBase, serviceKey, showToast]);
+
+  useEffect(() => {
+    let alive = true;
+    fetch(`${apiBase}/membership/reminders`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (!alive) return;
+        const next = Array.isArray(data?.reminders) ? data.reminders : [];
+        try {
+          const key = `membership-reminder:${serviceKey}`;
+          if (next.length > 0 && sessionStorage.getItem(key) !== "1") {
+            sessionStorage.setItem(key, "1");
+            setReminders(next);
+          }
+        } catch {
+          setReminders(next);
+        }
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [apiBase, serviceKey]);
 
   // Handle manual recommendation choice
   const handleManualChoice = async (selectedPlan) => {
@@ -55,10 +86,10 @@ export default function MembershipPage({ user, apiBase, setPage, onPlanUpdate, p
         setRecommendation(rec);
         setManualChoiceOpen(false);
         showToast("已记录你的学习方向偏好");
-        // Re-fetch plans to update recommended state
-        const plansRes = await fetch(`${apiBase}/membership/plans?username=${encodeURIComponent(user.username)}`);
-        const plansData = await plansRes.json();
-        setPlans(plansData.plans || []);
+        const catalogRes = await fetch(`${apiBase}/membership/catalog?service_key=${encodeURIComponent(serviceKey)}`);
+        const catalogData = await catalogRes.json();
+        setCatalog(catalogData);
+        setPlans(catalogData.plans || []);
       }
     } catch {
       showToast("操作失败，请稍后重试");
@@ -112,6 +143,10 @@ export default function MembershipPage({ user, apiBase, setPage, onPlanUpdate, p
     ...p,
     is_recommended: p.plan_code === recommendedPlanCode,
   }));
+  const currentRank = Number(catalog?.current?.plan ? plans.find((p) => p.plan_code === catalog.current.plan)?.rank : 0);
+  const formatPeriod = (days) => days === 365 ? "/ 年" : days === 90 ? "/ 季度" : days === 30 ? "/ 月" : "";
+  const formatQuota = (value) => Number(value) >= 999999 ? "无限" : `${value ?? 0}次/天`;
+  const formatStorage = (value) => Number(value) >= 1024 ? `${Number(value) / 1024}GB` : `${value ?? 0}MB`;
 
   if (loading) {
     return (
@@ -156,6 +191,12 @@ export default function MembershipPage({ user, apiBase, setPage, onPlanUpdate, p
         <div>
           <h1 className="mp-title">会员中心</h1>
           <p className="mp-subtitle">根据你的专业，为你推荐最适合的学习套餐</p>
+          {catalog?.payment_notice && <p className="mp-payment-note">{catalog.payment_notice}</p>}
+          {reminders[0] && (
+            <div className="mp-renewal-alert">
+              {reminders[0].level === "expired" ? "当前会员已到期，已恢复免费权益。" : `当前会员将在 ${reminders[0].days_left} 天内到期，请及时续期。`}
+            </div>
+          )}
         </div>
       </div>
 
@@ -250,7 +291,7 @@ export default function MembershipPage({ user, apiBase, setPage, onPlanUpdate, p
               {plan.price_yuan > 0 ? (
                 <>
                   <span className="mp-plan-amount">{plan.price_yuan}</span>
-                  <span className="mp-plan-unit"> 元/月</span>
+                  <span className="mp-plan-unit"> 元{formatPeriod(plan.duration_days)}</span>
                 </>
               ) : (
                 <span className="mp-plan-free">免费</span>
@@ -260,15 +301,15 @@ export default function MembershipPage({ user, apiBase, setPage, onPlanUpdate, p
             <div className="mp-plan-limits">
               <div className="mp-plan-limit-item">
                 <span className="mp-limit-label">AI 问答</span>
-                <span className="mp-limit-value">{plan.daily_ai_limit >= 999999 ? "无限" : `${plan.daily_ai_limit}次/天`}</span>
+                <span className="mp-limit-value">{formatQuota(plan.quota?.ai_chat_daily_limit)}</span>
               </div>
               <div className="mp-plan-limit-item">
                 <span className="mp-limit-label">文件上传</span>
-                <span className="mp-limit-value">{plan.daily_upload_limit >= 999999 ? "无限" : `${plan.daily_upload_limit}次/天`}</span>
+                <span className="mp-limit-value">{formatStorage(plan.quota?.material_upload_limit_mb)}</span>
               </div>
               <div className="mp-plan-limit-item">
                 <span className="mp-limit-label">编程练习</span>
-                <span className="mp-limit-value">{plan.daily_code_limit >= 999999 ? "无限" : `${plan.daily_code_limit}次/天`}</span>
+                <span className="mp-limit-value">{formatQuota(plan.quota?.ai_question_daily_limit)}</span>
               </div>
               {plan.allowed_languages?.length > 0 && (
                 <div className="mp-plan-limit-item">
@@ -280,12 +321,14 @@ export default function MembershipPage({ user, apiBase, setPage, onPlanUpdate, p
             <div className="mp-plan-action">
               {plan.plan_code === effectivePlan?.plan_code ? (
                 <button className="mp-btn mp-btn-outline" disabled>当前套餐</button>
+              ) : plan.rank <= currentRank ? (
+                <button className="mp-btn mp-btn-outline" disabled>不可降级</button>
               ) : plan.price_yuan > 0 ? (
                 <button
                   className={`mp-btn ${plan.is_recommended ? "mp-btn-primary" : "mp-btn-outline"}`}
-                  onClick={() => showToast("微信支付功能正在开发中，当前仅支持兑换码激活测试权益")}
+                  onClick={() => setPage("membershipCheckout", { serviceKey, planCode: plan.plan_code, profilePage })}
                 >
-                  开通套餐
+                  查看并开通
                 </button>
               ) : (
                 <button className="mp-btn mp-btn-outline" disabled>使用免费版</button>

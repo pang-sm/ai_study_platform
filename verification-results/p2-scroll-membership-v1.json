@@ -1,0 +1,38 @@
+{
+  "status": "MEMBERSHIP_COMMERCIALIZATION_V1_NOT_VERIFIED",
+  "environment": {
+    "local_url": "http://127.0.0.1:5173/",
+    "backend_url": "http://127.0.0.1:8000/",
+    "production_url": "http://101.32.190.42/",
+    "production_ui_verified": false
+  },
+  "verification": {
+    "python_compile": "PASS",
+    "pytest": {"status": "PASS", "passed": 17},
+    "frontend_build": "PASS",
+    "membership_order_flow": "PASS",
+    "membership_persistence_after_refresh": "PASS",
+    "server_catalog_price_and_upgrade_rules": "PASS",
+    "scroll_viewports": [
+      {"viewport": "1366x768", "page": "11408 home", "document_height": 916, "bottom_scroll_y": 148, "at_bottom": true},
+      {"viewport": "1440x900", "page": "11408 home", "document_height": 980, "bottom_scroll_y": 80, "at_bottom": true},
+      {"viewport": "1536x864", "page": "11408 home", "document_height": 944, "bottom_scroll_y": 80, "at_bottom": true},
+      {"viewport": "1920x1080", "page": "11408 home", "document_height": 1160, "bottom_scroll_y": 80, "at_bottom": true}
+    ],
+    "scrollable_surfaces_1366x768": [
+      {"page": "course knowledge", "container": ".csd-main--knowledge", "scroll_height": 854, "client_height": 768, "bottom_reached": true},
+      {"page": "course report", "container": ".csd-main--report", "scroll_height": 1649, "client_height": 768, "bottom_reached": true},
+      {"page": "membership", "container": ".ep-page-wrap", "scroll_height": 778, "client_height": 768, "bottom_reached": true},
+      {"page": "checkout", "container": ".al-main", "scroll_height": 792, "client_height": 768, "bottom_reached": true}
+    ],
+    "console": {
+      "local_flow_business_errors": 0,
+      "historical_startup_noise": "A stale local onboarding check logged a login-expired error before the authenticated course flow; it did not recur during the verified checkout, refresh, or membership screens."
+    }
+  },
+  "screenshots": [
+    "verification-results/p2-scroll-membership-v1/profile-11408-1366x768.png",
+    "verification-results/p2-scroll-membership-v1/11408-home-1920x1080.png"
+  ],
+  "production_blocker": "Formal production UI verification still requires a valid production test session after deployment."
+}

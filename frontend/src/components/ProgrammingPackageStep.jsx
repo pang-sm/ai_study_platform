@@ -1,12 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import "./ProgrammingOnboarding.css";
-
-const PACKAGE_META = {
-  free: { title: "免费模式", subtitle: "基础体验", price: "0", period: "", icon: "gift", btnLabel: "免费体验" },
-  monthly: { title: "编程练习月卡", subtitle: "日常练习", price: "9", period: "/ 月", icon: "code", btnLabel: "去支付" },
-  quarterly: { title: "编程进阶训练包", subtitle: "能力提升", price: "19", period: "/ 季度", icon: "trophy", btnLabel: "去支付", recommended: true },
-  full: { title: "实验与算法强化包", subtitle: "进阶强化", price: "59", period: "/ 年", icon: "cap", btnLabel: "去支付" },
-};
 
 function PlanIcon({ type }) {
   if (type === "code") {
@@ -39,19 +32,26 @@ function formatBenefit(benefit) {
 }
 
 function normalizePackage(plan) {
-  const meta = PACKAGE_META[plan.plan] || PACKAGE_META.free;
+  const rank = Number(plan.rank || 0);
+  const duration = plan.duration_days === 365 ? "/ 年" : plan.duration_days === 90 ? "/ 季度" : plan.duration_days === 30 ? "/ 月" : "";
   const benefits = (plan.benefits || []).map(formatBenefit).filter(Boolean);
-  const experience = plan.plan === "free" ? "体验情况：基础编程体验" : plan.plan === "full" ? "体验情况：长期完整编程体验" : "体验情况：进阶编程体验";
+  const quotaBenefits = Object.entries(plan.quota || {}).map(([key, value]) => ({
+    key,
+    label: key === "ai_chat_daily_limit" ? "AI 问答" : key === "ai_question_daily_limit" ? "AI 出题" : key === "problem_records" ? "题目记录" : key === "file_library" ? "文件库" : key,
+    limit: typeof value === "number" ? value : null,
+    unit: key.endsWith("_limit") ? "次/天" : "",
+    enabled: typeof value === "boolean" ? value : true,
+  })).map(formatBenefit).filter(Boolean);
   return {
-    key: plan.plan,
-    title: plan.plan_label || meta.title,
-    subtitle: meta.subtitle,
-    price: meta.price,
-    period: meta.period,
-    icon: meta.icon,
-    btnLabel: meta.btnLabel,
-    recommended: meta.recommended,
-    benefits: [{ text: experience, enabled: true }, ...benefits],
+    key: plan.plan_code,
+    title: plan.name,
+    subtitle: rank === 0 ? "基础体验" : rank === 1 ? "日常练习" : rank === 2 ? "能力提升" : "进阶强化",
+    price: (Number(plan.price_cents || 0) / 100).toFixed(2),
+    period: duration,
+    icon: rank === 0 ? "gift" : rank === 1 ? "code" : rank === 2 ? "trophy" : "cap",
+    btnLabel: rank === 0 ? "免费体验" : "前往结算",
+    recommended: rank === 2,
+    benefits: [...benefits, ...quotaBenefits],
   };
 }
 
@@ -65,83 +65,29 @@ export default function ProgrammingPackageStep({
 }) {
   const [selectedPlan, setSelectedPlan] = useState(initialPlan || "quarterly");
   const [plans, setPlans] = useState([]);
-  const [savedDetails, setSavedDetails] = useState(initialDetails || null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
-
-  useEffect(() => {
-    setSavedDetails(initialDetails || null);
-  }, [initialDetails]);
-
-  useEffect(() => {
-    if (initialDetails || !user?.username) return;
-    let alive = true;
-    fetch(`${apiBase}/programming/onboarding`, { credentials: "include" })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (!alive || !data) return;
-        setSavedDetails(data);
-        if (data.onboarding_completed && data.plan) setSelectedPlan(data.plan);
-      })
-      .catch(() => {});
-    return () => { alive = false; };
-  }, [apiBase, initialDetails, user?.username]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let alive = true;
-    fetch(`${apiBase}/programming/packages`)
+    fetch(`${apiBase}/membership/catalog?service_key=programming`, { credentials: "include" })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (!alive || !Array.isArray(data?.plans)) return;
+        if (!alive || !Array.isArray(data?.plans)) throw new Error("套餐目录加载失败");
         setPlans(data.plans.map(normalizePackage));
       })
-      .catch(() => {
-        if (alive) setPlans([]);
-      });
+      .catch(() => alive && setMessage("套餐目录加载失败，请稍后重试。"))
+      .finally(() => alive && setLoading(false));
     return () => { alive = false; };
   }, [apiBase]);
-
-  const visiblePlans = useMemo(() => (
-    plans.length ? plans : Object.entries(PACKAGE_META).map(([key, meta]) => ({
-      key,
-      title: meta.title,
-      subtitle: meta.subtitle,
-      price: meta.price,
-      period: meta.period,
-      icon: meta.icon,
-      btnLabel: meta.btnLabel,
-      recommended: meta.recommended,
-      benefits: [],
-    }))
-  ), [plans]);
 
   const completeWithPlan = async (plan = selectedPlan) => {
     setSelectedPlan(plan);
     setMessage("");
-    if (!user?.username) {
-      setMessage("登录状态已失效，请重新登录后再试");
-      return;
-    }
-    const details = savedDetails || initialDetails || {};
     setSaving(true);
     try {
-      const res = await fetch(`${apiBase}/programming/onboarding`, {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          main_language: details.main_language || "Python",
-          level: details.level || "零基础",
-          problems: Array.isArray(details.problems) ? details.problems : [],
-          plan,
-          onboarding_completed: true,
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.detail || "套餐保存失败");
-      onComplete?.(data);
+      await onComplete?.(plan);
     } catch (error) {
       setMessage(error.message || "套餐保存失败，请稍后再试");
     } finally {
@@ -159,7 +105,8 @@ export default function ProgrammingPackageStep({
         </div>
 
         <div className="programming-package-grid">
-          {visiblePlans.map((pkg) => (
+          {loading && <div className="programming-onboarding-error">套餐目录加载中，请稍后。</div>}
+          {plans.map((pkg) => (
             <article
               key={pkg.key}
               className={`programming-plan-card${selectedPlan === pkg.key ? " is-selected" : ""}${pkg.recommended ? " is-recommended" : ""}`}

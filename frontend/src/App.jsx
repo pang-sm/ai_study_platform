@@ -25,6 +25,7 @@ import ExamProfile from "./components/ExamProfile.jsx";
 import ExamPlan from "./components/ExamPlan.jsx";
 import ExamSubjectDashboard, { EXAM_SUBJECTS, getExamCourseId } from "./components/ExamSubjectDashboard.jsx";
 import MembershipPage from "./components/MembershipPage.jsx";
+import CheckoutPage from "./components/CheckoutPage.jsx";
 
 const TaskCenter = lazy(() => import("./components/TaskCenter.jsx"));
 const PracticeCenter = lazy(() => import("./components/PracticeCenter.jsx"));
@@ -53,6 +54,7 @@ import {
 
 const USER_STORAGE_KEY = "ai_study_platform_user";
 const ACTIVE_SESSION_STORAGE_KEY = "ai_study_platform_active_session_id";
+const MEMBERSHIP_CHECKOUT_CONTEXT_KEY = "ai_study_platform_membership_checkout";
 const CURRENT_PAGE_KEY = "ai_study_current_page";
 const CURRENT_SUBJECT_KEY = "ai_study_current_subject";
 const CURRENT_EXAM_SUBJECT_KEY = "ai_study_current_exam_subject";
@@ -458,6 +460,7 @@ function normalizePageName(pageName) {
 
 const VALID_PAGES = new Set([
   "home", "dashboard", "profile", "membership",
+  "membershipCheckout",
   "taskCenter", "practiceCenter", "learningDataCenter", "reviewCenter",
   "learningPlanCenter", "knowledgeBaseCenter", "quotaCenter",
   "learningReportCenter", "adminDashboard", "adminAnnouncements", "adminUsers",
@@ -502,6 +505,15 @@ function getInitialPage() {
     if (savedPage && VALID_PAGES.has(savedPage)) return savedPage;
   } catch { /* ignore */ }
   return "login";
+}
+
+function getInitialMembershipCheckoutContext() {
+  try {
+    const raw = sessionStorage.getItem(MEMBERSHIP_CHECKOUT_CONTEXT_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
 }
 
 function saveCurrentPage(pageName) {
@@ -553,9 +565,18 @@ function App() {
   const [examKnowledgeContext, setExamKnowledgeContext] = useState(null);
   const [courseSubjectContext, setCourseSubjectContext] = useState(getInitialCourseContext);
   const [courseDashboardPanelIntent, setCourseDashboardPanelIntent] = useState(null);
+  const [membershipCheckoutContext, setMembershipCheckoutContext] = useState(getInitialMembershipCheckoutContext);
 
   const setPage = (nextPage, context = null) => {
     nextPage = normalizePageName(nextPage);
+    if (nextPage === "membershipCheckout") {
+      const checkoutContext = context || membershipCheckoutContext;
+      setMembershipCheckoutContext(checkoutContext);
+      try { sessionStorage.setItem(MEMBERSHIP_CHECKOUT_CONTEXT_KEY, JSON.stringify(checkoutContext || {})); } catch { /* ignore */ }
+    } else if (membershipCheckoutContext) {
+      setMembershipCheckoutContext(null);
+      try { sessionStorage.removeItem(MEMBERSHIP_CHECKOUT_CONTEXT_KEY); } catch { /* ignore */ }
+    }
     // Feature gating: intercept navigation to disabled features
     const PAGE_FEATURE_MAP = {
       practiceCenter: "feature_practice_center_enabled",
@@ -3349,13 +3370,35 @@ function App() {
   }
 
   if (page === "programmingPackageStep") {
-    const handleProgrammingComplete = (data) => {
-      if (data?.profile) {
-        saveLoginUser(data.profile);
-      }
-      setProgrammingOnboardingStatus(data?.onboarding || { onboarding_completed: true, plan: "free" });
+    const handleProgrammingComplete = async (selectedPlan) => {
+      const details = programmingOnboardingStatus || {};
+      const persistedPlan = details.onboarding_completed ? (details.plan || "free") : "free";
+      const res = await fetch(`${API_BASE}/programming/onboarding`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          main_language: details.main_language || "Python",
+          level: details.level || "零基础",
+          problems: Array.isArray(details.problems) ? details.problems : [],
+          plan: persistedPlan,
+          onboarding_completed: true,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(getDisplayMessage(data.detail, "编程学习信息保存失败，请稍后再试。"));
+      if (data?.profile) saveLoginUser(data.profile);
+      setProgrammingOnboardingStatus(data?.onboarding || { onboarding_completed: true, plan: persistedPlan });
       const nextPage = serviceSwitchOnboarding?.targetPage || "programmingHome";
       setServiceSwitchOnboarding(null);
+      if (selectedPlan && selectedPlan !== persistedPlan && selectedPlan !== "free") {
+        setPage("membershipCheckout", {
+          serviceKey: "programming",
+          planCode: selectedPlan,
+          returnPage: nextPage,
+        });
+        return;
+      }
       setPage(nextPage);
     };
     return (
@@ -3396,6 +3439,7 @@ function App() {
     const handleCoursePackageComplete = async (plan) => {
       if (!user?.username || coursePackageSaving) return;
       const details = courseOnboardingStatus || {};
+      const persistedPlan = details.onboarding_completed ? (details.plan || "free") : "free";
       setCoursePackageSaving(true);
       try {
         const res = await fetch(`${API_BASE}/course-learning/onboarding`, {
@@ -3409,7 +3453,7 @@ function App() {
             grade: details.grade || user.grade || "",
             selected_courses: details.selected_courses || [],
             material_types: details.material_types || [],
-            plan,
+            plan: persistedPlan,
             onboarding_completed: true,
           }),
         });
@@ -3422,10 +3466,18 @@ function App() {
           saveLoginUser(data.profile);
         }
         setTip("");
-        setCourseOnboardingStatus(data?.onboarding || { onboarding_completed: true, plan });
+        setCourseOnboardingStatus(data?.onboarding || { onboarding_completed: true, plan: persistedPlan });
         const nextPage = serviceSwitchOnboarding?.targetPage || courseOnboardingTargetPage || "home";
         setCourseOnboardingTargetPage(nextPage);
         setServiceSwitchOnboarding(null);
+        if (plan && plan !== persistedPlan && plan !== "free") {
+          setPage("membershipCheckout", {
+            serviceKey: "course_learning",
+            planCode: plan,
+            returnPage: nextPage,
+          });
+          return;
+        }
         setPage("courseLearningComplete");
       } finally {
         setCoursePackageSaving(false);
@@ -3950,6 +4002,20 @@ function App() {
         setPage={setPage}
         onPlanUpdate={handleProfileUpdate}
         profilePage={currentProfilePage}
+        serviceKey={activeTrackType === "university_course" ? "course_learning" : activeTrackType === "programming" ? "programming" : "exam_11408"}
+      />
+    );
+  }
+
+  if (page === "membershipCheckout") {
+    const checkoutServiceKey = membershipCheckoutContext?.serviceKey || (activeTrackType === "university_course" ? "course_learning" : activeTrackType === "programming" ? "programming" : "exam_11408");
+    return wrapPage(
+      <CheckoutPage
+        apiBase={API_BASE}
+        serviceKey={checkoutServiceKey}
+        planCode={membershipCheckoutContext?.planCode || ""}
+        onBack={() => setPage("membership")}
+        onComplete={() => setPage(membershipCheckoutContext?.returnPage || "membership")}
       />
     );
   }

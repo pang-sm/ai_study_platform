@@ -2094,6 +2094,55 @@ def ensure_user_service_memberships_schema(conn):
             """
         )
     )
+    ensure_columns(conn, "user_service_memberships", {
+        "status": "VARCHAR(20) NOT NULL DEFAULT 'active'",
+        "activated_at": "DATETIME",
+        "expires_at": "DATETIME",
+    })
+    # Canonicalize the historical alias before new service memberships are written.
+    conn.execute(text("""
+        UPDATE user_service_memberships
+        SET service_key = 'course_learning'
+        WHERE service_key = 'course'
+          AND NOT EXISTS (
+              SELECT 1 FROM user_service_memberships newer
+              WHERE newer.user_id = user_service_memberships.user_id
+                AND newer.service_key = 'course_learning'
+          )
+    """))
+    conn.execute(text("""
+        DELETE FROM user_service_memberships
+        WHERE service_key = 'course'
+          AND EXISTS (
+              SELECT 1 FROM user_service_memberships newer
+              WHERE newer.user_id = user_service_memberships.user_id
+                AND newer.service_key = 'course_learning'
+          )
+    """))
+    conn.execute(text("""
+        UPDATE user_service_memberships
+        SET status = CASE WHEN COALESCE(is_enabled, 0) = 1 THEN 'active' ELSE 'inactive' END
+        WHERE status IS NULL OR TRIM(status) = ''
+    """))
+    conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS membership_orders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            service_key VARCHAR(50) NOT NULL,
+            target_plan VARCHAR(30) NOT NULL,
+            amount INTEGER NOT NULL DEFAULT 0,
+            currency VARCHAR(10) NOT NULL DEFAULT 'CNY',
+            payment_provider VARCHAR(20) NOT NULL DEFAULT 'mock',
+            status VARCHAR(20) NOT NULL DEFAULT 'pending',
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            order_expires_at DATETIME NOT NULL,
+            paid_at DATETIME,
+            membership_started_at DATETIME,
+            membership_expires_at DATETIME
+        )
+    """))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_membership_orders_user_status ON membership_orders (user_id, status)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_membership_orders_service_plan ON membership_orders (service_key, target_plan)"))
     conn.execute(
         text(
             """
@@ -2104,7 +2153,7 @@ def ensure_user_service_memberships_schema(conn):
     )
     # ── Migration: backfill for existing users ──
     all_users = conn.execute(text("SELECT id, COALESCE(plan, 'free') AS plan FROM users WHERE COALESCE(is_deleted, 0) = 0")).fetchall()
-    service_keys = ["exam_11408", "course", "programming"]
+    service_keys = ["exam_11408", "course_learning", "programming"]
     for user_row in all_users:
         uid = user_row[0]
         legacy_plan = (user_row[1] or "free").strip()

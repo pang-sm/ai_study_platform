@@ -1,14 +1,5 @@
 import { useEffect, useState } from "react";
 
-const PACKAGES = [
-  { key: "free", name: "免费模式", price: "0", period: "", desc: "基础体验", icon: "◇" },
-  { key: "monthly", name: "月课程包", price: "29", period: "/ 月", desc: "短期提升", icon: "◆" },
-  { key: "quarterly", name: "季度课程包", price: "79", period: "/ 季度", desc: "深度学习", icon: "★", recommended: true },
-  { key: "full", name: "全程课程包", price: "149", period: "/ 年", desc: "长期陪伴", icon: "✦" },
-];
-
-const TIER_ORDER = ["free", "monthly", "quarterly", "full"];
-
 function formatUploadLimit(mb) {
   return Number(mb) >= 1024 ? `${Number(mb) / 1024}GB` : `${mb}MB`;
 }
@@ -21,7 +12,7 @@ function buildFeatures(pkg) {
       return { label: `${b.label}${suffix}`, ok: b.enabled !== false };
     });
   }
-  const perms = pkg.permissions || {};
+  const perms = pkg.quota || pkg.permissions || {};
   return [
     { label: `AI 问答 ${perms.ai_chat_daily_limit ?? 50} 次 / 每天`, ok: true },
     { label: `AI 出题 ${perms.ai_question_daily_limit ?? 5} 次 / 每天`, ok: true },
@@ -35,75 +26,42 @@ function buildFeatures(pkg) {
 export default function CourseLearningPlan({ user, setPage, API_BASE }) {
   const [apiPackages, setApiPackages] = useState([]);
   const [currentPkg, setCurrentPkg] = useState("free");
-  const [loading, setLoading] = useState("");
-  const [msg, setMsg] = useState("");
+  const [currentRank, setCurrentRank] = useState(0);
   const [err, setErr] = useState("");
 
-  // Fetch available packages from API
   useEffect(() => {
     let alive = true;
-    fetch(`${API_BASE}/course-learning/packages`)
+    fetch(`${API_BASE}/membership/catalog?service_key=course_learning`, { credentials: "include" })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (!alive) return;
-        if (data?.plans && Array.isArray(data.plans)) {
-          const merged = PACKAGES.map((pkg) => {
-            const apiPlan = data.plans.find((p) => p.plan === pkg.key);
-            return { ...pkg, permissions: apiPlan?.permissions || {}, benefits: apiPlan?.benefits || [] };
-          });
-          setApiPackages(merged);
-        } else {
-          setApiPackages(PACKAGES);
-        }
+        if (!Array.isArray(data?.plans)) throw new Error("套餐目录加载失败");
+        setApiPackages(data.plans.map((pkg) => ({
+          ...pkg,
+          key: pkg.plan_code,
+          price: (Number(pkg.price_cents || 0) / 100).toString(),
+          desc: pkg.rank === 0 ? "基础体验" : pkg.rank === 1 ? "短期提升" : pkg.rank === 2 ? "深度学习" : "长期陪伴",
+          period: pkg.duration_days === 365 ? "/ 年" : pkg.duration_days === 90 ? "/ 季度" : pkg.duration_days === 30 ? "/ 月" : "",
+          icon: pkg.rank === 0 ? "◇" : pkg.rank === 1 ? "◆" : pkg.rank === 2 ? "★" : "✦",
+          recommended: pkg.rank === 2,
+        })));
+        setCurrentPkg(data.current?.plan || "free");
+        setCurrentRank(Number(data.plans.find((pkg) => pkg.plan_code === data.current?.plan)?.rank || 0));
       })
-      .catch(() => { if (alive) setApiPackages(PACKAGES); });
+      .catch(() => { if (alive) setErr("套餐目录加载失败，请稍后重试。"); });
     return () => { alive = false; };
   }, [API_BASE]);
 
-  // Fetch current entitlements
-  useEffect(() => {
-    if (!user?.username) return;
-    let alive = true;
-    fetch(`${API_BASE}/course-learning/entitlements?username=${encodeURIComponent(user.username)}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (alive && data?.plan) setCurrentPkg(data.plan);
-      })
-      .catch(() => {});
-    return () => { alive = false; };
-  }, [API_BASE, user?.username]);
+  const displayPackages = apiPackages;
 
-  const currentIdx = TIER_ORDER.indexOf(currentPkg);
-  const displayPackages = apiPackages.length > 0 ? apiPackages : PACKAGES;
-
-  const handleUpgrade = async (pkgKey) => {
-    const targetIdx = TIER_ORDER.indexOf(pkgKey);
-    if (targetIdx <= currentIdx) {
+  const handleUpgrade = (pkgKey) => {
+    const target = displayPackages.find((pkg) => pkg.key === pkgKey);
+    if (!target || Number(target.rank) <= currentRank) {
       setErr("当前已是该套餐或更高等级课程，无需升级");
       return;
     }
-    setLoading(pkgKey);
     setErr("");
-    setMsg("");
-    try {
-      const res = await fetch(`${API_BASE}/course-learning/onboarding`, {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ plan: pkgKey, onboarding_completed: true }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.detail || "套餐升级失败，请稍后重试");
-      setCurrentPkg(pkgKey);
-      setMsg("课程学习套餐已更新");
-      setTimeout(() => setMsg(""), 3000);
-    } catch (e) {
-      setErr(e.message);
-    } finally {
-      setLoading("");
-    }
+    setPage?.("membershipCheckout", { serviceKey: "course_learning", planCode: pkgKey, profilePage: "courseProfile" });
   };
 
   return (
@@ -120,16 +78,14 @@ export default function CourseLearningPlan({ user, setPage, API_BASE }) {
           <h1 className="ep-title">课程学习套餐详情</h1>
         </div>
 
-        {msg && <div className="admin-dashboard-success" style={{ marginBottom: 12 }}>{msg}</div>}
         {err && <div className="admin-dashboard-error" style={{ marginBottom: 12 }}>{err}</div>}
 
         <div className="ep-card">
           <div className="ob-packages">
             {displayPackages.map((pkg) => {
-              const pkgIdx = TIER_ORDER.indexOf(pkg.key);
               const isCurrent = pkg.key === currentPkg;
-              const canUpgrade = pkgIdx > currentIdx;
-              const isLower = pkgIdx < currentIdx;
+              const canUpgrade = Number(pkg.rank) > currentRank;
+              const isLower = Number(pkg.rank) < currentRank;
 
               return (
                 <div
@@ -161,17 +117,15 @@ export default function CourseLearningPlan({ user, setPage, API_BASE }) {
                   <button
                     type="button"
                     className={isCurrent ? "ob-btn-secondary" : canUpgrade ? "ob-btn-primary" : "ob-btn-secondary"}
-                    disabled={isLower || loading === pkg.key}
+                    disabled={isLower}
                     onClick={() => canUpgrade && handleUpgrade(pkg.key)}
                     style={{ opacity: isLower ? 0.4 : 1 }}
                   >
-                    {loading === pkg.key
-                      ? "升级中..."
-                      : isCurrent
+                    {isCurrent
                       ? "当前套餐"
                       : isLower
                       ? "不可降级"
-                      : "立即升级"}
+                      : "查看并开通"}
                   </button>
                 </div>
               );

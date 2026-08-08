@@ -1108,5 +1108,31 @@ class UserServiceMembership(Base):
     service_key = Column(String(50), index=True, nullable=False)
     is_enabled = Column(Boolean, nullable=False, default=False)
     plan = Column(String(30), nullable=True, default="free")
+    status = Column(String(20), nullable=False, default="active")
+    activated_at = Column(DateTime, nullable=True)
+    expires_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+
+class MembershipOrder(Base):
+    """Server-owned mock payment order for one service direction upgrade."""
+    __tablename__ = "membership_orders"
+    __table_args__ = (
+        Index("idx_membership_orders_user_status", "user_id", "status"),
+        Index("idx_membership_orders_service_plan", "service_key", "target_plan"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=False)
+    service_key = Column(String(50), index=True, nullable=False)
+    target_plan = Column(String(30), nullable=False)
+    amount = Column(Integer, nullable=False, default=0)
+    currency = Column(String(10), nullable=False, default="CNY")
+    payment_provider = Column(String(20), nullable=False, default="mock")
+    status = Column(String(20), nullable=False, default="pending")
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+    order_expires_at = Column(DateTime, nullable=False)
+    paid_at = Column(DateTime, nullable=True)
+    membership_started_at = Column(DateTime, nullable=True)
+    membership_expires_at = Column(DateTime, nullable=True)

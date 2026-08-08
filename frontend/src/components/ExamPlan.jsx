@@ -1,14 +1,5 @@
 import { useEffect, useState } from "react";
 
-const PACKAGES = [
-  { key: "free", name: "免费模式", price: "0", period: "", desc: "基础体验", icon: "🎓", permissions: { ai_chat_daily_limit: 50, ai_question_daily_limit: 5, material_upload_limit_mb: 100, learning_plan: false, mistake_review: false, learning_report: false } },
-  { key: "monthly_sprint", name: "月度冲刺包", price: "29", period: "/ 月", desc: "短期提升", icon: "🚀", permissions: { ai_chat_daily_limit: 300, ai_question_daily_limit: 30, material_upload_limit_mb: 500, learning_plan: true, mistake_review: true, learning_report: true } },
-  { key: "quarterly_boost", name: "季度强化包", price: "79", period: "/ 季度", desc: "学习更稳", icon: "⭐", recommended: true, permissions: { ai_chat_daily_limit: 500, ai_question_daily_limit: 50, material_upload_limit_mb: 1024, learning_plan: true, mistake_review: true, learning_report: true } },
-  { key: "full_exam", name: "全程考包", price: "149", period: "/ 年", desc: "长期备考", icon: "🏆", permissions: { ai_chat_daily_limit: 1000, ai_question_daily_limit: 100, material_upload_limit_mb: 2048, learning_plan: true, mistake_review: true, learning_report: true } },
-];
-
-const TIER_ORDER = ["free", "monthly_sprint", "quarterly_boost", "full_exam"];
-
 function formatUploadLimit(mb) {
   return Number(mb) >= 1024 ? `${Number(mb) / 1024}GB` : `${mb}MB`;
 }
@@ -26,54 +17,40 @@ function featuresFromPermissions(permissions) {
 
 export default function ExamPlan({ user, setPage, API_BASE }) {
   const [currentPkg, setCurrentPkg] = useState("free");
-  const [currentTrack, setCurrentTrack] = useState(null);
-  const [loading, setLoading] = useState("");
-  const [msg, setMsg] = useState("");
+  const [currentRank, setCurrentRank] = useState(0);
+  const [packages, setPackages] = useState([]);
   const [err, setErr] = useState("");
 
-  // Fetch real package from tracks API — not from stale prop
-  const fetchPackage = async () => {
+  const fetchPackages = async () => {
     try {
-      const res = await fetch(`${API_BASE}/me/tracks?username=${encodeURIComponent(user.username)}`);
+      const res = await fetch(`${API_BASE}/membership/catalog?service_key=exam_11408`, { credentials: "include" });
       const data = await res.json().catch(() => ({}));
-      const tracks = data.tracks || [];
-      const examTrack = tracks.find((t) => t.track_type === "exam_408");
-      if (examTrack) {
-        setCurrentTrack(examTrack);
-        if (examTrack.package_type) setCurrentPkg(examTrack.package_type);
-      }
-    } catch { /* keep default */ }
+      if (!res.ok || !Array.isArray(data.plans)) throw new Error(data.detail || "套餐目录加载失败");
+      setPackages(data.plans.map((pkg) => ({
+        ...pkg,
+        key: pkg.plan_code,
+        name: pkg.name,
+        price: (Number(pkg.price_cents || 0) / 100).toString(),
+        period: pkg.duration_days === 365 ? "/ 年" : pkg.duration_days === 90 ? "/ 季度" : pkg.duration_days === 30 ? "/ 月" : "",
+        desc: pkg.rank === 0 ? "基础体验" : pkg.rank === 1 ? "短期冲刺" : pkg.rank === 2 ? "强化备考" : "长期备考",
+        icon: pkg.rank === 0 ? "🎓" : pkg.rank === 1 ? "🚀" : pkg.rank === 2 ? "⭐" : "🏆",
+        recommended: pkg.rank === 2,
+      })));
+      const current = data.current?.plan || "free";
+      setCurrentPkg(current);
+      setCurrentRank(Number(data.plans.find((pkg) => pkg.plan_code === current)?.rank || 0));
+    } catch (error) { setErr(error.message || "套餐目录加载失败，请稍后重试"); }
   };
-  useEffect(() => { fetchPackage(); }, []);
+  useEffect(() => { fetchPackages(); }, [API_BASE]);
 
-  const currentIdx = TIER_ORDER.indexOf(currentPkg);
-
-  const handleUpgrade = async (pkgKey) => {
-    const targetIdx = TIER_ORDER.indexOf(pkgKey);
-    if (targetIdx <= currentIdx) {
+  const handleUpgrade = (pkgKey) => {
+    const target = packages.find((pkg) => pkg.key === pkgKey);
+    if (!target || Number(target.rank) <= currentRank) {
       setErr("当前已是该套餐或更高等级，无需升级");
       return;
     }
-    setLoading(pkgKey);
-    setErr(""); setMsg("");
-    try {
-      const res = await fetch(`${API_BASE}/me/tracks/exam_408/package`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: user.username, package_type: pkgKey }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.detail || "升级失败");
-      const nextTrack = data.track || null;
-      setCurrentTrack(nextTrack);
-      setCurrentPkg(nextTrack?.package_type || pkgKey);
-      setMsg(data.message || "套餐已更新");
-      setTimeout(() => setMsg(""), 3000);
-    } catch (e) {
-      setErr(e.message);
-    } finally {
-      setLoading("");
-    }
+    setErr("");
+    setPage?.("membershipCheckout", { serviceKey: "exam_11408", planCode: pkgKey, profilePage: "examProfile" });
   };
 
   return (
@@ -84,16 +61,14 @@ export default function ExamPlan({ user, setPage, API_BASE }) {
           <h1 className="ep-title">套餐详情</h1>
         </div>
 
-        {msg && <div className="admin-dashboard-success" style={{ marginBottom: 12 }}>{msg}</div>}
         {err && <div className="admin-dashboard-error" style={{ marginBottom: 12 }}>{err}</div>}
 
         <div className="ep-card">
           <div className="ob-packages">
-            {PACKAGES.map((pkg) => {
-              const pkgIdx = TIER_ORDER.indexOf(pkg.key);
+            {packages.map((pkg) => {
               const isCurrent = pkg.key === currentPkg;
-              const canUpgrade = pkgIdx > currentIdx;
-              const isLower = pkgIdx < currentIdx;
+              const canUpgrade = Number(pkg.rank) > currentRank;
+              const isLower = Number(pkg.rank) < currentRank;
 
               return (
                 <div
@@ -111,7 +86,7 @@ export default function ExamPlan({ user, setPage, API_BASE }) {
                     {pkg.period && <span className="ob-package-period">{pkg.period}</span>}
                   </div>
                   <ul className="ob-package-features">
-                    {featuresFromPermissions(pkg.key === currentPkg && currentTrack?.permissions ? currentTrack.permissions : pkg.permissions).map((f, i) => (
+                    {featuresFromPermissions(pkg.quota || {}).map((f, i) => (
                       <li key={i} className={f.ok ? "ob-package-feature" : "ob-package-feature ob-package-feature--unavail"}>
                         <span className="ob-package-check">{f.ok ? "✓" : "✕"}</span> {f.label}
                       </li>
@@ -120,11 +95,11 @@ export default function ExamPlan({ user, setPage, API_BASE }) {
                   <button
                     type="button"
                     className={isCurrent ? "ob-btn-secondary" : canUpgrade ? "ob-btn-primary" : "ob-btn-secondary"}
-                    disabled={isLower || loading === pkg.key}
+                    disabled={isLower}
                     onClick={() => canUpgrade ? handleUpgrade(pkg.key) : (isLower ? setErr("当前已是该套餐或更高等级") : null)}
                     style={{ opacity: isLower ? 0.4 : 1 }}
                   >
-                    {loading === pkg.key ? "升级中..." : isCurrent ? "当前套餐" : isLower ? "不可用" : "立即升级"}
+                    {isCurrent ? "当前套餐" : isLower ? "不可用" : "查看并开通"}
                   </button>
                 </div>
               );

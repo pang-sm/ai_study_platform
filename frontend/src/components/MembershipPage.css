@@ -59,6 +59,21 @@
   margin: 4px 0 0;
 }
 
+.mp-payment-note {
+  margin: 8px 0 0;
+  color: #1d4ed8;
+  font-size: 13px;
+}
+
+.mp-renewal-alert {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 13px;
+}
+
 /* ── Cards ── */
 
 .mp-card {

@@ -1,12 +1,5 @@
 import { useEffect, useState } from "react";
 
-const PACKAGE_META = {
-  free: { title: "免费模式", subtitle: "基础体验", price: "0", period: "", icon: "◇", btnLabel: "免费体验" },
-  monthly: { title: "月课程包", subtitle: "短期提升", price: "29", period: "/ 月", icon: "◆", btnLabel: "去支付" },
-  quarterly: { title: "季度课程包", subtitle: "深度学习", price: "79", period: "/ 季度", icon: "★", btnLabel: "去支付", recommended: true },
-  full: { title: "全程课程包", subtitle: "长期陪伴", price: "149", period: "/ 年", icon: "✦", btnLabel: "去支付" },
-};
-
 function formatBenefit(benefit) {
   if (!benefit) return "";
   const prefix = benefit.enabled === false ? "未解锁：" : "";
@@ -17,17 +10,23 @@ function formatBenefit(benefit) {
 }
 
 function normalizePackage(plan) {
-  const meta = PACKAGE_META[plan.plan] || PACKAGE_META.free;
+  const rank = Number(plan.rank || 0);
+  const duration = plan.duration_days === 365 ? "/ 年" : plan.duration_days === 90 ? "/ 季度" : plan.duration_days === 30 ? "/ 月" : "";
   return {
-    key: plan.plan,
-    title: plan.plan_label || meta.title,
-    subtitle: meta.subtitle,
-    price: meta.price,
-    period: meta.period,
-    icon: meta.icon,
-    btnLabel: meta.btnLabel,
-    recommended: meta.recommended,
-    features: (plan.benefits || []).map(formatBenefit).filter(Boolean),
+    key: plan.plan_code,
+    title: plan.name,
+    subtitle: rank === 0 ? "基础体验" : rank === 1 ? "短期提升" : rank === 2 ? "深度学习" : "长期陪伴",
+    price: (Number(plan.price_cents || 0) / 100).toFixed(2),
+    period: duration,
+    icon: rank === 0 ? "◇" : rank === 1 ? "◆" : rank === 2 ? "★" : "✦",
+    btnLabel: rank === 0 ? "免费体验" : "前往结算",
+    recommended: rank === 2,
+    features: Object.entries(plan.quota || {}).map(([key, value]) => ({
+      label: key === "ai_chat_daily_limit" ? "AI 问答" : key === "ai_question_daily_limit" ? "AI 出题" : key === "material_upload_limit_mb" ? "资料上传" : key === "learning_plan" ? "学习计划" : key === "mistake_review" ? "练习复盘" : key === "learning_report" ? "学习报告" : key,
+      limit: typeof value === "number" ? value : null,
+      unit: key.endsWith("_limit") ? "次/天" : "",
+      enabled: typeof value === "boolean" ? value : true,
+    })).map(formatBenefit).filter(Boolean),
   };
 }
 
@@ -40,17 +39,23 @@ export default function CourseLearningPackageStep({
 }) {
   const [selectedPlan, setSelectedPlan] = useState(initialPlan || "quarterly");
   const [packages, setPackages] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
     let alive = true;
-    fetch("/api/course-learning/packages")
+    fetch("/api/membership/catalog?service_key=course_learning", { credentials: "include" })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (!alive || !Array.isArray(data?.plans)) return;
+        if (!alive) return;
+        if (!Array.isArray(data?.plans)) throw new Error("套餐目录加载失败");
         const next = data.plans.map(normalizePackage);
-        if (next.length > 0) setPackages(next);
+        setPackages(next);
       })
-      .catch(() => setPackages([]));
+      .catch(() => {
+        if (alive) setLoadError("套餐目录加载失败，请稍后重试。");
+      })
+      .finally(() => alive && setLoading(false));
     return () => { alive = false; };
   }, []);
 
@@ -72,8 +77,9 @@ export default function CourseLearningPackageStep({
         {error && <div className="ob-error">{error}</div>}
 
         <div className="ob-packages course-package-grid">
-          {packages.length === 0 && (
-            <div className="ob-error">课程学习套餐加载中，请稍候重试。</div>
+          {loading && <div className="ob-error">课程学习套餐加载中，请稍候。</div>}
+          {!loading && loadError && (
+            <div className="ob-error">{loadError}</div>
           )}
           {packages.map((pkg) => (
             <div
