@@ -1,0 +1,39 @@
+{
+  "status": "ADMIN_DASHBOARD_DATA_CLEANUP_NOT_VERIFIED",
+  "url": "http://101.32.190.42/",
+  "entry": "/login via the unified login UI",
+  "admin_login": "not_verified",
+  "dashboard_load": "not_verified",
+  "blocker": "No valid administrator authentication state was available in the connected browser session.",
+  "observed_page": "Unified login page with account and password fields",
+  "auth_policy": "No credentials were guessed or submitted; no token, cookie, localStorage, or database state was fabricated or modified.",
+  "api_health": {
+    "status": 200,
+    "body": {"status": "ok"}
+  },
+  "admin_api_checks": "not_run because admin login was not established",
+  "console": {
+    "business_errors": "not_observed on Dashboard because Dashboard was not reached",
+    "known_third_party_noise": "Statsig POST to ab.chatgpt.com timed out on the login page"
+  },
+  "network": {
+    "admin_requests": "not_collected because Dashboard was not reached",
+    "unexpected_failures": "not_determinable for Dashboard"
+  },
+  "screenshots": [],
+  "checks": {
+    "user_metrics": "not_verified",
+    "learning_metrics": "not_verified",
+    "ai_metrics": "not_verified",
+    "order_revenue_empty_state": "not_verified",
+    "no_hardcoded_growth": "not_verified in production UI",
+    "real_trend_chart": "not_verified",
+    "ai_estimated_cost_wording": "not_verified"
+  },
+  "business_bug_found": false,
+  "new_business_commit": false,
+  "deployed_business_commit": "a5a1ca4",
+  "actions_run": "31257313512",
+  "deployment": "success",
+  "next_required_input": "An administrator must establish a valid session through the unified /login page before the Dashboard UI can be verified."
+}
