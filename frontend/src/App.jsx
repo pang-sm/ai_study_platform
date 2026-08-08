@@ -26,7 +26,6 @@ import ExamPlan from "./components/ExamPlan.jsx";
 import ExamSubjectDashboard, { EXAM_SUBJECTS, getExamCourseId } from "./components/ExamSubjectDashboard.jsx";
 import MembershipPage from "./components/MembershipPage.jsx";
 
-const CodeStudio = lazy(() => import("./components/CodeStudio.jsx"));
 const TaskCenter = lazy(() => import("./components/TaskCenter.jsx"));
 const PracticeCenter = lazy(() => import("./components/PracticeCenter.jsx"));
 const ExamPracticeCenter = lazy(() => import("./components/ExamPracticeCenter.jsx"));
@@ -449,8 +448,16 @@ function getRecordAnswerPreview(answer) {
   return `${text.slice(0, 180)}...`;
 }
 
+const LEGACY_PAGE_ALIASES = {
+  codeStudio: "programmingHome",
+};
+
+function normalizePageName(pageName) {
+  return LEGACY_PAGE_ALIASES[pageName] || pageName;
+}
+
 const VALID_PAGES = new Set([
-  "home", "dashboard", "profile", "membership", "codeStudio",
+  "home", "dashboard", "profile", "membership",
   "taskCenter", "practiceCenter", "learningDataCenter", "reviewCenter",
   "learningPlanCenter", "knowledgeBaseCenter", "quotaCenter",
   "learningReportCenter", "adminDashboard", "adminAnnouncements", "adminUsers",
@@ -491,15 +498,16 @@ function getInitialPage() {
   const savedUser = getSavedUser();
   if (!savedUser) return "login";
   try {
-    const savedPage = localStorage.getItem(CURRENT_PAGE_KEY);
+    const savedPage = normalizePageName(localStorage.getItem(CURRENT_PAGE_KEY));
     if (savedPage && VALID_PAGES.has(savedPage)) return savedPage;
   } catch { /* ignore */ }
   return "login";
 }
 
 function saveCurrentPage(pageName) {
-  if (VALID_PAGES.has(pageName)) {
-    try { localStorage.setItem(CURRENT_PAGE_KEY, pageName); } catch { /* ignore */ }
+  const normalizedPage = normalizePageName(pageName);
+  if (VALID_PAGES.has(normalizedPage)) {
+    try { localStorage.setItem(CURRENT_PAGE_KEY, normalizedPage); } catch { /* ignore */ }
   }
 }
 
@@ -547,9 +555,9 @@ function App() {
   const [courseDashboardPanelIntent, setCourseDashboardPanelIntent] = useState(null);
 
   const setPage = (nextPage, context = null) => {
+    nextPage = normalizePageName(nextPage);
     // Feature gating: intercept navigation to disabled features
     const PAGE_FEATURE_MAP = {
-      codeStudio: "feature_code_studio_enabled",
       practiceCenter: "feature_practice_center_enabled",
     };
     const gateKey = PAGE_FEATURE_MAP[nextPage];
@@ -1059,16 +1067,17 @@ function App() {
 
   const getPostAuthPage = (loginUser, savedPage = null) => {
     const isAdmin = hasAdminAccess(loginUser);
+    const restoredPage = normalizePageName(savedPage);
 
     if (isAdmin) {
-      return ADMIN_PAGES.includes(savedPage) ? savedPage : "adminDashboard";
+      return ADMIN_PAGES.includes(restoredPage) ? restoredPage : "adminDashboard";
     }
     if (loginUser?.needs_onboarding === true || loginUser?.onboarding_completed === false) {
       return "onboarding";
     }
-    const isSavedAdminPage = ADMIN_PAGES.includes(savedPage);
-    if (savedPage && VALID_PAGES.has(savedPage) && savedPage !== "login" && savedPage !== "adminLogin" && savedPage !== "onboarding" && !isSavedAdminPage) {
-      return savedPage;
+    const isSavedAdminPage = ADMIN_PAGES.includes(restoredPage);
+    if (restoredPage && VALID_PAGES.has(restoredPage) && restoredPage !== "login" && restoredPage !== "adminLogin" && restoredPage !== "onboarding" && !isSavedAdminPage) {
+      return restoredPage;
     }
     // Route users based on tracks data (new system) or learning_goal_type (legacy)
     const activeTrack = loginUser?.active_track_type || loginUser?.learning_goal_type || "";
@@ -3942,28 +3951,6 @@ function App() {
         onPlanUpdate={handleProfileUpdate}
         profilePage={currentProfilePage}
       />
-    );
-  }
-
-  if (page === "codeStudio") {
-    if (!isFeatureEnabled("feature_code_studio_enabled")) {
-      return wrapPage(<FeatureUnavailable featureName="编程助手" onGoHome={() => setPage("home")} />);
-    }
-    return wrapPage(
-      <div className="app-shell">
-        <Suspense fallback={<div className="empty-state">编程学习助手加载中...</div>}>
-          <CodeStudio
-            user={user}
-            subject={subject}
-            courseOptions={COURSE_OPTIONS}
-            getSubjectLabel={getSubjectLabel}
-            normalizeSubject={normalizeSubject}
-            formatDate={formatDate}
-            searchNavigate={searchNavigate}
-            onClearSearchNavigate={() => setSearchNavigate(null)}
-          />
-        </Suspense>
-      </div>
     );
   }
 

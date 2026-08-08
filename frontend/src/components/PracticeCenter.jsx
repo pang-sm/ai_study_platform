@@ -1655,7 +1655,7 @@ export default function PracticeCenter({
 
   const createQuestion = async () => {
     if (createType === "programming") {
-      setPage("codeStudio");
+      setPage("programmingHome");
       return;
     }
     if (!createTitle.trim() || !createContent.trim()) return;
@@ -1710,7 +1710,7 @@ export default function PracticeCenter({
 
   const generateQuestions = async () => {
     if (genType === "programming") {
-      setPage("codeStudio");
+      setPage("programmingHome");
       setShowGenerateModal(false);
       return;
     }
@@ -2000,7 +2000,7 @@ export default function PracticeCenter({
   const createModuleChildren = createModuleId ? getModuleChildren(createModuleId) : [];
   const genModuleChildren = genModuleId ? getModuleChildren(genModuleId) : [];
   const editModuleChildren = editModuleId ? getModuleChildren(editModuleId) : [];
-  const goCodeStudio = () => setPage("codeStudio");
+  const goProgrammingHome = () => setPage("programmingHome");
   const openGenerateModal = () => {
     setGenCourse(courseFilter || subject || "");
     setGenCourseName("");
@@ -3545,8 +3545,8 @@ export default function PracticeCenter({
                       </div>
                       <div className="question-card-actions">
                         {isProgrammingQuestion(q) ? (
-                          <button className="primary-button compact question-start-button" onClick={goCodeStudio}>
-                            去编程助手练习
+                            <button className="primary-button compact question-start-button" onClick={goProgrammingHome}>
+                            去编程工作台练习
                           </button>
                         ) : (
                           <>
@@ -4200,10 +4200,10 @@ export default function PracticeCenter({
 
               {createType === "programming" ? (
                 <div className="practice-code-guide">
-                  <strong>编程题请前往编程助手创建和练习。</strong>
+                  <strong>编程题请前往编程工作台创建和练习。</strong>
                   <p>编程题需要运行环境、测试用例和代码反馈，已在编程助手中集中处理。</p>
-                  <button className="primary-button compact" type="button" onClick={goCodeStudio}>
-                    前往编程助手
+                  <button className="primary-button compact" type="button" onClick={goProgrammingHome}>
+                    前往编程工作台
                   </button>
                 </div>
               ) : (

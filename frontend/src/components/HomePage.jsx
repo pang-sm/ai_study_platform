@@ -441,7 +441,7 @@ function CoreFeatures({ onNavigate }) {
     { id: "chat", icon: "💬", title: "AI 智能问答", desc: "随时向 AI 提问，获取知识点讲解、解题思路和学习建议", color: "#2563eb" },
     { id: "dashboard", icon: "📋", title: "课程工作台", desc: "管理你的学习资料、聊天记录和学习进度", color: "#059669" },
     { id: "practiceCenter", icon: "📝", title: "练习中心", desc: "按知识点刷题练习，AI 自动反馈，支持选择题和简答题", color: "#7c3aed" },
-    { id: "codeStudio", icon: "</>", title: "编程学习助手", desc: "在线练习编程，AI 帮你分析代码和解答编程问题", color: "#db2777" },
+    { id: "programmingHome", icon: "</>", title: "编程工作台", desc: "从题库进入统一 Workbench，运行、测试并提交代码", color: "#db2777" },
     { id: "taskCenter", icon: "✅", title: "学习任务中心", desc: "创建和管理学习任务，让 AI 帮你生成个性化学习计划", color: "#ea580c" },
     { id: "knowledgeLearning", icon: "🎯", title: "知识点学习", desc: "按知识点体系逐步学习，支持资料路线和平台推荐路线", color: "#0f766e" },
   ];

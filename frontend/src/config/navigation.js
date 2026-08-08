@@ -11,7 +11,7 @@ export const APP_PAGES = {
   knowledgeLearning: { key: "knowledgeLearning", icon: "🔗",  label: "知识脉络",         group: "core" },
   taskCenter:        { key: "taskCenter",        icon: "✅",  label: "任务中心",         group: "core" },
   practiceCenter:    { key: "practiceCenter",    icon: "📝",  label: "练习中心",         group: "core" },
-  codeStudio:        { key: "codeStudio",        icon: "</>", label: "编程学习助手",     group: "core" },
+  programmingHome:   { key: "programmingHome",   icon: "</>", label: "编程工作台",       group: "core" },
 
   // ── 学习沉淀 ──
   learningDataCenter:   { key: "learningDataCenter",   icon: "📊", label: "学习数据中心", group: "review" },
@@ -42,7 +42,7 @@ export const SIDEBAR_NAV_GROUPS = [
       APP_PAGES.knowledgeLearning,
       APP_PAGES.taskCenter,
       APP_PAGES.practiceCenter,
-      APP_PAGES.codeStudio,
+      APP_PAGES.programmingHome,
     ],
   },
   {
@@ -93,10 +93,10 @@ export const HOME_CORE_FEATURES = [
     color: "#7c3aed",
   },
   {
-    id: APP_PAGES.codeStudio.key,
-    icon: APP_PAGES.codeStudio.icon,
-    title: "编程学习助手",
-    desc: "在线练习编程，AI 帮你分析代码和解答编程问题",
+    id: APP_PAGES.programmingHome.key,
+    icon: APP_PAGES.programmingHome.icon,
+    title: "编程工作台",
+    desc: "从题库进入统一 Workbench，运行、测试并提交代码",
     color: "#db2777",
   },
   {
@@ -151,7 +151,7 @@ export const HOME_LEARNING_TOOLS = [
 export const HOME_SEARCH_RECOMMEND_ENTRIES = [
   APP_PAGES.taskCenter,
   APP_PAGES.practiceCenter,
-  APP_PAGES.codeStudio,
+  APP_PAGES.programmingHome,
   APP_PAGES.learningReportCenter,
   APP_PAGES.learningDataCenter,
   // 注：资料库入口已移除，用户通过课程工作台访问

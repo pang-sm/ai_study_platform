@@ -4976,7 +4976,7 @@ def global_search(
     ).order_by(models.Question.created_at.desc()).limit(limit)
     for q in q_query.all():
         is_programming = q.type == "programming"
-        target_page = "codeStudio" if is_programming else "practiceCenter"
+        target_page = "programmingHome" if is_programming else "practiceCenter"
         score = max(_score_contains(q.title, keyword, 80), _score_contains(q.content or "", keyword, 75))
         fields = _matched_fields([("标题", keyword.lower() in (q.title or "").lower()), ("题干", keyword.lower() in (q.content or "").lower())])
         q_items.append({
@@ -14664,7 +14664,7 @@ def get_learning_dashboard(username: str = "", db: Session = Depends(get_db), cu
             session.created_at,
             subtitle=session.language or "编程练习",
             course_id=session.course_id or "",
-            target_page="codeStudio",
+            target_page="programmingHome",
             target_params={"sessionId": session.id, "courseId": session.course_id or ""},
         )
 
@@ -14680,7 +14680,7 @@ def get_learning_dashboard(username: str = "", db: Session = Depends(get_db), cu
             attempt.created_at,
             subtitle=attempt.status or "编程提交",
             course_id=challenge.course_id if challenge else "",
-            target_page="codeStudio",
+            target_page="programmingHome",
             target_params={"challengeId": attempt.challenge_id, "sessionId": attempt.session_id},
         )
 
@@ -20804,7 +20804,7 @@ def list_questions(
             "difficulty": ch.difficulty,
             "source": "code_studio",
             "language": ch.language,
-            "practice_url": "codeStudio",
+            "practice_url": "programmingHome",
             "created_at": serialize_datetime(ch.created_at) if ch.created_at else None,
             "updated_at": serialize_datetime(ch.created_at) if ch.created_at else None,
         })

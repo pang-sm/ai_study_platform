@@ -11,7 +11,7 @@ const RECOMMEND_ENTRIES = [
   { id: "workspaceMaterials", icon: "资料", label: "课程资料库" },
   { id: "taskCenter", icon: "任务", label: "任务中心" },
   { id: "practiceCenter", icon: "练习", label: "练习中心" },
-  { id: "codeStudio", icon: "</>", label: "编程学习助手" },
+  { id: "programmingHome", icon: "</>", label: "编程工作台" },
   { id: "learningReportCenter", icon: "报告", label: "学习报告" },
   { id: "learningDataCenter", icon: "数据", label: "学习数据中心" },
 ];
