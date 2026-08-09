@@ -3544,6 +3544,7 @@ function App() {
       showMembershipAd={shouldShowMembershipAd(user)}
       onLogout={logout}
       serviceKey={layoutContext.serviceKey || getMembershipServiceKey(user?.active_track_type)}
+      hideSidebar={Boolean(layoutContext.hideSidebar)}
     >
       {visibleAnnouncements.length > 0 && (
         <div className="announce-banner-area">
@@ -4030,7 +4031,7 @@ function App() {
         returnPage={membershipReturnPage}
         directionLabel={getMembershipDirectionLabel(membershipServiceKey)}
       />,
-      { serviceKey: membershipServiceKey },
+      { serviceKey: membershipServiceKey, hideSidebar: true },
     );
   }
 
@@ -4063,7 +4064,7 @@ function App() {
         onComplete={() => refreshUserAfterCheckout("membership")}
         onReturnHome={() => refreshUserAfterCheckout("learning")}
       />,
-      { serviceKey: checkoutServiceKey },
+      { serviceKey: checkoutServiceKey, hideSidebar: true },
     );
   }
 

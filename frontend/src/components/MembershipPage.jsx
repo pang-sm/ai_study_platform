@@ -199,7 +199,8 @@ export default function MembershipPage({
   }
 
   return (
-    <div className="membership-shell">
+    <div className="membership-shell membership-shell--standalone">
+      <div className="membership-page-card">
       <div className="membership-header-row">
         <button type="button" className="membership-back" onClick={() => setPage(profilePage)}>← 返回个人主页</button>
         <span className="membership-direction">{directionLabel}</span>
@@ -283,6 +284,7 @@ export default function MembershipPage({
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

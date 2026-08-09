@@ -23,3 +23,11 @@
   overflow-y: auto;
   overflow-x: hidden;
 }
+
+.al-shell--standalone {
+  background: #f5f0ff;
+}
+
+.al-shell--standalone .al-main {
+  background: transparent;
+}

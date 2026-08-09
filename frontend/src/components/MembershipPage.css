@@ -6,6 +6,78 @@
   color: #17203c;
 }
 
+/* Registered-user upgrades use the same centered package surface as onboarding. */
+.membership-shell--standalone {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: none;
+  min-height: 100%;
+  margin: 0;
+  padding: 48px 32px 72px;
+  background: linear-gradient(150deg, #f5f0ff 0%, #ede4ff 30%, #faf8ff 60%, #f5f3ff 100%);
+}
+
+.membership-page-card {
+  width: min(1120px, 100%);
+  margin: 0 auto;
+  padding: 40px 44px 52px;
+  box-sizing: border-box;
+  border: 1px solid #ede4ff;
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 4px 24px rgba(124, 58, 237, .06), 0 16px 48px rgba(15, 23, 42, .05);
+}
+
+.membership-shell--standalone .membership-heading {
+  padding: 34px 0 26px;
+  text-align: center;
+}
+
+.membership-shell--standalone .membership-heading h1 {
+  font-size: clamp(30px, 4vw, 40px);
+}
+
+.membership-shell--standalone .membership-heading p {
+  max-width: 680px;
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.membership-shell--standalone .membership-plans-section {
+  margin-top: 24px;
+}
+
+.membership-shell--standalone .membership-plan-card {
+  border-width: 2px;
+  min-height: 398px;
+  padding: 24px 16px 20px;
+  border-radius: 20px;
+  text-align: center;
+}
+
+.membership-shell--standalone .membership-plan-name,
+.membership-shell--standalone .membership-plan-description,
+.membership-shell--standalone .membership-plan-limits {
+  width: 100%;
+}
+
+.membership-shell--standalone .membership-plan-name {
+  padding-right: 0;
+  font-size: 16px;
+}
+
+.membership-shell--standalone .membership-plan-price {
+  justify-content: center;
+}
+
+.membership-shell--standalone .membership-plan-description {
+  min-height: 44px;
+}
+
+.membership-shell--standalone .membership-plan-limits {
+  text-align: left;
+}
+
 .membership-loading {
   display: grid;
   min-height: 50vh;
@@ -111,6 +183,8 @@
 
 @media (max-width: 760px) {
   .membership-shell { padding: 22px 16px 48px; }
+  .membership-shell--standalone { padding: 24px 16px 48px; }
+  .membership-page-card { padding: 28px 18px 36px; border-radius: 20px; }
   .membership-heading { padding-top: 34px; }
   .membership-recommendation,
   .membership-redeem-panel { align-items: flex-start; flex-direction: column; }

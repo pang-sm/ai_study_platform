@@ -130,7 +130,8 @@ export default function CheckoutPage({
   const paid = order?.status === "paid";
 
   return (
-    <div className="checkout-shell">
+    <div className="checkout-shell checkout-shell--standalone">
+      <div className="checkout-page-card">
       <div className="checkout-topbar"><button type="button" className="checkout-back" onClick={onBack}>← 返回会员中心</button><span>{displayDirection}</span></div>
       <header className="checkout-heading"><span className="checkout-eyebrow">CHECKOUT</span><h1>{paid ? "支付成功" : "确认订单"}</h1><p>{paid ? "你的会员权益已经生效。" : `升级你的 ${plan?.name || order?.target_plan || "学习套餐"}`}</p></header>
 
@@ -160,6 +161,7 @@ export default function CheckoutPage({
           <aside className="checkout-summary-panel"><span className="checkout-eyebrow">ORDER SUMMARY</span><h2>订单摘要</h2><div className="checkout-summary-line"><span>套餐</span><strong>{plan?.name || order?.target_plan}</strong></div><div className="checkout-summary-line"><span>周期</span><strong>{plan?.duration_days ? `${plan.duration_days} 天` : "-"}</strong></div><div className="checkout-summary-total"><span>应付金额</span><strong>¥{money(amount)}</strong></div><div className="checkout-summary-meta"><span>订单号</span><span>#{order.id}</span><span>订单状态</span><span>{statusLabel(order.status)}</span><span>支付剩余时间</span><span>{formatDate(order.order_expires_at)}</span></div>{order.status === "pending" ? <><button type="button" className="checkout-button checkout-button-primary" onClick={payOrder} disabled={working}> {working ? "处理中…" : `确认模拟支付 ¥${money(amount)}`}</button><button type="button" className="checkout-button checkout-button-secondary checkout-cancel-button" onClick={cancelOrder} disabled={working}>取消订单</button><p className="checkout-disclaimer">模拟支付不会产生真实扣款</p></> : <div className="checkout-closed-state">订单{statusLabel(order.status)}，请返回会员中心重新选择。</div>}</aside>
         </div>
       )}
+      </div>
     </div>
   );
 }
