@@ -520,6 +520,11 @@ function getInitialPage() {
   if (!savedUser) return "login";
   try {
     const savedPage = normalizePageName(localStorage.getItem(CURRENT_PAGE_KEY));
+    if (savedPage === "programmingPackageStep" && savedUser.needs_onboarding !== true) {
+      if (savedUser.active_track_type === "exam_408") return "examHome";
+      if (savedUser.active_track_type === "university_course") return "home";
+      return "programmingHome";
+    }
     if (savedPage && VALID_PAGES.has(savedPage)) return savedPage;
   } catch { /* ignore */ }
   return "login";
@@ -1117,6 +1122,11 @@ function App() {
     }
     if (loginUser?.needs_onboarding === true || loginUser?.onboarding_completed === false) {
       return "onboarding";
+    }
+    if (restoredPage === "programmingPackageStep") {
+      if (loginUser?.active_track_type === "exam_408") return "examHome";
+      if (loginUser?.active_track_type === "university_course") return "home";
+      return "programmingHome";
     }
     const isSavedAdminPage = ADMIN_PAGES.includes(restoredPage);
     if (restoredPage && VALID_PAGES.has(restoredPage) && restoredPage !== "login" && restoredPage !== "adminLogin" && restoredPage !== "onboarding" && !isSavedAdminPage) {
