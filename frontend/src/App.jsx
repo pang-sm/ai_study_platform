@@ -3536,16 +3536,8 @@ function App() {
 
   const wrapPage = (children, layoutContext = {}) => {
     const visibleAnnouncements = userAnnouncements.filter((a) => !dismissedAnnounceIds.includes(a.id));
-    return (
-    <AppLayout
-      activePage={page}
-      onNavigate={setPage}
-      isAdmin={!!user?.is_admin}
-      showMembershipAd={shouldShowMembershipAd(user)}
-      onLogout={logout}
-      serviceKey={layoutContext.serviceKey || getMembershipServiceKey(user?.active_track_type)}
-      hideSidebar={Boolean(layoutContext.hideSidebar)}
-    >
+    const content = (
+      <>
       {visibleAnnouncements.length > 0 && (
         <div className="announce-banner-area">
           {visibleAnnouncements.map((a) => {
@@ -3565,7 +3557,22 @@ function App() {
         </div>
       )}
       {children}
-    </AppLayout>
+      </>
+    );
+    if (layoutContext.standalone) {
+      return <main className="standalone-page-main">{content}</main>;
+    }
+    return (
+      <AppLayout
+        activePage={page}
+        onNavigate={setPage}
+        isAdmin={!!user?.is_admin}
+        showMembershipAd={shouldShowMembershipAd(user)}
+        onLogout={logout}
+        serviceKey={layoutContext.serviceKey || getMembershipServiceKey(user?.active_track_type)}
+      >
+        {content}
+      </AppLayout>
     );
   };
 
@@ -4031,7 +4038,7 @@ function App() {
         returnPage={membershipReturnPage}
         directionLabel={getMembershipDirectionLabel(membershipServiceKey)}
       />,
-      { serviceKey: membershipServiceKey, hideSidebar: true },
+      { serviceKey: membershipServiceKey, standalone: true },
     );
   }
 
@@ -4064,7 +4071,7 @@ function App() {
         onComplete={() => refreshUserAfterCheckout("membership")}
         onReturnHome={() => refreshUserAfterCheckout("learning")}
       />,
-      { serviceKey: checkoutServiceKey, hideSidebar: true },
+      { serviceKey: checkoutServiceKey, standalone: true },
     );
   }
 
