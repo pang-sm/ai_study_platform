@@ -2271,8 +2271,17 @@ function App() {
         const savedPage = (() => {
           try { return localStorage.getItem(CURRENT_PAGE_KEY); } catch { return null; }
         })();
-        const nextPage = getPostAuthPage(checkedUser, savedPage);
-        setPage(nextPage, nextPage === "dashboard" ? getInitialCourseContext() : null);
+        const checkoutContext = getInitialMembershipCheckoutContext();
+        const hasCheckoutContext = Boolean(checkoutContext?.orderId || checkoutContext?.order_id);
+        const nextPage = hasCheckoutContext ? "membershipCheckout" : getPostAuthPage(checkedUser, savedPage);
+        setPage(
+          nextPage,
+          hasCheckoutContext
+            ? checkoutContext
+            : nextPage === "dashboard"
+              ? getInitialCourseContext()
+              : null,
+        );
       } catch (error) {
         console.error("Failed to verify login status:", error);
       }
