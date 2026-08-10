@@ -534,7 +534,8 @@ function getInitialPage() {
 
 function getInitialMembershipCheckoutContext() {
   try {
-    const raw = sessionStorage.getItem(MEMBERSHIP_CHECKOUT_CONTEXT_KEY);
+    const raw = sessionStorage.getItem(MEMBERSHIP_CHECKOUT_CONTEXT_KEY)
+      || localStorage.getItem(MEMBERSHIP_CHECKOUT_CONTEXT_KEY);
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
@@ -599,12 +600,19 @@ function App() {
       const checkoutContext = context || membershipCheckoutContext;
       setMembershipCheckoutContext(checkoutContext);
       setMembershipPageContext(checkoutContext || null);
-      try { sessionStorage.setItem(MEMBERSHIP_CHECKOUT_CONTEXT_KEY, JSON.stringify(checkoutContext || {})); } catch { /* ignore */ }
+      try {
+        const serializedContext = JSON.stringify(checkoutContext || {});
+        sessionStorage.setItem(MEMBERSHIP_CHECKOUT_CONTEXT_KEY, serializedContext);
+        localStorage.setItem(MEMBERSHIP_CHECKOUT_CONTEXT_KEY, serializedContext);
+      } catch { /* ignore */ }
     } else if (nextPage === "membership" && context?.serviceKey) {
       setMembershipPageContext(context);
     } else if (membershipCheckoutContext) {
       setMembershipCheckoutContext(null);
-      try { sessionStorage.removeItem(MEMBERSHIP_CHECKOUT_CONTEXT_KEY); } catch { /* ignore */ }
+      try {
+        sessionStorage.removeItem(MEMBERSHIP_CHECKOUT_CONTEXT_KEY);
+        localStorage.removeItem(MEMBERSHIP_CHECKOUT_CONTEXT_KEY);
+      } catch { /* ignore */ }
     }
     // Feature gating: intercept navigation to disabled features
     const PAGE_FEATURE_MAP = {
