@@ -1,0 +1,52 @@
+{
+  "base_url": "http://101.32.190.42",
+  "auth_entry": "/register",
+  "username": "onboarding_acceptance_1786359273255",
+  "account_created_via_register": "PASS_PREVIOUS_RUN",
+  "fresh_user": {
+    "me_after_register": {
+      "status": 200,
+      "needs_onboarding": false,
+      "active_track_type": "programming",
+      "track_count": 2
+    },
+    "first_onboarding_back": {
+      "status": "PASS",
+      "verified_in_previous_run": true,
+      "evidence": "fresh-user-onboarding-back.png",
+      "returned_to_first_step": true,
+      "preserved_input": true
+    }
+  },
+  "programming_completion": {
+    "ui_text": "编程学习首页",
+    "me_status": 200,
+    "active_track_type": "programming",
+    "programming_registered": true,
+    "exam_registered_before_switch": false,
+    "verified_in_previous_run": true
+  },
+  "programming_to_exam_cancel": {
+    "status": "PASS",
+    "active_track_after": "programming",
+    "exam_registered_after_cancel": false,
+    "returned_to_programming_home": true,
+    "refresh": {
+      "status": "PASS",
+      "active_track_after_refresh": "programming",
+      "returned_to_programming_home_after_refresh": true
+    }
+  },
+  "console_business_errors": [],
+  "unexpected_network_failures": [],
+  "screenshots": [
+    "verification-results/announcement-onboarding-production/screenshots/programming-to-exam-onboarding-new-account.png",
+    "verification-results/announcement-onboarding-production/screenshots/programming-restored-after-exam-cancel-new-account.png",
+    "verification-results/announcement-onboarding-production/screenshots/programming-restored-after-exam-cancel-refresh.png"
+  ],
+  "cleanup": {
+    "account_deactivated": false,
+    "note": "QA account is retained for reproducibility unless explicitly deactivated after review."
+  },
+  "status": "ONBOARDING_RETURN_FLOW_VERIFIED"
+}

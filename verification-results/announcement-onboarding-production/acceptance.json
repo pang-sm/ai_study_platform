@@ -1,0 +1,68 @@
+{
+  "base_url": "http://101.32.190.42",
+  "auth_entry": "/login",
+  "auth_states": {
+    "admin": {
+      "me_status": 200,
+      "passed": true
+    },
+    "normal_course": {
+      "me_status": 200,
+      "passed": true
+    },
+    "normal_programming": {
+      "me_status": 200,
+      "passed": true
+    }
+  },
+  "announcement": {
+    "invalid_statuses": [
+      400,
+      400,
+      400
+    ],
+    "created_id": 5,
+    "published_visible": true,
+    "withdrawn_hidden": true,
+    "legacy_test_record_withdrawn": true
+  },
+  "onboarding": {
+    "course_to_programming_cancel": {
+      "status": "PASS",
+      "active_track_after": "university_course"
+    },
+    "programming_to_exam_cancel": {
+      "status": "PASS",
+      "active_track_after": "programming",
+      "exam_registered_after_cancel": false,
+      "refresh_status": "PASS",
+      "qa_account": "onboarding_acceptance_1786359273255"
+    },
+    "new_user_first_registration_back": {
+      "status": "PASS",
+      "verified_via_product_register": true,
+      "evidence": "verification-results/announcement-onboarding-production/screenshots/fresh-user-onboarding-back.png",
+      "qa_account": "onboarding_acceptance_1786359273255"
+    }
+  },
+  "console_business_errors": [],
+  "expected_console_events": [
+    "Three browser 400 resource messages correspond to the three intentionally invalid announcement validation requests."
+  ],
+  "unexpected_network_failures": [],
+  "screenshots": [
+    "verification-results/announcement-onboarding-production/screenshots/admin-announcement-published.png",
+    "verification-results/announcement-onboarding-production/screenshots/announcement-published-user.png",
+    "verification-results/announcement-onboarding-production/screenshots/announcement-withdrawn-user.png",
+    "verification-results/announcement-onboarding-production/screenshots/course-to-programming-onboarding.png",
+    "verification-results/announcement-onboarding-production/screenshots/course-restored-after-programming-cancel.png",
+    "verification-results/announcement-onboarding-production/screenshots/programming-to-exam-target.png",
+    "verification-results/announcement-onboarding-production/screenshots/fresh-user-registration-onboarding.png",
+    "verification-results/announcement-onboarding-production/screenshots/fresh-user-onboarding-back.png",
+    "verification-results/announcement-onboarding-production/screenshots/programming-package-free-plan.png",
+    "verification-results/announcement-onboarding-production/screenshots/programming-to-exam-onboarding-new-account.png",
+    "verification-results/announcement-onboarding-production/screenshots/programming-restored-after-exam-cancel-new-account.png",
+    "verification-results/announcement-onboarding-production/screenshots/programming-restored-after-exam-cancel-refresh.png"
+  ],
+  "status": "ANNOUNCEMENT_CLEANUP_VERIFIED_AND_ONBOARDING_RETURN_FLOW_VERIFIED"
+}
