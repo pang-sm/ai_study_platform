@@ -60,6 +60,40 @@ def test_membership_order_uses_server_catalog_and_is_idempotent(client: TestClie
     assert same_or_lower.status_code == 409
 
 
+def test_paid_exam_onboarding_keeps_pending_order_until_payment(client: TestClient):
+    register_and_login(client, "onboarding-paid")
+    payload = {
+        "nickname": "onboarding-paid",
+        "learning_direction": "exam_408",
+        "learning_goal_type": "exam_408",
+        "onboarding_detail": {"stage": "基础阶段"},
+        "exam_package_type": "quarterly_boost",
+        "onboarding_completed": False,
+    }
+    partial = client.post("/me/onboarding", params={"username": "onboarding-paid"}, json=payload)
+    assert partial.status_code == 200, partial.text
+    assert partial.json()["profile"]["onboarding_completed"] is False
+
+    created = client.post(
+        "/membership/orders",
+        json={"service_key": "exam_11408", "target_plan": "quarterly_boost"},
+    )
+    assert created.status_code == 200, created.text
+    order = created.json()["order"]
+    assert order["status"] == "pending"
+
+    paid = client.post(f"/membership/orders/{order['id']}/pay")
+    assert paid.status_code == 200, paid.text
+
+    completed = client.post(
+        "/me/onboarding",
+        params={"username": "onboarding-paid"},
+        json={**payload, "onboarding_completed": True},
+    )
+    assert completed.status_code == 200, completed.text
+    assert completed.json()["profile"]["onboarding_completed"] is True
+
+
 def test_membership_orders_are_isolated_between_users(client: TestClient):
     register_and_login(client, "membership-a")
     created = client.post(

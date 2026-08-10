@@ -519,6 +519,8 @@ function getInitialPage() {
   const savedUser = getSavedUser();
   if (!savedUser) return "login";
   try {
+    const checkoutContext = getInitialMembershipCheckoutContext();
+    if (checkoutContext?.orderId || checkoutContext?.order_id) return "membershipCheckout";
     const savedPage = normalizePageName(localStorage.getItem(CURRENT_PAGE_KEY));
     if (savedPage === "programmingPackageStep" && savedUser.needs_onboarding !== true) {
       if (savedUser.active_track_type === "exam_408") return "examHome";
@@ -3342,9 +3344,65 @@ function App() {
     );
   };
 
+  const openOnboardingCheckout = async ({ serviceKey, targetPlan, returnPage, sourcePage, onboardingData }) => {
+    const response = await fetch(`${API_BASE}/membership/orders`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ service_key: serviceKey, target_plan: targetPlan }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.order?.id) throw new Error(getDisplayMessage(data.detail, "套餐订单创建失败，请稍后重试。"));
+    setPage("membershipCheckout", {
+      source: "onboarding",
+      sourcePage,
+      serviceKey,
+      targetPlan,
+      planCode: targetPlan,
+      orderId: data.order.id,
+      currentPlan: "free",
+      returnPage,
+      onboardingData,
+    });
+  };
+
+  const clearOnboardingDraft = () => {
+    if (!user?.username) return;
+    try { localStorage.removeItem(`onboarding_draft_${user.username}`); } catch { /* ignore */ }
+  };
+
+  const finalizeOnboardingCheckout = async (context) => {
+    const data = context.onboardingData || {};
+    let endpoint = `${API_BASE}/me/onboarding?username=${encodeURIComponent(user.username)}`;
+    let body = { ...data, onboarding_completed: true };
+    if (context.serviceKey === "course_learning") {
+      endpoint = `${API_BASE}/course-learning/onboarding`;
+      body = { ...data, plan: context.targetPlan, onboarding_completed: true };
+    } else if (context.serviceKey === "programming") {
+      endpoint = `${API_BASE}/programming/onboarding`;
+      body = { ...data, plan: context.targetPlan, onboarding_completed: true };
+    }
+    const response = await fetch(endpoint, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(getDisplayMessage(result.detail, "套餐已支付，但学习方向激活失败，请稍后重试。"));
+    const profile = result.profile || result.user;
+    if (profile) saveLoginUser(profile);
+    clearOnboardingDraft();
+    return profile;
+  };
+
   if (page === "onboarding") {
-    const handleOnboardingComplete = (profile, goalType) => {
+    const handleOnboardingComplete = async (profile, goalType, checkoutContext) => {
       saveLoginUser(profile);
+      if (checkoutContext?.targetPlan && checkoutContext.targetPlan !== "free") {
+        await openOnboardingCheckout(checkoutContext);
+        return;
+      }
       if (serviceSwitchOnboarding?.fromServiceSwitch && serviceSwitchOnboarding.targetPage) {
         setServiceSwitchOnboarding(null);
         setPage(serviceSwitchOnboarding.targetPage);
@@ -3405,29 +3463,37 @@ function App() {
     const handleProgrammingComplete = async (selectedPlan) => {
       const details = programmingOnboardingStatus || {};
       const persistedPlan = details.onboarding_completed ? (details.plan || "free") : "free";
+      const onboardingData = {
+        main_language: details.main_language || "Python",
+        level: details.level || "零基础",
+        problems: Array.isArray(details.problems) ? details.problems : [],
+      };
       const res = await fetch(`${API_BASE}/programming/onboarding`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          main_language: details.main_language || "Python",
-          level: details.level || "零基础",
-          problems: Array.isArray(details.problems) ? details.problems : [],
-          plan: persistedPlan,
-          onboarding_completed: true,
+          ...onboardingData,
+          plan: selectedPlan === "free" ? "free" : persistedPlan,
+          onboarding_completed: selectedPlan === "free",
         }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(getDisplayMessage(data.detail, "编程学习信息保存失败，请稍后再试。"));
       if (data?.profile) saveLoginUser(data.profile);
-      setProgrammingOnboardingStatus(data?.onboarding || { onboarding_completed: true, plan: persistedPlan });
+      setProgrammingOnboardingStatus({
+        ...(data?.onboarding || { onboarding_completed: selectedPlan === "free", plan: persistedPlan }),
+        plan: selectedPlan || persistedPlan,
+      });
       const nextPage = serviceSwitchOnboarding?.targetPage || "programmingHome";
       setServiceSwitchOnboarding(null);
-      if (selectedPlan && selectedPlan !== persistedPlan && selectedPlan !== "free") {
-        setPage("membershipCheckout", {
+      if (selectedPlan && selectedPlan !== "free") {
+        await openOnboardingCheckout({
           serviceKey: "programming",
-          planCode: selectedPlan,
+          targetPlan: selectedPlan,
+          sourcePage: "programmingPackageStep",
           returnPage: nextPage,
+          onboardingData,
         });
         return;
       }
@@ -3472,6 +3538,13 @@ function App() {
       if (!user?.username || coursePackageSaving) return;
       const details = courseOnboardingStatus || {};
       const persistedPlan = details.onboarding_completed ? (details.plan || "free") : "free";
+      const onboardingData = {
+        major: details.major || user.major || "",
+        grade: details.grade || user.grade || "",
+        selected_courses: details.selected_courses || [],
+        material_types: details.material_types || [],
+        course_goals: details.course_goals || {},
+      };
       setCoursePackageSaving(true);
       try {
         const res = await fetch(`${API_BASE}/course-learning/onboarding`, {
@@ -3481,12 +3554,9 @@ function App() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            major: details.major || user.major || "",
-            grade: details.grade || user.grade || "",
-            selected_courses: details.selected_courses || [],
-            material_types: details.material_types || [],
-            plan: persistedPlan,
-            onboarding_completed: true,
+            ...onboardingData,
+            plan: plan === "free" ? "free" : persistedPlan,
+            onboarding_completed: plan === "free",
           }),
         });
         const data = await res.json().catch(() => ({}));
@@ -3498,25 +3568,35 @@ function App() {
           saveLoginUser(data.profile);
         }
         setTip("");
-        setCourseOnboardingStatus(data?.onboarding || { onboarding_completed: true, plan: persistedPlan });
+        setCourseOnboardingStatus({
+          ...(data?.onboarding || { onboarding_completed: plan === "free", plan: persistedPlan }),
+          plan: plan || persistedPlan,
+        });
         const nextPage = serviceSwitchOnboarding?.targetPage || courseOnboardingTargetPage || "home";
         setCourseOnboardingTargetPage(nextPage);
         setServiceSwitchOnboarding(null);
-        if (plan && plan !== persistedPlan && plan !== "free") {
-          setPage("membershipCheckout", {
-            serviceKey: "course_learning",
-            planCode: plan,
-            returnPage: nextPage,
-          });
+        if (plan && plan !== "free") {
+          try {
+            await openOnboardingCheckout({
+              serviceKey: "course_learning",
+              targetPlan: plan,
+              sourcePage: "courseLearningPackageStep",
+              returnPage: nextPage,
+              onboardingData,
+            });
+          } catch (error) {
+            setTip(error.message || "套餐订单创建失败，请稍后重试。");
+          }
           return;
         }
-        setPage("courseLearningComplete");
+        setPage(nextPage);
       } finally {
         setCoursePackageSaving(false);
       }
     };
     return (
       <CourseLearningPackageStep
+        apiBase={API_BASE}
         initialPlan={courseOnboardingStatus?.plan || "quarterly"}
         saving={coursePackageSaving}
         error={tip}
@@ -4046,7 +4126,23 @@ function App() {
     const checkoutServiceKey = membershipCheckoutContext?.serviceKey || getMembershipServiceKey(activeTrackType);
     const checkoutContext = membershipCheckoutContext || membershipPageContext || {};
     const checkoutReturnPage = checkoutContext.returnPage || getMembershipReturnPage(checkoutServiceKey);
+    const handleCheckoutBack = () => {
+      if (checkoutContext.source === "onboarding") {
+        setPage(checkoutContext.sourcePage || "onboarding");
+        return;
+      }
+      setPage("membership", checkoutContext);
+    };
     const refreshUserAfterCheckout = async (action) => {
+      if (checkoutContext.source === "onboarding") {
+        try {
+          await finalizeOnboardingCheckout(checkoutContext);
+          setPage(action === "membership" ? "membership" : checkoutReturnPage, action === "membership" ? checkoutContext : null);
+        } catch (error) {
+          console.error("Failed to finalize onboarding after checkout:", error);
+        }
+        return;
+      }
       try {
         const refreshedUser = await fetchCurrentUser();
         saveLoginUser(refreshedUser);
@@ -4067,7 +4163,7 @@ function App() {
         orderId={checkoutContext.orderId || checkoutContext.order_id || null}
         currentPlan={checkoutContext.currentPlan || checkoutContext.current_plan || "free"}
         directionLabel={getMembershipDirectionLabel(checkoutServiceKey)}
-        onBack={() => setPage("membership", checkoutContext)}
+        onBack={handleCheckoutBack}
         onComplete={() => refreshUserAfterCheckout("membership")}
         onReturnHome={() => refreshUserAfterCheckout("learning")}
       />,

@@ -1,0 +1,96 @@
+.plan-selection-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.plan-selection-card {
+  position: relative;
+  display: flex;
+  min-height: 390px;
+  flex-direction: column;
+  padding: 24px 16px 18px;
+  border: 2px solid #eeeafb;
+  border-radius: 20px;
+  background: #fff;
+  color: #3d3866;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+
+.plan-selection-card:hover,
+.plan-selection-card.is-selected,
+.plan-selection-card.is-recommended {
+  border-color: #a994fa;
+  box-shadow: 0 12px 24px rgba(109, 93, 252, .12);
+  transform: translateY(-2px);
+}
+
+.plan-selection-card.is-current {
+  border-color: #c9bdf4;
+  background: #fbfaff;
+  cursor: default;
+}
+
+.plan-selection-badge {
+  position: absolute;
+  top: -11px;
+  left: 50%;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #7659ec;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 850;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.plan-selection-badge-current { background: #9a8bcf; }
+.plan-selection-name { min-height: 42px; color: #27234a; font-size: 16px; font-weight: 850; line-height: 1.35; }
+.plan-selection-price { display: flex; align-items: baseline; justify-content: center; gap: 4px; min-height: 56px; color: #7659ec; }
+.plan-selection-price strong { font-size: 30px; letter-spacing: -.04em; }
+.plan-selection-price span { color: #8584a0; font-size: 12px; }
+.plan-selection-free { color: #7659ec; }
+
+.plan-selection-features {
+  display: grid;
+  flex: 1;
+  gap: 8px;
+  margin: 12px 0 18px;
+  padding: 14px 0 0;
+  border-top: 1px solid #eeeafb;
+  list-style: none;
+  text-align: left;
+}
+
+.plan-selection-features li { display: flex; gap: 8px; color: #67708f; font-size: 12px; line-height: 1.45; }
+.plan-selection-features li > span:first-child { flex: 0 0 auto; color: #7659ec; font-weight: 900; }
+.plan-selection-features li.is-disabled { color: #b4b1c5; }
+.plan-selection-features li.is-disabled > span:first-child { color: #b4b1c5; }
+
+.plan-selection-button {
+  width: 100%;
+  min-height: 42px;
+  border-radius: 11px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.plan-selection-button.is-primary { border: 0; background: linear-gradient(135deg, #8b5cf6, #6d5dfc); color: #fff; }
+.plan-selection-button.is-muted { border: 1px solid #ded9f3; background: #f7f6fb; color: #9b97b5; cursor: not-allowed; }
+
+.plan-selection--onboarding { width: 100%; }
+.plan-selection--onboarding .plan-selection-card { min-height: 410px; }
+
+@media (max-width: 980px) {
+  .plan-selection-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 620px) {
+  .plan-selection-grid { grid-template-columns: 1fr; }
+  .plan-selection-card { min-height: 0; }
+}

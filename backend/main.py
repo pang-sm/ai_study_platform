@@ -345,6 +345,7 @@ class OnboardingUpdateRequest(BaseModel):
     learning_goal_type: str | None = None
     onboarding_detail: dict | None = None
     exam_package_type: str | None = None
+    onboarding_completed: bool = True
 
 
 class CourseLearningOnboardingRequest(BaseModel):
@@ -5330,7 +5331,7 @@ def complete_onboarding(req: OnboardingUpdateRequest, username: str = "", db: Se
                 "full_exam": "pro",
             }
             mapped_plan = package_plan_map.get(exam_pkg, "free")
-            user.plan = mapped_plan
+            user.plan = mapped_plan if req.onboarding_completed else "free"
 
         user.onboarding_detail = json.dumps(detail, ensure_ascii=False)
         if goal_type == "exam_408":
@@ -5340,15 +5341,16 @@ def complete_onboarding(req: OnboardingUpdateRequest, username: str = "", db: Se
         elif goal_type == "programming":
             user.learning_direction = user.learning_direction or "编程能力提升"
 
-    user.onboarding_completed = True
+    onboarding_completed = bool(req.onboarding_completed)
+    user.onboarding_completed = onboarding_completed
 
     # Create or update learning track based on goal_type
     if goal_type:
         track_plan = "free"
         track_package = None
         if goal_type == "exam_408":
-            track_package = exam_pkg if exam_pkg else "free"
-            track_plan = "free" if track_package == "free" else "pro"
+            track_package = exam_pkg if exam_pkg and onboarding_completed else "free"
+            track_plan = "free" if not onboarding_completed or track_package == "free" else "pro"
         elif goal_type == "university_course":
             track_plan = "free"
         elif goal_type == "programming":

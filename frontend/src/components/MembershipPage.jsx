@@ -1,28 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import "./MembershipPage.css";
+import PlanSelection from "./PlanSelection.jsx";
 
 function readJson(response) {
   return response.json().catch(() => ({}));
-}
-
-function planRank(plans, planCode) {
-  return Number(plans.find((plan) => plan.plan_code === planCode)?.rank || 0);
-}
-
-function formatPeriod(days) {
-  if (days === 365) return "/ 年";
-  if (days === 90) return "/ 季度";
-  if (days === 30) return "/ 月";
-  return "";
-}
-
-function formatQuota(value) {
-  return Number(value) >= 999999 ? "无限" : `${value ?? 0} 次 / 日`;
-}
-
-function formatStorage(value) {
-  const amount = Number(value || 0);
-  return amount >= 1024 ? `${amount / 1024} GB` : `${amount} MB`;
 }
 
 export default function MembershipPage({
@@ -177,12 +158,7 @@ export default function MembershipPage({
   };
 
   const currentPlanCode = effectivePlan?.plan_code || catalog?.current?.plan || "free";
-  const currentRank = planRank(plans, currentPlanCode);
   const recommendedPlanCode = recommendation?.recommended_plan;
-  const plansWithRecommendation = useMemo(
-    () => plans.map((plan) => ({ ...plan, is_recommended: plan.plan_code === recommendedPlanCode })),
-    [plans, recommendedPlanCode],
-  );
 
   if (loading) {
     return <div className="membership-shell"><div className="membership-loading">正在加载会员方案…</div></div>;
@@ -240,33 +216,14 @@ export default function MembershipPage({
 
       <section className="membership-plans-section">
         <div className="membership-section-heading"><div><span className="membership-eyebrow">PLANS</span><h2>套餐选择</h2></div><span className="membership-current-plan">当前方案：{plans.find((plan) => plan.plan_code === currentPlanCode)?.name || currentPlanCode}</span></div>
-        <div className="membership-plans-grid">
-          {plansWithRecommendation.map((plan) => {
-            const isCurrent = plan.plan_code === currentPlanCode;
-            const isLower = plan.rank <= currentRank && !isCurrent;
-            return (
-              <article key={plan.plan_code} className={`membership-plan-card${isCurrent ? " is-current" : ""}${plan.is_recommended ? " is-recommended" : ""}`}>
-                {plan.is_recommended && <span className="membership-plan-badge">推荐</span>}
-                {isCurrent && <span className="membership-plan-badge membership-plan-badge-current">当前方案</span>}
-                <div className="membership-plan-name">{plan.name}</div>
-                <div className="membership-plan-price">{plan.price_yuan > 0 ? <><strong>¥{plan.price_yuan}</strong><span>{formatPeriod(plan.duration_days)}</span></> : <strong className="membership-free">免费</strong>}</div>
-                <p className="membership-plan-description">{plan.perks || plan.description || "按当前方向提供基础学习能力。"}</p>
-                <div className="membership-plan-limits">
-                  <div><span>AI 问答</span><strong>{formatQuota(plan.quota?.ai_chat_daily_limit)}</strong></div>
-                  <div><span>资料空间</span><strong>{formatStorage(plan.quota?.material_upload_limit_mb)}</strong></div>
-                  <div><span>AI 出题</span><strong>{formatQuota(plan.quota?.ai_question_daily_limit)}</strong></div>
-                  {plan.allowed_languages?.length > 0 && <div><span>编程语言</span><strong>{plan.allowed_languages.map((item) => item.toUpperCase()).join(" / ")}</strong></div>}
-                </div>
-                <div className="membership-plan-action">
-                  {isCurrent ? <button type="button" className="membership-button membership-button-muted" disabled>当前方案</button>
-                    : isLower ? <button type="button" className="membership-button membership-button-muted" disabled>不可降级</button>
-                      : plan.price_yuan > 0 ? <button type="button" className="membership-button membership-button-primary" onClick={() => startCheckout(plan)} disabled={Boolean(checkoutStarting)}>{checkoutStarting === plan.plan_code ? "正在创建订单…" : "立即升级"}</button>
-                        : <button type="button" className="membership-button membership-button-muted" disabled>免费方案</button>}
-                </div>
-              </article>
-            );
-          })}
-        </div>
+        <PlanSelection
+          plans={plans}
+          mode="membership"
+          currentPlanCode={currentPlanCode}
+          recommendedPlanCode={recommendedPlanCode}
+          busyPlan={checkoutStarting}
+          onConfirm={startCheckout}
+        />
       </section>
 
       <section className="membership-panel membership-redeem-panel">
