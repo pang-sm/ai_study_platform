@@ -1,0 +1,18 @@
+{
+  "status": "HTTPS_PRODUCTION_NOT_VERIFIED",
+  "security_freeze_status": "PRODUCTION_SECURITY_FREEZE_NOT_VERIFIED",
+  "required_follow_up": "HTTPS_REQUIRED_BEFORE_PRODUCTION_SECURITY_FREEZE",
+  "origin": "https://101.32.190.42/",
+  "http_redirect": {
+    "status": 308,
+    "location": "https://101.32.190.42/"
+  },
+  "https_public_probe": "failed_timeout",
+  "browser_tls_probe": "failed_timeout",
+  "commits": ["eef8cfd", "e6e6fa8", "65eda6b"],
+  "actions": {
+    "server_deployment": {"id": 31387119251, "conclusion": "success"},
+    "external_https_probe": {"id": 31387661640, "conclusion": "failure"}
+  },
+  "sensitive_values_written": false
+}
