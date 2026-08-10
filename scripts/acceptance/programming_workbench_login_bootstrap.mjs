@@ -14,7 +14,7 @@ import { chromium } from "playwright";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(SCRIPT_DIR, "../..");
-const DEFAULT_ORIGIN = "http://101.32.190.42";
+const DEFAULT_ORIGIN = "https://101.32.190.42";
 const DEFAULT_AUTH_STATE = path.join(PROJECT_ROOT, ".playwright", ".auth", "programming-workbench-online.json");
 const REPORT_DIR = path.join(PROJECT_ROOT, "verification-results");
 const JSON_REPORT = path.join(REPORT_DIR, "programming-workbench-auth-bootstrap.json");

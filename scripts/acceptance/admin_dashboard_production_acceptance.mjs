@@ -3,7 +3,7 @@ import path from "node:path";
 import { chromium } from "playwright";
 
 const root = process.cwd();
-const baseUrl = process.env.ACCEPTANCE_BASE_URL || "http://101.32.190.42/";
+const baseUrl = process.env.ACCEPTANCE_BASE_URL || "https://101.32.190.42/";
 const username = (process.env.ACCEPTANCE_ADMIN_USERNAME || "admin_acceptance").trim();
 const password = process.env.ACCEPTANCE_ADMIN_PASSWORD || "";
 const authStatePath = path.resolve(

@@ -17,7 +17,7 @@ import { chromium } from "playwright";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(SCRIPT_DIR, "../..");
-const DEFAULT_BASE_URL = "http://101.32.190.42/";
+const DEFAULT_BASE_URL = "https://101.32.190.42/";
 const DEFAULT_REPORT_DIR = path.join(PROJECT_ROOT, "verification-results");
 const DEFAULT_SCREENSHOT_DIR = path.join(PROJECT_ROOT, "verification-screenshots", "programming-workbench-random-40");
 const DEFAULT_TRACE_DIR = path.join(PROJECT_ROOT, "verification-traces", "programming-workbench-random-40");

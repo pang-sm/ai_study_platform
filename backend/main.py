@@ -1386,6 +1386,18 @@ AUTH_SESSION_COOKIE = "ai_session"
 AUTH_SESSION_TTL = timedelta(days=30)
 
 
+def _env_flag(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+# Local development remains usable over HTTP. Production enables this through
+# the systemd environment only after the HTTPS nginx configuration is live.
+AUTH_SESSION_COOKIE_SECURE = _env_flag("AI_SESSION_COOKIE_SECURE", False)
+
+
 def _hash_session_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
@@ -1414,7 +1426,7 @@ def create_auth_session(db: Session, user: models.User, response: Response) -> N
         max_age=int(AUTH_SESSION_TTL.total_seconds()),
         httponly=True,
         samesite="lax",
-        secure=False,
+        secure=AUTH_SESSION_COOKIE_SECURE,
         path="/",
     )
 
@@ -5128,7 +5140,13 @@ def logout(request: Request, response: Response, db: Session = Depends(get_db)):
         if session:
             session.revoked_at = utc_now()
             db.commit()
-    response.delete_cookie(AUTH_SESSION_COOKIE, path="/")
+    response.delete_cookie(
+        AUTH_SESSION_COOKIE,
+        path="/",
+        secure=AUTH_SESSION_COOKIE_SECURE,
+        httponly=True,
+        samesite="lax",
+    )
     return {"success": True}
 
 

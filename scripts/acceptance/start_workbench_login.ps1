@@ -53,8 +53,8 @@ try {
     }
 
     Write-Host "Opening the local headed Chromium login window."
-    Write-Host "Sign in at http://101.32.190.42/ within 15 minutes."
-    & $nodeCommand.Source $bootstrapScript --base-url "http://101.32.190.42/" --auth-state $authState --timeout-ms 900000
+    Write-Host "Sign in at https://101.32.190.42/ within 15 minutes."
+    & $nodeCommand.Source $bootstrapScript --base-url "https://101.32.190.42/" --auth-state $authState --timeout-ms 900000
     if ($LASTEXITCODE -ne 0) { throw "Login bootstrap process failed with exit code $LASTEXITCODE." }
 
     if (-not (Test-Path -LiteralPath $authState -PathType Leaf)) {
@@ -63,7 +63,7 @@ try {
     $authStateInfo = Get-Item -LiteralPath $authState
     if ($authStateInfo.Length -le 0) { throw "Authentication state file is empty: $authState" }
 
-    & $nodeCommand.Source $acceptanceScript --base-url "http://101.32.190.42/" --auth-state $authState --auth-check-only
+    & $nodeCommand.Source $acceptanceScript --base-url "https://101.32.190.42/" --auth-state $authState --auth-check-only
     if ($LASTEXITCODE -ne 0) {
         $exitCode = 20
         throw "Authentication state is invalid. Authentication probe failed with exit code $LASTEXITCODE."

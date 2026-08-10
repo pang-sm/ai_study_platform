@@ -1,58 +1,80 @@
-# =============================================================================
-# Nginx configuration template for ai_study_platform
-#
-# Copy to /etc/nginx/sites-available/ and symlink to sites-enabled/.
-# After making changes:
-#   sudo nginx -t
-#   sudo systemctl reload nginx
-# =============================================================================
+# Nginx configuration template for ai_study_platform.
+# The deployment script replaces __PUBLIC_IP__, __WEB_ROOT__, and
+# __CERT_ROOT__ before installing this file.
 
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+# ACME HTTP-01 remains available on port 80. All other traffic is upgraded to
+# HTTPS once the real Let's Encrypt IP certificate has been installed.
 server {
     listen 80;
-    server_name _;                    # change to your domain if needed
+    server_name __PUBLIC_IP__ _;
+    root __WEB_ROOT__;
 
-    # ── Frontend static files ──
-    root /var/www/ai_study_platform;
+    location ^~ /.well-known/acme-challenge/ {
+        default_type text/plain;
+        try_files $uri =404;
+    }
+
+    location / {
+        return 308 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    server_name __PUBLIC_IP__ _;
+
+    root __WEB_ROOT__;
     index index.html;
+
+    ssl_certificate __CERT_ROOT__/fullchain.pem;
+    ssl_certificate_key __CERT_ROOT__/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
 
     location / {
         try_files $uri $uri/ /index.html;
     }
 
-    # ── Backend API (REST) ──
-    # Proxies /api/* → FastAPI backend, stripping /api prefix
     location /api/ {
         proxy_pass http://127.0.0.1:8000/;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
         proxy_read_timeout 300s;
         proxy_send_timeout 300s;
     }
 
-    # ── CodeStudio Interactive Terminal WebSocket (primary path) ──
-    # The frontend connects to ws://host/code/interactive-run
     location /code/interactive-run {
         proxy_pass http://127.0.0.1:8000/code/interactive-run;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
+        proxy_set_header Connection $connection_upgrade;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
         proxy_read_timeout 3600s;
         proxy_send_timeout 3600s;
     }
 
-    # ── CodeStudio Interactive Terminal WebSocket (alternate path) ──
-    # Fallback when the frontend tries ws://host/api/code/interactive-run
     location /api/code/interactive-run {
         proxy_pass http://127.0.0.1:8000/api/code/interactive-run;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
+        proxy_set_header Connection $connection_upgrade;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
         proxy_read_timeout 3600s;
         proxy_send_timeout 3600s;
     }

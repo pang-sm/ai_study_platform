@@ -16,7 +16,7 @@ const SCRIPT_DIR = path.dirname(new URL(import.meta.url).pathname.replace(/^\/(?
 const PROJECT_ROOT = path.resolve(SCRIPT_DIR, "../..");
 const ONLINE_SCRIPT = path.join(SCRIPT_DIR, "programming_workbench_online_acceptance.mjs");
 const BOOTSTRAP_SCRIPT = path.join(SCRIPT_DIR, "programming_workbench_login_bootstrap.mjs");
-const BASE_URL = "http://101.32.190.42/";
+const BASE_URL = "https://101.32.190.42/";
 const ORIGIN = new URL(BASE_URL).origin;
 const REPORT_PATH = path.join(PROJECT_ROOT, "verification-results", "programming-workbench-auth-bootstrap-regression.json");
 
@@ -69,7 +69,7 @@ try {
     path: "/",
     expires: -1,
     httpOnly: true,
-    secure: false,
+    secure: true,
     sameSite: "Lax",
   });
   writeState(fakeCookiePath, fakeState);

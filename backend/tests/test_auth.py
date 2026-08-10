@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
 from conftest import register_and_login
+import main
 
 
 def test_protected_api_requires_server_session(client: TestClient):
@@ -13,6 +14,14 @@ def test_login_cookie_and_me(client: TestClient):
     response = client.post("/me", json={"username": "auth-owner"})
     assert response.status_code == 200
     assert response.json()["user"]["username"] == user["username"]
+
+
+def test_auth_cookie_secure_flag_can_be_enabled_for_production(client: TestClient, monkeypatch):
+    monkeypatch.setattr(main, "AUTH_SESSION_COOKIE_SECURE", True)
+    response = client.post("/register", json={"username": "secure-cookie-owner", "password": "secret123"})
+    assert response.status_code == 200
+    assert "ai_session=" in response.headers["set-cookie"]
+    assert "; Secure" in response.headers["set-cookie"]
 
 
 def test_wrong_password_and_invalid_session(client: TestClient):

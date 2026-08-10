@@ -3,7 +3,7 @@ import path from "node:path";
 import { chromium } from "playwright";
 
 const root = process.cwd();
-const baseUrl = "http://101.32.190.42/";
+const baseUrl = "https://101.32.190.42/";
 const authState = path.resolve(root, ".playwright/.auth/programming-workbench-online.json");
 const outputDir = path.resolve(root, "verification-results/profile-actions-production");
 const screenshotDir = path.join(outputDir, "screenshots");

@@ -563,9 +563,49 @@ jobs:
             sleep 2
           done
 
+          echo "=== Provisioning trusted HTTPS for public IP ==="
+          AI_STUDY_REPO_ROOT="$REPO_ROOT" \
+            AI_STUDY_PUBLIC_IP="101.32.190.42" \
+            bash "$REPO_ROOT/scripts/deploy/configure_https.sh"
+
+          echo "=== Enabling Secure auth cookies after HTTPS activation ==="
+          sudo mkdir -p /etc/systemd/system/ai-backend.service.d
+          sudo tee /etc/systemd/system/ai-backend.service.d/security.conf > /dev/null <<INNEREOF
+          [Service]
+          Environment="AI_SESSION_COOKIE_SECURE=true"
+          INNEREOF
+          sudo systemctl daemon-reload
+          sudo systemctl restart ai-backend
+
+          echo "=== Verifying HTTPS and HTTP redirect ==="
+          for i in {1..30}; do
+            if curl -fsS --resolve 101.32.190.42:443:127.0.0.1 https://101.32.190.42/api/health >/dev/null; then
+              echo "[deploy] HTTPS health ok"
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "[deploy] HTTPS health failed after Secure cookie activation"
+              sudo systemctl status ai-backend --no-pager -l || true
+              sudo journalctl -u ai-backend -n 80 --no-pager || true
+              exit 1
+            fi
+            sleep 2
+          done
+          REDIRECT_STATUS="$(curl -sS -o /dev/null --max-redirs 0 -w '%{http_code}' http://101.32.190.42/ || true)"
+          REDIRECT_LOCATION="$(curl -sSI --max-redirs 0 http://101.32.190.42/ 2>/dev/null | awk 'tolower($1)=="location:" {print $2}' | tr -d '\r' || true)"
+          case "$REDIRECT_STATUS" in
+            301|302|307|308) ;;
+            *) echo "[deploy] HTTP did not redirect to HTTPS: status=$REDIRECT_STATUS"; exit 1;;
+          esac
+          case "$REDIRECT_LOCATION" in
+            https://101.32.190.42/*) ;;
+            *) echo "[deploy] HTTP redirect target is not HTTPS: $REDIRECT_LOCATION"; exit 1;;
+          esac
+          echo "[deploy] HTTP redirect verified: $REDIRECT_STATUS -> $REDIRECT_LOCATION"
+
           echo "=== Verifying nginx health ==="
           for i in {1..10}; do
-            curl -fsS http://127.0.0.1/api/health >/dev/null
+            curl -fsS --resolve 101.32.190.42:443:127.0.0.1 https://101.32.190.42/api/health >/dev/null
             sleep 1
           done
           echo "=== Final remote disk check ==="
