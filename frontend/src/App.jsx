@@ -483,6 +483,7 @@ const VALID_PAGES = new Set([
   "learningPlanCenter", "knowledgeBaseCenter", "quotaCenter",
   "learningReportCenter", "adminDashboard", "adminAnnouncements", "adminUsers",
   "adminOrders", "adminMembers", "adminQuota", "adminStatistics", "adminUsage",
+  "adminRedemptionCodes",
   "adminSettings", "adminLogs", "adminProfile",
   "adminUsageCenter", "adminCenter",
   "materials", "workspaceMaterials", "chat", "records", "history",
@@ -511,6 +512,7 @@ const COURSE_LEARNING_ENTRY_PAGES = new Set([
 
 const ADMIN_PAGES = [
   "adminDashboard", "adminAnnouncements", "adminUsers", "adminOrders",
+  "adminRedemptionCodes",
   "adminMembers", "adminQuota", "adminStatistics", "adminUsage",
   "adminSettings", "adminLogs", "adminProfile", "adminUsageCenter", "adminCenter",
 ];
@@ -4373,6 +4375,7 @@ function App() {
   if ([
     "adminDashboard", "adminAnnouncements", "adminUsers", "adminOrders",
     "adminMembers", "adminQuota", "adminStatistics", "adminUsage",
+    "adminRedemptionCodes",
     "adminSettings", "adminLogs", "adminProfile",
   ].includes(page)) {
     return (

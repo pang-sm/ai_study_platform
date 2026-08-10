@@ -5065,6 +5065,11 @@ select.field:focus {
   font-size: 13px;
   margin-top: auto;
 }
+.admin-dashboard-form-grid { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 12px; margin: 16px 0 22px; padding: 16px; border: 1px solid #ebe7f7; border-radius: 14px; background: #fbfaff; }
+.admin-dashboard-form-grid label { display: grid; gap: 6px; color: #625b82; font-size: 12px; font-weight: 700; }
+.admin-dashboard-form-grid input, .admin-dashboard-form-grid select { min-height: 38px; box-sizing: border-box; padding: 0 10px; border: 1px solid #ddd6f4; border-radius: 8px; background: #fff; color: #302b55; font: inherit; }
+.admin-dashboard-form-grid button { align-self: end; min-height: 38px; }
+@media (max-width: 900px) { .admin-dashboard-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 .course-package-card {
   width: min(1080px, 100%);

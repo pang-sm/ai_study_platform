@@ -8,7 +8,7 @@ import hashlib
 import logging
 import os
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -17,6 +17,177 @@ import models
 from database import get_db
 
 logger = logging.getLogger("membership")
+
+
+# Direction-bound redemption flow.  The legacy helper remains below only for
+# compatibility with old database rows; new API routes use these functions.
+def _as_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value
+
+
+def _redemption_expiry(entry: models.RedemptionCode) -> datetime | None:
+    return _as_utc(getattr(entry, "code_expires_at", None) or entry.expires_at)
+
+
+def _redemption_plan(entry: models.RedemptionCode) -> str:
+    return (getattr(entry, "target_plan", None) or entry.plan_code or "").strip().lower()
+
+
+def _redemption_service(entry: models.RedemptionCode) -> str:
+    return (getattr(entry, "service_key", None) or "").strip().lower()
+
+
+def _validate_redemption_entry(entry: models.RedemptionCode | None, now: datetime) -> str | None:
+    if not entry:
+        return "兑换码不存在"
+    if entry.status in {"revoked", "disabled"}:
+        return "兑换码已撤销"
+    if entry.status in {"exhausted", "used"} or entry.used_count >= entry.max_uses:
+        return "兑换码已用完"
+    expires_at = _redemption_expiry(entry)
+    if expires_at and expires_at <= now:
+        entry.status = "expired"
+        return "兑换码已过期"
+    if not _redemption_service(entry) or not _redemption_plan(entry):
+        return "兑换码未配置有效服务方向"
+    if not get_service_plan(_redemption_service(entry), _redemption_plan(entry)):
+        return "兑换码套餐无效"
+    duration = getattr(entry, "membership_duration_days", None)
+    if not duration or duration <= 0:
+        return "兑换码会员时长无效"
+    return None
+
+
+def _current_service_membership(db: Session, user_id: int, service_key: str):
+    return db.query(models.UserServiceMembership).filter(
+        models.UserServiceMembership.user_id == user_id,
+        models.UserServiceMembership.service_key == service_key,
+    ).first()
+
+
+def _preview_payload(entry: models.RedemptionCode, user: models.User, db: Session, now: datetime) -> dict:
+    service_key = _redemption_service(entry)
+    target_plan = _redemption_plan(entry)
+    membership = _current_service_membership(db, user.id, service_key)
+    current_plan = "free"
+    current_expires_at = None
+    if membership and membership.is_enabled and membership.status == "active":
+        current_plan = membership.plan or "free"
+        current_expires_at = _as_utc(membership.expires_at)
+        if current_expires_at and current_expires_at <= now:
+            current_plan = "free"
+            current_expires_at = None
+    if service_plan_rank(service_key, target_plan) < service_plan_rank(service_key, current_plan):
+        raise ValueError("兑换码套餐低于当前套餐，不能降级")
+    base_time = max(now, current_expires_at or now)
+    projected_expiry = base_time + timedelta(days=int(entry.membership_duration_days))
+    plan = get_service_plan(service_key, target_plan)
+    code_expires_at = _redemption_expiry(entry)
+    return {
+        "service_key": service_key,
+        "target_plan": target_plan,
+        "target_plan_name": plan["name"],
+        "membership_duration_days": int(entry.membership_duration_days),
+        "code_expires_at": code_expires_at.isoformat() if code_expires_at else None,
+        "current_plan": current_plan,
+        "current_expires_at": current_expires_at.isoformat() if current_expires_at else None,
+        "projected_expires_at": projected_expiry.isoformat(),
+        "remaining_redemptions": max(0, int(entry.max_uses or 0) - int(entry.used_count or 0)),
+    }
+
+
+def preview_redemption_code(user: models.User, code_input: str, db: Session) -> dict:
+    entry = db.query(models.RedemptionCode).filter(
+        models.RedemptionCode.code_hash == hash_code(code_input)
+    ).first()
+    error = _validate_redemption_entry(entry, datetime.now(timezone.utc))
+    if error:
+        if entry and error == "兑换码已过期":
+            db.commit()
+        return {"success": False, "message": error}
+    try:
+        return {"success": True, "preview": _preview_payload(entry, user, db, datetime.now(timezone.utc))}
+    except ValueError as exc:
+        return {"success": False, "message": str(exc)}
+
+
+def redeem_membership_code(user: models.User, code_input: str, db: Session) -> dict:
+    """Atomically redeem one direction-bound code for the authenticated user."""
+    now = datetime.now(timezone.utc)
+    entry = db.query(models.RedemptionCode).filter(
+        models.RedemptionCode.code_hash == hash_code(code_input)
+    ).first()
+    error = _validate_redemption_entry(entry, now)
+    if error:
+        db.rollback()
+        return {"success": False, "message": error}
+    try:
+        if db.query(models.RedemptionCodeUsage).filter(
+            models.RedemptionCodeUsage.code_id == entry.id,
+            models.RedemptionCodeUsage.user_id == user.id,
+        ).first():
+            db.rollback()
+            return {"success": False, "message": "同一用户不能重复兑换此码"}
+
+        payload = _preview_payload(entry, user, db, now)
+        updated = db.query(models.RedemptionCode).filter(
+            models.RedemptionCode.id == entry.id,
+            models.RedemptionCode.status == "active",
+            models.RedemptionCode.used_count < models.RedemptionCode.max_uses,
+        ).update({models.RedemptionCode.used_count: models.RedemptionCode.used_count + 1}, synchronize_session=False)
+        if updated != 1:
+            db.rollback()
+            return {"success": False, "message": "兑换码已用完"}
+
+        membership = _current_service_membership(db, user.id, payload["service_key"])
+        expires_at = datetime.fromisoformat(payload["projected_expires_at"])
+        if not membership:
+            db.add(models.UserServiceMembership(
+                user_id=user.id,
+                service_key=payload["service_key"],
+                is_enabled=True,
+                plan=payload["target_plan"],
+                status="active",
+                activated_at=now,
+                expires_at=expires_at,
+            ))
+        else:
+            membership.is_enabled = True
+            membership.plan = payload["target_plan"]
+            membership.status = "active"
+            membership.activated_at = membership.activated_at or now
+            membership.expires_at = expires_at
+            membership.updated_at = now
+
+        db.add(models.RedemptionCodeUsage(
+            code_id=entry.id,
+            user_id=user.id,
+            username=user.username,
+            redeemed_at=now,
+        ))
+        db.flush()
+        db.refresh(entry)
+        entry.status = "exhausted" if entry.used_count >= entry.max_uses else "active"
+        if entry.max_uses == 1:
+            entry.used_by_user_id = user.id
+            entry.used_by_username = user.username
+            entry.used_at = now
+        db.commit()
+        return {"success": True, "message": "兑换成功", "redemption": payload}
+    except Exception:
+        db.rollback()
+        logger.exception("Membership redemption failed")
+        return {"success": False, "message": "兑换失败，请稍后重试"}
+
+
+def redeem_code(username: str, code_input: str, db: Session) -> dict:
+    """Backward-compatible wrapper; new routes use the authenticated user."""
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if not user:
+        return {"success": False, "message": "用户不存在"}
+    return redeem_membership_code(user, code_input, db)
 
 # ── Plan Definitions ────────────────────────────────────────
 
@@ -637,7 +808,7 @@ def preload_redemption_codes(db: Session):
     logger.info(f"Preloaded {len(codes)} redemption codes from env")
 
 
-def redeem_code(username: str, code_input: str, db: Session) -> dict:
+def _legacy_redeem_code(username: str, code_input: str, db: Session) -> dict:
     """Attempt to redeem a code. Returns result dict."""
     code_hash = hash_code(code_input)
 

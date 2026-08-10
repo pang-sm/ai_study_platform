@@ -176,6 +176,9 @@
 .membership-redeem-result { margin-top: 12px; padding: 10px 12px; border-radius: 10px; font-size: 13px; }
 .membership-redeem-result.is-success { background: #eefbf7; color: #14725a; }
 .membership-redeem-result.is-error { background: #fff4f5; color: #a2354a; }
+.membership-redeem-preview { display: grid; gap: 8px; margin-top: 12px; padding: 12px; border: 1px solid #e7e0fb; border-radius: 12px; background: #faf9ff; }
+.membership-redeem-preview div { display: flex; justify-content: space-between; gap: 12px; color: #777198; font-size: 12px; }
+.membership-redeem-preview strong { color: #393260; text-align: right; }
 .membership-modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
 .membership-modal-actions .membership-button { width: auto; }
 .membership-status-mark { display: grid; width: 48px; height: 48px; place-items: center; border-radius: 15px; background: #ede7ff; color: #6d5dfc; font-size: 24px; font-weight: 900; }

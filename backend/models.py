@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 
 from database import Base
 
@@ -692,6 +692,13 @@ class RedemptionCode(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     code_hash = Column(String(64), unique=True, index=True, nullable=False)
+    # New direction-bound redemption fields.  The older plan_code/max_uses/
+    # used_count fields remain for additive compatibility with pre-existing
+    # rows and are mirrored when a new code is created.
+    service_key = Column(String(50), nullable=True, index=True)
+    target_plan = Column(String(50), nullable=True)
+    membership_duration_days = Column(Integer, nullable=True)
+    code_expires_at = Column(DateTime, nullable=True)
     plan_code = Column(String(50), nullable=False)
     max_uses = Column(Integer, nullable=False, default=1)
     used_count = Column(Integer, nullable=False, default=0)
@@ -702,6 +709,23 @@ class RedemptionCode(Base):
     status = Column(String(20), nullable=False, default="active")
     created_at = Column(DateTime, default=utc_now)
     created_by = Column(String(50), nullable=True)
+    note = Column(Text, nullable=True)
+
+
+class RedemptionCodeUsage(Base):
+    """Immutable audit row for each successful code redemption."""
+    __tablename__ = "redemption_code_usages"
+    __table_args__ = (
+        Index("idx_redemption_code_usages_code", "code_id"),
+        Index("idx_redemption_code_usages_user", "user_id"),
+        UniqueConstraint("code_id", "user_id", name="uq_redemption_code_user"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    code_id = Column(Integer, ForeignKey("redemption_codes.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    username = Column(String(50), nullable=True)
+    redeemed_at = Column(DateTime, default=utc_now, nullable=False)
 
 
 class PracticeImportJob(Base):

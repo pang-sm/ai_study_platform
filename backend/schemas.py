@@ -819,6 +819,21 @@ class AdminUpdateMembershipsRequest(BaseModel):
     memberships: dict
 
 
+class AdminRedemptionCodeCreateRequest(BaseModel):
+    service_key: str
+    target_plan: str
+    membership_duration_days: int
+    code_expires_at: str
+    max_redemptions: int = 1
+    count: int = 1
+    note: str = ""
+
+
+class RedemptionCodeRequest(BaseModel):
+    code: str
+    service_key: str | None = None
+
+
 class LearningReportAiGenerateRequest(BaseModel):
     username: str
     range_type: str = "7d"  # 7d / 15d / 30d / month / custom

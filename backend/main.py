@@ -68,6 +68,9 @@ from membership import (
     check_user_entitlement,
     normalize_major,
     recommend_plan_by_major,
+    hash_code,
+    preview_redemption_code,
+    redeem_membership_code as apply_redemption_code,
     redeem_code,
     preload_redemption_codes,
     is_developer_account,
@@ -5151,7 +5154,7 @@ def is_admin_user(user) -> bool:
     return False
 
 
-def require_admin_user(current_user):
+def require_admin_user(current_user: models.User = Depends(get_current_user)):
     """FastAPI dependency: reject non-admin users with 403."""
     if not is_admin_user(current_user):
         raise HTTPException(status_code=403, detail="Admin permission required")
@@ -25781,6 +25784,7 @@ def _confirm_knowledge_tree_impl(req, db):
 
 class RedeemRequest(BaseModel):
     code: str
+    service_key: str | None = None
 
 
 class ManualRecommendRequest(BaseModel):
@@ -26171,11 +26175,187 @@ def redeem_membership_code(
         raise HTTPException(status_code=400, detail="请输入兑换码")
 
     assert_username_matches_current_user(username, current_user)
-    result = redeem_code(current_user.username, req.code.strip(), db)
+    expected_service = canonical_service_key(req.service_key) if req.service_key else ""
+    if expected_service:
+        preview = preview_redemption_code(current_user, req.code.strip(), db)
+        if not preview["success"]:
+            raise HTTPException(status_code=400, detail=preview["message"])
+        if preview.get("preview", {}).get("service_key") != expected_service:
+            raise HTTPException(status_code=400, detail="兑换码不属于当前学习方向")
+    result = apply_redemption_code(current_user, req.code.strip(), db)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result["message"])
 
     return result
+
+
+@app.post("/membership/redeem/preview")
+def preview_membership_code(
+    req: schemas.RedemptionCodeRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    if not req.code or not req.code.strip():
+        raise HTTPException(status_code=400, detail="请输入兑换码")
+    result = preview_redemption_code(current_user, req.code.strip(), db)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+    expected_service = canonical_service_key(req.service_key) if req.service_key else ""
+    if expected_service and result.get("preview", {}).get("service_key") != expected_service:
+        raise HTTPException(status_code=400, detail="兑换码不属于当前学习方向")
+    return result
+
+
+def _parse_redemption_datetime(value: str) -> datetime:
+    raw = (value or "").strip()
+    if not raw:
+        raise HTTPException(status_code=400, detail="请提供兑换码有效期")
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="兑换码有效期格式无效") from exc
+    return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed
+
+
+def _generate_redemption_plaintext() -> str:
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    return "-".join("".join(secrets.choice(alphabet) for _ in range(4)) for _ in range(4))
+
+
+def _redemption_status(entry: models.RedemptionCode, now: datetime | None = None) -> str:
+    now = now or utc_now()
+    expiry = getattr(entry, "code_expires_at", None) or entry.expires_at
+    if entry.status in {"revoked", "disabled"}:
+        return "revoked"
+    if entry.used_count >= entry.max_uses:
+        return "exhausted"
+    if expiry and (expiry.replace(tzinfo=timezone.utc) if expiry.tzinfo is None else expiry) <= now:
+        return "expired"
+    return "active"
+
+
+def _serialize_redemption_code(entry: models.RedemptionCode, include_plaintext: str | None = None) -> dict:
+    payload = {
+        "id": entry.id,
+        "service_key": entry.service_key,
+        "target_plan": entry.target_plan or entry.plan_code,
+        "membership_duration_days": entry.membership_duration_days,
+        "code_expires_at": serialize_datetime(getattr(entry, "code_expires_at", None) or entry.expires_at),
+        "max_redemptions": entry.max_uses,
+        "redeemed_count": entry.used_count,
+        "status": _redemption_status(entry),
+        "created_by": entry.created_by,
+        "created_at": serialize_datetime(entry.created_at),
+        "note": entry.note or "",
+    }
+    if include_plaintext is not None:
+        payload["code"] = include_plaintext
+    return payload
+
+
+@app.post("/admin/membership/redemption-codes")
+def admin_create_redemption_codes(
+    req: schemas.AdminRedemptionCodeCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_admin_user),
+):
+    service_key = canonical_service_key(req.service_key)
+    if service_key not in SERVICE_PLAN_CATALOG:
+        raise HTTPException(status_code=400, detail="服务方向无效")
+    target_plan = (req.target_plan or "").strip().lower()
+    plan = get_service_plan(service_key, target_plan)
+    if not plan or target_plan == "free":
+        raise HTTPException(status_code=400, detail="兑换码套餐无效")
+    if req.membership_duration_days < 1 or req.membership_duration_days > 3650:
+        raise HTTPException(status_code=400, detail="会员时长必须在 1 到 3650 天之间")
+    if req.max_redemptions < 1 or req.max_redemptions > 100000:
+        raise HTTPException(status_code=400, detail="最大兑换次数必须在 1 到 100000 之间")
+    if req.count < 1 or req.count > 100:
+        raise HTTPException(status_code=400, detail="单次最多创建 100 个兑换码")
+    expires_at = _parse_redemption_datetime(req.code_expires_at)
+    if expires_at <= utc_now():
+        raise HTTPException(status_code=400, detail="兑换码有效期必须晚于当前时间")
+
+    entries = []
+    plaintext_codes = []
+    for _ in range(req.count):
+        plaintext = _generate_redemption_plaintext()
+        while db.query(models.RedemptionCode).filter(models.RedemptionCode.code_hash == hash_code(plaintext)).first():
+            plaintext = _generate_redemption_plaintext()
+        entry = models.RedemptionCode(
+            code_hash=hash_code(plaintext),
+            service_key=service_key,
+            target_plan=target_plan,
+            membership_duration_days=req.membership_duration_days,
+            code_expires_at=expires_at,
+            plan_code=target_plan,
+            max_uses=req.max_redemptions,
+            used_count=0,
+            status="active",
+            created_by=current_user.username,
+            note=(req.note or "").strip(),
+        )
+        db.add(entry)
+        entries.append(entry)
+        plaintext_codes.append(plaintext)
+    db.commit()
+    for entry in entries:
+        db.refresh(entry)
+    return {"codes": [_serialize_redemption_code(entry, plaintext) for entry, plaintext in zip(entries, plaintext_codes)], "warning": "兑换码明文仅在本次创建响应中返回，请立即保存"}
+
+
+@app.get("/admin/membership/redemption-codes")
+def admin_list_redemption_codes(
+    status: str = "all",
+    service_key: str = "",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_admin_user),
+):
+    query = db.query(models.RedemptionCode)
+    if service_key:
+        canonical = canonical_service_key(service_key)
+        if canonical:
+            query = query.filter(models.RedemptionCode.service_key == canonical)
+    rows = query.order_by(models.RedemptionCode.created_at.desc()).limit(500).all()
+    items = [_serialize_redemption_code(entry) for entry in rows]
+    if status != "all":
+        items = [item for item in items if item["status"] == status]
+    return {"items": items}
+
+
+@app.get("/admin/membership/redemption-codes/{code_id}")
+def admin_get_redemption_code(
+    code_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_admin_user),
+):
+    entry = db.query(models.RedemptionCode).filter(models.RedemptionCode.id == code_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="兑换码不存在")
+    usage = db.query(models.RedemptionCodeUsage).filter(
+        models.RedemptionCodeUsage.code_id == code_id,
+    ).order_by(models.RedemptionCodeUsage.redeemed_at.desc()).all()
+    return {
+        "code": _serialize_redemption_code(entry),
+        "usage": [{"user_id": row.user_id, "username": row.username or "", "redeemed_at": serialize_datetime(row.redeemed_at)} for row in usage],
+    }
+
+
+@app.post("/admin/membership/redemption-codes/{code_id}/revoke")
+def admin_revoke_redemption_code(
+    code_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_admin_user),
+):
+    entry = db.query(models.RedemptionCode).filter(models.RedemptionCode.id == code_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="兑换码不存在")
+    if entry.used_count > 0:
+        raise HTTPException(status_code=409, detail="已使用兑换码不能撤销")
+    entry.status = "revoked"
+    db.commit()
+    db.refresh(entry)
+    return {"code": _serialize_redemption_code(entry)}
 
 
 # ── Admin / Usage ──────────────────────────────────────────

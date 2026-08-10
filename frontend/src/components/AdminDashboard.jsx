@@ -31,6 +31,8 @@ const MENU_GROUPS = [
 ];
 
 const MENU_ITEMS = MENU_GROUPS.flatMap((group) => group.items);
+MENU_GROUPS[1].items.push({ page: "adminRedemptionCodes", label: "兑换码", icon: "C" });
+MENU_ITEMS.push(MENU_GROUPS[1].items[MENU_GROUPS[1].items.length - 1]);
 const WEEKDAY_LABELS = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
 
 function formatToday() {
@@ -125,6 +127,11 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
   const [usageTrend, setUsageTrend] = useState(null);
   const [quota, setQuota] = useState(null);
   const [logs, setLogs] = useState(null);
+  const [redemptionCodes, setRedemptionCodes] = useState([]);
+  const [redemptionStatus, setRedemptionStatus] = useState("all");
+  const [redemptionForm, setRedemptionForm] = useState({ service_key: "course_learning", target_plan: "monthly", membership_duration_days: 30, code_expires_at: "", max_redemptions: 1, count: 1, note: "" });
+  const [createdRedemptionCodes, setCreatedRedemptionCodes] = useState([]);
+  const [redemptionDetail, setRedemptionDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [userKeyword, setUserKeyword] = useState("");
@@ -193,6 +200,9 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
         setSettings(data.items || []);
       } else if (activePage === "adminLogs") {
         setLogs(await getJson(`${API_BASE}/admin/logs?${adminParam}&page_size=16`));
+      } else if (activePage === "adminRedemptionCodes") {
+        const params = new URLSearchParams({ status: redemptionStatus });
+        setRedemptionCodes((await getJson(`${API_BASE}/admin/membership/redemption-codes?${params.toString()}`)).items || []);
       }
     } catch (err) {
       setError(err.message || "数据加载失败");
@@ -206,7 +216,7 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
     setActionSuccess("");
     setAnnouncementFormError("");
     loadCurrentPage();
-  }, [activePage, user?.username, userStatus]);
+  }, [activePage, user?.username, userStatus, redemptionStatus]);
 
   useEffect(() => {
     setProfileForm({ nickname: user?.nickname || "", avatar: user?.avatar || "" });
@@ -632,6 +642,74 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
     </AdminPageCard>
   );
 
+  const renderRedemptionCodes = () => {
+    const planOptions = redemptionForm.service_key === "exam_11408"
+      ? [["monthly_sprint", "月度冲刺包"], ["quarterly_boost", "季度强化包"], ["full_exam", "全程备考包"]]
+      : redemptionForm.service_key === "programming"
+        ? [["monthly", "月度练习包"], ["quarterly", "季度训练包"], ["full", "实验与算法强化包"]]
+        : [["monthly", "月度学习包"], ["quarterly", "季度学习包"], ["full", "全程学习包"]];
+    const updateForm = (key, value) => setRedemptionForm((prev) => ({ ...prev, [key]: value }));
+    const createCodes = async () => {
+      setActionError("");
+      setActionSuccess("");
+      try {
+        const data = await getJson(`${API_BASE}/admin/membership/redemption-codes`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...redemptionForm, membership_duration_days: Number(redemptionForm.membership_duration_days), max_redemptions: Number(redemptionForm.max_redemptions), count: Number(redemptionForm.count), code_expires_at: new Date(redemptionForm.code_expires_at).toISOString() }),
+        });
+        setCreatedRedemptionCodes(data.codes || []);
+        setActionSuccess("兑换码创建成功；明文仅在本次显示，请立即保存。");
+        await loadCurrentPage();
+      } catch (err) {
+        setActionError(err.message || "创建兑换码失败");
+      }
+    };
+    const revokeCode = async (id) => {
+      if (!window.confirm("确认撤销该兑换码吗？已使用的码不能撤销。")) return;
+      try {
+        await getJson(`${API_BASE}/admin/membership/redemption-codes/${id}/revoke`, { method: "POST" });
+        await loadCurrentPage();
+      } catch (err) {
+        setActionError(err.message || "撤销兑换码失败");
+      }
+    };
+    const viewCode = async (id) => {
+      try {
+        setRedemptionDetail(await getJson(`${API_BASE}/admin/membership/redemption-codes/${id}`));
+      } catch (err) {
+        setActionError(err.message || "加载兑换码明细失败");
+      }
+    };
+    return (
+      <AdminPageCard title="兑换码管理" subtitle="创建方向绑定的会员兑换码；兑换码不产生订单或收入记录。">
+        {actionError && <div className="admin-dashboard-error">{actionError}</div>}
+        {actionSuccess && <div className="admin-dashboard-success">{actionSuccess}</div>}
+        <div className="admin-dashboard-toolbar">
+          <select value={redemptionStatus} onChange={(e) => setRedemptionStatus(e.target.value)}>
+            <option value="all">全部</option><option value="active">有效</option><option value="exhausted">已用完</option><option value="expired">已过期</option><option value="revoked">已撤销</option>
+          </select>
+        </div>
+        <div className="admin-dashboard-form-grid">
+          <label>服务方向<select value={redemptionForm.service_key} onChange={(e) => { updateForm("service_key", e.target.value); updateForm("target_plan", e.target.value === "exam_11408" ? "monthly_sprint" : "monthly"); }}><option value="exam_11408">11408</option><option value="course_learning">课程学习</option><option value="programming">编程</option></select></label>
+          <label>目标套餐<select value={redemptionForm.target_plan} onChange={(e) => updateForm("target_plan", e.target.value)}>{planOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+          <label>会员时长（天）<input type="number" min="1" max="3650" value={redemptionForm.membership_duration_days} onChange={(e) => updateForm("membership_duration_days", e.target.value)} /></label>
+          <label>兑换码有效期<input type="datetime-local" value={redemptionForm.code_expires_at} onChange={(e) => updateForm("code_expires_at", e.target.value)} /></label>
+          <label>每码最大兑换次数<input type="number" min="1" max="100000" value={redemptionForm.max_redemptions} onChange={(e) => updateForm("max_redemptions", e.target.value)} /></label>
+          <label>创建数量<input type="number" min="1" max="100" value={redemptionForm.count} onChange={(e) => updateForm("count", e.target.value)} /></label>
+          <label>备注<input value={redemptionForm.note} onChange={(e) => updateForm("note", e.target.value)} /></label>
+          <button type="button" className="admin-dashboard-primary-action" onClick={createCodes}>创建兑换码</button>
+        </div>
+        {createdRedemptionCodes.length > 0 && <div className="admin-dashboard-success" style={{ marginTop: 16 }}><strong>本次新建明文（离开页面后不再展示）：</strong>{createdRedemptionCodes.map((item) => <div key={item.id} style={{ display: "flex", justifyContent: "space-between", gap: 12, marginTop: 6 }}><code>{item.code}</code><button type="button" onClick={() => navigator.clipboard?.writeText(item.code)}>复制</button></div>)}</div>}
+        {redemptionDetail && <div className="admin-dashboard-card" style={{ margin: "16px 0" }}><div className="admin-dashboard-card-head"><h2>兑换码使用明细</h2><button type="button" onClick={() => setRedemptionDetail(null)}>关闭</button></div><p>{redemptionDetail.code?.service_key} / {redemptionDetail.code?.target_plan} · {redemptionDetail.code?.redeemed_count}/{redemptionDetail.code?.max_redemptions}</p>{(redemptionDetail.usage || []).length ? <DataTable columns={["用户", "兑换时间"]} rows={redemptionDetail.usage.map((row) => [row.username || row.user_id, formatDateTime(row.redeemed_at)])} /> : <EmptyState title="暂无兑换记录" description="该兑换码尚未被使用。" />}</div>}
+        <DataTable columns={["服务方向", "目标套餐", "会员时长", "有效期", "使用情况", "状态", "操作"]} rows={redemptionCodes.map((item) => [
+          item.service_key || "-", item.target_plan || "-", `${item.membership_duration_days || 0} 天`, formatDateTime(item.code_expires_at), `${item.redeemed_count}/${item.max_redemptions}`, item.status,
+          <div className="admin-dashboard-actions"><button type="button" onClick={() => viewCode(item.id)}>查看</button><button type="button" className="warning" disabled={item.status !== "active"} onClick={() => revokeCode(item.id)}>撤销</button></div>,
+        ])} />
+      </AdminPageCard>
+    );
+  };
+
   const renderMembers = () => (
     <AdminPageCard title="会员管理" subtitle="管理用户会员、套餐和有效期。">
       {memberRows.length > 0 ? (
@@ -1013,6 +1091,7 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
     if (activePage === "adminAnnouncements") return renderAnnouncements();
     if (activePage === "adminUsers") return renderUsers();
     if (activePage === "adminOrders") return renderOrders();
+    if (activePage === "adminRedemptionCodes") return renderRedemptionCodes();
     if (activePage === "adminMembers") return renderMembers();
     if (activePage === "adminQuota") return renderQuota();
     if (activePage === "adminStatistics") return renderStatistics();

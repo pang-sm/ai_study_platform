@@ -28,6 +28,7 @@ export default function MembershipPage({
   const [redeemCode, setRedeemCode] = useState("");
   const [redeeming, setRedeeming] = useState(false);
   const [redeemResult, setRedeemResult] = useState(null);
+  const [redeemPreview, setRedeemPreview] = useState(null);
   const [manualChoiceOpen, setManualChoiceOpen] = useState(false);
 
   const loadMembership = useCallback(async () => {
@@ -65,6 +66,14 @@ export default function MembershipPage({
   useEffect(() => { loadMembership(); }, [loadMembership]);
 
   useEffect(() => {
+    if (!redeemOpen) setRedeemPreview(null);
+  }, [redeemOpen]);
+
+  useEffect(() => {
+    if (redeemCode) setRedeemPreview(null);
+  }, [redeemCode]);
+
+  useEffect(() => {
     let alive = true;
     fetch(`${apiBase}/membership/reminders`, { credentials: "include" })
       .then((response) => (response.ok ? response.json() : null))
@@ -94,6 +103,10 @@ export default function MembershipPage({
   };
 
   const handleRedeem = async () => {
+    if (redeemPreview) {
+      await confirmRedeem();
+      return;
+    }
     if (!redeemCode.trim()) {
       setRedeemResult({ success: false, message: "请输入兑换码" });
       return;
@@ -101,18 +114,42 @@ export default function MembershipPage({
     setRedeeming(true);
     setRedeemResult(null);
     try {
-      const response = await fetch(`${apiBase}/membership/redeem?username=${encodeURIComponent(user.username)}`, {
+      const response = await fetch(`${apiBase}/membership/redeem/preview`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: redeemCode.trim() }),
+        body: JSON.stringify({ code: redeemCode.trim(), service_key: serviceKey }),
+      });
+      const data = await readJson(response);
+      if (!response.ok) throw new Error(data.detail || data.message || "兑换失败");
+      setRedeemPreview(data.preview || null);
+      setRedeemResult({ success: true, message: "兑换码有效，请确认激活" });
+      // The preview step intentionally does not mutate membership state.
+    } catch (redeemError) {
+      setRedeemResult({ success: false, message: redeemError.message || "兑换失败" });
+    } finally {
+      setRedeeming(false);
+    }
+  };
+
+  const confirmRedeem = async () => {
+    if (!redeemCode.trim() || !redeemPreview) return;
+    setRedeeming(true);
+    setRedeemResult(null);
+    try {
+      const response = await fetch(`${apiBase}/membership/redeem`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: redeemCode.trim(), service_key: serviceKey }),
       });
       const data = await readJson(response);
       if (!response.ok) throw new Error(data.detail || data.message || "兑换失败");
       setRedeemResult({ success: true, message: data.message || "兑换成功" });
       setRedeemCode("");
+      setRedeemPreview(null);
       await loadMembership();
-      onPlanUpdate?.({ plan: data.current_plan || effectivePlan?.plan_code || "free" });
+      onPlanUpdate?.({ plan: data.redemption?.target_plan || effectivePlan?.plan_code || "free" });
     } catch (redeemError) {
       setRedeemResult({ success: false, message: redeemError.message || "兑换失败" });
     } finally {
@@ -236,6 +273,12 @@ export default function MembershipPage({
           <div className="membership-modal" onClick={(event) => event.stopPropagation()}>
             <h2>兑换会员</h2><p>输入兑换码激活会员权益。</p>
             <input value={redeemCode} onChange={(event) => { setRedeemCode(event.target.value); setRedeemResult(null); }} onKeyDown={(event) => event.key === "Enter" && handleRedeem()} placeholder="请输入兑换码" autoFocus />
+            {redeemPreview && <div className="membership-redeem-preview">
+              <div><span>服务方向</span><strong>{redeemPreview.service_key}</strong></div>
+              <div><span>目标套餐</span><strong>{redeemPreview.target_plan_name || redeemPreview.target_plan}</strong></div>
+              <div><span>会员时长</span><strong>{redeemPreview.membership_duration_days} 天</strong></div>
+              <div><span>预计到期</span><strong>{redeemPreview.projected_expires_at?.slice(0, 10)}</strong></div>
+            </div>}
             {redeemResult && <div className={`membership-redeem-result ${redeemResult.success ? "is-success" : "is-error"}`}>{redeemResult.message}</div>}
             <div className="membership-modal-actions"><button type="button" className="membership-button membership-button-secondary" onClick={() => setRedeemOpen(false)}>取消</button><button type="button" className="membership-button membership-button-primary" onClick={handleRedeem} disabled={redeeming}>{redeeming ? "兑换中…" : "确认兑换"}</button></div>
           </div>

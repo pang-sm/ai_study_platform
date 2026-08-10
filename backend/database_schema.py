@@ -45,6 +45,15 @@ PROGRAMMING_EXERCISE_COLUMNS: Mapping[str, str] = {
 }
 
 
+REDEMPTION_CODE_COLUMNS: Mapping[str, str] = {
+    "service_key": "VARCHAR(50)",
+    "target_plan": "VARCHAR(50)",
+    "membership_duration_days": "INTEGER",
+    "code_expires_at": "DATETIME",
+    "note": "TEXT",
+}
+
+
 def ensure_programming_exercise_schema(engine: Engine) -> dict:
     """Add missing catalog columns and return an auditable migration result."""
 
@@ -84,4 +93,20 @@ def ensure_database_schema(engine_or_url: Engine | str) -> dict:
         if isinstance(engine_or_url, str)
         else engine_or_url
     )
-    return ensure_programming_exercise_schema(engine)
+    result = ensure_programming_exercise_schema(engine)
+    with engine.begin() as connection:
+        existing = {
+            row[1]
+            for row in connection.exec_driver_sql(
+                "PRAGMA table_info(redemption_codes)"
+            ).fetchall()
+        }
+        added: list[str] = []
+        for name, definition in REDEMPTION_CODE_COLUMNS.items():
+            if name not in existing:
+                connection.exec_driver_sql(
+                    f"ALTER TABLE redemption_codes ADD COLUMN {name} {definition}"
+                )
+                added.append(name)
+    result["redemption_codes"] = {"added": added}
+    return result
