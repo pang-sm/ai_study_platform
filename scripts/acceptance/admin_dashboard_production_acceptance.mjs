@@ -199,9 +199,13 @@ async function main() {
   await page.screenshot({ path: screenshotPath("admin-dashboard-orders-empty.png"), fullPage: false });
 
   await clickNav("数据统计", "近 7 天 AI 调用趋势");
+  // A real zero is a valid usage value.  Check the labelled mini-stat card so
+  // that the acceptance does not confuse `0` with an absent or stale metric.
+  const todayTotal = Number(usageSummary.body?.today_total);
   await page.waitForFunction(
-    ({ label, value }) => document.body.innerText.includes(label) && document.body.innerText.includes(value),
-    { label: "今日调用", value: formatNumber(usageSummary.body?.today_total) },
+    ({ label, value }) => Array.from(document.querySelectorAll(".admin-dashboard-mini-stats *"))
+      .some((element) => element.textContent?.includes(label) && element.textContent?.includes(value)),
+    { label: "今日调用", value: formatNumber(todayTotal) },
     { timeout: 30000 },
   );
   const statisticsText = await page.locator("body").innerText();
@@ -209,7 +213,12 @@ async function main() {
   const trendChart = page.locator("svg.admin-dashboard-chart");
   const trendLabels = await trendChart.evaluate((element) => Array.from(element.querySelectorAll("text")).map((item) => item.textContent || ""));
   const visibleTrendDate = trendItems.some((item) => item.date && trendLabels.includes(String(item.date).slice(5)));
-  report.records.ai_metrics = { passed: statisticsText.includes("今日调用") && statisticsText.includes(formatNumber(usageSummary.body?.today_total)), api_today_total: usageSummary.body?.today_total };
+  report.records.ai_metrics = {
+    passed: Number.isFinite(todayTotal) && todayTotal >= 0
+      && statisticsText.includes("今日调用")
+      && statisticsText.includes(formatNumber(todayTotal)),
+    api_today_total: usageSummary.body?.today_total,
+  };
   report.records.real_trend_chart = { passed: trendItems.length === 7 && visibleTrendDate, api_days: trendItems.length, visible_date: visibleTrendDate, visible_labels: trendLabels };
   await page.screenshot({ path: screenshotPath("admin-dashboard-statistics-trend.png"), fullPage: false });
 

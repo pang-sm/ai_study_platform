@@ -1,0 +1,81 @@
+{
+  "audit": "https-membership-checkout-redemption-production-acceptance",
+  "base_url": "https://101.32.190.42",
+  "checkout_qa": {
+    "created_via": "/register UI",
+    "username": "https_checkout_qa_20260810151539",
+    "order_id": 24
+  },
+  "redemption_qa": {
+    "created_via": "/register UI",
+    "username": "https_redeem_qa_20260810151539"
+  },
+  "redemption_code": {
+    "created_via": "admin UI",
+    "service_key": "course_learning",
+    "target_plan": "monthly",
+    "duration_days": 30,
+    "max_redemptions": 1,
+    "note": "HTTPS security freeze acceptance"
+  },
+  "records": {
+    "checkout_pending": {
+      "passed": true,
+      "order_status": "pending"
+    },
+    "checkout_refresh_pending": {
+      "passed": true,
+      "order_status": "pending"
+    },
+    "checkout_paid_refresh": {
+      "passed": true,
+      "order_status": "paid"
+    },
+    "checkout_membership_profile_quota": {
+      "passed": true,
+      "me_status": 200,
+      "catalog_status": 200,
+      "return_route": "/"
+    },
+    "redemption_code_created": {
+      "passed": true,
+      "code_id": 13,
+      "plaintext_not_persisted": true
+    },
+    "redemption_preview": {
+      "passed": true,
+      "preview_visible": true
+    },
+    "redemption_success_no_order": {
+      "passed": true,
+      "order_count_before": 0,
+      "order_count_after": 0
+    },
+    "redemption_refresh_persistence": {
+      "passed": true,
+      "me_status": 200
+    },
+    "redemption_relogin_persistence": {
+      "passed": true,
+      "me_status": 200
+    },
+    "redemption_admin_exhausted": {
+      "passed": true,
+      "row_summary": "course_learning monthly 30 天 2026-08-13 23:13 1/1 exhausted 查看 撤销"
+    },
+    "redemption_second_attempt_rejected": {
+      "passed": true,
+      "status": 400
+    },
+    "diagnostics": {
+      "passed": true,
+      "console_errors": 0,
+      "network_failures": 0,
+      "mixed_content": 0
+    }
+  },
+  "console_business_errors": [],
+  "unexpected_network_failures": [],
+  "mixed_content": [],
+  "status": "passed"
+}

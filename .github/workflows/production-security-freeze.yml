@@ -1,0 +1,74 @@
+name: Production security-freeze infrastructure acceptance
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  infrastructure-acceptance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepare SSH
+        shell: bash
+        env:
+          TENCENT_HOST: ${{ secrets.TENCENT_HOST }}
+          TENCENT_SSH_KEY: ${{ secrets.TENCENT_SSH_KEY }}
+          SSH_PORT: ${{ secrets.TENCENT_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          : "${TENCENT_HOST:?TENCENT_HOST secret is required}"
+          : "${TENCENT_SSH_KEY:?TENCENT_SSH_KEY secret is required}"
+          HOST_CLEAN="${TENCENT_HOST#*@}"
+          HOST_CLEAN="${HOST_CLEAN%%:*}"
+          HOST_CLEAN="${HOST_CLEAN%%/*}"
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+          printf '%s\n' "$TENCENT_SSH_KEY" | tr -d '\r' > "$HOME/.ssh/tencent_deploy_key"
+          chmod 600 "$HOME/.ssh/tencent_deploy_key"
+          ssh-keyscan -T 20 -p "${SSH_PORT:-22}" -H "$HOST_CLEAN" >> "$HOME/.ssh/known_hosts"
+          chmod 644 "$HOME/.ssh/known_hosts"
+
+      - name: Read-only nginx and certificate renewal acceptance
+        shell: bash
+        env:
+          TENCENT_HOST: ${{ secrets.TENCENT_HOST }}
+          TENCENT_USER: ${{ secrets.TENCENT_USER }}
+          SSH_PORT: ${{ secrets.TENCENT_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          : "${TENCENT_HOST:?TENCENT_HOST secret is required}"
+          : "${TENCENT_USER:?TENCENT_USER secret is required}"
+          HOST_CLEAN="${TENCENT_HOST#*@}"
+          HOST_CLEAN="${HOST_CLEAN%%:*}"
+          HOST_CLEAN="${HOST_CLEAN%%/*}"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/tencent_deploy_key" -p "${SSH_PORT:-22}" "$TENCENT_USER@$HOST_CLEAN" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          CERTBOT_BIN=""
+          for candidate in /opt/ai-study-platform-certbot/bin/certbot /usr/bin/certbot /usr/local/bin/certbot; do
+            if [ -x "$candidate" ]; then CERTBOT_BIN="$candidate"; break; fi
+          done
+          test -n "$CERTBOT_BIN" || { echo "CERTBOT_BIN_NOT_FOUND"; exit 1; }
+
+          echo "== nginx configuration =="
+          sudo nginx -t
+          echo "== certbot =="
+          "$CERTBOT_BIN" --version
+          echo "== renewal timer =="
+          systemctl is-enabled ai-study-platform-certbot-renew.timer
+          systemctl is-active ai-study-platform-certbot-renew.timer
+          systemctl list-timers --all 'ai-study-platform-certbot-renew.timer' --no-pager
+          echo "== certificate status =="
+          sudo "$CERTBOT_BIN" certificates
+          echo "== safe renewal configuration summary =="
+          sudo find /etc/letsencrypt/renewal -maxdepth 1 -type f -name '*.conf' -print | sort
+          sudo grep -Eh '^(version|authenticator|installer|server|renew_hook|deploy_hook|pre_hook|post_hook|renew_before_expiry)\s*=' /etc/letsencrypt/renewal/*.conf || true
+          echo "== deploy hook =="
+          HOOK=/etc/letsencrypt/renewal-hooks/deploy/ai-study-platform-nginx-reload
+          sudo test -x "$HOOK"
+          sudo grep -Eq '(systemctl[[:space:]]+reload[[:space:]]+nginx|nginx[[:space:]]+-s[[:space:]]+reload)' "$HOOK"
+          echo "deploy_hook=nginx_reload_present"
+          echo "== renewal rehearsal =="
+          sudo "$CERTBOT_BIN" renew --dry-run
+          REMOTE
