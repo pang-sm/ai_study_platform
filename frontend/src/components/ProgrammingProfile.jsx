@@ -151,6 +151,7 @@ export default function ProgrammingProfile({ user, apiBase = "/api", setPage, on
       setPage,
       onError: setActionErr,
       onPlansUpdate: setServicePlans,
+      returnPage: "programmingHome",
     });
   };
 

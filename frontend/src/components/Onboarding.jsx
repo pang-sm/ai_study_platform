@@ -59,6 +59,7 @@ function toggleFromList(list, item) {
 export default function Onboarding({
   user,
   onComplete,
+  onCancel,
   onProgrammingSelected,
   API_BASE,
   initialStep,
@@ -516,6 +517,7 @@ export default function Onboarding({
             {error && <div className="ob-error">{error}</div>}
 
             <div className="ob-actions ob-actions--dual">
+              {fromServiceSwitch && <button type="button" className="ob-btn-secondary" onClick={onCancel} disabled={saving}>取消并返回</button>}
               {!shouldHideStep2Back && <button type="button" className="ob-btn-secondary" onClick={handleBack}>上一步</button>}
               <button type="button" className="ob-btn-primary" onClick={handleStep2Next} disabled={saving && goalType !== "exam_408"}>
                 {goalType === "exam_408" ? "下一步" : (saving ? "保存中..." : "保存并进入")}
@@ -528,7 +530,8 @@ export default function Onboarding({
 
             {error && <div className="ob-error">{error}</div>}
 
-            <div className="ob-actions">
+            <div className="ob-actions ob-actions--dual">
+              {fromServiceSwitch && <button type="button" className="ob-btn-secondary" onClick={onCancel} disabled={saving}>取消并返回</button>}
               <button type="button" className="ob-btn-secondary" onClick={handleBack}>上一步</button>
             </div>
           </>

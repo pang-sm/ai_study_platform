@@ -6,6 +6,7 @@ export default function ProgrammingPackageStep({
   apiBase = "/api",
   initialPlan = "quarterly",
   onBack,
+  onCancel,
   onComplete,
 }) {
   const [selectedPlan, setSelectedPlan] = useState(initialPlan || "quarterly");
@@ -62,6 +63,7 @@ export default function ProgrammingPackageStep({
           />
         )}
         <div className="programming-onboarding-actions">
+          {onCancel && <button type="button" className="programming-btn-secondary" onClick={onCancel} disabled={saving}>取消并返回</button>}
           <button type="button" className="programming-btn-secondary" onClick={onBack} disabled={saving}>上一步</button>
           <button
             type="button"

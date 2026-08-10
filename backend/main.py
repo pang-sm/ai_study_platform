@@ -5436,6 +5436,7 @@ def save_course_learning_onboarding(
         course_goals[course] = course_learning_mode_to_goal(course_learning_goal_to_mode(value)) if value in allowed_course_goals else "平日学习"
 
     track = get_user_track(db, user.id, "university_course")
+    track_was_existing = track is not None
 
     if track and _parse_track_onboarding_detail(track).get("course_learning_onboarding_completed"):
         # Already onboarded — allow plan-only upgrade without re-validating major/grade/courses
@@ -5456,16 +5457,17 @@ def save_course_learning_onboarding(
     if not selected_courses:
         raise HTTPException(status_code=400, detail="请选择至少一门想学习的课程")
 
-    user.major = major
-    user.grade = grade
-    if selected_courses:
-        user.focus_courses = "、".join(selected_courses)[:200]
-        user.default_course_id = selected_courses[0][:100]
-    user.learning_direction = user.learning_direction or "大学课程学习"
+    completed = bool(req.onboarding_completed)
+    if completed:
+        user.major = major
+        user.grade = grade
+        if selected_courses:
+            user.focus_courses = "、".join(selected_courses)[:200]
+            user.default_course_id = selected_courses[0][:100]
+        user.learning_direction = "大学课程学习"
 
     detail = _parse_track_onboarding_detail(track)
     now_text = serialize_datetime(utc_now())
-    completed = bool(req.onboarding_completed)
     allowed_plans = {"free", "monthly", "quarterly", "full"}
     plan = (req.plan or (track.plan if track else None) or "free").strip()
     if plan not in allowed_plans:
@@ -5499,6 +5501,11 @@ def save_course_learning_onboarding(
         package_type=plan,
         onboarding_detail=detail,
     )
+    if completed:
+        for item in get_user_tracks(db, user.id):
+            item.is_active = item.track_type == "university_course"
+    elif not track_was_existing:
+        track.is_active = False
     for course in selected_courses:
         pref = get_or_create_course_learning_preference(db, user.username, course)
         mode = course_learning_goal_to_mode(course_goals.get(course))
@@ -5593,6 +5600,7 @@ def save_programming_onboarding(
     requested_plan = normalize_programming_plan(req.plan)
 
     track = get_user_track(db, user.id, "programming")
+    track_was_existing = track is not None
     detail = _parse_track_onboarding_detail(track)
     now_text = serialize_datetime(utc_now())
     completed = bool(req.onboarding_completed)
@@ -5611,11 +5619,11 @@ def save_programming_onboarding(
     if not detail.get("programming_created_at"):
         detail["programming_created_at"] = now_text
 
-    user.learning_direction = "编程能力提升"
-    user.default_course_id = language
     if completed:
+        user.learning_direction = "编程能力提升"
+        user.default_course_id = language
         user.onboarding_completed = True
-    user.onboarding_detail = json.dumps({**detail, "learning_goal_type": "programming"}, ensure_ascii=False)
+        user.onboarding_detail = json.dumps({**detail, "learning_goal_type": "programming"}, ensure_ascii=False)
 
     track = upsert_user_track(
         db,
@@ -5625,8 +5633,11 @@ def save_programming_onboarding(
         package_type=plan,
         onboarding_detail=detail,
     )
-    for t in get_user_tracks(db, user.id):
-        t.is_active = t.track_type == "programming"
+    if completed:
+        for t in get_user_tracks(db, user.id):
+            t.is_active = t.track_type == "programming"
+    elif not track_was_existing:
+        track.is_active = False
 
     if completed:
         membership = get_user_service_membership(db, user.id, "programming")
@@ -29640,6 +29651,14 @@ def _serialize_admin_announcement(a):
     }
 
 
+def _validate_announcement_fields(title: str, content: str):
+    """Reject blank or obviously placeholder announcements before persistence/publication."""
+    if len(title) < 2:
+        raise HTTPException(status_code=400, detail="公告标题至少需要 2 个字符")
+    if len(content) < 2:
+        raise HTTPException(status_code=400, detail="公告内容至少需要 2 个字符")
+
+
 @app.post("/admin/announcements")
 def admin_announcements_create(req: dict, db: Session = Depends(get_db)):
     admin_name = str(req.get("admin_username", "")).strip()
@@ -29648,6 +29667,7 @@ def admin_announcements_create(req: dict, db: Session = Depends(get_db)):
     content = str(req.get("content", "")).strip()
     if not title or not content:
         raise HTTPException(status_code=400, detail="标题和内容不能为空")
+    _validate_announcement_fields(title, content)
     status = str(req.get("status", "published")).strip().lower()
     is_active = 0 if status in ("draft", "inactive", "disabled") else 1
     a = models.SystemAnnouncement(
@@ -29677,8 +29697,11 @@ def admin_announcements_update(a_id: int, req: dict, db: Session = Depends(get_d
     a = db.query(models.SystemAnnouncement).filter(models.SystemAnnouncement.id == a_id).first()
     if not a: raise HTTPException(status_code=404, detail="公告不存在")
     old_values = {"title": a.title, "content": a.content, "type": a.type, "target": a.target, "is_active": bool(a.is_active)}
-    if "title" in req: a.title = str(req["title"]).strip()[:500]
-    if "content" in req: a.content = str(req["content"]).strip()[:5000]
+    next_title = str(req.get("title", a.title) or "").strip()
+    next_content = str(req.get("content", a.content) or "").strip()
+    _validate_announcement_fields(next_title, next_content)
+    if "title" in req: a.title = next_title[:500]
+    if "content" in req: a.content = next_content[:5000]
     if "type" in req: a.type = str(req["type"]).strip() or "info"
     if "target" in req: a.target = str(req["target"]).strip() or "all"
     if "is_active" in req:
@@ -29712,6 +29735,7 @@ def admin_announcements_patch(a_id: int, req: dict, db: Session = Depends(get_db
     content = str(req.get("content", a.content) or "").strip()
     if not title or not content:
         raise HTTPException(status_code=400, detail="标题和内容不能为空")
+    _validate_announcement_fields(title, content)
 
     old_values = {
         "title": a.title,
@@ -29787,7 +29811,10 @@ def admin_announcements_toggle(a_id: int, req: dict, db: Session = Depends(get_d
     a = db.query(models.SystemAnnouncement).filter(models.SystemAnnouncement.id == a_id).first()
     if not a: raise HTTPException(status_code=404, detail="公告不存在")
     old_active = bool(a.is_active)
-    a.is_active = int(req.get("is_active", 0))
+    next_active = int(req.get("is_active", 0))
+    if next_active:
+        _validate_announcement_fields((a.title or "").strip(), (a.content or "").strip())
+    a.is_active = next_active
     if a.is_active:
         a.withdrawn_at = None
     a.updated_at = utc_now()

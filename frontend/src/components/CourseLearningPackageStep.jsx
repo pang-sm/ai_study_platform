@@ -7,6 +7,7 @@ export default function CourseLearningPackageStep({
   saving = false,
   error = "",
   onBack,
+  onCancel,
   onComplete,
 }) {
   const [selectedPlan, setSelectedPlan] = useState(initialPlan || "quarterly");
@@ -56,6 +57,7 @@ export default function CourseLearningPackageStep({
           />
         )}
         <div className="ob-actions ob-actions--dual">
+          {onCancel && <button type="button" className="ob-btn-secondary" onClick={onCancel} disabled={saving}>取消并返回</button>}
           <button type="button" className="ob-btn-secondary" onClick={onBack} disabled={saving}>上一步</button>
           <button
             type="button"

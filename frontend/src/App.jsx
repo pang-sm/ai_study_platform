@@ -686,6 +686,7 @@ function App() {
         goalType: context.goalType || "",
         initialStep: context.initialStep || 2,
         targetPage: context.targetPage || "",
+        returnPage: context.returnPage || context.cancelPage || "",
       });
     } else if (
       nextPage !== "courseLearningOnboarding" &&
@@ -3449,7 +3450,7 @@ function App() {
       setPage("programmingOnboarding");
     };
     return (
-      <Onboarding
+        <Onboarding
         user={user}
         onComplete={handleOnboardingComplete}
         onProgrammingSelected={handleProgrammingSelected}
@@ -3458,6 +3459,11 @@ function App() {
         initialGoalType={serviceSwitchOnboarding?.goalType}
         fromServiceSwitch={Boolean(serviceSwitchOnboarding?.fromServiceSwitch)}
         hideBackButton={Boolean(serviceSwitchOnboarding?.fromServiceSwitch)}
+        onCancel={() => {
+          const returnPage = serviceSwitchOnboarding?.returnPage;
+          setServiceSwitchOnboarding(null);
+          setPage(returnPage || "home");
+        }}
       />
     );
   }
@@ -3479,6 +3485,11 @@ function App() {
         onBack={() => setPage("onboarding")}
         onNext={handleProgrammingNext}
         hideBackButton={isServiceSwitchProgrammingOnboarding}
+        onCancel={isServiceSwitchProgrammingOnboarding ? () => {
+          const returnPage = serviceSwitchOnboarding?.returnPage;
+          setServiceSwitchOnboarding(null);
+          setPage(returnPage || "programmingHome");
+        } : undefined}
       />
     );
   }
@@ -3531,6 +3542,11 @@ function App() {
         initialDetails={programmingOnboardingStatus}
         onBack={() => setPage("programmingOnboarding")}
         onComplete={handleProgrammingComplete}
+        onCancel={serviceSwitchOnboarding?.fromServiceSwitch ? () => {
+          const returnPage = serviceSwitchOnboarding?.returnPage;
+          setServiceSwitchOnboarding(null);
+          setPage(returnPage || "programmingHome");
+        } : undefined}
       />
     );
   }
@@ -3553,6 +3569,11 @@ function App() {
         onNext={handleCourseOnboardingNext}
         onBack={() => setPage("onboarding")}
         hideBackButton={isServiceSwitchCourseOnboarding}
+        onCancel={isServiceSwitchCourseOnboarding ? () => {
+          const returnPage = serviceSwitchOnboarding?.returnPage;
+          setServiceSwitchOnboarding(null);
+          setPage(returnPage || "home");
+        } : undefined}
       />
     );
   }
@@ -3626,6 +3647,11 @@ function App() {
         error={tip}
         onBack={() => setPage("courseLearningOnboarding")}
         onComplete={handleCoursePackageComplete}
+        onCancel={serviceSwitchOnboarding?.fromServiceSwitch ? () => {
+          const returnPage = serviceSwitchOnboarding?.returnPage;
+          setServiceSwitchOnboarding(null);
+          setPage(returnPage || "home");
+        } : undefined}
       />
     );
   }

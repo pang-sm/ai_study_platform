@@ -54,6 +54,7 @@ export default function ProgrammingOnboardingStep({
   apiBase = "/api",
   initialData,
   onBack,
+  onCancel,
   onNext,
   hideBackButton = false,
 }) {
@@ -200,6 +201,7 @@ export default function ProgrammingOnboardingStep({
         {message && <div className="programming-onboarding-error">{message}</div>}
 
         <div className="programming-onboarding-actions">
+          {hideBackButton && <button type="button" className="programming-btn-secondary" onClick={onCancel} disabled={saving}>取消并返回</button>}
           {!hideBackButton && (
             <button type="button" className="programming-btn-secondary" onClick={onBack} disabled={saving}>上一步</button>
           )}

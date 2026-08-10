@@ -169,6 +169,7 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
       apiBase: API_BASE,
       setPage,
       onError: setActionErr,
+      returnPage: "examHome",
     });
   };
 

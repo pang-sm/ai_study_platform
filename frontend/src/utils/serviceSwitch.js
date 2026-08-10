@@ -26,11 +26,13 @@ export async function switchLearningDirection({
   setPage,
   onError,
   onPlansUpdate,
+  returnPage,
 }) {
   const config = DIRECTION_CONFIG[targetTrack];
   if (!config || !setPage) return;
 
   let plans = user?.service_plans || {};
+  let tracks = user?.tracks || [];
   try {
     const response = await fetch(`${apiBase}/me`, {
       method: "POST",
@@ -40,13 +42,24 @@ export async function switchLearningDirection({
     const data = await response.json().catch(() => ({}));
     if (response.ok && data.user?.service_plans) {
       plans = data.user.service_plans;
+      tracks = data.user.tracks || tracks;
       onPlansUpdate?.(plans);
     }
   } catch {
     // Keep the latest profile snapshot if the refresh fails.
   }
 
-  if (plans?.[config.serviceKey]?.is_enabled) {
+  const targetTrackRecord = tracks.find((track) => track.track_type === targetTrack);
+  const completionField = targetTrack === "university_course"
+    ? "course_learning_onboarding_completed"
+    : targetTrack === "programming"
+      ? "programming_onboarding_completed"
+      : null;
+  const onboardingDetail = targetTrackRecord?.onboarding_detail || {};
+  const targetTrackReady = Boolean(targetTrackRecord)
+    && (completionField ? onboardingDetail[completionField] !== false : true);
+
+  if (plans?.[config.serviceKey]?.is_enabled && targetTrackReady) {
     setPage(config.homePage);
     return;
   }
@@ -57,6 +70,7 @@ export async function switchLearningDirection({
     goalType: config.goalType,
     initialStep: 2,
     targetPage: config.homePage,
+    returnPage,
   });
   onError?.("");
 }

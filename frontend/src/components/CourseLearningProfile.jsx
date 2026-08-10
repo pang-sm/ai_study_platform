@@ -138,6 +138,7 @@ export default function CourseLearningProfile({ user, setPage, onLogout, API_BAS
       setPage,
       onError: setActionErr,
       onPlansUpdate: setServicePlans,
+      returnPage: "home",
     });
   };
 
