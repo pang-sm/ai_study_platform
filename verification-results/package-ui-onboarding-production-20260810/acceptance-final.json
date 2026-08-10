@@ -1,0 +1,39 @@
+{
+  "audit": "package-ui-and-onboarding-payment-production-acceptance",
+  "status": "PACKAGE_UI_AND_ONBOARDING_PAYMENT_VERIFIED",
+  "production_url": "http://101.32.190.42/",
+  "business_commit": "711fc4b",
+  "actions_run": "31349459864",
+  "deployment": "success",
+  "health": {"status": 200, "payload_status": "ok"},
+  "checks": {
+    "auth": "PASS",
+    "exam_11408_membership_checkout_success": "PASS",
+    "course_learning_free_onboarding": "PASS",
+    "programming_paid_onboarding": "PASS",
+    "programming_checkout_refresh": "PASS",
+    "programming_success_refresh": "PASS",
+    "programming_return_home": "PASS",
+    "existing_user_upgrade": "PASS",
+    "service_isolation": "PASS",
+    "current_purple_ui": "PASS",
+    "legacy_ui_reachable": "PASS_NONE_OBSERVED",
+    "membership_scroll_1366x768": "PASS",
+    "checkout_scroll_1366x768": "PASS",
+    "success_scroll_1366x768": "PASS",
+    "console_business_errors": 0,
+    "unexpected_business_network_failures": 0
+  },
+  "orders": {
+    "programming_onboarding_order": 13,
+    "existing_user_temporary_upgrade_order": 14,
+    "temporary_upgrade_order_final_state": "cancelled"
+  },
+  "third_party_noise": [
+    "Statsig telemetry timeout: https://ab.chatgpt.com/v1/initialize",
+    "Statsig telemetry timeout: https://ab.chatgpt.com/v1/rgstr"
+  ],
+  "screenshots_dir": "verification-results/package-ui-onboarding-production-20260810/screenshots",
+  "no_real_payment_provider_added": true,
+  "no_new_business_deployment_required_after_acceptance": false
+}
