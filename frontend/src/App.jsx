@@ -609,6 +609,11 @@ function App() {
       } catch { /* ignore */ }
     } else if (nextPage === "membership" && context?.serviceKey) {
       setMembershipPageContext(context);
+      try {
+        const serializedContext = JSON.stringify(context);
+        sessionStorage.setItem(MEMBERSHIP_CHECKOUT_CONTEXT_KEY, serializedContext);
+        localStorage.setItem(MEMBERSHIP_CHECKOUT_CONTEXT_KEY, serializedContext);
+      } catch { /* ignore */ }
     } else if (membershipCheckoutContext) {
       setMembershipCheckoutContext(null);
       try {
