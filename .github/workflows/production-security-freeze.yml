@@ -53,22 +53,43 @@ jobs:
 
           echo "== nginx configuration =="
           sudo nginx -t
+          sudo nginx -T 2>&1 | grep -E '^[[:space:]]*(listen[[:space:]]+(80|443)|return[[:space:]]+30[18]|proxy_pass[[:space:]]|proxy_set_header[[:space:]]+(Upgrade|Connection))' || true
+          sudo nginx -T 2>&1 | grep -Eq 'listen[[:space:]]+80'
+          sudo nginx -T 2>&1 | grep -Eq 'listen[[:space:]]+443.*ssl'
+          sudo nginx -T 2>&1 | grep -Eq 'return[[:space:]]+30[18].*https'
+          sudo nginx -T 2>&1 | grep -Eq 'proxy_pass[[:space:]]+'
+          sudo nginx -T 2>&1 | grep -Eq 'proxy_set_header[[:space:]]+Upgrade'
+          sudo nginx -T 2>&1 | grep -Eq 'proxy_set_header[[:space:]]+Connection'
           echo "== certbot =="
           "$CERTBOT_BIN" --version
           echo "== renewal timer =="
+          if systemctl list-unit-files certbot.timer --no-legend | grep -q '^certbot.timer'; then
+            systemctl is-enabled certbot.timer || true
+            systemctl is-active certbot.timer || true
+          else
+            echo "certbot.timer=not-installed (custom renewal timer is authoritative)"
+          fi
           systemctl is-enabled ai-study-platform-certbot-renew.timer
           systemctl is-active ai-study-platform-certbot-renew.timer
-          systemctl list-timers --all 'ai-study-platform-certbot-renew.timer' --no-pager
+          systemctl list-timers --all --no-pager | grep -E 'certbot|ai-study-platform-certbot-renew' || true
           echo "== certificate status =="
           sudo "$CERTBOT_BIN" certificates
           echo "== safe renewal configuration summary =="
-          sudo find /etc/letsencrypt/renewal -maxdepth 1 -type f -name '*.conf' -print | sort
-          sudo grep -Eh '^(version|authenticator|installer|server|renew_hook|deploy_hook|pre_hook|post_hook|renew_before_expiry)\s*=' /etc/letsencrypt/renewal/*.conf || true
+          mapfile -t RENEWAL_FILES < <(sudo grep -l '101\.32\.190\.42' /etc/letsencrypt/renewal/*.conf || true)
+          test "${#RENEWAL_FILES[@]}" -gt 0 || { echo "IP_RENEWAL_CONFIG_NOT_FOUND"; exit 1; }
+          printf 'renewal_config=%s\n' "${RENEWAL_FILES[@]}"
+          sudo grep -Eh '^(version|authenticator|installer|server|renew_hook|deploy_hook|pre_hook|post_hook|renew_before_expiry|preferred_chain|preferred_profile|ip_address|webroot_path|key_type)\s*=' "${RENEWAL_FILES[@]}" || true
           echo "== deploy hook =="
           HOOK=/etc/letsencrypt/renewal-hooks/deploy/ai-study-platform-nginx-reload
           sudo test -x "$HOOK"
           sudo grep -Eq '(systemctl[[:space:]]+reload[[:space:]]+nginx|nginx[[:space:]]+-s[[:space:]]+reload)' "$HOOK"
           echo "deploy_hook=nginx_reload_present"
           echo "== renewal rehearsal =="
-          sudo "$CERTBOT_BIN" renew --dry-run
+          if "$CERTBOT_BIN" renew --help all 2>&1 | grep -q -- '--run-deploy-hooks'; then
+            echo "renewal_rehearsal=dry_run_with_supported_deploy_hooks"
+            sudo "$CERTBOT_BIN" renew --dry-run --run-deploy-hooks
+          else
+            echo "renewal_rehearsal=dry_run_without_supported_deploy_hooks"
+            sudo "$CERTBOT_BIN" renew --dry-run
+          fi
           REMOTE
