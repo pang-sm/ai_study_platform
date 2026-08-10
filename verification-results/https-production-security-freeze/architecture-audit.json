@@ -1,0 +1,55 @@
+{
+  "audited_at": "2026-08-10",
+  "public_base_url": "http://101.32.190.42/",
+  "http": {
+    "homepage_status": 200,
+    "api_health_status": 200,
+    "server": "nginx/1.18.0 (Ubuntu)",
+    "redirect_to_https": false
+  },
+  "https": {
+    "port_443_tls": "NOT_AVAILABLE",
+    "handshake": "FAILED_OR_TIMEOUT",
+    "trusted_certificate": false
+  },
+  "domain": {
+    "configured_in_repository": false,
+    "required_for_trusted_tls": true
+  },
+  "nginx": {
+    "http_listen": true,
+    "https_server_block": false,
+    "api_proxy": "http://127.0.0.1:8000/",
+    "websocket_upgrade_template": true,
+    "forwarded_proto_template": false
+  },
+  "frontend": {
+    "api_base": "/api",
+    "public_http_api_hardcode": false,
+    "websocket_scheme": "window protocol dependent",
+    "acceptance_scripts_default_http": true
+  },
+  "cookie": {
+    "name": "ai_session",
+    "http_only": true,
+    "secure": false,
+    "same_site": "Lax",
+    "path": "/"
+  },
+  "security_headers_observed": {
+    "strict_transport_security": false,
+    "x_content_type_options": false,
+    "referrer_policy": false,
+    "x_frame_options": false
+  },
+  "status": {
+    "https_production": "HTTPS_PRODUCTION_NOT_VERIFIED",
+    "security_freeze": "PRODUCTION_SECURITY_FREEZE_NOT_VERIFIED",
+    "blocking_todo": "HTTPS_REQUIRED_BEFORE_PRODUCTION_SECURITY_FREEZE"
+  },
+  "mutations": {
+    "business_source_changed": false,
+    "database_changed": false,
+    "deployment_performed": false
+  }
+}
