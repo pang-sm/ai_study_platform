@@ -31,13 +31,13 @@ Generated: 2026-08-10
 | Network | PASS | No unexpected business network failures in normal-user smoke, WSS, profile, or admin acceptance. |
 | Logout | PASS | `/api/logout=200`, then `/api/me=401` as the expected pass condition, followed by the login view on reload. |
 
-## Infrastructure acceptance awaiting manual GitHub Actions run
+## Infrastructure acceptance blocked by GitHub default-branch requirement
 
 | Item | Status | Blocking evidence |
 | --- | --- | --- |
-| Live nginx `nginx -t` | PENDING | The manual-only workflow is prepared but has not yet run against production. |
-| Certbot/timer/renewal config/deploy hook | PENDING | The workflow will use the existing deploy SSH secret and print only safe summaries. |
-| Renewal rehearsal | PENDING | The workflow will use Certbot's supported `renew --dry-run` command and fail closed on any error. |
+| Live nginx `nginx -t` | NOT VERIFIED | No live SSH command was run. GitHub rejects `workflow_dispatch` for a workflow absent from the default branch. |
+| Certbot/timer/renewal config/deploy hook | NOT VERIFIED | The manual-only workflow is committed on `codex/security-freeze-acceptance`, but GitHub resolves dispatchable workflows from `main`. |
+| Renewal rehearsal | NOT VERIFIED | `certbot renew --dry-run` was intentionally not run outside the workflow. No production certificate state was changed. |
 
 ## Non-blocking hardening
 
@@ -45,10 +45,10 @@ Generated: 2026-08-10
 
 ## Final status
 
-- `HTTPS_PRODUCTION_PENDING_INFRASTRUCTURE_ACCEPTANCE`
-- `PRODUCTION_SECURITY_FREEZE_PENDING_INFRASTRUCTURE_ACCEPTANCE`
+- `HTTPS_PRODUCTION_NOT_VERIFIED`
+- `PRODUCTION_SECURITY_FREEZE_NOT_VERIFIED`
 
-Membership, Checkout, and Redemption are complete. The only remaining mandatory evidence is the manual production SSH infrastructure acceptance. No business deployment is required by the checks completed in this acceptance run.
+Membership, Checkout, and Redemption are complete. The only remaining mandatory evidence is the manual production SSH infrastructure acceptance. The attempted GitHub dispatch produced no run ID because the workflow is not yet on the default branch; merging it to `main` (which will invoke the repository's existing deployment workflow) requires separate authorization. No production SSH command or business deployment was performed in this acceptance run.
 
 ## Related artifacts
 
@@ -56,5 +56,6 @@ Membership, Checkout, and Redemption are complete. The only remaining mandatory 
 - `verification-results/profile-actions-production/profile-actions-final-acceptance.json`
 - `verification-results/admin-dashboard-production/acceptance-final.json`
 - `verification-results/membership-redemption-production/acceptance-final.json`
+- `.github/workflows/production-security-freeze.yml` (manual-only workflow; not yet dispatchable until present on `main`)
 
 Sensitive credentials, cookie values, tokens, and storage-state contents are not included in this report.
