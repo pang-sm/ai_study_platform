@@ -36,7 +36,7 @@ PY
 }
 
 certbot_version() {
-    "$1" --version 2>/dev/null | awk '{print $2}'
+    "$1" --version 2>&1 | awk '{print $2}'
 }
 
 select_certbot() {
@@ -57,7 +57,9 @@ select_certbot() {
     fi
     if [ ! -x "$CERTBOT_VENV/bin/certbot" ]; then
         sudo python3 -m venv "$CERTBOT_VENV"
-        sudo "$CERTBOT_VENV/bin/pip" install --upgrade 'certbot>=5.4,<6'
+        # Keep installer output out of the command substitution that captures
+        # the selected executable path.
+        sudo "$CERTBOT_VENV/bin/pip" install --upgrade 'certbot>=5.4,<6' >&2
     fi
     candidate="$CERTBOT_VENV/bin/certbot"
     version="$(certbot_version "$candidate")"
