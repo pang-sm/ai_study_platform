@@ -620,3 +620,27 @@ jobs:
             echo "[deploy] WARNING: less than 5 GiB remains after deployment"
           fi
           DEPLOYEOF
+
+      - name: Verify public HTTPS reachability
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "=== External HTTPS probe ==="
+          for attempt in {1..6}; do
+            if curl -fsS --max-time 20 https://101.32.190.42/api/health >/tmp/ai-study-platform-health.json; then
+              echo "[deploy] public HTTPS /api/health=200"
+              break
+            fi
+            if [ "$attempt" -eq 6 ]; then
+              echo "[deploy] public HTTPS probe failed; port 443 may be blocked by a cloud firewall/security group"
+              exit 1
+            fi
+            sleep 10
+          done
+          HTTP_STATUS="$(curl -sS -o /dev/null --max-redirs 0 -w '%{http_code}' --max-time 20 http://101.32.190.42/ || true)"
+          test "$HTTP_STATUS" = "308" || { echo "[deploy] expected HTTP 308, got $HTTP_STATUS"; exit 1; }
+          CERT_DETAILS="$(openssl s_client -connect 101.32.190.42:443 -servername 101.32.190.42 </dev/null 2>/dev/null | openssl x509 -noout -issuer -subject -dates -ext subjectAltName)"
+          echo "$CERT_DETAILS"
+          echo "$CERT_DETAILS" | grep -Eq 'IP Address:101\.32\.190\.42'
+          echo "$CERT_DETAILS" | grep -qi "Let's Encrypt"
+          rm -f /tmp/ai-study-platform-health.json

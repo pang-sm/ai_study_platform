@@ -189,6 +189,22 @@ TIMER
     log "renewal timer active: $TIMER_NAME.timer"
 }
 
+allow_web_ports_when_ufw_is_active() {
+    if ! command -v ufw >/dev/null 2>&1; then
+        log "ufw is not installed; leaving cloud firewall unchanged"
+        return
+    fi
+    local ufw_status
+    ufw_status="$(sudo ufw status 2>/dev/null | head -n 1 || true)"
+    if printf '%s\n' "$ufw_status" | grep -qi "Status: active"; then
+        sudo ufw allow 80/tcp comment 'ai-study-platform HTTP/ACME' >/dev/null
+        sudo ufw allow 443/tcp comment 'ai-study-platform HTTPS' >/dev/null
+        log "UFW active; HTTP and HTTPS rules applied"
+    else
+        log "UFW is not active; leaving host firewall unchanged"
+    fi
+}
+
 command -v python3 >/dev/null || die "python3 is required"
 command -v openssl >/dev/null || die "openssl is required"
 command -v nginx >/dev/null || die "nginx is required"
@@ -230,6 +246,7 @@ else
 fi
 verify_ip_certificate "$PRODUCTION_LIVE_DIR/fullchain.pem" production
 install_nginx_config
+allow_web_ports_when_ufw_is_active
 install_renewal
 
 log "HTTPS preflight complete; backup: $BACKUP_ROOT"
