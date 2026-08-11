@@ -72,10 +72,13 @@ jobs:
           echo "== certbot =="
           "$CERTBOT_BIN" --version
           echo "== renewal timer =="
-          certbot_timer_units="$(systemctl list-unit-files certbot.timer --no-legend)"
-          if grep -q '^certbot.timer' <<<"$certbot_timer_units"; then
-            systemctl is-enabled certbot.timer || true
-            systemctl is-active certbot.timer || true
+          if certbot_timer_units="$(systemctl list-unit-files certbot.timer --no-legend 2>&1)"; then
+            if grep -q '^certbot.timer' <<<"$certbot_timer_units"; then
+              systemctl is-enabled certbot.timer || true
+              systemctl is-active certbot.timer || true
+            else
+              echo "certbot.timer=not-installed (custom renewal timer is authoritative)"
+            fi
           else
             echo "certbot.timer=not-installed (custom renewal timer is authoritative)"
           fi
