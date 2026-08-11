@@ -18357,7 +18357,15 @@ def _course_learning_seed_context(course_id: str, knowledge_point_code: str = ""
     }
 
 
-def _build_course_learning_prompt(course_name: str, chapter: str, point: dict, material_context: str, difficulty: str) -> str:
+def _build_course_learning_prompt(
+    course_name: str,
+    chapter: str,
+    point: dict,
+    material_context: str,
+    difficulty: str,
+    existing_stems: list[str] | None = None,
+) -> str:
+    history_context = "\n".join(f"- {stem}" for stem in (existing_stems or []) if stem) or "暂无已生成题目"
     return f"""你是大学课程学习平台的命题助手。请围绕当前课程上下文生成一道单项选择练习题。
 
 课程：{course_name}
@@ -18366,8 +18374,10 @@ def _build_course_learning_prompt(course_name: str, chapter: str, point: dict, m
 知识点说明：{point.get('description') or '无'}
 难度：{difficulty}
 用户资料摘要（仅作上下文，不要照抄）：{material_context or '暂无用户资料'}
+同一知识点已生成题目（必须避开相同题干和考查角度）：
+{history_context}
 
-要求：题干必须能检验上述知识点，不得脱离课程；提供 A/B/C/D 四个不重复选项；只有一个正确答案；解析要说明判断依据。只输出 JSON，不要 Markdown：
+要求：题干必须能检验上述知识点，不得脱离课程；提供 A/B/C/D 四个不重复选项；只有一个正确答案；解析要说明判断依据。不得复用上方题干或只替换少量措辞。只输出 JSON，不要 Markdown：
 {{
   "stem": "...",
   "options": {{"A": "...", "B": "...", "C": "...", "D": "..."}},
@@ -18376,10 +18386,10 @@ def _build_course_learning_prompt(course_name: str, chapter: str, point: dict, m
 }}"""
 
 
-def _build_course_learning_fallback_question(course_name: str, chapter: str, point: dict) -> dict:
+def _build_course_learning_fallback_question(course_name: str, chapter: str, point: dict, variant: int = 1) -> dict:
     title = point.get("title") or "当前知识点"
     return {
-        "stem": f"关于“{title}”的学习，下面哪项做法最符合当前课程的复习目标？",
+        "stem": f"关于“{title}”的学习，下面哪项做法最符合当前课程的复习目标？（练习变式 {variant}）",
         "options": {
             "A": f"先解释{title}的核心概念，再用一个例子验证边界条件",
             "B": "只记住术语名称，不关注适用条件",
@@ -18399,6 +18409,61 @@ def _public_course_ai_question(item: models.AIGeneratedQuestion) -> dict:
     payload.pop("has_raw_response", None)
     payload.pop("has_generation_prompt", None)
     return payload
+
+
+def _course_workbook_question_query(db: Session, username: str, course_id: str = ""):
+    query = db.query(models.AIGeneratedQuestion).filter(
+        models.AIGeneratedQuestion.username == username,
+        models.AIGeneratedQuestion.requirement == "课程章节练习",
+    )
+    if course_id:
+        query = query.filter(models.AIGeneratedQuestion.subject_key == course_id)
+    return query
+
+
+def _course_attempt_summary(attempt: models.AIQuestionAttempt) -> dict:
+    correct = None
+    if attempt.status == "submitted":
+        try:
+            correct = bool((json.loads(attempt.result_json or "{}") or {}).get("correct"))
+        except (TypeError, json.JSONDecodeError):
+            correct = bool(attempt.correct_count)
+    return {
+        "id": attempt.id,
+        "status": attempt.status,
+        "correct": correct,
+        "accuracy": attempt.accuracy,
+        "created_at": serialize_datetime(attempt.created_at),
+        "submitted_at": serialize_datetime(attempt.submitted_at) if attempt.submitted_at else None,
+    }
+
+
+def _course_workbook_question_payload(item: models.AIGeneratedQuestion, attempts: list[models.AIQuestionAttempt]) -> dict:
+    payload = _public_course_ai_question(item)
+    payload.update({
+        "attempt_count": len(attempts),
+        "latest_attempt": _course_attempt_summary(attempts[0]) if attempts else None,
+        "attempts": [_course_attempt_summary(attempt) for attempt in attempts],
+    })
+    return payload
+
+
+def _create_course_learning_attempt(db: Session, user: models.User, item: models.AIGeneratedQuestion) -> models.AIQuestionAttempt:
+    attempt = models.AIQuestionAttempt(
+        username=user.username,
+        mode="course_learning",
+        subject_key=item.subject_key,
+        subject_name=item.subject_name or item.subject_key,
+        knowledge_point_id=item.knowledge_point_id,
+        knowledge_point_name=item.knowledge_point_name,
+        knowledge_point_path=item.knowledge_point_path,
+        question_ids_json=json.dumps([item.id]),
+        total_questions=1,
+        status="in_progress",
+        started_at=utc_now(),
+    )
+    db.add(attempt)
+    return attempt
 
 
 def _update_course_learning_progress(
@@ -18485,10 +18550,18 @@ def generate_course_learning_practice(req: dict, db: Session = Depends(get_db), 
             if (item.summary or item.extracted_text or "").strip()
         )[:5000]
 
+    existing_questions = _course_workbook_question_query(db, username, normalized_course).filter(
+        models.AIGeneratedQuestion.knowledge_point_id == (point.get("code") or None),
+    ).order_by(models.AIGeneratedQuestion.created_at.desc()).limit(12).all()
+    existing_stems = [item.stem for item in existing_questions if item.stem]
+    existing_stem_keys = {" ".join(stem.casefold().split()) for stem in existing_stems}
+
     generation_mode = "ai"
     fallback_reason = ""
     generated = None
-    prompt = _build_course_learning_prompt(context["course_name"], chapter, point, material_context, difficulty)
+    prompt = _build_course_learning_prompt(
+        context["course_name"], chapter, point, material_context, difficulty, existing_stems,
+    )
     try:
         raw = call_deepseek([
             {"role": "system", "content": "你只输出符合要求的 JSON 对象。"},
@@ -18516,10 +18589,14 @@ def generate_course_learning_practice(req: dict, db: Session = Depends(get_db), 
             "standard_answer": answer,
             "analysis": str(parsed["analysis"]).strip(),
         }
+        if " ".join(generated["stem"].casefold().split()) in existing_stem_keys:
+            raise ValueError("AI returned a duplicate course workbook stem")
     except Exception as exc:
         generation_mode = "fallback"
         fallback_reason = str(exc)[:300]
-        generated = _build_course_learning_fallback_question(context["course_name"], chapter, point)
+        generated = _build_course_learning_fallback_question(
+            context["course_name"], chapter, point, variant=len(existing_questions) + 1,
+        )
 
     item = models.AIGeneratedQuestion(
         username=user.username,
@@ -18544,20 +18621,7 @@ def generate_course_learning_practice(req: dict, db: Session = Depends(get_db), 
     )
     db.add(item)
     db.flush()
-    attempt = models.AIQuestionAttempt(
-        username=user.username,
-        mode="course_learning",
-        subject_key=normalized_course,
-        subject_name=context["course_name"],
-        knowledge_point_id=point.get("code") or None,
-        knowledge_point_name=point.get("title") or None,
-        knowledge_point_path=chapter or point.get("chapter") or None,
-        question_ids_json=json.dumps([item.id]),
-        total_questions=1,
-        status="in_progress",
-        started_at=utc_now(),
-    )
-    db.add(attempt)
+    attempt = _create_course_learning_attempt(db, user, item)
     db.commit()
     db.refresh(item)
     db.refresh(attempt)
@@ -18626,6 +18690,108 @@ def submit_course_learning_practice(attempt_id: int, req: dict, db: Session = De
     return {"success": True, "attempt_id": attempt.id, "result": result}
 
 
+@app.get("/course-learning/practice/workbook")
+def get_course_learning_practice_workbook(
+    username: str = "",
+    course_id: str = "",
+    chapter: str = "",
+    knowledge_point_code: str = "",
+    status: str = "all",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Return persisted course AI questions, grouped by their latest answer state."""
+    assert_username_matches_current_user(username, current_user)
+    normalized_course = normalize_subject_course_learning(course_id) if course_id else ""
+    normalized_status = (status or "all").strip().lower()
+    if normalized_status not in {"all", "unanswered", "correct", "wrong"}:
+        raise HTTPException(status_code=400, detail="status must be all, unanswered, correct, or wrong")
+
+    query = _course_workbook_question_query(db, current_user.username, normalized_course)
+    if chapter:
+        query = query.filter(models.AIGeneratedQuestion.knowledge_point_path == chapter)
+    if knowledge_point_code:
+        query = query.filter(models.AIGeneratedQuestion.knowledge_point_id == knowledge_point_code)
+    questions = query.order_by(models.AIGeneratedQuestion.created_at.desc()).limit(100).all()
+    question_ids = [item.id for item in questions]
+    attempts_by_question: dict[int, list[models.AIQuestionAttempt]] = {question_id: [] for question_id in question_ids}
+    if question_ids:
+        attempts = db.query(models.AIQuestionAttempt).filter(
+            models.AIQuestionAttempt.username == current_user.username,
+            models.AIQuestionAttempt.mode == "course_learning",
+        ).order_by(models.AIQuestionAttempt.created_at.desc()).all()
+        for attempt in attempts:
+            try:
+                attempt_question_ids = [int(value) for value in json.loads(attempt.question_ids_json or "[]")]
+            except (TypeError, ValueError, json.JSONDecodeError):
+                attempt_question_ids = []
+            for question_id in attempt_question_ids:
+                if question_id in attempts_by_question:
+                    attempts_by_question[question_id].append(attempt)
+
+    items = []
+    for question in questions:
+        payload = _course_workbook_question_payload(question, attempts_by_question.get(question.id, []))
+        latest = payload["latest_attempt"]
+        item_status = "unanswered" if not latest or latest["status"] != "submitted" else ("correct" if latest["correct"] else "wrong")
+        if normalized_status != "all" and item_status != normalized_status:
+            continue
+        payload["workbook_status"] = item_status
+        items.append(payload)
+    return {"items": items, "total": len(items)}
+
+
+@app.get("/course-learning/practice/workbook/{question_id}")
+def get_course_learning_workbook_question(
+    question_id: int,
+    username: str = "",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(username, current_user)
+    item = _course_workbook_question_query(db, current_user.username).filter(
+        models.AIGeneratedQuestion.id == question_id,
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="AI 题册题目不存在")
+    attempts = db.query(models.AIQuestionAttempt).filter(
+        models.AIQuestionAttempt.username == current_user.username,
+        models.AIQuestionAttempt.mode == "course_learning",
+    ).order_by(models.AIQuestionAttempt.created_at.desc()).all()
+    matching_attempts = []
+    for attempt in attempts:
+        try:
+            if question_id in [int(value) for value in json.loads(attempt.question_ids_json or "[]")]:
+                matching_attempts.append(attempt)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            continue
+    return {"question": _course_workbook_question_payload(item, matching_attempts)}
+
+
+@app.post("/course-learning/practice/workbook/{question_id}/attempts")
+def restart_course_learning_workbook_question(
+    question_id: int,
+    req: dict,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Start a new attempt without overwriting the persisted question or prior attempts."""
+    assert_username_matches_current_user(req.get("username"), current_user)
+    item = _course_workbook_question_query(db, current_user.username).filter(
+        models.AIGeneratedQuestion.id == question_id,
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="AI 题册题目不存在")
+    attempt = _create_course_learning_attempt(db, current_user, item)
+    db.commit()
+    db.refresh(attempt)
+    return {
+        "success": True,
+        "attempt_id": attempt.id,
+        "question": _public_course_ai_question(item),
+    }
+
+
 @app.get("/course-learning/practice/history")
 def get_course_learning_practice_history(username: str = "", course_id: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     assert_username_matches_current_user(username, current_user)
@@ -18648,11 +18814,15 @@ def get_course_learning_practice_history(username: str = "", course_id: str = ""
         )
         history_items.append({
             "id": attempt.id,
+            "question_id": source_item.id if source_item else None,
             "course_id": attempt.subject_key,
+            "chapter": attempt.knowledge_point_path or "",
             "knowledge_point_name": attempt.knowledge_point_name or "",
             "status": attempt.status,
             "correct_count": attempt.correct_count,
             "accuracy": attempt.accuracy,
+            "correct": _course_attempt_summary(attempt)["correct"],
+            "stem": source_item.stem if source_item else "",
             "generation_mode": _normalize_ai_generation_mode(getattr(source_item, "generation_mode", None)),
             "created_at": serialize_datetime(attempt.created_at),
             "submitted_at": serialize_datetime(attempt.submitted_at) if attempt.submitted_at else None,
