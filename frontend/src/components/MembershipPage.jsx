@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import "./MembershipPage.css";
 import PlanSelection from "./PlanSelection.jsx";
+import { notifyFeatureEntitlementsUpdated } from "../hooks/useFeatureEntitlements.js";
 
 function readJson(response) {
   return response.json().catch(() => ({}));
@@ -150,6 +151,7 @@ export default function MembershipPage({
       setRedeemPreview(null);
       await loadMembership();
       onPlanUpdate?.({ plan: data.redemption?.target_plan || effectivePlan?.plan_code || "free" });
+      notifyFeatureEntitlementsUpdated();
     } catch (redeemError) {
       setRedeemResult({ success: false, message: redeemError.message || "兑换失败" });
     } finally {

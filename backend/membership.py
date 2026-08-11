@@ -360,6 +360,54 @@ def serialize_service_plan(service_key: str, plan_code: str, definition: dict) -
         "quota": dict(definition.get("quota") or {}),
     }
 
+
+# Feature keys are deliberately finite.  Each entry points to an existing
+# direction-specific catalog quota; no separate entitlement table or copied
+# plan-rank list is maintained in the API or UI.
+SERVICE_FEATURE_QUOTAS = {
+    "exam_11408": {
+        "learning_plan": "learning_plan",
+        "practice_review": "mistake_review",
+        "learning_report": "learning_report",
+    },
+    "course_learning": {
+        "learning_plan": "learning_plan",
+        "practice_review": "mistake_review",
+        "learning_report": "learning_report",
+    },
+}
+
+
+def get_feature_entitlement(user: models.User, db: Session, service_key: str, feature_key: str) -> dict:
+    """Resolve one real product feature from the direction's membership catalog."""
+    canonical = canonical_service_key(service_key)
+    quota_key = SERVICE_FEATURE_QUOTAS.get(canonical, {}).get((feature_key or "").strip())
+    if not canonical or not quota_key:
+        raise ValueError("Unsupported membership feature")
+    catalog = get_service_plan_catalog(canonical)
+    required_plan = next(
+        (plan_code for plan_code, definition in catalog.items() if bool((definition.get("quota") or {}).get(quota_key))),
+        None,
+    )
+    if not required_plan:
+        raise ValueError("Feature is not available in this service catalog")
+    membership = _current_service_membership(db, user.id, canonical)
+    expires_at = _as_utc(getattr(membership, "expires_at", None)) if membership else None
+    current_plan = (
+        (membership.plan or "free")
+        if membership and membership.is_enabled and membership.status == "active"
+        and (not expires_at or expires_at > datetime.now(timezone.utc))
+        else "free"
+    )
+    current_definition = catalog.get(current_plan) or catalog["free"]
+    return {
+        "allowed": bool((current_definition.get("quota") or {}).get(quota_key)),
+        "feature": feature_key,
+        "service_key": canonical,
+        "current_plan": current_plan,
+        "required_plan": required_plan,
+    }
+
 # ── Admin / Developer detection ──────────────────────────────
 
 def _parse_env_usernames(var_name: str) -> set:

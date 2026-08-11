@@ -68,7 +68,7 @@ function getStatus(item) {
   return raw || "review";
 }
 
-export default function ReviewCenter({ user, getSubjectLabel, setPage }) {
+export default function ReviewCenter({ user, getSubjectLabel, setPage, courseId = "" }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -84,7 +84,7 @@ export default function ReviewCenter({ user, getSubjectLabel, setPage }) {
     setError("");
     try {
       const res = await fetch(
-        `${API_BASE}/review/center?username=${encodeURIComponent(user.username)}`,
+        `${API_BASE}/review/center?username=${encodeURIComponent(user.username)}&course_id=${encodeURIComponent(courseId)}`,
       );
       if (res.ok) {
         const json = await res.json();
@@ -101,7 +101,7 @@ export default function ReviewCenter({ user, getSubjectLabel, setPage }) {
 
   useEffect(() => {
     fetchReviewData();
-  }, [user?.username]);
+  }, [user?.username, courseId]);
 
   const createReviewTask = async (params = {}) => {
     setCreatingId(params.key || "new");
@@ -111,7 +111,7 @@ export default function ReviewCenter({ user, getSubjectLabel, setPage }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           username: user.username,
-          course_id: params.course_id || "",
+          course_id: params.course_id || courseId,
           knowledge_point_id: params.knowledge_point_id || null,
           question_id: params.question_id || null,
           title: params.title || "",
@@ -122,7 +122,7 @@ export default function ReviewCenter({ user, getSubjectLabel, setPage }) {
         await fetchReviewData();
       } else {
         const errData = await res.json();
-        alert(errData.detail || "创建失败");
+        alert(errData?.detail?.code === "FEATURE_REQUIRES_UPGRADE" ? "套餐权限不足，请升级后再创建复盘任务。" : (errData.detail || "创建失败"));
       }
     } catch (e) {
       console.error("Failed to create review task:", e);

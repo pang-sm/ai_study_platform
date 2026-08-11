@@ -66,6 +66,8 @@ from membership import (
     serialize_service_plan,
     service_plan_rank,
     check_user_entitlement,
+    SERVICE_FEATURE_QUOTAS,
+    get_feature_entitlement,
     normalize_major,
     recommend_plan_by_major,
     hash_code,
@@ -156,7 +158,7 @@ app.add_middleware(
 async def http_exception_json_handler(request: Request, exc: HTTPException):
     return JSONResponse(
         status_code=exc.status_code,
-        content={"detail": str(exc.detail)},
+        content={"detail": exc.detail},
     )
 
 
@@ -1077,6 +1079,52 @@ def get_effective_service_plan(db: Session, user_id: int, service_key: str) -> s
                 return "free"
         return m.plan or "free"
     return "free"
+
+
+def require_feature_entitlement(current_user: models.User, db: Session, service_key: str, feature_key: str) -> dict:
+    """Server-side feature gate with one stable upgrade error contract."""
+    try:
+        entitlement = get_feature_entitlement(current_user, db, service_key, feature_key)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not entitlement["allowed"]:
+        raise HTTPException(status_code=403, detail={
+            "code": "FEATURE_REQUIRES_UPGRADE",
+            "feature": entitlement["feature"],
+            "service_key": entitlement["service_key"],
+            "current_plan": entitlement["current_plan"],
+            "required_plan": entitlement["required_plan"],
+        })
+    return entitlement
+
+
+def require_learning_context_feature(
+    current_user: models.User,
+    db: Session,
+    feature_key: str,
+    course_id: str = "",
+    course_name: str = "",
+) -> dict:
+    """Resolve the direction from real course context; never from a client plan."""
+    if not (course_id or course_name).strip():
+        raise HTTPException(status_code=400, detail="course_id is required for this feature")
+    normalized_course_id = (course_id or "").strip().lower()
+    service_key = (
+        "exam_11408"
+        if normalized_course_id.startswith("11408 ") or normalized_course_id.endswith("_11408")
+        else "course_learning"
+    )
+    return require_feature_entitlement(current_user, db, service_key, feature_key)
+
+
+def require_persisted_report_feature(current_user: models.User, db: Session, report) -> dict:
+    return require_learning_context_feature(
+        current_user,
+        db,
+        "learning_report",
+        getattr(report, "course_id", "") or "",
+        getattr(report, "course_name", "") or "",
+    )
 
 
 def ensure_paid_service_plan_is_activated(db: Session, user_id: int, service_key: str, plan: str) -> None:
@@ -6666,6 +6714,7 @@ def get_course_learning_study_plan(
     current_user: models.User = Depends(get_current_user),
 ):
     assert_username_matches_current_user(username, current_user)
+    require_feature_entitlement(current_user, db, "course_learning", "learning_plan")
     user = current_user
     normalized_course, seed_course_id, _seed_path, payload = _resolve_course_learning_study_plan_context(course_id)
     task_subject_key = f"course_learning:{seed_course_id}"
@@ -8294,6 +8343,8 @@ def mark_learning_record_reviewed(
     )
     if not record:
         raise HTTPException(status_code=404, detail="学习记录不存在")
+
+    require_learning_context_feature(current_user, db, "practice_review", getattr(record, "subject", "") or "")
 
     record.review_status = "reviewed"
     record.reviewed_at = utc_now()
@@ -14995,10 +15046,13 @@ def get_learning_report(
     username: str = "",
     start: str = "",
     end: str = "",
+    course_id: str = "",
+    course_name: str = "",
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
     assert_username_matches_current_user(username, current_user)
+    require_learning_context_feature(current_user, db, "learning_report", course_id, course_name)
     username = current_user.username
     dashboard = get_learning_dashboard(username=username, db=db)
     overview = dashboard.get("overview") or {}
@@ -15092,6 +15146,7 @@ def ai_generate_learning_report(req: schemas.LearningReportAiGenerateRequest, db
     """Generate an AI-powered learning report for the given time range.
     Returns structured data; frontend handles display formatting."""
     assert_username_matches_current_user(req.username, current_user)
+    require_learning_context_feature(current_user, db, "learning_report", req.course_id, req.course_name)
     user = current_user
     range_type = (req.range_type or "7d").strip()
     now = utc_now()
@@ -15254,6 +15309,7 @@ def ai_generate_learning_report(req: schemas.LearningReportAiGenerateRequest, db
 @app.get("/review/center")
 def get_review_center(username: str = "", course_id: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     request_username(username, current_user)
+    require_learning_context_feature(current_user, db, "practice_review", course_id)
     user = current_user
     normalized_course = normalize_subject(course_id, default="")
 
@@ -15415,6 +15471,7 @@ class ReviewTaskCreateRequest(BaseModel):
 @app.post("/review/tasks/create")
 def create_review_task(req: ReviewTaskCreateRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     request_username(req, current_user)
+    require_learning_context_feature(current_user, db, "practice_review", req.course_id)
     user = current_user
     course_id = normalize_subject(req.course_id, default="") or None
 
@@ -16639,6 +16696,7 @@ def get_exam_subject_study_plan(subject_key: str, username: str = "", db: Sessio
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
 
+    require_feature_entitlement(current_user, db, "exam_11408", "learning_plan")
     username = request_username(username, current_user)
     course_id = f"{subject_key}_11408"
     subject_name = EXAM_SUBJECT_DIRS[subject_key]
@@ -16769,6 +16827,7 @@ def update_exam_study_plan_settings(
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
 
+    require_feature_entitlement(current_user, db, "exam_11408", "learning_plan")
     request_username(req, current_user)
     user = current_user
     now = utc_now()
@@ -16830,6 +16889,7 @@ def update_exam_study_plan_knowledge_item(
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
 
+    require_feature_entitlement(current_user, db, "exam_11408", "learning_plan")
     course_id = f"{subject_key}_11408"
 
     # Validate status
@@ -16928,6 +16988,7 @@ def update_exam_study_plan_chapter_practice(
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
 
+    require_feature_entitlement(current_user, db, "exam_11408", "learning_plan")
     request_username(req, current_user)
     user = current_user
     now = utc_now()
@@ -16967,6 +17028,7 @@ def update_exam_study_plan_chapter_practice(
 @app.get("/exam/11408/study-plan/summary")
 def get_exam_study_plan_summary(username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     """Get a four-subject summary of study plan progress for the 11408 home page."""
+    require_feature_entitlement(current_user, db, "exam_11408", "learning_plan")
     username = request_username(username, current_user)
     subjects = []
 
@@ -17288,6 +17350,7 @@ def create_exam_study_plan_task(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    require_feature_entitlement(current_user, db, "exam_11408", "learning_plan")
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
     if not (req.knowledge_point_name or "").strip() and (req.scope_type or "single") != "all":
@@ -17323,6 +17386,7 @@ def update_exam_study_plan_task(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    require_feature_entitlement(current_user, db, "exam_11408", "learning_plan")
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
     request_username(req, current_user)
@@ -17361,6 +17425,7 @@ def delete_exam_study_plan_task(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    require_feature_entitlement(current_user, db, "exam_11408", "learning_plan")
     if subject_key not in EXAM_SUBJECT_DIRS:
         raise HTTPException(status_code=400, detail=f"Unknown subject: {subject_key}")
     request_username(username, current_user)
@@ -17383,6 +17448,7 @@ def create_course_learning_study_plan_task(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    require_feature_entitlement(current_user, db, "course_learning", "learning_plan")
     assert_username_matches_current_user(req.username, current_user)
     course_id = req.subject_key or ""
     task_subject_key = _course_learning_task_subject_key(course_id)
@@ -17422,6 +17488,7 @@ def update_course_learning_study_plan_task(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    require_feature_entitlement(current_user, db, "course_learning", "learning_plan")
     course_id = req.subject_key or ""
     task_subject_key = _course_learning_task_subject_key(course_id)
     assert_username_matches_current_user(req.username, current_user)
@@ -17465,6 +17532,7 @@ def delete_course_learning_study_plan_task(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    require_feature_entitlement(current_user, db, "course_learning", "learning_plan")
     task_subject_key = _course_learning_task_subject_key(course_id)
     assert_username_matches_current_user(username, current_user)
     user = current_user
@@ -17482,6 +17550,7 @@ def delete_course_learning_study_plan_task(
 
 @app.get("/exam/11408/study-plan/tasks/summary")
 def get_exam_study_plan_tasks_summary(username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    require_feature_entitlement(current_user, db, "exam_11408", "learning_plan")
     """Get all current-stage tasks across all four 11408 subjects for the home page."""
     username = request_username(username, current_user)
     user = current_user
@@ -26055,6 +26124,30 @@ def get_service_membership_catalog(
     }
 
 
+@app.get("/membership/entitlements")
+def get_service_feature_entitlements(
+    service_key: str = "course_learning",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    canonical = canonical_service_key(service_key)
+    if not canonical:
+        raise HTTPException(status_code=400, detail="不支持的学习方向")
+    features = {
+        feature_key: {
+            "allowed": entitlement["allowed"],
+            "required_plan": entitlement["required_plan"],
+        }
+        for feature_key in SERVICE_FEATURE_QUOTAS.get(canonical, {})
+        for entitlement in [get_feature_entitlement(current_user, db, canonical, feature_key)]
+    }
+    return {
+        "service_key": canonical,
+        "current_plan": get_effective_service_plan(db, current_user.id, canonical),
+        "features": features,
+    }
+
+
 @app.post("/membership/orders")
 def create_membership_order(
     req: MembershipOrderCreateRequest,
@@ -28793,6 +28886,7 @@ def _kp_title(kp_progress, db):
 @app.post("/learning/reports/generate-preview")
 def generate_report_preview(req: schemas.LearningReportGenerateRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     assert_username_matches_current_user(req.username, current_user)
+    require_learning_context_feature(current_user, db, "learning_report", req.course_id, req.course_name)
     user = current_user
 
     if is_exam_408_context(req.course_id, req.course_name):
@@ -28960,6 +29054,7 @@ def generate_report_preview(req: schemas.LearningReportGenerateRequest, db: Sess
 @app.post("/learning/reports/save")
 def save_report(req: schemas.LearningReportSaveRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     assert_username_matches_current_user(req.username, current_user)
+    require_learning_context_feature(current_user, db, "learning_report", req.course_id, req.course_name)
     user = current_user
 
     title = (req.title or "未命名报告").strip()[:200]
@@ -29015,6 +29110,7 @@ def list_reports(
     current_user: models.User = Depends(get_current_user),
 ):
     assert_username_matches_current_user(username, current_user)
+    require_learning_context_feature(current_user, db, "learning_report", course_id)
     user = current_user
 
     page = max(1, page)
@@ -29061,6 +29157,7 @@ def get_report_detail(report_id: int, username: str = "", db: Session = Depends(
     )
     if not report:
         raise HTTPException(status_code=404, detail="报告不存在")
+    require_persisted_report_feature(current_user, db, report)
 
     metrics = None
     statistics = None
@@ -29107,6 +29204,7 @@ def delete_report(report_id: int, username: str = "", db: Session = Depends(get_
     )
     if not report:
         raise HTTPException(status_code=404, detail="报告不存在")
+    require_persisted_report_feature(current_user, db, report)
 
     # Deactivate any active shares for this report
     active_shares = (
@@ -29212,6 +29310,7 @@ def export_report_markdown(report_id: int, username: str = "", db: Session = Dep
     )
     if not report:
         raise HTTPException(status_code=404, detail="报告不存在")
+    require_persisted_report_feature(current_user, db, report)
 
     try:
         metrics, suggestions = _parse_report_meta(report)
@@ -29233,6 +29332,7 @@ def export_report_text(report_id: int, username: str = "", db: Session = Depends
     )
     if not report:
         raise HTTPException(status_code=404, detail="报告不存在")
+    require_persisted_report_feature(current_user, db, report)
 
     try:
         lines = []
@@ -29268,6 +29368,7 @@ def create_report_share(report_id: int, req: schemas.LearningReportShareCreateRe
     )
     if not report:
         raise HTTPException(status_code=404, detail="报告不存在")
+    require_persisted_report_feature(current_user, db, report)
 
     ensure_feature_enabled(db, "feature_report_share_enabled", "报告分享功能暂时关闭")
 
@@ -29330,6 +29431,13 @@ def revoke_report_share(report_id: int, username: str = "", db: Session = Depend
     )
     if not share:
         raise HTTPException(status_code=404, detail="该报告没有活跃的分享链接")
+    report = db.query(models.LearningReport).filter(
+        models.LearningReport.id == report_id,
+        models.LearningReport.username == user.username,
+    ).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="报告不存在")
+    require_persisted_report_feature(current_user, db, report)
 
     try:
         share.is_active = 0
@@ -29347,6 +29455,13 @@ def revoke_report_share(report_id: int, username: str = "", db: Session = Depend
 def get_report_share_status(report_id: int, username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     assert_username_matches_current_user(username, current_user)
     user = current_user
+    report = db.query(models.LearningReport).filter(
+        models.LearningReport.id == report_id,
+        models.LearningReport.username == user.username,
+    ).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="报告不存在")
+    require_persisted_report_feature(current_user, db, report)
     share = (
         db.query(models.LearningReportShare)
         .filter(

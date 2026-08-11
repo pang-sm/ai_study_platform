@@ -23,6 +23,7 @@ import ExamHome from "./components/ExamHome.jsx";
 import ExamProfile from "./components/ExamProfile.jsx";
 import ExamSubjectDashboard, { EXAM_SUBJECTS, getExamCourseId } from "./components/ExamSubjectDashboard.jsx";
 import MembershipPage from "./components/MembershipPage.jsx";
+import { notifyFeatureEntitlementsUpdated } from "./hooks/useFeatureEntitlements.js";
 import CheckoutPage from "./components/CheckoutPage.jsx";
 
 const TaskCenter = lazy(() => import("./components/TaskCenter.jsx"));
@@ -3728,6 +3729,15 @@ function App() {
       source: "exam_408",
     };
 
+    if (target === "membership") {
+      setPage("membership", {
+        serviceKey: "exam_11408",
+        profilePage: "examProfile",
+        returnPage: "examSubjectDashboard",
+      });
+      return;
+    }
+
     if (target === "ai") {
       setPendingAIContext({
         type: "exam_subject",
@@ -3810,7 +3820,12 @@ function App() {
 
   const learningReportPage = (
     <Suspense fallback={<div className="empty-state">学习报告加载中...</div>}>
-      <LearningReportCenter user={user} />
+      <LearningReportCenter
+        user={user}
+        mode="exam_11408"
+        courseId={getExamCourseId(examSubjectKey)}
+        courseName={getExamCourseId(examSubjectKey).replace(/^11408\s*/, "")}
+      />
     </Suspense>
   );
 
@@ -4116,7 +4131,7 @@ function App() {
         panelIntent={examSubjectPanelIntent}
         materialsContent={courseMaterialsPage}
         practiceContent={coursePracticePage}
-        reportContent={learningReportPage}
+        reportContent={null}
         planContent={null}
         knowledgeContext={examKnowledgeContext}
         initialMaterialToReference={examInitialMaterialReference}
@@ -4196,6 +4211,7 @@ function App() {
       try {
         const refreshedUser = await fetchCurrentUser();
         saveLoginUser(refreshedUser);
+        notifyFeatureEntitlementsUpdated();
       } catch (error) {
         console.error("Failed to refresh membership after checkout:", error);
       }
@@ -4304,6 +4320,7 @@ function App() {
             user={user}
             getSubjectLabel={getSubjectLabel}
             setPage={setPage}
+            courseId={subject || getExamCourseId(examSubjectKey)}
           />
         </Suspense>
       </div>
@@ -4362,7 +4379,7 @@ function App() {
         panelIntent={{ panel: "report", nonce: "learning-report-direct" }}
         materialsContent={courseMaterialsPage}
         practiceContent={coursePracticePage}
-        reportContent={learningReportPage}
+        reportContent={null}
         knowledgeContext={examKnowledgeContext}
         initialMaterialToReference={examInitialMaterialReference}
         onInitialMaterialReferenced={() => setExamInitialMaterialReference(null)}

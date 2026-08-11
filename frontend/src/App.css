@@ -23545,6 +23545,9 @@ body.exam-attempt-body #root {
   background: #ede9fe;
 }
 
+.exam-subject-nav-item.is-locked { color: #667085; }
+.exam-subject-nav-lock { margin-left: auto; font-size: 13px; }
+
 .exam-study-plan--cram {
   display: grid;
   gap: 18px;

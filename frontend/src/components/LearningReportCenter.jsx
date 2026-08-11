@@ -290,7 +290,7 @@ export default function LearningReportCenter({
     try {
       const data = await listLearningReports({
         username: user.username,
-        courseId: isCourseMode ? (courseId || courseName) : "",
+        courseId: isCourseMode ? (courseId || courseName) : courseId,
         reportType: isCourseMode ? "course" : "",
       });
       const items = Array.isArray(data.items) ? data.items : [];

@@ -1,5 +1,15 @@
 const API_BASE = "/api";
 
+function responseError(payload, fallback) {
+  const detail = payload?.detail;
+  if (detail && typeof detail === "object" && detail.code === "FEATURE_REQUIRES_UPGRADE") {
+    const error = new Error("套餐权限不足，请升级后再使用该功能。");
+    error.featureUpgrade = detail;
+    return error;
+  }
+  return new Error(typeof detail === "string" ? detail : fallback);
+}
+
 function toPercent(value) {
   const n = Number(value);
   if (!Number.isFinite(n)) return "--";
@@ -68,11 +78,9 @@ export async function generateAIReport({ rangeType, startDate, endDate, username
     start_date: startDate || null,
     end_date: endDate || null,
   };
-  if (mode === "course_learning" && courseName) {
-    body.mode = "course_learning";
-    body.course_id = courseId || courseName;
-    body.course_name = courseName;
-  }
+  body.mode = mode || "exam_11408";
+  body.course_id = courseId || courseName || "";
+  body.course_name = courseName || "";
   const res = await fetch(`${API_BASE}/learning-report/ai-generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

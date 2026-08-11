@@ -1,0 +1,12 @@
+.locked-feature-prompt { position: fixed; inset: 0; z-index: 1200; display: grid; place-items: center; padding: 20px; background: rgba(17, 24, 39, .5); }
+.locked-feature-prompt__dialog, .locked-feature-view { border: 1px solid rgba(124, 92, 255, .18); border-radius: 20px; background: #fff; box-shadow: 0 24px 70px rgba(31, 41, 55, .22); }
+.locked-feature-prompt__dialog { position: relative; width: min(100%, 410px); padding: 32px; text-align: center; }
+.locked-feature-prompt__icon, .locked-feature-view__icon { display: block; font-size: 32px; }
+.locked-feature-prompt h2, .locked-feature-view h2 { margin: 12px 0 8px; color: #261b55; }
+.locked-feature-prompt p, .locked-feature-view p { color: #667085; line-height: 1.65; }
+.locked-feature-prompt dl { margin: 20px 0; text-align: left; }
+.locked-feature-prompt dl div { display: flex; justify-content: space-between; gap: 16px; padding: 11px 0; border-top: 1px solid #eeeaf8; }
+.locked-feature-prompt dt { color: #667085; }.locked-feature-prompt dd { margin: 0; color: #3d2a92; font-weight: 700; }
+.locked-feature-prompt__close { position: absolute; top: 12px; right: 14px; border: 0; background: transparent; font-size: 28px; color: #667085; cursor: pointer; }
+.locked-feature-prompt__primary, .locked-feature-view button { border: 0; border-radius: 10px; padding: 12px 18px; background: #6d5dfc; color: #fff; font-weight: 700; cursor: pointer; }
+.locked-feature-view { min-height: 280px; display: grid; place-content: center; justify-items: center; padding: 32px; text-align: center; }

@@ -1,10 +1,19 @@
 from fastapi.testclient import TestClient
 
 from conftest import register_and_login
+import models
 
 
-def test_learning_report_save_list_detail_and_isolation(client: TestClient):
-    register_and_login(client, "report-a")
+def test_learning_report_save_list_detail_and_isolation(client: TestClient, db_session):
+    profile = register_and_login(client, "report-a")
+    db_session.add(models.UserServiceMembership(
+        user_id=profile["id"],
+        service_key="course_learning",
+        plan="monthly",
+        status="active",
+        is_enabled=True,
+    ))
+    db_session.commit()
     saved = client.post("/learning/reports/save", json={
         "username": "report-a",
         "course_id": "data_structure",
@@ -19,7 +28,7 @@ def test_learning_report_save_list_detail_and_isolation(client: TestClient):
     assert saved.status_code == 200, saved.text
     report_id = saved.json()["report_id"]
 
-    listed = client.get("/learning/reports", params={"username": "report-a"})
+    listed = client.get("/learning/reports", params={"username": "report-a", "course_id": "data_structure"})
     assert listed.status_code == 200
     assert any(item["id"] == report_id for item in listed.json()["items"])
     detail = client.get(f"/learning/reports/{report_id}", params={"username": "report-a"})

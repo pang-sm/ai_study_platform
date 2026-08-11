@@ -120,6 +120,9 @@
   font-size: 21px;
 }
 
+.csd-nav-item.is-locked { color: #687086; }
+.csd-nav-lock { margin-left: auto; font-size: 13px; line-height: 1; }
+
 .csd-nav-item:hover,
 .csd-nav-item.is-active {
   transform: translateY(-1px);

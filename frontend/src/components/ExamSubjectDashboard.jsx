@@ -1,6 +1,10 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, lazy, Suspense } from "react";
 import ExamChat from "./ExamChat.jsx";
 import ExamStudyPlan from "./ExamStudyPlan.jsx";
+import useFeatureEntitlements from "../hooks/useFeatureEntitlements.js";
+import LockedFeaturePrompt, { LockedFeatureView } from "./LockedFeaturePrompt.jsx";
+const LearningReportCenter = lazy(() => import("./LearningReportCenter.jsx"));
+const ReviewCenter = lazy(() => import("./ReviewCenter.jsx"));
 
 const SUBJECT_CONFIG = {
   data_structure: {
@@ -44,6 +48,8 @@ const NAV_ITEMS = [
 ];
 
 export const EXAM_SUBJECTS = SUBJECT_CONFIG;
+const FEATURE_BY_PANEL = { plan: "learning_plan", review: "practice_review", report: "learning_report" };
+NAV_ITEMS.splice(NAV_ITEMS.findIndex((item) => item.key === "report"), 0, { key: "review", label: "练习复盘", icon: "↻" });
 
 export function getExamSubjectConfig(subjectKey) {
   return SUBJECT_CONFIG[subjectKey] || SUBJECT_CONFIG.data_structure;
@@ -60,11 +66,11 @@ export default function ExamSubjectDashboard({
   planContent = null, knowledgeContext = null,
   initialMaterialToReference = null,
   onInitialMaterialReferenced = null,
-  onNavigate, onBackHome, onProfile,
+  onNavigate, onBackHome, onProfile, onUpgrade,
 }) {
   const panelStorageKey = `exam_subject_active_panel_${subjectKey}`;
   const normalizePanel = (panel) => (
-    panel === "ai" || panel === "home" || panel === "materials" || panel === "knowledge" || panel === "practice" || panel === "report" || panel === "plan" ? panel : null
+    panel === "ai" || panel === "home" || panel === "materials" || panel === "knowledge" || panel === "practice" || panel === "review" || panel === "report" || panel === "plan" ? panel : null
   );
   const getSavedPanel = () => {
     try {
@@ -82,6 +88,16 @@ export default function ExamSubjectDashboard({
   const [dashLoading, setDashLoading] = useState(false);
   const config = getExamSubjectConfig(subjectKey);
   const courseId = getExamCourseId(subjectKey);
+  const featureEntitlements = useFeatureEntitlements("exam_11408", Boolean(user?.username));
+  const [lockedFeature, setLockedFeature] = useState(null);
+  const activeFeature = FEATURE_BY_PANEL[activeSection];
+  const activeFeatureEntitlement = activeFeature
+    ? { feature: activeFeature, current_plan: featureEntitlements.currentPlan, ...(featureEntitlements.features[activeFeature] || {}) }
+    : null;
+  const openMembership = () => {
+    if (onUpgrade) onUpgrade();
+    else onNavigate?.("membership", { subject: subjectKey, courseId, title: config.title });
+  };
   const displayName = user?.nickname || user?.username || "同学";
 
   // Fetch dashboard summary
@@ -120,6 +136,15 @@ export default function ExamSubjectDashboard({
   }, [panelStorageKey, activeSection]);
 
   const navigate = (target) => {
+    const feature = FEATURE_BY_PANEL[target];
+    if (feature) {
+      const entitlement = featureEntitlements.features[feature];
+      if (featureEntitlements.loading) return;
+      if (!entitlement?.allowed) {
+        setLockedFeature({ feature, current_plan: featureEntitlements.currentPlan, ...(entitlement || {}) });
+        return;
+      }
+    }
     if (target === "home") { setActiveSection("home"); return; }
     if (target === "ai") { setActiveSection("ai"); return; }
     if (target === "materials" && materialsContent) { setActiveSection("materials"); onNavigate?.(target, { subject: subjectKey, courseId, title: config.title }); return; }
@@ -165,11 +190,13 @@ export default function ExamSubjectDashboard({
           {NAV_ITEMS.map((item) => (
             <button
               key={item.key} type="button"
-              className={`exam-subject-nav-item${item.key === activeSection ? " active" : ""}`}
+              className={`exam-subject-nav-item${item.key === activeSection ? " active" : ""}${FEATURE_BY_PANEL[item.key] && !featureEntitlements.loading && !featureEntitlements.features[FEATURE_BY_PANEL[item.key]]?.allowed ? " is-locked" : ""}`}
               onClick={() => navigate(item.key)}
+              title={FEATURE_BY_PANEL[item.key] && !featureEntitlements.loading && !featureEntitlements.features[FEATURE_BY_PANEL[item.key]]?.allowed ? "需要升级套餐后使用" : undefined}
             >
               <span>{item.icon}</span>
               {item.label}
+              {FEATURE_BY_PANEL[item.key] && !featureEntitlements.loading && !featureEntitlements.features[FEATURE_BY_PANEL[item.key]]?.allowed && <b className="exam-subject-nav-lock" aria-label="需要升级">🔒</b>}
             </button>
           ))}
         </nav>
@@ -177,7 +204,11 @@ export default function ExamSubjectDashboard({
       </aside>
 
       <main className={`exam-subject-main${activeSection === "ai" ? " exam-subject-main--chat" : ""}${activeSection === "materials" ? " exam-subject-main--materials" : ""}${activeSection === "knowledge" ? " exam-subject-main--knowledge" : ""}${activeSection === "practice" ? " exam-subject-main--practice" : ""}${activeSection === "report" ? " exam-subject-main--report" : ""}${activeSection === "plan" ? " exam-subject-main--plan" : ""}`}>
-        {activeSection === "ai" ? (
+        {activeFeature && featureEntitlements.loading ? (
+          <div className="empty-state">正在验证会员权益...</div>
+        ) : activeFeature && !activeFeatureEntitlement?.allowed ? (
+          <LockedFeatureView entitlement={activeFeatureEntitlement} onViewMembership={openMembership} />
+        ) : activeSection === "ai" ? (
           <ExamChat user={user} subjectKey={subjectKey} subjectTitle={config.title}
             courseName={courseId} knowledgeContext={knowledgeContext}
             initialMaterialToReference={initialMaterialToReference}
@@ -190,8 +221,14 @@ export default function ExamSubjectDashboard({
           knowledgeContent
         ) : activeSection === "practice" && practiceContent ? (
           practiceContent
-        ) : activeSection === "report" && reportContent ? (
-          reportContent
+        ) : activeSection === "review" ? (
+          <Suspense fallback={<div className="empty-state">练习复盘加载中...</div>}>
+            <ReviewCenter user={user} courseId={courseId} />
+          </Suspense>
+        ) : activeSection === "report" ? (
+          reportContent || <Suspense fallback={<div className="empty-state">学习报告加载中...</div>}>
+            <LearningReportCenter user={user} mode="exam_11408" courseId={courseId} courseName={config.title} />
+          </Suspense>
         ) : activeSection === "plan" ? (
           planContent || <ExamStudyPlan user={user} subjectKey={subjectKey} onNavigate={navigate} />
         ) : (
@@ -296,6 +333,7 @@ export default function ExamSubjectDashboard({
           </>
         )}
       </main>
+      <LockedFeaturePrompt entitlement={lockedFeature} onClose={() => setLockedFeature(null)} onViewMembership={openMembership} />
     </div>
   );
 }
