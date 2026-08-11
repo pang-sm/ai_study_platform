@@ -59,17 +59,21 @@ jobs:
 
           echo "== nginx configuration =="
           sudo nginx -t
-          sudo nginx -T 2>&1 | grep -E '^[[:space:]]*(listen[[:space:]]+(80|443)|return[[:space:]]+30[18]|proxy_pass[[:space:]]|proxy_set_header[[:space:]]+(Upgrade|Connection))' || true
-          sudo nginx -T 2>&1 | grep -Eq 'listen[[:space:]]+80'
-          sudo nginx -T 2>&1 | grep -Eq 'listen[[:space:]]+443.*ssl'
-          sudo nginx -T 2>&1 | grep -Eq 'return[[:space:]]+30[18].*https'
-          sudo nginx -T 2>&1 | grep -Eq 'proxy_pass[[:space:]]+'
-          sudo nginx -T 2>&1 | grep -Eq 'proxy_set_header[[:space:]]+Upgrade'
-          sudo nginx -T 2>&1 | grep -Eq 'proxy_set_header[[:space:]]+Connection'
+          tmp_nginx="$(mktemp)"
+          trap 'rm -f "$tmp_nginx"' EXIT
+          sudo nginx -T >"$tmp_nginx" 2>&1
+          grep -Eq 'listen[[:space:]]+80' "$tmp_nginx"
+          grep -Eq 'listen[[:space:]]+443.*ssl' "$tmp_nginx"
+          grep -Eq 'return[[:space:]]+30[18].*https' "$tmp_nginx"
+          grep -Eq 'proxy_pass[[:space:]]+' "$tmp_nginx"
+          grep -Eq 'proxy_set_header[[:space:]]+Upgrade' "$tmp_nginx"
+          grep -Eq 'proxy_set_header[[:space:]]+Connection' "$tmp_nginx"
+          grep -E '^[[:space:]]*(listen[[:space:]]+(80|443)|return[[:space:]]+30[18]|proxy_pass[[:space:]]|proxy_set_header[[:space:]]+(Upgrade|Connection))' "$tmp_nginx"
           echo "== certbot =="
           "$CERTBOT_BIN" --version
           echo "== renewal timer =="
-          if systemctl list-unit-files certbot.timer --no-legend | grep -q '^certbot.timer'; then
+          certbot_timer_units="$(systemctl list-unit-files certbot.timer --no-legend)"
+          if grep -q '^certbot.timer' <<<"$certbot_timer_units"; then
             systemctl is-enabled certbot.timer || true
             systemctl is-active certbot.timer || true
           else
@@ -91,7 +95,8 @@ jobs:
           sudo grep -Eq '(systemctl[[:space:]]+reload[[:space:]]+nginx|nginx[[:space:]]+-s[[:space:]]+reload)' "$HOOK"
           echo "deploy_hook=nginx_reload_present"
           echo "== renewal rehearsal =="
-          if "$CERTBOT_BIN" renew --help all 2>&1 | grep -q -- '--run-deploy-hooks'; then
+          certbot_renew_help="$("$CERTBOT_BIN" renew --help all 2>&1)"
+          if grep -q -- '--run-deploy-hooks' <<<"$certbot_renew_help"; then
             echo "renewal_rehearsal=dry_run_with_supported_deploy_hooks"
             sudo "$CERTBOT_BIN" renew --dry-run --run-deploy-hooks
           else
