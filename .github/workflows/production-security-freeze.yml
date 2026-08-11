@@ -1,5 +1,11 @@
 name: Production security-freeze infrastructure acceptance
 
+# This workflow shares the host Certbot lock with deployment. Serialize it with
+# deployment while preserving every requested production run.
+concurrency:
+  group: production-certbot
+  cancel-in-progress: false
+
 on:
   workflow_dispatch:
 
