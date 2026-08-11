@@ -31,7 +31,6 @@ function Icon({ type }) {
   if (type === "list") return <svg {...common}><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" /></svg>;
   if (type === "folder") return <svg {...common}><path d="M3 7h7l2 3h9v9H3V7Z" /></svg>;
   if (type === "quota") return <svg {...common}><path d="M12 3 4 7v10l8 4 8-4V7l-8-4ZM4 7l8 4 8-4M12 11v10" /></svg>;
-  if (type === "task") return <svg {...common}><path d="M9 11l2 2 4-5M5 4h14v16H5V4Z" /></svg>;
   if (type === "code") return <svg {...common}><path d="m8 9-4 3 4 3M16 9l4 3-4 3" /></svg>;
   return <svg {...common}><path d="M4 12 12 5l8 7v8H4v-8Z" /></svg>;
 }
@@ -219,11 +218,6 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
     setActiveNav(key);
   }, []);
 
-  const tasks = homeData?.tasks || [];
-  const completed = tasks.filter((task) => task.completed).length;
-  const total = tasks.length || 4;
-  const progressText = `${completed}/${total}`;
-  const progressPercent = total ? Math.round((completed / total) * 100) : 0;
   const quota = homeData?.quota || {};
   const plan = homeData?.plan || "free";
 
@@ -356,23 +350,6 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
             {error && <div className="ph-error">{error}</div>}
 
             <div className="ph-dashboard-grid">
-              <section className="ph-card ph-task-card">
-                <div className="ph-card-title">
-                  <span><Icon type="task" /></span>
-                  <h2>今日编程任务</h2>
-                  <em>进度 {progressText}</em>
-                </div>
-                <div className="ph-progress"><span style={{ width: `${progressPercent}%` }} /></div>
-                <div className="ph-task-list">
-                  {tasks.map((task) => (
-                    <div key={task.id} className={task.completed ? "is-done" : ""}>
-                      <span />
-                      <strong>{task.title}</strong>
-                    </div>
-                  ))}
-                </div>
-              </section>
-
               <section className="ph-card ph-quota-card">
                 <div className="ph-card-title">
                   <span><Icon type="quota" /></span>

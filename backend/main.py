@@ -5794,12 +5794,6 @@ def get_programming_home(username: str = "", db: Session = Depends(get_db), curr
         streak_days += 1
         cursor -= timedelta(days=1)
 
-    tasks = [
-        {"id": "practice-today", "title": "完成一次代码练习", "completed": bool(session_today or progress_today), "count": len(session_today) + len(progress_today)},
-        {"id": "submit-exercise-today", "title": "通过一道编程题", "completed": bool(submissions_today), "count": len(submissions_today)},
-        {"id": "review-code-today", "title": "回顾最近一次代码", "completed": bool(session_today), "count": len(session_today)},
-        {"id": "ask-coach-today", "title": "向 AI Coach 提出一个问题", "completed": bool(coach_today), "count": len(coach_today)},
-    ]
     if today in activity_dates:
         momentum = "今日已学习"
     elif activity_dates:
@@ -5828,7 +5822,6 @@ def get_programming_home(username: str = "", db: Session = Depends(get_db), curr
                 "enabled": bool(quota["file_library"]),
             },
         },
-        "tasks": tasks,
         "files": recent_files[:5] if quota["file_library"] else [],
         "stats": {
             "streak_days": streak_days,
