@@ -4010,7 +4010,7 @@ function App() {
         apiBase={API_BASE}
         setPage={setPage}
         onLogout={logout}
-        onProfileUpdate={handleProfileUpdate}
+        onProfileUpdate={saveLoginUser}
       />
     );
   }
@@ -4148,13 +4148,13 @@ function App() {
 
   if (page === "examProfile") {
     return (
-      <ExamProfile user={user} setPage={setPage} onLogout={logout} API_BASE={API_BASE} onProfileUpdate={handleProfileUpdate} />
+      <ExamProfile user={user} setPage={setPage} onLogout={logout} API_BASE={API_BASE} onProfileUpdate={saveLoginUser} />
     );
   }
 
   if (page === "courseProfile") {
     return (
-      <CourseLearningProfile user={user} setPage={setPage} onLogout={logout} API_BASE={API_BASE} onProfileUpdate={handleProfileUpdate} />
+      <CourseLearningProfile user={user} setPage={setPage} onLogout={logout} API_BASE={API_BASE} onProfileUpdate={saveLoginUser} />
     );
   }
 
