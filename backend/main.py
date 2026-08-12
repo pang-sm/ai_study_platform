@@ -379,6 +379,15 @@ class CourseLearningExamSettingsRequest(BaseModel):
     daily_review: str | None = ""
 
 
+class CourseLearningExamScopeRequest(BaseModel):
+    """Patch one source of the persisted course Exam Scope."""
+    username: str | None = None
+    course_id: str
+    manual_text: str | None = None
+    material_ids: list[int] | None = None
+    knowledge_point_ids: list[int] | None = None
+
+
 class CourseLearningSettingsRequest(BaseModel):
     primary_mode: str | None = None
 
@@ -763,11 +772,16 @@ def normalize_course_learning_key(course_id: str | None) -> str:
 
 def serialize_course_exam_settings(settings: dict | None, course_id: str = "") -> dict:
     data = settings if isinstance(settings, dict) else {}
+    material_ids = data.get("material_ids") if isinstance(data.get("material_ids"), list) else []
+    knowledge_point_ids = data.get("knowledge_point_ids") if isinstance(data.get("knowledge_point_ids"), list) else []
     return {
         "course_id": normalize_course_learning_key(data.get("course_id") or course_id),
         "exam_date": (data.get("exam_date") or "").strip(),
         "target": (data.get("target") or "").strip(),
         "daily_review": (data.get("daily_review") or "").strip(),
+        "manual_text": (data.get("manual_text") or "").strip(),
+        "material_ids": [item for item in material_ids if isinstance(item, int) and item > 0],
+        "knowledge_point_ids": [item for item in knowledge_point_ids if isinstance(item, int) and item > 0],
         "updated_at": data.get("updated_at") or "",
     }
 
@@ -886,6 +900,118 @@ def course_learning_exam_settings_for(detail: dict, course_id: str) -> dict:
         if key in settings_map:
             return serialize_course_exam_settings(settings_map.get(key), key)
     return serialize_course_exam_settings(None, course_id)
+
+
+def _course_learning_exam_settings_record(detail: dict, course_id: str) -> tuple[str, dict]:
+    """Return a canonical key and raw settings while accepting legacy course aliases."""
+    settings_map = detail.get("exam_cram_settings") if isinstance(detail.get("exam_cram_settings"), dict) else {}
+    for key in course_learning_subject_variants(course_id):
+        value = settings_map.get(key)
+        if isinstance(value, dict):
+            return normalize_course_learning_key(key), dict(value)
+    return normalize_course_learning_key(course_id), {}
+
+
+def _normalize_positive_ids(values: list[int] | None) -> list[int]:
+    if not isinstance(values, list):
+        return []
+    normalized: list[int] = []
+    for value in values:
+        try:
+            item_id = int(value)
+        except (TypeError, ValueError):
+            continue
+        if item_id > 0 and item_id not in normalized:
+            normalized.append(item_id)
+    return normalized
+
+
+def _exam_scope_leaf_point_ids(points: list[models.KnowledgePoint], selected_ids: list[int]) -> list[int]:
+    """Persist only leaf IDs; selecting a parent means selecting every leaf below it."""
+    by_parent: dict[int, list[int]] = {}
+    valid_ids = {point.id for point in points}
+    for point in points:
+        if point.parent_id in valid_ids:
+            by_parent.setdefault(point.parent_id, []).append(point.id)
+
+    leaves: list[int] = []
+    for selected_id in selected_ids:
+        stack = [selected_id]
+        while stack:
+            point_id = stack.pop()
+            children = by_parent.get(point_id, [])
+            if children:
+                stack.extend(reversed(children))
+            elif point_id not in leaves:
+                leaves.append(point_id)
+    return leaves
+
+
+def _serialize_course_exam_scope(db: Session, username: str, detail: dict, course_id: str) -> dict:
+    course_key, raw_settings = _course_learning_exam_settings_record(detail, course_id)
+    settings = serialize_course_exam_settings(raw_settings, course_key)
+    variants = course_learning_subject_variants(course_key)
+    material_ids = _normalize_positive_ids(settings["material_ids"])
+    materials = []
+    if material_ids:
+        material_map = {
+            material.id: material
+            for material in db.query(models.StudyMaterial).filter(
+                models.StudyMaterial.id.in_(material_ids),
+                models.StudyMaterial.username == username,
+                models.StudyMaterial.is_deleted == False,
+                models.StudyMaterial.subject.in_(list(variants)),
+            ).all()
+        }
+        materials = [serialize_material_list_item(material_map[item_id]) for item_id in material_ids if item_id in material_map]
+    point_ids = _normalize_positive_ids(settings["knowledge_point_ids"])
+    knowledge_points = []
+    if point_ids:
+        point_map = {
+            point.id: point
+            for point in db.query(models.KnowledgePoint).filter(
+                models.KnowledgePoint.id.in_(point_ids),
+                models.KnowledgePoint.username == username,
+                models.KnowledgePoint.course_id.in_(list(variants)),
+            ).all()
+        }
+        knowledge_points = [
+            {"id": point_id, "title": point_map[point_id].title, "parent_id": point_map[point_id].parent_id}
+            for point_id in point_ids if point_id in point_map
+        ]
+    settings["material_ids"] = [item["id"] for item in materials]
+    settings["knowledge_point_ids"] = [item["id"] for item in knowledge_points]
+    settings["materials"] = materials
+    settings["knowledge_points"] = knowledge_points
+    return settings
+
+
+def _link_material_to_course_exam_scope(db: Session, user: models.User, course_id: str, material_id: int) -> None:
+    """Keep an exam_scope upload linked without changing its original material record."""
+    course_key = normalize_course_learning_key(course_id)
+    if not course_key or not material_id:
+        return
+    track = get_user_track(db, user.id, "university_course")
+    detail = _parse_track_onboarding_detail(track)
+    stored_key, existing = _course_learning_exam_settings_record(detail, course_key)
+    settings = serialize_course_exam_settings(existing, stored_key or course_key)
+    material_ids = _normalize_positive_ids(settings["material_ids"])
+    if material_id not in material_ids:
+        material_ids.append(material_id)
+    settings.update({
+        "course_id": course_key,
+        "material_ids": material_ids,
+        "updated_at": serialize_datetime(utc_now()),
+    })
+    settings_map = detail.get("exam_cram_settings") if isinstance(detail.get("exam_cram_settings"), dict) else {}
+    settings_map[course_key] = settings
+    if stored_key and stored_key != course_key:
+        settings_map.pop(stored_key, None)
+    detail["exam_cram_settings"] = settings_map
+    detail["course_learning_updated_at"] = serialize_datetime(utc_now())
+    existing_plan = (track.plan if track else None) or "free"
+    existing_package = (track.package_type if track else None) or existing_plan
+    upsert_user_track(db, user.id, "university_course", plan=existing_plan, package_type=existing_package, onboarding_detail=detail)
 
 
 def course_learning_urgency_rank(due_dt: datetime | None, mode: str, exam_dt: datetime | None = None) -> tuple[int, str]:
@@ -6176,7 +6302,9 @@ def save_course_learning_exam_settings(
     track = get_user_track(db, user.id, "university_course")
     detail = _parse_track_onboarding_detail(track)
     settings_map = detail.get("exam_cram_settings") if isinstance(detail.get("exam_cram_settings"), dict) else {}
+    _, existing = _course_learning_exam_settings_record(detail, course_key)
     settings = {
+        **serialize_course_exam_settings(existing, course_key),
         "course_id": course_key,
         "exam_date": (req.exam_date or "").strip()[:30],
         "target": (req.target or "").strip()[:80],
@@ -6203,6 +6331,104 @@ def save_course_learning_exam_settings(
         "message": "exam settings saved",
         "settings": serialize_course_exam_settings(settings, course_key),
     }
+
+
+@app.get("/course-learning/exam-scope")
+def get_course_learning_exam_scope(
+    course_id: str = "",
+    username: str = "",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(username, current_user)
+    course_key = normalize_course_learning_key(course_id)
+    if not course_key:
+        raise HTTPException(status_code=400, detail="course_id is required")
+    track = get_user_track(db, current_user.id, "university_course")
+    return {"scope": _serialize_course_exam_scope(db, current_user.username, _parse_track_onboarding_detail(track), course_key)}
+
+
+@app.put("/course-learning/exam-scope")
+def update_course_learning_exam_scope(
+    req: CourseLearningExamScopeRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    assert_username_matches_current_user(req.username, current_user)
+    course_key = normalize_course_learning_key(req.course_id)
+    if not course_key:
+        raise HTTPException(status_code=400, detail="course_id is required")
+
+    track = get_user_track(db, current_user.id, "university_course")
+    detail = _parse_track_onboarding_detail(track)
+    stored_key, existing = _course_learning_exam_settings_record(detail, course_key)
+    settings = serialize_course_exam_settings(existing, stored_key or course_key)
+    variants = course_learning_subject_variants(course_key)
+
+    if req.manual_text is not None:
+        settings["manual_text"] = str(req.manual_text).strip()[:6000]
+
+    if req.material_ids is not None:
+        material_ids = _normalize_positive_ids(req.material_ids)
+        if material_ids:
+            materials = db.query(models.StudyMaterial).filter(
+                models.StudyMaterial.id.in_(material_ids),
+                models.StudyMaterial.username == current_user.username,
+                models.StudyMaterial.is_deleted == False,
+            ).all()
+            material_map = {material.id: material for material in materials}
+            missing = [item_id for item_id in material_ids if item_id not in material_map]
+            if missing:
+                raise HTTPException(status_code=400, detail="exam scope material does not belong to the current user")
+            wrong_course = [item_id for item_id in material_ids if material_map[item_id].subject not in variants]
+            if wrong_course:
+                raise HTTPException(status_code=400, detail="exam scope material must belong to the current course")
+            wrong_type = [item_id for item_id in material_ids if material_map[item_id].source_type != EXAM_SCOPE_SOURCE]
+            if wrong_type:
+                raise HTTPException(status_code=400, detail="exam scope material must use source_type=exam_scope")
+        settings["material_ids"] = material_ids
+
+    if req.knowledge_point_ids is not None:
+        point_ids = _normalize_positive_ids(req.knowledge_point_ids)
+        selected_points = []
+        if point_ids:
+            selected_points = db.query(models.KnowledgePoint).filter(
+                models.KnowledgePoint.id.in_(point_ids),
+                models.KnowledgePoint.username == current_user.username,
+            ).all()
+            point_map = {point.id: point for point in selected_points}
+            missing = [item_id for item_id in point_ids if item_id not in point_map]
+            if missing:
+                raise HTTPException(status_code=400, detail="knowledge point does not belong to the current user")
+            wrong_course = [item_id for item_id in point_ids if point_map[item_id].course_id not in variants]
+            if wrong_course:
+                raise HTTPException(status_code=400, detail="knowledge point must belong to the current course")
+        all_course_points = db.query(models.KnowledgePoint).filter(
+            models.KnowledgePoint.username == current_user.username,
+            models.KnowledgePoint.course_id.in_(list(variants)),
+        ).all()
+        settings["knowledge_point_ids"] = _exam_scope_leaf_point_ids(all_course_points, point_ids)
+
+    settings["course_id"] = course_key
+    settings["updated_at"] = serialize_datetime(utc_now())
+    settings_map = detail.get("exam_cram_settings") if isinstance(detail.get("exam_cram_settings"), dict) else {}
+    settings_map[course_key] = settings
+    if stored_key and stored_key != course_key:
+        settings_map.pop(stored_key, None)
+    detail["exam_cram_settings"] = settings_map
+    detail["course_learning_updated_at"] = serialize_datetime(utc_now())
+    existing_plan = (track.plan if track else None) or "free"
+    existing_package = (track.package_type if track else None) or existing_plan
+    track = upsert_user_track(
+        db,
+        current_user.id,
+        "university_course",
+        plan=existing_plan,
+        package_type=existing_package,
+        onboarding_detail=detail,
+    )
+    db.commit()
+    return {"message": "exam scope saved", "scope": _serialize_course_exam_scope(db, current_user.username, detail, course_key)}
 
 
 class CourseLearningRegisterRequest(BaseModel):
@@ -7597,6 +7823,9 @@ async def upload_material(
             existing_material.updated_at = utc_now()
             db.commit()
             db.refresh(existing_material)
+        if normalized_source_type == EXAM_SCOPE_SOURCE:
+            _link_material_to_course_exam_scope(db, user, normalized_subject, existing_material.id)
+            db.commit()
         return {
             "success": True,
             "material_id": existing_material.id,
@@ -7622,6 +7851,9 @@ async def upload_material(
             existing_material.updated_at = utc_now()
             db.commit()
             db.refresh(existing_material)
+        if normalized_source_type == EXAM_SCOPE_SOURCE:
+            _link_material_to_course_exam_scope(db, user, normalized_subject, existing_material.id)
+            db.commit()
         return {
             "success": True,
             "material_id": existing_material.id,
@@ -7645,6 +7877,10 @@ async def upload_material(
         file_size=len(file_bytes),
         source_type=normalized_source_type,
     )
+    if normalized_source_type == EXAM_SCOPE_SOURCE:
+        _link_material_to_course_exam_scope(db, user, normalized_subject, material.id)
+        db.commit()
+        db.refresh(material)
 
     total_pages = 0
     extracted_text = ""
@@ -24627,6 +24863,26 @@ def _build_fallback_plan_result(
     }
 
 
+def _get_persisted_exam_scope_context(username: str, course_id: str, db: Session) -> dict:
+    """Load the unified Exam Scope in small, prompt-safe fragments."""
+    user = get_user_by_username(username, db)
+    if not user or not course_id:
+        return {"manual_text": "", "material_texts": [], "knowledge_point_titles": [], "material_ids": []}
+    track = get_user_track(db, user.id, "university_course")
+    scope = _serialize_course_exam_scope(db, username, _parse_track_onboarding_detail(track), course_id)
+    material_texts = []
+    for material in scope["materials"][:3]:
+        source = str(material.get("summary") or material.get("extracted_text") or "").strip()
+        if source:
+            material_texts.append(f"{material.get('original_filename') or material.get('file_name') or '范围资料'}：{_truncate_text(source, 600)}")
+    return {
+        "manual_text": _truncate_text(scope.get("manual_text") or "", 1200),
+        "material_texts": material_texts,
+        "knowledge_point_titles": [item["title"] for item in scope["knowledge_points"][:40] if item.get("title")],
+        "material_ids": scope["material_ids"],
+    }
+
+
 def _generate_plan_preview_core(
     req: PlanGeneratePreviewRequest,
     db: Session,
@@ -24641,8 +24897,10 @@ def _generate_plan_preview_core(
         req.plan_scene = "daily"
 
     plan_data = _gather_plan_data(req.username, req.course_id, db)
-    exam_scope_text = _truncate_text(req.exam_scope_text or "", 1200)
-    scope_file_texts = scope_file_texts or []
+    persisted_exam_scope = _get_persisted_exam_scope_context(req.username, req.course_id, db)
+    request_scope_text = _truncate_text(req.exam_scope_text or "", 1200)
+    exam_scope_text = "\n".join(part for part in [persisted_exam_scope["manual_text"], request_scope_text] if part)
+    scope_file_texts = [*persisted_exam_scope["material_texts"], *(scope_file_texts or [])]
     paper_file_texts = paper_file_texts or []
     combined_query = " ".join([
         req.goal or "",
@@ -24732,12 +24990,14 @@ def _generate_plan_preview_core(
     for record in plan_data["learning_records"]:
         user_prompt_parts.append(f"  - {record['subject']}：{record['question']}（{record['record_type']}）")
 
-    if exam_scope_text or scope_file_texts:
+    if exam_scope_text or scope_file_texts or persisted_exam_scope["knowledge_point_titles"]:
         user_prompt_parts.append("\n--- 考试范围 ---")
         if exam_scope_text:
             user_prompt_parts.append(f"考试范围文本：{exam_scope_text}")
         for index, scope_text in enumerate(scope_file_texts[:3], 1):
             user_prompt_parts.append(f"考试范围文件 {index} 摘要：{_truncate_text(scope_text, 600)}")
+        if persisted_exam_scope["knowledge_point_titles"]:
+            user_prompt_parts.append(f"考试范围知识点：{'、'.join(persisted_exam_scope['knowledge_point_titles'])}")
 
     user_prompt_parts.append("\n--- 资料库相关内容 ---")
     if material_context:
@@ -24848,6 +25108,11 @@ def _generate_plan_preview_core(
             for item in material_context
         ],
         "paper_suggestions": paper_analysis.get("paper_suggestions", []),
+        "exam_scope_context": {
+            "manual_text": persisted_exam_scope["manual_text"],
+            "material_ids": persisted_exam_scope["material_ids"],
+            "knowledge_point_titles": persisted_exam_scope["knowledge_point_titles"],
+        },
         "items": result["items"],
         "fallback_used": result.get("fallback_used", False),
         "warning": result.get("warning", ""),

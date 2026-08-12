@@ -17,7 +17,6 @@
 
 .cmp-main-panel {
   min-width: 0;
-  overflow: hidden;
 }
 
 .csd-main--materials .cmp-shell {
@@ -142,6 +141,138 @@
   border-radius: 14px;
   background: linear-gradient(135deg, #fbf8ff, #fff);
 }
+
+.cmp-exam-scope-card {
+  margin: 0 26px 18px;
+  padding: 18px;
+  border: 1px solid #d9c8ff;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #f7f3ff, #fff 58%);
+}
+
+.cmp-scope-summary,
+.cmp-scope-actions,
+.cmp-scope-picker-footer,
+.cmp-scope-picker-footer > div,
+.cmp-scope-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.cmp-scope-summary {
+  margin-bottom: 14px;
+}
+
+.cmp-scope-summary span {
+  padding: 6px 10px;
+  border-radius: 999px;
+  color: #5b21b6;
+  background: #eee7ff;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.cmp-scope-field {
+  display: grid;
+  gap: 8px;
+  color: #312e81;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.cmp-scope-field textarea {
+  min-height: 112px;
+  padding: 12px;
+  border: 1px solid #ded3ff;
+  border-radius: 11px;
+  color: #1e1b4b;
+  background: #fff;
+  font: inherit;
+  font-weight: 500;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.cmp-scope-actions { margin-top: 12px; }
+
+.cmp-scope-empty,
+.cmp-scope-muted {
+  color: #6f6686;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.cmp-scope-error { color: #dc2626; font-size: 13px; }
+
+.cmp-scope-linked-section,
+.cmp-scope-points {
+  display: grid;
+  gap: 8px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid #e9e0ff;
+}
+
+.cmp-scope-linked-section > div:first-child,
+.cmp-scope-points {
+  color: #312e81;
+  font-size: 13px;
+}
+
+.cmp-scope-linked-section > div:first-child span,
+.cmp-scope-points span {
+  display: block;
+  margin-top: 4px;
+  color: #6f6686;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.cmp-scope-linked-list,
+.cmp-scope-tree {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cmp-scope-linked-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 12px;
+  border: 1px solid #eee7ff;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.cmp-scope-linked-list strong,
+.cmp-scope-linked-list span { display: block; }
+.cmp-scope-linked-list strong { color: #1e1b4b; font-size: 13px; }
+.cmp-scope-linked-list span { margin-top: 4px; color: #6f6686; font-size: 12px; }
+
+.cmp-scope-row-actions button {
+  padding: 0;
+  border: 0;
+  color: #6d28d9;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.cmp-scope-picker-modal { max-width: 680px; }
+.cmp-scope-tree { max-height: 430px; overflow-y: auto; }
+.cmp-scope-tree-node { padding: 7px 0; }
+.cmp-scope-tree-node label { display: flex; align-items: center; gap: 9px; color: #312e81; cursor: pointer; }
+.cmp-scope-tree-node ul { display: grid; gap: 4px; margin: 6px 0 0 24px; padding: 0; list-style: none; }
+.cmp-scope-picker-footer { justify-content: space-between; margin-top: 18px; color: #6f6686; font-size: 13px; }
 
 .cmp-section-title {
   display: grid;
@@ -694,10 +825,6 @@
   font-weight: 800;
 }
 
-.cmp-detail-header span {
-  color: #312e81;
-}
-
 .cmp-detail-empty {
   padding: 48px 12px;
   text-align: center;
@@ -1121,9 +1248,16 @@
 
   .cmp-filter-card,
   .cmp-table-card,
-  .cmp-exam-materials {
+  .cmp-exam-materials,
+  .cmp-exam-scope-card {
     margin-left: 14px;
     margin-right: 14px;
+  }
+
+  .cmp-scope-linked-list li,
+  .cmp-scope-picker-footer {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .cmp-table-card {

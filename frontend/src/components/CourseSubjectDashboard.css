@@ -1483,6 +1483,10 @@
   overflow: hidden;
 }
 
+.csd-main--materials {
+  overflow-y: auto;
+}
+
 /* Ensure ExamChat shell fills the available space */
 .csd-main--chat > .examchat-shell {
   height: 100%;
@@ -1491,8 +1495,7 @@
 
 /* Ensure CourseMaterialsPage fills the available space */
 .csd-main--materials > .cmp-shell {
-  height: 100%;
-  max-height: 100dvh;
+  min-height: 100%;
 }
 
 /* Maintain header visibility in non-fullscreen sections */

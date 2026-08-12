@@ -73,14 +73,15 @@ function getCourseDisplay(subject, getSubjectLabel, isCourseMode = false) {
 }
 
 function formatDateTime(value) {
-  if (!value) return "-";
+  if (!value) return "暂无上传";
   const text = String(value).trim();
   const normalized = /^\d{4}-\d{2}-\d{2}T/.test(text) && !/[zZ]|[+-]\d{2}:?\d{2}$/.test(text)
     ? `${text}Z`
     : text;
-  const date = new Date(normalized);
-  if (Number.isNaN(date.getTime())) return text;
+  const date = typeof value === "number" ? new Date(value) : new Date(normalized);
+  if (Number.isNaN(date.getTime())) return "暂无上传";
   return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
@@ -110,9 +111,17 @@ function chunkCountOf(material) {
 }
 
 function createdTimeOf(material) {
-  const value = material?.created_at || material?.uploaded_at || material?.upload_time || material?.updated_at || 0;
+  const value = material?.created_at || material?.uploaded_at || material?.upload_time || 0;
   const time = new Date(value).getTime();
   return Number.isNaN(time) ? 0 : time;
+}
+
+function uploadedAtOf(material) {
+  return material?.created_at || material?.uploaded_at || material?.upload_time || "";
+}
+
+function formatUploadedDateTime(material) {
+  return formatDateTime(uploadedAtOf(material));
 }
 
 function normalizeFileType(type) {
@@ -284,6 +293,39 @@ function MaterialIcon({ material, large = false }) {
   return <span className={`cmp-file-icon cmp-file-icon--${icon.cls}${large ? " cmp-file-icon--large" : ""}`}>{icon.text}</span>;
 }
 
+function KnowledgeScopeNode({ node, childrenByParent, selectedIds, onToggle }) {
+  const descendants = [];
+  const collectLeaves = (item) => {
+    const children = childrenByParent.get(item.id) || [];
+    if (!children.length) {
+      descendants.push(item.id);
+      return;
+    }
+    children.forEach(collectLeaves);
+  };
+  collectLeaves(node);
+  const selectedCount = descendants.filter((id) => selectedIds.has(id)).length;
+  const checked = selectedCount === descendants.length && descendants.length > 0;
+  const indeterminate = selectedCount > 0 && !checked;
+  const children = childrenByParent.get(node.id) || [];
+  return (
+    <li className="cmp-scope-tree-node">
+      <label>
+        <input
+          type="checkbox"
+          checked={checked}
+          ref={(input) => { if (input) input.indeterminate = indeterminate; }}
+          onChange={() => onToggle(descendants, checked)}
+        />
+        <span>{node.title}</span>
+      </label>
+      {children.length > 0 && (
+        <ul>{children.map((child) => <KnowledgeScopeNode key={child.id} node={child} childrenByParent={childrenByParent} selectedIds={selectedIds} onToggle={onToggle} />)}</ul>
+      )}
+    </li>
+  );
+}
+
 export default function CourseMaterialsPage({
   user,
   subject,
@@ -331,6 +373,15 @@ export default function CourseMaterialsPage({
   const [confirmError, setConfirmError] = useState("");
   const [confirmResult, setConfirmResult] = useState(null);
   const [expandedModules, setExpandedModules] = useState(new Set());
+  const [examScope, setExamScope] = useState(null);
+  const [manualScopeText, setManualScopeText] = useState("");
+  const [scopeLoading, setScopeLoading] = useState(false);
+  const [scopeSaving, setScopeSaving] = useState(false);
+  const [scopeError, setScopeError] = useState("");
+  const [showScopeKnowledgePicker, setShowScopeKnowledgePicker] = useState(false);
+  const [scopeKnowledgePoints, setScopeKnowledgePoints] = useState([]);
+  const [scopeKnowledgeSelection, setScopeKnowledgeSelection] = useState(new Set());
+  const [scopeKnowledgeLoading, setScopeKnowledgeLoading] = useState(false);
   const appliedInitialSearchRef = useRef("");
 
   const course = getCourseDisplay(subject, getSubjectLabel, isCourseMode);
@@ -365,7 +416,7 @@ export default function CourseMaterialsPage({
       total: currentItems.length,
       indexed: currentItems.filter((item) => getStatusKind(item.parse_status) === "indexed").length,
       chunks: currentItems.reduce((sum, item) => sum + chunkCountOf(item), 0),
-      latest: latest ? formatDateTime(latest) : "-",
+      latest: latest ? formatDateTime(latest) : "暂无上传",
     };
   }, [currentItems]);
 
@@ -377,7 +428,7 @@ export default function CourseMaterialsPage({
         ...type,
         items,
         count: items.length,
-        latest: latest ? formatDateTime(latest) : "-",
+        latest: latest ? formatDateTime(latest) : "暂无上传",
         status: getExamMaterialStatus(items),
       };
       return acc;
@@ -429,6 +480,73 @@ export default function CourseMaterialsPage({
   useEffect(() => {
     setShowSummary(false);
   }, [selectedMaterialDetail?.id]);
+
+  const loadExamScope = async () => {
+    if (!examCramMode || !isCourseMode || !subject) return;
+    setScopeLoading(true);
+    setScopeError("");
+    try {
+      const response = await fetch(`${API_BASE}/course-learning/exam-scope?course_id=${encodeURIComponent(subject)}`, { credentials: "include" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || "无法加载考试范围");
+      setExamScope(data.scope || null);
+      setManualScopeText(data.scope?.manual_text || "");
+    } catch (error) {
+      setScopeError(error.message || "无法加载考试范围");
+    } finally {
+      setScopeLoading(false);
+    }
+  };
+
+  useEffect(() => { loadExamScope(); }, [examCramMode, isCourseMode, subject]);
+
+  const saveExamScope = async (patch) => {
+    setScopeSaving(true);
+    setScopeError("");
+    try {
+      const response = await fetch(`${API_BASE}/course-learning/exam-scope`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ course_id: subject, ...patch }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || "保存考试范围失败");
+      setExamScope(data.scope || null);
+      setManualScopeText(data.scope?.manual_text || "");
+      return data.scope;
+    } catch (error) {
+      setScopeError(error.message || "保存考试范围失败");
+      return null;
+    } finally {
+      setScopeSaving(false);
+    }
+  };
+
+  const openScopeKnowledgePicker = async () => {
+    setShowScopeKnowledgePicker(true);
+    setScopeKnowledgeLoading(true);
+    setScopeError("");
+    try {
+      const response = await fetch(`${API_BASE}/knowledge-points?course_id=${encodeURIComponent(subject)}`, { credentials: "include" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || "无法读取知识脉络");
+      setScopeKnowledgePoints(data.knowledge_points || []);
+      setScopeKnowledgeSelection(new Set(examScope?.knowledge_point_ids || []));
+    } catch (error) {
+      setScopeError(error.message || "无法读取知识脉络");
+    } finally {
+      setScopeKnowledgeLoading(false);
+    }
+  };
+
+  const toggleScopeKnowledge = (leafIds, checked) => {
+    setScopeKnowledgeSelection((previous) => {
+      const next = new Set(previous);
+      leafIds.forEach((id) => { if (checked) next.delete(id); else next.add(id); });
+      return next;
+    });
+  };
 
   const runSearch = () => {
     setMaterialCurrentPage(1);
@@ -621,6 +739,23 @@ export default function CourseMaterialsPage({
         </div>
 
         {examCramMode && (
+          <>
+          <section className="cmp-exam-scope-card">
+            <div className="cmp-section-title">
+              <span>统一 Exam Scope</span>
+              <h2>考试范围</h2>
+              <p>设置后，AI 自测、出题和重点预测会优先参考这些范围。</p>
+            </div>
+            {scopeLoading ? <p className="cmp-scope-muted">正在加载考试范围…</p> : <>
+              <div className="cmp-scope-summary"><span>文字范围 {examScope?.manual_text ? "1 条" : "0 条"}</span><span>范围资料 {examScope?.materials?.length || 0} 份</span><span>知识点 {examScope?.knowledge_points?.length || 0} 个</span></div>
+              {!examScope?.manual_text && !(examScope?.materials?.length) && !(examScope?.knowledge_points?.length) && <p className="cmp-scope-empty">尚未设置考试范围。你可以手动输入、上传考试范围资料，或从知识脉络选择知识点。</p>}
+              <label className="cmp-scope-field"><span>手动范围</span><textarea value={manualScopeText} onChange={(event) => setManualScopeText(event.target.value)} placeholder="例如：第 1 章到第 4 章；重点复习进程管理、虚拟内存和死锁；文件系统不在考试范围。" maxLength={6000} /></label>
+              <div className="cmp-scope-actions"><button className="cmp-btn cmp-btn--primary" type="button" disabled={scopeSaving} onClick={() => saveExamScope({ manual_text: manualScopeText })}>保存考试范围</button><button className="cmp-btn cmp-btn--ghost" type="button" disabled={scopeSaving} onClick={openScopeKnowledgePicker}>从知识脉络选择</button></div>
+              {scopeError && <p className="cmp-scope-error">{scopeError}</p>}
+              <div className="cmp-scope-linked-section"><div><strong>范围资料</strong><span>上传时会自动关联；移除仅解除关联，不会删除原文件。</span></div>{(examScope?.materials || []).length ? <ul className="cmp-scope-linked-list">{examScope.materials.map((material) => <li key={material.id}><div><strong>{filenameOf(material)}</strong><span>{formatUploadedDateTime(material)} · {getStatusLabel(material.parse_status)}</span></div><div className="cmp-scope-row-actions"><button type="button" onClick={() => previewMaterial?.(material)} disabled={!material.can_preview}>查看</button><button type="button" onClick={() => saveExamScope({ material_ids: (examScope.material_ids || []).filter((id) => id !== material.id) })}>移除</button></div></li>)}</ul> : <p className="cmp-scope-muted">暂无考试范围资料。</p>}</div>
+              {(examScope?.knowledge_points || []).length > 0 && <div className="cmp-scope-points"><strong>已选知识点</strong><span>{examScope.knowledge_points.map((point) => point.title).join("、")}</span></div>}
+            </>}
+          </section>
           <section className="cmp-exam-materials">
             <div className="cmp-section-title">
               <span>考试突击资料</span>
@@ -650,6 +785,7 @@ export default function CourseMaterialsPage({
               })}
             </div>
           </section>
+          </>
         )}
 
         <div className="cmp-filter-card">
@@ -736,7 +872,7 @@ export default function CourseMaterialsPage({
                     </td>
                     <td>{getFileTypeLabel(material.file_type)}</td>
                     <td>{formatFileSize(material.file_size)}</td>
-                    <td>{formatDateTime(material.created_at)}</td>
+                    <td>{formatUploadedDateTime(material)}</td>
                     <td><span className={`cmp-status cmp-status--${getStatusKind(material.parse_status)}`}>{getStatusLabel(material.parse_status)}</span></td>
                     <td>{chunkCountOf(material).toLocaleString("zh-CN")}</td>
                     <td>
@@ -768,7 +904,6 @@ export default function CourseMaterialsPage({
       <aside className="cmp-detail-panel">
         <div className="cmp-detail-header">
           <h2>资料详情</h2>
-          <span>⌃</span>
         </div>
         {!selected ? (
           <div className="cmp-detail-empty">
@@ -792,7 +927,7 @@ export default function CourseMaterialsPage({
               <span>{getFileTypeLabel(selected.file_type)} · {formatFileSize(selected.file_size)}</span>
             </div>
             <dl className="cmp-detail-meta">
-              <div><dt>上传时间</dt><dd>{formatDateTime(selected.created_at)}</dd></div>
+              <div><dt>上传时间</dt><dd>{formatUploadedDateTime(selected)}</dd></div>
               <div><dt>索引状态</dt><dd><span className={`cmp-status cmp-status--${getStatusKind(selected.parse_status)}`}>{getStatusLabel(selected.parse_status)}</span></dd></div>
               <div><dt>片段数量</dt><dd>{chunkCountOf(selected).toLocaleString("zh-CN")}</dd></div>
               {selectedPages ? <div><dt>文件页数</dt><dd>{selectedPages} 页</dd></div> : null}
@@ -840,6 +975,28 @@ export default function CourseMaterialsPage({
           </>
         )}
       </aside>
+
+      {showScopeKnowledgePicker && createPortal(
+        <div className="kam-overlay" onClick={(event) => { if (event.target === event.currentTarget) setShowScopeKnowledgePicker(false); }}>
+          <div className="kam-modal cmp-scope-picker-modal">
+            <button className="kam-close" type="button" onClick={() => setShowScopeKnowledgePicker(false)} aria-label="关闭">×</button>
+            <div className="kam-body">
+              <h2 className="kam-title">从知识脉络选择考试范围</h2>
+              <p className="kam-step-label">勾选父节点会选择其下全部最小知识点；最终保存真实知识点 ID。</p>
+              {scopeKnowledgeLoading ? <p className="cmp-scope-muted">正在加载知识脉络…</p> : (() => {
+                const childrenByParent = new Map();
+                scopeKnowledgePoints.forEach((point) => {
+                  const key = point.parent_id || 0;
+                  childrenByParent.set(key, [...(childrenByParent.get(key) || []), point]);
+                });
+                const roots = childrenByParent.get(0) || [];
+                return roots.length ? <ul className="cmp-scope-tree">{roots.map((point) => <KnowledgeScopeNode key={point.id} node={point} childrenByParent={childrenByParent} selectedIds={scopeKnowledgeSelection} onToggle={toggleScopeKnowledge} />)}</ul> : <p className="cmp-scope-empty">当前课程尚未建立知识脉络。</p>;
+              })()}
+              <div className="cmp-scope-picker-footer"><span>已选 {scopeKnowledgeSelection.size} 个最小知识点</span><div><button className="cmp-btn cmp-btn--ghost" type="button" onClick={() => setShowScopeKnowledgePicker(false)}>取消</button><button className="cmp-btn cmp-btn--primary" type="button" disabled={scopeSaving || scopeKnowledgeLoading} onClick={async () => { const saved = await saveExamScope({ knowledge_point_ids: [...scopeKnowledgeSelection] }); if (saved) setShowScopeKnowledgePicker(false); }}>保存选择</button></div></div>
+            </div>
+          </div>
+        </div>, document.body
+      )}
 
       {showKnowledgeModal && createPortal(
         <div className="kam-overlay" onClick={(event) => { if (event.target === event.currentTarget) closeKnowledgeModal(); }}>
