@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { switchLearningDirection } from "../utils/serviceSwitch.js";
+import { resolveMediaUrl } from "../utils/mediaUrl.js";
 
 const EXAM_408_SCHOOLS = [
   "北京大学", "南京大学", "浙江大学", "上海交通大学",
@@ -15,6 +16,8 @@ const PACKAGE_LABELS = {
   quarterly_boost: "季度强化包",
   full_exam: "全程考包",
 };
+const GRADE_OPTIONS = ["大一", "大二", "大三", "大四", "研究生"];
+const SEMESTER_OPTIONS = ["上学期", "下学期"];
 
 function maskEmail(email) {
   if (!email) return "";
@@ -26,12 +29,15 @@ function maskEmail(email) {
   return name.slice(0, 3) + "***" + domain;
 }
 
-export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
+export default function ExamProfile({ user, setPage, onLogout, API_BASE, onProfileUpdate }) {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [actionMsg, setActionMsg] = useState("");
   const [actionErr, setActionErr] = useState("");
   const [editing, setEditing] = useState(false);
   const [nickname, setNickname] = useState(user?.nickname || "");
+  const [major, setMajor] = useState(user?.major || "");
+  const [grade, setGrade] = useState(user?.grade || "");
+  const [semester, setSemester] = useState(user?.semester || "");
   const [examTrack, setExamTrack] = useState(() => (user?.tracks || []).find((t) => t.track_type === "exam_408") || null);
   const [quotaData, setQuotaData] = useState(null);
   const avatarInputRef = useRef(null);
@@ -44,8 +50,13 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
   const schoolRef = useRef(null);
 
   useEffect(() => {
-    if (!editing) setNickname(user?.nickname || "");
-  }, [user?.nickname, editing]);
+    if (!editing) {
+      setNickname(user?.nickname || "");
+      setMajor(user?.major || "");
+      setGrade(user?.grade || "");
+      setSemester(user?.semester || "");
+    }
+  }, [user?.nickname, user?.major, user?.grade, user?.semester, editing]);
 
   const pkgType = examTrack?.package_type || "free";
   const permissions = examTrack?.permissions || {};
@@ -157,6 +168,7 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
   const realEmail = user?.email || "";
   const emailDisplay = realEmail ? maskEmail(realEmail) : "未绑定";
   const emailBtnLabel = realEmail ? "修改" : "绑定";
+  const avatarSrc = resolveMediaUrl(user?.avatar_url, API_BASE);
 
   const hasCourseTrack = (user?.tracks || []).some((t) => t.track_type === "university_course");
   const hasCodeTrack = (user?.tracks || []).some((t) => t.track_type === "programming");
@@ -187,6 +199,7 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
       const res = await fetch(`${API_BASE}/me/avatar`, { method: "POST", body: fd });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || "上传失败");
+      if (data.profile) onProfileUpdate?.(data.profile);
       setActionMsg("头像已更新");
       setTimeout(() => setActionMsg(""), 2500);
     } catch (err) {
@@ -202,10 +215,11 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
       const res = await fetch(`${API_BASE}/me/profile?username=${encodeURIComponent(user.username)}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nickname, grade: user?.grade || "", major: user?.major || "" }),
+        body: JSON.stringify({ nickname, major, grade, semester }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || "保存失败");
+      if (data.profile) onProfileUpdate?.(data.profile);
       setEditing(false);
       setActionMsg("资料已保存");
       setTimeout(() => setActionMsg(""), 2500);
@@ -319,8 +333,8 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
           <div className="ep-basic-grid">
             <div className="ep-avatar-col">
               <div className="ep-avatar-wrap">
-                {user?.avatar_url ? (
-                  <img src={user.avatar_url} alt="" className="ep-avatar-img" />
+                {avatarSrc ? (
+                  <img src={avatarSrc} alt="" className="ep-avatar-img" />
                 ) : (
                   <span className="ep-avatar-text">{displayName.charAt(0)}</span>
                 )}
@@ -336,6 +350,7 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
                 <span className="ep-info-label">昵称</span>
                 {editing ? <input className="ep-info-input" value={nickname} onChange={(e) => setNickname(e.target.value)} /> : <span>{displayName}</span>}
               </div>
+              <div className="ep-info-row"><span className="ep-info-label">专业</span>{editing ? <input className="ep-info-input" value={major} onChange={(event) => setMajor(event.target.value)} maxLength={50} /> : <span>{major || "未设置"}</span>}</div>
               <div className="ep-info-row"><span className="ep-info-label">学习方向</span><span className="ep-info-tag">11408 考研</span></div>
               <div className="ep-info-row">
                 <span className="ep-info-label">目标院校</span>
@@ -368,6 +383,8 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE }) {
               </div>
             </div>
             <div className="ep-info-col">
+              <div className="ep-info-row"><span className="ep-info-label">年级</span>{editing ? <select className="ep-info-input" value={grade} onChange={(event) => setGrade(event.target.value)}><option value="">未设置</option>{GRADE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</select> : <span>{grade || "未设置"}</span>}</div>
+              <div className="ep-info-row"><span className="ep-info-label">当前学期</span>{editing ? <select className="ep-info-input" value={semester} onChange={(event) => setSemester(event.target.value)}><option value="">未设置</option>{SEMESTER_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</select> : <span>{semester || "未设置"}</span>}</div>
               <div className="ep-info-row"><span className="ep-info-label">考试时间</span><span>{examTime}</span></div>
               <div className="ep-info-row"><span className="ep-info-label">当前备考阶段</span><span>{examStage}</span></div>
               <div className="ep-info-row"><span className="ep-info-label">每天学习时间</span><span>{examDaily}</span></div>

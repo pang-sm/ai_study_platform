@@ -3,6 +3,7 @@ import "./ProgrammingHome.css";
 import ProgrammingWorkbench from "./ProgrammingWorkbench.jsx";
 import KnowledgeLearningPage from "./KnowledgeLearningPage.jsx";
 import { getExerciseDescription, getExerciseTitle } from "./programmingExerciseCopy.js";
+import { resolveMediaUrl } from "../utils/mediaUrl.js";
 
 const NAV_ITEMS = [
   { key: "home", label: "首页", icon: "home" },
@@ -48,8 +49,8 @@ function ProfileButton({ user, apiBase, onClick }) {
   const avatarUrl = user?.avatar_url || "";
   return (
     <button type="button" className="ph-profile-button" onClick={onClick}>
-      {avatarUrl ? (
-        <img src={`${apiBase}${avatarUrl}?username=${encodeURIComponent(user?.username || "")}`} alt="头像" />
+      {resolveMediaUrl(avatarUrl, apiBase) ? (
+        <img src={resolveMediaUrl(avatarUrl, apiBase)} alt="头像" />
       ) : (
         <span>{name.charAt(0).toUpperCase()}</span>
       )}

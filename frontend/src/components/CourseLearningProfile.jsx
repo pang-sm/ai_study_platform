@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { switchLearningDirection } from "../utils/serviceSwitch.js";
+import { resolveMediaUrl } from "../utils/mediaUrl.js";
 
 const PACKAGE_LABELS = {
   free: "免费模式",
@@ -7,6 +8,8 @@ const PACKAGE_LABELS = {
   quarterly: "季度包",
   full: "全程包",
 };
+const GRADE_OPTIONS = ["大一", "大二", "大三", "大四", "研究生"];
+const SEMESTER_OPTIONS = ["上学期", "下学期"];
 
 function maskEmail(email) {
   if (!email) return "";
@@ -18,12 +21,15 @@ function maskEmail(email) {
   return name.slice(0, 3) + "***" + domain;
 }
 
-export default function CourseLearningProfile({ user, setPage, onLogout, API_BASE }) {
+export default function CourseLearningProfile({ user, setPage, onLogout, API_BASE, onProfileUpdate }) {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [actionMsg, setActionMsg] = useState("");
   const [actionErr, setActionErr] = useState("");
   const [editing, setEditing] = useState(false);
   const [nickname, setNickname] = useState(user?.nickname || "");
+  const [major, setMajor] = useState(user?.major || "");
+  const [grade, setGrade] = useState(user?.grade || "");
+  const [semester, setSemester] = useState(user?.semester || "");
   const [courseTrack, setCourseTrack] = useState(() =>
     (user?.tracks || []).find((t) => t.track_type === "university_course") || null
   );
@@ -34,8 +40,13 @@ export default function CourseLearningProfile({ user, setPage, onLogout, API_BAS
   const avatarInputRef = useRef(null);
 
   useEffect(() => {
-    if (!editing) setNickname(user?.nickname || "");
-  }, [user?.nickname, editing]);
+    if (!editing) {
+      setNickname(user?.nickname || "");
+      setMajor(user?.major || "");
+      setGrade(user?.grade || "");
+      setSemester(user?.semester || "");
+    }
+  }, [user?.nickname, user?.major, user?.grade, user?.semester, editing]);
 
   const servicePlan = servicePlans?.course_learning?.plan || user?.service_plans?.course_learning?.plan || "free";
   const pkgType = courseEntitlements?.plan || servicePlan || courseTrack?.package_type || "free";
@@ -125,9 +136,10 @@ export default function CourseLearningProfile({ user, setPage, onLogout, API_BAS
   const emailDisplay = realEmail ? maskEmail(realEmail) : "未绑定";
   const emailBtnLabel = realEmail ? "修改" : "绑定";
 
-  const courseMajors = onboardingDetail?.major || user?.major || "未设置";
-  const courseGrade = onboardingDetail?.grade || user?.grade || "未设置";
-  const courseSemester = onboardingDetail?.current_semester || "未设置";
+  const courseMajors = major || onboardingDetail?.major || "未设置";
+  const courseGrade = grade || onboardingDetail?.grade || "未设置";
+  const courseSemester = semester || "未设置";
+  const avatarSrc = resolveMediaUrl(user?.avatar_url, API_BASE);
 
   const switchTrack = async (targetTrack) => {
     setActionErr("");
@@ -156,6 +168,7 @@ export default function CourseLearningProfile({ user, setPage, onLogout, API_BAS
       const res = await fetch(`${API_BASE}/me/avatar`, { method: "POST", body: fd });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || "上传失败");
+      if (data.profile) onProfileUpdate?.(data.profile);
       setActionMsg("头像已更新");
       setTimeout(() => setActionMsg(""), 2500);
     } catch (err) {
@@ -171,10 +184,11 @@ export default function CourseLearningProfile({ user, setPage, onLogout, API_BAS
       const res = await fetch(`${API_BASE}/me/profile?username=${encodeURIComponent(user.username)}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nickname, grade: user?.grade || "", major: user?.major || "" }),
+        body: JSON.stringify({ nickname, major, grade, semester }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || "保存失败");
+      if (data.profile) onProfileUpdate?.(data.profile);
       setEditing(false);
       setActionMsg("资料已保存");
       setTimeout(() => setActionMsg(""), 2500);
@@ -288,8 +302,8 @@ export default function CourseLearningProfile({ user, setPage, onLogout, API_BAS
           <div className="ep-basic-grid">
             <div className="ep-avatar-col">
               <div className="ep-avatar-wrap">
-                {user?.avatar_url ? (
-                  <img src={user.avatar_url} alt="" className="ep-avatar-img" />
+                {avatarSrc ? (
+                  <img src={avatarSrc} alt="" className="ep-avatar-img" />
                 ) : (
                   <span className="ep-avatar-text">{displayName.charAt(0)}</span>
                 )}
@@ -306,12 +320,12 @@ export default function CourseLearningProfile({ user, setPage, onLogout, API_BAS
                 {editing ? <input className="ep-info-input" value={nickname} onChange={(e) => setNickname(e.target.value)} /> : <span>{displayName}</span>}
               </div>
               <div className="ep-info-row"><span className="ep-info-label">学习方向</span><span className="ep-info-tag">课程学习</span></div>
-              <div className="ep-info-row"><span className="ep-info-label">专业</span><span>{courseMajors}</span></div>
+              <div className="ep-info-row"><span className="ep-info-label">专业</span>{editing ? <input className="ep-info-input" value={major} onChange={(event) => setMajor(event.target.value)} maxLength={50} /> : <span>{courseMajors}</span>}</div>
             </div>
             <div className="ep-info-col">
-              <div className="ep-info-row"><span className="ep-info-label">年级</span><span>{courseGrade}</span></div>
+              <div className="ep-info-row"><span className="ep-info-label">年级</span>{editing ? <select className="ep-info-input" value={grade} onChange={(event) => setGrade(event.target.value)}><option value="">未设置</option>{GRADE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</select> : <span>{courseGrade}</span>}</div>
               <div className="ep-info-row"><span className="ep-info-label">已加入课程</span><span>{courseCount} 门</span></div>
-              <div className="ep-info-row"><span className="ep-info-label">当前学期</span><span>{courseSemester}</span></div>
+              <div className="ep-info-row"><span className="ep-info-label">当前学期</span>{editing ? <select className="ep-info-input" value={semester} onChange={(event) => setSemester(event.target.value)}><option value="">未设置</option>{SEMESTER_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</select> : <span>{courseSemester}</span>}</div>
               <div className="ep-info-row"><span className="ep-info-label">注册时间</span><span className="ep-info-time">{registerTime}</span></div>
             </div>
           </div>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { resolveMediaUrl } from "../utils/mediaUrl.js";
 
 const API_BASE = "/api";
 
@@ -152,7 +153,7 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
   const [showNewPwd, setShowNewPwd] = useState(false);
   const [showConfirmPwd, setShowConfirmPwd] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
-  const [userAvatarUrl, setUserAvatarUrl] = useState(user?.avatar_url || null);
+  const [userAvatarUrl, setUserAvatarUrl] = useState(() => resolveMediaUrl(user?.avatar_url, API_BASE) || null);
   const adminRoleLabel = user?.admin_role === "super_admin" ? "超级管理员" : user?.admin_role === "operator" ? "运营管理员" : "管理员";
   const adminRoleDesc = user?.admin_role === "super_admin" ? "负责平台整体运营与管理" : user?.admin_role === "operator" ? "负责日常运营与用户服务" : "负责平台管理与维护";
 
@@ -844,8 +845,8 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || "头像上传失败");
-      const newAvatarUrl = data.avatar_url || data.profile?.avatar_url || null;
-      setUserAvatarUrl(newAvatarUrl);
+      const newAvatarUrl = data.profile?.avatar_url || data.avatar_url || null;
+      setUserAvatarUrl(resolveMediaUrl(newAvatarUrl, API_BASE) || null);
       if (onUserUpdate && data.profile) {
         onUserUpdate(data.profile);
       }
@@ -882,7 +883,7 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
 
   // Sync avatar URL from user data on mount / user change
   useEffect(() => {
-    if (user?.avatar_url) setUserAvatarUrl(user.avatar_url);
+    setUserAvatarUrl(resolveMediaUrl(user?.avatar_url, API_BASE) || null);
   }, [user?.avatar_url]);
 
   const copyToClipboard = async (text) => {

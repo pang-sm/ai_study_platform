@@ -34,6 +34,7 @@ PROFILE_COLUMNS = {
     "avatar": "VARCHAR(255)",
     "grade": "VARCHAR(50) NOT NULL DEFAULT ''",
     "major": "VARCHAR(100) NOT NULL DEFAULT ''",
+    "semester": "VARCHAR(20) NOT NULL DEFAULT ''",
     "onboarding_completed": "BOOLEAN NOT NULL DEFAULT 0",
     "learning_goals": "TEXT",
     "plan": "VARCHAR(20) DEFAULT 'free'",
@@ -2206,6 +2207,7 @@ def clear_user_profile_fields(db):
         {
             models.User.grade: "",
             models.User.major: "",
+            models.User.semester: "",
             models.User.nickname: "",
             models.User.avatar: "",
         },

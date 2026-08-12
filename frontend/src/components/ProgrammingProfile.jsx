@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { switchLearningDirection } from "../utils/serviceSwitch.js";
+import { resolveMediaUrl } from "../utils/mediaUrl.js";
 import "./ProgrammingHome.css";
 
 const PROGRAMMING_PLAN_LABELS = {
@@ -8,6 +9,8 @@ const PROGRAMMING_PLAN_LABELS = {
   quarterly: "编程进阶训练包",
   full: "实验与算法强化包",
 };
+const GRADE_OPTIONS = ["大一", "大二", "大三", "大四", "研究生"];
+const SEMESTER_OPTIONS = ["上学期", "下学期"];
 
 function maskEmail(email) {
   if (!email) return "";
@@ -23,27 +26,28 @@ function formatAiQuota(remaining, limit) {
   return Number(limit) >= 999999 ? "无限" : `${remaining ?? 0} / ${limit ?? 0}`;
 }
 
-function getAvatarSrc(apiBase, user) {
-  const avatarUrl = user?.avatar_url || "";
-  if (!avatarUrl) return "";
-  if (/^https?:\/\//i.test(avatarUrl)) return avatarUrl;
-  return `${apiBase}${avatarUrl}?username=${encodeURIComponent(user?.username || "")}`;
-}
-
-export default function ProgrammingProfile({ user, apiBase = "/api", setPage, onLogout }) {
+export default function ProgrammingProfile({ user, apiBase = "/api", setPage, onLogout, onProfileUpdate }) {
   const [homeData, setHomeData] = useState(null);
   const [entitlements, setEntitlements] = useState(null);
   const [servicePlans, setServicePlans] = useState(() => user?.service_plans || {});
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [editing, setEditing] = useState(false);
   const [nickname, setNickname] = useState(user?.nickname || "");
+  const [major, setMajor] = useState(user?.major || "");
+  const [grade, setGrade] = useState(user?.grade || "");
+  const [semester, setSemester] = useState(user?.semester || "");
   const [actionMsg, setActionMsg] = useState("");
   const [actionErr, setActionErr] = useState("");
   const avatarInputRef = useRef(null);
 
   useEffect(() => {
-    if (!editing) setNickname(user?.nickname || "");
-  }, [user?.nickname, editing]);
+    if (!editing) {
+      setNickname(user?.nickname || "");
+      setMajor(user?.major || "");
+      setGrade(user?.grade || "");
+      setSemester(user?.semester || "");
+    }
+  }, [user?.nickname, user?.major, user?.grade, user?.semester, editing]);
 
   const fetchProgrammingProfileData = async () => {
     if (!user?.username) return;
@@ -90,12 +94,12 @@ export default function ProgrammingProfile({ user, apiBase = "/api", setPage, on
     "免费模式";
   const displayName = nickname || user?.nickname || user?.username || "同学";
   const username = user?.username || "";
-  const grade = user?.grade || onboarding?.grade || "未设置";
+  const displayGrade = grade || onboarding?.grade || "未设置";
   const registerTime = user?.created_at || "";
   const realEmail = user?.email || "";
   const emailDisplay = realEmail ? maskEmail(realEmail) : "未绑定";
   const emailBtnLabel = realEmail ? "修改" : "绑定";
-  const avatarSrc = getAvatarSrc(apiBase, user);
+  const avatarSrc = resolveMediaUrl(user?.avatar_url, apiBase);
   const problemRecordsEnabled = Boolean(permissions.problem_records);
 
   const quotaItems = [
@@ -168,7 +172,8 @@ export default function ProgrammingProfile({ user, apiBase = "/api", setPage, on
       const response = await fetch(`${apiBase}/me/avatar`, { method: "POST", body: fd });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.detail || "头像上传失败");
-      setActionMsg("头像已更新，刷新后可看到最新头像");
+      if (data.profile) onProfileUpdate?.(data.profile);
+      setActionMsg("头像已更新");
       setTimeout(() => setActionMsg(""), 2500);
     } catch (error) {
       setActionErr(error.message || "头像上传失败");
@@ -183,10 +188,11 @@ export default function ProgrammingProfile({ user, apiBase = "/api", setPage, on
       const response = await fetch(`${apiBase}/me/profile?username=${encodeURIComponent(user.username)}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nickname, grade: user?.grade || "", major: user?.major || "" }),
+        body: JSON.stringify({ nickname, major, grade, semester }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.detail || "保存失败");
+      if (data.profile) onProfileUpdate?.(data.profile);
       setEditing(false);
       setActionMsg("资料已保存");
       setTimeout(() => setActionMsg(""), 2500);
@@ -321,11 +327,13 @@ export default function ProgrammingProfile({ user, apiBase = "/api", setPage, on
                 <span className="ep-info-label">昵称</span>
                 {editing ? <input className="ep-info-input" value={nickname} onChange={(event) => setNickname(event.target.value)} /> : <span>{displayName}</span>}
               </div>
+              <div className="ep-info-row"><span className="ep-info-label">专业</span>{editing ? <input className="ep-info-input" value={major} onChange={(event) => setMajor(event.target.value)} maxLength={50} /> : <span>{major || "未设置"}</span>}</div>
               <div className="ep-info-row"><span className="ep-info-label">学习方向</span><span className="ep-info-tag">编程能力提升</span></div>
               <div className="ep-info-row"><span className="ep-info-label">当前套餐</span><span>{planLabel}</span></div>
             </div>
             <div className="ep-info-col">
-              <div className="ep-info-row"><span className="ep-info-label">年级</span><span>{grade}</span></div>
+              <div className="ep-info-row"><span className="ep-info-label">年级</span>{editing ? <select className="ep-info-input" value={grade} onChange={(event) => setGrade(event.target.value)}><option value="">未设置</option>{GRADE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</select> : <span>{displayGrade}</span>}</div>
+              <div className="ep-info-row"><span className="ep-info-label">当前学期</span>{editing ? <select className="ep-info-input" value={semester} onChange={(event) => setSemester(event.target.value)}><option value="">未设置</option>{SEMESTER_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</select> : <span>{semester || "未设置"}</span>}</div>
               <div className="ep-info-row"><span className="ep-info-label">主要语言</span><span>{onboarding.main_language || "未设置"}</span></div>
               <div className="ep-info-row"><span className="ep-info-label">当前水平</span><span>{onboarding.level || "未设置"}</span></div>
               <div className="ep-info-row"><span className="ep-info-label">注册时间</span><span className="ep-info-time">{registerTime || "未记录"}</span></div>

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import MarkdownMessage from "./MarkdownMessage.jsx";
+import { resolveMediaUrl } from "../utils/mediaUrl.js";
 
 function copyText(text) {
   if (navigator?.clipboard?.writeText) {
@@ -305,8 +306,8 @@ export default function ChatMessage({
           <div className="message-avatar-row message-avatar-row--user">
             <div className="message-time">{msgTime}</div>
             <div className="message-avatar message-avatar--user">
-              {(user && user.avatar_url && (user.avatar_url || "").startsWith("/me/avatar/")) ? (
-                <img src={`/api${user.avatar_url}?username=${encodeURIComponent(user.username || "")}`} alt="" className="msg-avatar-img" />
+              {resolveMediaUrl(user?.avatar_url) ? (
+                <img src={resolveMediaUrl(user.avatar_url)} alt="" className="msg-avatar-img" />
               ) : (
                 userInitial
               )}

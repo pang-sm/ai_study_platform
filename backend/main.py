@@ -35,7 +35,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.exceptions import RequestValidationError
 from openai import OpenAI
 from PIL import Image, UnidentifiedImageError
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from pypdf import PdfReader
 import pytesseract
 from sqlalchemy import func, or_
@@ -320,9 +320,12 @@ class RenameConversationRequest(BaseModel):
 
 
 class ProfileUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     nickname: str | None = None
     grade: str | None = None
     major: str | None = None
+    semester: str | None = None
     avatar: str | None = None
     learning_goals: list[dict] | None = None
     onboarding_completed: bool | None = None
@@ -341,6 +344,7 @@ class OnboardingUpdateRequest(BaseModel):
     nickname: str | None = None
     grade: str | None = None
     major: str | None = None
+    semester: str | None = None
     learning_direction: str | None = None
     learning_goal: str | None = None
     preferred_subjects: list[str] | None = None
@@ -356,6 +360,7 @@ class OnboardingUpdateRequest(BaseModel):
 class CourseLearningOnboardingRequest(BaseModel):
     major: str = ""
     grade: str = ""
+    semester: str = ""
     selected_courses: list[str] = []
     material_types: list[str] = []
     course_goals: dict[str, str] | None = None
@@ -442,8 +447,16 @@ ALLOWED_AVATAR_TYPES = {
     "image/jpeg",
     "image/png",
     "image/webp",
-    "image/gif",
 }
+
+AVATAR_FORMATS = {
+    ".jpg": ("JPEG", "image/jpeg"),
+    ".jpeg": ("JPEG", "image/jpeg"),
+    ".png": ("PNG", "image/png"),
+    ".webp": ("WEBP", "image/webp"),
+}
+
+ALLOWED_SEMESTERS = {"上学期", "下学期", ""}
 
 MAX_AVATAR_SIZE = 3 * 1024 * 1024
 
@@ -1499,14 +1512,27 @@ def _parse_onboarding_detail_type(user):
     return None
 
 
+def avatar_url_for_user(user: models.User) -> str | None:
+    """Return a canonical API media path while tolerating historical values."""
+    avatar_value = (user.avatar or "").strip()
+    if not avatar_value:
+        return None
+    if avatar_value in ALLOWED_AVATARS:
+        return avatar_value
+    if avatar_value.startswith(("http://", "https://", "/api/", "/uploads/")):
+        return avatar_value
+    if avatar_value.startswith("/me/avatar/"):
+        return f"/api{avatar_value}"
+    return f"/api/me/avatar/{avatar_value}"
+
+
+def is_uploaded_avatar_filename(value: str) -> bool:
+    filename = (value or "").strip()
+    return bool(filename and filename == os.path.basename(filename) and Path(filename).suffix.lower() in AVATAR_FORMATS)
+
+
 def user_profile(user: models.User):
-    avatar_id = (user.avatar or "").strip()
-    avatar_url = None
-    if avatar_id:
-        if avatar_id in ALLOWED_AVATARS:
-            avatar_url = avatar_id
-        else:
-            avatar_url = f"/api/me/avatar/{avatar_id}"
+    avatar_url = avatar_url_for_user(user)
 
     learning_goals = []
     if user.learning_goals:
@@ -1521,6 +1547,7 @@ def user_profile(user: models.User):
         "nickname": user.nickname or "",
         "grade": user.grade or "",
         "major": user.major or "",
+        "semester": user.semester or "",
         "avatar": user.avatar or "",
         "avatar_url": avatar_url,
         "onboarding_completed": bool(user.onboarding_completed),
@@ -5472,22 +5499,32 @@ def update_profile(req: ProfileUpdateRequest, username: str = "", db: Session = 
     assert_username_matches_current_user(username, current_user)
     user = current_user
 
-    ALLOWED_GRADES = {"大一", "大二", "大三", "大四", "研究生", ""}
-    nickname = (req.nickname or "").strip()[:30]
-    grade = (req.grade or "").strip()[:20]
-    major = (req.major or "").strip()[:50]
-    avatar = (req.avatar or "").strip()
+    allowed_grades = {"大一", "大二", "大三", "大四", "研究生", ""}
+    nickname = (req.nickname or "").strip()[:30] if req.nickname is not None else None
+    grade = (req.grade or "").strip()[:20] if req.grade is not None else None
+    major = (req.major or "").strip()[:50] if req.major is not None else None
+    semester = (req.semester or "").strip() if req.semester is not None else None
+    avatar = (req.avatar or "").strip() if req.avatar is not None else None
 
-    if grade and grade not in ALLOWED_GRADES:
+    if grade is not None and grade not in allowed_grades:
         raise HTTPException(status_code=400, detail="年级仅支持：大一、大二、大三、大四、研究生")
 
-    if avatar and avatar not in ALLOWED_AVATARS and not avatar.startswith("/"):
+    if semester is not None and semester not in ALLOWED_SEMESTERS:
+        raise HTTPException(status_code=400, detail="学期仅支持：上学期、下学期")
+
+    if avatar is not None and avatar not in ALLOWED_AVATARS and avatar != (user.avatar or ""):
         raise HTTPException(status_code=400, detail="头像无效")
 
-    user.nickname = nickname
-    user.grade = grade
-    user.major = major
-    user.avatar = avatar
+    if nickname is not None:
+        user.nickname = nickname
+    if grade is not None:
+        user.grade = grade
+    if major is not None:
+        user.major = major
+    if semester is not None:
+        user.semester = semester
+    if avatar is not None:
+        user.avatar = avatar
 
     if req.learning_goals is not None:
         validated_goals = []
@@ -5548,6 +5585,11 @@ def complete_onboarding(req: OnboardingUpdateRequest, username: str = "", db: Se
         user.grade = (req.grade or "").strip()[:20]
     if req.major is not None:
         user.major = (req.major or "").strip()[:50]
+    if req.semester is not None:
+        semester = (req.semester or "").strip()
+        if semester not in ALLOWED_SEMESTERS:
+            raise HTTPException(status_code=400, detail="学期仅支持：上学期、下学期")
+        user.semester = semester
     if req.learning_direction is not None:
         user.learning_direction = (req.learning_direction or "").strip()[:100]
     if req.daily_study_minutes is not None:
@@ -5643,6 +5685,7 @@ def _course_learning_onboarding_payload(user: models.User, track: models.UserLea
         "plan": detail.get("course_learning_plan") or (track.plan if track else None) or "free",
         "major": detail.get("major") or user.major or "",
         "grade": detail.get("grade") or user.grade or "",
+        "semester": user.semester or "",
         "selected_courses": detail.get("selected_courses") if isinstance(detail.get("selected_courses"), list) else [],
         "material_types": detail.get("material_types") if isinstance(detail.get("material_types"), list) else [],
         "course_goals": detail.get("course_goals") if isinstance(detail.get("course_goals"), dict) else {},
@@ -5673,6 +5716,9 @@ def save_course_learning_onboarding(
 
     major = (req.major or "").strip()[:80]
     grade = (req.grade or "").strip()[:30]
+    semester = (req.semester or "").strip()
+    if semester not in ALLOWED_SEMESTERS:
+        raise HTTPException(status_code=400, detail="学期仅支持：上学期、下学期")
     selected_courses = []
     for item in req.selected_courses or []:
         value = (item or "").strip()
@@ -5699,6 +5745,7 @@ def save_course_learning_onboarding(
         existing_detail = _parse_track_onboarding_detail(track)
         major = major or existing_detail.get("major", "")
         grade = grade or existing_detail.get("grade", "")
+        semester = semester or user.semester or ""
         if not selected_courses:
             selected_courses = existing_detail.get("selected_courses", [])
         if not material_types:
@@ -5717,6 +5764,7 @@ def save_course_learning_onboarding(
     if completed:
         user.major = major
         user.grade = grade
+        user.semester = semester
         if selected_courses:
             user.focus_courses = "、".join(selected_courses)[:200]
             user.default_course_id = selected_courses[0][:100]
@@ -5740,6 +5788,7 @@ def save_course_learning_onboarding(
         "service_key": "course_learning",
         "major": major,
         "grade": grade,
+        "semester": semester,
         "selected_courses": selected_courses,
         "material_types": material_types,
         "course_goals": course_goals,
@@ -7134,19 +7183,27 @@ async def upload_avatar(
     user = current_user
 
     if file.content_type not in ALLOWED_AVATAR_TYPES:
-        raise HTTPException(status_code=400, detail="头像仅支持 JPG、PNG、WebP 或 GIF 格式")
+        raise HTTPException(status_code=400, detail="头像仅支持 JPG、PNG 或 WebP 格式")
 
     file_bytes = await file.read()
     if len(file_bytes) > MAX_AVATAR_SIZE:
         raise HTTPException(status_code=400, detail="头像文件不能超过 3MB")
 
     suffix = Path(file.filename or "avatar.png").suffix.lower()
-    if suffix not in {".jpg", ".jpeg", ".png", ".webp", ".gif"}:
-        raise HTTPException(status_code=400, detail="头像仅支持 JPG、PNG、WebP 或 GIF 格式")
+    expected = AVATAR_FORMATS.get(suffix)
+    if not expected or expected[1] != file.content_type:
+        raise HTTPException(status_code=400, detail="头像仅支持 JPG、PNG 或 WebP 格式")
+    try:
+        image = Image.open(BytesIO(file_bytes))
+        image.verify()
+        if image.format != expected[0]:
+            raise ValueError("avatar format mismatch")
+    except (UnidentifiedImageError, OSError, ValueError):
+        raise HTTPException(status_code=400, detail="头像文件内容无效")
 
     # Delete old avatar file if exists
     old_avatar = (user.avatar or "").strip()
-    if old_avatar and old_avatar not in ALLOWED_AVATARS:
+    if is_uploaded_avatar_filename(old_avatar):
         try:
             old_path = AVATAR_UPLOAD_ROOT / old_avatar
             if old_path.exists() and old_path.is_file():
@@ -7182,8 +7239,7 @@ def serve_avatar(filename: str):
         raise HTTPException(status_code=404, detail="头像文件不存在")
 
     ext = avatar_path.suffix.lower()
-    media_map = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".gif": "image/gif"}
-    media_type = media_map.get(ext, "image/png")
+    media_type = AVATAR_FORMATS.get(ext, ("", "image/png"))[1]
 
     return FileResponse(avatar_path, media_type=media_type)
 
@@ -7197,7 +7253,7 @@ def delete_avatar(
     assert_username_matches_current_user(username, current_user)
     user = current_user
     old_avatar = (user.avatar or "").strip()
-    if old_avatar and old_avatar not in ALLOWED_AVATARS:
+    if is_uploaded_avatar_filename(old_avatar):
         try:
             old_path = AVATAR_UPLOAD_ROOT / old_avatar
             if old_path.exists() and old_path.is_file():

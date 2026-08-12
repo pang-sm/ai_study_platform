@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from "react";
+import { resolveMediaUrl } from "../utils/mediaUrl.js";
 import "./ProfilePage.css";
 
 const GRADE_OPTIONS = ["大一","大二","大三","大四","研究生"];
+const SEMESTER_OPTIONS = ["上学期", "下学期"];
 const STAGE_OPTIONS = ["入门了解","课堂跟上","考试掌握","项目实战","深入精通"];
 const ANSWER_STYLE_OPTIONS = ["通俗易懂","严谨学术","代码优先","案例教学"];
 const DETAIL_OPTIONS = ["简洁","标准","详细"];
@@ -69,7 +71,6 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage, onProfil
       if (!res.ok) { setEmailError(data.detail||"验证失败"); setEmailVerifying(false); return; }
       const updated = data.profile||data;
       setProfile(updated);
-      try { const s=JSON.parse(localStorage.getItem("ai_study_platform_user")||"{}"); localStorage.setItem("ai_study_platform_user",JSON.stringify({...s,...updated})); } catch {}
       setEmailOpen(false);
       showToast("邮箱绑定成功");
     } catch { setEmailError("网络错误"); }
@@ -110,8 +111,7 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage, onProfil
     ]).then(([pData, qData]) => {
       const p = pData.profile || pData;
       setProfile(p);
-      if (p.avatar_url && String(p.avatar_url).startsWith("/me/avatar/"))
-        setCloudAvatarUrl(`${apiBase}${p.avatar_url}?username=${encodeURIComponent(user.username)}`);
+      setCloudAvatarUrl(resolveMediaUrl(p.avatar_url, apiBase) || null);
       if (qData) setQuota(qData);
     }).catch(() => setProfile({ ...user })).finally(() => setLoading(false));
   };
@@ -124,6 +124,7 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage, onProfil
       school: profile.school || "",
       grade: profile.grade || "",
       major: profile.major || "",
+      semester: profile.semester || "",
       learning_direction: profile.learning_direction || "",
       default_course_id: profile.default_course_id || "",
       learning_goal_text: (Array.isArray(profile.learning_goals) ? profile.learning_goals.map(g => g.subject).join("、") : ""),
@@ -145,6 +146,7 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage, onProfil
         school: draft.school || "",
         grade: draft.grade || "",
         major: draft.major || "",
+        semester: draft.semester || "",
         learning_direction: draft.learning_direction || "",
         default_course_id: draft.default_course_id || "",
         learning_stage: draft.learning_stage || "",
@@ -161,7 +163,6 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage, onProfil
       if (!res.ok) { showToast(data.detail || "保存失败"); setSaving(false); return; }
       const updated = data.profile || data;
       setProfile(updated);
-      try { const s = JSON.parse(localStorage.getItem("ai_study_platform_user")||"{}"); localStorage.setItem("ai_study_platform_user", JSON.stringify({...s,...updated})); } catch {}
       if (onProfileUpdate) onProfileUpdate(updated);
       setEditOpen(false);
       showToast("保存成功");
@@ -171,7 +172,7 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage, onProfil
 
   const handleAvatarUpload = async (e) => {
     const file = e.target.files?.[0]; e.target.value = ""; if (!file) return;
-    if (!["image/jpeg","image/png","image/webp","image/gif"].includes(file.type)) { showToast("仅支持 JPG/PNG/WebP/GIF"); return; }
+    if (!["image/jpeg","image/png","image/webp"].includes(file.type)) { showToast("仅支持 JPG/PNG/WebP"); return; }
     if (file.size > 3*1024*1024) { showToast("文件不能超过 3MB"); return; }
     setUploading(true);
     try {
@@ -179,7 +180,7 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage, onProfil
       const res = await fetch(`${apiBase}/me/avatar`, { method:"POST", body:fd });
       const data = await res.json();
       if (!res.ok) { showToast(data.detail||"上传失败"); return; }
-      if (data.avatar_url) setCloudAvatarUrl(`${apiBase}${data.avatar_url}?username=${encodeURIComponent(user.username)}`);
+      setCloudAvatarUrl(resolveMediaUrl(data.profile?.avatar_url || data.avatar_url, apiBase) || null);
       if (data.profile && onProfileUpdate) onProfileUpdate(data.profile);
       showToast("头像已更新");
     } catch { showToast("网络错误"); }
@@ -195,7 +196,7 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage, onProfil
   return (
     <div className="pp-shell">
       {toast && <div className="pp-toast">{toast}</div>}
-      <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleAvatarUpload} style={{display:"none"}} />
+      <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handleAvatarUpload} style={{display:"none"}} />
 
       {/* ── Edit Modal ── */}
       {editOpen && (
@@ -216,6 +217,7 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage, onProfil
                   <label className="pp-form-field"><span>学校</span><input className="pp-field" value={draft.school} onChange={e => setDraftField("school", e.target.value)} placeholder="输入学校名称" maxLength={100} /></label>
                   <label className="pp-form-field"><span>年级</span><select className="pp-field pp-field-select" value={draft.grade} onChange={e => setDraftField("grade", e.target.value)}>{GRADE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}<option value="">未设置</option></select></label>
                   <label className="pp-form-field"><span>专业</span><input className="pp-field" value={draft.major} onChange={e => setDraftField("major", e.target.value)} placeholder="输入专业" maxLength={50} /></label>
+                  <label className="pp-form-field"><span>学期</span><select className="pp-field pp-field-select" value={draft.semester} onChange={e => setDraftField("semester", e.target.value)}><option value="">未设置</option>{SEMESTER_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}</select></label>
                   <label className="pp-form-field pp-form-field-full"><span>学习方向</span><input className="pp-field" value={draft.learning_direction} onChange={e => setDraftField("learning_direction", e.target.value)} placeholder="例如：后端开发、数据分析、人工智能" maxLength={100} /></label>
                 </div>
               </div>

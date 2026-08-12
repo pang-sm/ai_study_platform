@@ -44,6 +44,7 @@ const LearningReportCenter = lazy(() => import("./components/LearningReportCente
 const SharedReportPage = lazy(() => import("./components/SharedReportPage.jsx"));
 const SearchResultsPage = lazy(() => import("./components/SearchResultsPage.jsx"));
 import MarkdownMessage from "./components/MarkdownMessage.jsx";
+import { resolveMediaUrl } from "./utils/mediaUrl.js";
 import {
   COURSE_OPTIONS,
   DEFAULT_SUBJECT,
@@ -2542,8 +2543,8 @@ function App() {
     event.target.value = "";
     if (!file || !user?.username) return;
 
-    if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type)) {
-      setTip("头像仅支持 JPG、PNG、WebP 或 GIF 格式");
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setTip("头像仅支持 JPG、PNG 或 WebP 格式");
       return;
     }
     if (file.size > 3 * 1024 * 1024) {
@@ -3353,11 +3354,12 @@ function App() {
   const getUserAvatarElement = (sizeClass = "avatar-circle") => {
     const avatarVal = (user?.avatar || "").trim();
     const avatarUrl = user?.avatar_url || "";
-    if (avatarUrl && avatarUrl.startsWith("/me/avatar/")) {
+    const avatarSrc = resolveMediaUrl(avatarUrl, API_BASE);
+    if (avatarSrc) {
       return (
         <img
           className={sizeClass}
-          src={`${API_BASE}${avatarUrl}?username=${encodeURIComponent(user?.username || "")}`}
+          src={avatarSrc}
           alt="头像"
         />
       );
@@ -4008,6 +4010,7 @@ function App() {
         apiBase={API_BASE}
         setPage={setPage}
         onLogout={logout}
+        onProfileUpdate={handleProfileUpdate}
       />
     );
   }
@@ -4145,13 +4148,13 @@ function App() {
 
   if (page === "examProfile") {
     return (
-      <ExamProfile user={user} setPage={setPage} onLogout={logout} API_BASE={API_BASE} />
+      <ExamProfile user={user} setPage={setPage} onLogout={logout} API_BASE={API_BASE} onProfileUpdate={handleProfileUpdate} />
     );
   }
 
   if (page === "courseProfile") {
     return (
-      <CourseLearningProfile user={user} setPage={setPage} onLogout={logout} API_BASE={API_BASE} />
+      <CourseLearningProfile user={user} setPage={setPage} onLogout={logout} API_BASE={API_BASE} onProfileUpdate={handleProfileUpdate} />
     );
   }
 

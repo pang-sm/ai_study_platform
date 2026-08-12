@@ -19,6 +19,7 @@ class User(Base):
     avatar = Column(String(255), nullable=True)
     grade = Column(String(50), nullable=False, default="")
     major = Column(String(100), nullable=False, default="")
+    semester = Column(String(20), nullable=False, default="")
     onboarding_completed = Column(Boolean, nullable=False, default=False)
     learning_goals = Column(Text, nullable=True)
     onboarding_detail = Column(Text, nullable=True)

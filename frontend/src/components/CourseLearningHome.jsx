@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import "./CourseLearningHome.css";
 import { COURSE_DISPLAY_NAMES, normalizeCourseLearningName } from "../courseLearningCatalog.js";
+import { resolveMediaUrl } from "../utils/mediaUrl.js";
 
 const MODE_LABELS = {
   daily: "平日学习",
@@ -65,12 +66,12 @@ function formatRecentUpload(materials) {
 
 function UserCard({ user, apiBase, onProfile, planLabel }) {
   const name = user?.nickname || user?.username || "同学";
-  const hasAvatar = (user?.avatar_url || "").startsWith("/me/avatar/");
+  const avatarSrc = resolveMediaUrl(user?.avatar_url, apiBase);
 
   return (
     <button className="clh-user-card" type="button" aria-label="个人信息" onClick={onProfile}>
-      {hasAvatar ? (
-        <img className="clh-user-avatar" src={`${apiBase}${user.avatar_url}?username=${encodeURIComponent(user?.username || "")}`} alt="头像" />
+      {avatarSrc ? (
+        <img className="clh-user-avatar" src={avatarSrc} alt="头像" />
       ) : (
         <span className="clh-user-avatar clh-user-avatar--text">{name.charAt(0).toUpperCase()}</span>
       )}

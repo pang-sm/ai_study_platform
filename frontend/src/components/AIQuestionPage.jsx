@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import ChatMessage from "./ChatMessage.jsx";
 import MarkdownMessage from "./MarkdownMessage.jsx";
 import GlobalSearchBox from "./GlobalSearchBox.jsx";
+import { resolveMediaUrl } from "../utils/mediaUrl.js";
 import "./AIQuestionPage.css";
 
 const RECOMMENDATION_POOL = [
@@ -146,7 +147,7 @@ export default function AIQuestionPage({
   const avatarObj = Array.isArray(AVATARS)
     ? (AVATARS.find((a) => a.id === (user?.avatar || "")) || AVATARS[0])
     : { background: "#2563eb" };
-  const hasCustomAvatar = (user?.avatar_url || "").startsWith("/me/avatar/");
+  const avatarSrc = resolveMediaUrl(user?.avatar_url, apiBase);
 
   function handleGlobalSearch(query, resultItem) {
     if (resultItem) {
@@ -333,10 +334,10 @@ export default function AIQuestionPage({
             onClick={() => setPage(profilePage)}
             title="个人主页"
           >
-            {hasCustomAvatar && user ? (
+            {avatarSrc && user ? (
               <img
                 className="aiqp-topbar-avatar"
-                src={`${apiBase}${user.avatar_url}?username=${encodeURIComponent(user.username || "")}`}
+                src={avatarSrc}
                 alt="头像"
               />
             ) : (
