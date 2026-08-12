@@ -1014,6 +1014,70 @@ def _link_material_to_course_exam_scope(db: Session, user: models.User, course_i
     upsert_user_track(db, user.id, "university_course", plan=existing_plan, package_type=existing_package, onboarding_detail=detail)
 
 
+def _course_learning_scope_seed_course_id(course_id: str) -> str:
+    """Resolve the stable map key used by the Course Learning knowledge UI."""
+    raw = normalize_course_learning_key(course_id)
+    display_name = normalize_subject_course_learning(raw) or raw
+    return resolve_course_id_from_display(display_name) or raw
+
+
+def _materialize_course_learning_scope_points(db: Session, username: str, course_id: str) -> list[models.KnowledgePoint]:
+    """Expose the standard course map as persistent, user-owned scope nodes.
+
+    The Course Learning map is file-backed, while Exam Scope intentionally
+    persists database knowledge-point IDs. Materialize only when the Scope
+    picker is opened, using deterministic node keys so repeated opens do not
+    duplicate records and parent selection can expand to persisted leaf IDs.
+    """
+    seed_course_id = _course_learning_scope_seed_course_id(course_id)
+    seed_path = _knowledge_map_seed_path(seed_course_id)
+    if not seed_path.exists():
+        return []
+    try:
+        chapters = _clean_knowledge_map_titles(json.loads(seed_path.read_text(encoding="utf-8")).get("chapters") or [])
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail="knowledge map data is invalid")
+
+    existing = {
+        point.node_key: point
+        for point in db.query(models.KnowledgePoint).filter(
+            models.KnowledgePoint.username == username,
+            models.KnowledgePoint.course_id == seed_course_id,
+            models.KnowledgePoint.node_key.like("course-map:%"),
+        ).all()
+        if point.node_key
+    }
+
+    def ensure_nodes(nodes: list[dict], parent_id: int | None = None, level: int = 0, prefix: str = "") -> None:
+        for index, node in enumerate(nodes, start=1):
+            path = f"{prefix}.{index}" if prefix else str(index)
+            node_key = f"course-map:{path}"
+            point = existing.get(node_key)
+            if not point:
+                point = models.KnowledgePoint(
+                    username=username,
+                    course_id=seed_course_id,
+                    parent_id=parent_id,
+                    title=str(node.get("title") or node.get("name") or "未命名知识点").strip()[:255],
+                    description=str(node.get("description") or "").strip(),
+                    order_index=index - 1,
+                    level=level,
+                    node_key=node_key,
+                )
+                db.add(point)
+                db.flush()
+                existing[node_key] = point
+            ensure_nodes(node.get("children") or [], point.id, level + 1, path)
+
+    ensure_nodes(chapters)
+    db.commit()
+    return db.query(models.KnowledgePoint).filter(
+        models.KnowledgePoint.username == username,
+        models.KnowledgePoint.course_id == seed_course_id,
+        models.KnowledgePoint.node_key.like("course-map:%"),
+    ).order_by(models.KnowledgePoint.order_index.asc(), models.KnowledgePoint.id.asc()).all()
+
+
 def course_learning_urgency_rank(due_dt: datetime | None, mode: str, exam_dt: datetime | None = None) -> tuple[int, str]:
     now = utc_now()
     today = now.date()
@@ -6346,6 +6410,20 @@ def get_course_learning_exam_scope(
         raise HTTPException(status_code=400, detail="course_id is required")
     track = get_user_track(db, current_user.id, "university_course")
     return {"scope": _serialize_course_exam_scope(db, current_user.username, _parse_track_onboarding_detail(track), course_key)}
+
+
+@app.get("/course-learning/exam-scope/knowledge-points")
+def list_course_learning_exam_scope_knowledge_points(
+    course_id: str = "",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Return the persisted ID tree used by the Course Learning Scope picker."""
+    course_key = normalize_course_learning_key(course_id)
+    if not course_key:
+        raise HTTPException(status_code=400, detail="course_id is required")
+    points = _materialize_course_learning_scope_points(db, current_user.username, course_key)
+    return {"knowledge_points": [serialize_knowledge_point(point) for point in points]}
 
 
 @app.put("/course-learning/exam-scope")

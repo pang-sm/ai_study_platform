@@ -113,3 +113,25 @@ def test_exam_scope_endpoint_persists_sources_isolates_and_injects_ai_context(cl
         assert isolated.json()["scope"]["manual_text"] == ""
     finally:
         other.close()
+
+
+def test_exam_scope_picker_materializes_standard_course_map_with_leaf_ids(client: TestClient):
+    register_and_login(client, "exam-scope-map-user")
+
+    picker = client.get("/course-learning/exam-scope/knowledge-points?course_id=discrete_math")
+    assert picker.status_code == 200, picker.text
+    points = picker.json()["knowledge_points"]
+    assert points
+    assert all(point["course_id"] == "discrete_math" for point in points)
+
+    child_ids = {point["parent_id"] for point in points if point["parent_id"]}
+    parent = next(point for point in points if point["id"] in child_ids)
+    selected = client.put("/course-learning/exam-scope", json={
+        "course_id": "离散数学",
+        "knowledge_point_ids": [parent["id"]],
+    })
+    assert selected.status_code == 200, selected.text
+    scope = selected.json()["scope"]
+    assert scope["knowledge_point_ids"]
+    assert parent["id"] not in scope["knowledge_point_ids"]
+    assert set(scope["knowledge_point_ids"]).issubset({point["id"] for point in points if point["id"] not in child_ids})

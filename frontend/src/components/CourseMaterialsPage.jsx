@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { resolveCourseId } from "../courseLearningCatalog.js";
 import "./CourseMaterialsPage.css";
 
 const API_BASE = "/api";
@@ -528,7 +529,8 @@ export default function CourseMaterialsPage({
     setScopeKnowledgeLoading(true);
     setScopeError("");
     try {
-      const response = await fetch(`${API_BASE}/knowledge-points?course_id=${encodeURIComponent(subject)}`, { credentials: "include" });
+      const scopeCourseId = resolveCourseId(subject) || subject;
+      const response = await fetch(`${API_BASE}/course-learning/exam-scope/knowledge-points?course_id=${encodeURIComponent(scopeCourseId)}`, { credentials: "include" });
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || "无法读取知识脉络");
       setScopeKnowledgePoints(data.knowledge_points || []);
