@@ -45,6 +45,7 @@ const SharedReportPage = lazy(() => import("./components/SharedReportPage.jsx"))
 const SearchResultsPage = lazy(() => import("./components/SearchResultsPage.jsx"));
 import MarkdownMessage from "./components/MarkdownMessage.jsx";
 import { resolveMediaUrl } from "./utils/mediaUrl.js";
+import { AVATAR_FALLBACKS } from "./utils/avatarFallback.js";
 import {
   COURSE_OPTIONS,
   DEFAULT_SUBJECT,
@@ -80,14 +81,7 @@ function getMembershipDirectionLabel(serviceKey) {
   return "11408 考研";
 }
 
-const AVATARS = [
-  { id: "avatar_1", label: "A1", background: "#2563eb" },
-  { id: "avatar_2", label: "A2", background: "#059669" },
-  { id: "avatar_3", label: "A3", background: "#7c3aed" },
-  { id: "avatar_4", label: "A4", background: "#db2777" },
-  { id: "avatar_5", label: "A5", background: "#ea580c" },
-  { id: "avatar_6", label: "A6", background: "#0f766e" },
-];
+const AVATARS = AVATAR_FALLBACKS;
 
 const TARGET_LEVEL_OPTIONS = [
   "入门了解",

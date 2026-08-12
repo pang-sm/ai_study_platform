@@ -68,8 +68,7 @@
 
 .ph-brand svg,
 .ph-nav svg,
-.ph-card-title svg,
-.ph-profile-button svg {
+.ph-card-title svg {
   width: 25px;
   height: 25px;
   fill: none;
@@ -149,50 +148,12 @@
   padding: 24px 32px 30px;
 }
 
-.ph-profile-button {
+.ph-profile-trigger {
   position: absolute;
   top: 22px;
   right: 30px;
   z-index: 2;
-  min-width: 170px;
-  min-height: 58px;
-  padding: 8px 14px;
-  border: 1px solid #e2d8f7;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.86);
-  box-shadow: 0 14px 30px rgba(94, 70, 140, 0.1);
-  color: #34236b;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font: inherit;
-  cursor: pointer;
-}
-
-.ph-profile-button img,
-.ph-profile-button > span {
-  width: 38px;
-  height: 38px;
-  border-radius: 999px;
-}
-
-.ph-profile-button > span {
-  background: linear-gradient(135deg, #7c3aed, #5b21e6);
-  color: #fff;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 950;
-}
-
-.ph-profile-button strong {
-  font-size: 15px;
-  font-weight: 900;
-}
-
-.ph-profile-button svg {
-  width: 16px;
-  height: 16px;
+  max-width: min(220px, calc(100% - 60px));
 }
 
 .ph-hero {
@@ -919,7 +880,7 @@
     padding: 20px 16px 28px;
   }
 
-  .ph-profile-button {
+  .ph-profile-trigger {
     position: static;
     margin-left: auto;
     margin-bottom: 18px;

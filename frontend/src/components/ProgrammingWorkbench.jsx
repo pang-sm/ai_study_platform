@@ -7,6 +7,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import "./ProgrammingWorkbench.css";
 import { getExerciseDescription, getExerciseTitle } from "./programmingExerciseCopy.js";
+import ProgrammingProfileTrigger from "./ProgrammingProfileTrigger.jsx";
 
 const LANGUAGE_TABS = ["C", "C++", "Python", "Java"];
 const DEFAULT_FILE = { C: "main.c", "C++": "main.cpp", Python: "main.py", Java: "Main.java" };
@@ -662,6 +663,7 @@ export default function ProgrammingWorkbench({
   initialLanguageSelection = "",
   onProjectChanged,
   onOpenQuestions,
+  onOpenProfile,
   onGoHome,
 }) {
   const onboardingLanguage = normalizeLanguage(homeData?.onboarding?.main_language || user?.default_course_id || "");
@@ -2095,6 +2097,7 @@ export default function ProgrammingWorkbench({
             <span className="pw-save-chip">{saveState}</span>
             <button type="button" data-action="fullscreen" onClick={toggleFullscreen}>{isFullscreen || fullscreenFallback ? "退出全屏" : "全屏"}</button>
             <button type="button" className="pw-icon-button pw-more-button" data-action="top-more" onClick={openTopMenu} title="更多">...</button>
+            <ProgrammingProfileTrigger user={user} apiBase={apiBase} onClick={onOpenProfile} />
             </div>
           </div>
         </div>

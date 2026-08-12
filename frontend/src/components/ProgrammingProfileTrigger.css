@@ -1,0 +1,55 @@
+.programming-profile-trigger {
+  min-width: 0;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 14px 5px 5px;
+  border: 1px solid #e2d8f7;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 12px 30px rgba(95, 73, 140, 0.1);
+  color: #52607f;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, color 160ms ease;
+}
+
+.programming-profile-trigger:hover {
+  border-color: #cbb7f4;
+  background: #f7f3ff;
+  box-shadow: 0 14px 28px rgba(91, 33, 230, 0.14);
+  color: #5b21e6;
+}
+
+.programming-profile-trigger:focus-visible {
+  outline: 3px solid rgba(124, 58, 237, 0.28);
+  outline-offset: 2px;
+}
+
+.programming-profile-trigger img,
+.programming-profile-trigger__fallback {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.programming-profile-trigger__fallback {
+  color: #fff;
+  font-weight: 950;
+}
+
+.programming-profile-trigger strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 800;
+}

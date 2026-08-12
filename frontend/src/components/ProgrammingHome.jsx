@@ -3,7 +3,7 @@ import "./ProgrammingHome.css";
 import ProgrammingWorkbench from "./ProgrammingWorkbench.jsx";
 import KnowledgeLearningPage from "./KnowledgeLearningPage.jsx";
 import { getExerciseDescription, getExerciseTitle } from "./programmingExerciseCopy.js";
-import { resolveMediaUrl } from "../utils/mediaUrl.js";
+import ProgrammingProfileTrigger from "./ProgrammingProfileTrigger.jsx";
 
 const NAV_ITEMS = [
   { key: "home", label: "首页", icon: "home" },
@@ -42,22 +42,6 @@ function safeJson(res) {
 
 function formatAiQuota(remaining, limit) {
   return Number(limit) >= 999999 ? "无限" : `${remaining ?? 0} / ${limit ?? 0} 次`;
-}
-
-function ProfileButton({ user, apiBase, onClick }) {
-  const name = user?.nickname || user?.username || "同学";
-  const avatarUrl = user?.avatar_url || "";
-  return (
-    <button type="button" className="ph-profile-button" onClick={onClick}>
-      {resolveMediaUrl(avatarUrl, apiBase) ? (
-        <img src={resolveMediaUrl(avatarUrl, apiBase)} alt="头像" />
-      ) : (
-        <span>{name.charAt(0).toUpperCase()}</span>
-      )}
-      <strong>个人资料</strong>
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5" /></svg>
-    </button>
-  );
 }
 
 function ExerciseLibrary({ user, apiBase, onStart }) {
@@ -235,6 +219,7 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
           initialExerciseId={workbenchExerciseId}
           onProjectChanged={loadHomeData}
           onOpenQuestions={() => setActiveNav("questions")}
+          onOpenProfile={() => setPage?.("programmingProfile")}
           setPage={setPage}
           onGoHome={() => {
             loadHomeData();
@@ -323,7 +308,12 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
 
       <main className="ph-main">
         {activeNav !== "workbench" && (
-          <ProfileButton user={user} apiBase={apiBase} onClick={() => setPage?.("programmingProfile")} />
+          <ProgrammingProfileTrigger
+            user={user}
+            apiBase={apiBase}
+            className="ph-profile-trigger"
+            onClick={() => setPage?.("programmingProfile")}
+          />
         )}
 
         {activeNav !== "home" ? navContent : (

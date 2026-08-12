@@ -22,12 +22,12 @@
   border: 1px solid #dcd7e8;
   background: #fff;
   display: grid;
-  grid-template-rows: 42px minmax(0, 1fr) auto 24px;
+  grid-template-rows: 58px minmax(0, 1fr) auto 24px;
   overflow: hidden;
 }
 
 .pw-topbar {
-  min-height: 42px;
+  min-height: 58px;
   border-bottom: 1px solid #ded9e8;
   background: #fff;
   display: flex;
@@ -134,7 +134,7 @@
 
 .pw-icon-button,
 .pw-toolbar-group button,
-.pw-top-actions button,
+.pw-top-actions > button:not(.programming-profile-trigger),
 .pw-project-tools button,
 .pw-bottom-tools button {
   height: 28px;
@@ -236,9 +236,22 @@
   white-space: nowrap;
 }
 
-.pw-top-actions button {
+.pw-top-actions > button:not(.programming-profile-trigger) {
   padding: 0 8px;
   min-width: auto;
+}
+
+.pw-top-actions .programming-profile-trigger {
+  height: 44px;
+  flex: 0 1 190px;
+  max-width: 190px;
+  margin-left: 2px;
+}
+
+@media (max-width: 1180px) {
+  .pw-top-actions .programming-profile-trigger {
+    max-width: 132px;
+  }
 }
 
 .pw-more-button {
