@@ -1523,6 +1523,8 @@ def avatar_url_for_user(user: models.User) -> str | None:
         return avatar_value
     if avatar_value.startswith("/me/avatar/"):
         return f"/api{avatar_value}"
+    if is_uploaded_avatar_filename(avatar_value) and not (AVATAR_UPLOAD_ROOT / avatar_value).is_file():
+        return None
     return f"/api/me/avatar/{avatar_value}"
 
 

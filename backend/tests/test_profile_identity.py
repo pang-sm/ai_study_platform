@@ -4,6 +4,7 @@ from PIL import Image
 from fastapi.testclient import TestClient
 
 from conftest import register_and_login
+import models
 
 
 def _png_bytes():
@@ -70,3 +71,13 @@ def test_avatar_upload_validates_content_and_me_returns_canonical_url(client):
         files={"file": ("avatar.png", b"x" * (3 * 1024 * 1024 + 1), "image/png")},
     )
     assert oversized.status_code == 400
+
+
+def test_me_omits_stale_uploaded_avatar_link(client, db_session):
+    user = register_and_login(client, "stale-avatar-owner")
+    record = db_session.query(models.User).filter(models.User.username == user["username"]).one()
+    record.avatar = "missing-avatar.png"
+    db_session.commit()
+    profile = client.post("/me", json={}).json()["user"]
+    assert profile["avatar"] == "missing-avatar.png"
+    assert profile["avatar_url"] is None
