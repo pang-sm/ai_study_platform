@@ -49,7 +49,7 @@ jobs:
           HOST_CLEAN="${TENCENT_HOST#*@}"
           HOST_CLEAN="${HOST_CLEAN%%:*}"
           HOST_CLEAN="${HOST_CLEAN%%/*}"
-          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/tencent_deploy_key" -p "${SSH_PORT:-22}" "$TENCENT_USER@$HOST_CLEAN" 'bash -se' <<'REMOTE'
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=20 -i "$HOME/.ssh/tencent_deploy_key" -p "${SSH_PORT:-22}" "$TENCENT_USER@$HOST_CLEAN" 'bash -se' <<'REMOTE'
           set -euo pipefail
           CERTBOT_BIN=""
           for candidate in /opt/ai-study-platform-certbot/bin/certbot /usr/bin/certbot /usr/local/bin/certbot; do
