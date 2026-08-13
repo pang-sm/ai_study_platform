@@ -376,6 +376,12 @@ class ProgrammingOnboardingRequest(BaseModel):
     onboarding_completed: bool = False
 
 
+class FirstTimeGuideCompleteRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    skipped: bool = False
+
+
 class CourseLearningExamSettingsRequest(BaseModel):
     username: str
     course_id: str
@@ -775,6 +781,38 @@ def _parse_track_onboarding_detail(track) -> dict:
         return detail if isinstance(detail, dict) else {}
     except (json.JSONDecodeError, TypeError):
         return {}
+
+
+FIRST_TIME_GUIDE_TRACKS = {
+    "course_learning": "university_course",
+    "exam_11408": "exam_408",
+    "programming": "programming",
+}
+
+
+def _first_time_guide_eligible(user: models.User, service_key: str, track: models.UserLearningTrack | None) -> bool:
+    """A guide is available only after its direction has really finished onboarding."""
+    if not track:
+        return False
+    detail = _parse_track_onboarding_detail(track)
+    if service_key == "course_learning":
+        return bool(detail.get("course_learning_onboarding_completed"))
+    if service_key == "programming":
+        return bool(detail.get("programming_onboarding_completed"))
+    return bool(user.onboarding_completed)
+
+
+def _first_time_guide_status(user: models.User, service_key: str, track: models.UserLearningTrack | None) -> dict:
+    detail = _parse_track_onboarding_detail(track)
+    guide = detail.get("first_time_guide") if isinstance(detail.get("first_time_guide"), dict) else {}
+    completed = bool(guide.get("completed"))
+    return {
+        "service_key": service_key,
+        "eligible": _first_time_guide_eligible(user, service_key, track),
+        "completed": completed,
+        "skipped": bool(guide.get("skipped")) if completed else False,
+        "completed_at": guide.get("completed_at") if completed else None,
+    }
 
 
 # ── 11408 School Whitelist ──
@@ -5488,6 +5526,59 @@ def get_my_tracks(username: str = "", db: Session = Depends(get_db), current_use
     tracks = [serialize_track(t) for t in get_user_tracks(db, user.id)]
     active = next((t["track_type"] for t in tracks if t["is_active"]), tracks[0]["track_type"] if tracks else None)
     return {"tracks": tracks, "active_track_type": active}
+
+
+@app.get("/me/guides")
+def get_my_first_time_guides(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Return server-persisted first-time guide state for every learning direction."""
+    user = current_user
+    ensure_exam_408_track(db, user)
+    guides = {}
+    for service_key, track_type in FIRST_TIME_GUIDE_TRACKS.items():
+        guides[service_key] = _first_time_guide_status(
+            user,
+            service_key,
+            get_user_track(db, user.id, track_type),
+        )
+    return {"guides": guides}
+
+
+@app.post("/me/guides/{service_key}/complete")
+def complete_my_first_time_guide(
+    service_key: str,
+    req: FirstTimeGuideCompleteRequest | None = None,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Persist a complete/skip action without altering track, onboarding, or membership state."""
+    track_type = FIRST_TIME_GUIDE_TRACKS.get(service_key)
+    if not track_type:
+        raise HTTPException(status_code=404, detail="unknown first-time guide service")
+
+    user = current_user
+    ensure_exam_408_track(db, user)
+    track = get_user_track(db, user.id, track_type)
+    if not _first_time_guide_eligible(user, service_key, track):
+        raise HTTPException(status_code=403, detail="请先完成该学习方向的 onboarding")
+
+    detail = _parse_track_onboarding_detail(track)
+    existing = detail.get("first_time_guide") if isinstance(detail.get("first_time_guide"), dict) else {}
+    if not existing.get("completed"):
+        detail["first_time_guide"] = {
+            "completed": True,
+            "skipped": bool(req.skipped) if req else False,
+            "completed_at": serialize_datetime(utc_now()),
+        }
+        track.onboarding_detail_json = json.dumps(detail, ensure_ascii=False)
+        track.updated_at = utc_now()
+        db.commit()
+        db.refresh(track)
+
+    return {"guide": _first_time_guide_status(user, service_key, track)}
+
 
 @app.get("/me/profile")
 def get_profile(username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):

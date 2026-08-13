@@ -26,7 +26,7 @@ function formatAiQuota(remaining, limit) {
   return Number(limit) >= 999999 ? "无限" : `${remaining ?? 0} / ${limit ?? 0}`;
 }
 
-export default function ProgrammingProfile({ user, apiBase = "/api", setPage, onLogout, onProfileUpdate }) {
+export default function ProgrammingProfile({ user, apiBase = "/api", setPage, onLogout, onProfileUpdate, onReplayGuide }) {
   const [homeData, setHomeData] = useState(null);
   const [entitlements, setEntitlements] = useState(null);
   const [servicePlans, setServicePlans] = useState(() => user?.service_plans || {});
@@ -357,6 +357,14 @@ export default function ProgrammingProfile({ user, apiBase = "/api", setPage, on
                 <span className="ep-quota-sub">{item.sub}</span>
               </div>
             ))}
+          </div>
+        </div>
+
+        <div className="ep-card">
+          <div className="ep-card-head"><h2>帮助与引导</h2></div>
+          <div className="ep-sec-item">
+            <div><strong>新手引导</strong><p>重新查看编程学习方向的功能介绍，不会重置首次自动展示状态。</p></div>
+            <button type="button" className="ep-outline-btn" onClick={onReplayGuide}>重新查看</button>
           </div>
         </div>
 

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import "./CourseLearningHome.css";
 import { COURSE_DISPLAY_NAMES, normalizeCourseLearningName } from "../courseLearningCatalog.js";
 import { resolveMediaUrl } from "../utils/mediaUrl.js";
+import FirstTimeGuideLauncher from "./FirstTimeGuideLauncher.jsx";
 
 const MODE_LABELS = {
   daily: "平日学习",
@@ -15,6 +16,14 @@ const COURSE_THEMES = [
   { icon: "CN", tone: "cyan" },
   { icon: "DB", tone: "orange" },
   { icon: "AI", tone: "violet" },
+];
+
+const COURSE_GUIDE_STEPS = [
+  { selector: '[data-tour="course-courses"]', title: "从课程开始", description: "选择一门已加入课程，进入对应的知识脉络、练习、资料库和 AI 问答。" },
+  { selector: '[data-tour="course-add"]', title: "添加课程", description: "需要学习新课程时，可在这里按当前方向正常添加，不会影响已有课程数据。" },
+  { selector: '[data-tour="course-plan"]', title: "今日学习计划", description: "这里汇总各课程的真实学习任务，并按紧急程度展示。" },
+  { selector: '[data-tour="course-materials"]', title: "资料库与考试范围", description: "上传的资料和考试范围会按课程保存，供学习和 AI 辅助时使用。" },
+  { selector: '[data-tour="course-profile"]', title: "个人中心", description: "可在个人中心查看资料、会员和套餐权限；锁定能力仍会保持锁定状态。" },
 ];
 
 function uniqueValues(values) {
@@ -91,6 +100,7 @@ export default function CourseLearningHome({
   setPage,
   materials = [],
   loadMaterials,
+  guideReplayToken = 0,
 }) {
   const [onboarding, setOnboarding] = useState(null);
   const [courses, setCourses] = useState([]);
@@ -356,10 +366,10 @@ export default function CourseLearningHome({
             <h1>课程学习首页</h1>
             <p>按课程整理资料、计划和学习入口，今天先做最重要的一项。</p>
           </div>
-          <UserCard user={user} apiBase={apiBase} planLabel={entitlements?.plan_label || "免费模式"} onProfile={() => setPage?.("courseProfile")} />
+          <span data-tour="course-profile"><UserCard user={user} apiBase={apiBase} planLabel={entitlements?.plan_label || "免费模式"} onProfile={() => setPage?.("courseProfile")} /></span>
         </header>
 
-        <section className="clh-card clh-courses-card">
+        <section className="clh-card clh-courses-card" data-tour="course-courses">
           <div className="clh-section-title">
             <h2>我的课程</h2>
             <span />
@@ -391,7 +401,7 @@ export default function CourseLearningHome({
                 <button className="clh-course-settings" type="button" onClick={(event) => openSettings(event, course)}>设置</button>
               </article>
             ))}
-            <button className="clh-add-course" type="button" onClick={openAddModal}>
+            <button className="clh-add-course" type="button" onClick={openAddModal} data-tour="course-add">
               <span>+</span>
               <strong>添加课程</strong>
             </button>
@@ -399,7 +409,7 @@ export default function CourseLearningHome({
         </section>
 
         <div className="clh-main-grid">
-          <section className="clh-card clh-plan-card">
+          <section className="clh-card clh-plan-card" data-tour="course-plan">
             <div className="clh-panel-heading">
               <span className="clh-panel-icon clh-panel-icon--calendar">日</span>
               <h2>今日计划</h2>
@@ -434,7 +444,7 @@ export default function CourseLearningHome({
             </div>
           </section>
 
-          <section className="clh-card clh-material-card">
+          <section className="clh-card clh-material-card" data-tour="course-materials">
             <div className="clh-panel-heading">
               <span className="clh-panel-icon clh-panel-icon--folder">库</span>
               <h2>资料库概览</h2>
@@ -543,6 +553,14 @@ export default function CourseLearningHome({
           </section>
         </div>
       )}
+      <FirstTimeGuideLauncher
+        serviceKey="course_learning"
+        serviceLabel="课程学习"
+        steps={COURSE_GUIDE_STEPS}
+        apiBase={apiBase}
+        ready={Boolean(onboarding) && !coursesLoading}
+        replayToken={guideReplayToken}
+      />
     </div>
   );
 }

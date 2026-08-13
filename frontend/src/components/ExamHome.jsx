@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import FirstTimeGuideLauncher from "./FirstTimeGuideLauncher.jsx";
 
 function calcDaysUntil(examTimeStr) {
   if (!examTimeStr || examTimeStr === "暂不确定") return null;
@@ -19,7 +20,15 @@ const SUBJECTS = [
   { key: "computer_network", name: "计算机网络", icon: "🌐" },
 ];
 
-export default function ExamHome({ user, setPage, subject, setSubject, apiBase, onLogout }) {
+const EXAM_GUIDE_STEPS = [
+  { selector: '[data-tour="exam-subjects"]', title: "四科入口", description: "从数据结构、组成原理、操作系统和计算机网络进入真实的 11408 学科工作台。" },
+  { selector: '[data-tour="exam-progress"]', title: "学习进度", description: "这里展示四科的真实学习进度和章节完成情况。" },
+  { selector: '[data-tour="exam-tasks"]', title: "练习与计划", description: "当前学习任务会汇总章节学习、练习和复盘等真实任务。" },
+  { selector: '[data-tour="exam-profile"]', title: "个人资料与套餐", description: "在个人中心维护备考资料，并查看当前会员套餐权益。" },
+  { selector: '[data-tour="exam-footer"]', title: "开始备考", description: "选择一个科目即可进入知识脉络、资料库、练习、真题和 AI 问答。" },
+];
+
+export default function ExamHome({ user, setPage, subject, setSubject, apiBase, onLogout, guideReplayToken = 0 }) {
   const [daysLeft, setDaysLeft] = useState(null);
   const [targetSchool, setTargetSchool] = useState("");
   const [examStage, setExamStage] = useState("");
@@ -204,7 +213,7 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
           </div>
         </div>
         <div className="eh-hero-right">
-          <div className="eh-user-card" onClick={() => setPage && setPage("examProfile")} style={{ cursor: "pointer" }}>
+          <div className="eh-user-card" data-tour="exam-profile" onClick={() => setPage && setPage("examProfile")} style={{ cursor: "pointer" }}>
             <span className="eh-user-avatar">{displayName.charAt(0)}</span>
             <div>
               <strong>{displayName}</strong>
@@ -218,7 +227,7 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
 
       {/* ── Middle row: Progress + Subjects ── */}
       <div className="eh-middle">
-        <div className="eh-card eh-progress-card">
+        <div className="eh-card eh-progress-card" data-tour="exam-progress">
           <h3 className="eh-card-title">📈 学习进度总览</h3>
           <div className="eh-progress-list">
             {SUBJECTS.map((s) => {
@@ -245,7 +254,7 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
           </div>
         </div>
 
-        <div className="eh-card eh-subjects-card">
+        <div className="eh-card eh-subjects-card" data-tour="exam-subjects">
           <h3 className="eh-card-title">📚 科目入口</h3>
           <div className="eh-subjects-grid">
             {SUBJECTS.map((s) => (
@@ -261,7 +270,7 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
 
       {/* ── Bottom row: Current Stage Tasks ── */}
       <div className="eh-bottom">
-        <div className="eh-card eh-plan-card">
+        <div className="eh-card eh-plan-card" data-tour="exam-tasks">
           <h3 className="eh-card-title">📋 当前学习任务</h3>
           {taskSummary?.tasks && taskSummary.tasks.length > 0 ? (
             <div className="eh-task-cards">
@@ -310,9 +319,10 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
       </div>
 
       {/* ── Bottom bar ── */}
-      <div className="eh-bottom-bar">
+      <div className="eh-bottom-bar" data-tour="exam-footer">
         <span>✨ 坚持每天学习一点点，11408 上岸近一步！ ✨</span>
       </div>
+      <FirstTimeGuideLauncher serviceKey="exam_11408" serviceLabel="11408 备考" steps={EXAM_GUIDE_STEPS} apiBase={apiBase} ready={Boolean(user?.username)} replayToken={guideReplayToken} />
     </div>
   );
 }

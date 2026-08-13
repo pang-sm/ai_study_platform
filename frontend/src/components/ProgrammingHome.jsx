@@ -4,6 +4,7 @@ import ProgrammingWorkbench from "./ProgrammingWorkbench.jsx";
 import KnowledgeLearningPage from "./KnowledgeLearningPage.jsx";
 import { getExerciseDescription, getExerciseTitle } from "./programmingExerciseCopy.js";
 import ProgrammingProfileTrigger from "./ProgrammingProfileTrigger.jsx";
+import FirstTimeGuideLauncher from "./FirstTimeGuideLauncher.jsx";
 
 const NAV_ITEMS = [
   { key: "home", label: "首页", icon: "home" },
@@ -14,6 +15,14 @@ const NAV_ITEMS = [
 
 const PROGRAMMING_NAV_KEY = "ai_study_programming_active_nav";
 const CURRENT_PRACTICE_KEY = "ai_study_programming_current_practice";
+
+const PROGRAMMING_GUIDE_STEPS = [
+  { selector: '[data-tour="programming-overview"]', title: "今日学习概览", description: "在首页查看连续学习天数和今日 AI 使用额度，开始当天的真实练习。" },
+  { selector: '[data-tour="programming-questions"]', title: "编程题库", description: "按语言、难度选择真实编程题，不会再出现已清理的今日假任务。" },
+  { selector: '[data-tour="programming-workbench"]', title: "编程工作台", description: "在 Workbench 中编写、运行和提交代码；引导不会自动打开题目。" },
+  { selector: '[data-tour="programming-knowledge"]', title: "知识点学习", description: "遇到薄弱知识点时，在这里进入对应语言的学习脉络。" },
+  { selector: '[data-tour="programming-profile"]', title: "个人中心与会员", description: "在个人中心查看资料、会员与套餐权益；右上角 Profile 保持可点击且没有额外箭头。" },
+];
 
 function readCurrentPractice(username) {
   if (!username) return null;
@@ -140,7 +149,7 @@ function ExerciseLibrary({ user, apiBase, onStart }) {
   );
 }
 
-export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
+export default function ProgrammingHome({ user, apiBase = "/api", setPage, guideReplayToken = 0 }) {
   const savedPractice = readCurrentPractice(user?.username);
   const [activeNav, setActiveNav] = useState(() => {
     try {
@@ -287,6 +296,7 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
               key={item.key}
               className={activeNav === item.key ? "is-active" : ""}
               onClick={() => activateNav(item.key)}
+              data-tour={item.key === "questions" ? "programming-questions" : item.key === "workbench" ? "programming-workbench" : item.key === "status" ? "programming-knowledge" : undefined}
             >
               <Icon type={item.icon} />
               <span>{item.label}</span>
@@ -316,17 +326,17 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
 
       <main className="ph-main">
         {activeNav !== "workbench" && (
-          <ProgrammingProfileTrigger
+          <span data-tour="programming-profile"><ProgrammingProfileTrigger
             user={user}
             apiBase={apiBase}
             className="ph-profile-trigger"
             onClick={() => setPage?.("programmingProfile")}
-          />
+          /></span>
         )}
 
         {activeNav !== "home" ? navContent : (
           <>
-            <section className="ph-hero">
+            <section className="ph-hero" data-tour="programming-overview">
               <div className="ph-hero-copy">
                 <h1>你好，开始今天的<br />编程学习</h1>
                 <p>坚持每天进步一点点，编程能力持续提升。</p>
@@ -377,6 +387,7 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage }) {
 
         <p className="ph-footer">代码改变世界，学习成就未来</p>
       </main>
+      <FirstTimeGuideLauncher serviceKey="programming" serviceLabel="编程学习" steps={PROGRAMMING_GUIDE_STEPS} apiBase={apiBase} ready={Boolean(homeData)} replayToken={guideReplayToken} />
     </div>
   );
 }

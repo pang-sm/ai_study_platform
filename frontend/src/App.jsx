@@ -589,6 +589,7 @@ function App() {
   const [examKnowledgeContext, setExamKnowledgeContext] = useState(null);
   const [courseSubjectContext, setCourseSubjectContext] = useState(getInitialCourseContext);
   const [courseDashboardPanelIntent, setCourseDashboardPanelIntent] = useState(null);
+  const [guideReplay, setGuideReplay] = useState({ serviceKey: "", nonce: 0 });
   const [membershipCheckoutContext, setMembershipCheckoutContext] = useState(getInitialMembershipCheckoutContext);
   const [membershipPageContext, setMembershipPageContext] = useState(getInitialMembershipCheckoutContext);
 
@@ -3802,6 +3803,7 @@ function App() {
         user={user}
         courseOptions={COURSE_OPTIONS}
         getSubjectLabel={getSubjectLabel}
+        guideReplayToken={guideReplay.serviceKey === "course_learning" ? guideReplay.nonce : 0}
         normalizeSubject={normalizeSubject}
         formatDate={formatDate}
         setPage={setPage}
@@ -3993,6 +3995,7 @@ function App() {
         user={user}
         apiBase={API_BASE}
         setPage={setPage}
+        guideReplayToken={guideReplay.serviceKey === "programming" ? guideReplay.nonce : 0}
       />
     );
   }
@@ -4005,6 +4008,7 @@ function App() {
         setPage={setPage}
         onLogout={logout}
         onProfileUpdate={saveLoginUser}
+        onReplayGuide={() => { setGuideReplay({ serviceKey: "programming", nonce: Date.now() }); setPage("programmingHome"); }}
       />
     );
   }
@@ -4115,7 +4119,7 @@ function App() {
   if (page === "examHome") {
     return (
       <div className="onboarding-v2-page" style={{ alignItems: "flex-start", paddingTop: 32 }}>
-        <ExamHome user={user} setPage={setPage} subject={subject} setSubject={setSubject} apiBase={API_BASE} onLogout={logout} />
+        <ExamHome user={user} setPage={setPage} subject={subject} setSubject={setSubject} apiBase={API_BASE} onLogout={logout} guideReplayToken={guideReplay.serviceKey === "exam_11408" ? guideReplay.nonce : 0} />
       </div>
     );
   }
@@ -4142,13 +4146,13 @@ function App() {
 
   if (page === "examProfile") {
     return (
-      <ExamProfile user={user} setPage={setPage} onLogout={logout} API_BASE={API_BASE} onProfileUpdate={saveLoginUser} />
+      <ExamProfile user={user} setPage={setPage} onLogout={logout} API_BASE={API_BASE} onProfileUpdate={saveLoginUser} onReplayGuide={() => { setGuideReplay({ serviceKey: "exam_11408", nonce: Date.now() }); setPage("examHome"); }} />
     );
   }
 
   if (page === "courseProfile") {
     return (
-      <CourseLearningProfile user={user} setPage={setPage} onLogout={logout} API_BASE={API_BASE} onProfileUpdate={saveLoginUser} />
+      <CourseLearningProfile user={user} setPage={setPage} onLogout={logout} API_BASE={API_BASE} onProfileUpdate={saveLoginUser} onReplayGuide={() => { setGuideReplay({ serviceKey: "course_learning", nonce: Date.now() }); setPage("home"); }} />
     );
   }
 

@@ -29,7 +29,7 @@ function maskEmail(email) {
   return name.slice(0, 3) + "***" + domain;
 }
 
-export default function ExamProfile({ user, setPage, onLogout, API_BASE, onProfileUpdate }) {
+export default function ExamProfile({ user, setPage, onLogout, API_BASE, onProfileUpdate, onReplayGuide }) {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [actionMsg, setActionMsg] = useState("");
   const [actionErr, setActionErr] = useState("");
@@ -411,6 +411,14 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE, onProfi
                 <span className="ep-quota-sub">{q.sub}</span>
               </div>
             ))}
+          </div>
+        </div>
+
+        <div className="ep-card">
+          <div className="ep-card-head"><h2>帮助与引导</h2></div>
+          <div className="ep-sec-item">
+            <div><strong>新手引导</strong><p>重新查看 11408 方向的功能介绍，不会重置首次自动展示状态。</p></div>
+            <button type="button" className="ep-outline-btn" onClick={onReplayGuide}>重新查看</button>
           </div>
         </div>
 
