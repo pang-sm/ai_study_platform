@@ -74,6 +74,10 @@ function LegalDocumentPage({ documentType }) {
               </section>
             ))}
           </div>
+
+          <footer className="legal-footer">
+            <a className="legal-footer-link" href="/">返回登录 / 注册</a>
+          </footer>
         </article>
       </div>
     </main>

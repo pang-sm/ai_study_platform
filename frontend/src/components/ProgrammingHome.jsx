@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import "./ProgrammingHome.css";
 import ProgrammingWorkbench from "./ProgrammingWorkbench.jsx";
 import KnowledgeLearningPage from "./KnowledgeLearningPage.jsx";
@@ -55,31 +55,39 @@ function ExerciseLibrary({ user, apiBase, onStart }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const requestIdRef = useRef(0);
-  const load = useCallback(async () => {
-    const requestId = ++requestIdRef.current;
-    setLoading(true);
-    setError("");
-    try {
-      const query = new URLSearchParams({ language, page: String(page), page_size: String(pageSize) });
-      if (user?.username) query.set("username", user.username);
-      if (tag.trim()) query.set("tag", tag.trim());
-      if (statusFilter) query.set("status", statusFilter);
-      if (sourceFilter) query.set("source", sourceFilter);
-      const res = await fetch(`${apiBase}/programming/exercises?${query}`);
-      const data = await safeJson(res);
-      if (!res.ok) throw new Error(data.detail || "题库加载失败");
-      if (requestId !== requestIdRef.current) return;
-      setItems(data.exercises || []);
-      setPaging({ total: data.total || 0, total_pages: data.total_pages || 1 });
-    } catch (err) {
-      if (requestId !== requestIdRef.current) return;
-      setError(err.message || "题库加载失败");
-    } finally {
-      if (requestId === requestIdRef.current) setLoading(false);
-    }
-  }, [apiBase, language, tag, statusFilter, sourceFilter, page, pageSize, user?.username]);
-  useEffect(() => { load(); }, [load]);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const loadExercises = async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const query = new URLSearchParams({ language, page: String(page), page_size: String(pageSize) });
+        if (user?.username) query.set("username", user.username);
+        if (tag.trim()) query.set("tag", tag.trim());
+        if (statusFilter) query.set("status", statusFilter);
+        if (sourceFilter) query.set("source", sourceFilter);
+        const res = await fetch(`${apiBase}/programming/exercises?${query}`, { signal: controller.signal });
+        const data = await safeJson(res);
+        if (!res.ok) throw new Error(data.detail || "题库加载失败");
+        if (controller.signal.aborted) return;
+        const exercises = Array.isArray(data.exercises) && data.exercises.length
+          ? data.exercises
+          : Array.isArray(data.items)
+            ? data.items
+            : [];
+        setItems(exercises);
+        setPaging({ total: data.total || 0, total_pages: data.total_pages || 1 });
+      } catch (err) {
+        if (!controller.signal.aborted) setError(err.message || "题库加载失败");
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    };
+    void loadExercises();
+    return () => controller.abort();
+  }, [apiBase, language, tag, statusFilter, sourceFilter, page, pageSize, refreshKey, user?.username]);
   const start = async (exercise) => {
     setLoading(true);
     setError("");
@@ -102,10 +110,10 @@ function ExerciseLibrary({ user, apiBase, onStart }) {
     <section className="ph-exercise-panel">
       <div className="ph-library-head">
         <div><h2>编程题库</h2><p>包含标准输入输出原创 OJ 题与经典练习，做题后直接进入对应 Workbench。</p></div>
-        <button type="button" onClick={load} disabled={loading}>刷新</button>
+        <button type="button" onClick={() => setRefreshKey((value) => value + 1)} disabled={loading}>刷新</button>
       </div>
       <div className="ph-exercise-filters">
-        {['C', 'C++', 'Python', 'Java'].map((item) => <button key={item} type="button" className={language === item ? 'is-active' : ''} onClick={() => { requestIdRef.current += 1; setItems([]); setPage(1); setLanguage(item); }}>{item}</button>)}
+        {['C', 'C++', 'Python', 'Java'].map((item) => <button key={item} type="button" className={language === item ? 'is-active' : ''} onClick={() => { setPage(1); setLanguage(item); }}>{item}</button>)}
         <input value={tag} onChange={(event) => setTag(event.target.value)} placeholder="知识点标签" />
       </div>
       {error && <div className="ph-error">{error}</div>}

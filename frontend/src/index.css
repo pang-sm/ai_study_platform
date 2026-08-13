@@ -67,6 +67,20 @@ body {
   box-sizing: border-box;
 }
 
+html.public-legal-route,
+body.public-legal-route {
+  height: auto;
+  min-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+body.public-legal-route #root {
+  height: auto;
+  min-height: 100vh;
+  display: block;
+}
+
 h1,
 h2 {
   font-family: var(--heading);

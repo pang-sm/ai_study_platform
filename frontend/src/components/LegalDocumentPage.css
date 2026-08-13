@@ -32,6 +32,10 @@
 .legal-section p { color: #514b62; margin: 0 0 12px; font-size: 15px; line-height: 1.9; overflow-wrap: anywhere; }
 .legal-section p:last-child { margin-bottom: 0; }
 
+.legal-footer { border-top: 1px solid #eee9f8; margin-top: 34px; padding-top: 24px; }
+.legal-footer-link { color: #684fa5; font-size: 14px; font-weight: 700; text-decoration: none; }
+.legal-footer-link:hover, .legal-footer-link:focus-visible { color: #542db3; text-decoration: underline; outline: none; }
+
 @media (max-width: 720px) {
   .legal-page { padding: 18px 12px 36px; }
   .legal-header { padding: 0 2px 13px; }
