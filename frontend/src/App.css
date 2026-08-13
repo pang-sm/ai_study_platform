@@ -523,8 +523,14 @@ body {
   text-align: center;
 }
 
-.auth-policy-text span {
+.auth-policy-text a {
   color: #7c3aed;
+  text-decoration: none;
+}
+
+.auth-policy-text a:hover,
+.auth-policy-text a:focus-visible {
+  text-decoration: underline;
 }
 
 /* Admin dashboard */

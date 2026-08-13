@@ -3337,7 +3337,7 @@ function App() {
               </div>
             )}
 
-            <p className="auth-policy-text">{"\u767b\u5f55\u6216\u6ce8\u518c\u5373\u8868\u793a\u4f60\u540c\u610f "}<span>{"\u7528\u6237\u534f\u8bae"}</span>{" \u548c "}<span>{"\u9690\u79c1\u653f\u7b56"}</span></p>
+            <p className="auth-policy-text">{"\u767b\u5f55\u6216\u6ce8\u518c\u5373\u8868\u793a\u4f60\u540c\u610f "}<a href="/terms" target="_blank" rel="noopener noreferrer">{"\u7528\u6237\u534f\u8bae"}</a>{" \u548c "}<a href="/privacy" target="_blank" rel="noopener noreferrer">{"\u9690\u79c1\u653f\u7b56"}</a></p>
             </div>
         </div>
       </div>
