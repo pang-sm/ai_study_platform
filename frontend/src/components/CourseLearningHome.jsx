@@ -3,6 +3,7 @@ import "./CourseLearningHome.css";
 import { COURSE_DISPLAY_NAMES, normalizeCourseLearningName } from "../courseLearningCatalog.js";
 import { resolveMediaUrl } from "../utils/mediaUrl.js";
 import FirstTimeGuideLauncher from "./FirstTimeGuideLauncher.jsx";
+import { COURSE_GUIDE_STEPS } from "./firstTimeGuideFlows.js";
 
 const MODE_LABELS = {
   daily: "平日学习",
@@ -16,14 +17,6 @@ const COURSE_THEMES = [
   { icon: "CN", tone: "cyan" },
   { icon: "DB", tone: "orange" },
   { icon: "AI", tone: "violet" },
-];
-
-const COURSE_GUIDE_STEPS = [
-  { selector: '[data-tour="course-courses"]', title: "从课程开始", description: "选择一门已加入课程，进入对应的知识脉络、练习、资料库和 AI 问答。" },
-  { selector: '[data-tour="course-add"]', title: "添加课程", description: "需要学习新课程时，可在这里按当前方向正常添加，不会影响已有课程数据。" },
-  { selector: '[data-tour="course-plan"]', title: "今日学习计划", description: "这里汇总各课程的真实学习任务，并按紧急程度展示。" },
-  { selector: '[data-tour="course-materials"]', title: "资料库与考试范围", description: "上传的资料和考试范围会按课程保存，供学习和 AI 辅助时使用。" },
-  { selector: '[data-tour="course-profile"]', title: "个人中心", description: "可在个人中心查看资料、会员和套餐权限；锁定能力仍会保持锁定状态。" },
 ];
 
 function uniqueValues(values) {
@@ -560,6 +553,9 @@ export default function CourseLearningHome({
         apiBase={apiBase}
         ready={Boolean(onboarding) && !coursesLoading}
         replayToken={guideReplayToken}
+        onStepChange={(index, _step, direction) => {
+          if (index === 1 && direction === "next" && courseCards[0]) openCourse(courseCards[0], courseCards[0].primaryMode);
+        }}
       />
     </div>
   );

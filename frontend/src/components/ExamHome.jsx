@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import FirstTimeGuideLauncher from "./FirstTimeGuideLauncher.jsx";
+import { EXAM_GUIDE_STEPS } from "./firstTimeGuideFlows.js";
 
 function calcDaysUntil(examTimeStr) {
   if (!examTimeStr || examTimeStr === "暂不确定") return null;
@@ -18,14 +19,6 @@ const SUBJECTS = [
   { key: "computer_organization", name: "计算机组成原理", icon: "💻" },
   { key: "operating_system", name: "操作系统", icon: "⚙️" },
   { key: "computer_network", name: "计算机网络", icon: "🌐" },
-];
-
-const EXAM_GUIDE_STEPS = [
-  { selector: '[data-tour="exam-subjects"]', title: "四科入口", description: "从数据结构、组成原理、操作系统和计算机网络进入真实的 11408 学科工作台。" },
-  { selector: '[data-tour="exam-progress"]', title: "学习进度", description: "这里展示四科的真实学习进度和章节完成情况。" },
-  { selector: '[data-tour="exam-tasks"]', title: "练习与计划", description: "当前学习任务会汇总章节学习、练习和复盘等真实任务。" },
-  { selector: '[data-tour="exam-profile"]', title: "个人资料与套餐", description: "在个人中心维护备考资料，并查看当前会员套餐权益。" },
-  { selector: '[data-tour="exam-footer"]', title: "开始备考", description: "选择一个科目即可进入知识脉络、资料库、练习、真题和 AI 问答。" },
 ];
 
 export default function ExamHome({ user, setPage, subject, setSubject, apiBase, onLogout, guideReplayToken = 0 }) {
@@ -322,7 +315,9 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
       <div className="eh-bottom-bar" data-tour="exam-footer">
         <span>✨ 坚持每天学习一点点，11408 上岸近一步！ ✨</span>
       </div>
-      <FirstTimeGuideLauncher serviceKey="exam_11408" serviceLabel="11408 备考" steps={EXAM_GUIDE_STEPS} apiBase={apiBase} ready={Boolean(user?.username)} replayToken={guideReplayToken} />
+      <FirstTimeGuideLauncher serviceKey="exam_11408" serviceLabel="11408 备考" steps={EXAM_GUIDE_STEPS} apiBase={apiBase} ready={Boolean(user?.username)} replayToken={guideReplayToken} onStepChange={(index, _step, direction) => {
+        if (index === 1 && direction === "next") enterSubject(SUBJECTS[0].key);
+      }} />
     </div>
   );
 }

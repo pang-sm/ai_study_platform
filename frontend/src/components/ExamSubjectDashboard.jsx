@@ -3,6 +3,8 @@ import ExamChat from "./ExamChat.jsx";
 import ExamStudyPlan from "./ExamStudyPlan.jsx";
 import useFeatureEntitlements from "../hooks/useFeatureEntitlements.js";
 import LockedFeaturePrompt, { LockedFeatureView } from "./LockedFeaturePrompt.jsx";
+import FirstTimeGuideLauncher from "./FirstTimeGuideLauncher.jsx";
+import { EXAM_GUIDE_STEPS } from "./firstTimeGuideFlows.js";
 const LearningReportCenter = lazy(() => import("./LearningReportCenter.jsx"));
 const ReviewCenter = lazy(() => import("./ReviewCenter.jsx"));
 
@@ -190,6 +192,7 @@ export default function ExamSubjectDashboard({
           {NAV_ITEMS.map((item) => (
             <button
               key={item.key} type="button"
+              data-tour={`exam-nav-${item.key}`}
               className={`exam-subject-nav-item${item.key === activeSection ? " active" : ""}${FEATURE_BY_PANEL[item.key] && !featureEntitlements.loading && !featureEntitlements.features[FEATURE_BY_PANEL[item.key]]?.allowed ? " is-locked" : ""}`}
               onClick={() => navigate(item.key)}
               title={FEATURE_BY_PANEL[item.key] && !featureEntitlements.loading && !featureEntitlements.features[FEATURE_BY_PANEL[item.key]]?.allowed ? "需要升级套餐后使用" : undefined}
@@ -334,6 +337,15 @@ export default function ExamSubjectDashboard({
         )}
       </main>
       <LockedFeaturePrompt entitlement={lockedFeature} onClose={() => setLockedFeature(null)} onViewMembership={openMembership} />
+      <FirstTimeGuideLauncher
+        serviceKey="exam_11408"
+        serviceLabel="11408 备考"
+        steps={EXAM_GUIDE_STEPS}
+        ready={false}
+        onStepChange={(index, _step, direction) => {
+          if (index === 0 && direction === "previous") onBackHome?.();
+        }}
+      />
     </div>
   );
 }

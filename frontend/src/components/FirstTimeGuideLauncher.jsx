@@ -1,19 +1,47 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useState } from "react";
 import useFirstTimeGuide from "../hooks/useFirstTimeGuide.js";
 
 const FirstTimeGuide = lazy(() => import("./FirstTimeGuide.jsx"));
 
-export default function FirstTimeGuideLauncher({ serviceKey, serviceLabel, steps, ready, replayToken, apiBase }) {
+const ACTIVE_GUIDE_PREFIX = "first-time-guide-active:";
+
+function readActiveGuide(serviceKey, steps) {
+  try {
+    const active = JSON.parse(sessionStorage.getItem(`${ACTIVE_GUIDE_PREFIX}${serviceKey}`) || "null");
+    if (!active || !Number.isInteger(active.index) || active.index < 0 || active.index >= steps.length) return null;
+    return active;
+  } catch {
+    return null;
+  }
+}
+
+export default function FirstTimeGuideLauncher({ serviceKey, serviceLabel, steps, ready, replayToken, apiBase, onStepChange }) {
   const { open, complete, skip } = useFirstTimeGuide({ serviceKey, apiBase, ready, replayToken });
-  if (!open) return null;
+  const [activeGuide, setActiveGuide] = useState(() => readActiveGuide(serviceKey, steps));
+  const isOpen = open || Boolean(activeGuide);
+  if (!isOpen) return null;
+  const persistActiveStep = (index) => {
+    const next = { index };
+    try { sessionStorage.setItem(`${ACTIVE_GUIDE_PREFIX}${serviceKey}`, JSON.stringify(next)); } catch { /* ignore */ }
+    setActiveGuide(next);
+  };
+  const finish = (handler) => {
+    try { sessionStorage.removeItem(`${ACTIVE_GUIDE_PREFIX}${serviceKey}`); } catch { /* ignore */ }
+    setActiveGuide(null);
+    return handler();
+  };
   return (
     <Suspense fallback={null}>
       <FirstTimeGuide
         serviceLabel={serviceLabel}
         steps={steps}
-        onComplete={complete}
-        onSkip={skip}
-        onClose={close}
+        initialIndex={activeGuide?.index || 0}
+        onStepChange={(index, step, direction) => {
+          persistActiveStep(index);
+          onStepChange?.(index, step, direction);
+        }}
+        onComplete={() => finish(complete)}
+        onSkip={() => finish(skip)}
       />
     </Suspense>
   );

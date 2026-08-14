@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import "./FirstTimeGuide.css";
 
 function getTarget(selector) {
@@ -20,11 +20,24 @@ function getPlacement(rect) {
   return Object.entries(space).sort((a, b) => b[1] - a[1])[0][0];
 }
 
-export default function FirstTimeGuide({ serviceLabel, steps, onComplete, onSkip }) {
-  const [index, setIndex] = useState(0);
+export default function FirstTimeGuide({ serviceLabel, steps, initialIndex = 0, onComplete, onSkip, onStepChange }) {
+  const [index, setIndex] = useState(() => Math.min(Math.max(initialIndex, 0), Math.max(steps.length - 1, 0)));
   const [rect, setRect] = useState(null);
   const step = steps[index];
-  const target = useMemo(() => getTarget(step?.selector), [step?.selector]);
+  const [target, setTarget] = useState(null);
+
+  useLayoutEffect(() => {
+    const updateTarget = () => setTarget(getTarget(step?.selector));
+    const frame = window.requestAnimationFrame(updateTarget);
+    const retry = window.setTimeout(updateTarget, 120);
+    const observer = new MutationObserver(updateTarget);
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-tour", "class"] });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(retry);
+      observer.disconnect();
+    };
+  }, [index, step?.selector]);
 
   useEffect(() => {
     const oldOverflow = document.body.style.overflow;
@@ -46,6 +59,11 @@ export default function FirstTimeGuide({ serviceLabel, steps, onComplete, onSkip
   }, [index, target]);
 
   if (!step) return null;
+  const move = (nextIndex) => {
+    if (nextIndex < 0 || nextIndex >= steps.length) return;
+    onStepChange?.(nextIndex, steps[nextIndex], nextIndex > index ? "next" : "previous");
+    setIndex(nextIndex);
+  };
   const placement = rect ? getPlacement(rect) : "bottom";
   const tooltipStyle = rect
     ? { "--guide-target-top": `${Math.max(12, rect.top)}px`, "--guide-target-left": `${Math.max(12, rect.left)}px`, "--guide-target-width": `${Math.max(1, rect.width)}px`, "--guide-target-height": `${Math.max(1, rect.height)}px` }
@@ -66,9 +84,9 @@ export default function FirstTimeGuide({ serviceLabel, steps, onComplete, onSkip
         <div className="first-time-guide__actions">
           <button type="button" className="first-time-guide__skip" onClick={onSkip}>跳过</button>
           <span className="first-time-guide__spacer" />
-          {index > 0 && <button type="button" className="first-time-guide__secondary" onClick={() => setIndex((value) => value - 1)}>上一步</button>}
+          {index > 0 && <button type="button" className="first-time-guide__secondary" onClick={() => move(index - 1)}>上一步</button>}
           {index < steps.length - 1 ? (
-            <button type="button" className="first-time-guide__primary" onClick={() => setIndex((value) => value + 1)}>下一步</button>
+            <button type="button" className="first-time-guide__primary" onClick={() => move(index + 1)}>下一步</button>
           ) : (
             <button type="button" className="first-time-guide__primary" onClick={onComplete}>开始学习</button>
           )}

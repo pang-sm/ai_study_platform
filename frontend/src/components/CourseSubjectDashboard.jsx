@@ -7,6 +7,8 @@ const ReviewCenter = lazy(() => import("./ReviewCenter.jsx"));
 import useFeatureEntitlements from "../hooks/useFeatureEntitlements.js";
 import LockedFeaturePrompt, { LockedFeatureView } from "./LockedFeaturePrompt.jsx";
 import "./CourseSubjectDashboard.css";
+import FirstTimeGuideLauncher from "./FirstTimeGuideLauncher.jsx";
+import { COURSE_GUIDE_STEPS } from "./firstTimeGuideFlows.js";
 
 const COURSE_TRACK = "course_learning";
 const EXAM_TARGET_OPTIONS = ["及格", "稳过", "高分", "自定义"];
@@ -1063,6 +1065,7 @@ export default function CourseSubjectDashboard({
               className={`csd-nav-item${activeSection === item.key ? " is-active" : ""}${FEATURE_BY_PANEL[item.key] && !featureEntitlements.loading && !featureEntitlements.features[FEATURE_BY_PANEL[item.key]]?.allowed ? " is-locked" : ""}`}
               type="button"
               key={item.key}
+              data-tour={FEATURE_BY_PANEL[item.key] && !featureEntitlements.loading && !featureEntitlements.features[FEATURE_BY_PANEL[item.key]]?.allowed ? "course-nav-lock" : `course-nav-${item.key}`}
               onClick={() => selectPanel(item.key)}
               title={FEATURE_BY_PANEL[item.key] && !featureEntitlements.loading && !featureEntitlements.features[FEATURE_BY_PANEL[item.key]]?.allowed ? "需要升级套餐后使用" : undefined}
             >
@@ -1102,6 +1105,15 @@ export default function CourseSubjectDashboard({
         )}
       </main>
       <LockedFeaturePrompt entitlement={lockedFeature} onClose={() => setLockedFeature(null)} onViewMembership={openMembership} />
+      <FirstTimeGuideLauncher
+        serviceKey="course_learning"
+        serviceLabel="课程学习"
+        steps={COURSE_GUIDE_STEPS}
+        ready={false}
+        onStepChange={(index, _step, direction) => {
+          if (index === 0 && direction === "previous") setPage?.("home");
+        }}
+      />
     </div>
   );
 }
