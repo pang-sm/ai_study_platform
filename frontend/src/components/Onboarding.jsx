@@ -232,7 +232,15 @@ export default function Onboarding({
 
     if (goalType === "exam_408") {
       if (!examStage) { setError("请选择当前备考阶段"); setSaving(false); return; }
-      detail = { exam_time: examTime, stage: examStage, weak_subject: examWeak, daily_study_time: examDaily, materials: examMaterials, exam_package_type: selectedPlanOverride };
+      detail = {
+        exam_time: examTime,
+        stage: examStage,
+        weak_subject: examWeak,
+        daily_study_time: examDaily,
+        materials: examMaterials,
+        exam_package_type: selectedPlanOverride,
+        exam_408_onboarding_completed: selectedPlanOverride === "free",
+      };
     } else if (goalType === "university_course") {
       if (!courseMajor) { setError("请选择专业"); setSaving(false); return; }
       if (!courseGrade) { setError("请选择年级"); setSaving(false); return; }

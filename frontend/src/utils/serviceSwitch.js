@@ -4,18 +4,21 @@ const DIRECTION_CONFIG = {
     goalType: "exam_408",
     homePage: "examHome",
     onboardingPage: "onboarding",
+    onboardingCompletionField: "exam_408_onboarding_completed",
   },
   university_course: {
     serviceKey: "course_learning",
     goalType: "university_course",
     homePage: "home",
     onboardingPage: "courseLearningOnboarding",
+    onboardingCompletionField: "course_learning_onboarding_completed",
   },
   programming: {
     serviceKey: "programming",
     goalType: "programming",
     homePage: "programmingHome",
     onboardingPage: "programmingOnboarding",
+    onboardingCompletionField: "programming_onboarding_completed",
   },
 };
 
@@ -50,14 +53,9 @@ export async function switchLearningDirection({
   }
 
   const targetTrackRecord = tracks.find((track) => track.track_type === targetTrack);
-  const completionField = targetTrack === "university_course"
-    ? "course_learning_onboarding_completed"
-    : targetTrack === "programming"
-      ? "programming_onboarding_completed"
-      : null;
   const onboardingDetail = targetTrackRecord?.onboarding_detail || {};
   const targetTrackReady = Boolean(targetTrackRecord)
-    && (completionField ? onboardingDetail[completionField] !== false : true);
+    && onboardingDetail[config.onboardingCompletionField] === true;
 
   if (plans?.[config.serviceKey]?.is_enabled && targetTrackReady) {
     setPage(config.homePage);

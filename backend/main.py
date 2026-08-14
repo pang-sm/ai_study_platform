@@ -1488,6 +1488,21 @@ def ensure_exam_408_track(db: Session, user: models.User):
         if any(current_quota.get(k) != v for k, v in expected_quota.items()):
             existing.quota_json = json.dumps(expected_quota, ensure_ascii=False)
             repaired = True
+        detail = _parse_track_onboarding_detail(existing)
+        # Older 11408 records predate the per-track completion flag. Normalize
+        # only records that contain a completed 11408 onboarding payload; an
+        # auto-created compatibility track has no such payload and remains
+        # incomplete so direction switching opens onboarding.
+        if (
+            "exam_408_onboarding_completed" not in detail
+            and user.onboarding_completed
+            and detail.get("learning_goal_type") == "exam_408"
+            and detail.get("exam_time")
+            and detail.get("stage")
+        ):
+            detail["exam_408_onboarding_completed"] = True
+            existing.onboarding_detail_json = json.dumps(detail, ensure_ascii=False)
+            repaired = True
         if repaired:
             existing.updated_at = utc_now()
             db.commit()
@@ -5709,10 +5724,14 @@ def complete_onboarding(req: OnboardingUpdateRequest, username: str = "", db: Se
             ensure_ascii=False,
         )
 
+    onboarding_completed = bool(req.onboarding_completed)
+
     # Save onboarding detail as JSON
     if goal_type:
         detail = dict(req.onboarding_detail or {})
         detail["learning_goal_type"] = goal_type
+        if goal_type == "exam_408":
+            detail["exam_408_onboarding_completed"] = onboarding_completed
 
         # Save exam package type if provided
         exam_pkg = (req.exam_package_type or "").strip()
@@ -5735,7 +5754,6 @@ def complete_onboarding(req: OnboardingUpdateRequest, username: str = "", db: Se
         elif goal_type == "programming":
             user.learning_direction = user.learning_direction or "编程能力提升"
 
-    onboarding_completed = bool(req.onboarding_completed)
     user.onboarding_completed = onboarding_completed
 
     # Create or update learning track based on goal_type
