@@ -49,7 +49,12 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
         if (detail.stage) setExamStage(detail.stage);
         if (detail.daily_study_time) setExamDaily(detail.daily_study_time);
         if (detail.welcome_motto) { setMotto(detail.welcome_motto); setMottoInput(detail.welcome_motto); }
-      } catch { /* fallback to prop data */ }
+        return Boolean(examTrack?.permissions?.learning_plan);
+      } catch {
+        // The summary APIs are entitlement-protected, so avoid speculative
+        // requests when the current track permissions are unavailable.
+        return false;
+      }
     };
     // Also try prop data immediately
     const propDetail = (() => {
@@ -67,9 +72,6 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
       if (propDetail.stage) setExamStage(propDetail.stage);
       if (propDetail.daily_study_time) setExamDaily(propDetail.daily_study_time);
     }
-    // Then refresh from API for latest data
-    fetchData();
-
     // Fetch study plan summary
     const fetchPlanSummary = async () => {
       try {
@@ -80,8 +82,6 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
         if (data?.subjects) setStudyPlanSummary(data);
       } catch { /* ignore */ }
     };
-    fetchPlanSummary();
-
     // Fetch task summary for home page
     const fetchTaskSummary = async () => {
       try {
@@ -92,7 +92,12 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
         if (data) setTaskSummary(data);
       } catch { /* ignore */ }
     };
-    fetchTaskSummary();
+    const loadHomeData = async () => {
+      const canUseStudyPlan = await fetchData();
+      if (!canUseStudyPlan) return;
+      await Promise.all([fetchPlanSummary(), fetchTaskSummary()]);
+    };
+    loadHomeData();
   }, []);
 
   const displayName = user?.nickname || user?.username || "小庞同学";
