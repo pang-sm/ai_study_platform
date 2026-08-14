@@ -4,7 +4,7 @@ export const COURSE_GUIDE_STEPS = [
   { selector: '[data-tour="course-nav-practice"]', title: "AI 题册与章节练习", description: "在这里进入当前课程的真实练习入口和 AI 题册。" },
   { selector: '[data-tour="course-nav-materials"]', title: "资料库与考试范围", description: "课程资料和考试范围按课程保存，可在这里管理和使用。" },
   { selector: '[data-tour="course-nav-chat"]', title: "AI 问答", description: "可基于当前课程、知识点和资料向 AI 提问。" },
-  { selector: '[data-tour="course-nav-lock"]', title: "会员专属能力", description: "带锁标识的学习计划、练习复盘或学习报告仍受当前套餐限制；本引导不会解锁或发起购买。" },
+  { selector: '[data-tour="course-nav-lock-learning_plan"]', title: "会员专属能力", description: "带锁标识的学习计划、练习复盘或学习报告仍受当前套餐限制；本引导不会解锁或发起购买。" },
 ];
 
 export const EXAM_GUIDE_STEPS = [

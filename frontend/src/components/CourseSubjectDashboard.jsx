@@ -1065,7 +1065,7 @@ export default function CourseSubjectDashboard({
               className={`csd-nav-item${activeSection === item.key ? " is-active" : ""}${FEATURE_BY_PANEL[item.key] && !featureEntitlements.loading && !featureEntitlements.features[FEATURE_BY_PANEL[item.key]]?.allowed ? " is-locked" : ""}`}
               type="button"
               key={item.key}
-              data-tour={FEATURE_BY_PANEL[item.key] && !featureEntitlements.loading && !featureEntitlements.features[FEATURE_BY_PANEL[item.key]]?.allowed ? "course-nav-lock" : `course-nav-${item.key}`}
+              data-tour={FEATURE_BY_PANEL[item.key] && !featureEntitlements.loading && !featureEntitlements.features[FEATURE_BY_PANEL[item.key]]?.allowed ? `course-nav-lock-${FEATURE_BY_PANEL[item.key]}` : `course-nav-${item.key}`}
               onClick={() => selectPanel(item.key)}
               title={FEATURE_BY_PANEL[item.key] && !featureEntitlements.loading && !featureEntitlements.features[FEATURE_BY_PANEL[item.key]]?.allowed ? "需要升级套餐后使用" : undefined}
             >
