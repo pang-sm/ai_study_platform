@@ -25,10 +25,10 @@ export default function FirstTimeGuideLauncher({ serviceKey, serviceLabel, steps
     try { sessionStorage.setItem(`${ACTIVE_GUIDE_PREFIX}${serviceKey}`, JSON.stringify(next)); } catch { /* ignore */ }
     setActiveGuide(next);
   };
-  const finish = (handler) => {
+  const finish = async (handler) => {
+    await handler();
     try { sessionStorage.removeItem(`${ACTIVE_GUIDE_PREFIX}${serviceKey}`); } catch { /* ignore */ }
     setActiveGuide(null);
-    return handler();
   };
   return (
     <Suspense fallback={null}>
