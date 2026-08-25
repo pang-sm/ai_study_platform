@@ -303,10 +303,6 @@
 @media (max-width: 380px) { .mobile-exam-overview { grid-template-columns: 1fr; } }
 
 /* IA: a selected learning space owns its navigation and data scope. */
-.mobile-history-categories { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
-.mobile-history-categories::-webkit-scrollbar { display: none; }
-.mobile-history-categories button { flex: 0 0 auto; min-height: 36px; padding: 0 12px; border: 1px solid var(--mobile-border); border-radius: 99px; background: #fff; color: var(--mobile-muted); font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; }
-.mobile-history-categories button.is-active { border-color: #b9b0ff; background: #eeecff; color: var(--mobile-purple-dark); }
 .mobile-learning-spaces { display: grid; gap: 10px; }
 .mobile-learning-space { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; width: 100%; min-height: 78px; padding: 15px 16px; border: 1px solid var(--mobile-border); border-radius: 20px; background: #fff; color: var(--mobile-ink); text-align: left; cursor: pointer; font: inherit; box-shadow: 0 8px 22px rgba(32,37,68,.05); }
 .mobile-learning-space.is-active { border-color: #a89dff; background: #f7f6ff; box-shadow: 0 10px 26px rgba(91,73,221,.12); }
@@ -315,7 +311,9 @@
 .mobile-learning-space strong { font-size: 16px; }
 .mobile-learning-space small { margin-top: 5px; color: var(--mobile-muted); font-size: 12px; line-height: 1.45; }
 .mobile-learning-space b { color: var(--mobile-purple-dark); font-size: 22px; }
-.mobile-knowledge-sheet { max-height: 80dvh; padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
+.mobile-knowledge-sheet { grid-template-rows: auto minmax(0, 1fr) auto; max-height: 70dvh; overflow: hidden; padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
+.mobile-knowledge-sheet-body { display: grid; min-height: 0; gap: 12px; overflow-y: auto; overscroll-behavior: contain; padding-right: 2px; }
+.mobile-knowledge-sheet footer { position: relative; z-index: 1; padding-top: 2px; background: #fff; }
 .mobile-ai-context-card { display: grid; gap: 4px; padding: 14px 16px; border: 1px solid #dcd8ff; border-radius: 18px; background: #f7f6ff; }
 .mobile-ai-context-card span { color: var(--mobile-purple-dark); font-size: 11px; font-weight: 800; }
 .mobile-ai-context-card strong { color: var(--mobile-ink); font-size: 14px; }
