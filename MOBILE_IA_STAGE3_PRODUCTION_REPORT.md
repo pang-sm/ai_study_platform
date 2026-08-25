@@ -4,7 +4,7 @@
 
 **MOBILE_IA_STAGE3_FAILED**
 
-Static deployment succeeded, but the mandatory authenticated Production browser acceptance could not be completed. The Production browser opened `/m`, then repeatedly timed out while reading the rendered page state and reset. No existing authenticated Production session or test-account credentials were supplied for this Stage 3 run. Authentication was not bypassed, injected, or mocked.
+Static deployment succeeded, but the mandatory authenticated Production browser acceptance could not be completed. The Production browser opened `/m` and exposed the login form, then repeatedly timed out or reset before credentials could be submitted. A test-account login was authorized for this follow-up attempt, but no credential was transmitted after the browser session failed. Chrome browser control was unavailable in this environment. Authentication was not bypassed, injected, or mocked.
 
 ## Commit
 
@@ -44,7 +44,7 @@ Viewport requested: `390 × 844`.
 | Production navigation | PASS | `https://101.32.190.42/m` opened with title `AI 学习平台` |
 | New bundle loaded by static delivery | PASS | Production HTML and public SHA-256 matched local build |
 | DOM / console read | FAIL | Production browser timed out and reset twice |
-| Login with existing account | NOT RUN | No existing authenticated session or supplied credentials |
+| Login with existing account | NOT RUN | Login form loaded, then browser reset before the authorized credentials could be entered |
 | Profile learning-space switch | NOT RUN | Requires authenticated browser state |
 | Knowledge bottom sheet / AI explanation | NOT RUN | Requires authenticated course data |
 | PC ↔ Mobile mastery synchronization | NOT RUN | Requires same authenticated PC and Mobile account |
@@ -57,5 +57,7 @@ No usable Production screenshot could be captured because the browser control re
 
 ## Test account
 
-No account was used in this run. A valid existing Production test account and a stable browser connection are required to complete the mandatory login and cross-device verification.
+- Username: `奶12`
+- Password was neither saved nor transmitted after the browser-control failure.
 
+A stable browser connection is required to complete the mandatory login and cross-device verification.
