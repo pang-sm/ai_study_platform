@@ -169,3 +169,34 @@
 .mobile-chat-composer .mobile-ai-tool { flex:0 0 38px; }
 .mobile-chat-page .mobile-action-sheet { padding-bottom:max(20px,env(safe-area-inset-bottom)); }
 @media (max-width:380px) { .mobile-chat-header { padding-left:8px; padding-right:8px; } .mobile-chat-messages { padding-left:10px; padding-right:10px; } .mobile-chat-composer { padding-left:8px; padding-right:8px; } .mobile-chat-back, .mobile-chat-history-button { min-width:48px; } }
+
+/* v12 11408 account, onboarding and checkout surfaces. */
+.mobile-auth-v12 { gap:14px; }
+.mobile-auth-v12 h1 { margin-bottom:4px; }
+.auth-password-field { display:flex; align-items:center; gap:8px; }
+.auth-password-field input { flex:1; min-width:0; }
+.auth-password-field button { padding:10px 8px; color:var(--purple); background:none; font-size:12px; white-space:nowrap; }
+.mobile-onboarding { min-height:100dvh; padding:calc(42px + env(safe-area-inset-top)) 22px calc(28px + env(safe-area-inset-bottom)); background:var(--bg); }
+.mobile-onboarding h1 { margin:10px 0 7px; font-size:27px; }
+.mobile-onboarding > p { margin:0 0 25px; color:var(--muted); font-size:13px; line-height:1.6; }
+.onboarding-card { display:grid; gap:15px; padding:20px; border:1px solid var(--line); border-radius:20px; background:var(--surface); box-shadow:0 12px 26px #25204a0a; }
+.onboarding-card label { display:grid; gap:7px; color:var(--muted); font-size:12px; font-weight:700; }
+.onboarding-card input,.onboarding-card select { width:100%; box-sizing:border-box; min-height:44px; padding:0 12px; border:1px solid var(--line); border-radius:11px; background:#fff; color:var(--ink); font:inherit; }
+.onboarding-card .primary-button { width:100%; margin-top:4px; }
+.mobile-shop,.mobile-checkout { padding-bottom:calc(34px + env(safe-area-inset-bottom)); }
+.mobile-plan-list { display:grid; gap:13px; }
+.mobile-plan-card { display:grid; grid-template-columns:1fr auto; gap:12px; padding:18px; border:1px solid #e4defe; border-radius:19px; background:linear-gradient(135deg,#f8f5ff,#fff); }
+.mobile-plan-card h2 { margin:7px 0 4px; font-size:19px; }
+.mobile-plan-card p { margin:0; color:var(--muted); font-size:12px; }
+.mobile-plan-card > strong { align-self:start; color:var(--purple); font-size:22px; white-space:nowrap; }
+.mobile-plan-card .primary-button { grid-column:1 / -1; width:100%; }
+.checkout-plan { margin-bottom:14px; }
+.checkout-benefit { display:flex; justify-content:space-between; gap:12px; padding:11px 0; border-top:1px solid #eeeef6; font-size:13px; }
+.checkout-benefit:first-of-type { margin-top:12px; }
+.checkout-benefit span { color:var(--muted); }
+.payment-method-card { display:grid; gap:5px; margin-top:14px; padding:17px; border:1px solid #dce9ff; border-radius:17px; background:#f3f7ff; }
+.payment-method-card span { color:var(--blue); font-size:13px; font-weight:700; }
+.payment-method-card small { color:var(--muted); font-size:11px; line-height:1.5; }
+.checkout-button { width:100%; margin-top:18px; }
+.mobile-payment-sheet { color:var(--ink); }
+.mobile-payment-sheet p { margin:0 0 14px; color:var(--muted); font-size:13px; line-height:1.6; }
