@@ -1,11 +1,10 @@
-/* eslint-disable react-hooks/set-state-in-effect, no-unused-vars, react-hooks/purity, no-func-assign */
+/* eslint-disable react-hooks/set-state-in-effect, no-unused-vars, react-hooks/purity, no-func-assign, react-hooks/exhaustive-deps */
 import { useEffect, useMemo, useRef, useState } from "react";
 import "./MobileApp.css";
 import MarkdownMessage from "../components/MarkdownMessage.jsx";
 
 // The route remains frozen; the mobile AI surface is replaced below.
-// eslint-disable-next-line no-func-assign
-AIHome = (props) => <MobileAIChatV73 {...props} user={props.user || readUser()} />;
+AIHome = (props) => <MobileChatShell {...props} user={props.user || readUser()} />;
 const baseRouteWithContext = routeWithContext;
 function mobileRouteWithIds(path) { const result = baseRouteWithContext(path); const [, search = ""] = path.split("?"); const params = new URLSearchParams(search); return { ...result, chapterId: params.get("chapterId") || "", knowledgeId: params.get("knowledgeId") || "" }; }
 routeWithContext = mobileRouteWithIds;
@@ -36,6 +35,190 @@ function MobileAIChatV73({ route, course, user }) {
   const contextLines = exam ? [subjectLabel, route.chapter || "", route.knowledge || ""].filter(Boolean) : course ? [courseLabel, route.chapterId || route.chapter || "", route.knowledgeId || route.knowledge || ""].filter(Boolean) : [];
   return <div className="page mobile-ai-page"><PageHeading eyebrow={exam ? "11408 AI" : course ? `课程 AI · ${MODE_LABELS[route.mode]}` : "普通 AI"} title="AI助手" description="历史、消息和上下文按当前空间自动隔离。" /><section className="mobile-ai-context"><strong>{title}</strong>{contextLines.length ? <span>{contextLines.join(" · ")}</span> : !exam && !course ? <span>独立 AI 服务</span> : null}</section><section className="mobile-ai-history"><div className="mobile-ai-history-head"><strong>历史对话</strong><button type="button" onClick={startNewConversation}>新对话</button></div>{historyLoading ? <small>正在读取历史…</small> : sessions.length ? sessions.slice(0, 8).map((s) => <button type="button" key={s.id} className={sessionId === s.id ? "is-active" : ""} onClick={() => loadSession(s.id)}><span>{s.title || "未命名对话"}</span><small>{s.subject || s.exam_subject || "AI"}</small></button>) : <small>暂无历史对话</small>}</section><div className="mobile-ai-messages" ref={messagesRef}>{messages.length === 0 && !loading ? <div className="mobile-ai-empty"><Icon name="ai" /><strong>开始提问</strong><span>当前上下文会自动携带。</span></div> : messages.map((message) => <article key={`${message.role}-${message.id}`} className={`mobile-ai-message ${message.role === "user" ? "is-user" : "is-assistant"}`} onContextMenu={(event) => { if (message.role === "user") { event.preventDefault(); setSheetMessage(message); } }} onTouchStart={() => message.role === "user" && beginHold(message)} onTouchEnd={endHold} onTouchCancel={endHold}><div className="mobile-ai-message-role">{message.role === "user" ? "我" : "AI"}</div>{editingId === String(message.id) ? <div className="mobile-ai-edit"><textarea value={editingText} onChange={(event) => setEditingText(event.target.value)} autoFocus /><div><button type="button" onClick={() => setEditingId("")}>取消</button><button type="button" onClick={() => commitEdit(message)}>提交</button></div></div> : <div className="mobile-ai-message-body"><MarkdownMessage content={message.content || ""} /><small>{message.references?.length ? `包含 ${message.references.length} 条参考资料` : ""}</small></div>}</article>)}</div>{uploadItem && <div className={`mobile-upload-card is-${uploadItem.parse_status}`}><strong>{uploadItem.filename}</strong><span>{uploadItem.parse_status === "uploading" ? "上传中…" : uploadItem.parse_status === "pending" ? "已上传，等待解析" : uploadItem.parse_status === "failed" ? "上传失败" : "已上传，可随问题发送"}</span></div>}{error && <div className="inline-error">{error}</div>}<form className="mobile-ai-composer" onSubmit={(event) => { event.preventDefault(); send(); }}><input ref={fileRef} type="file" hidden accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.pptx,.txt,.md,.markdown,.py,.java,.c,.cpp,.h,.hpp,.js,.jsx,.ts,.tsx,.html,.htm,.css,.json,.xml,.yaml,.yml,.sql,.sh,.bash,.go,.rs,.php,.rb" onChange={upload} /><button type="button" className="mobile-ai-tool" onClick={() => fileRef.current?.click()} disabled={uploading}>{uploading ? "…" : "＋"}</button><textarea ref={inputRef} value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); send(); } }} placeholder="输入你的问题…" rows={1} /><button type="submit" className="primary-button" disabled={loading || !input.trim()}>发送</button></form>{sheetMessage && <div className="mobile-action-sheet-backdrop" onClick={() => setSheetMessage(null)}><section className="mobile-action-sheet" onClick={(event) => event.stopPropagation()}><div className="sheet-handle" /><strong>消息操作</strong><button type="button" onClick={() => copy(sheetMessage)}>复制</button><button type="button" onClick={() => openEdit(sheetMessage)}>编辑</button><button type="button" onClick={() => { setSheetMessage(null); send(sheetMessage.content, { sourceId: sheetMessage.id, branchId: sheetMessage.branch_id || "" }); }}>重新生成</button><button type="button" onClick={() => { setSheetMessage(null); send(sheetMessage.content, { sourceId: sheetMessage.id, branchId: `mobile-branch-${Date.now()}` }); }}>创建分支</button><button type="button" className="is-danger" onClick={() => removeLocal(sheetMessage)}>删除</button><button type="button" className="secondary-button" onClick={() => setSheetMessage(null)}>取消</button></section></div>}</div>;
 }
+
+function MobileChatShell({ route, course, user }) {
+  const exam = route.space === EXAM;
+  const isCourse = Boolean(course) && !exam;
+  const courseLabel = isCourse ? courseName(course) : "";
+  const subjectLabel = exam ? (EXAM_SUBJECTS.find(([id]) => id === route.subject)?.[1] || route.subject || "11408") : "";
+  const scope = exam ? "exam11408" : isCourse ? "course" : "general";
+  const context = exam
+    ? { scope, examSubject: route.subject || "", subjectName: subjectLabel, chapterId: route.chapterId || "", chapterName: route.chapter || "", knowledgeId: route.knowledgeId || "", knowledgeName: route.knowledge || "" }
+    : isCourse
+      ? { scope, courseId: courseId(course), courseName: courseLabel, learningMode: route.mode || "daily", chapterId: route.chapterId || "", chapterName: route.chapter || "", knowledgeId: route.knowledgeId || "", knowledgeName: route.knowledge || "" }
+      : { scope };
+  const scopeKey = JSON.stringify(context);
+  const [sessions, setSessions] = useState([]);
+  const [sessionId, setSessionId] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [status, setStatus] = useState({ type: "loading", message: "" });
+  const [sheetMessage, setSheetMessage] = useState(null);
+  const [editingId, setEditingId] = useState("");
+  const [editingText, setEditingText] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [uploadItem, setUploadItem] = useState(null);
+  const messagesRef = useRef(null);
+  const inputRef = useRef(null);
+  const fileRef = useRef(null);
+  const holdTimer = useRef(null);
+
+  const scopeQuery = () => {
+    const query = new URLSearchParams({ username: user?.username || "" });
+    if (exam) {
+      query.set("subject_key", route.subject || "");
+      query.set("exam_subject", route.subject || "");
+      query.set("subject", subjectLabel);
+    } else if (isCourse) {
+      query.set("course", courseLabel);
+      query.set("course_id", courseId(course));
+      query.set("subject", courseLabel);
+    } else {
+      query.set("course", "general");
+      query.set("subject", "general");
+    }
+    return query;
+  };
+  const loadHistory = async () => {
+    setStatus({ type: "loading", message: "" });
+    try {
+      const response = await fetch(`${API_BASE}/chat/history?${scopeQuery().toString()}`, { credentials: "include" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || "历史对话加载失败");
+      const filtered = safeArray(data.sessions).filter((session) => chatSessionMatchesScope(session, route, course));
+      setSessions(filtered);
+      setStatus({ type: "success", message: "" });
+    } catch (error) {
+      setSessions([]);
+      setStatus({ type: "error", message: error.message || "历史对话加载失败" });
+    }
+  };
+  const loadSession = async (id) => {
+    if (!id) return;
+    setStatus({ type: "loading", message: "" });
+    try {
+      const response = await fetch(`${API_BASE}/chat/sessions/${encodeURIComponent(id)}?${scopeQuery().toString()}`, { credentials: "include" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || "打开对话失败");
+      setSessionId(data.session?.id || id);
+      setMessages(safeArray(data.messages));
+      setHistoryOpen(false);
+      setStatus({ type: "success", message: "" });
+      requestAnimationFrame(() => { if (messagesRef.current) messagesRef.current.scrollTop = 0; });
+    } catch (error) {
+      setStatus({ type: "error", message: error.message || "打开对话失败" });
+    }
+  };
+  const startNewConversation = () => {
+    setSessionId(null);
+    setMessages([]);
+    setInput("");
+    setUploadItem(null);
+    setHistoryOpen(false);
+    setSheetMessage(null);
+    setEditingId("");
+    setStatus({ type: "success", message: "" });
+    requestAnimationFrame(() => inputRef.current?.focus());
+  };
+  useEffect(() => {
+    setSessionId(null);
+    setMessages([]);
+    setHistoryOpen(false);
+    loadHistory();
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }, [scopeKey, user?.username]);
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return undefined;
+    const update = () => document.documentElement.style.setProperty("--mobile-keyboard-height", `${Math.max(0, window.innerHeight - viewport.height)}px`);
+    viewport.addEventListener("resize", update);
+    viewport.addEventListener("scroll", update);
+    update();
+    return () => { viewport.removeEventListener("resize", update); viewport.removeEventListener("scroll", update); };
+  }, []);
+  useEffect(() => {
+    const node = messagesRef.current;
+    if (!node) return;
+    const nearBottom = node.scrollHeight - node.scrollTop - node.clientHeight < 120;
+    if (nearBottom) node.scrollTop = node.scrollHeight;
+  }, [messages, loading]);
+  const send = async (value = input, options = {}) => {
+    const text = String(value || "").trim();
+    if (!text || loading || !user?.username) return;
+    setLoading(true);
+    setStatus({ type: "success", message: "" });
+    setInput("");
+    const localId = `mobile-user-${Date.now()}`;
+    setMessages((previous) => [...previous, { id: localId, role: "user", content: text, created_at: new Date().toISOString() }]);
+    const payload = {
+      username: user.username,
+      message: text,
+      subject: exam ? subjectLabel : isCourse ? courseLabel : "general",
+      course: isCourse ? courseLabel : "general",
+      session_id: sessionId,
+      branch_id: options.branchId || "",
+      edit_source_message_id: options.sourceId ? Number(options.sourceId) || null : undefined,
+      knowledge_context: context,
+      material_ids: uploadItem?.material_id ? [uploadItem.material_id] : [],
+    };
+    if (exam) Object.assign(payload, { subject_key: route.subject, exam_subject: route.subject });
+    try {
+      const response = await fetch(`${API_BASE}/chat`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(payload) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || "AI 服务调用失败");
+      const nextSessionId = data.session?.id || data.session_id || sessionId;
+      setSessionId(nextSessionId);
+      setMessages((previous) => [...previous.map((message) => message.id === localId ? { ...message, id: data.user_message_id || message.id, branch_id: data.branch_id || "" } : message), { id: data.assistant_message_id || `mobile-ai-${Date.now()}`, role: "assistant", content: data.answer || data.content || "", references: data.references || [], created_at: new Date().toISOString() }]);
+      setUploadItem(null);
+      await loadHistory();
+    } catch (error) {
+      setMessages((previous) => previous.filter((message) => message.id !== localId));
+      setStatus({ type: "error", message: error.message || "AI 服务调用失败" });
+    } finally {
+      setLoading(false);
+    }
+  };
+  const upload = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setUploading(true);
+    setUploadItem({ filename: file.name, parse_status: "uploading" });
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("username", user.username);
+      form.append("subject", exam ? subjectLabel : courseLabel || "general");
+      form.append("save_to_materials", "true");
+      const response = await fetch(`${API_BASE}/materials/upload`, { method: "POST", credentials: "include", body: form });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || "文件上传失败");
+      setUploadItem({ ...data, material_id: data.material_id || data.id, filename: data.filename || data.original_filename || file.name, parse_status: data.parse_status || "pending" });
+    } catch (error) {
+      setUploadItem({ filename: file.name, parse_status: "failed" });
+      setStatus({ type: "error", message: error.message || "文件上传失败" });
+    } finally { setUploading(false); }
+  };
+  const copy = async (message) => { try { await navigator.clipboard?.writeText(message.content || ""); setStatus({ type: "success", message: "已复制" }); } catch { setStatus({ type: "error", message: "复制失败" }); } setSheetMessage(null); };
+  const openEdit = (message) => { setEditingId(String(message.id)); setEditingText(message.content || ""); setSheetMessage(null); };
+  const commitEdit = async (message) => { const text = editingText.trim(); if (!text) return; setEditingId(""); setEditingText(""); await send(text, { sourceId: message.id, branchId: message.branch_id || "" }); };
+  const beginHold = (message) => { holdTimer.current = window.setTimeout(() => setSheetMessage(message), 550); };
+  const endHold = () => { if (holdTimer.current) window.clearTimeout(holdTimer.current); };
+  const contextLabel = exam ? [subjectLabel, route.chapter, route.knowledge].filter(Boolean).join(" · ") : isCourse ? [courseLabel, route.chapter, route.knowledge].filter(Boolean).join(" · ") : "普通 AI";
+  const title = exam ? "11408 AI助手" : isCourse ? "课程 AI助手" : "普通 AI助手";
+  const backPath = exam ? `/m/exam11408/${encodeURIComponent(route.subject)}` : isCourse ? coursePath(route.mode || "daily", courseId(course)) : "/m";
+  return <div className="mobile-chat-page">
+    <header className="mobile-chat-header"><button type="button" className="mobile-chat-back" onClick={() => goBack(backPath)}>‹ 返回</button><div><strong>{title}</strong><span>{contextLabel}</span></div><button type="button" className="mobile-chat-history-button" onClick={() => setHistoryOpen((value) => !value)}>历史</button></header>
+    {historyOpen && <section className="mobile-chat-history"><div className="mobile-chat-history-head"><strong>历史对话</strong><button type="button" onClick={startNewConversation}>新对话</button></div>{status.type === "loading" ? <small>正在读取历史…</small> : status.type === "error" ? <><small>{status.message}</small><button type="button" className="text-button" onClick={loadHistory}>点击重试</button></> : sessions.length ? sessions.map((session) => <button type="button" key={session.id} onClick={() => loadSession(session.id)}><span>{session.title || "未命名对话"}</span><small>{session.created_at ? new Date(session.created_at).toLocaleString("zh-CN") : ""}</small></button>) : <small>暂无历史对话</small>}</section>}
+    <div className="mobile-chat-messages" ref={messagesRef}>{messages.length === 0 && !loading ? <div className="mobile-ai-empty"><Icon name="ai" /><strong>开始提问</strong><span>{contextLabel}</span></div> : messages.map((message) => <article key={`${message.role}-${message.id}`} className={`mobile-ai-message ${message.role === "user" ? "is-user" : "is-assistant"}`} onContextMenu={(event) => { if (message.role === "user") { event.preventDefault(); setSheetMessage(message); } }} onTouchStart={() => message.role === "user" && beginHold(message)} onTouchEnd={endHold} onTouchCancel={endHold}><div className="mobile-ai-message-role">{message.role === "user" ? "我" : "AI"}</div>{editingId === String(message.id) ? <div className="mobile-ai-edit"><textarea value={editingText} onChange={(event) => setEditingText(event.target.value)} autoFocus /><div><button type="button" onClick={() => setEditingId("")}>取消</button><button type="button" onClick={() => commitEdit(message)}>提交</button></div></div> : <div className="mobile-ai-message-body"><MarkdownMessage content={message.content || ""} /></div>}</article>)}{loading && <div className="mobile-chat-loading">AI 正在思考…</div>}</div>
+    {uploadItem && <div className={`mobile-upload-card is-${uploadItem.parse_status}`}><strong>{uploadItem.filename}</strong><span>{uploadItem.parse_status === "uploading" ? "上传中…" : uploadItem.parse_status === "failed" ? "上传失败" : "已上传，可随问题发送"}</span></div>}
+    {status.type === "error" && !historyOpen && <div className="mobile-chat-error">{status.message}<button type="button" onClick={loadHistory}>重试</button></div>}
+    <form className="mobile-chat-composer" onSubmit={(event) => { event.preventDefault(); send(); }}><input ref={fileRef} type="file" hidden accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.pptx,.txt,.md,.markdown,.py,.java,.c,.cpp,.h,.hpp,.js,.jsx,.ts,.tsx,.html,.htm,.css,.json,.xml,.yaml,.yml,.sql,.sh,.bash,.go,.rs,.php,.rb" onChange={upload} /><button type="button" className="mobile-ai-tool" onClick={() => fileRef.current?.click()} disabled={uploading}>{uploading ? "…" : "＋"}</button><textarea ref={inputRef} value={input} onChange={(event) => setInput(event.target.value)} onInput={(event) => { event.currentTarget.style.height = "auto"; event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 120)}px`; }} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); send(); } }} placeholder="输入你的问题…" rows={1} /><button type="submit" className="primary-button" disabled={loading || !input.trim()}>发送</button></form>
+    {sheetMessage && <div className="mobile-action-sheet-backdrop" onClick={() => setSheetMessage(null)}><section className="mobile-action-sheet" onClick={(event) => event.stopPropagation()}><div className="sheet-handle" /><strong>消息操作</strong><button type="button" onClick={() => copy(sheetMessage)}>复制</button><button type="button" onClick={() => openEdit(sheetMessage)}>编辑</button><button type="button" onClick={() => { setSheetMessage(null); send(sheetMessage.content, { sourceId: sheetMessage.id, branchId: sheetMessage.branch_id || "" }); }}>重新生成</button><button type="button" onClick={() => { setSheetMessage(null); send(sheetMessage.content, { sourceId: sheetMessage.id, branchId: `mobile-branch-${Date.now()}` }); }}>创建分支</button><button type="button" className="secondary-button" onClick={() => setSheetMessage(null)}>取消</button></section></div>}
+  </div>;
+}
 const COURSE = "course";
 const EXAM = "exam";
 const EXAM_SUBJECTS = [["data_structure", "数据结构"], ["computer_organization", "计算机组成原理"], ["operating_system", "操作系统"], ["computer_network", "计算机网络"]];
@@ -44,6 +227,7 @@ const icons = { home: "⌂", knowledge: "◫", ai: "✦", practice: "✓", profi
 
 function readUser() { try { return JSON.parse(localStorage.getItem("ai_study_platform_user") || "null") || {}; } catch { return {}; } }
 function go(path) { window.history.pushState({}, "", path); window.dispatchEvent(new PopStateEvent("popstate")); }
+function goBack(fallback) { if (window.history.length > 1) window.history.back(); else go(fallback); }
 function safeArray(value) { return Array.isArray(value) ? value : []; }
 function textValue(item, fields) { for (const field of fields) if (typeof item?.[field] === "string" && item[field].trim()) return item[field].trim(); return ""; }
 function courseName(course) { return textValue(course, ["display_name", "course_name", "name", "course_id"]) || "未命名课程"; }
@@ -59,7 +243,7 @@ async function getJson(path, options = {}) { const response = await fetch(`${API
 function MobileAuth({ onAuthenticated }) { const [mode, setMode] = useState("login"); const [username, setUsername] = useState(""); const [password, setPassword] = useState(""); const [error, setError] = useState(""); const [busy, setBusy] = useState(false); const submit = async (event) => { event.preventDefault(); setBusy(true); setError(""); try { const response = await fetch(`${API_BASE}/${mode === "login" ? "login" : "register"}`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ username: username.trim(), password }) }); const data = await response.json().catch(() => ({})); if (!response.ok) throw new Error(data.detail || "账号或密码不正确"); const meResponse = await fetch(`${API_BASE}/me`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ username: username.trim() }) }); const me = await meResponse.json(); const user = me.user || data.user || data.profile; if (!user) throw new Error("认证成功但未返回用户信息"); localStorage.setItem("ai_study_platform_user", JSON.stringify(user)); onAuthenticated(user); } catch (reason) { setError(reason.message || "暂时无法登录"); } finally { setBusy(false); } }; return <main className="mobile-auth"><div className="auth-mark">AI</div><h1>把学习带在身边</h1><p>课程学习与 11408 考研，分开管理。</p><form onSubmit={submit}><label>账号<input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="输入账号" required /></label><label>密码<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="输入密码" required /></label>{error && <div className="auth-error" role="alert">{error}</div>}<button className="primary-button" type="submit" disabled={busy}>{busy ? "处理中…" : mode === "login" ? "进入学习" : "注册并开始"}</button></form><button className="auth-toggle" onClick={() => { setMode(mode === "login" ? "register" : "login"); setError(""); }}>{mode === "login" ? "还没有账号？注册" : "已有账号？登录"}</button></main>; }
 
 function coursePath(mode, id, suffix = "") { return `/m/course/${mode}/${encodeURIComponent(id)}${suffix}`; }
-function AppShell({ route, user, contextLabel, children }) { const context = route.space === COURSE ? route.courseId : route.subject; const tabs = context ? (route.space === EXAM ? [["home", "首页", `/m/exam11408/${context}`], ["knowledge", "章节", `/m/exam11408/${context}/chapters`], ["practice", "练习", `/m/exam11408/${context}/practice`], ["ai", "AI", `/m/exam11408/${context}/ai`], ["profile", "我的", "/m/profile"]] : [["home", "首页", coursePath(route.mode || "daily", context)], ["knowledge", "知识点", coursePath(route.mode || "daily", context, "/knowledge")], ["ai", "AI", coursePath(route.mode || "daily", context, "/ai")], ["practice", "练习", coursePath(route.mode || "daily", context, "/practice")], ["profile", "我的", "/m/profile"]]) : []; const active = ["course-home", "exam-home"].includes(route.page) ? "home" : route.page === "course-knowledge" || route.page === "exam-chapters" ? "knowledge" : route.page === "ai" || route.page === "exam-ai" ? "ai" : route.page === "course-practice" || route.page === "exam-practice" ? "practice" : route.page.replace("course-", "").replace("exam-", ""); const secondary = Boolean(route.courseId || route.subject || route.page.startsWith("profile-")); const parentPath = route.page.startsWith("profile-") ? "/m/profile" : route.courseId ? coursePath(route.mode || "daily", route.courseId) : route.subject ? `/m/exam11408/${route.subject}` : "/m"; return <div className="mobile-app"><header className="mobile-header"><button className="brand-button" onClick={() => go(route.space === EXAM ? "/m/exam11408" : "/m/course")}><span className="brand-mark">AI</span><span>Study</span></button>{contextLabel && <div className="header-context">{contextLabel}</div>}{secondary ? <button className="header-back" onClick={() => go(parentPath)} aria-label="返回上一级">‹</button> : <button className="header-avatar" onClick={() => go("/m/profile")} aria-label="打开我的">{(user.nickname || user.username || "学").slice(0, 1)}</button>}</header><main className="mobile-content">{children}</main>{tabs.length > 0 && <nav className="bottom-nav" aria-label="移动端主导航">{tabs.map(([key, label, path]) => <button key={key} className={active === key ? "is-active" : ""} onClick={() => go(path)}><Icon name={key} /><span>{label}</span></button>)}</nav>}</div>; }
+function AppShell({ route, user, contextLabel, children }) { const context = route.space === COURSE ? route.courseId : route.subject; const chatMode = route.page === "ai" || route.page === "exam-ai"; const tabs = context && !chatMode ? (route.space === EXAM ? [["home", "首页", `/m/exam11408/${context}`], ["knowledge", "章节", `/m/exam11408/${context}/chapters`], ["practice", "练习", `/m/exam11408/${context}/practice`], ["ai", "AI", `/m/exam11408/${context}/ai`], ["profile", "我的", "/m/profile"]] : [["home", "首页", coursePath(route.mode || "daily", context)], ["knowledge", "知识点", coursePath(route.mode || "daily", context, "/knowledge")], ["ai", "AI", coursePath(route.mode || "daily", context, "/ai")], ["practice", "练习", coursePath(route.mode || "daily", context, "/practice")], ["profile", "我的", "/m/profile"]]) : []; const active = ["course-home", "exam-home"].includes(route.page) ? "home" : route.page === "course-knowledge" || route.page === "exam-chapters" ? "knowledge" : route.page === "ai" || route.page === "exam-ai" ? "ai" : route.page === "course-practice" || route.page === "exam-practice" ? "practice" : route.page.replace("course-", "").replace("exam-", ""); const secondary = Boolean(route.courseId || route.subject || route.page.startsWith("profile-")); const parentPath = route.page.startsWith("profile-") ? "/m/profile" : route.courseId ? coursePath(route.mode || "daily", route.courseId) : route.subject ? `/m/exam11408/${route.subject}` : "/m"; return <div className={`mobile-app${chatMode ? " is-chat" : ""}`}>{!chatMode && <header className="mobile-header"><button className="brand-button" onClick={() => go(route.space === EXAM ? "/m/exam11408" : "/m/course")}><span className="brand-mark">AI</span><span>Study</span></button>{contextLabel && <div className="header-context">{contextLabel}</div>}{secondary ? <button className="header-back" onClick={() => goBack(parentPath)} aria-label="返回上一级">‹ 返回</button> : <button className="header-avatar" onClick={() => go("/m/profile")} aria-label="打开我的">{(user.nickname || user.username || "学").slice(0, 1)}</button>}</header>}<main className={`mobile-content${chatMode ? " mobile-chat-content" : ""}`}>{children}</main>{tabs.length > 0 && <nav className="bottom-nav" aria-label="移动端主导航">{tabs.map(([key, label, path]) => <button key={key} className={active === key ? "is-active" : ""} onClick={() => go(path)}><Icon name={key} /><span>{label}</span></button>)}</nav>}</div>; }
 function PageHeading({ eyebrow, title, description }) { return <div className="page-heading">{eyebrow && <span className="eyebrow">{eyebrow}</span>}<h1>{title}</h1>{description && <p>{description}</p>}</div>; }
 function SectionTitle({ title }) { return <div className="section-title"><h2>{title}</h2></div>; }
 function ActionRow({ icon, title, description, onClick }) { return <button className="action-row" onClick={onClick}><Icon name={icon} /><span><strong>{title}</strong>{description && <small>{description}</small>}</span><b>›</b></button>; }
