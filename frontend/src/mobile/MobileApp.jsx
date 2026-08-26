@@ -164,3 +164,50 @@ const legacyExamHome = ExamHome;
 ExamHome = (props) => window.location.pathname.endsWith("/plan") ? <ExamStudyPlanMobile user={props.user} subject={props.subject} /> : <legacyExamHome {...props} />;
 const legacyMobileGetJson = getJson;
 getJson = (path, options = {}) => { if (path.includes("/wrong-questions/") && path.endsWith("/mastered") && options.method === "PATCH") { const body = (() => { try { return JSON.parse(options.body || "{}"); } catch { return {}; } })(); const nextOptions = { ...options, body: JSON.stringify({ ...body, mastered: body.mastered ?? true }) }; return legacyMobileGetJson(path, nextOptions); } return legacyMobileGetJson(path, options); };
+
+function MobileCoursePracticeV87({ route, course, user }) {
+  const id = courseId(course);
+  const name = courseName(course);
+  const state = useResource(() => Promise.all([
+    getJson(`/knowledge-map?course_id=${encodeURIComponent(id)}&username=${encodeURIComponent(user.username)}`),
+    getJson(`/course-learning/practice/workbook?username=${encodeURIComponent(user.username)}&course_id=${encodeURIComponent(id)}&status=all`),
+  ]).then(([map, workbook]) => ({ map, items: safeArray(workbook.items) })), [id, user.username]);
+  const chapters = safeArray(state.data?.map?.chapters);
+  const [chapter, setChapter] = useState(route.chapter || "");
+  const [selected, setSelected] = useState(null);
+  const [attemptId, setAttemptId] = useState("");
+  const [answer, setAnswer] = useState("");
+  const [result, setResult] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const activeChapter = chapters.find((item) => (item.title || item.name) === chapter);
+  const points = new Set(knowledgeLeaves(activeChapter?.children || [], chapter).flatMap((item) => [item.id, item.code]).filter(Boolean).map(String));
+  const items = safeArray(state.data?.items).filter((item) => {
+    const knowledge = route.knowledge || route.knowledgeId;
+    if (knowledge) return [item.knowledge_point_id, item.knowledge_point_code, item.knowledge_point_title].filter(Boolean).map(String).includes(String(knowledge));
+    if (!chapter || !points.size) return true;
+    return [item.knowledge_point_id, item.knowledge_point_code, item.knowledge_point_path].filter(Boolean).map(String).some((key) => points.has(key) || key === chapter);
+  });
+  const start = async (item) => {
+    setBusy(true); setResult(null);
+    try { const data = await getJson(`/course-learning/practice/workbook/${encodeURIComponent(item.id)}/attempts`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: user.username }) }); setSelected(data.question || item); setAttemptId(String(data.attempt_id || "")); setAnswer(""); }
+    catch (error) { setResult({ error: error.message || "开始练习失败" }); } finally { setBusy(false); }
+  };
+  const generate = async () => {
+    const point = knowledgeLeaves(activeChapter?.children || [], chapter)[0];
+    if (!point) return;
+    setBusy(true); setResult(null);
+    try { const data = await getJson("/course-learning/practice/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: user.username, course_id: id, course_name: name, chapter, knowledge_point_code: point.code, knowledge_point_title: knowledgeTitle(point), difficulty: "基础" }) }); setSelected(data.question); setAttemptId(String(data.attempt_id || "")); setAnswer(""); }
+    catch (error) { setResult({ error: error.message || "生成练习失败" }); } finally { setBusy(false); }
+  };
+  const submit = async () => {
+    if (!attemptId || !answer || busy) return;
+    setBusy(true);
+    try { const data = await getJson(`/course-learning/practice/${encodeURIComponent(attemptId)}/submit`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: user.username, answer }) }); setResult(data.result || data); }
+    catch (error) { setResult({ error: error.message || "提交答案失败" }); } finally { setBusy(false); }
+  };
+  if (state.status !== "success") return <div className="page"><PageHeading eyebrow={`课程学习 · ${MODE_LABELS[route.mode]}`} title="章节练习" /><AsyncState state={state} emptyTitle="暂无章节练习" emptyDescription="PC 端当前没有返回可练习题目。" /></div>;
+  if (selected) return <div className="page"><PageHeading eyebrow={`课程学习 · ${MODE_LABELS[route.mode]}`} title="章节练习" description="答题、判题和解析来自 PC 端课程练习接口。" /><MobileQuestion question={selected} answer={answer} onAnswer={setAnswer} disabled={Boolean(result && !result.error)} />{result?.error && <div className="inline-error">{result.error}</div>}{result && !result.error && <div className={`mobile-practice-result ${result.correct ? "is-correct" : "is-wrong"}`}><strong>{result.correct ? "回答正确" : "回答错误"}</strong><span>标准答案：{result.standard_answer || "暂无返回"}</span><p>{result.analysis || "暂无解析"}</p></div>}{!result && <button className="primary-button" disabled={!answer || busy} onClick={submit}>{busy ? "提交中…" : "提交答案"}</button>}<button className="secondary-button" onClick={() => { setSelected(null); setAttemptId(""); setResult(null); }}>返回题册</button></div>;
+  return <div className="page"><PageHeading eyebrow={`课程学习 · ${MODE_LABELS[route.mode]}`} title="章节练习" description={`${name} · 题册来自 PC 端`} /><label className="mobile-select-label"><span>章节</span><select value={chapter} onChange={(event) => setChapter(event.target.value)}><option value="">全部章节</option>{chapters.map((item, index) => <option key={item.code || item.id || index} value={item.title || item.name}>{item.title || item.name}</option>)}</select></label>{items.length ? <div className="practice-data-panel">{items.map((item, index) => <article className="practice-data-row" key={item.id || index}><span>{index + 1}</span><strong>{item.stem || item.title || "练习题"}</strong><button className="secondary-button" disabled={busy} onClick={() => start(item)}>{item.attempt_count ? "重新练习" : "开始练习"}</button></article>)}</div> : <div className="empty-course"><strong>暂无章节练习题</strong><span>PC 端当前没有与当前筛选条件匹配的题目。</span>{chapter && <button className="primary-button" disabled={busy} onClick={generate}>{busy ? "生成中…" : "生成第一道题"}</button>}</div>}</div>;
+}
+
+CourseChapterPractice = MobileCoursePracticeV87;
