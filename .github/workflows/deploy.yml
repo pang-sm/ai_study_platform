@@ -296,7 +296,7 @@ jobs:
             echo "[deploy] Existing Git worktree could not consume bundle; rebuilding it from the same bundle"
             DEPLOY_TREE=$(mktemp -d)
             if git clone "$DEPLOY_BUNDLE" "$DEPLOY_TREE" 2>&1 | tee "$REPO_ROOT/.git-clone.log"; then
-              rsync -a --delete --exclude='.git/' --exclude='backend/app.db' --exclude='backend/backups/' --exclude='backend/uploads/' "$DEPLOY_TREE/" "$REPO_ROOT/"
+              rsync -a --delete --exclude='.git/' --exclude='backend/app.db' --exclude='backend/.env' --exclude='backend/.venv/' --exclude='backend/backups/' --exclude='backend/uploads/' "$DEPLOY_TREE/" "$REPO_ROOT/"
               mv "$REPO_ROOT/.git" "$DEPLOY_TREE/.git.previous"
               mv "$DEPLOY_TREE/.git" "$REPO_ROOT/.git"
             else
@@ -304,7 +304,7 @@ jobs:
               rm -rf "$DEPLOY_TREE"
               DEPLOY_TREE=$(mktemp -d)
               tar -xzf "$DEPLOY_ARCHIVE" -C "$DEPLOY_TREE"
-              rsync -a --delete --exclude='.git/' --exclude='backend/app.db' --exclude='backend/backups/' --exclude='backend/uploads/' "$DEPLOY_TREE/" "$REPO_ROOT/"
+              rsync -a --delete --exclude='.git/' --exclude='backend/app.db' --exclude='backend/.env' --exclude='backend/.venv/' --exclude='backend/backups/' --exclude='backend/uploads/' "$DEPLOY_TREE/" "$REPO_ROOT/"
             fi
             rm -rf "$DEPLOY_TREE"
           fi
