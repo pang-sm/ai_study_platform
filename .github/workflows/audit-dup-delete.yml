@@ -1,0 +1,33 @@
+name: Audit dup delete
+
+on:
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure SSH
+        run: |
+          mkdir -p "$HOME/.ssh"
+          printf '%s' "${{ secrets.TENCENT_SSH_KEY }}" > "$HOME/.ssh/tencent_audit_key"
+          chmod 600 "$HOME/.ssh/tencent_audit_key"
+          ssh-keyscan -H "${{ secrets.TENCENT_HOST }}" >> "$HOME/.ssh/known_hosts"
+      - name: Query materials
+        env:
+          TENCENT_HOST: ${{ secrets.TENCENT_HOST }}
+          TENCENT_USER: ${{ secrets.TENCENT_USER }}
+          SSH_PORT: ${{ secrets.TENCENT_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          HOST_CLEAN="${TENCENT_HOST#*@}"
+          HOST_CLEAN="${HOST_CLEAN%%:*}"
+          HOST_CLEAN="${HOST_CLEAN%%/*}"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/tencent_audit_key" -p "$SSH_PORT" "$TENCENT_USER@$HOST_CLEAN" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          DATA_DB=/var/lib/ai_study_platform/app.db
+          echo '=== ch06.pptx materials ==='
+          sudo sqlite3 -header -csv "$DATA_DB" "SELECT id, original_filename, course_id, subject_key, subject, file_hash, file_path, is_deleted, deleted_at FROM study_materials WHERE original_filename LIKE '%ch06%' ORDER BY id;"
+          echo '=== physical file for ch06 ==='
+          sudo sqlite3 -header -csv "$DATA_DB" "SELECT file_path FROM study_materials WHERE original_filename LIKE '%ch06%' AND is_deleted=0 LIMIT 1;"
+          REMOTE
