@@ -344,6 +344,105 @@ async function getJson(path, options = {}) { const response = await fetch(`${API
 
 function MobileAuth({ onAuthenticated }) { const [mode, setMode] = useState("login"); const [username, setUsername] = useState(""); const [password, setPassword] = useState(""); const [confirmPassword, setConfirmPassword] = useState(""); const [showPassword, setShowPassword] = useState(false); const [error, setError] = useState(""); const [busy, setBusy] = useState(false); const submit = async (event) => { event.preventDefault(); setBusy(true); setError(""); try { if (mode === "register" && password !== confirmPassword) throw new Error("两次输入的密码不一致"); if (mode === "register" && password.length < 6) throw new Error("密码至少需要 6 位"); const identifier = username.trim(); const response = await fetch(`${API_BASE}/${mode === "login" ? "login" : "register"}`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ username: identifier, password }) }); const data = await response.json().catch(() => ({})); if (!response.ok) throw new Error(data.detail || "账号、邮箱或密码错误"); const profile = data.user || data.profile; const sessionUsername = profile?.username || identifier; const meResponse = await fetch(`${API_BASE}/me`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ username: sessionUsername }) }); const me = await meResponse.json().catch(() => ({})); const user = me.user || profile; if (!user) throw new Error("认证成功但未返回用户信息"); localStorage.setItem("ai_study_platform_user", JSON.stringify(user)); onAuthenticated(user); } catch (reason) { setError(reason.message || "账号、邮箱或密码错误"); } finally { setBusy(false); } }; return <main className="mobile-auth mobile-auth-v12"><div className="auth-mark">AI</div><h1>{mode === "login" ? "欢迎回来" : "创建账号"}</h1><form onSubmit={submit}><label>账号或邮箱<input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="请输入用户名或邮箱" required /></label><label>密码<div className="auth-password-field"><input type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="输入密码" required /><button type="button" onClick={() => setShowPassword((value) => !value)}>{showPassword ? "隐藏" : "显示"}</button></div></label>{mode === "register" && <label>确认密码<input type={showPassword ? "text" : "password"} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} placeholder="再次输入密码" required /></label>}{error && <div className="auth-error" role="alert">{error}</div>}<button className="primary-button" type="submit" disabled={busy}>{busy ? "处理中…" : mode === "login" ? "登录" : "下一步"}</button></form><button type="button" className="auth-toggle" onClick={() => { setMode(mode === "login" ? "register" : "login"); setError(""); setConfirmPassword(""); }}>{mode === "login" ? "没有账号？注册" : "已有账号？登录"}</button></main>; }
 
+// Mobile v15.1 uses the same password and email-code endpoints as the PC login.
+MobileAuth = function MobileAuthV151({ onAuthenticated }) {
+  const [mode, setMode] = useState("password");
+  const [form, setForm] = useState({ username: "", password: "", email: "", code: "", confirmPassword: "" });
+  const [authMode, setAuthMode] = useState("login");
+  const [showPassword, setShowPassword] = useState(false);
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailCountdown, setEmailCountdown] = useState(0);
+  const [emailLoggingIn, setEmailLoggingIn] = useState(false);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const update = (key, value) => setForm((previous) => ({ ...previous, [key]: value }));
+
+  useEffect(() => {
+    if (emailCountdown <= 0) return undefined;
+    const timer = window.setTimeout(() => setEmailCountdown((value) => value - 1), 1000);
+    return () => window.clearTimeout(timer);
+  }, [emailCountdown]);
+
+  const finishLogin = async (data, identifier) => {
+    const profile = data.user || data.profile;
+    const sessionUsername = profile?.username || identifier;
+    const meResponse = await fetch(`${API_BASE}/me`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ username: sessionUsername }),
+    });
+    const me = await meResponse.json().catch(() => ({}));
+    if (!meResponse.ok) throw new Error(me.detail || "登录成功但无法读取账号信息");
+    const user = me.user || profile;
+    if (!user) throw new Error("认证成功但未返回用户信息");
+    localStorage.setItem("ai_study_platform_user", JSON.stringify(user));
+    onAuthenticated(user);
+  };
+
+  const submitPassword = async (event) => {
+    event.preventDefault();
+    setBusy(true); setError("");
+    try {
+      if (authMode === "register") {
+        if (form.password !== form.confirmPassword) throw new Error("两次输入的密码不一致");
+        if (form.password.length < 6) throw new Error("密码至少需要 6 位");
+      }
+      const identifier = form.username.trim();
+      const response = await fetch(`${API_BASE}/${authMode === "login" ? "login" : "register"}`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ username: identifier, password: form.password }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || "账号、邮箱或密码错误");
+      await finishLogin(data, identifier);
+    } catch (reason) {
+      setError(reason.message || "账号、邮箱或密码错误");
+    } finally { setBusy(false); }
+  };
+
+  const sendEmailCode = async () => {
+    const email = form.email.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setError("请输入有效的邮箱地址"); return; }
+    setEmailSending(true); setError("");
+    try {
+      const response = await fetch(`${API_BASE}/auth/email-login/send-code`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ email }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || "验证码发送失败");
+      setEmailCountdown(60);
+    } catch (reason) {
+      setError(reason.message || "验证码发送失败");
+    } finally { setEmailSending(false); }
+  };
+
+  const submitEmail = async (event) => {
+    event.preventDefault();
+    const email = form.email.trim(); const code = form.code.trim();
+    setError("");
+    if (!email || !code) { setError("请输入邮箱和验证码"); return; }
+    setEmailLoggingIn(true);
+    try {
+      const response = await fetch(`${API_BASE}/auth/email-login`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ email, code }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || "验证码错误或已过期");
+      await finishLogin(data, email);
+    } catch (reason) {
+      setError(reason.message || "验证码错误或已过期");
+    } finally { setEmailLoggingIn(false); }
+  };
+
+  const switchMode = (nextMode) => { setMode(nextMode); setError(""); };
+  const switchAuthMode = () => { setAuthMode((value) => value === "login" ? "register" : "login"); setError(""); };
+  const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim());
+  return <main className="mobile-auth mobile-auth-v12"><div className="auth-mark">AI</div><h1>{authMode === "login" ? "欢迎回来" : "创建账号"}</h1>{authMode === "login" && <div className="mobile-auth-tabs" role="tablist"><button type="button" className={mode === "password" ? "is-active" : ""} onClick={() => switchMode("password")}>账号登录</button><button type="button" className={mode === "email" ? "is-active" : ""} onClick={() => switchMode("email")}>邮箱登录</button></div>}{authMode === "login" && mode === "email" ? <form onSubmit={submitEmail}><label>邮箱<input type="email" value={form.email} onChange={(event) => update("email", event.target.value)} placeholder="请输入邮箱" required /></label><label>验证码<div className="auth-code-field"><input value={form.code} onChange={(event) => update("code", event.target.value)} placeholder="请输入验证码" maxLength={6} required /><button type="button" disabled={!validEmail || emailSending || emailCountdown > 0} onClick={sendEmailCode}>{emailSending ? "发送中…" : emailCountdown > 0 ? `${emailCountdown}s` : "重新获取"}</button></div></label>{error && <div className="auth-error" role="alert">{error}</div>}<button className="primary-button" type="submit" disabled={emailLoggingIn}>{emailLoggingIn ? "登录中…" : "登录"}</button></form> : <form onSubmit={submitPassword}><label>账号<input value={form.username} onChange={(event) => update("username", event.target.value)} placeholder={authMode === "login" ? "请输入用户名" : "输入账号"} required /></label><label>密码<div className="auth-password-field"><input type={showPassword ? "text" : "password"} value={form.password} onChange={(event) => update("password", event.target.value)} placeholder="输入密码" required /><button type="button" onClick={() => setShowPassword((value) => !value)}>{showPassword ? "隐藏" : "显示"}</button></div></label>{authMode === "register" && <label>确认密码<input type={showPassword ? "text" : "password"} value={form.confirmPassword} onChange={(event) => update("confirmPassword", event.target.value)} placeholder="再次输入密码" required /></label>}{error && <div className="auth-error" role="alert">{error}</div>}<button className="primary-button" type="submit" disabled={busy}>{busy ? "处理中…" : authMode === "login" ? "登录" : "下一步"}</button></form>}<button type="button" className="auth-toggle" onClick={switchAuthMode}>{authMode === "login" ? "没有账号？注册" : "已有账号？登录"}</button></main>;
+};
+
 function courseWorkspacePath(mode, id, section = "home") { return `/m/course/${mode}/${encodeURIComponent(String(id))}/${section.replace(/^\//, "")}`; }
 function examWorkspacePath(subject, section = "home") { return `/m/exam11408/${encodeURIComponent(String(subject))}/${section.replace(/^\//, "")}`; }
 const coursePath = (mode, id, suffix = "") => courseWorkspacePath(mode, id, suffix || "home");
