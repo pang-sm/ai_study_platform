@@ -2342,7 +2342,13 @@ function App() {
         })();
         const checkoutContext = getInitialMembershipCheckoutContext();
         const hasCheckoutContext = Boolean(checkoutContext?.orderId || checkoutContext?.order_id);
-        const nextPage = hasCheckoutContext ? "membershipCheckout" : getPostAuthPage(checkedUser, savedPage);
+        // A canonical course-dashboard URL is the source of truth on refresh.
+        // Do not let an unrelated page restored from localStorage override it.
+        const nextPage = hasCheckoutContext
+          ? "membershipCheckout"
+          : getCourseDashboardRoute()
+            ? "dashboard"
+            : getPostAuthPage(checkedUser, savedPage);
         setPage(
           nextPage,
           hasCheckoutContext
