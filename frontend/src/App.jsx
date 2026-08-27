@@ -2819,7 +2819,11 @@ function App() {
       await loadMaterials(reloadSubject);
     } catch (error) {
       console.error("Failed to upload selected file:", error);
-      setTip(error.message || "上传失败");
+      const message = error.message || "上传失败";
+      setTip(message);
+      // The materials subview does not render the global tip, so surface the
+      // error (e.g. duplicate file) with an explicit dialog as well.
+      window.alert(message);
       setSelectedFiles((prev) =>
         prev.map((item) =>
           item.localId === localId
@@ -2827,7 +2831,7 @@ function App() {
                 ...item,
                 uploading: false,
                 parse_status: "failed",
-                parse_error: error.message || "上传失败",
+                parse_error: message,
               }
             : item
         )
