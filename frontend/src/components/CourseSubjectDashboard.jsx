@@ -361,6 +361,7 @@ export default function CourseSubjectDashboard({
   onInitialMaterialReferenced = null,
   panelIntent = null,
   learningGoal = "",
+  onPanelChange = null,
 }) {
   const initialCourseName = resolveCourseName(course, getSubjectLabel);
   const initialCourseId = resolveCourseId(course, initialCourseName);
@@ -441,6 +442,7 @@ export default function CourseSubjectDashboard({
       }
     }
     setActiveSection(panel);
+    onPanelChange?.(panel, initialCourseId);
   };
 
   // Persist active section

@@ -103,6 +103,10 @@ class StudyMaterial(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(50), index=True, nullable=False)
+    # Immutable material scope. `subject` is retained as the display/legacy
+    # value for existing integrations; course-library requests use this ID.
+    course_id = Column(String(100), index=True, nullable=True)
+    subject_key = Column(String(100), index=True, nullable=True)
     subject = Column(String(100), index=True, nullable=False)
     file_type = Column(String(20), nullable=False)
     original_filename = Column(String(255), nullable=False)
@@ -147,6 +151,8 @@ class MaterialChunk(Base):
     id = Column(Integer, primary_key=True, index=True)
     material_id = Column(Integer, ForeignKey("study_materials.id"), index=True, nullable=False)
     username = Column(String(50), index=True, nullable=False)
+    course_id = Column(String(100), index=True, nullable=True)
+    subject_key = Column(String(100), index=True, nullable=True)
     subject = Column(String(100), index=True, nullable=False)
     chunk_index = Column(Integer, nullable=False)
     chunk_text = Column(Text, nullable=False)

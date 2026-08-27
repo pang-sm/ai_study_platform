@@ -52,6 +52,7 @@ import {
   getSubjectLabel,
   normalizeSubject,
 } from "./courseOptions.js";
+import { ID_TO_DISPLAY, isCanonicalCourseId, resolveCourseId as resolveCourseLearningId } from "./courseLearningCatalog.js";
 
 const USER_STORAGE_KEY = "ai_study_platform_user";
 const ACTIVE_SESSION_STORAGE_KEY = "ai_study_platform_active_session_id";
@@ -62,6 +63,40 @@ const CURRENT_EXAM_SUBJECT_KEY = "ai_study_current_exam_subject";
 const CURRENT_COURSE_CONTEXT_KEY = "ai_study_current_course_context";
 const API_BASE = "/api";
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
+
+function getCourseDashboardRoute() {
+  const match = window.location.pathname.match(/^\/course-learning\/([^/]+)(?:\/(overview|materials|knowledge|practice|plan|review|report|chat))?\/?$/);
+  if (!match) return null;
+  const courseId = decodeURIComponent(match[1]);
+  return isCanonicalCourseId(courseId) ? { courseId, panel: match[2] || "overview" } : null;
+}
+
+function writeCourseDashboardRoute(courseId, panel = "overview") {
+  if (!isCanonicalCourseId(courseId)) return;
+  const path = `/course-learning/${encodeURIComponent(courseId)}/${panel || "overview"}`;
+  if (window.location.pathname !== path) window.history.pushState({}, "", path);
+}
+
+function resolveMaterialScope(targetCourse) {
+  const raw = String(targetCourse || "").trim();
+  if (isCanonicalCourseId(raw)) {
+    return { courseId: raw, subjectKey: raw, subject: ID_TO_DISPLAY[raw] || "" };
+  }
+  const courseLearningId = resolveCourseLearningId(raw);
+  if (courseLearningId) {
+    return { courseId: courseLearningId, subjectKey: courseLearningId, subject: ID_TO_DISPLAY[courseLearningId] || "" };
+  }
+  const examMatch = Object.entries(EXAM_SUBJECTS || {}).find(([, value]) => `11408 ${value.title}` === raw);
+  if (examMatch) {
+    const subjectKey = examMatch[0];
+    return { courseId: `${subjectKey}_11408`, subjectKey, subject: raw };
+  }
+  if (raw === "legacy_computer_system_basics" || raw === "计算系统基础") {
+    return { courseId: "legacy_computer_system_basics", subjectKey: "legacy_computer_system_basics", subject: "计算系统基础" };
+  }
+  if (raw === "programming") return { courseId: "programming", subjectKey: "programming", subject: "programming" };
+  return null;
+}
 
 function getMembershipServiceKey(trackType) {
   if (trackType === "university_course") return "course_learning";
@@ -213,6 +248,11 @@ function getInitialSubject() {
 }
 
 function getInitialCourseContext() {
+  const route = getCourseDashboardRoute();
+  if (route) {
+    const courseName = ID_TO_DISPLAY[route.courseId] || route.courseId;
+    return { courseId: route.courseId, subject: route.courseId, courseName, courseTitle: courseName, track: "course_learning", serviceKey: "course_learning", routePanel: route.panel };
+  }
   try {
     const raw = localStorage.getItem(CURRENT_COURSE_CONTEXT_KEY);
     const saved = raw ? JSON.parse(raw) : null;
@@ -516,6 +556,7 @@ const ADMIN_PAGES = [
 function getInitialPage() {
   const savedUser = getSavedUser();
   if (!savedUser) return "login";
+  if (getCourseDashboardRoute()) return "dashboard";
   try {
     const checkoutContext = getInitialMembershipCheckoutContext();
     if (checkoutContext?.orderId || checkoutContext?.order_id) return "membershipCheckout";
@@ -588,7 +629,10 @@ function App() {
   const [examInitialMaterialReference, setExamInitialMaterialReference] = useState(null);
   const [examKnowledgeContext, setExamKnowledgeContext] = useState(null);
   const [courseSubjectContext, setCourseSubjectContext] = useState(getInitialCourseContext);
-  const [courseDashboardPanelIntent, setCourseDashboardPanelIntent] = useState(null);
+  const [courseDashboardPanelIntent, setCourseDashboardPanelIntent] = useState(() => {
+    const route = getCourseDashboardRoute();
+    return route ? { panel: route.panel, nonce: 0 } : null;
+  });
   const [guideReplay, setGuideReplay] = useState({ serviceKey: "", nonce: 0 });
   const [membershipCheckoutContext, setMembershipCheckoutContext] = useState(getInitialMembershipCheckoutContext);
   const [membershipPageContext, setMembershipPageContext] = useState(getInitialMembershipCheckoutContext);
@@ -657,7 +701,8 @@ function App() {
       }
     }
     if (nextPage === "dashboard") {
-      setCourseDashboardPanelIntent(null);
+      const requestedPanel = context?.forcePanel || context?.routePanel || "overview";
+      setCourseDashboardPanelIntent({ panel: requestedPanel, nonce: Date.now() });
       const rawCourseName = context?.courseName || context?.courseTitle || context?.name || context?.title || context?.subject || context?.courseId;
       const rawLearningGoal = context?.learningGoal || context?.learning_goal || context?.study_goal || context?.mode || "";
       const nextCourseContext = {
@@ -673,6 +718,7 @@ function App() {
       };
       setCourseSubjectContext(nextCourseContext);
       try { localStorage.setItem(CURRENT_COURSE_CONTEXT_KEY, JSON.stringify(nextCourseContext)); } catch { /* ignore */ }
+      writeCourseDashboardRoute(nextCourseContext.courseId, requestedPanel);
     } else {
       setCourseSubjectContext(null);
     }
@@ -899,6 +945,7 @@ function App() {
   const plusMenuRef = useRef(null);
   const localMessageCounterRef = useRef(0);
   const materialStatusPollersRef = useRef({});
+  const materialLoadRequestRef = useRef(0);
   const materialPollCountRef = useRef({});
   const MAX_POLL_COUNT = 150;
 
@@ -1410,10 +1457,16 @@ function App() {
   const loadMaterials = async (targetSubject = materialSubjectFilter) => {
     if (!user?.username) return;
 
+    const requestId = materialLoadRequestRef.current + 1;
+    materialLoadRequestRef.current = requestId;
     setMaterialsLoading(true);
     try {
       const query = new URLSearchParams({ username: user.username });
-      if (targetSubject) {
+      const scope = resolveMaterialScope(targetSubject);
+      if (scope) {
+        query.set("course_id", scope.courseId);
+        query.set("subject_key", scope.subjectKey);
+      } else if (targetSubject) {
         query.set("subject", normalizeSubject(targetSubject));
       }
 
@@ -1425,12 +1478,16 @@ function App() {
         return;
       }
 
-      setMaterials(data.materials || []);
+      if (requestId === materialLoadRequestRef.current) {
+        setMaterials(data.materials || []);
+      }
     } catch (error) {
       console.error("Failed to load materials:", error);
       setTip("无法加载资料，请检查后端服务。");
     } finally {
-      setMaterialsLoading(false);
+      if (requestId === materialLoadRequestRef.current) {
+        setMaterialsLoading(false);
+      }
     }
   };
 
@@ -1809,7 +1866,11 @@ function App() {
         username: user.username,
         q: searchKeyword,
       });
-      if (targetSubject) {
+      const scope = resolveMaterialScope(targetSubject);
+      if (scope) {
+        query.set("course_id", scope.courseId);
+        query.set("subject_key", scope.subjectKey);
+      } else if (targetSubject) {
         query.set("subject", normalizeSubject(targetSubject));
       }
 
@@ -1999,6 +2060,7 @@ function App() {
 
     setReindexLoading(true);
     setTip("");
+    const scope = resolveMaterialScope(targetSubject);
     const normalizedSubject = normalizeSubject(targetSubject, "");
 
     try {
@@ -2007,7 +2069,9 @@ function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           username: user.username,
-          subject: normalizedSubject || null,
+          ...(scope
+            ? { course_id: scope.courseId, subject_key: scope.subjectKey }
+            : { subject: normalizedSubject || null }),
           force: false,
         }),
       });
@@ -2366,7 +2430,9 @@ function App() {
   useEffect(() => {
     if (page === "dashboard" && user?.username) {
       const timer = window.setTimeout(() => {
-        loadCourseDashboard(courseSubjectContext?.courseId || subject);
+        const courseId = courseSubjectContext?.courseId || subject;
+        loadCourseDashboard(courseId);
+        loadMaterials(courseId);
       }, 0);
 
       return () => window.clearTimeout(timer);
@@ -2642,11 +2708,15 @@ function App() {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("username", user.username);
-    const uploadSubject = fileSubject || normalizeSubject(currentChatSubject);
-    formData.append("subject", normalizeSubject(uploadSubject));
-    formData.append("source_type", sourceType || "user_upload");
 
     try {
+      const uploadSubject = fileSubject || currentChatSubject;
+      const scope = resolveMaterialScope(uploadSubject);
+      if (!scope) throw new Error("当前课程没有有效的唯一 course_id，已拒绝上传以防资料串线。");
+      formData.append("course_id", scope.courseId);
+      formData.append("subject_key", scope.subjectKey);
+      formData.append("subject", scope.subject);
+      formData.append("source_type", sourceType || "user_upload");
       const res = await fetch(`${API_BASE}/materials/upload`, {
         method: "POST",
         credentials: "include",
@@ -4096,6 +4166,7 @@ function App() {
         knowledgeContext={examKnowledgeContext}
         initialMaterialToReference={examInitialMaterialReference}
         onInitialMaterialReferenced={() => setExamInitialMaterialReference(null)}
+        onPanelChange={(panel, courseId) => writeCourseDashboardRoute(courseId, panel)}
       />
     );
   }

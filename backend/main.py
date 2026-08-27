@@ -95,7 +95,7 @@ from rag import (
     search_relevant_material_chunks,
     soft_delete_material_chunks,
 )
-from subjects import normalize_subject, normalize_subject_course_learning, resolve_course_id_from_display
+from subjects import COURSE_LEARNING_ID_MAP, normalize_subject, normalize_subject_course_learning, resolve_course_id_from_display
 
 
 def _normalize_course_or_11408(subject: str, default: str = "") -> str:
@@ -111,6 +111,49 @@ def _normalize_course_or_11408_optional(subject: str | None, default: str = "") 
     if not subject:
         return default
     return _normalize_course_or_11408(subject, default)
+
+
+EXAM_MATERIAL_SCOPE_NAMES = {
+    "data_structure": "数据结构",
+    "computer_organization": "计算机组成原理",
+    "operating_system": "操作系统",
+    "computer_network": "计算机网络",
+}
+
+
+def resolve_material_scope(course_id: str, subject_key: str = "", subject: str = "") -> dict:
+    """Resolve one material-library identity and reject ambiguous input."""
+    raw_course_id = (course_id or "").strip()
+    raw_subject_key = (subject_key or "").strip()
+    raw_subject = (subject or "").strip()
+    if not raw_course_id:
+        raise HTTPException(status_code=400, detail="course_id is required; the server will not choose a fallback course")
+
+    display_by_id = {course_key: display for display, course_key in COURSE_LEARNING_ID_MAP.items()}
+    if raw_course_id in display_by_id:
+        expected_key = raw_course_id
+        expected_subject = display_by_id[raw_course_id]
+        track = "course_learning"
+    elif raw_course_id.endswith("_11408") and raw_course_id[:-6] in EXAM_MATERIAL_SCOPE_NAMES:
+        expected_key = raw_course_id[:-6]
+        expected_subject = f"11408 {EXAM_MATERIAL_SCOPE_NAMES[expected_key]}"
+        track = "exam_11408"
+    elif raw_course_id == "programming":
+        expected_key = "programming"
+        expected_subject = "programming"
+        track = "programming"
+    elif raw_course_id == "legacy_computer_system_basics":
+        expected_key = raw_course_id
+        expected_subject = "计算系统基础"
+        track = "legacy"
+    else:
+        raise HTTPException(status_code=400, detail="unknown course_id; a parent course or display name is not a valid material scope")
+
+    if raw_subject_key and raw_subject_key != expected_key:
+        raise HTTPException(status_code=400, detail="subject_key does not match course_id")
+    if raw_subject and _normalize_course_or_11408(raw_subject, default="") != expected_subject:
+        raise HTTPException(status_code=400, detail="subject does not match course_id")
+    return {"course_id": raw_course_id, "subject_key": expected_key, "subject": expected_subject, "track": track}
 
 load_dotenv()
 
@@ -416,6 +459,8 @@ class AddMaterialFromMessageRequest(BaseModel):
 
 class ReindexMaterialsRequest(BaseModel):
     username: str
+    course_id: str | None = None
+    subject_key: str | None = None
     subject: str | None = None
     force: bool = False
 
@@ -2990,6 +3035,8 @@ def serialize_material_list_item(material: models.StudyMaterial):
     preview_metadata = get_material_preview_metadata(material)
     return {
         "id": material.id,
+        "course_id": getattr(material, "course_id", None) or "",
+        "subject_key": getattr(material, "subject_key", None) or "",
         "subject": material.subject,
         "file_type": material.file_type,
         "file_name": material.original_filename,
@@ -3034,6 +3081,8 @@ def serialize_material_detail(material: models.StudyMaterial):
     return {
         "id": material.id,
         "username": material.username,
+        "course_id": getattr(material, "course_id", None) or "",
+        "subject_key": getattr(material, "subject_key", None) or "",
         "subject": material.subject,
         "file_type": material.file_type,
         "file_name": material.original_filename,
@@ -3796,10 +3845,14 @@ def create_pending_material(
     total_pages: int = 0,
     source_message_id: int | None = None,
     source_type: str | None = None,
+    course_id: str = "",
+    subject_key: str = "",
 ):
     material = models.StudyMaterial(
         username=(username or "").strip(),
-        subject=normalize_subject(subject),
+        course_id=(course_id or "").strip(),
+        subject_key=(subject_key or "").strip(),
+        subject=subject,
         file_type=file_type,
         original_filename=os.path.basename(original_filename or "未命名文件"),
         mime_type=mime_type,
@@ -8045,7 +8098,9 @@ async def upload_material(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     username: str = Form(...),
-    subject: str = Form(...),
+    course_id: str = Form(...),
+    subject_key: str = Form(...),
+    subject: str = Form(""),
     question: str = Form(""),
     conversation_id: int | None = Form(None),
     save_to_materials: bool = Form(False),
@@ -8060,15 +8115,21 @@ async def upload_material(
     ensure_feature_enabled(db, "feature_material_upload_enabled", "资料上传功能暂时维护中，请稍后再试")
 
     user = current_user
-    normalized_subject = _normalize_course_or_11408(subject)
+    material_scope = resolve_material_scope(course_id, subject_key, subject)
+    normalized_subject = material_scope["subject"]
     normalized_source_type = normalize_material_source_type(source_type)
+    if material_scope["track"] == "course_learning":
+        track = get_user_track(db, user.id, "university_course")
+        selected_courses = get_course_learning_selected_courses(user, track)
+        if normalized_subject not in selected_courses:
+            raise HTTPException(status_code=403, detail="course_id is not selected by the current user")
 
     # Upload quota checks
     plan_info = get_user_plan(user.username, db)
     plan_limits = get_plan_limits(plan_info["plan"])
     max_file_size_mb = plan_limits.get("single_file_size_mb", 20)
     max_material_count = plan_limits.get("material_upload_count", 30)
-    if is_exam_408_context(normalized_subject, subject):
+    if material_scope["track"] == "exam_11408":
         exam_permissions = get_exam_408_permissions_for_user(db, user)
         if exam_permissions:
             max_file_size_mb = int(exam_permissions.get("material_upload_limit_mb") or max_file_size_mb)
@@ -8105,6 +8166,17 @@ async def upload_material(
     file_type = ALLOWED_UPLOAD_TYPES.get(file.content_type, material_type.lower())
     file_hash = calculate_file_hash(file_bytes)
     existing_material = get_material_by_file_hash(db, user.username, file_hash)
+    if existing_material:
+        existing_scope = (getattr(existing_material, "course_id", None) or "").strip()
+        if existing_scope and existing_scope != material_scope["course_id"]:
+            raise HTTPException(status_code=409, detail="identical file already belongs to another course; it was not rebound")
+        if not existing_scope and (existing_material.subject or "").strip() != normalized_subject:
+            raise HTTPException(status_code=409, detail="identical legacy file has an unverified course scope; it was not rebound")
+        if not existing_scope:
+            existing_material.course_id = material_scope["course_id"]
+            existing_material.subject_key = material_scope["subject_key"]
+            db.commit()
+            db.refresh(existing_material)
     if existing_material and (existing_material.parse_status or "").strip() == "success":
         existing_material = ensure_material_original_file(
             db,
@@ -8116,6 +8188,8 @@ async def upload_material(
         )
         if normalized_source_type != USER_UPLOAD_SOURCE and existing_material.source_type != normalized_source_type:
             existing_material.source_type = normalized_source_type
+            existing_material.course_id = material_scope["course_id"]
+            existing_material.subject_key = material_scope["subject_key"]
             existing_material.subject = normalized_subject
             existing_material.updated_at = utc_now()
             db.commit()
@@ -8144,6 +8218,8 @@ async def upload_material(
         )
         if normalized_source_type != USER_UPLOAD_SOURCE and existing_material.source_type != normalized_source_type:
             existing_material.source_type = normalized_source_type
+            existing_material.course_id = material_scope["course_id"]
+            existing_material.subject_key = material_scope["subject_key"]
             existing_material.subject = normalized_subject
             existing_material.updated_at = utc_now()
             db.commit()
@@ -8165,6 +8241,8 @@ async def upload_material(
     material = create_pending_material(
         db=db,
         username=user.username,
+        course_id=material_scope["course_id"],
+        subject_key=material_scope["subject_key"],
         subject=normalized_subject,
         file_type=file_type,
         original_filename=original_filename,
@@ -8370,6 +8448,16 @@ def reindex_user_materials(
     assert_username_matches_current_user(req.username, current_user)
     user = current_user
 
+    if req.course_id or req.subject_key:
+        scope = resolve_material_scope(req.course_id or "", req.subject_key or "", req.subject or "")
+        try:
+            indexed_material_count, indexed_chunk_count = reindex_materials(
+                db=db, username=user.username, course_id=scope["course_id"], force=req.force,
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail="资料索引重建失败，请稍后重试") from exc
+        return {"indexed_material_count": indexed_material_count, "indexed_chunk_count": indexed_chunk_count}
+
     try:
         indexed_material_count, indexed_chunk_count = reindex_materials(
             db=db,
@@ -8574,6 +8662,8 @@ def reparse_single_material(
 def search_materials(
     username: str = "",
     q: str = "",
+    course_id: str = "",
+    subject_key: str = "",
     subject: str = "",
     top_k: int = 8,
     db: Session = Depends(get_db),
@@ -8582,7 +8672,8 @@ def search_materials(
     assert_username_matches_current_user(username, current_user)
     user = current_user
     keyword = (q or "").strip()
-    normalized_subject = normalize_subject(subject, default="")
+    scope = resolve_material_scope(course_id, subject_key, subject) if (course_id or subject_key) else None
+    normalized_subject = scope["subject"] if scope else normalize_subject(subject, default="")
 
     if not keyword:
         return {"chunks": []}
@@ -8598,14 +8689,18 @@ def search_materials(
 
 
 @app.get("/materials")
-def get_materials(username: str = "", subject: str | None = None, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+def get_materials(username: str = "", course_id: str = "", subject_key: str = "", subject: str | None = None, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     assert_username_matches_current_user(username, current_user)
     user = current_user
     query = query_accessible_materials(db, user.username)
 
-    normalized_subject = _normalize_course_or_11408_optional(subject)
-    if normalized_subject:
-        query = query.filter(models.StudyMaterial.subject == normalized_subject)
+    if course_id or subject_key:
+        scope = resolve_material_scope(course_id, subject_key, subject or "")
+        query = query.filter(models.StudyMaterial.course_id == scope["course_id"])
+    elif subject:
+        normalized_subject = _normalize_course_or_11408_optional(subject)
+        if normalized_subject:
+            query = query.filter(models.StudyMaterial.subject == normalized_subject)
 
     materials = query.order_by(models.StudyMaterial.is_default_reference.desc(), models.StudyMaterial.created_at.desc()).all()
     return {"materials": [serialize_material_list_item(material) for material in materials]}

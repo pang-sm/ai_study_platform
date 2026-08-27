@@ -152,6 +152,8 @@ def build_chunk_records(material: models.StudyMaterial):
             {
                 "material_id": material.id,
                 "username": material.username,
+                "course_id": getattr(material, "course_id", None),
+                "subject_key": getattr(material, "subject_key", None),
                 "subject": material.subject,
                 "chunk_index": index,
                 "chunk_text": chunk_text,
@@ -486,14 +488,22 @@ def retrieve_chunks_for_materials(
         return trim_chunks_for_prompt(ranked, MAX_TOTAL_CONTEXT_LEN)
 
 
-def reindex_materials(db: Session, username: str, subject: str | None = None, force: bool = False):
+def reindex_materials(
+    db: Session,
+    username: str,
+    subject: str | None = None,
+    course_id: str | None = None,
+    force: bool = False,
+):
     query = db.query(models.StudyMaterial).filter(
         models.StudyMaterial.username == username,
         models.StudyMaterial.visibility == PRIVATE_VISIBILITY,
         models.StudyMaterial.allow_private_rag.is_(True),
         models.StudyMaterial.is_deleted.is_(False),
     )
-    if subject:
+    if course_id:
+        query = query.filter(models.StudyMaterial.course_id == course_id)
+    elif subject:
         query = query.filter(models.StudyMaterial.subject == subject)
 
     materials = query.order_by(models.StudyMaterial.created_at.desc()).all()

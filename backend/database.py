@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import declarative_base, sessionmaker
-from subjects import DEFAULT_SUBJECT, get_subject_migration_pairs
+from subjects import COURSE_LEARNING_ID_MAP, DEFAULT_SUBJECT, get_subject_migration_pairs
 
 import os as _os
 from pathlib import Path as _Path
@@ -94,6 +94,8 @@ CHAT_MESSAGE_COLUMNS = {
 }
 
 STUDY_MATERIAL_COLUMNS = {
+    "course_id": "VARCHAR(100)",
+    "subject_key": "VARCHAR(100)",
     "mime_type": "VARCHAR(255)",
     "file_size": "INTEGER DEFAULT 0",
     "file_hash": "TEXT",
@@ -129,6 +131,8 @@ STUDY_MATERIAL_COLUMNS = {
 MATERIAL_CHUNK_COLUMNS = {
     "material_id": "INTEGER",
     "username": "VARCHAR(50)",
+    "course_id": "VARCHAR(100)",
+    "subject_key": "VARCHAR(100)",
     "subject": "VARCHAR(100)",
     "chunk_index": "INTEGER",
     "chunk_text": "TEXT",
@@ -625,6 +629,7 @@ def ensure_admin_roles_schema(conn):
 
 def ensure_study_material_schema(conn):
     ensure_columns(conn, "study_materials", STUDY_MATERIAL_COLUMNS)
+    backfill_material_course_identity(conn)
     backfill_study_material_permissions(conn)
     seed_default_reference_materials(conn)
 
@@ -773,6 +778,40 @@ def ensure_material_chunks_schema(conn):
         )
     )
     ensure_columns(conn, "material_chunks", MATERIAL_CHUNK_COLUMNS)
+    # Chunks inherit the material identity deterministically; no filename or
+    # other heuristic is used.
+    conn.execute(text("""
+        UPDATE material_chunks
+        SET course_id = (SELECT course_id FROM study_materials WHERE study_materials.id = material_chunks.material_id),
+            subject_key = (SELECT subject_key FROM study_materials WHERE study_materials.id = material_chunks.material_id)
+        WHERE material_id IN (SELECT id FROM study_materials)
+          AND (course_id IS NULL OR TRIM(course_id) = '' OR subject_key IS NULL OR TRIM(subject_key) = '')
+    """))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_material_chunks_user_course_id ON material_chunks(username, course_id)"))
+
+
+def backfill_material_course_identity(conn):
+    """Fill only identities provable from an existing exact subject value."""
+    exact_scopes = {
+        display_name: (course_id, course_id)
+        for display_name, course_id in COURSE_LEARNING_ID_MAP.items()
+    }
+    exact_scopes.update({
+        "programming": ("programming", "programming"),
+        "计算系统基础": ("legacy_computer_system_basics", "legacy_computer_system_basics"),
+        "11408 数据结构": ("data_structure_11408", "data_structure"),
+        "11408 计算机组成原理": ("computer_organization_11408", "computer_organization"),
+        "11408 操作系统": ("operating_system_11408", "operating_system"),
+        "11408 计算机网络": ("computer_network_11408", "computer_network"),
+    })
+    for subject, (course_id, subject_key) in exact_scopes.items():
+        conn.execute(text("""
+            UPDATE study_materials
+            SET course_id = :course_id, subject_key = :subject_key
+            WHERE subject = :subject
+              AND (course_id IS NULL OR TRIM(course_id) = '' OR subject_key IS NULL OR TRIM(subject_key) = '')
+        """), {"subject": subject, "course_id": course_id, "subject_key": subject_key})
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_study_materials_user_course_id ON study_materials(username, course_id)"))
 
 
 def ensure_learning_records_schema(conn):

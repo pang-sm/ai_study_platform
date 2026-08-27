@@ -97,6 +97,11 @@ export function resolveCourseId(displayName) {
   return DISPLAY_TO_ID[normalized] || "";
 }
 
+/** True only for a stable course-learning identity, never a display-name fallback. */
+export function isCanonicalCourseId(value) {
+  return COURSE_IDS.includes(String(value || "").trim());
+}
+
 /** 获取显示名 */
 export function resolveDisplayName(input) {
   const normalized = normalizeCourseLearningName(input);

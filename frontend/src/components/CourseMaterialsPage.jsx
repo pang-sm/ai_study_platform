@@ -387,17 +387,14 @@ export default function CourseMaterialsPage({
 
   const course = getCourseDisplay(subject, getSubjectLabel, isCourseMode);
   const rawItems = Array.isArray(materials) ? materials : [];
-  // In course_learning mode, filter to current course + exclude 11408 reference metadata
+  // Course-library data is scoped by the immutable course_id returned by the
+  // API; names are display-only and must never decide visibility.
   const currentItems = useMemo(() => {
     if (!isCourseMode) return rawItems;
-    const courseSubject = String(subject || "").trim();
+    const courseId = String(subject || "").trim();
     return rawItems.filter((item) => {
       if (isReferenceMetadata(item)) return false;
-      if (!courseSubject) return true;
-      const itemSubject = String(item.subject || item.course_id || item.course_name || "").trim();
-      // 11408 materials use "11408 " prefix — exclude them
-      if (itemSubject.startsWith("11408 ")) return false;
-      return itemSubject === courseSubject;
+      return !courseId || String(item.course_id || "").trim() === courseId;
     });
   }, [rawItems, isCourseMode, subject]);
 
@@ -578,7 +575,7 @@ export default function CourseMaterialsPage({
     const sourceType = pendingUploadSource || "user_upload";
     setPendingUploadSource("user_upload");
     if (isCourseMode) {
-      handleFileChange?.(event, sourceType);
+      handleFileChange?.(event, subject, sourceType);
     } else {
       handleFileChange?.(event);
     }
