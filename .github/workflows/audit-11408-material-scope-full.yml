@@ -1,0 +1,118 @@
+name: Audit 11408 material scope (full)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure SSH
+        run: |
+          mkdir -p "$HOME/.ssh"
+          printf '%s' "${{ secrets.TENCENT_SSH_KEY }}" > "$HOME/.ssh/tencent_audit_key"
+          chmod 600 "$HOME/.ssh/tencent_audit_key"
+          ssh-keyscan -H "${{ secrets.TENCENT_HOST }}" >> "$HOME/.ssh/known_hosts"
+
+      - name: Full read-only audit
+        env:
+          TENCENT_HOST: ${{ secrets.TENCENT_HOST }}
+          TENCENT_USER: ${{ secrets.TENCENT_USER }}
+          SSH_PORT: ${{ secrets.TENCENT_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          HOST_CLEAN="${TENCENT_HOST#*@}"
+          HOST_CLEAN="${HOST_CLEAN%%:*}"
+          HOST_CLEAN="${HOST_CLEAN%%/*}"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/tencent_audit_key" -p "$SSH_PORT" "$TENCENT_USER@$HOST_CLEAN" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          DATA_DB=/var/lib/ai_study_platform/app.db
+          AUDIT_DIR=/var/lib/ai_study_platform/audits
+          TIMESTAMP="$(date -u +%Y%m%d_%H%M%S)"
+          SNAPSHOT="$AUDIT_DIR/app.db.before-11408-full-audit.$TIMESTAMP.db"
+
+          sudo mkdir -p "$AUDIT_DIR"
+          sudo sqlite3 "$DATA_DB" ".timeout 5000" ".backup '$SNAPSHOT'"
+          echo "snapshot=$SNAPSHOT"
+          sudo stat -c 'snapshot_size=%s snapshot_path=%n' "$SNAPSHOT"
+
+          echo '=== ALL materials for affected owners (full identity) ==='
+          sudo sqlite3 -header -csv "$SNAPSHOT" <<'SQL'
+          WITH owners AS (
+            SELECT DISTINCT username FROM study_materials
+            WHERE original_filename IN ('coa26_第0讲.pdf', 'chapter1_introduction.pdf')
+          )
+          SELECT m.id, m.username, m.original_filename AS filename, m.subject,
+                 m.course_id, m.subject_key, m.source_type, m.parse_status AS index_status,
+                 m.chunk_count, m.file_type, m.file_size, m.file_path,
+                 m.created_at, m.is_deleted
+          FROM study_materials m
+          JOIN owners o ON o.username = m.username
+          ORDER BY m.username, m.created_at, m.id;
+          SQL
+
+          echo '=== content disambiguation for the two anchors ==='
+          sudo sqlite3 -header -csv "$SNAPSHOT" <<'SQL'
+          SELECT id, original_filename AS filename,
+                 substr(coalesce(summary,''), 1, 600) AS summary_snippet,
+                 substr(coalesce(extracted_text,''), 1, 600) AS text_snippet
+          FROM study_materials
+          WHERE original_filename IN ('coa26_第0讲.pdf', 'chapter1_introduction.pdf')
+          ORDER BY id;
+          SQL
+
+          echo '=== chunk scope breakdown per anchor ==='
+          sudo sqlite3 -header -csv "$SNAPSHOT" <<'SQL'
+          SELECT mc.material_id, mc.course_id, mc.subject_key, mc.subject,
+                 COUNT(*) AS chunk_count
+          FROM material_chunks mc
+          WHERE mc.material_id IN (
+            SELECT id FROM study_materials
+            WHERE original_filename IN ('coa26_第0讲.pdf', 'chapter1_introduction.pdf')
+          )
+            AND mc.is_deleted = 0
+          GROUP BY mc.material_id, mc.course_id, mc.subject_key, mc.subject
+          ORDER BY mc.material_id;
+          SQL
+
+          echo '=== FTS row coverage for anchor chunks ==='
+          sudo sqlite3 -header -csv "$SNAPSHOT" <<'SQL'
+          SELECT COUNT(*) AS fts_rows
+          FROM material_chunks_fts f
+          WHERE f.rowid IN (
+            SELECT mc.id FROM material_chunks mc
+            JOIN study_materials m ON m.id = mc.material_id
+            WHERE m.original_filename IN ('coa26_第0讲.pdf', 'chapter1_introduction.pdf')
+              AND mc.is_deleted = 0
+          );
+          SQL
+
+          echo '=== any other user with COA-like / affected filenames ==='
+          sudo sqlite3 -header -csv "$SNAPSHOT" <<'SQL'
+          SELECT id, username, original_filename AS filename, subject, course_id, subject_key,
+                 source_type, parse_status AS index_status, created_at, is_deleted
+          FROM study_materials
+          WHERE original_filename LIKE '%coa%'
+             OR original_filename LIKE '%第0讲%'
+             OR original_filename LIKE '%chapter1_introduction%'
+             OR original_filename LIKE '%introduction%'
+          ORDER BY username, created_at, id;
+          SQL
+
+          echo '=== storage file existence for anchors ==='
+          sudo sqlite3 -header -csv "$SNAPSHOT" <<'SQL'
+          SELECT id, original_filename AS filename, file_path
+          FROM study_materials
+          WHERE original_filename IN ('coa26_第0讲.pdf', 'chapter1_introduction.pdf');
+          SQL
+
+          echo '=== material_knowledge_links for anchors (if any) ==='
+          sudo sqlite3 -header -csv "$SNAPSHOT" <<'SQL'
+          SELECT mkl.material_id, mkl.course_id, mkl.knowledge_point_id, mkl.username
+          FROM material_knowledge_links mkl
+          WHERE mkl.material_id IN (
+            SELECT id FROM study_materials
+            WHERE original_filename IN ('coa26_第0讲.pdf', 'chapter1_introduction.pdf')
+          );
+          SQL
+          REMOTE
