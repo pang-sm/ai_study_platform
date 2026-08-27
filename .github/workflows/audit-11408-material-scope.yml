@@ -1,0 +1,115 @@
+name: Audit 11408 material scope
+
+on:
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure SSH
+        run: |
+          mkdir -p "$HOME/.ssh"
+          printf '%s' "${{ secrets.TENCENT_SSH_KEY }}" > "$HOME/.ssh/tencent_audit_key"
+          chmod 600 "$HOME/.ssh/tencent_audit_key"
+          ssh-keyscan -H "${{ secrets.TENCENT_HOST }}" >> "$HOME/.ssh/known_hosts"
+
+      - name: Snapshot and audit the production material scope
+        env:
+          TENCENT_HOST: ${{ secrets.TENCENT_HOST }}
+          TENCENT_USER: ${{ secrets.TENCENT_USER }}
+          SSH_PORT: ${{ secrets.TENCENT_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          HOST_CLEAN="${TENCENT_HOST#*@}"
+          HOST_CLEAN="${HOST_CLEAN%%:*}"
+          HOST_CLEAN="${HOST_CLEAN%%/*}"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/tencent_audit_key" -p "$SSH_PORT" "$TENCENT_USER@$HOST_CLEAN" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          DATA_DB=/var/lib/ai_study_platform/app.db
+          AUDIT_DIR=/var/lib/ai_study_platform/audits
+          TIMESTAMP="$(date -u +%Y%m%d_%H%M%S)"
+          SNAPSHOT="$AUDIT_DIR/app.db.before-11408-material-audit.$TIMESTAMP.db"
+
+          sudo test -s "$DATA_DB"
+          sudo mkdir -p "$AUDIT_DIR"
+          # SQLite's online backup API produces a consistent snapshot without
+          # stopping the production backend or touching the live database.
+          sudo sqlite3 "$DATA_DB" ".timeout 5000" ".backup '$SNAPSHOT'"
+          sudo test -s "$SNAPSHOT"
+
+          echo '=== runtime database identity ==='
+          echo "live_db=$DATA_DB"
+          sudo stat -c 'inode=%i size=%s modified=%y path=%n' "$DATA_DB"
+          sudo systemctl show ai-backend -p MainPID -p WorkingDirectory --no-pager
+          sudo systemctl cat ai-backend | grep -E 'DATABASE_URL|WorkingDirectory|ExecStart' || true
+          MAIN_PID="$(sudo systemctl show ai-backend -p MainPID --value)"
+          if [ "${MAIN_PID:-0}" -gt 0 ]; then
+            echo "process_cwd=$(sudo readlink -f /proc/$MAIN_PID/cwd)"
+            sudo lsof -p "$MAIN_PID" 2>/dev/null | grep -F "$DATA_DB" || true
+          fi
+          echo "snapshot=$SNAPSHOT"
+          sudo stat -c 'snapshot_inode=%i snapshot_size=%s snapshot_path=%n' "$SNAPSHOT"
+
+          echo '=== material schema and index tables ==='
+          sudo sqlite3 -header -csv "$SNAPSHOT" "PRAGMA table_info(study_materials);"
+          sudo sqlite3 -header -csv "$SNAPSHOT" "PRAGMA table_info(material_chunks);"
+          sudo sqlite3 -header -csv "$SNAPSHOT" "SELECT name, type FROM sqlite_master WHERE name LIKE '%material%' ORDER BY name;"
+
+          echo '=== exact affected filenames with material/chunk/index identity ==='
+          sudo sqlite3 -header -csv "$SNAPSHOT" <<'SQL'
+          SELECT
+            m.id AS material_id,
+            m.original_filename AS filename,
+            u.id AS user_id,
+            m.username,
+            m.subject,
+            m.course_id,
+            m.subject_key,
+            m.source_type,
+            m.parse_status AS index_status,
+            m.created_at,
+            m.updated_at,
+            m.is_deleted,
+            COUNT(mc.id) AS live_chunk_count,
+            SUM(CASE WHEN mc.course_id IS NOT m.course_id OR mc.subject_key IS NOT m.subject_key OR mc.subject IS NOT m.subject THEN 1 ELSE 0 END) AS mismatched_chunk_identity_count
+          FROM study_materials m
+          LEFT JOIN users u ON u.username = m.username
+          LEFT JOIN material_chunks mc ON mc.material_id = m.id AND mc.is_deleted = 0
+          WHERE m.original_filename IN ('coa26_第0讲.pdf', 'chapter1_introduction.pdf')
+          GROUP BY m.id
+          ORDER BY m.created_at, m.id;
+          SQL
+
+          echo '=== same-owner records created within one hour of the anchors ==='
+          sudo sqlite3 -header -csv "$SNAPSHOT" <<'SQL'
+          WITH anchors AS (
+            SELECT username, MIN(created_at) AS first_created_at, MAX(created_at) AS last_created_at
+            FROM study_materials
+            WHERE original_filename IN ('coa26_第0讲.pdf', 'chapter1_introduction.pdf')
+            GROUP BY username
+          )
+          SELECT m.id AS material_id, m.original_filename AS filename, m.username, m.subject,
+                 m.course_id, m.subject_key, m.source_type, m.parse_status AS index_status,
+                 m.chunk_count, m.created_at, m.is_deleted
+          FROM study_materials m
+          JOIN anchors a ON a.username = m.username
+          WHERE m.created_at BETWEEN datetime(a.first_created_at, '-1 hour') AND datetime(a.last_created_at, '+1 hour')
+          ORDER BY m.username, m.created_at, m.id;
+          SQL
+
+          echo '=== candidate legacy scope totals for the affected owners ==='
+          sudo sqlite3 -header -csv "$SNAPSHOT" <<'SQL'
+          WITH owners AS (
+            SELECT DISTINCT username FROM study_materials
+            WHERE original_filename IN ('coa26_第0讲.pdf', 'chapter1_introduction.pdf')
+          )
+          SELECT m.username, m.subject, m.course_id, m.subject_key, m.parse_status AS index_status,
+                 COUNT(*) AS material_count, SUM(m.chunk_count) AS material_chunk_count
+          FROM study_materials m
+          JOIN owners o ON o.username = m.username
+          WHERE m.is_deleted = 0
+          GROUP BY m.username, m.subject, m.course_id, m.subject_key, m.parse_status
+          ORDER BY m.username, m.created_at;
+          SQL
+          REMOTE
