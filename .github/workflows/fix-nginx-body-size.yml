@@ -1,0 +1,42 @@
+name: Fix nginx body size
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure SSH
+        run: |
+          mkdir -p "$HOME/.ssh"
+          printf '%s' "${{ secrets.TENCENT_SSH_KEY }}" > "$HOME/.ssh/tencent_audit_key"
+          chmod 600 "$HOME/.ssh/tencent_audit_key"
+          ssh-keyscan -H "${{ secrets.TENCENT_HOST }}" >> "$HOME/.ssh/known_hosts"
+
+      - name: Add client_max_body_size and reload nginx
+        env:
+          TENCENT_HOST: ${{ secrets.TENCENT_HOST }}
+          TENCENT_USER: ${{ secrets.TENCENT_USER }}
+          SSH_PORT: ${{ secrets.TENCENT_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          HOST_CLEAN="${TENCENT_HOST#*@}"
+          HOST_CLEAN="${HOST_CLEAN%%:*}"
+          HOST_CLEAN="${HOST_CLEAN%%/*}"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/tencent_audit_key" -p "$SSH_PORT" "$TENCENT_USER@$HOST_CLEAN" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          TS="$(date -u +%Y%m%d_%H%M%S)"
+          sudo cp -a /etc/nginx/nginx.conf "/etc/nginx/nginx.conf.before-body-size.$TS"
+          if sudo grep -q "client_max_body_size" /etc/nginx/nginx.conf; then
+            echo "client_max_body_size already present"
+          else
+            sudo sed -i '/^http {/a\    client_max_body_size 50m;' /etc/nginx/nginx.conf
+            echo "inserted client_max_body_size 50m into http block"
+          fi
+          sudo nginx -t
+          sudo systemctl reload nginx
+          echo "=== verify ==="
+          sudo nginx -T 2>/dev/null | grep -i "client_max_body_size" || true
+          echo "nginx reloaded"
+          REMOTE

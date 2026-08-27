@@ -31,6 +31,10 @@ server {
     root __WEB_ROOT__;
     index index.html;
 
+    # Material uploads are multipart and can legitimately exceed nginx's
+    # default 1m body limit; align with the app's own upload ceiling.
+    client_max_body_size 50m;
+
     # Vite emits content-hashed assets. Compress text assets at a moderate
     # level for constrained public links, while leaving index.html revalidable
     # so a deployment never points clients at removed chunks.
