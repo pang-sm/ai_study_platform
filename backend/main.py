@@ -7563,7 +7563,7 @@ def _phone_send_error(detail: dict):
 
 
 def _check_phone_rate_limits(db: Session, username: str, phone: str, client_ip: str):
-    now = utc_now()
+    now = datetime.utcnow()
     recent = db.query(models.VerificationCode).filter(
         models.VerificationCode.target == phone,
         models.VerificationCode.purpose.in_(list(PHONE_CODE_PURPOSES.values())),
@@ -7598,7 +7598,7 @@ def _send_phone_code(db: Session, user: models.User, phone: str, purpose: str, c
     _check_phone_rate_limits(db, user.username, canonical, client_ip)
 
     code = f"{secrets.randbelow(1000000):06d}"
-    expires_at = utc_now() + timedelta(minutes=PHONE_CODE_TTL_MINUTES)
+    expires_at = datetime.utcnow() + timedelta(minutes=PHONE_CODE_TTL_MINUTES)
     record = models.VerificationCode(
         username=user.username,
         target=canonical,
@@ -7640,7 +7640,7 @@ def _verify_phone_code(db: Session, user: models.User, phone: str, code: str, pu
     if not record:
         _phone_send_error({"code": "PHONE_CODE_INVALID", "message": "请先获取验证码"})
 
-    if record.expires_at and record.expires_at <= utc_now():
+    if record.expires_at and record.expires_at <= datetime.utcnow():
         _phone_send_error({"code": "PHONE_CODE_EXPIRED", "message": "验证码已过期，请重新获取"})
 
     if (record.attempts or 0) >= PHONE_CODE_MAX_ATTEMPTS:
@@ -7666,7 +7666,7 @@ def _verify_phone_code(db: Session, user: models.User, phone: str, code: str, pu
 
     user.phone = canonical
     user.phone_verified = True
-    user.phone_verified_at = utc_now()
+    user.phone_verified_at = datetime.utcnow()
     db.commit()
     db.refresh(user)
     return {"phone": canonical, "phone_verified": True, "message": "手机号绑定成功"}
