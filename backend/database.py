@@ -1832,10 +1832,32 @@ def _ensure_phone_unique_index(conn):
     )
 
 
+def _ensure_email_unique_index(conn):
+    """Add a unique index on non-empty verified emails, but only if no dupes exist."""
+    try:
+        duplicate = conn.execute(
+            text(
+                "SELECT email FROM users WHERE email IS NOT NULL AND TRIM(email) != '' "
+                "GROUP BY email HAVING COUNT(*) > 1 LIMIT 1"
+            )
+        ).first()
+    except Exception:
+        return
+    if duplicate:
+        return
+    conn.execute(
+        text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique "
+            "ON users(email) WHERE email IS NOT NULL AND TRIM(email) != ''"
+        )
+    )
+
+
 def init_user_profile_schema():
     with engine.begin() as conn:
         ensure_columns(conn, "users", PROFILE_COLUMNS)
         _ensure_phone_unique_index(conn)
+        _ensure_email_unique_index(conn)
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS auth_sessions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,

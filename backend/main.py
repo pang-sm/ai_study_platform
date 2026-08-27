@@ -7030,13 +7030,13 @@ def send_email_code(
     assert_username_matches_current_user(username, current_user)
     user = current_user
     if user.email or bool(getattr(user, "email_verified", False)):
-        raise HTTPException(status_code=400, detail="邮箱已绑定，暂不支持更换")
+        raise HTTPException(status_code=400, detail={"code": "EMAIL_ALREADY_BOUND", "message": "当前账号已绑定邮箱，绑定后不可更换。"})
     duplicate = db.query(models.User).filter(
         models.User.id != user.id,
         func.lower(func.trim(models.User.email)) == normalized_email,
     ).first()
     if duplicate:
-        raise HTTPException(status_code=400, detail="该邮箱已绑定其他账号")
+        raise HTTPException(status_code=400, detail={"code": "EMAIL_ALREADY_IN_USE", "message": "该邮箱已绑定其他账号。"})
 
     # Rate limit: 60s per email
     one_min_ago = datetime.utcnow() - timedelta(seconds=60)
@@ -7083,7 +7083,7 @@ def verify_email_code(
     assert_username_matches_current_user(username, current_user)
     user = current_user
     if user.email or bool(getattr(user, "email_verified", False)):
-        raise HTTPException(status_code=400, detail="邮箱已绑定，暂不支持更换")
+        raise HTTPException(status_code=400, detail={"code": "EMAIL_ALREADY_BOUND", "message": "当前账号已绑定邮箱，绑定后不可更换。"})
 
     code_hash = _hash_code(code)
     now = datetime.utcnow()
@@ -7111,7 +7111,7 @@ def verify_email_code(
         func.lower(func.trim(models.User.email)) == normalized_email,
     ).first()
     if duplicate:
-        raise HTTPException(status_code=400, detail="该邮箱已绑定其他账号")
+        raise HTTPException(status_code=400, detail={"code": "EMAIL_ALREADY_IN_USE", "message": "该邮箱已绑定其他账号。"})
 
     record.used = True
     user.email = email

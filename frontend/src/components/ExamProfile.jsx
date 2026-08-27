@@ -21,6 +21,11 @@ const SEMESTER_OPTIONS = ["上学期", "下学期"];
 const EXAM_STAGES = ["基础阶段", "强化阶段", "冲刺阶段"];
 const EXAM_DAILY = ["4 小时以内", "4 - 6 小时", "6 - 8 小时", "8 小时以上"];
 
+// Phone verification backend is reserved for future commercial deployment.
+// Production UI is currently disabled because SMS provider credentials /
+// enterprise SMS qualification are not available.
+const PHONE_BINDING_UI_ENABLED = false;
+
 function maskEmail(email) {
   if (!email) return "";
   const at = email.indexOf("@");
@@ -333,6 +338,13 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE, onProfi
     setEmailModal(true);
   };
 
+  const emailErrorText = (data) => {
+    const d = data?.detail;
+    if (d && typeof d === "object" && d.message) return d.message;
+    if (typeof d === "string" && d) return d;
+    return null;
+  };
+
   const sendEmailCode = async () => {
     const em = emailForm.email.trim();
     if (!em) { setEmailErr("请输入邮箱地址"); return; }
@@ -344,7 +356,7 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE, onProfi
         body: JSON.stringify({ email: em }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.detail || "验证码发送失败");
+      if (!res.ok) throw new Error(emailErrorText(data) || "验证码发送失败");
       setEmailMsg("验证码已发送");
     } catch (err) {
       setEmailErr(err.message);
@@ -362,8 +374,9 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE, onProfi
         body: JSON.stringify({ email: emailForm.email.trim(), code: emailForm.code.trim() }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.detail || "邮箱绑定失败");
+      if (!res.ok) throw new Error(emailErrorText(data) || "邮箱绑定失败");
       setEmailModal(false);
+      onProfileUpdate?.({ email: emailForm.email.trim(), email_verified: true });
       setActionMsg("邮箱已绑定");
       setTimeout(() => setActionMsg(""), 2500);
     } catch (err) {
@@ -594,22 +607,26 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE, onProfi
               </div>
               <button type="button" className="ep-outline-btn" onClick={openPwdModal}>修改</button>
             </div>
-            <div className="ep-sec-item">
-              <div>
-                <strong>绑定手机号</strong>
-                <p>用于接收验证码和安全验证</p>
-                <span>{user?.phone ? maskPhone(user.phone) : "未绑定"}</span>
-                {user?.phone_verified && <em className="ep-verified-tag">已验证</em>}
+            {PHONE_BINDING_UI_ENABLED && (
+              <div className="ep-sec-item">
+                <div>
+                  <strong>绑定手机号</strong>
+                  <p>用于接收验证码和安全验证</p>
+                  <span>{user?.phone ? maskPhone(user.phone) : "未绑定"}</span>
+                  {user?.phone_verified && <em className="ep-verified-tag">已验证</em>}
+                </div>
+                <button type="button" className="ep-outline-btn" onClick={openPhoneModal}>{user?.phone_verified ? "更换手机号" : "绑定手机号"}</button>
               </div>
-              <button type="button" className="ep-outline-btn" onClick={openPhoneModal}>{user?.phone_verified ? "更换手机号" : "绑定手机号"}</button>
-            </div>
+            )}
             <div className="ep-sec-item">
               <div>
-                <strong>绑定邮箱</strong>
-                <p>用于接收重要通知和找回密码</p>
+                <strong>邮箱</strong>
                 <span>{emailDisplay}</span>
+                {user?.email_verified && <em className="ep-verified-tag">已验证</em>}
               </div>
-              <button type="button" className="ep-outline-btn" onClick={openEmailModal}>{emailBtnLabel}</button>
+              {!user?.email_verified && (
+                <button type="button" className="ep-outline-btn" onClick={openEmailModal}>绑定邮箱</button>
+              )}
             </div>
             <div className="ep-sec-item ep-sec-item--logout">
               <div>
@@ -686,12 +703,11 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE, onProfi
       {emailModal && (
         <div className="eh-modal-backdrop" onClick={() => setEmailModal(false)}>
           <div className="eh-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="eh-modal-head"><h3>{realEmail ? "更换邮箱" : "绑定邮箱"}</h3><button type="button" className="eh-modal-close" onClick={() => setEmailModal(false)}>×</button></div>
-            {realEmail && <p style={{ color: "#64748b", fontSize: 13, margin: "0 0 12px" }}>当前邮箱：{maskEmail(realEmail)}</p>}
+            <div className="eh-modal-head"><h3>绑定邮箱</h3><button type="button" className="eh-modal-close" onClick={() => setEmailModal(false)}>×</button></div>
             {emailErr && <div className="ob-error" style={{ marginBottom: 12 }}>{emailErr}</div>}
             {emailMsg && <div className="admin-dashboard-success" style={{ marginBottom: 12 }}>{emailMsg}</div>}
-            <label className="ob-label">新邮箱</label>
-            <input className="ep-modal-input" style={{ marginBottom: 14 }} value={emailForm.email} placeholder="请输入新邮箱地址" onChange={(e) => setEmailForm((p) => ({ ...p, email: e.target.value }))} />
+            <label className="ob-label">邮箱地址</label>
+            <input className="ep-modal-input" style={{ marginBottom: 14 }} value={emailForm.email} placeholder="请输入邮箱地址" onChange={(e) => setEmailForm((p) => ({ ...p, email: e.target.value }))} />
             <label className="ob-label">验证码</label>
             <div className="ob-row" style={{ marginBottom: 16 }}>
               <input className="ep-modal-input" style={{ flex: 1 }} value={emailForm.code} placeholder="请输入验证码" onChange={(e) => setEmailForm((p) => ({ ...p, code: e.target.value }))} />
@@ -704,7 +720,7 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE, onProfi
           </div>
         </div>
       )}
-      {phoneModal && (
+      {PHONE_BINDING_UI_ENABLED && phoneModal && (
         <div className="eh-modal-backdrop" onClick={() => !phoneBinding && setPhoneModal(false)}>
           <div className="eh-modal" onClick={(e) => e.stopPropagation()}>
             <div className="eh-modal-head"><h3>{phoneHasBound ? "更换手机号" : "绑定手机号"}</h3><button type="button" className="eh-modal-close" onClick={() => setPhoneModal(false)}>×</button></div>
