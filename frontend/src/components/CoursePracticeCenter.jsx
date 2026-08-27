@@ -202,13 +202,11 @@ export default function CoursePracticeCenter({ user, courseId, courseName, mater
 
   return (
     <section className="course-practice-page">
-      <header className="course-practice-hero">
+      <header className="course-practice-hero course-practice-hero--compact">
         <div>
-          <span className="course-practice-eyebrow">AI WORKBOOK</span>
-          <h1>{courseName || courseId} · AI 题册</h1>
-          <p>生成的题目会长期保留。每次重新练习都会新建一次作答记录，不覆盖历史。</p>
+          <h1>章节练习 · {courseName || courseId}</h1>
         </div>
-        <div className="course-practice-context"><span>当前生成范围</span><strong>{activeChapter?.title || "请选择章节"}</strong><em>{selectedPoint?.title || "请选择知识点"}</em></div>
+        <div className="course-practice-context"><span>当前范围</span><strong>{activeChapter?.title || "请选择章节"}</strong>{selectedPoint?.title && <em>{selectedPoint.title}</em>}</div>
       </header>
 
       <section className="course-practice-generate-card">

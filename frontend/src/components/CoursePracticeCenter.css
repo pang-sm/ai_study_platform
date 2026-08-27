@@ -2,6 +2,8 @@
 .course-practice-card, .course-practice-empty, .course-practice-history, .course-practice-question, .course-practice-generate-card { background: #fff; border: 1px solid #e7e5f4; border-radius: 18px; box-shadow: 0 10px 28px rgba(67, 56, 202, .06); }
 .course-practice-card, .course-practice-empty { padding: 28px; }
 .course-practice-hero { display: flex; justify-content: space-between; gap: 24px; align-items: center; padding: 22px 24px; border: 1px solid #ddd6fe; border-radius: 18px; background: linear-gradient(115deg, #f5f3ff, #faf5ff); }
+.course-practice-hero--compact { padding: 14px 18px; border-radius: 14px; }
+.course-practice-hero--compact h1 { margin: 0; font-size: 18px; font-weight: 800; }
 .course-practice-eyebrow, .course-practice-kicker { display: block; color: #7c3aed; font-size: 11px; font-weight: 800; letter-spacing: .11em; }
 .course-practice-hero h1, .course-practice-question h2, .course-practice-section-title h2 { margin: 7px 0; }
 .course-practice-hero p, .course-practice-section-title p { margin: 0; color: #6b7280; line-height: 1.6; }

@@ -651,18 +651,11 @@ export default function KnowledgeLearningPage({
           ))}
         </div>
       )}
-      {examCramMode ? (
+      {examCramMode && (
         <section className="km-hero-card">
           <div>
             <h1>{displaySubjectName}</h1>
             <p>考试突击 · 高频考点脉络</p>
-          </div>
-        </section>
-      ) : !isCourseMode && (
-        <section className="km-hero-card">
-          <div>
-            <h1>知识脉络 · {displaySubjectName}</h1>
-            <p>当前课程：{data?.course_name || displayCourseName}</p>
           </div>
         </section>
       )}

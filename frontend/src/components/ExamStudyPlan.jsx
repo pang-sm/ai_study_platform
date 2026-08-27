@@ -103,18 +103,6 @@ export default function ExamStudyPlan({
 
   return (
     <div className={`exam-study-plan${examCramMode ? " exam-study-plan--cram" : ""}`}>
-      <header className="exam-subject-header">
-        <div>
-          <div className="exam-subject-title-row">
-            <span className="exam-subject-logo">{config.icon}</span>
-            <div>
-              <h1>{config.title}</h1>
-              <p>{examCramMode ? "学习计划 / 冲刺任务" : "学习计划 / 知识点联动任务"}</p>
-            </div>
-          </div>
-        </div>
-      </header>
-
       <section className="esp-tasks-section">
         <div className="esp-tasks-header">
           <h2>阶段学习任务</h2>
