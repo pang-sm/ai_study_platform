@@ -1,0 +1,49 @@
+name: Emergency membership audit
+
+on:
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure SSH
+        run: |
+          mkdir -p "$HOME/.ssh"
+          printf '%s' "${{ secrets.TENCENT_SSH_KEY }}" > "$HOME/.ssh/tencent_audit_key"
+          chmod 600 "$HOME/.ssh/tencent_audit_key"
+          ssh-keyscan -H "${{ secrets.TENCENT_HOST }}" >> "$HOME/.ssh/known_hosts"
+
+      - name: Backup and audit membership
+        env:
+          TENCENT_HOST: ${{ secrets.TENCENT_HOST }}
+          TENCENT_USER: ${{ secrets.TENCENT_USER }}
+          SSH_PORT: ${{ secrets.TENCENT_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          HOST_CLEAN="${TENCENT_HOST#*@}"
+          HOST_CLEAN="${HOST_CLEAN%%:*}"
+          HOST_CLEAN="${HOST_CLEAN%%/*}"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/tencent_audit_key" -p "$SSH_PORT" "$TENCENT_USER@$HOST_CLEAN" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          DATA_DB=/var/lib/ai_study_platform/app.db
+          AUDIT_DIR=/var/lib/ai_study_platform/audits
+          TIMESTAMP="$(date -u +%Y%m%d_%H%M%S)"
+          SNAPSHOT="$AUDIT_DIR/app.db.before-membership-emergency.$TIMESTAMP.db"
+          sudo mkdir -p "$AUDIT_DIR"
+          sudo sqlite3 "$DATA_DB" ".timeout 5000" ".backup '$SNAPSHOT'"
+          echo "snapshot=$SNAPSHOT"
+          sudo stat -c 'size=%s path=%n' "$SNAPSHOT"
+          sudo sha256sum "$SNAPSHOT"
+
+          echo '=== users ==='
+          sudo sqlite3 -header -csv "$DATA_DB" "SELECT id, username, plan, plan_expire_at, is_admin FROM users WHERE id = 58;"
+          echo '=== user_service_memberships (user 58) ==='
+          sudo sqlite3 -header -csv "$DATA_DB" "SELECT id, service_key, is_enabled, plan, status, activated_at, expires_at FROM user_service_memberships WHERE user_id = 58 ORDER BY id;"
+          echo '=== membership_orders (user 58) ==='
+          sudo sqlite3 -header -csv "$DATA_DB" "SELECT id, service_key, target_plan, amount, status, paid_at, membership_expires_at FROM membership_orders WHERE user_id = 58 ORDER BY id DESC LIMIT 12;"
+          echo '=== user_learning_tracks (user 58) ==='
+          sudo sqlite3 -header -csv "$DATA_DB" "SELECT id, track_type, plan, package_type, is_active, status FROM user_learning_tracks WHERE user_id = 58 ORDER BY id;"
+          echo '=== course_learning_preferences (奶12) ==='
+          sudo sqlite3 -header -csv "$DATA_DB" "SELECT id, username, course_id FROM course_learning_preferences WHERE username='奶12' ORDER BY id;"
+          REMOTE
