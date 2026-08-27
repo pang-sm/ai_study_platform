@@ -1485,10 +1485,10 @@ def _sync_membership_to_track(db: Session, user: models.User):
         return
     track = get_user_track(db, user.id, "exam_408")
     mplan = get_effective_service_plan(db, user.id, "exam_11408")
-    # Map membership plan → existing package_type
-    plan_to_pkg = {"free": "free", "monthly": "monthly_sprint", "quarterly": "quarterly_boost", "full": "full_exam"}
-    pkg = plan_to_pkg.get(mplan, "free")
-    pkg = normalize_package_type(pkg)
+    # exam_11408 membership plan codes (free / monthly_sprint / quarterly_boost /
+    # full_exam) are already identical to the track package_type enum, so map
+    # them directly instead of through the course_learning plan aliases.
+    pkg = normalize_package_type(mplan)
     if track:
         if track.package_type != pkg:
             track.package_type = pkg
@@ -17727,6 +17727,61 @@ def get_exam_study_plan_summary(username: str = "", db: Session = Depends(get_db
         "total_progress": total_all_progress,
         "total_subjects_completed": sum(1 for s in subjects if s["is_completed"]),
     }
+
+
+def _parse_task_due_date(due: str | None):
+    """Best-effort parse of a task due date (stored as YYYY-MM-DD or datetime)."""
+    text = (due or "").strip()
+    if not text:
+        return None
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(text, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+@app.get("/exam/11408/study-plan/tasks/summary")
+def get_exam_study_plan_tasks_summary(
+    username: str = "",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Aggregate incomplete study-plan tasks across the four 11408 subjects,
+    ordered by urgency, for the 11408 home page. Top 4 are returned."""
+    require_feature_entitlement(current_user, db, "exam_11408", "learning_plan")
+    username = request_username(username, current_user)
+    today = datetime.now().date()
+
+    def _urgency_key(item: dict):
+        due = _parse_task_due_date(item.get("due_date") or "")
+        created = item.get("created_at") or ""
+        if due is None:
+            # No deadline sorts after every dated task.
+            return (2, None, created)
+        # Overdue tasks come first, then soonest deadline, then earliest created.
+        return (0 if due < today else 1, due, created)
+
+    tasks: list[dict] = []
+    for subject_key in EXAM_SUBJECT_DIRS:
+        rows = (
+            db.query(models.ExamStudyPlanTask)
+            .filter(
+                models.ExamStudyPlanTask.username == username,
+                models.ExamStudyPlanTask.subject_key == subject_key,
+                models.ExamStudyPlanTask.status.notin_(["completed", "cancelled"]),
+            )
+            .all()
+        )
+        for row in rows:
+            item = _serialize_task(row, db)
+            if item["computed_status"] == "completed":
+                continue
+            tasks.append(item)
+
+    tasks.sort(key=_urgency_key)
+    return {"tasks": tasks[:4]}
 
 
 # ── 11408 Study Plan Tasks ──────────────────────────────

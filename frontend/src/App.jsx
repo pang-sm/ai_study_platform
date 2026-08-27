@@ -4263,7 +4263,7 @@ function App() {
 
   if (page === "examHome") {
     return (
-      <div className="onboarding-v2-page" style={{ alignItems: "flex-start", paddingTop: 32 }}>
+      <div className="exam-home-page">
         <ExamHome user={user} setPage={setPage} subject={subject} setSubject={setSubject} apiBase={API_BASE} onLogout={logout} guideReplayToken={guideReplay.serviceKey === "exam_11408" ? guideReplay.nonce : 0} />
       </div>
     );

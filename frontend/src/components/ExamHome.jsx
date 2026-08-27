@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import FirstTimeGuideLauncher from "./FirstTimeGuideLauncher.jsx";
 import { EXAM_GUIDE_STEPS } from "./firstTimeGuideFlows.js";
+import { resolveMediaUrl } from "../utils/mediaUrl.js";
 
 function calcDaysUntil(examTimeStr) {
   if (!examTimeStr || examTimeStr === "暂不确定") return null;
@@ -21,6 +22,30 @@ const SUBJECTS = [
   { key: "computer_network", name: "计算机网络", icon: "🌐" },
 ];
 
+const EXAM_PACKAGE_LABELS = {
+  free: "免费模式",
+  monthly_sprint: "月度冲刺包",
+  quarterly_boost: "季度强化包",
+  full_exam: "全程考包",
+};
+const PAID_EXAM_PLANS = new Set(["monthly_sprint", "quarterly_boost", "full_exam"]);
+
+function ExamUserAvatar({ user, name }) {
+  const [failed, setFailed] = useState(false);
+  const src = user?.avatar_url ? resolveMediaUrl(user.avatar_url) : "";
+  if (src && !failed) {
+    return (
+      <img
+        className="eh-user-avatar eh-user-avatar--img"
+        src={src}
+        alt={name}
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+  return <span className="eh-user-avatar">{name.charAt(0)}</span>;
+}
+
 export default function ExamHome({ user, setPage, subject, setSubject, apiBase, onLogout, guideReplayToken = 0 }) {
   const [daysLeft, setDaysLeft] = useState(null);
   const [targetSchool, setTargetSchool] = useState("");
@@ -33,8 +58,13 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
   const mottoInputRef = useRef(null);
   const [studyPlanSummary, setStudyPlanSummary] = useState(null);
   const [taskSummary, setTaskSummary] = useState(null);
+  const [planRestricted, setPlanRestricted] = useState(false);
 
-  // Fetch real data from tracks API on mount
+  // Resolve the effective 11408 plan from the service-direction membership —
+  // the single source of truth — falling back to the track package_type.
+  const effectivePlan = user?.service_plans?.exam_11408?.plan || "";
+  const hasLearningPlan = PAID_EXAM_PLANS.has(effectivePlan);
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -51,12 +81,10 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
         if (detail.welcome_motto) { setMotto(detail.welcome_motto); setMottoInput(detail.welcome_motto); }
         return Boolean(examTrack?.permissions?.learning_plan);
       } catch {
-        // The summary APIs are entitlement-protected, so avoid speculative
-        // requests when the current track permissions are unavailable.
         return false;
       }
     };
-    // Also try prop data immediately
+
     const propDetail = (() => {
       try {
         const examTrack = (user?.tracks || []).find((t) => t.track_type === "exam_408");
@@ -72,7 +100,7 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
       if (propDetail.stage) setExamStage(propDetail.stage);
       if (propDetail.daily_study_time) setExamDaily(propDetail.daily_study_time);
     }
-    // Fetch study plan summary
+
     const fetchPlanSummary = async () => {
       try {
         const username = user?.username || "";
@@ -82,64 +110,50 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
         if (data?.subjects) setStudyPlanSummary(data);
       } catch { /* ignore */ }
     };
-    // Fetch task summary for home page
     const fetchTaskSummary = async () => {
       try {
         const username = user?.username || "";
         if (!username) return;
         const res = await fetch(`/api/exam/11408/study-plan/tasks/summary?username=${encodeURIComponent(username)}`);
+        if (res.status === 403) { setPlanRestricted(true); return; }
         const data = await res.json().catch(() => null);
         if (data) setTaskSummary(data);
       } catch { /* ignore */ }
     };
+
     const loadHomeData = async () => {
-      const canUseStudyPlan = await fetchData();
-      if (!canUseStudyPlan) return;
+      const planOk = effectivePlan ? hasLearningPlan : await fetchData();
+      if (!planOk) { setPlanRestricted(true); return; }
+      setPlanRestricted(false);
       await Promise.all([fetchPlanSummary(), fetchTaskSummary()]);
     };
     loadHomeData();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.username, effectivePlan]);
 
   const displayName = user?.nickname || user?.username || "小庞同学";
 
-  // Resolve real exam package name from tracks data
   const getPackageLabel = () => {
+    if (effectivePlan) return EXAM_PACKAGE_LABELS[effectivePlan] || effectivePlan;
     try {
-      // First check user.tracks from new API
       const tracks = user?.tracks;
       if (Array.isArray(tracks)) {
         const examTrack = tracks.find((t) => t.track_type === "exam_408");
         if (examTrack?.package_type) {
-          const MAP = {
-            free: "免费模式",
-            monthly_sprint: "月度冲刺包",
-            quarterly_boost: "季度强化包",
-            full_exam: "全程考包",
-          };
-          if (MAP[examTrack.package_type]) return MAP[examTrack.package_type];
+          if (EXAM_PACKAGE_LABELS[examTrack.package_type]) return EXAM_PACKAGE_LABELS[examTrack.package_type];
         }
       }
-      // Fallback: onboarding_detail
       const d = user?.onboarding_detail
-        ? (typeof user.onboarding_detail === "string"
-            ? JSON.parse(user.onboarding_detail)
-            : user.onboarding_detail)
+        ? (typeof user.onboarding_detail === "string" ? JSON.parse(user.onboarding_detail) : user.onboarding_detail)
         : null;
       const pkg = d?.exam_package_type || "";
-      const MAP = {
-        free: "免费模式",
-        monthly_sprint: "月度冲刺包",
-        quarterly_boost: "季度强化包",
-        full_exam: "全程考包",
-      };
-      if (MAP[pkg]) return MAP[pkg];
+      if (EXAM_PACKAGE_LABELS[pkg]) return EXAM_PACKAGE_LABELS[pkg];
     } catch { /* ignore */ }
-    return "未选择套餐";
+    return "";
   };
-  const packageLabel = examPackageLabel || getPackageLabel();
+  const packageLabel = getPackageLabel() || examPackageLabel || "未选择套餐";
 
   const saveMotto = async () => {
-    // Use ref to get latest DOM value (avoids stale closure)
     const raw = mottoInputRef.current?.value ?? mottoInput;
     const newMotto = (raw || "").trim() || "保持节奏，每天进步一点点";
     setMotto(newMotto);
@@ -151,17 +165,17 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: user?.username, motto: newMotto }),
       });
-    } catch { /* keep UI updated, API best-effort */ }
+    } catch { /* keep UI updated */ }
   };
 
-  const enterSubject = (subjKey) => {
+  const enterSubject = (subjKey, panel = "home") => {
     const selected = SUBJECTS.find((item) => item.key === subjKey);
     if (setPage) {
       setPage("examSubjectDashboard", {
         examMode: true,
         examSubjectKey: subjKey,
         examCourseId: selected?.name ? `11408 ${selected.name}` : subjKey,
-        forcePanel: "home",
+        forcePanel: panel,
       });
     }
   };
@@ -200,7 +214,6 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
           <p className="eh-countdown">
             📅 距离考试还有 <strong>{daysLeft === null ? "暂无数据" : daysLeft}</strong>{daysLeft === null ? "" : " 天"}，继续保持稳定的复习节奏
           </p>
-          {/* Target school — read-only, displayed inline */}
           <div className="eh-target-info">
             <span className="eh-target-info-item">
               🏫 目标院校：<strong>{targetSchool || "未设置"}</strong>
@@ -212,7 +225,7 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
         </div>
         <div className="eh-hero-right">
           <div className="eh-user-card" data-tour="exam-profile" onClick={() => setPage && setPage("examProfile")} style={{ cursor: "pointer" }}>
-            <span className="eh-user-avatar">{displayName.charAt(0)}</span>
+            <ExamUserAvatar user={user} name={displayName} />
             <div>
               <strong>{displayName}</strong>
               <span className="eh-user-tag eh-user-tag--member">
@@ -232,19 +245,19 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
               const realProgress = studyPlanSummary?.subjects?.find(
                 (sp) => sp.subject_key === s.key
               );
-              const pct = realProgress?.has_activity ? realProgress.overall_progress : null;
-              const sectionsDone = realProgress?.sections_completed ?? 0;
-              const sectionsTotal = realProgress?.total_sections ?? 0;
+              const leafTotal = realProgress?.total_knowledge_points ?? 0;
+              const leafMastered = realProgress?.mastered_knowledge_points ?? 0;
+              const pct = leafTotal > 0 ? Math.round((leafMastered / leafTotal) * 100) : null;
               return (
                 <div key={s.key} className="eh-progress-row">
                   <span className="eh-progress-icon">{s.icon}</span>
                   <span className="eh-progress-name">{s.name}</span>
                   <div className="eh-progress-bar-wrap">
-                    <div className="eh-progress-bar" style={{ width: `${pct || 0}%` }} />
+                    <div className="eh-progress-bar" style={{ width: `${pct ?? 0}%` }} />
                   </div>
                   <span className="eh-progress-pct">{pct === null ? "暂无数据" : `${pct}%`}</span>
                   <span className="eh-progress-rate">
-                    {realProgress?.has_activity ? `${sectionsDone}/${sectionsTotal} 章节` : "暂无数据"}
+                    {pct === null ? "暂无数据" : `${leafMastered}/${leafTotal} 知识点`}
                   </span>
                 </div>
               );
@@ -266,19 +279,34 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
         </div>
       </div>
 
-      {/* ── Bottom row: Current Stage Tasks ── */}
+      {/* ── Bottom row: Study Plan ── */}
       <div className="eh-bottom">
         <div className="eh-card eh-plan-card" data-tour="exam-tasks">
-          <h3 className="eh-card-title">📋 当前学习任务</h3>
-          {taskSummary?.tasks && taskSummary.tasks.length > 0 ? (
+          <h3 className="eh-card-title">📋 学习计划</h3>
+          {planRestricted ? (
+            <div className="eh-plan-empty">
+              <p>当前套餐暂未包含学习计划。</p>
+              <button
+                type="button"
+                className="eh-plan-upgrade-btn"
+                onClick={() => setPage && setPage("membership", { serviceKey: "exam_11408", profilePage: "examProfile", returnPage: "examHome" })}
+              >
+                升级套餐
+              </button>
+            </div>
+          ) : taskSummary?.tasks && taskSummary.tasks.length > 0 ? (
             <div className="eh-task-cards">
               {taskSummary.tasks.map((task) => {
                 const subj = SUBJECTS.find((s) => s.key === task.subject_key);
                 const cs = task.computed_status || task.status || "not_started";
                 const STATUS_LABELS = { completed: "已完成", in_progress: "进行中", not_started: "未开始" };
-                const TYPE_LABELS = { knowledge: "知识点学习", chapter_practice: "章节练习", review: "阶段复习" };
                 return (
-                  <div key={task.id} className={`eh-task-card ${cs}`}>
+                  <div
+                    key={task.id}
+                    className={`eh-task-card ${cs}`}
+                    onClick={() => enterSubject(task.subject_key, "plan")}
+                    style={{ cursor: "pointer" }}
+                  >
                     <div className="eh-task-card-header">
                       <span className="eh-task-subject-tag">
                         {subj?.icon || "📚"} {subj?.name || task.subject_key}
@@ -292,17 +320,9 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
                       <span>
                         {task.scope_type === "all" ? "📚 全部范围" : `📖 ${task.knowledge_point_name || task.secondary_knowledge || ""}`}
                       </span>
-                      <span className="eh-task-type-label">
-                        {TYPE_LABELS[task.task_type] || task.task_type}
-                      </span>
                     </div>
-                    {task.completion_reason && (
-                      <span style={{ fontSize: "11px", color: "#6b7280", display: "block", marginTop: "4px" }}>
-                        💡 {task.completion_reason}
-                      </span>
-                    )}
                     {task.due_date && (
-                      <span className="eh-task-card-due">📅 {task.due_date}</span>
+                      <span className="eh-task-card-due">📅 截止：{task.due_date}</span>
                     )}
                   </div>
                 );
@@ -310,7 +330,7 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
             </div>
           ) : (
             <div className="eh-plan-empty">
-              <p>还没有阶段学习任务，请进入具体学科的学习计划中设置。</p>
+              <p>暂无学习计划，请进入具体学科的学习计划中设置。</p>
             </div>
           )}
         </div>

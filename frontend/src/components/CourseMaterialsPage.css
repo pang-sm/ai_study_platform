@@ -408,12 +408,11 @@
 
 .cmp-stat-value {
   color: #121124;
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 800;
-  line-height: 1.15;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .cmp-stat-label {

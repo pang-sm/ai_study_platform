@@ -17628,6 +17628,14 @@ select.field:focus {
    11408 Exam Home
    ══════════════════════════════════════════════════════ */
 
+.exam-home-page {
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: linear-gradient(150deg, #f5f0ff 0%, #ede4ff 30%, #faf8ff 60%, #f5f3ff 100%);
+  padding: 32px 24px 56px;
+}
+
 .exam-home {
   display: flex;
   flex-direction: column;
@@ -17812,6 +17820,12 @@ select.field:focus {
   font-size: 20px;
   font-weight: 900;
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.eh-user-avatar--img {
+  object-fit: cover;
+  background: #fff;
 }
 
 .eh-user-card strong {
