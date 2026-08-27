@@ -77,6 +77,34 @@ function writeCourseDashboardRoute(courseId, panel = "overview") {
   if (window.location.pathname !== path) window.history.pushState({}, "", path);
 }
 
+const EXAM_DASHBOARD_PANELS = new Set([
+  "home", "materials", "knowledge", "practice", "plan", "review", "report", "ai",
+]);
+
+function getExamDashboardRoute() {
+  const match = window.location.pathname.match(
+    /^\/exam\/11408\/(data_structure|computer_organization|operating_system|computer_network)(?:\/(home|materials|knowledge|practice|plan|review|report|ai))?\/?$/,
+  );
+  if (!match) return null;
+  return { subjectKey: match[1], panel: match[2] || "home" };
+}
+
+function writeExamDashboardRoute(subjectKey, panel = "home") {
+  if (!EXAM_SUBJECTS[subjectKey] || !EXAM_DASHBOARD_PANELS.has(panel)) return;
+  const path = `/exam/11408/${encodeURIComponent(subjectKey)}/${panel}`;
+  if (window.location.pathname !== path) window.history.pushState({}, "", path);
+}
+
+function getExamNavigationContext(route = getExamDashboardRoute()) {
+  if (!route || !EXAM_SUBJECTS[route.subjectKey]) return null;
+  return {
+    examMode: true,
+    examSubjectKey: route.subjectKey,
+    courseId: getExamCourseId(route.subjectKey),
+    forcePanel: route.panel,
+  };
+}
+
 function resolveMaterialScope(targetCourse) {
   const raw = String(targetCourse || "").trim();
   if (isCanonicalCourseId(raw)) {
@@ -557,6 +585,7 @@ function getInitialPage() {
   const savedUser = getSavedUser();
   if (!savedUser) return "login";
   if (getCourseDashboardRoute()) return "dashboard";
+  if (getExamDashboardRoute()) return "examSubjectDashboard";
   try {
     const checkoutContext = getInitialMembershipCheckoutContext();
     if (checkoutContext?.orderId || checkoutContext?.order_id) return "membershipCheckout";
@@ -611,8 +640,11 @@ function CourseLearningCompletePage({ onEnter }) {
 }
 
 function getInitialExamSubject() {
+  const route = getExamDashboardRoute();
+  if (route) return route.subjectKey;
   try {
-    return localStorage.getItem(CURRENT_EXAM_SUBJECT_KEY) || "data_structure";
+    const saved = localStorage.getItem(CURRENT_EXAM_SUBJECT_KEY) || "data_structure";
+    return EXAM_SUBJECTS[saved] ? saved : "data_structure";
   } catch {
     return "data_structure";
   }
@@ -625,7 +657,10 @@ function App() {
   const [searchNavigate, setSearchNavigate] = useState(null);
   const [authMode, setAuthMode] = useState("login");
   const [examSubjectKey, setExamSubjectKey] = useState(getInitialExamSubject);
-  const [examSubjectPanelIntent, setExamSubjectPanelIntent] = useState(null);
+  const [examSubjectPanelIntent, setExamSubjectPanelIntent] = useState(() => {
+    const route = getExamDashboardRoute();
+    return route ? { panel: route.panel, nonce: 0 } : null;
+  });
   const [examInitialMaterialReference, setExamInitialMaterialReference] = useState(null);
   const [examKnowledgeContext, setExamKnowledgeContext] = useState(null);
   const [courseSubjectContext, setCourseSubjectContext] = useState(getInitialCourseContext);
@@ -690,7 +725,16 @@ function App() {
       return;
     }
 
-    if (context?.subject) {
+    const requestedExamSubjectKey = context?.examSubjectKey || (context?.examMode ? context?.subject : "");
+    const isExamSubjectNavigation = nextPage === "examSubjectDashboard" && Boolean(EXAM_SUBJECTS[requestedExamSubjectKey]);
+
+    if (isExamSubjectNavigation) {
+      const requestedPanel = context?.forcePanel || "home";
+      setExamSubjectKey(requestedExamSubjectKey);
+      setExamSubjectPanelIntent({ panel: requestedPanel, nonce: Date.now() });
+      try { localStorage.setItem(CURRENT_EXAM_SUBJECT_KEY, requestedExamSubjectKey); } catch { /* ignore */ }
+      writeExamDashboardRoute(requestedExamSubjectKey, requestedPanel);
+    } else if (context?.subject) {
       // Set the current subject/course — used by both exam_11408 and course_learning
       setSubject(normalizeSubject(context.subject));
       try { localStorage.setItem(CURRENT_SUBJECT_KEY, normalizeSubject(context.subject)); } catch { /* ignore */ }
@@ -1467,7 +1511,8 @@ function App() {
         query.set("course_id", scope.courseId);
         query.set("subject_key", scope.subjectKey);
       } else if (targetSubject) {
-        query.set("subject", normalizeSubject(targetSubject));
+        setTip("当前资料库缺少有效的唯一课程身份，已拒绝加载以防资料串线。");
+        return;
       }
 
       const res = await fetch(`${API_BASE}/materials?${query.toString()}`);
@@ -1871,7 +1916,8 @@ function App() {
         query.set("course_id", scope.courseId);
         query.set("subject_key", scope.subjectKey);
       } else if (targetSubject) {
-        query.set("subject", normalizeSubject(targetSubject));
+        setTip("当前资料库缺少有效的唯一课程身份，已拒绝搜索以防资料串线。");
+        return;
       }
 
       const res = await fetch(`${API_BASE}/materials/search?${query.toString()}`);
@@ -2061,7 +2107,11 @@ function App() {
     setReindexLoading(true);
     setTip("");
     const scope = resolveMaterialScope(targetSubject);
-    const normalizedSubject = normalizeSubject(targetSubject, "");
+    if (!scope) {
+      setReindexLoading(false);
+      setTip("当前资料库缺少有效的唯一课程身份，已拒绝重建索引以防资料串线。");
+      return;
+    }
 
     try {
       const res = await fetch(`${API_BASE}/materials/reindex`, {
@@ -2069,9 +2119,8 @@ function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           username: user.username,
-          ...(scope
-            ? { course_id: scope.courseId, subject_key: scope.subjectKey }
-            : { subject: normalizedSubject || null }),
+          course_id: scope.courseId,
+          subject_key: scope.subjectKey,
           force: false,
         }),
       });
@@ -2342,12 +2391,14 @@ function App() {
         })();
         const checkoutContext = getInitialMembershipCheckoutContext();
         const hasCheckoutContext = Boolean(checkoutContext?.orderId || checkoutContext?.order_id);
-        // A canonical course-dashboard URL is the source of truth on refresh.
+        // A canonical dashboard URL is the source of truth on refresh.
         // Do not let an unrelated page restored from localStorage override it.
         const nextPage = hasCheckoutContext
           ? "membershipCheckout"
           : getCourseDashboardRoute()
             ? "dashboard"
+            : getExamDashboardRoute()
+              ? "examSubjectDashboard"
             : getPostAuthPage(checkedUser, savedPage);
         setPage(
           nextPage,
@@ -2355,6 +2406,8 @@ function App() {
             ? checkoutContext
             : nextPage === "dashboard"
               ? getInitialCourseContext()
+              : nextPage === "examSubjectDashboard"
+                ? getExamNavigationContext()
               : null,
         );
       } catch (error) {
@@ -2645,7 +2698,7 @@ function App() {
     }
   };
 
-  const pollMaterialStatus = (localId, materialId) => {
+  const pollMaterialStatus = (localId, materialId, scopeSubject = "") => {
     clearMaterialPoller(localId);
     materialPollCountRef.current[localId] = 0;
 
@@ -2697,7 +2750,7 @@ function App() {
         if (["success", "failed", "partial"].includes(data.parse_status)) {
           clearMaterialPoller(localId);
           if (data.parse_status === "success" && Number(data.chunk_count || 0) > 0) {
-            await loadMaterials("");
+            await loadMaterials(scopeSubject);
           }
         }
       } catch (error) {
@@ -2747,12 +2800,12 @@ function App() {
       );
 
       if (["pending", "parsing"].includes(uploaded.parse_status)) {
-        pollMaterialStatus(localId, uploaded.material_id);
+        pollMaterialStatus(localId, uploaded.material_id, uploadSubject);
       }
 
       // Reload materials list so the new record appears in the library page.
       // Use the upload subject (materials page) if given, otherwise reload all.
-      const reloadSubject = fileSubject ? normalizeSubject(fileSubject) : "";
+      const reloadSubject = fileSubject || "";
       await loadMaterials(reloadSubject);
     } catch (error) {
       console.error("Failed to upload selected file:", error);
@@ -2770,7 +2823,7 @@ function App() {
       );
       // Even when upload fails client-side, refresh the materials list
       // in case the backend created the record before the error.
-      const reloadSubject = fileSubject ? normalizeSubject(fileSubject) : "";
+      const reloadSubject = fileSubject || "";
       await loadMaterials(reloadSubject);
     }
   };
@@ -2832,9 +2885,7 @@ function App() {
           item.localId === entry.localId ? { ...item, uploading: true, parse_status: "pending" } : item
         )
       );
-      const upSubject = explicitSubject
-        ? normalizeSubject(explicitSubject)
-        : null;
+      const upSubject = explicitSubject ? String(explicitSubject).trim() : null;
       uploadSelectedFile(file, entry.localId, upSubject, sourceType);
     }
   };
@@ -3791,14 +3842,16 @@ function App() {
   };
 
   const openExamSubjectFeature = (target, context = {}) => {
-    const subjectKey = context.subject || examSubjectKey || "data_structure";
-    const courseId = context.courseId || getExamCourseId(subjectKey);
+    const subjectKey = EXAM_SUBJECTS[context.examSubjectKey || context.subject]
+      ? (context.examSubjectKey || context.subject)
+      : examSubjectKey || "data_structure";
+    const courseId = getExamCourseId(subjectKey);
     const navContext = {
-      subject: subjectKey,
+      examMode: true,
+      examSubjectKey: subjectKey,
       examCourseId: courseId,
       courseId,
       courseName: courseId,
-      examMode: true,
       source: "exam_408",
     };
 
@@ -3856,10 +3909,14 @@ function App() {
     }
   };
 
-  const activeExamMaterialsSubjectKey = getExamSubjectKeyFromCourse(subject) || examSubjectKey || "data_structure";
+  const activeExamMaterialsSubjectKey = EXAM_SUBJECTS[examSubjectKey]
+    ? examSubjectKey
+    : getExamSubjectKeyFromCourse(subject) || "data_structure";
   const isExamCourseMaterialsPage =
     page === "workspaceMaterials" && Boolean(getExamSubjectKeyFromCourse(subject));
-  const activeExamKnowledgeSubjectKey = getExamSubjectKeyFromCourse(subject) || examSubjectKey || "data_structure";
+  const activeExamKnowledgeSubjectKey = EXAM_SUBJECTS[examSubjectKey]
+    ? examSubjectKey
+    : getExamSubjectKeyFromCourse(subject) || "data_structure";
   const isExamCourseKnowledgePage = page === "knowledgeLearning";
   const isExamCourseTaskCenter = page === "taskCenter" && String(subject).startsWith("11408");
 
@@ -3903,10 +3960,12 @@ function App() {
     </Suspense>
   );
 
+  const activeExamMaterialCourseId = getExamCourseId(activeExamMaterialsSubjectKey);
   const courseMaterialsPage = (
     <CourseMaterialsPage
       user={user}
-      subject={subject}
+      subject={activeExamMaterialCourseId}
+      materialCourseId={`${activeExamMaterialsSubjectKey}_11408`}
       courseOptions={COURSE_OPTIONS}
       getSubjectLabel={getSubjectLabel}
       materials={materials}
@@ -3933,7 +3992,11 @@ function App() {
       selectedMaterialDetail={selectedMaterialDetail}
       materialsFileInputRef={materialsFileInputRef}
       materialSubjectFilter={materialSubjectFilter}
-      handleFileChange={(event) => handleFileChange(event, subject)}
+      handleFileChange={(event, targetCourse, sourceType) => handleFileChange(
+        event,
+        targetCourse || activeExamMaterialCourseId,
+        sourceType,
+      )}
       loadMaterials={loadMaterials}
       searchMaterials={searchMaterials}
       reindexLibrary={reindexLibrary}
@@ -4114,6 +4177,7 @@ function App() {
       <CourseMaterialsPage
         user={user}
         subject={activeCourseContext.courseId || activeCourseContext.subject}
+        materialCourseId={activeCourseContext.courseId || activeCourseContext.subject}
         getSubjectLabel={getSubjectLabel}
         mode="course_learning"
         courseName={activeCourseContext.courseName || activeCourseContext.subject}

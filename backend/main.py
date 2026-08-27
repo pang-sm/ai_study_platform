@@ -8458,20 +8458,7 @@ def reindex_user_materials(
             raise HTTPException(status_code=500, detail="资料索引重建失败，请稍后重试") from exc
         return {"indexed_material_count": indexed_material_count, "indexed_chunk_count": indexed_chunk_count}
 
-    try:
-        indexed_material_count, indexed_chunk_count = reindex_materials(
-            db=db,
-            username=user.username,
-            subject=normalize_subject(req.subject, default="") or None,
-            force=req.force,
-        )
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail="资料索引重建失败，请稍后重试") from exc
-
-    return {
-        "indexed_material_count": indexed_material_count,
-        "indexed_chunk_count": indexed_chunk_count,
-    }
+    raise HTTPException(status_code=400, detail="course_id and subject_key are required for scoped material reindexing")
 
 
 @app.post("/materials/{material_id}/reparse")
@@ -8677,12 +8664,15 @@ def search_materials(
 
     if not keyword:
         return {"chunks": []}
+    if subject and not scope:
+        raise HTTPException(status_code=400, detail="course_id and subject_key are required for scoped material search")
 
     results = search_relevant_material_chunks(
         username=user.username,
         subject=normalized_subject or None,
         question=keyword,
         top_k=top_k,
+        course_id=scope["course_id"] if scope else None,
     )
 
     return {"chunks": [serialize_chunk_search_item(item) for item in results]}
@@ -8698,9 +8688,7 @@ def get_materials(username: str = "", course_id: str = "", subject_key: str = ""
         scope = resolve_material_scope(course_id, subject_key, subject or "")
         query = query.filter(models.StudyMaterial.course_id == scope["course_id"])
     elif subject:
-        normalized_subject = _normalize_course_or_11408_optional(subject)
-        if normalized_subject:
-            query = query.filter(models.StudyMaterial.subject == normalized_subject)
+        raise HTTPException(status_code=400, detail="course_id and subject_key are required for a scoped material list")
 
     materials = query.order_by(models.StudyMaterial.is_default_reference.desc(), models.StudyMaterial.created_at.desc()).all()
     return {"materials": [serialize_material_list_item(material) for material in materials]}

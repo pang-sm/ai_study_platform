@@ -1,0 +1,115 @@
+name: Migrate 11408 material scope (evidence-gated)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure SSH
+        run: |
+          mkdir -p "$HOME/.ssh"
+          printf '%s' "${{ secrets.TENCENT_SSH_KEY }}" > "$HOME/.ssh/tencent_audit_key"
+          chmod 600 "$HOME/.ssh/tencent_audit_key"
+          ssh-keyscan -H "${{ secrets.TENCENT_HOST }}" >> "$HOME/.ssh/known_hosts"
+
+      - name: Backup, audit, then migrate
+        env:
+          TENCENT_HOST: ${{ secrets.TENCENT_HOST }}
+          TENCENT_USER: ${{ secrets.TENCENT_USER }}
+          SSH_PORT: ${{ secrets.TENCENT_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          HOST_CLEAN="${TENCENT_HOST#*@}"
+          HOST_CLEAN="${HOST_CLEAN%%:*}"
+          HOST_CLEAN="${HOST_CLEAN%%/*}"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/tencent_audit_key" -p "$SSH_PORT" "$TENCENT_USER@$HOST_CLEAN" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          DATA_DB=/var/lib/ai_study_platform/app.db
+          AUDIT_DIR=/var/lib/ai_study_platform/audits
+          TIMESTAMP="$(date -u +%Y%m%d_%H%M%S)"
+          SNAPSHOT="$AUDIT_DIR/app.db.before-11408-material-migration.$TIMESTAMP.db"
+
+          sudo mkdir -p "$AUDIT_DIR"
+          sudo sqlite3 "$DATA_DB" ".timeout 5000" ".backup '$SNAPSHOT'"
+          echo "snapshot=$SNAPSHOT"
+          sudo stat -c 'snapshot_size=%s snapshot_path=%n' "$SNAPSHOT"
+
+          echo '=== BEFORE: affected material identity ==='
+          sudo sqlite3 -header -csv "$DATA_DB" <<'SQL'
+          SELECT id, original_filename AS filename, subject, course_id, subject_key,
+                 source_type, parse_status AS index_status, chunk_count, is_deleted
+          FROM study_materials
+          WHERE original_filename IN ('coa26_第0讲.pdf', 'chapter1_introduction.pdf', 'ch03.pptx')
+          ORDER BY id;
+          SQL
+
+          echo '=== BEFORE: ch03.pptx content (to confirm its domain) ==='
+          sudo sqlite3 -header -csv "$DATA_DB" <<'SQL'
+          SELECT id, original_filename AS filename,
+                 substr(coalesce(summary,''), 1, 500) AS summary_snippet,
+                 substr(coalesce(extracted_text,''), 1, 500) AS text_snippet
+          FROM study_materials
+          WHERE original_filename = 'ch03.pptx';
+          SQL
+
+          echo '=== MIGRATE: coa26_第0讲.pdf -> 11408 computer_organization (evidence-gated) ==='
+          sudo sqlite3 "$DATA_DB" <<'SQL'
+          BEGIN IMMEDIATE;
+          UPDATE study_materials
+          SET course_id = 'computer_organization_11408',
+              subject_key = 'computer_organization',
+              subject = '11408 计算机组成原理',
+              updated_at = datetime('now')
+          WHERE original_filename = 'coa26_第0讲.pdf'
+            AND subject = '计算机组成结构'
+            AND (course_id IS NULL OR TRIM(course_id) = '')
+            AND is_deleted = 0;
+
+          UPDATE material_chunks
+          SET course_id = 'computer_organization_11408',
+              subject_key = 'computer_organization',
+              subject = '11408 计算机组成原理'
+          WHERE material_id IN (
+            SELECT id FROM study_materials
+            WHERE original_filename = 'coa26_第0讲.pdf'
+              AND course_id = 'computer_organization_11408'
+              AND subject_key = 'computer_organization'
+          )
+            AND is_deleted = 0;
+          COMMIT;
+          SQL
+
+          echo '=== AFTER: affected material identity ==='
+          sudo sqlite3 -header -csv "$DATA_DB" <<'SQL'
+          SELECT id, original_filename AS filename, subject, course_id, subject_key,
+                 source_type, parse_status AS index_status, chunk_count, is_deleted
+          FROM study_materials
+          WHERE original_filename IN ('coa26_第0讲.pdf', 'chapter1_introduction.pdf', 'ch03.pptx')
+          ORDER BY id;
+          SQL
+
+          echo '=== AFTER: chunk scope for coa26_第0讲.pdf ==='
+          sudo sqlite3 -header -csv "$DATA_DB" <<'SQL'
+          SELECT mc.material_id, mc.course_id, mc.subject_key, mc.subject, COUNT(*) AS chunk_count
+          FROM material_chunks mc
+          JOIN study_materials m ON m.id = mc.material_id
+          WHERE m.original_filename = 'coa26_第0讲.pdf'
+            AND mc.is_deleted = 0
+          GROUP BY mc.material_id, mc.course_id, mc.subject_key, mc.subject;
+          SQL
+
+          echo '=== AFTER: 11408 computer_organization scope totals for affected owner ==='
+          sudo sqlite3 -header -csv "$DATA_DB" <<'SQL'
+          SELECT m.subject, m.course_id, m.subject_key, COUNT(*) AS material_count, SUM(m.chunk_count) AS chunk_count
+          FROM study_materials m
+          WHERE m.username IN (
+            SELECT DISTINCT username FROM study_materials
+            WHERE original_filename IN ('coa26_第0讲.pdf', 'chapter1_introduction.pdf')
+          )
+            AND m.is_deleted = 0
+          GROUP BY m.subject, m.course_id, m.subject_key
+          ORDER BY m.subject;
+          SQL
+          REMOTE

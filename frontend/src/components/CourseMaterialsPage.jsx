@@ -333,6 +333,7 @@ export default function CourseMaterialsPage({
   getSubjectLabel,
   mode = "exam_11408",         // "exam_11408" | "course_learning"
   courseName = "",              // used in course_learning mode
+  materialCourseId = "",        // immutable storage scope for either domain
   materials = [],
   materialsLoading,
   reindexLoading,
@@ -387,16 +388,16 @@ export default function CourseMaterialsPage({
 
   const course = getCourseDisplay(subject, getSubjectLabel, isCourseMode);
   const rawItems = Array.isArray(materials) ? materials : [];
-  // Course-library data is scoped by the immutable course_id returned by the
-  // API; names are display-only and must never decide visibility.
+  // Material visibility is always scoped by immutable course_id; names are
+  // display-only and must never decide visibility in either business domain.
   const currentItems = useMemo(() => {
-    if (!isCourseMode) return rawItems;
-    const courseId = String(subject || "").trim();
+    const courseId = String(materialCourseId || (isCourseMode ? subject : "")).trim();
+    if (!courseId) return rawItems;
     return rawItems.filter((item) => {
       if (isReferenceMetadata(item)) return false;
-      return !courseId || String(item.course_id || "").trim() === courseId;
+      return String(item.course_id || "").trim() === courseId;
     });
-  }, [rawItems, isCourseMode, subject]);
+  }, [rawItems, isCourseMode, materialCourseId, subject]);
 
   const matchedMaterialIds = useMemo(() => {
     if (!query.trim()) return new Set();
