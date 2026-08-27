@@ -1737,8 +1737,11 @@ def update_subject_aliases(conn, table_name: str, column_name: str):
         return
 
     for old_value, new_value in get_subject_migration_pairs():
+        # UPDATE OR IGNORE skips rows that would collide with an existing
+        # canonical value (e.g. a UNIQUE(username, course_id) row), so a
+        # legacy alias can never crash startup by merging into a duplicate.
         conn.execute(
-            text(f"UPDATE {table_name} SET {column_name} = :new_value WHERE {column_name} = :old_value"),
+            text(f"UPDATE OR IGNORE {table_name} SET {column_name} = :new_value WHERE {column_name} = :old_value"),
             {"old_value": old_value, "new_value": new_value},
         )
 
