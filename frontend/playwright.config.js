@@ -9,6 +9,7 @@ export default defineConfig({
   reporter: "list",
   use: {
     baseURL: "http://127.0.0.1:5173",
+    storageState: "../.playwright/.auth/stage4-materials-relogin-production.json",
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },
