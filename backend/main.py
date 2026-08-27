@@ -76,6 +76,7 @@ from membership import (
     redeem_code,
     preload_redemption_codes,
     is_developer_account,
+    get_material_plan_limits,
 )
 from prompts import build_system_prompt
 from programming_execution import run_java_tests
@@ -174,6 +175,40 @@ def _material_domain(course_id: str | None) -> str:
 
 def _material_domain_label(domain: str) -> str:
     return {"exam_11408": "11408", "course_learning": "课程学习", "programming": "编程学习"}.get(domain, "资料库")
+
+
+TRACK_SERVICE_KEY = {
+    "exam_11408": "exam_11408",
+    "course_learning": "course_learning",
+    "programming": "programming",
+    "legacy": "course_learning",
+}
+
+
+def _material_quota_for_service(db: Session, user: models.User, service_key: str) -> dict:
+    """Return the effective material plan quota + live usage for one domain."""
+    plan = get_effective_service_plan(db, user.id, service_key)
+    limits = get_material_plan_limits(service_key, plan)
+    domain = service_key
+    rows = (
+        db.query(models.StudyMaterial.course_id, models.StudyMaterial.file_size)
+        .filter(
+            models.StudyMaterial.username == user.username,
+            models.StudyMaterial.is_deleted.is_(False),
+        )
+        .all()
+    )
+    used_bytes = sum(
+        (int(row.file_size) or 0) for row in rows if _material_domain(row.course_id) == domain
+    )
+    limit_bytes = limits["material_storage_limit_mb"] * 1024 * 1024
+    return {
+        "plan": plan,
+        "single_file_limit_mb": limits["single_file_limit_mb"],
+        "material_storage_limit_mb": limits["material_storage_limit_mb"],
+        "material_used_mb": round(used_bytes / 1024 / 1024, 2),
+        "material_remaining_mb": round(max(0, limit_bytes - used_bytes) / 1024 / 1024, 2),
+    }
 
 
 load_dotenv()
@@ -5647,13 +5682,18 @@ def me(req: MeRequest | None = None, db: Session = Depends(get_db), current_user
     profile["tracks"] = tracks
     profile["active_track_type"] = active_track
 
-    # Include service-direction membership plans
+    # Include service-direction membership plans + live material quota.
     service_keys = ["exam_11408", "course_learning", "programming"]
     service_plans = {}
     for sk in service_keys:
+        quota = _material_quota_for_service(db, user, sk)
         service_plans[sk] = {
             "is_enabled": bool(get_user_service_membership(db, user.id, sk)),
-            "plan": get_effective_service_plan(db, user.id, sk),
+            "plan": quota["plan"],
+            "single_file_limit_mb": quota["single_file_limit_mb"],
+            "material_storage_limit_mb": quota["material_storage_limit_mb"],
+            "material_used_mb": quota["material_used_mb"],
+            "material_remaining_mb": quota["material_remaining_mb"],
         }
     profile["service_plans"] = service_plans
 
@@ -8191,38 +8231,55 @@ async def upload_material(
         if normalized_subject not in selected_courses:
             raise HTTPException(status_code=403, detail="course_id is not selected by the current user")
 
-    # Upload quota checks
-    plan_info = get_user_plan(user.username, db)
-    plan_limits = get_plan_limits(plan_info["plan"])
-    max_file_size_mb = plan_limits.get("single_file_size_mb", 20)
-    max_material_count = plan_limits.get("material_upload_count", 30)
-    if material_scope["track"] == "exam_11408":
-        exam_permissions = get_exam_408_permissions_for_user(db, user)
-        if exam_permissions:
-            # material_upload_limit_mb is the storage quota, NOT a per-file cap.
-            # Keep the single-file limit from the plan; only lift the count cap.
-            max_material_count = 999999
+    # Upload quota checks — single source of truth from the service plan.
+    domain = material_scope["track"]
+    service_key = TRACK_SERVICE_KEY.get(domain, "course_learning")
+    effective_plan = get_effective_service_plan(db, user.id, service_key)
+    material_limits = get_material_plan_limits(service_key, effective_plan)
+    max_file_size_mb = material_limits["single_file_limit_mb"]
+    storage_limit_mb = material_limits["material_storage_limit_mb"]
 
-    # Check file size before reading
-    if file.size and file.size > max_file_size_mb * 1024 * 1024:
-        raise HTTPException(
-            status_code=413,
-            detail=f"文件大小超过限制（{max_file_size_mb}MB），当前套餐最大支持 {max_file_size_mb}MB 的文件。",
-        )
-
-    # Check total material count
-    material_count = (
-        db.query(models.StudyMaterial)
+    # Per-domain storage used (SUM of active file sizes for this business domain).
+    user_material_rows = (
+        db.query(models.StudyMaterial.course_id, models.StudyMaterial.file_size)
         .filter(
             models.StudyMaterial.username == user.username,
             models.StudyMaterial.is_deleted.is_(False),
         )
-        .count()
+        .all()
     )
-    if material_count >= max_material_count:
+    used_bytes = sum(
+        (int(row.file_size) or 0)
+        for row in user_material_rows
+        if _material_domain(row.course_id) == domain
+    )
+
+    # Check single-file size.
+    if file.size and file.size > max_file_size_mb * 1024 * 1024:
         raise HTTPException(
-            status_code=429,
-            detail=f"资料数量已达上限（{material_count}/{max_material_count}），请清理旧资料或升级会员。",
+            status_code=413,
+            detail={
+                "code": "MATERIAL_FILE_TOO_LARGE",
+                "message": f"当前套餐单个文件最大支持 {max_file_size_mb}MB，请压缩文件或升级套餐。",
+                "actual_mb": round(file.size / 1024 / 1024, 1),
+                "limit_mb": max_file_size_mb,
+                "plan": effective_plan,
+            },
+        )
+
+    # Check per-domain storage capacity.
+    storage_limit_bytes = storage_limit_mb * 1024 * 1024
+    if storage_limit_bytes and (used_bytes + (file.size or 0)) > storage_limit_bytes:
+        raise HTTPException(
+            status_code=413,
+            detail={
+                "code": "MATERIAL_STORAGE_QUOTA_EXCEEDED",
+                "message": "资料库容量不足",
+                "limit_mb": storage_limit_mb,
+                "used_mb": round(used_bytes / 1024 / 1024, 1),
+                "remaining_mb": round(max(0, (storage_limit_bytes - used_bytes)) / 1024 / 1024, 1),
+                "incoming_file_mb": round((file.size or 0) / 1024 / 1024, 1),
+            },
         )
 
     file_bytes = await file.read()
@@ -8233,7 +8290,6 @@ async def upload_material(
     material_type = detect_material_type(original_filename, file.content_type)
     file_type = ALLOWED_UPLOAD_TYPES.get(file.content_type, material_type.lower())
     file_hash = calculate_file_hash(file_bytes)
-    domain = material_scope["track"]
 
     if normalized_source_type == USER_UPLOAD_SOURCE:
         # Duplicate detection is scoped by business domain (exam_11408 vs

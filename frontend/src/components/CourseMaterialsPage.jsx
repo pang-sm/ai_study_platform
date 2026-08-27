@@ -385,6 +385,9 @@ export default function CourseMaterialsPage({
   const [scopeKnowledgePoints, setScopeKnowledgePoints] = useState([]);
   const [scopeKnowledgeSelection, setScopeKnowledgeSelection] = useState(new Set());
   const [scopeKnowledgeLoading, setScopeKnowledgeLoading] = useState(false);
+  const [actionMenuMaterial, setActionMenuMaterial] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
   const appliedInitialSearchRef = useRef("");
 
   const course = getCourseDisplay(subject, getSubjectLabel, isCourseMode);
@@ -580,6 +583,17 @@ export default function CourseMaterialsPage({
       handleFileChange?.(event, subject, sourceType);
     } else {
       handleFileChange?.(event);
+    }
+  };
+
+  const confirmDeleteMaterial = async () => {
+    if (!deleteTarget?.id || deleteBusy) return;
+    setDeleteBusy(true);
+    try {
+      await deleteMaterial?.(deleteTarget.id, filenameOf(deleteTarget));
+    } finally {
+      setDeleteBusy(false);
+      setDeleteTarget(null);
     }
   };
 
@@ -881,8 +895,15 @@ export default function CourseMaterialsPage({
                       <div className="cmp-table-actions" onClick={(event) => event.stopPropagation()}>
                         <button type="button" onClick={() => openMaterialDetail?.(material.id)}>查看</button>
                         <button type="button" onClick={() => onQuoteMaterial?.(material)}>引用</button>
-                        <button type="button" title="查看原文" onClick={() => previewMaterial?.(material)} disabled={!material.can_preview}>···</button>
-                        <button type="button" className="cmp-table-action--danger" onClick={() => deleteMaterial?.(material.id, filenameOf(material))}>删除</button>
+                        <div className="cmp-action-menu-wrap">
+                          <button type="button" title="更多操作" onClick={() => setActionMenuMaterial(actionMenuMaterial?.id === material.id ? null : material)}>···</button>
+                          {actionMenuMaterial?.id === material.id && (
+                            <div className="cmp-action-menu">
+                              <button type="button" onClick={() => { previewMaterial?.(material); setActionMenuMaterial(null); }} disabled={!material.can_preview}>查看原文</button>
+                              <button type="button" className="cmp-table-action--danger" onClick={() => { setDeleteTarget(material); setActionMenuMaterial(null); }}>删除资料</button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -1120,6 +1141,28 @@ export default function CourseMaterialsPage({
                   )}
                 </>
               )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {deleteTarget && createPortal(
+        <div className="kam-overlay" onClick={(event) => { if (event.target === event.currentTarget && !deleteBusy) setDeleteTarget(null); }}>
+          <div className="kam-modal cmp-delete-modal">
+            <div className="kam-body">
+              <h2 className="kam-title">删除资料</h2>
+              <p className="cmp-delete-confirm-text">
+                确定删除《{filenameOf(deleteTarget)}》吗？
+                <br /><br />
+                删除后，该资料及对应 AI 索引将无法继续用于问答和知识检索。
+              </p>
+              <div className="kam-footer">
+                <button type="button" className="cmp-btn cmp-btn--ghost" onClick={() => setDeleteTarget(null)} disabled={deleteBusy}>取消</button>
+                <button type="button" className="cmp-btn cmp-btn--primary cmp-btn--danger" onClick={confirmDeleteMaterial} disabled={deleteBusy}>
+                  {deleteBusy ? "删除中..." : "删除"}
+                </button>
+              </div>
             </div>
           </div>
         </div>,

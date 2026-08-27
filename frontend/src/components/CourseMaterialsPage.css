@@ -738,6 +738,48 @@
   background: #fee2e2 !important;
 }
 
+.cmp-action-menu-wrap {
+  position: relative;
+}
+
+.cmp-action-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  min-width: 120px;
+  background: #fff;
+  border: 1px solid #eee7ff;
+  border-radius: 10px;
+  box-shadow: 0 12px 28px rgba(109, 40, 217, 0.14);
+  padding: 6px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cmp-action-menu button {
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 7px;
+  font-weight: 700;
+}
+
+.cmp-action-menu button:hover {
+  background: #faf7ff;
+}
+
+.cmp-delete-modal {
+  max-width: 420px;
+}
+
+.cmp-delete-confirm-text {
+  font-size: 14px;
+  color: #475569;
+  line-height: 1.7;
+  margin: 8px 0 4px;
+}
+
 .cmp-empty-inline,
 .cmp-empty-state {
   text-align: center;

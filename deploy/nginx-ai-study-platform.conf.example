@@ -32,8 +32,9 @@ server {
     index index.html;
 
     # Material uploads are multipart and can legitimately exceed nginx's
-    # default 1m body limit; align with the app's own upload ceiling.
-    client_max_body_size 50m;
+    # default 1m body limit. This is the infrastructure ceiling; the actual
+    # per-plan limit (20/50/100/200MB) is enforced by FastAPI.
+    client_max_body_size 220m;
 
     # Vite emits content-hashed assets. Compress text assets at a moderate
     # level for constrained public links, while leaving index.html revalidable

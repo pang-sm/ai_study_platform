@@ -327,6 +327,28 @@ SERVICE_KEY_ALIASES = {
     "programming": "programming",
 }
 
+# Single-file material limit per plan tier. This is the single source of truth
+# for per-file size; storage capacity stays in SERVICE_PLAN_CATALOG quota.
+SINGLE_FILE_LIMIT_MB_BY_RANK = {0: 20, 1: 50, 2: 100, 3: 200}
+
+
+def get_material_plan_limits(service_key: str | None, plan_code: str | None) -> dict:
+    """Return {single_file_limit_mb, material_storage_limit_mb} for a plan.
+
+    Falls back to the free tier when the plan code is unknown. Used by both
+    the upload endpoint and the /api/me quota surface so every layer reads
+    the same numbers.
+    """
+    catalog = get_service_plan_catalog(service_key)
+    definition = catalog.get((plan_code or "free").strip().lower()) or catalog["free"]
+    rank = int(definition.get("rank", 0))
+    quota = definition.get("quota") or {}
+    return {
+        "single_file_limit_mb": SINGLE_FILE_LIMIT_MB_BY_RANK.get(rank, 20),
+        "material_storage_limit_mb": int(quota.get("material_upload_limit_mb") or 0),
+    }
+
+
 
 def canonical_service_key(service_key: str | None) -> str:
     return SERVICE_KEY_ALIASES.get((service_key or "").strip().lower(), "")

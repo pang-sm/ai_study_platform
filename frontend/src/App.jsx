@@ -62,7 +62,9 @@ const CURRENT_SUBJECT_KEY = "ai_study_current_subject";
 const CURRENT_EXAM_SUBJECT_KEY = "ai_study_current_exam_subject";
 const CURRENT_COURSE_CONTEXT_KEY = "ai_study_current_course_context";
 const API_BASE = "/api";
-const MAX_FILE_SIZE = 20 * 1024 * 1024;
+// Absolute client-side ceiling (full-plan 200MB); the effective per-plan limit
+// is read from user.service_plans and enforced again by the backend.
+const MAX_FILE_SIZE = 200 * 1024 * 1024;
 
 function getCourseDashboardRoute() {
   const match = window.location.pathname.match(/^\/course-learning\/([^/]+)(?:\/(overview|materials|knowledge|practice|plan|review|report|chat))?\/?$/);
@@ -2006,12 +2008,6 @@ function App() {
   const deleteMaterial = async (materialId, filename = "") => {
     if (!user?.username) return;
 
-    const name = String(filename || "该资料").trim();
-    const confirmed = window.confirm(
-      `确定删除《${name}》吗？\n\n删除后，该资料及对应 AI 索引将无法继续用于问答和知识检索。`
-    );
-    if (!confirmed) return;
-
     try {
       const res = await fetch(
         `${API_BASE}/materials/${materialId}?username=${encodeURIComponent(
@@ -2858,13 +2854,23 @@ function App() {
     const skippedReasons = [];
     const fileEntries = [];
 
+    // Effective single-file limit from the current user's service plan.
+    const resolvedScope = explicitSubject ? resolveMaterialScope(explicitSubject) : null;
+    const planServiceKey = resolvedScope && String(resolvedScope.courseId).endsWith("_11408") ? "exam_11408" : "course_learning";
+    const planLimitMb = user?.service_plans?.[planServiceKey]?.single_file_limit_mb || 20;
+    const planMaxFileSize = planLimitMb * 1024 * 1024;
+
     for (const file of files) {
       if (!isAllowedFile(file)) {
         skippedReasons.push(`${file.name}（文件类型不支持）`);
         continue;
       }
       if (file.size > MAX_FILE_SIZE) {
-        skippedReasons.push(`${file.name}（超过 20MB）`);
+        skippedReasons.push(`${file.name}（超过 200MB，文件过大）`);
+        continue;
+      }
+      if (file.size > planMaxFileSize) {
+        skippedReasons.push(`${file.name}（超过当前套餐单文件 ${planLimitMb}MB 上限）`);
         continue;
       }
       const localId = `upload-${Date.now()}-${Math.random().toString(16).slice(2)}`;
