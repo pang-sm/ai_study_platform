@@ -749,9 +749,15 @@ function App() {
       setCourseDashboardPanelIntent({ panel: requestedPanel, nonce: Date.now() });
       const rawCourseName = context?.courseName || context?.courseTitle || context?.name || context?.title || context?.subject || context?.courseId;
       const rawLearningGoal = context?.learningGoal || context?.learning_goal || context?.study_goal || context?.mode || "";
+      // course_id must be the canonical English id (e.g. computer_organization),
+      // never the display name. The course-learning catalog API historically
+      // returns the Chinese display name as `course_id`, which must be
+      // normalized here so material scope and the dashboard URL stay consistent.
+      const rawCourseId = context?.courseId || rawCourseName;
+      const canonicalCourseId = resolveCourseLearningId(rawCourseId) || rawCourseId;
       const nextCourseContext = {
         ...(context || {}),
-        courseId: context?.courseId || rawCourseName,
+        courseId: canonicalCourseId,
         courseName: rawCourseName,
         courseTitle: context?.courseTitle || rawCourseName,
         subject: rawCourseName,
@@ -762,7 +768,7 @@ function App() {
       };
       setCourseSubjectContext(nextCourseContext);
       try { localStorage.setItem(CURRENT_COURSE_CONTEXT_KEY, JSON.stringify(nextCourseContext)); } catch { /* ignore */ }
-      writeCourseDashboardRoute(nextCourseContext.courseId, requestedPanel);
+      writeCourseDashboardRoute(canonicalCourseId, requestedPanel);
     } else {
       setCourseSubjectContext(null);
     }
@@ -4176,8 +4182,8 @@ function App() {
     const courseDashboardMaterials = (
       <CourseMaterialsPage
         user={user}
-        subject={activeCourseContext.courseId || activeCourseContext.subject}
-        materialCourseId={activeCourseContext.courseId || activeCourseContext.subject}
+        subject={activeCourseContext.courseName || activeCourseContext.subject}
+        materialCourseId={activeCourseContext.courseId}
         getSubjectLabel={getSubjectLabel}
         mode="course_learning"
         courseName={activeCourseContext.courseName || activeCourseContext.subject}
