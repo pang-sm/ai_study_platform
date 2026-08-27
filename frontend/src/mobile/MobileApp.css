@@ -183,6 +183,20 @@
 .auth-code-field input { flex:1; min-width:0; }
 .auth-code-field button { flex:0 0 auto; min-height:48px; padding:0 12px; border:1px solid #dcd6ff; border-radius:13px; background:#f4f1ff; color:var(--purple); font-size:12px; font-weight:700; white-space:nowrap; }
 .auth-code-field button:disabled { color:#9a96aa; border-color:var(--line); background:#f5f5f8; }
+.mobile-subpage-header { display:grid; grid-template-columns:64px 1fr 64px; align-items:center; min-height:48px; margin:-12px -4px 18px; }
+.mobile-subpage-header button { justify-self:start; padding:8px 0; background:none; color:var(--purple); font-size:14px; font-weight:700; }
+.mobile-subpage-header strong { text-align:center; font-size:17px; }
+.mobile-email-page { padding-top:calc(10px + env(safe-area-inset-top)); }
+.email-bind-card,.email-detail-card { display:grid; gap:16px; padding:20px; border:1px solid var(--line); border-radius:20px; background:var(--surface); }
+.email-bind-card label { display:grid; gap:8px; color:var(--muted); font-size:13px; font-weight:700; }
+.email-bind-card input { height:48px; min-width:0; padding:0 14px; border:1px solid var(--line); border-radius:13px; background:#fff; outline:none; }
+.email-bind-warning { margin:0; padding:12px 14px; border-radius:12px; background:#fff8e8; color:#8a6418; font-size:12px; line-height:1.6; }
+.email-detail-card h1 { margin:0; font-size:24px; letter-spacing:.02em; }
+.email-detail-card p,.email-detail-card small { margin:0; color:var(--muted); line-height:1.6; }
+.email-confirm-sheet { padding-bottom:max(24px,env(safe-area-inset-bottom)); }
+.email-confirm-sheet h2 { margin:4px 0 10px; font-size:21px; }
+.email-confirm-sheet > strong { font-size:18px; color:var(--purple); }
+.email-confirm-sheet p { margin:10px 0 0; color:var(--muted); font-size:13px; line-height:1.7; }
 .mobile-onboarding { min-height:100dvh; padding:calc(42px + env(safe-area-inset-top)) 22px calc(28px + env(safe-area-inset-bottom)); background:var(--bg); }
 .mobile-onboarding h1 { margin:10px 0 7px; font-size:27px; }
 .mobile-onboarding > p { margin:0 0 25px; color:var(--muted); font-size:13px; line-height:1.6; }

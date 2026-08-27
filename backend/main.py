@@ -6867,6 +6867,8 @@ def send_email_code(
 
     assert_username_matches_current_user(username, current_user)
     user = current_user
+    if user.email or bool(getattr(user, "email_verified", False)):
+        raise HTTPException(status_code=400, detail="邮箱已绑定，暂不支持更换")
     duplicate = db.query(models.User).filter(
         models.User.id != user.id,
         func.lower(func.trim(models.User.email)) == normalized_email,
@@ -6918,6 +6920,8 @@ def verify_email_code(
 
     assert_username_matches_current_user(username, current_user)
     user = current_user
+    if user.email or bool(getattr(user, "email_verified", False)):
+        raise HTTPException(status_code=400, detail="邮箱已绑定，暂不支持更换")
 
     code_hash = _hash_code(code)
     now = datetime.utcnow()
