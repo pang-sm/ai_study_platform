@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import FirstTimeGuideLauncher from "./FirstTimeGuideLauncher.jsx";
 import { EXAM_GUIDE_STEPS } from "./firstTimeGuideFlows.js";
-import { resolveMediaUrl } from "../utils/mediaUrl.js";
+import UserAvatar from "./UserAvatar.jsx";
 
 function calcDaysUntil(examTimeStr) {
   if (!examTimeStr || examTimeStr === "暂不确定") return null;
@@ -29,22 +29,6 @@ const EXAM_PACKAGE_LABELS = {
   full_exam: "全程考包",
 };
 const PAID_EXAM_PLANS = new Set(["monthly_sprint", "quarterly_boost", "full_exam"]);
-
-function ExamUserAvatar({ user, name }) {
-  const [failed, setFailed] = useState(false);
-  const src = user?.avatar_url ? resolveMediaUrl(user.avatar_url) : "";
-  if (src && !failed) {
-    return (
-      <img
-        className="eh-user-avatar eh-user-avatar--img"
-        src={src}
-        alt={name}
-        onError={() => setFailed(true)}
-      />
-    );
-  }
-  return <span className="eh-user-avatar">{name.charAt(0)}</span>;
-}
 
 export default function ExamHome({ user, setPage, subject, setSubject, apiBase, onLogout, guideReplayToken = 0 }) {
   const [daysLeft, setDaysLeft] = useState(null);
@@ -225,7 +209,7 @@ export default function ExamHome({ user, setPage, subject, setSubject, apiBase, 
         </div>
         <div className="eh-hero-right">
           <div className="eh-user-card" data-tour="exam-profile" onClick={() => setPage && setPage("examProfile")} style={{ cursor: "pointer" }}>
-            <ExamUserAvatar user={user} name={displayName} />
+            <UserAvatar user={user} name={displayName} className="eh-user-avatar" imgClassName="eh-user-avatar--img" />
             <div>
               <strong>{displayName}</strong>
               <span className="eh-user-tag eh-user-tag--member">

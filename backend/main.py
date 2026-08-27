@@ -1283,6 +1283,47 @@ def update_exam_motto(req: dict, db: Session = Depends(get_db), current_user: mo
     return {"welcome_motto": motto, "message": "已更新"}
 
 
+EXAM_408_STAGES = ["基础阶段", "强化阶段", "冲刺阶段"]
+EXAM_408_DAILY = ["4 小时以内", "4 - 6 小时", "6 - 8 小时", "8 小时以上"]
+
+
+@app.put("/exam-408/exam-info")
+def update_exam_info(req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    request_username(req, current_user)
+    user = current_user
+    exam_time = str(req.get("exam_time", "")).strip()
+    stage = str(req.get("stage", "")).strip()
+    daily = str(req.get("daily_study_time", "")).strip()
+    if stage and stage not in EXAM_408_STAGES:
+        raise HTTPException(status_code=400, detail="请选择有效的备考阶段")
+    if daily and daily not in EXAM_408_DAILY:
+        raise HTTPException(status_code=400, detail="请选择有效的每天学习时间")
+    track = ensure_exam_408_track(db, user)
+    if not track:
+        raise HTTPException(status_code=404, detail="尚未开通 11408 备考方向")
+    detail = {}
+    try:
+        if track.onboarding_detail_json:
+            detail = json.loads(track.onboarding_detail_json)
+    except (json.JSONDecodeError, TypeError):
+        pass
+    if exam_time:
+        detail["exam_time"] = exam_time
+    if stage:
+        detail["stage"] = stage
+    if daily:
+        detail["daily_study_time"] = daily
+    track.onboarding_detail_json = json.dumps(detail, ensure_ascii=False)
+    db.commit()
+    db.refresh(track)
+    return {
+        "exam_time": detail.get("exam_time", ""),
+        "stage": detail.get("stage", ""),
+        "daily_study_time": detail.get("daily_study_time", ""),
+        "message": "备考信息已更新",
+    }
+
+
 @app.put("/me/tracks/exam_408/package")
 def upgrade_exam_package(req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     username = request_username(req, current_user)

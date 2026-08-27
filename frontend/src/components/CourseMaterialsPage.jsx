@@ -692,8 +692,9 @@ export default function CourseMaterialsPage({
       <section className="cmp-main-panel">
         <header className="cmp-header">
           <div>
-            {(!isCourseMode || examCramMode) && <h1>{examCramMode ? course.title : `资料库 · ${course.title}`}</h1>}
-            <p>{examCramMode ? "考试突击 · 复习资料管理" : (isCourseMode ? "课程资料管理" : `当前课程：${course.course}`)}</p>
+            {examCramMode && <h1>{course.title}</h1>}
+            {examCramMode && <p>考试突击 · 复习资料管理</p>}
+            {isCourseMode && <p>课程资料管理</p>}
           </div>
           <div className="cmp-header-actions">
             <button className="cmp-btn cmp-btn--primary" type="button" onClick={() => triggerUpload("user_upload")}>

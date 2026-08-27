@@ -5,6 +5,7 @@ import useFeatureEntitlements from "../hooks/useFeatureEntitlements.js";
 import LockedFeaturePrompt, { LockedFeatureView } from "./LockedFeaturePrompt.jsx";
 import FirstTimeGuideLauncher from "./FirstTimeGuideLauncher.jsx";
 import { EXAM_GUIDE_STEPS } from "./firstTimeGuideFlows.js";
+import UserAvatar from "./UserAvatar.jsx";
 const LearningReportCenter = lazy(() => import("./LearningReportCenter.jsx"));
 const ReviewCenter = lazy(() => import("./ReviewCenter.jsx"));
 
@@ -240,32 +241,16 @@ export default function ExamSubjectDashboard({
               <div>
                 <div className="exam-subject-title-row">
                   <span className="exam-subject-logo">{config.icon}</span>
-                  <div>
-                    <h1>{config.title}</h1>
-                    <p>课程学习 / 当前科目</p>
-                  </div>
+                  <h1>{config.title}</h1>
                 </div>
               </div>
               <button type="button" className="exam-subject-profile" onClick={onProfile}>
-                <span>{displayName.charAt(0)}</span>
+                <UserAvatar user={user} name={displayName} className="exam-subject-profile-avatar" />
                 个人资料
               </button>
             </header>
 
             <section className="exam-subject-top-grid">
-              <div className="exam-subject-hero">
-                <div>
-                  <h2>{config.hero}</h2>
-                  <p>{config.subtitle}</p>
-                  <div className="exam-subject-tags">
-                    {config.tags.map((tag) => <span key={tag}>{tag}</span>)}
-                  </div>
-                </div>
-                <div className="exam-subject-hero-art" aria-hidden="true">
-                  <span>{config.icon}</span>
-                </div>
-              </div>
-
               <div className="exam-subject-card exam-subject-overview">
                 <h3>课程概览</h3>
                 <div className="exam-subject-overview-grid">

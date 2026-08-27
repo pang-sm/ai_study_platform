@@ -18,6 +18,8 @@ const PACKAGE_LABELS = {
 };
 const GRADE_OPTIONS = ["大一", "大二", "大三", "大四", "研究生"];
 const SEMESTER_OPTIONS = ["上学期", "下学期"];
+const EXAM_STAGES = ["基础阶段", "强化阶段", "冲刺阶段"];
+const EXAM_DAILY = ["4 小时以内", "4 - 6 小时", "6 - 8 小时", "8 小时以上"];
 
 function maskEmail(email) {
   if (!email) return "";
@@ -48,6 +50,11 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE, onProfi
   const [schoolResults, setSchoolResults] = useState([]);
   const [schoolFocused, setSchoolFocused] = useState(false);
   const schoolRef = useRef(null);
+  const [examTimeDraft, setExamTimeDraft] = useState("");
+  const [examStageDraft, setExamStageDraft] = useState("基础阶段");
+  const [examDailyDraft, setExamDailyDraft] = useState("6 - 8 小时");
+  const [examTimeUncertain, setExamTimeUncertain] = useState(false);
+  const [examInfoSaving, setExamInfoSaving] = useState(false);
 
   useEffect(() => {
     if (!editing) {
@@ -68,6 +75,19 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE, onProfi
       return typeof d === "string" ? JSON.parse(d) : d;
     } catch { return null; }
   })();
+
+  // Sync editable exam-info drafts when entering edit mode.
+  useEffect(() => {
+    if (editing) {
+      const t = onboardingDetail?.exam_time || "";
+      const uncertain = !t || t === "暂不确定";
+      setExamTimeUncertain(uncertain);
+      setExamTimeDraft(uncertain ? "" : t);
+      setExamStageDraft(onboardingDetail?.stage || "基础阶段");
+      setExamDailyDraft(onboardingDetail?.daily_study_time || "6 - 8 小时");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing]);
 
   const displayPkg = examTrack?.package_display_name || PACKAGE_LABELS[pkgType] || "免费模式";
   const chatLimit = permissions.ai_chat_daily_limit ?? quotaData?.feature_limits?.chat?.limit ?? 50;
@@ -164,7 +184,7 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE, onProfi
   const examTime = onboardingDetail?.exam_time || "2026 年 12 月";
   const examStage = onboardingDetail?.stage || "基础阶段";
   const examDaily = onboardingDetail?.daily_study_time || "6 - 8 小时";
-  const registerTime = user?.created_at || "2024-12-01 10:30:25";
+  const registerTime = user?.created_at ? String(user.created_at).slice(0, 10) : "暂无";
   const realEmail = user?.email || "";
   const emailDisplay = realEmail ? maskEmail(realEmail) : "未绑定";
   const emailBtnLabel = realEmail ? "修改" : "绑定";
@@ -220,12 +240,34 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE, onProfi
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || "保存失败");
       if (data.profile) onProfileUpdate?.(data.profile);
-      setEditing(false);
-      setActionMsg("资料已保存");
-      setTimeout(() => setActionMsg(""), 2500);
     } catch (err) {
       setActionErr(err.message);
+      return;
     }
+
+    // Persist editable 11408 exam-info (reuses onboarding_detail fields).
+    try {
+      const res = await fetch(`${API_BASE}/exam-408/exam-info`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: user.username,
+          exam_time: examTimeUncertain ? "暂不确定" : examTimeDraft,
+          stage: examStageDraft,
+          daily_study_time: examDailyDraft,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "备考信息保存失败");
+      setExamTrack((prev) => prev ? { ...prev, onboarding_detail: { ...(prev.onboarding_detail || {}), exam_time: data.exam_time, stage: data.stage, daily_study_time: data.daily_study_time } } : prev);
+    } catch (err) {
+      setActionErr(err.message);
+      return;
+    }
+
+    setEditing(false);
+    setActionMsg("资料已保存");
+    setTimeout(() => setActionMsg(""), 2500);
   };
 
   // ── Password modal ──
@@ -385,9 +427,40 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE, onProfi
             <div className="ep-info-col">
               <div className="ep-info-row"><span className="ep-info-label">年级</span>{editing ? <select className="ep-info-input" value={grade} onChange={(event) => setGrade(event.target.value)}><option value="">未设置</option>{GRADE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</select> : <span>{grade || "未设置"}</span>}</div>
               <div className="ep-info-row"><span className="ep-info-label">当前学期</span>{editing ? <select className="ep-info-input" value={semester} onChange={(event) => setSemester(event.target.value)}><option value="">未设置</option>{SEMESTER_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</select> : <span>{semester || "未设置"}</span>}</div>
-              <div className="ep-info-row"><span className="ep-info-label">考试时间</span><span>{examTime}</span></div>
-              <div className="ep-info-row"><span className="ep-info-label">当前备考阶段</span><span>{examStage}</span></div>
-              <div className="ep-info-row"><span className="ep-info-label">每天学习时间</span><span>{examDaily}</span></div>
+              <div className="ep-info-row">
+                <span className="ep-info-label">考试时间</span>
+                {editing ? (
+                  <span className="ep-exam-info-edit">
+                    <input type="date" className="ep-info-input" value={examTimeUncertain ? "" : examTimeDraft} disabled={examTimeUncertain} onChange={(event) => setExamTimeDraft(event.target.value)} />
+                    <label className="ep-uncertain-toggle">
+                      <input type="checkbox" checked={examTimeUncertain} onChange={(event) => { setExamTimeUncertain(event.target.checked); if (event.target.checked) setExamTimeDraft(""); }} />
+                      暂不确定
+                    </label>
+                  </span>
+                ) : (
+                  <span>{examTime || "暂不确定"}</span>
+                )}
+              </div>
+              <div className="ep-info-row">
+                <span className="ep-info-label">当前备考阶段</span>
+                {editing ? (
+                  <select className="ep-info-input" value={examStageDraft} onChange={(event) => setExamStageDraft(event.target.value)}>
+                    {EXAM_STAGES.map((option) => <option key={option} value={option}>{option}</option>)}
+                  </select>
+                ) : (
+                  <span>{examStage}</span>
+                )}
+              </div>
+              <div className="ep-info-row">
+                <span className="ep-info-label">每天学习时间</span>
+                {editing ? (
+                  <select className="ep-info-input" value={examDailyDraft} onChange={(event) => setExamDailyDraft(event.target.value)}>
+                    {EXAM_DAILY.map((option) => <option key={option} value={option}>{option}</option>)}
+                  </select>
+                ) : (
+                  <span>{examDaily}</span>
+                )}
+              </div>
               <div className="ep-info-row"><span className="ep-info-label">注册时间</span><span className="ep-info-time">{registerTime}</span></div>
             </div>
           </div>

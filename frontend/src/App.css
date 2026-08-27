@@ -18509,6 +18509,27 @@ select.field:focus {
   width: 140px;
 }
 
+.ep-exam-info-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ep-uncertain-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #64748b;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.ep-uncertain-toggle input {
+  margin: 0;
+}
+
 /* School search */
 .ep-school-wrap {
   position: relative;
@@ -19797,7 +19818,26 @@ select.field:focus {
   color: #6d28d9;
 }
 
-.exam-subject-top-grid,
+.exam-subject-profile-avatar {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #e9ddff;
+  color: #6d28d9;
+  font-weight: 900;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.exam-subject-top-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+}
+
 .exam-subject-content-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.18fr) minmax(320px, 0.82fr);
