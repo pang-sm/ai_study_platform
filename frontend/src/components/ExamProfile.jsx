@@ -31,6 +31,15 @@ function maskEmail(email) {
   return name.slice(0, 3) + "***" + domain;
 }
 
+function maskPhone(phone) {
+  const value = String(phone || "").trim();
+  if (!value) return "";
+  const digits = value.replace(/\D/g, "");
+  const local = digits.length > 11 ? digits.slice(-11) : digits;
+  if (local.length !== 11) return value;
+  return `${local.slice(0, 3)}****${local.slice(-4)}`;
+}
+
 export default function ExamProfile({ user, setPage, onLogout, API_BASE, onProfileUpdate, onReplayGuide }) {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [actionMsg, setActionMsg] = useState("");
@@ -307,6 +316,17 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE, onProfi
   const [emailErr, setEmailErr] = useState("");
   const [emailMsg, setEmailMsg] = useState("");
 
+  // ── Phone bind/change modal ──
+  const [phoneModal, setPhoneModal] = useState(false);
+  const [phoneForm, setPhoneForm] = useState({ phone: "", code: "" });
+  const [phoneSending, setPhoneSending] = useState(false);
+  const [phoneBinding, setPhoneBinding] = useState(false);
+  const [phoneErr, setPhoneErr] = useState("");
+  const [phoneMsg, setPhoneMsg] = useState("");
+  const [phoneCountdown, setPhoneCountdown] = useState(0);
+  const phoneCountdownRef = useRef(null);
+  const phoneHasBound = Boolean(user?.phone_verified);
+
   const openEmailModal = () => {
     setEmailForm({ email: "", code: "" });
     setEmailErr(""); setEmailMsg("");
@@ -350,6 +370,73 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE, onProfi
       setEmailErr(err.message);
     } finally {
       setEmailBinding(false);
+    }
+  };
+
+  const phoneErrorText = (data) => {
+    const d = data?.detail;
+    if (d && typeof d === "object" && d.message) return d.message;
+    if (typeof d === "string" && d) return d;
+    return null;
+  };
+
+  const openPhoneModal = () => {
+    setPhoneForm({ phone: "", code: "" });
+    setPhoneErr(""); setPhoneMsg("");
+    setPhoneModal(true);
+  };
+
+  useEffect(() => {
+    if (!phoneModal || phoneCountdown <= 0) return;
+    const timer = setTimeout(() => setPhoneCountdown((c) => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [phoneModal, phoneCountdown]);
+
+  const sendPhoneCode = async () => {
+    const phone = phoneForm.phone.trim();
+    if (!/^1[3-9]\d{9}$/.test(phone)) { setPhoneErr("请输入有效的中国大陆手机号"); return; }
+    setPhoneSending(true); setPhoneErr(""); setPhoneMsg("");
+    try {
+      const path = phoneHasBound ? "/me/phone/change/send-code" : "/me/phone/send-code";
+      const res = await fetch(`${API_BASE}${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(phoneErrorText(data) || "验证码发送失败");
+      setPhoneMsg("验证码已发送");
+      setPhoneCountdown(59);
+    } catch (err) {
+      setPhoneErr(err.message);
+    } finally {
+      setPhoneSending(false);
+    }
+  };
+
+  const bindPhone = async () => {
+    const phone = phoneForm.phone.trim();
+    const code = phoneForm.code.trim();
+    if (!/^1[3-9]\d{9}$/.test(phone)) { setPhoneErr("请输入有效的中国大陆手机号"); return; }
+    if (!/^\d{6}$/.test(code)) { setPhoneErr("请输入 6 位数字验证码"); return; }
+    setPhoneBinding(true); setPhoneErr(""); setPhoneMsg("");
+    try {
+      const path = phoneHasBound ? "/me/phone/change/verify" : "/me/phone/verify";
+      const res = await fetch(`${API_BASE}${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, code }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(phoneErrorText(data) || "手机号绑定失败");
+      setPhoneModal(false);
+      onProfileUpdate?.({ phone: data.phone, phone_verified: true, phone_verified_at: data.phone_verified_at });
+      setActionMsg(phoneHasBound ? "手机号已更换" : "手机号已绑定");
+      setTimeout(() => setActionMsg(""), 2500);
+    } catch (err) {
+      setPhoneErr(err.message);
+    } finally {
+      setPhoneBinding(false);
     }
   };
 
@@ -511,8 +598,10 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE, onProfi
               <div>
                 <strong>绑定手机号</strong>
                 <p>用于接收验证码和安全验证</p>
-                <span>{user?.phone ? maskEmail(user.phone).replace("@","") : "未绑定"}</span>
+                <span>{user?.phone ? maskPhone(user.phone) : "未绑定"}</span>
+                {user?.phone_verified && <em className="ep-verified-tag">已验证</em>}
               </div>
+              <button type="button" className="ep-outline-btn" onClick={openPhoneModal}>{user?.phone_verified ? "更换手机号" : "绑定手机号"}</button>
             </div>
             <div className="ep-sec-item">
               <div>
@@ -611,6 +700,30 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE, onProfi
             <div className="eh-modal-actions">
               <button type="button" className="ob-btn-secondary" onClick={() => setEmailModal(false)}>取消</button>
               <button type="button" className="ob-btn-primary" onClick={bindEmail} disabled={emailBinding}>{emailBinding ? "绑定中..." : "确认绑定"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {phoneModal && (
+        <div className="eh-modal-backdrop" onClick={() => !phoneBinding && setPhoneModal(false)}>
+          <div className="eh-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="eh-modal-head"><h3>{phoneHasBound ? "更换手机号" : "绑定手机号"}</h3><button type="button" className="eh-modal-close" onClick={() => setPhoneModal(false)}>×</button></div>
+            {phoneHasBound && user?.phone && <p style={{ color: "#64748b", fontSize: 13, margin: "0 0 12px" }}>当前手机号：{maskPhone(user.phone)}</p>}
+            {phoneErr && <div className="ob-error" style={{ marginBottom: 12 }}>{phoneErr}</div>}
+            {phoneMsg && <div className="admin-dashboard-success" style={{ marginBottom: 12 }}>{phoneMsg}</div>}
+            <label className="ob-label">手机号</label>
+            <div className="ob-row" style={{ marginBottom: 14 }}>
+              <span style={{ flexShrink: 0, color: "#64748b", fontSize: 14, fontWeight: 700 }}>+86</span>
+              <input className="ep-modal-input" style={{ flex: 1, marginLeft: 8 }} value={phoneForm.phone} placeholder="13812345678" maxLength={11} onChange={(e) => setPhoneForm((p) => ({ ...p, phone: e.target.value.replace(/\D/g, "") }))} />
+            </div>
+            <label className="ob-label">验证码</label>
+            <div className="ob-row" style={{ marginBottom: 16 }}>
+              <input className="ep-modal-input" style={{ flex: 1 }} value={phoneForm.code} placeholder="6 位数字验证码" maxLength={6} onChange={(e) => setPhoneForm((p) => ({ ...p, code: e.target.value.replace(/\D/g, "") }))} />
+              <button type="button" className="ob-btn-secondary" style={{ width: 120, height: 44, flexShrink: 0 }} onClick={sendPhoneCode} disabled={phoneSending || phoneCountdown > 0}>{phoneSending ? "发送中..." : phoneCountdown > 0 ? `${phoneCountdown}s 后重发` : "获取验证码"}</button>
+            </div>
+            <div className="eh-modal-actions">
+              <button type="button" className="ob-btn-secondary" onClick={() => setPhoneModal(false)}>取消</button>
+              <button type="button" className="ob-btn-primary" onClick={bindPhone} disabled={phoneBinding}>{phoneBinding ? "绑定中..." : "确认绑定"}</button>
             </div>
           </div>
         </div>

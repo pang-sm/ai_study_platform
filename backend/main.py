@@ -78,6 +78,7 @@ from membership import (
     is_developer_account,
     get_material_plan_limits,
 )
+from tencent_sms import send_verification_sms, SmsNotConfiguredError, SmsSendError
 from prompts import build_system_prompt
 from programming_execution import run_java_tests
 from programming_io_adapter import run_sample as run_programming_io_adapter
@@ -1770,6 +1771,7 @@ def user_profile(user: models.User):
         "email_verified": bool(getattr(user, "email_verified", False)),
         "phone": getattr(user, "phone", None) or "",
         "phone_verified": bool(getattr(user, "phone_verified", False)),
+        "phone_verified_at": serialize_datetime(getattr(user, "phone_verified_at", None)),
         "is_banned": bool(getattr(user, "is_banned", 0)),
         "banned_reason": getattr(user, "banned_reason", None) or "",
         "banned_at": getattr(user, "banned_at", None) or "",
@@ -7527,6 +7529,167 @@ async def upload_avatar(
     db.refresh(user)
 
     return {"avatar_url": f"/api/me/avatar/{avatar_filename}", "message": "头像已更新", "profile": user_profile(user)}
+
+
+# ── Phone verification (Tencent Cloud SMS) ──────────────────────────────
+PHONE_RE = re.compile(r"^1[3-9]\d{9}$")
+PHONE_CODE_PURPOSES = {"bind": "phone_bind", "change": "phone_change"}
+PHONE_CODE_TTL_MINUTES = 5
+PHONE_CODE_MAX_ATTEMPTS = 5
+PHONE_SEND_INTERVAL_SECONDS = 60
+PHONE_SEND_DAILY_LIMIT = 10
+PHONE_SEND_HOURLY_ACCOUNT_LIMIT = 5
+PHONE_SEND_HOURLY_IP_LIMIT = 10
+
+
+def normalize_phone(raw: str) -> str:
+    value = (raw or "").strip()
+    value = value.replace(" ", "").replace("-", "")
+    if value.startswith("+86"):
+        value = value[3:]
+    elif value.startswith("86") and len(value) == 13:
+        value = value[2:]
+    if not PHONE_RE.match(value):
+        raise HTTPException(status_code=400, detail={"code": "PHONE_INVALID", "message": "请输入有效的中国大陆手机号"})
+    return f"+86{value}"
+
+
+def _hash_phone_code(code: str) -> str:
+    return hashlib.sha256(code.encode("utf-8")).hexdigest()
+
+
+def _phone_send_error(detail: dict):
+    raise HTTPException(status_code=400, detail=detail)
+
+
+def _check_phone_rate_limits(db: Session, username: str, phone: str, client_ip: str):
+    now = utc_now()
+    recent = db.query(models.VerificationCode).filter(
+        models.VerificationCode.target == phone,
+        models.VerificationCode.purpose.in_(list(PHONE_CODE_PURPOSES.values())),
+        models.VerificationCode.created_at >= now - timedelta(seconds=PHONE_SEND_INTERVAL_SECONDS),
+    ).first()
+    if recent:
+        _phone_send_error({"code": "SMS_RATE_LIMITED", "message": "发送过于频繁，请稍后再试"})
+
+    daily_count = db.query(models.VerificationCode).filter(
+        models.VerificationCode.target == phone,
+        models.VerificationCode.purpose.in_(list(PHONE_CODE_PURPOSES.values())),
+        models.VerificationCode.created_at >= now - timedelta(days=1),
+    ).count()
+    if daily_count >= PHONE_SEND_DAILY_LIMIT:
+        _phone_send_error({"code": "SMS_RATE_LIMITED", "message": "该手机号今日发送次数已达上限"})
+
+    hourly_account = db.query(models.VerificationCode).filter(
+        models.VerificationCode.username == username,
+        models.VerificationCode.purpose.in_(list(PHONE_CODE_PURPOSES.values())),
+        models.VerificationCode.created_at >= now - timedelta(hours=1),
+    ).count()
+    if hourly_account >= PHONE_SEND_HOURLY_ACCOUNT_LIMIT:
+        _phone_send_error({"code": "SMS_RATE_LIMITED", "message": "本账号发送验证码过于频繁，请稍后再试"})
+
+
+def _send_phone_code(db: Session, user: models.User, phone: str, purpose: str, client_ip: str):
+    canonical = normalize_phone(phone)
+
+    if purpose == "bind" and user.phone_verified:
+        _phone_send_error({"code": "PHONE_ALREADY_BOUND", "message": "当前账号已绑定手机号"})
+
+    _check_phone_rate_limits(db, user.username, canonical, client_ip)
+
+    code = f"{secrets.randbelow(1000000):06d}"
+    expires_at = utc_now() + timedelta(minutes=PHONE_CODE_TTL_MINUTES)
+    record = models.VerificationCode(
+        username=user.username,
+        target=canonical,
+        purpose=PHONE_CODE_PURPOSES[purpose],
+        code_hash=_hash_phone_code(code),
+        expires_at=expires_at,
+        used=False,
+        attempts=0,
+    )
+    db.add(record)
+    db.commit()
+
+    try:
+        send_verification_sms(canonical, code)
+    except SmsNotConfiguredError:
+        raise HTTPException(status_code=503, detail={"code": "SMS_SERVICE_NOT_CONFIGURED", "message": "手机号验证服务暂未配置，请稍后再试"})
+    except SmsSendError as exc:
+        raise HTTPException(status_code=502, detail={"code": "SMS_SEND_FAILED", "message": f"短信发送失败：{exc}"})
+
+    return {"message": "验证码已发送", "retry_after": PHONE_SEND_INTERVAL_SECONDS}
+
+
+def _verify_phone_code(db: Session, user: models.User, phone: str, code: str, purpose: str):
+    canonical = normalize_phone(phone)
+    if not code or not str(code).strip().isdigit() or len(str(code).strip()) != 6:
+        _phone_send_error({"code": "PHONE_CODE_INVALID", "message": "请输入 6 位数字验证码"})
+
+    record = (
+        db.query(models.VerificationCode)
+        .filter(
+            models.VerificationCode.username == user.username,
+            models.VerificationCode.target == canonical,
+            models.VerificationCode.purpose == PHONE_CODE_PURPOSES[purpose],
+            models.VerificationCode.used.is_(False),
+        )
+        .order_by(models.VerificationCode.created_at.desc())
+        .first()
+    )
+    if not record:
+        _phone_send_error({"code": "PHONE_CODE_INVALID", "message": "请先获取验证码"})
+
+    if record.expires_at and record.expires_at <= utc_now():
+        _phone_send_error({"code": "PHONE_CODE_EXPIRED", "message": "验证码已过期，请重新获取"})
+
+    if (record.attempts or 0) >= PHONE_CODE_MAX_ATTEMPTS:
+        _phone_send_error({"code": "PHONE_CODE_TOO_MANY_ATTEMPTS", "message": "验证码尝试次数过多，请重新获取"})
+
+    if record.code_hash != _hash_phone_code(str(code).strip()):
+        record.attempts = (record.attempts or 0) + 1
+        db.commit()
+        _phone_send_error({"code": "PHONE_CODE_INVALID", "message": "验证码错误"})
+
+    # Mark one-time use.
+    record.used = True
+    db.commit()
+
+    # Enforce uniqueness: another account must not already own this number.
+    owner = (
+        db.query(models.User)
+        .filter(models.User.phone == canonical, models.User.id != user.id)
+        .first()
+    )
+    if owner:
+        _phone_send_error({"code": "PHONE_ALREADY_BOUND", "message": "该手机号已被其他账号绑定"})
+
+    user.phone = canonical
+    user.phone_verified = True
+    user.phone_verified_at = utc_now()
+    db.commit()
+    db.refresh(user)
+    return {"phone": canonical, "phone_verified": True, "message": "手机号绑定成功"}
+
+
+@app.post("/me/phone/send-code")
+def send_phone_bind_code(req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user), request: Request = None):
+    return _send_phone_code(db, current_user, str(req.get("phone", "")), "bind", (request.client.host if request else ""))
+
+
+@app.post("/me/phone/verify")
+def verify_phone_bind(req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    return _verify_phone_code(db, current_user, str(req.get("phone", "")), str(req.get("code", "")), "bind")
+
+
+@app.post("/me/phone/change/send-code")
+def send_phone_change_code(req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user), request: Request = None):
+    return _send_phone_code(db, current_user, str(req.get("phone", "")), "change", (request.client.host if request else ""))
+
+
+@app.post("/me/phone/change/verify")
+def verify_phone_change(req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    return _verify_phone_code(db, current_user, str(req.get("phone", "")), str(req.get("code", "")), "change")
 
 
 @app.get("/me/avatar/{filename}")

@@ -42,6 +42,7 @@ class User(Base):
     email_verified = Column(Boolean, nullable=False, default=False)
     phone = Column(String(30), nullable=True, default=None)
     phone_verified = Column(Boolean, nullable=False, default=False)
+    phone_verified_at = Column(DateTime, nullable=True)
     is_active = Column(Integer, nullable=True, default=1)
     is_banned = Column(Integer, nullable=True, default=0)
     banned_reason = Column(Text, nullable=True)

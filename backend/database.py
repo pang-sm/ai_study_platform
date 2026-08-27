@@ -56,6 +56,7 @@ PROFILE_COLUMNS = {
     "email_verified": "BOOLEAN NOT NULL DEFAULT 0",
     "phone": "VARCHAR(30)",
     "phone_verified": "BOOLEAN NOT NULL DEFAULT 0",
+    "phone_verified_at": "DATETIME",
     "onboarding_detail": "TEXT",
     "is_active": "INTEGER DEFAULT 1",
     "is_banned": "INTEGER DEFAULT 0",
@@ -1806,9 +1807,35 @@ def normalize_existing_subjects(conn):
     fill_blank_subject_column(conn, "course_learning_preferences", "course_id")
 
 
+def _ensure_phone_unique_index(conn):
+    """Add a unique index on non-empty phones, but only if no duplicates exist.
+
+    A partial unique index avoids colliding on the many NULL/empty legacy rows
+    while still guaranteeing real bound numbers are unique.
+    """
+    try:
+        duplicate = conn.execute(
+            text(
+                "SELECT phone FROM users WHERE phone IS NOT NULL AND TRIM(phone) != '' "
+                "GROUP BY phone HAVING COUNT(*) > 1 LIMIT 1"
+            )
+        ).first()
+    except Exception:
+        return
+    if duplicate:
+        return  # leave existing data intact; do not fail startup
+    conn.execute(
+        text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone_unique "
+            "ON users(phone) WHERE phone IS NOT NULL AND TRIM(phone) != ''"
+        )
+    )
+
+
 def init_user_profile_schema():
     with engine.begin() as conn:
         ensure_columns(conn, "users", PROFILE_COLUMNS)
+        _ensure_phone_unique_index(conn)
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS auth_sessions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -18516,6 +18516,18 @@ select.field:focus {
   flex-wrap: wrap;
 }
 
+.ep-verified-tag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 12px;
+  font-weight: 700;
+  font-style: normal;
+}
+
 .ep-uncertain-toggle {
   display: inline-flex;
   align-items: center;
