@@ -5,6 +5,82 @@ import MarkdownMessage from "../components/MarkdownMessage.jsx";
 
 // The route remains frozen; the mobile AI surface is replaced below.
 AIHome = (props) => <MobileChatShell {...props} user={props.user || readUser()} />;
+
+// v15: the 11408 workspace has three destinations only. The legacy home URL
+// remains a compatibility alias and is replaced with the chapters workspace.
+const routeForBeforeV15 = routeFor;
+routeFor = (pathname) => {
+  const parts = pathname.split("/");
+  if (parts[1] !== "m" || parts[2] !== "exam11408") return routeForBeforeV15(pathname);
+  const subject = parts[3] || "";
+  if (!subject) return { page: "exam-select", space: EXAM, section: "list" };
+  const section = parts[4] || "home";
+  if (section === "home") return { page: "exam-chapters", space: EXAM, subject, section: "chapters", redirectTo: examWorkspacePath(subject, "chapters"), redirectReason: "legacy_exam_home" };
+  return { page: section === "chapters" ? "exam-chapters" : section === "practice" ? "exam-practice" : section === "ai" ? "exam-ai" : "exam-select", space: EXAM, subject, section };
+};
+
+function ExamSelectV15() {
+  return <div className="page exam-select-v15"><PageHeading title="11408考研中心" description="选择科目进入学习空间。" /><SectionTitle title="选择科目" /><div className="selection-list">{EXAM_SUBJECTS.map(([id, name]) => <button type="button" className="selection-card exam-selection" key={id} onClick={() => go(examWorkspacePath(id, "chapters"))}><span className="selection-icon"><Icon name="exam" /></span><span><strong>{name}</strong><small>章节、练习与 AI 助手</small></span></button>)}</div></div>;
+}
+
+function ExamTopBarV15({ subject, user, title }) {
+  const label = EXAM_SUBJECTS.find(([id]) => id === subject)?.[1] || subject;
+  const avatar = user?.avatar_url || "";
+  const detail = title === "AI出题" || title === "答题结果";
+  return <header className="exam-topbar-v14 exam-topbar-v15">{detail ? <button type="button" className="exam-detail-back-v15" onClick={() => go(examWorkspacePath(subject, "practice"))}>返回</button> : <button type="button" className="mobile-avatar-v14" onClick={() => go("/m/profile")} aria-label="我的">{avatar ? <img src={avatar} alt="头像" /> : (user?.nickname || user?.username || "学").slice(0, 1)}</button>}<strong>{title || label}</strong>{detail ? <span /> : <button type="button" className="exam-switch-v14" onClick={() => go("/m/exam11408")}>切换</button>}</header>;
+}
+
+function ExamBottomNavV15({ subject, active }) {
+  return <nav className="exam-bottom-nav-v14 exam-bottom-nav-v15" aria-label="11408导航">{[["chapters", "章节", "knowledge"], ["practice", "练习", "practice"], ["ai", "AI", "ai"]].map(([key, label, icon]) => <button type="button" key={key} className={active === key ? "is-active" : ""} onClick={() => go(examWorkspacePath(subject, key))}><Icon name={icon} /><span>{label}</span></button>)}</nav>;
+}
+
+function ExamChaptersV15({ user, subject }) {
+  const state = useResource(() => getJson(`/knowledge-map?course_id=${encodeURIComponent(examMapCourseId(subject))}&username=${encodeURIComponent(user.username)}`), [subject, user.username]);
+  const [expanded, setExpanded] = useState(() => new Set());
+  const [selected, setSelected] = useState(null);
+  const toggle = (key) => setExpanded((previous) => { const next = new Set(previous); next.has(key) ? next.delete(key) : next.add(key); return next; });
+  const renderNode = (node, path) => { const children = safeArray(node.children); const key = path.join("/"); const title = knowledgeTitle(node); return <div className={`exam-tree-node-v14 depth-${Math.min(path.length - 1, 3)}`} key={key}><button type="button" className="exam-tree-row-v14" onClick={() => children.length ? toggle(key) : setSelected({ ...node, chapter: path[0] || "" })}><span className="exam-tree-chevron-v14">{children.length ? (expanded.has(key) ? "⌄" : "›") : "•"}</span><span className="exam-tree-copy-v14"><strong>{title}</strong><small>{children.length ? `${children.length} 个子节点` : knowledgeStatusLabel(node.status)}</small></span>{!children.length && <em className={`knowledge-status-badge status-${node.status || "not_started"}`}>{knowledgeStatusLabel(node.status)}</em>}</button>{children.length > 0 && expanded.has(key) && <div className="exam-tree-children-v14">{children.map((child, index) => renderNode(child, [...path, child.title || child.name || String(index)]))}</div>}</div>; };
+  const chapters = safeArray(state.data?.chapters);
+  return <div className="page exam-page-v14 exam-chapters-v15"><ExamTopBarV15 subject={subject} user={user} title="章节" /><div className="exam-page-intro-v14"><h1>章节</h1><span>展开章节查看知识点</span></div>{state.status === "loading" && <div className="inline-state">正在加载章节…</div>}{state.status === "error" && <div className="inline-error">{state.error}<button type="button" className="text-button" onClick={state.retry}>重试</button></div>}{state.status === "success" && !chapters.length && <div className="empty-course"><strong>暂无章节</strong><span>当前科目暂未返回章节内容。</span></div>}{state.status === "success" && chapters.length > 0 && <div className="exam-tree-v14">{chapters.map((node, index) => renderNode(node, [node.title || node.name || String(index)]))}</div>}{selected && <KnowledgeStatusSheetV14 subject={subject} node={selected} user={user} onClose={() => setSelected(null)} onSaved={() => setSelected(null)} />}<ExamBottomNavV15 subject={subject} active="chapters" /></div>;
+}
+
+function ProfileActionV15({ title, description, onClick }) { return <button type="button" className="profile-row-v15" onClick={onClick}><span><strong>{title}</strong>{description && <small>{description}</small>}</span></button>; }
+
+function MobileProfilePageV15({ user, onProfileUpdate }) {
+  const [modal, setModal] = useState(""); const [notice, setNotice] = useState(""); const [error, setError] = useState(""); const [nickname, setNickname] = useState(user.nickname || ""); const [password, setPassword] = useState({ old_password: "", new_password: "", confirm_password: "" }); const [email, setEmail] = useState({ email: user.email || "", code: "" }); const [busy, setBusy] = useState(false); const fileRef = useRef(null); const name = user.nickname || user.username || "学习者"; const avatar = user.avatar_url || "";
+  const updateProfile = (profile) => { const next = { ...user, ...profile }; localStorage.setItem("ai_study_platform_user", JSON.stringify(next)); onProfileUpdate(next); };
+  const close = () => { setModal(""); setNotice(""); setError(""); };
+  const uploadAvatar = async (event) => { const file = event.target.files?.[0]; event.target.value = ""; if (!file) return; setBusy(true); try { const form = new FormData(); form.append("file", file); form.append("username", user.username); const data = await getJson("/me/avatar", { method: "POST", body: form }); updateProfile(data.profile || { avatar_url: data.avatar_url }); setNotice("头像已更新"); } catch (reason) { setError(reason.message || "头像上传失败"); } finally { setBusy(false); } };
+  const saveNickname = async () => { if (!nickname.trim()) return setError("昵称不能为空"); setBusy(true); try { const data = await getJson(`/me/profile?username=${encodeURIComponent(user.username)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nickname: nickname.trim() }) }); updateProfile(data.profile || { nickname: nickname.trim() }); setNotice("昵称已更新"); } catch (reason) { setError(reason.message || "昵称保存失败"); } finally { setBusy(false); } };
+  const savePassword = async () => { if (!password.new_password || password.new_password !== password.confirm_password) return setError("请确认新密码一致"); setBusy(true); try { await getJson(`/me/password?username=${encodeURIComponent(user.username)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(password) }); setNotice("密码已修改"); setPassword({ old_password: "", new_password: "", confirm_password: "" }); } catch (reason) { setError(reason.message || "密码修改失败"); } finally { setBusy(false); } };
+  const sendCode = async () => { setBusy(true); try { await getJson(`/me/email/send-code?username=${encodeURIComponent(user.username)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: email.email }) }); setNotice("验证码已发送"); } catch (reason) { setError(reason.message || "验证码发送失败"); } finally { setBusy(false); } };
+  const bindEmail = async () => { setBusy(true); try { const data = await getJson(`/me/email/verify?username=${encodeURIComponent(user.username)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(email) }); updateProfile(data.profile || { email: email.email }); setNotice("邮箱已绑定"); } catch (reason) { setError(reason.message || "邮箱绑定失败"); } finally { setBusy(false); } };
+
+  return <div className="page profile-page profile-page-v15"><section className="profile-identity-v14"><button type="button" className="profile-avatar profile-avatar-v14" onClick={() => fileRef.current?.click()} aria-label="修改头像">{avatar ? <img src={avatar} alt="头像" /> : name.slice(0, 1)}</button><h1>{name}</h1>{user.email && <span>{user.email}</span>}<input ref={fileRef} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={uploadAvatar} /></section><section className="profile-group-v15"><SectionTitle title="11408" /><ProfileActionV15 title="当前科目" description="进入科目选择" onClick={() => go("/m/exam11408")} /></section><section className="profile-group-v15"><SectionTitle title="账号" /><ProfileActionV15 title="修改头像" onClick={() => fileRef.current?.click()} /><ProfileActionV15 title="修改昵称" onClick={() => setModal("nickname")} /><ProfileActionV15 title="修改密码" onClick={() => setModal("password")} />{user.email && <ProfileActionV15 title="绑定邮箱" description="已绑定邮箱可重新验证" onClick={() => setModal("email")} />}</section><section className="profile-group-v15"><SectionTitle title="服务" /><ProfileActionV15 title="额度使用" onClick={() => go("/m/profile/quota")} /><ProfileActionV15 title="11408套餐" onClick={() => go("/m/shop")} /></section><button type="button" className="secondary-button profile-logout-v14" onClick={() => { localStorage.removeItem("ai_study_platform_user"); onProfileUpdate({}); }}>退出登录</button>{(modal || notice || error) && <div className="mobile-modal-backdrop" onClick={close}><section className="mobile-modal" onClick={(event) => event.stopPropagation()}><div className="mobile-modal-head"><strong>{modal === "nickname" ? "修改昵称" : modal === "password" ? "修改密码" : modal === "email" ? "绑定邮箱" : "账号提示"}</strong><button type="button" onClick={close}>×</button></div>{error && <div className="inline-error">{error}</div>}{notice && <div className="inline-success">{notice}</div>}{modal === "nickname" && <><input value={nickname} onChange={(event) => setNickname(event.target.value)} placeholder="输入昵称" /><button type="button" className="primary-button" disabled={busy} onClick={saveNickname}>保存</button></>}{modal === "password" && <><input type="password" value={password.old_password} onChange={(event) => setPassword({ ...password, old_password: event.target.value })} placeholder="当前密码" /><input type="password" value={password.new_password} onChange={(event) => setPassword({ ...password, new_password: event.target.value })} placeholder="新密码" /><input type="password" value={password.confirm_password} onChange={(event) => setPassword({ ...password, new_password: event.target.value })} placeholder="新密码" /><input type="password" value={password.confirm_password} onChange={(event) => setPassword({ ...password, confirm_password: event.target.value })} placeholder="确认新密码" /><button type="button" className="primary-button" disabled={busy} onClick={savePassword}>确认修改</button></>}{modal === "email" && <><input type="email" value={email.email} onChange={(event) => setEmail({ ...email, email: event.target.value })} placeholder="邮箱地址" /><div className="modal-inline"><input value={email.code} onChange={(event) => setEmail({ ...email, code: event.target.value })} placeholder="验证码" /><button type="button" disabled={busy} onClick={sendCode}>发送验证码</button></div><button type="button" className="primary-button" disabled={busy} onClick={bindEmail}>确认绑定</button></>}</section></div>}</div>;
+}
+
+function AIQuestionGenerateV15({ subject, user }) {
+  const name = EXAM_SUBJECTS.find(([id]) => id === subject)?.[1] || subject; const [count, setCount] = useState(3); const [difficulty, setDifficulty] = useState("medium"); const [scope, setScope] = useState("subject"); const [knowledge, setKnowledge] = useState(""); const [items, setItems] = useState([]); const [state, setState] = useState({ status: "idle", message: "" }); const [attemptId, setAttemptId] = useState(""); const [questions, setQuestions] = useState([]); const [answers, setAnswers] = useState({}); const [result, setResult] = useState(null); const [explain, setExplain] = useState(null);
+  const generate = async () => { setState({ status: "loading", message: "正在生成…" }); try { const data = await getJson(`/exam/11408/${subject}/ai-questions/generate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: user.username, knowledge_point_name: scope === "subject" ? "" : knowledge.trim(), knowledge_point_path: scope === "subject" ? "" : knowledge.trim(), question_type: "选择题", count: Number(count), difficulty, requirement: "贴近11408真题，考查核心概念" }) }); setItems(safeArray(data.items)); setState({ status: "success", message: data.generation_mode === "ai" ? `已生成 ${data.items?.length || 0} 道 AI 题目。` : `已生成 ${data.items?.length || 0} 道题目（当前服务返回备用生成结果）。` }); } catch (reason) { setState({ status: "error", message: reason.message || "生成失败，请重试" }); } };
+  const start = async () => { try { const data = await getJson(`/exam/11408/${subject}/ai-questions/attempts`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: user.username, question_ids: items.map((item) => item.id), knowledge_point_path: knowledge }) }); const detail = await getJson(`/exam/11408/${subject}/ai-questions/attempts/${data.attempt_id}?username=${encodeURIComponent(user.username)}`); setAttemptId(String(data.attempt_id)); setQuestions(safeArray(detail.questions)); setAnswers(detail.saved_answers || {}); } catch (reason) { setState({ status: "error", message: reason.message || "开始练习失败" }); } };
+  const submit = async () => { try { const data = await getJson(`/exam/11408/${subject}/ai-questions/attempts/${attemptId}/submit`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: user.username, answers }) }); setResult(data); } catch (reason) { setState({ status: "error", message: reason.message || "提交失败" }); } };
+  if (result) return <div className="page exam-page-v15"><ExamTopBarV15 subject={subject} user={user} title="答题结果" />{safeArray(result.results).map((item, index) => <PracticeResultCardV14 key={item.question_id || index} item={item} question={questions.find((question) => String(question.id) === String(item.question_id))} index={index} subject={subject} user={user} onExplain={setExplain} />)}{explain && <AIExplanationSheetV14 subject={subject} question={explain.question} result={explain.result} user={user} onClose={() => setExplain(null)} />}</div>;
+  if (attemptId) return <div className="page exam-page-v15"><ExamTopBarV15 subject={subject} user={user} title="AI出题" />{questions.map((question, index) => <div key={question.id || index}><MobileQuestion question={question} answer={answers[question.id] || ""} onAnswer={(value) => setAnswers((previous) => ({ ...previous, [question.id]: value }))} /><small>第 {index + 1} / {questions.length} 题</small></div>)}<button type="button" className="primary-button" disabled={!questions.length} onClick={submit}>提交答案</button></div>;
+  return <div className="page exam-page-v15"><ExamTopBarV15 subject={subject} user={user} title="AI出题" /><div className="exam-page-intro-v15"><h1>AI出题</h1><span>{name} · 使用真实 AI 生成接口</span></div><label className="form-field"><span>题目数量</span><select className="field" value={count} onChange={(event) => setCount(event.target.value)}><option value="3">3 题</option><option value="5">5 题</option><option value="10">10 题</option></select></label><label className="form-field"><span>难度</span><select className="field" value={difficulty} onChange={(event) => setDifficulty(event.target.value)}><option value="basic">基础</option><option value="medium">中等</option><option value="advanced">较难</option></select></label><label className="form-field"><span>知识范围</span><select className="field" value={scope} onChange={(event) => setScope(event.target.value)}><option value="subject">全科</option><option value="chapter">当前章节</option><option value="knowledge">当前知识点</option></select></label>{scope !== "subject" && <input className="field" value={knowledge} onChange={(event) => setKnowledge(event.target.value)} placeholder="输入章节或知识点" />}{state.message && <div className={state.status === "error" ? "inline-error" : "inline-success"}>{state.message}</div>}{items.length > 0 && <div className="practice-data-panel">{items.map((item, index) => <div className="practice-data-row" key={item.id}><span>{index + 1}</span><strong>{item.stem}</strong></div>)}</div>}<button type="button" className="primary-button" disabled={state.status === "loading"} onClick={items.length ? start : generate}>{items.length ? "开始答题" : state.status === "loading" ? "生成中…" : "生成题目"}</button><button type="button" className="secondary-button" onClick={() => go(examWorkspacePath(subject, "practice"))}>返回</button></div>;
+}
+
+function ExamPracticeHomeV15({ subject, user }) {
+  const name = EXAM_SUBJECTS.find(([id]) => id === subject)?.[1] || subject;
+  const entries = [["past-paper", "真题", "按年份开始答题", "practice"], ["chapter", "章节练习", "按章节和知识点练习", "knowledge"], ["wrong", "错题本", "重新练习未掌握题目", "knowledge"], ["ai", "AI出题", "生成当前科目的练习题", "ai"]];
+  return <div className="page exam-practice-page-v15"><ExamTopBarV15 subject={subject} user={user} title="练习" /><div className="exam-page-intro-v15"><h1>练习</h1><span>{name} · 选择练习方式</span></div><div className="practice-list practice-list-v14">{entries.map(([type, title, description, icon]) => <ActionRow key={type} icon={icon} title={title} description={description} onClick={() => go(`/m/exam11408/${subject}/practice?type=${type}`)} />)}</div><ExamBottomNavV15 subject={subject} active="practice" /></div>;
+}
+
+const examBottomNavV14BeforeV15 = ExamBottomNavV14;
+ExamBottomNavV14 = ExamBottomNavV15;
+ExamSelect = ExamSelectV15;
+ExamChaptersMobile = ExamChaptersV15;
+ExamPracticeMobile = (props) => props.route.practiceType === "ai" ? <AIQuestionGenerateV15 subject={props.route.subject} user={props.user} /> : <ExamPracticeV14 {...props} />;
+MobileProfilePageV14 = MobileProfilePageV15;
 const routeWithContextV141 = routeWithContext;
 routeWithContext = (path) => { const route = routeWithContextV141(path); return route.space === EXAM && route.page === "exam-practice" && route.practiceType === "past-paper" && route.knowledge ? { ...route, practiceType: "chapter" } : route; };
 const baseRouteWithContext = routeWithContext;
@@ -210,7 +286,7 @@ function MobileChatShell({ route, course, user }) {
   const endHold = () => { if (holdTimer.current) window.clearTimeout(holdTimer.current); };
   const contextLabel = exam ? [subjectLabel, route.chapter, route.knowledge].filter(Boolean).join(" · ") : isCourse ? [courseLabel, route.chapter, route.knowledge].filter(Boolean).join(" · ") : "普通 AI";
   const title = exam ? "11408 AI助手" : isCourse ? "课程 AI助手" : "普通 AI助手";
-  const backPath = exam ? `/m/exam11408/${encodeURIComponent(route.subject)}/home` : isCourse ? coursePath(route.mode || "daily", courseId(course), "/home") : "/m";
+  const backPath = exam ? `/m/exam11408/${encodeURIComponent(route.subject)}/chapters` : isCourse ? coursePath(route.mode || "daily", courseId(course), "/home") : "/m";
   return <div className="mobile-chat-page">
     <header className="mobile-chat-header"><button type="button" className="mobile-chat-back" onClick={() => goBack(backPath)}>返回</button><div><strong>{title}</strong><span>{contextLabel}</span></div><button type="button" className="mobile-chat-history-button" onClick={() => setHistoryOpen((value) => !value)}>历史</button></header>
     {historyOpen && <section className="mobile-chat-history"><div className="mobile-chat-history-head"><strong>历史对话</strong><button type="button" onClick={startNewConversation}>新对话</button></div>{status.type === "loading" ? <small>正在读取历史…</small> : status.type === "error" ? <><small>{status.message}</small><button type="button" className="text-button" onClick={loadHistory}>点击重试</button></> : sessions.length ? sessions.map((session) => <button type="button" key={session.id} onClick={() => loadSession(session.id)}><span>{session.title || "未命名对话"}</span><small>{session.created_at ? new Date(session.created_at).toLocaleString("zh-CN") : ""}</small></button>) : <small>暂无历史对话</small>}</section>}
@@ -588,3 +664,25 @@ ExamChaptersMobile = ExamChaptersV14;
 ExamPracticeMobile = ExamPracticeV14;
 AppShell = MobileAppShellV14;
 AIHome = (props) => <MobileChatShell {...props} user={props.user || readUser()} />;
+
+// Final v15 bindings intentionally come after the legacy compatibility layers.
+const routeForV15FinalBase = routeFor;
+routeFor = (pathname) => {
+  const parts = pathname.split("/");
+  if (parts[1] !== "m" || parts[2] !== "exam11408") return routeForV15FinalBase(pathname);
+  const subject = parts[3] || "";
+  if (!subject) return { page: "exam-select", space: EXAM, section: "list" };
+  const section = parts[4] || "home";
+  if (section === "home") return { page: "exam-chapters", space: EXAM, subject, section: "chapters", redirectTo: examWorkspacePath(subject, "chapters"), redirectReason: "legacy_exam_home" };
+  return { page: section === "chapters" ? "exam-chapters" : section === "practice" ? "exam-practice" : section === "ai" ? "exam-ai" : "exam-select", space: EXAM, subject, section };
+};
+ExamSelect = ExamSelectV15;
+ExamBottomNavV14 = ExamBottomNavV15;
+ExamChaptersMobile = ExamChaptersV15;
+ExamPracticeMobile = (props) => {
+  if (!props.route.practiceType) return <ExamPracticeHomeV15 subject={props.route.subject} user={props.user} />;
+  if (props.route.practiceType === "ai") return <AIQuestionGenerateV15 subject={props.route.subject} user={props.user} />;
+  if (props.route.practiceType === "chapter") return <ExamChapterPracticeV141 route={props.route} user={props.user} />;
+  return <ExamPracticeV14 {...props} />;
+};
+MobileProfilePageV14 = MobileProfilePageV15;
