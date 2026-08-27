@@ -2919,7 +2919,8 @@ function App() {
       const detail = data?.detail;
       if (detail && typeof detail === "object" && detail.code === "MATERIAL_DUPLICATE") {
         const domainLabel = detail.existing_domain_label || "资料库";
-        const subject = detail.existing_subject || "";
+        const rawSubject = detail.existing_subject || "";
+        const subject = detail.existing_domain === "exam_11408" ? rawSubject.replace(/^11408\s*/, "") : rawSubject;
         const created = detail.existing_created_at ? detail.existing_created_at.slice(0, 10) : "";
         return `该文件已上传，此文件已存在于${domainLabel}「${subject}」资料库中，无需重复上传。${created ? `\n上传时间：${created}` : ""}`;
       }
