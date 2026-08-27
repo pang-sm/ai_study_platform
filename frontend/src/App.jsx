@@ -4129,7 +4129,11 @@ function App() {
         materialSearchResults={materialSearchResults}
         selectedMaterialDetail={selectedMaterialDetail}
         materialsFileInputRef={materialsFileInputRef}
-        handleFileChange={(event, sourceType) => handleFileChange(event, activeCourseContext.courseId || activeCourseContext.subject, sourceType)}
+        handleFileChange={(event, targetCourse, sourceType) => handleFileChange(
+          event,
+          targetCourse || activeCourseContext.courseId || activeCourseContext.subject,
+          sourceType,
+        )}
         loadMaterials={loadMaterials}
         searchMaterials={searchMaterials}
         reindexLibrary={reindexLibrary}
