@@ -227,7 +227,7 @@ export default function CoursePracticeCenter({ user, courseId, courseName, mater
       </article>}
 
       <section className="course-practice-history">
-        <div className="course-practice-section-title"><div><span className="course-practice-eyebrow">AI WORKBOOK</span><h2>AI 题册</h2><p>按最近一次作答显示状态，并保留每次练习历史。</p></div><span>{workbook.length} 道题</span></div>
+        <div className="course-practice-section-title"><div><h2>练习记录</h2><p>每次练习独立保存作答记录。</p></div><span>{workbook.length} 道题</span></div>
         <div className="course-practice-filters">
           <select value={filterChapter} onChange={(event) => setFilterChapter(event.target.value)}><option value="">全部章节</option>{chapters.map((item, index) => <option key={item.code || index} value={item.title || ""}>{chapterLabel(item, index)}</option>)}</select>
           <select value={filterPoint} onChange={(event) => setFilterPoint(event.target.value)}><option value="">全部知识点</option>{allPoints.map((item) => <option key={item.code || item.title} value={item.code}>{item.title}</option>)}</select>
