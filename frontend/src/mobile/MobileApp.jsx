@@ -793,6 +793,97 @@ AppShell = MobileAppShellV14;
 AIHome = (props) => <MobileChatShell {...props} user={props.user || readUser()} />;
 
 // Final v15 bindings intentionally come after the legacy compatibility layers.
+function V16PracticeHeader({ subject, title, onBack }) {
+  const name = EXAM_SUBJECTS.find(([id]) => id === subject)?.[1] || subject;
+  return <header className="v16-practice-header"><button type="button" onClick={onBack}>返回</button><strong>{title}</strong><span>{name}</span></header>;
+}
+
+function V16KnowledgeTree({ nodes, counts, selected, onSelect, picker = false }) {
+  const [expanded, setExpanded] = useState(() => new Set());
+  const countFor = (node) => {
+    const key = String(node.code || node.id || "");
+    const own = Number(counts[key] || 0);
+    return own + safeArray(node.children).reduce((sum, child) => sum + countFor(child), 0);
+  };
+  const render = (node, depth = 0, parentPath = []) => {
+    const key = String(node.code || node.id || `${parentPath.join("/")}/${knowledgeTitle(node)}`);
+    const children = safeArray(node.children);
+    const title = knowledgeTitle(node);
+    const count = countFor(node);
+    const isOpen = expanded.has(key);
+    const isSelected = String(selected?.key || "") === key;
+    return <div className={`v16-tree-node depth-${Math.min(depth, 3)}`} key={key}>
+      <div className={`v16-tree-row${isSelected ? " is-selected" : ""}`}>
+        {children.length > 0 ? <button type="button" className="v16-tree-toggle" aria-label={isOpen ? "收起" : "展开"} onClick={() => setExpanded((previous) => { const next = new Set(previous); if (next.has(key)) next.delete(key); else next.add(key); return next; })}>{isOpen ? "⌄" : "›"}</button> : <span className="v16-tree-toggle-placeholder" />}
+        <button type="button" className="v16-tree-select" onClick={() => onSelect({ key, node, path: [...parentPath, title].filter(Boolean).join(" / ") })}><strong>{title}</strong>{count > 0 && <small>{count}题</small>}</button>
+      </div>
+      {children.length > 0 && isOpen && <div className="v16-tree-children">{children.map((child) => render(child, depth + 1, [...parentPath, title]))}</div>}
+    </div>;
+  };
+  return <div className={`v16-knowledge-tree${picker ? " is-picker" : ""}`}>{safeArray(nodes).map((node) => render(node))}</div>;
+}
+
+function useV16KnowledgeData(subject, user) {
+  return useResource(() => Promise.all([
+    getJson(`/knowledge-map?course_id=${encodeURIComponent(examMapCourseId(subject))}&username=${encodeURIComponent(user.username)}`),
+    getJson(`/exam/11408/${subject}/chapter-practice/outline`),
+  ]).then(([map, outline]) => ({ nodes: safeArray(map.chapters), counts: outline.knowledge_points || {} })), [subject, user.username]);
+}
+
+function ExamChapterPracticeV16({ route, user }) {
+  const { subject } = route;
+  const data = useV16KnowledgeData(subject, user);
+  const [selected, setSelected] = useState(null);
+  const [attemptId, setAttemptId] = useState("");
+  const [questions, setQuestions] = useState([]);
+  const [answers, setAnswers] = useState({});
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [explain, setExplain] = useState(null);
+  const start = async () => {
+    if (!selected?.key) return setError("请先选择章节或知识点");
+    setBusy(true); setError("");
+    try {
+      const query = new URLSearchParams({ username: user.username, knowledge_point_id: selected.key, include_children: "true" });
+      const bank = await getJson(`/exam/11408/${subject}/chapter-practice/questions?${query}`);
+      const items = safeArray(bank.items);
+      if (!items.length) return setError("当前范围暂未配置练习题");
+      const created = await getJson(`/exam/11408/${subject}/chapter-practice/attempts`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: user.username, question_ids: items.map((item) => item.id), knowledge_point_id: selected.key, knowledge_point_name: knowledgeTitle(selected.node), knowledge_point_path: selected.path }) });
+      const detail = await getJson(`/exam/11408/${subject}/chapter-practice/attempts/${created.attempt_id}?username=${encodeURIComponent(user.username)}`);
+      setAttemptId(String(created.attempt_id)); setQuestions(safeArray(detail.questions)); setAnswers(detail.saved_answers || {});
+    } catch (reason) { setError(reason.message || "开始练习失败"); } finally { setBusy(false); }
+  };
+  const submit = async () => { setBusy(true); setError(""); try { setResult(await getJson(`/exam/11408/${subject}/chapter-practice/attempts/${attemptId}/submit`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: user.username, answers }) })); } catch (reason) { setError(reason.message || "提交练习失败"); } finally { setBusy(false); } };
+  if (attemptId) return <div className="page exam-practice-page-v16"><V16PracticeHeader subject={subject} title={result ? "答题结果" : "章节练习"} onBack={() => go(examWorkspacePath(subject, "practice"))} />{error && <div className="inline-error">{error}</div>}{result ? <div className="v16-result-list">{safeArray(result.results).map((item, index) => <PracticeResultCardV14 key={item.question_id || index} item={item} question={questions.find((question) => String(question.id) === String(item.question_id))} index={index} subject={subject} user={user} onExplain={setExplain} />)}</div> : <><div className="v16-practice-context"><strong>{selected?.path || "章节练习"}</strong><span>共 {questions.length} 题</span></div>{questions.map((question, index) => <div className="v16-question" key={question.id || index}><MobileQuestion question={question} answer={answers[question.id] || ""} onAnswer={(value) => setAnswers((previous) => ({ ...previous, [question.id]: value }))} disabled={false} /><small>{index + 1} / {questions.length}</small></div>)}<button type="button" className="primary-button" disabled={busy || !questions.length} onClick={submit}>{busy ? "提交中…" : "提交练习"}</button></>}{explain && <AIExplanationSheetV141 subject={subject} question={explain.question} result={explain.result} user={user} onClose={() => setExplain(null)} />}</div>;
+  return <div className="page exam-practice-page-v16"><V16PracticeHeader subject={subject} title="章节练习" onBack={() => go(examWorkspacePath(subject, "practice"))} /><div className="v16-practice-intro"><h1>章节练习</h1><span>选择章节或知识点后开始</span></div><div className="v16-mode-switch"><button type="button" className="is-active">按章节</button><button type="button">按知识点</button></div>{data.status === "loading" && <div className="inline-state">正在加载章节…</div>}{data.status === "error" && <div className="inline-error">{data.error}<button type="button" className="text-button" onClick={data.retry}>重试</button></div>}{data.status === "success" && <V16KnowledgeTree nodes={data.data.nodes} counts={data.data.counts} selected={selected} onSelect={setSelected} />}{selected && <div className="v16-selected-range"><strong>已选择</strong><span>{selected.path}</span><button type="button" className="primary-button" disabled={busy} onClick={start}>{busy ? "准备中…" : "开始练习"}</button></div>}{error && !attemptId && <div className="inline-error">{error}</div>}<ExamBottomNavV14 subject={subject} active="practice" /></div>;
+}
+
+function ExamWrongBookV16({ subject, user }) {
+  const state = useResource(() => getJson(`/exam/11408/${subject}/wrong-questions?username=${encodeURIComponent(user.username)}`), [subject, user.username]);
+  const [open, setOpen] = useState(new Set());
+  const [selected, setSelected] = useState(null); const [answer, setAnswer] = useState(""); const [notice, setNotice] = useState(""); const [result, setResult] = useState(null); const [explain, setExplain] = useState(null);
+  const items = safeArray(state.data?.items); const groups = useMemo(() => { const map = new Map(); items.forEach((item) => { const group = String(item.knowledge_point_path || item.knowledge_point_name || "未分类").split(" / ")[0] || "未分类"; if (!map.has(group)) map.set(group, []); map.get(group).push(item); }); return [...map.entries()]; }, [items]);
+  const complete = async () => { if (!selected) return; const correct = String(answer).trim().toUpperCase() === String(selected.standard_answer || "").trim().toUpperCase(); if (correct) await getJson(`/exam/11408/${subject}/wrong-questions/${selected.id}/mastered`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: user.username, mastered: true }) }); setResult({ correct, user_answer: answer, standard_answer: selected.standard_answer || "", analysis: selected.analysis || selected.explanation || "暂无解析" }); setNotice(correct ? "已更新错题状态" : "答案不正确，请继续复习"); };
+  if (selected) return <div className="page exam-practice-page-v16"><V16PracticeHeader subject={subject} title="错题本" onBack={() => { setSelected(null); setAnswer(""); setNotice(""); setResult(null); }} /><MobileQuestion question={selected} answer={answer} onAnswer={setAnswer} disabled={Boolean(result)} />{result && <PracticeResultCardV14 item={result} question={selected} index={0} subject={subject} user={user} onExplain={setExplain} />}{notice && !result && <div className="inline-error">{notice}</div>}{!result && <button type="button" className="primary-button" disabled={!answer} onClick={complete}>提交答案</button>}{explain && <AIExplanationSheetV141 subject={subject} question={selected} result={result} user={user} onClose={() => setExplain(null)} />}</div>;
+  return <div className="page exam-practice-page-v16"><V16PracticeHeader subject={subject} title="错题本" onBack={() => go(examWorkspacePath(subject, "practice"))} /><div className="v16-practice-intro"><h1>错题本</h1><span>错题 {items.length} 题 · 待重练 {items.filter((item) => !item.mastered).length} 题 · 已掌握 {items.filter((item) => item.mastered).length} 题</span></div>{state.status === "loading" && <div className="inline-state">正在加载错题…</div>}{state.status === "error" && <div className="inline-error">{state.error}<button type="button" className="text-button" onClick={state.retry}>重试</button></div>}{state.status === "success" && !groups.length && <div className="empty-course"><strong>暂无错题</strong></div>}{state.status === "success" && groups.map(([group, groupItems]) => <section className="v16-wrong-group" key={group}><button type="button" className="v16-wrong-group-head" onClick={() => setOpen((previous) => { const next = new Set(previous); if (next.has(group)) next.delete(group); else next.add(group); return next; })}><strong>{group}</strong><span>{groupItems.length}题</span><b>{open.has(group) ? "⌄" : "›"}</b></button>{open.has(group) && <div className="v16-wrong-items">{groupItems.map((item) => <button type="button" key={item.id} onClick={() => setSelected(item)}><strong>{item.stem || "错题"}</strong><small>{item.year ? `${item.year}年 · ` : ""}{item.question_type || "题目"} · {item.mastered ? "已掌握" : "未掌握"}</small></button>)}</div>}</section>)}<ExamBottomNavV14 subject={subject} active="practice" /></div>;
+}
+
+function AIQuestionGeneratorV16({ subject, user }) {
+  const data = useV16KnowledgeData(subject, user); const [selected, setSelected] = useState(null); const [picker, setPicker] = useState(false); const [count, setCount] = useState(3); const [difficulty, setDifficulty] = useState("medium"); const [items, setItems] = useState([]); const [attemptId, setAttemptId] = useState(""); const [questions, setQuestions] = useState([]); const [answers, setAnswers] = useState({}); const [result, setResult] = useState(null); const [error, setError] = useState(""); const [busy, setBusy] = useState(false); const [explain, setExplain] = useState(null);
+  const generate = async () => { setBusy(true); setError(""); try { const payload = { username: user.username, knowledge_point_id: selected?.key || "", knowledge_point_name: selected ? knowledgeTitle(selected.node) : "", knowledge_point_path: selected?.path || "", question_type: "选择题", count: Number(count), difficulty, requirement: "贴近11408真题，考查核心概念" }; const response = await getJson(`/exam/11408/${subject}/ai-questions/generate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }); setItems(safeArray(response.items)); } catch (reason) { setError(reason.message || "生成失败，请重试"); } finally { setBusy(false); } };
+  const start = async () => { setBusy(true); try { const created = await getJson(`/exam/11408/${subject}/ai-questions/attempts`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: user.username, question_ids: items.map((item) => item.id), knowledge_point_path: selected?.path || "" }) }); const detail = await getJson(`/exam/11408/${subject}/ai-questions/attempts/${created.attempt_id}?username=${encodeURIComponent(user.username)}`); setAttemptId(String(created.attempt_id)); setQuestions(safeArray(detail.questions)); setAnswers(detail.saved_answers || {}); } catch (reason) { setError(reason.message || "开始练习失败"); } finally { setBusy(false); } };
+  const submit = async () => { setBusy(true); try { setResult(await getJson(`/exam/11408/${subject}/ai-questions/attempts/${attemptId}/submit`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: user.username, answers }) })); } catch (reason) { setError(reason.message || "提交失败"); } finally { setBusy(false); } };
+  if (attemptId) return <div className="page exam-practice-page-v16"><V16PracticeHeader subject={subject} title={result ? "答题结果" : "AI出题"} onBack={() => go(examWorkspacePath(subject, "practice"))} />{error && <div className="inline-error">{error}</div>}{result ? safeArray(result.results).map((item, index) => <PracticeResultCardV14 key={item.question_id || index} item={item} question={questions.find((question) => String(question.id) === String(item.question_id))} index={index} subject={subject} user={user} onExplain={setExplain} />) : <>{questions.map((question, index) => <div className="v16-question" key={question.id || index}><MobileQuestion question={question} answer={answers[question.id] || ""} onAnswer={(value) => setAnswers((previous) => ({ ...previous, [question.id]: value }))} disabled={false} /><small>{index + 1} / {questions.length}</small></div>)}<button type="button" className="primary-button" disabled={busy || !questions.length} onClick={submit}>{busy ? "提交中…" : "提交答案"}</button></>}{explain && <AIExplanationSheetV141 subject={subject} question={explain.question} result={explain.result} user={user} onClose={() => setExplain(null)} />}</div>;
+  return <div className="page exam-practice-page-v16"><V16PracticeHeader subject={subject} title="AI出题" onBack={() => go(examWorkspacePath(subject, "practice"))} /><div className="v16-practice-intro"><h1>AI出题</h1><span>从知识图谱选择出题范围</span></div><label className="v16-form-field"><span>题目数量</span><select value={count} onChange={(event) => setCount(event.target.value)}><option value="3">3题</option><option value="5">5题</option><option value="10">10题</option></select></label><label className="v16-form-field"><span>难度</span><select value={difficulty} onChange={(event) => setDifficulty(event.target.value)}><option value="basic">简单</option><option value="medium">中等</option><option value="advanced">困难</option></select></label><button type="button" className="v16-range-button" onClick={() => setPicker(true)}><span>知识范围</span><strong>{selected?.path || "从知识图谱选择"}</strong></button>{error && <div className="inline-error">{error}</div>}{items.length > 0 && <div className="v16-ai-items">{items.map((item, index) => <div key={item.id || index}>{index + 1}. {item.stem}</div>)}</div>}<button type="button" className="primary-button" disabled={busy} onClick={items.length ? start : generate}>{items.length ? "开始答题" : busy ? "生成中…" : "生成题目"}</button>{picker && <div className="mobile-sheet-backdrop" onClick={() => setPicker(false)}><section className="mobile-bottom-sheet v16-picker-sheet" onClick={(event) => event.stopPropagation()}><div className="sheet-handle" /><div className="sheet-heading"><h2>知识范围</h2><button type="button" className="sheet-close" onClick={() => setPicker(false)}>×</button></div>{data.status === "loading" && <div className="inline-state">正在加载知识图谱…</div>}{data.status === "success" && <V16KnowledgeTree nodes={data.data.nodes} counts={data.data.counts} selected={selected} picker onSelect={(value) => { setSelected(value); setPicker(false); }} />}</section></div>}</div>;
+}
+
+function ExamChaptersV16({ subject, user }) {
+  const data = useV16KnowledgeData(subject, user);
+  const [selected, setSelected] = useState(null);
+  return <div className="page exam-practice-page-v16"><V16PracticeHeader subject={subject} title="章节" onBack={() => go("/m/exam11408")} /><div className="v16-practice-intro"><h1>章节</h1><span>展开章节查看知识点</span></div>{data.status === "loading" && <div className="inline-state">正在加载知识图谱…</div>}{data.status === "error" && <div className="inline-error">{data.error}<button type="button" className="text-button" onClick={data.retry}>重试</button></div>}{data.status === "success" && !data.data.nodes.length && <div className="empty-course"><strong>暂无章节</strong></div>}{data.status === "success" && data.data.nodes.length > 0 && <V16KnowledgeTree nodes={data.data.nodes} counts={data.data.counts} selected={selected} onSelect={setSelected} />}{selected && <KnowledgeStatusSheetV14 subject={subject} node={selected.node} user={user} onClose={() => setSelected(null)} onSaved={() => setSelected(null)} />}<ExamBottomNavV14 subject={subject} active="chapters" /></div>;
+}
+
 const routeForV15FinalBase = routeFor;
 routeFor = (pathname) => {
   const parts = pathname.split("/");
@@ -805,11 +896,12 @@ routeFor = (pathname) => {
 };
 ExamSelect = ExamSelectV15;
 ExamBottomNavV14 = ExamBottomNavV15;
-ExamChaptersMobile = ExamChaptersV15;
+ExamChaptersMobile = ExamChaptersV16;
 ExamPracticeMobile = (props) => {
   if (!props.route.practiceType) return <ExamPracticeHomeV15 subject={props.route.subject} user={props.user} />;
-  if (props.route.practiceType === "ai") return <AIQuestionGenerateV15 subject={props.route.subject} user={props.user} />;
-  if (props.route.practiceType === "chapter") return <ExamChapterPracticeV141 route={props.route} user={props.user} />;
+  if (props.route.practiceType === "ai") return <AIQuestionGeneratorV16 subject={props.route.subject} user={props.user} />;
+  if (props.route.practiceType === "chapter") return <ExamChapterPracticeV16 route={props.route} user={props.user} />;
+  if (props.route.practiceType === "wrong") return <ExamWrongBookV16 subject={props.route.subject} user={props.user} />;
   return <ExamPracticeV14 {...props} />;
 };
 MobileProfilePageV14 = MobileProfilePageV15;
