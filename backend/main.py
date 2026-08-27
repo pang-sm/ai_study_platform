@@ -7598,6 +7598,16 @@ def _send_phone_code(db: Session, user: models.User, phone: str, purpose: str, c
     _check_phone_rate_limits(db, user.username, canonical, client_ip)
 
     code = f"{secrets.randbelow(1000000):06d}"
+
+    # Send SMS first; only persist the verification record after the send
+    # succeeds, so a failed/not-configured send never leaves a stray record.
+    try:
+        send_verification_sms(canonical, code)
+    except SmsNotConfiguredError:
+        raise HTTPException(status_code=503, detail={"code": "SMS_SERVICE_NOT_CONFIGURED", "message": "手机号验证服务暂未配置，请稍后再试"})
+    except SmsSendError as exc:
+        raise HTTPException(status_code=502, detail={"code": "SMS_SEND_FAILED", "message": f"短信发送失败：{exc}"})
+
     expires_at = datetime.utcnow() + timedelta(minutes=PHONE_CODE_TTL_MINUTES)
     record = models.VerificationCode(
         username=user.username,
@@ -7610,13 +7620,6 @@ def _send_phone_code(db: Session, user: models.User, phone: str, purpose: str, c
     )
     db.add(record)
     db.commit()
-
-    try:
-        send_verification_sms(canonical, code)
-    except SmsNotConfiguredError:
-        raise HTTPException(status_code=503, detail={"code": "SMS_SERVICE_NOT_CONFIGURED", "message": "手机号验证服务暂未配置，请稍后再试"})
-    except SmsSendError as exc:
-        raise HTTPException(status_code=502, detail={"code": "SMS_SEND_FAILED", "message": f"短信发送失败：{exc}"})
 
     return {"message": "验证码已发送", "retry_after": PHONE_SEND_INTERVAL_SECONDS}
 
