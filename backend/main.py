@@ -5430,19 +5430,27 @@ def register(user: schemas.UserCreate, response: Response, db: Session = Depends
 
 @app.post("/login")
 def login(user: schemas.UserLogin, response: Response, db: Session = Depends(get_db)):
-    username = user.username.strip()
+    identifier = user.username.strip()
     password = user.password.strip()
 
-    if not username:
-        raise HTTPException(status_code=400, detail="账号不能为空")
+    if not identifier:
+        raise HTTPException(status_code=400, detail="账号、邮箱或密码错误")
     if not password:
-        raise HTTPException(status_code=400, detail="密码不能为空")
+        raise HTTPException(status_code=400, detail="账号、邮箱或密码错误")
 
-    db_user = db.query(models.User).filter(models.User.username == username).first()
+    # Keep the existing payload field (`username`) for PC compatibility, but
+    # allow it to contain either the exact username or a verified email.
+    db_user = db.query(models.User).filter(models.User.username == identifier).first()
     if not db_user:
-        raise HTTPException(status_code=400, detail="账号不存在")
+        normalized_email = identifier.casefold()
+        db_user = db.query(models.User).filter(
+            func.lower(func.trim(models.User.email)) == normalized_email,
+            models.User.email_verified == True,
+        ).first()
+    if not db_user:
+        raise HTTPException(status_code=400, detail="账号、邮箱或密码错误")
     if not verify_password(password, db_user.hashed_password):
-        raise HTTPException(status_code=400, detail="密码错误")
+        raise HTTPException(status_code=400, detail="账号、邮箱或密码错误")
 
     ensure_user_can_access(db_user)
     create_auth_session(db, db_user, response)
@@ -6841,6 +6849,10 @@ class VerifyEmailRequest(BaseModel):
     code: str
 
 
+def _normalize_email(value: str) -> str:
+    return value.strip().casefold()
+
+
 @app.post("/me/email/send-code")
 def send_email_code(
     req: SendEmailCodeRequest,
@@ -6849,17 +6861,24 @@ def send_email_code(
     current_user: models.User = Depends(get_current_user),
 ):
     email = req.email.strip()
+    normalized_email = _normalize_email(email)
     if not email or "@" not in email or "." not in email.split("@")[-1]:
         raise HTTPException(status_code=400, detail="请输入有效的邮箱地址")
 
     assert_username_matches_current_user(username, current_user)
     user = current_user
+    duplicate = db.query(models.User).filter(
+        models.User.id != user.id,
+        func.lower(func.trim(models.User.email)) == normalized_email,
+    ).first()
+    if duplicate:
+        raise HTTPException(status_code=400, detail="该邮箱已绑定其他账号")
 
     # Rate limit: 60s per email
     one_min_ago = datetime.utcnow() - timedelta(seconds=60)
     recent = db.query(models.VerificationCode).filter(
         models.VerificationCode.username == user.username,
-        models.VerificationCode.target == email,
+        func.lower(func.trim(models.VerificationCode.target)) == normalized_email,
         models.VerificationCode.purpose == "bind_email",
         models.VerificationCode.created_at >= one_min_ago,
     ).first()
@@ -6871,7 +6890,7 @@ def send_email_code(
     expires_at = datetime.utcnow() + timedelta(minutes=10)
 
     record = models.VerificationCode(
-        username=user.username, target=email, purpose="bind_email",
+        username=user.username, target=normalized_email, purpose="bind_email",
         code_hash=code_hash, expires_at=expires_at,
     )
     db.add(record)
@@ -6892,6 +6911,7 @@ def verify_email_code(
     current_user: models.User = Depends(get_current_user),
 ):
     email = req.email.strip()
+    normalized_email = _normalize_email(email)
     code = req.code.strip()
     if not email or not code:
         raise HTTPException(status_code=400, detail="邮箱和验证码不能为空")
@@ -6904,7 +6924,7 @@ def verify_email_code(
 
     record = db.query(models.VerificationCode).filter(
         models.VerificationCode.username == user.username,
-        models.VerificationCode.target == email,
+        func.lower(func.trim(models.VerificationCode.target)) == normalized_email,
         models.VerificationCode.purpose == "bind_email",
         models.VerificationCode.used == False,
     ).order_by(models.VerificationCode.created_at.desc()).first()
@@ -6919,6 +6939,13 @@ def verify_email_code(
         record.attempts = (record.attempts or 0) + 1
         db.commit()
         raise HTTPException(status_code=400, detail="验证码错误")
+
+    duplicate = db.query(models.User).filter(
+        models.User.id != user.id,
+        func.lower(func.trim(models.User.email)) == normalized_email,
+    ).first()
+    if duplicate:
+        raise HTTPException(status_code=400, detail="该邮箱已绑定其他账号")
 
     record.used = True
     user.email = email
@@ -6944,12 +6971,13 @@ class EmailLoginRequest(BaseModel):
 @app.post("/auth/email-login/send-code")
 def email_login_send_code(req: EmailLoginSendCodeRequest, db: Session = Depends(get_db)):
     email = req.email.strip()
+    normalized_email = _normalize_email(email)
     if not email or "@" not in email:
         raise HTTPException(status_code=400, detail="请输入有效的邮箱地址")
 
     # Find user by verified email
     user = db.query(models.User).filter(
-        models.User.email == email,
+        func.lower(func.trim(models.User.email)) == normalized_email,
         models.User.email_verified == True,
     ).first()
     if not user:
@@ -6987,13 +7015,14 @@ def email_login_send_code(req: EmailLoginSendCodeRequest, db: Session = Depends(
 @app.post("/auth/email-login")
 def email_login(req: EmailLoginRequest, response: Response, db: Session = Depends(get_db)):
     email = req.email.strip()
+    normalized_email = _normalize_email(email)
     code = req.code.strip()
     if not email or not code:
         raise HTTPException(status_code=400, detail="邮箱和验证码不能为空")
 
     # Find user by verified email
     user = db.query(models.User).filter(
-        models.User.email == email,
+        func.lower(func.trim(models.User.email)) == normalized_email,
         models.User.email_verified == True,
     ).first()
     if not user:
