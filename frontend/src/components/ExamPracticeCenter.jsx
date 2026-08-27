@@ -980,7 +980,7 @@ export default function ExamPracticeCenter({
   if (isCourseMode) subjectInfo.courseId = resolvedCourseId;
   const [practiceView, setPracticeView] = useState("dashboard");
   const [pastPaperConfig, setPastPaperConfig] = useState(null);
-  const [chapterQuestionCount, setChapterQuestionCount] = useState(0);
+  const [chapterQuestionCount, setChapterQuestionCount] = useState(null);
   const [pastPapers, setPastPapers] = useState(null);
   const [practiceStats, setPracticeStats] = useState({
     total_practices: 0,
@@ -1084,7 +1084,7 @@ export default function ExamPracticeCenter({
         { key: "ai", icon: "🤖", title: "AI 出题", desc: `按知识点生成《${courseName}》风格练习题`, count: "自定义生成", className: "practice-type-card--ai" },
       ]
     : [
-        { key: "chapter", icon: "📋", title: "章节练习", desc: "按章节知识点进行针对性练习", count: chapterQuestionCount > 0 ? `${chapterQuestionCount} 道题` : "题目待录入" },
+        { key: "chapter", icon: "📋", title: "章节练习", desc: "按章节知识点进行针对性练习", count: chapterQuestionCount == null ? "查询中..." : (chapterQuestionCount > 0 ? `${chapterQuestionCount} 道题` : "题目待录入") },
         { key: "wrong", icon: "❌", title: "错题练习", desc: "查看批改后自动收集的个人错题", count: "个人错题本" },
         { key: "favorite", icon: "⭐", title: "收藏练习", desc: "练习自己收藏的题目", count: "个人收藏" },
         { key: "pastPaper", icon: "📜", title: "真题练习", desc: "基于历年 11408 真题进行专项训练", count: "近五年真题", className: "practice-type-card--past" },
