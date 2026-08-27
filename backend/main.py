@@ -7927,6 +7927,25 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db), current_user: 
     user_content = req.message
     if req.hidden_instruction:
         user_content = f"{req.hidden_instruction}\n\n---\n学生问题：{req.message}"
+    if req.knowledge_context:
+        context_labels = (
+            ("subjectName", "科目"),
+            ("chapter", "章节"),
+            ("knowledge", "知识点"),
+            ("questionId", "题目ID"),
+            ("question", "题目"),
+            ("options", "选项"),
+            ("userAnswer", "我的答案"),
+            ("correctAnswer", "正确答案"),
+            ("standardExplanation", "标准解析"),
+        )
+        context_lines = [
+            f"【{label}】\n{req.knowledge_context.get(key, '')}"
+            for key, label in context_labels
+            if str(req.knowledge_context.get(key, '')).strip()
+        ]
+        if context_lines:
+            user_content = f"{user_content}\n\n请只针对下面这道具体题进行分析：\n" + "\n\n".join(context_lines)
     if material_ids and selected_materials:
         file_names = "、".join(m.original_filename for m in selected_materials)
         user_content = f"【本轮引用资料：{file_names}】\n{user_content}"

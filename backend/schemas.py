@@ -27,6 +27,7 @@ class ChatRequest(BaseModel):
     hidden_instruction: str = ""
     mastery_level: str = ""
     learning_goal: str = ""
+    knowledge_context: dict | None = None
 
 
 class CourseLearningPreferenceUpsert(BaseModel):

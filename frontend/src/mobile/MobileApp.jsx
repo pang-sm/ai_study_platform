@@ -26,7 +26,7 @@ function ExamSelectV15() {
 function ExamTopBarV15({ subject, user, title }) {
   const label = EXAM_SUBJECTS.find(([id]) => id === subject)?.[1] || subject;
   const avatar = user?.avatar_url || "";
-  const detail = title === "AI出题" || title === "答题结果";
+  const detail = title === "AI出题" || title === "答题结果" || title === "真题" || title === "答题";
   return <header className="exam-topbar-v14 exam-topbar-v15">{detail ? <button type="button" className="exam-detail-back-v15" onClick={() => go(examWorkspacePath(subject, "practice"))}>返回</button> : <button type="button" className="mobile-avatar-v14" onClick={() => go("/m/profile")} aria-label="我的">{avatar ? <img src={avatar} alt="头像" /> : (user?.nickname || user?.username || "学").slice(0, 1)}</button>}<strong>{title || label}</strong>{detail ? <span /> : <button type="button" className="exam-switch-v14" onClick={() => go("/m/exam11408")}>切换</button>}</header>;
 }
 
@@ -73,7 +73,7 @@ function AIQuestionGenerateV15({ subject, user }) {
 
 function ExamPracticeHomeV15({ subject, user }) {
   const name = EXAM_SUBJECTS.find(([id]) => id === subject)?.[1] || subject;
-  const entries = [["past-paper", "真题", "按年份开始答题", "practice"], ["chapter", "章节练习", "按章节和知识点练习", "knowledge"], ["wrong", "错题本", "重新练习未掌握题目", "knowledge"], ["ai", "AI出题", "生成当前科目的练习题", "ai"]];
+  const entries = [["past-paper", "真题", "按年份开始答题", "practice"], ["chapter", "知识点练习", "按知识图谱范围练习", "knowledge"], ["wrong", "错题本", "重新练习未掌握题目", "knowledge"], ["ai", "AI出题", "生成当前科目的练习题", "ai"]];
   return <div className="page exam-practice-page-v15"><ExamTopBarV15 subject={subject} user={user} title="练习" /><div className="v16-practice-intro"><h1>练习</h1><span>{name} · 选择练习方式</span></div><div className="v16-practice-entry-list">{entries.map(([type, title, description, icon]) => <button type="button" className="v16-practice-entry" key={type} onClick={() => go(`/m/exam11408/${subject}/practice?type=${type}`)}><span className="v16-entry-icon"><Icon name={icon} /></span><span><strong>{title}</strong><small>{description}</small></span><b aria-hidden="true">›</b></button>)}</div><ExamBottomNavV15 subject={subject} active="practice" /></div>;
 }
 
@@ -110,7 +110,7 @@ function MobileProfilePageV152({ user, onProfileUpdate }) {
 
 MobileProfilePageV14 = MobileProfilePageV15;
 const routeWithContextV141 = routeWithContext;
-routeWithContext = (path) => { const route = routeWithContextV141(path); return route.space === EXAM && route.page === "exam-practice" && route.practiceType === "past-paper" && route.knowledge ? { ...route, practiceType: "chapter" } : route; };
+routeWithContext = (path) => routeWithContextV141(path);
 const baseRouteWithContext = routeWithContext;
 function mobileRouteWithIds(path) { const result = baseRouteWithContext(path); const [, search = ""] = path.split("?"); const params = new URLSearchParams(search); return { ...result, chapterId: params.get("chapterId") || "", knowledgeId: params.get("knowledgeId") || "" }; }
 routeWithContext = mobileRouteWithIds;
@@ -162,6 +162,8 @@ function MobileChatShell({ route, course, user }) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [status, setStatus] = useState({ type: "loading", message: "" });
   const [sheetMessage, setSheetMessage] = useState(null);
+  const [sessionSheet, setSessionSheet] = useState(null);
+  const [sessionTitle, setSessionTitle] = useState("");
   const [editingId, setEditingId] = useState("");
   const [editingText, setEditingText] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -224,9 +226,31 @@ function MobileChatShell({ route, course, user }) {
     setUploadItem(null);
     setHistoryOpen(false);
     setSheetMessage(null);
+    setSessionSheet(null);
     setEditingId("");
     setStatus({ type: "success", message: "" });
     requestAnimationFrame(() => inputRef.current?.focus());
+  };
+  const renameSession = async () => {
+    const title = sessionTitle.trim();
+    if (!sessionSheet || !title) return;
+    setStatus({ type: "loading", message: "" });
+    try {
+      await getJson(`/conversations/${encodeURIComponent(sessionSheet.id)}?${scopeQuery().toString()}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title }) });
+      setSessionSheet(null);
+      setSessionTitle("");
+      await loadHistory();
+    } catch (error) { setStatus({ type: "error", message: error.message || "重命名失败" }); }
+  };
+  const deleteSession = async () => {
+    if (!sessionSheet) return;
+    setStatus({ type: "loading", message: "" });
+    try {
+      await getJson(`/chat/sessions/${encodeURIComponent(sessionSheet.id)}?${scopeQuery().toString()}`, { method: "DELETE" });
+      if (String(sessionId) === String(sessionSheet.id)) { setSessionId(null); setMessages([]); }
+      setSessionSheet(null);
+      await loadHistory();
+    } catch (error) { setStatus({ type: "error", message: error.message || "删除历史失败" }); }
   };
   useEffect(() => {
     setSessionId(null);
@@ -317,12 +341,13 @@ function MobileChatShell({ route, course, user }) {
   const backPath = exam ? `/m/exam11408/${encodeURIComponent(route.subject)}/chapters` : isCourse ? coursePath(route.mode || "daily", courseId(course), "/home") : "/m";
   return <div className="mobile-chat-page">
     <header className="mobile-chat-header"><button type="button" className="mobile-chat-back" onClick={() => goBack(backPath)}>返回</button><div><strong>{title}</strong><span>{contextLabel}</span></div><button type="button" className="mobile-chat-history-button" onClick={() => setHistoryOpen((value) => !value)}>历史</button></header>
-    {historyOpen && <section className="mobile-chat-history"><div className="mobile-chat-history-head"><strong>历史对话</strong><button type="button" onClick={startNewConversation}>新对话</button></div>{status.type === "loading" ? <small>正在读取历史…</small> : status.type === "error" ? <><small>{status.message}</small><button type="button" className="text-button" onClick={loadHistory}>点击重试</button></> : sessions.length ? sessions.map((session) => <button type="button" key={session.id} onClick={() => loadSession(session.id)}><span>{session.title || "未命名对话"}</span><small>{session.created_at ? new Date(session.created_at).toLocaleString("zh-CN") : ""}</small></button>) : <small>暂无历史对话</small>}</section>}
+    {historyOpen && <section className="mobile-chat-history"><div className="mobile-chat-history-head"><strong>历史对话</strong><button type="button" onClick={startNewConversation}>新对话</button></div>{status.type === "loading" ? <small>正在读取历史…</small> : status.type === "error" ? <><small>{status.message}</small><button type="button" className="text-button" onClick={loadHistory}>点击重试</button></> : sessions.length ? sessions.map((session) => <div className="mobile-chat-history-row" key={session.id}><button type="button" onClick={() => loadSession(session.id)}><span>{session.title || "未命名对话"}</span><small>{session.created_at ? new Date(session.created_at).toLocaleString("zh-CN") : ""}</small></button><button type="button" className="mobile-chat-history-more" aria-label="对话操作" onClick={() => { setSessionSheet(session); setSessionTitle(session.title || ""); }}>···</button></div>) : <small>暂无历史对话</small>}</section>}
     <div className="mobile-chat-messages" ref={messagesRef}>{messages.length === 0 && !loading ? <div className="mobile-ai-empty"><Icon name="ai" /><strong>有什么想问的？</strong><span>{contextLabel}</span></div> : messages.map((message) => <article key={`${message.role}-${message.id}`} className={`mobile-ai-message ${message.role === "user" ? "is-user" : "is-assistant"}`} onContextMenu={(event) => { if (message.role === "user") { event.preventDefault(); setSheetMessage(message); } }} onTouchStart={() => message.role === "user" && beginHold(message)} onTouchEnd={endHold} onTouchCancel={endHold}><div className="mobile-ai-message-role">{message.role === "user" ? "我" : "AI"}</div>{editingId === String(message.id) ? <div className="mobile-ai-edit"><textarea value={editingText} onChange={(event) => setEditingText(event.target.value)} autoFocus /><div><button type="button" onClick={() => setEditingId("")}>取消</button><button type="button" onClick={() => commitEdit(message)}>提交</button></div></div> : <div className="mobile-ai-message-body"><MarkdownMessage content={message.content || ""} /></div>}</article>)}{loading && <div className="mobile-chat-loading">AI 正在思考…</div>}</div>
     {uploadItem && <div className={`mobile-upload-card is-${uploadItem.parse_status}`}><strong>{uploadItem.filename}</strong><span>{uploadItem.parse_status === "uploading" ? "上传中…" : uploadItem.parse_status === "failed" ? "上传失败" : "已上传，可随问题发送"}</span></div>}
     {status.type === "error" && !historyOpen && <div className="mobile-chat-error">{status.message}<button type="button" onClick={loadHistory}>重试</button></div>}
     <form className="mobile-chat-composer" onSubmit={(event) => { event.preventDefault(); send(); }}><input ref={fileRef} type="file" hidden accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.pptx,.txt,.md,.markdown,.py,.java,.c,.cpp,.h,.hpp,.js,.jsx,.ts,.tsx,.html,.htm,.css,.json,.xml,.yaml,.yml,.sql,.sh,.bash,.go,.rs,.php,.rb" onChange={upload} /><button type="button" className="mobile-ai-tool" onClick={() => fileRef.current?.click()} disabled={uploading}>{uploading ? "…" : "＋"}</button><textarea ref={inputRef} value={input} onChange={(event) => setInput(event.target.value)} onInput={(event) => { event.currentTarget.style.height = "auto"; event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 120)}px`; }} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); send(); } }} placeholder="输入你的问题…" rows={1} /><button type="submit" className="primary-button" disabled={loading || !input.trim()}>发送</button></form>
     {sheetMessage && <div className="mobile-action-sheet-backdrop" onClick={() => setSheetMessage(null)}><section className="mobile-action-sheet" onClick={(event) => event.stopPropagation()}><div className="sheet-handle" /><strong>消息操作</strong><button type="button" onClick={() => copy(sheetMessage)}>复制</button><button type="button" onClick={() => openEdit(sheetMessage)}>编辑</button><button type="button" onClick={() => { setSheetMessage(null); send(sheetMessage.content, { sourceId: sheetMessage.id, branchId: sheetMessage.branch_id || "" }); }}>重新生成</button><button type="button" onClick={() => { setSheetMessage(null); send(sheetMessage.content, { sourceId: sheetMessage.id, branchId: `mobile-branch-${Date.now()}` }); }}>创建分支</button><button type="button" className="secondary-button" onClick={() => setSheetMessage(null)}>取消</button></section></div>}
+    {sessionSheet && <div className="mobile-action-sheet-backdrop" onClick={() => setSessionSheet(null)}><section className="mobile-action-sheet mobile-session-sheet" onClick={(event) => event.stopPropagation()}><div className="sheet-handle" /><strong>对话管理</strong><input value={sessionTitle} onChange={(event) => setSessionTitle(event.target.value)} placeholder="对话标题" maxLength={50} /><button type="button" onClick={renameSession}>保存标题</button><button type="button" className="is-danger" onClick={deleteSession}>删除对话</button><button type="button" className="secondary-button" onClick={() => setSessionSheet(null)}>取消</button></section></div>}
   </div>;
 }
 const COURSE = "course";
@@ -757,7 +782,9 @@ function contextLabelV14(route, courseState) { return courseState?.data ? course
 function buildQuestionAIContextV141(question, result, context = {}) {
   const options = question?.options || question?.choices || result?.options || {};
   const optionLines = Array.isArray(options) ? options.map((item, index) => `${String.fromCharCode(65 + index)}. ${Array.isArray(item) ? item[1] : item}`).join("\n") : Object.entries(options).map(([key, value]) => `${key}. ${value}`).join("\n");
-  return { scope: "exam11408", subject: context.subject || "", chapter: context.chapter || question?.knowledge_point_path || "", knowledge: context.knowledge || question?.knowledge_point_name || "", questionId: question?.id || result?.question_id || "", question: question?.stem || question?.content || result?.stem || "", options: optionLines, userAnswer: result?.user_answer || context.userAnswer || "", correctAnswer: result?.standard_answer || question?.standard_answer || question?.correct_answer || "", standardExplanation: standardExplanationV14(result, question) };
+  const questionId = question?.id || result?.question_id || "";
+  const subjectName = context.subject || context.subjectName || "";
+  return { scope: "exam11408", subject: subjectName, subjectName, chapter: context.chapter || question?.knowledge_point_path || "", knowledge: context.knowledge || question?.knowledge_point_name || "", questionId, question_id: questionId, question: question?.stem || question?.content || result?.stem || "", options: optionLines, userAnswer: result?.user_answer || context.userAnswer || "", correctAnswer: result?.standard_answer || question?.standard_answer || question?.correct_answer || "", standardExplanation: standardExplanationV14(result, question) };
 }
 
 function AIExplanationSheetV141({ subject, question, result, user, onClose }) {
@@ -798,7 +825,7 @@ function V16PracticeHeader({ subject, title, onBack }) {
   return <header className="v16-practice-header"><button type="button" onClick={onBack}>返回</button><strong>{title}</strong><span>{name}</span></header>;
 }
 
-function V16KnowledgeTree({ nodes, counts, selected, onSelect, picker = false }) {
+function V16KnowledgeTree({ nodes, counts, selected, onSelect, picker = false, showCounts = false }) {
   const [expanded, setExpanded] = useState(() => new Set());
   const countFor = (node) => {
     const key = String(node.code || node.id || "");
@@ -815,7 +842,7 @@ function V16KnowledgeTree({ nodes, counts, selected, onSelect, picker = false })
     return <div className={`v16-tree-node depth-${Math.min(depth, 3)}`} key={key}>
       <div className={`v16-tree-row${isSelected ? " is-selected" : ""}`}>
         {children.length > 0 ? <button type="button" className="v16-tree-toggle" aria-label={isOpen ? "收起" : "展开"} onClick={() => setExpanded((previous) => { const next = new Set(previous); if (next.has(key)) next.delete(key); else next.add(key); return next; })}>{isOpen ? "⌄" : "›"}</button> : <span className="v16-tree-toggle-placeholder" />}
-        <button type="button" className="v16-tree-select" onClick={() => onSelect({ key, node, path: [...parentPath, title].filter(Boolean).join(" / ") })}><strong>{title}</strong>{count > 0 && <small>{count}题</small>}</button>
+        <button type="button" className="v16-tree-select" onClick={() => onSelect({ key, node, path: [...parentPath, title].filter(Boolean).join(" / ") })}><strong>{title}</strong>{showCounts && count > 0 && <small>{count}题</small>}</button>
       </div>
       {children.length > 0 && isOpen && <div className="v16-tree-children">{children.map((child) => render(child, depth + 1, [...parentPath, title]))}</div>}
     </div>;
@@ -834,7 +861,6 @@ function ExamChapterPracticeV16({ route, user }) {
   const { subject } = route;
   const data = useV16KnowledgeData(subject, user);
   const [selected, setSelected] = useState(null);
-  const [selectionMode, setSelectionMode] = useState("chapter");
   const [attemptId, setAttemptId] = useState("");
   const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState({});
@@ -857,7 +883,7 @@ function ExamChapterPracticeV16({ route, user }) {
   };
   const submit = async () => { setBusy(true); setError(""); try { setResult(await getJson(`/exam/11408/${subject}/chapter-practice/attempts/${attemptId}/submit`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: user.username, answers }) })); } catch (reason) { setError(reason.message || "提交练习失败"); } finally { setBusy(false); } };
   if (attemptId) return <div className="page exam-practice-page-v16"><V16PracticeHeader subject={subject} title={result ? "答题结果" : "章节练习"} onBack={() => go(examWorkspacePath(subject, "practice"))} />{error && <div className="inline-error">{error}</div>}{result ? <div className="v16-result-list">{safeArray(result.results).map((item, index) => <PracticeResultCardV14 key={item.question_id || index} item={item} question={questions.find((question) => String(question.id) === String(item.question_id))} index={index} subject={subject} user={user} onExplain={setExplain} />)}</div> : <><div className="v16-practice-context"><strong>{selected?.path || "章节练习"}</strong><span>共 {questions.length} 题</span></div>{questions.map((question, index) => <div className="v16-question" key={question.id || index}><MobileQuestion question={question} answer={answers[question.id] || ""} onAnswer={(value) => setAnswers((previous) => ({ ...previous, [question.id]: value }))} disabled={false} /><small>{index + 1} / {questions.length}</small></div>)}<button type="button" className="primary-button" disabled={busy || !questions.length} onClick={submit}>{busy ? "提交中…" : "提交练习"}</button></>}{explain && <AIExplanationSheetV141 subject={subject} question={explain.question} result={explain.result} user={user} onClose={() => setExplain(null)} />}</div>;
-  return <div className="page exam-practice-page-v16"><V16PracticeHeader subject={subject} title="章节练习" onBack={() => go(examWorkspacePath(subject, "practice"))} /><div className="v16-practice-intro"><h1>章节练习</h1><span>选择章节或知识点后开始</span></div><div className="v16-mode-switch"><button type="button" className={selectionMode === "chapter" ? "is-active" : ""} onClick={() => { setSelectionMode("chapter"); setSelected(null); setError(""); }}>按章节</button><button type="button" className={selectionMode === "knowledge" ? "is-active" : ""} onClick={() => { setSelectionMode("knowledge"); setSelected(null); setError(""); }}>按知识点</button></div>{data.status === "loading" && <div className="inline-state">正在加载章节…</div>}{data.status === "error" && <div className="inline-error">{data.error}<button type="button" className="text-button" onClick={data.retry}>重试</button></div>}{data.status === "success" && <V16KnowledgeTree nodes={data.data.nodes} counts={data.data.counts} selected={selected} onSelect={(value) => { if (selectionMode === "knowledge" && safeArray(value.node.children).length) return setError("按知识点练习请选择具体知识点"); setError(""); setSelected(value); }} />}{selected && <div className="v16-selected-range"><strong>已选择</strong><span>{selected.path}</span><button type="button" className="primary-button" disabled={busy} onClick={start}>{busy ? "准备中…" : "开始练习"}</button></div>}{error && !attemptId && <div className="inline-error">{error}</div>}<ExamBottomNavV14 subject={subject} active="practice" /></div>;
+  return <div className="page exam-practice-page-v16"><V16PracticeHeader subject={subject} title="章节练习" onBack={() => go(examWorkspacePath(subject, "practice"))} /><div className="v16-practice-intro"><h1>章节练习</h1><span>选择知识图谱范围后开始</span></div>{data.status === "loading" && <div className="inline-state">正在加载章节…</div>}{data.status === "error" && <div className="inline-error">{data.error}<button type="button" className="text-button" onClick={data.retry}>重试</button></div>}{data.status === "success" && <V16KnowledgeTree nodes={data.data.nodes} counts={data.data.counts} selected={selected} onSelect={(value) => { setError(""); setSelected(value); }} showCounts />}{selected && <div className="v16-selected-range"><strong>已选择</strong><span>{selected.path}</span><button type="button" className="primary-button" disabled={busy} onClick={start}>{busy ? "准备中…" : "开始练习"}</button></div>}{error && !attemptId && <div className="inline-error">{error}</div>}<ExamBottomNavV14 subject={subject} active="practice" /></div>;
 }
 
 function ExamWrongBookV16({ subject, user }) {

@@ -156,6 +156,12 @@
 .mobile-chat-history > button { display:flex; justify-content:space-between; gap:12px; width:100%; padding:10px 4px; border-top:1px solid #f0f1f6; background:none; color:var(--ink); text-align:left; }
 .mobile-chat-history > button span { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; }
 .mobile-chat-history > button small, .mobile-chat-history > small { color:var(--muted); font-size:11px; }
+.mobile-chat-history-row { display:flex; align-items:center; gap:4px; border-top:1px solid #f0f1f6; }
+.mobile-chat-history-row > button:first-child { flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; padding:10px 4px; border:0; background:none; color:var(--ink); text-align:left; }
+.mobile-chat-history-row > button:first-child span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; }
+.mobile-chat-history-row > button:first-child small { color:var(--muted); font-size:11px; }
+.mobile-chat-history-more { flex:0 0 34px; min-height:38px; border:0; border-radius:9px; background:#f3f0ff; color:var(--purple); font-size:16px; letter-spacing:1px; }
+.mobile-session-sheet input { width:100%; min-height:44px; box-sizing:border-box; padding:0 12px; border:1px solid var(--line); border-radius:11px; background:#fff; color:var(--ink); }
 .mobile-chat-messages { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:12px; overflow-y:auto; overscroll-behavior:contain; padding:18px 14px 18px; -webkit-overflow-scrolling:touch; }
 .mobile-chat-messages .mobile-ai-empty { flex:1; min-height:180px; }
 .mobile-chat-loading { align-self:flex-start; padding:9px 12px; border-radius:13px; background:#fff; color:var(--muted); font-size:12px; }
@@ -541,6 +547,9 @@
 .v16-form-field select,
 .v16-range-button { border-color: #ebe8f7; border-radius: 17px; }
 .v16-picker-sheet { border-radius: 26px 26px 0 0; }
+.exam-practice-page-v16 .v16-mode-switch { display: none; }
+.exam-practice-page-v15 .v16-practice-intro,
+.exam-practice-page-v16 .v16-practice-intro { display: none; }
 @media (max-width: 380px) {
   .v16-subject-card { grid-template-columns: 72px minmax(0, 1fr) 18px; gap: 12px; min-height: 118px; padding: 14px; border-radius: 22px; }
   .v16-subject-art { width: 72px; height: 72px; border-radius: 20px; }
