@@ -724,6 +724,20 @@
   cursor: not-allowed;
 }
 
+.cmp-table-action--danger {
+  color: #dc2626 !important;
+}
+
+.cmp-btn--danger {
+  color: #dc2626 !important;
+  border-color: #fecaca !important;
+  background: #fef2f2 !important;
+}
+
+.cmp-btn--danger:hover:not(:disabled) {
+  background: #fee2e2 !important;
+}
+
 .cmp-empty-inline,
 .cmp-empty-state {
   text-align: center;

@@ -2003,10 +2003,13 @@ function App() {
     }
   };
 
-  const deleteMaterial = async (materialId) => {
+  const deleteMaterial = async (materialId, filename = "") => {
     if (!user?.username) return;
 
-    const confirmed = window.confirm("确认删除这份资料吗？");
+    const name = String(filename || "该资料").trim();
+    const confirmed = window.confirm(
+      `确定删除《${name}》吗？\n\n删除后，该资料及对应 AI 索引将无法继续用于问答和知识检索。`
+    );
     if (!confirmed) return;
 
     try {
@@ -2036,6 +2039,7 @@ function App() {
           msg.material_id === materialId ? { ...msg, material_id: null } : msg
         )
       );
+      setTip("资料已删除");
     } catch (error) {
       console.error("Failed to delete material:", error);
       setTip("暂时无法删除该资料。");
@@ -2815,6 +2819,7 @@ function App() {
       await loadMaterials(reloadSubject);
     } catch (error) {
       console.error("Failed to upload selected file:", error);
+      setTip(error.message || "上传失败");
       setSelectedFiles((prev) =>
         prev.map((item) =>
           item.localId === localId
@@ -2906,7 +2911,17 @@ function App() {
       return getDisplayMessage(data.detail, "上传被拒绝，请检查文件类型、大小和学科。");
     }
     if (status === 401) return "登录已过期，请重新登录。";
-    if (status === 413) return "文件过大，请上传 10MB 以内的文件。";
+    if (status === 409) {
+      const detail = data?.detail;
+      if (detail && typeof detail === "object" && detail.code === "MATERIAL_DUPLICATE") {
+        const domainLabel = detail.existing_domain_label || "资料库";
+        const subject = detail.existing_subject || "";
+        const created = detail.existing_created_at ? detail.existing_created_at.slice(0, 10) : "";
+        return `该文件已上传，此文件已存在于${domainLabel}「${subject}」资料库中，无需重复上传。${created ? `\n上传时间：${created}` : ""}`;
+      }
+      return getDisplayMessage(data.detail, "该文件已存在，无需重复上传。");
+    }
+    if (status === 413) return getDisplayMessage(data.detail, "文件过大，无法上传。");
     if (status === 422) return "上传参数无效，请重试。";
     if (status === 500) return getDisplayMessage(data.detail, "后端暂时无法处理该文件。");
     if (status === 502) return "网关错误，后端服务可能不可用。";
@@ -4211,6 +4226,7 @@ function App() {
         previewMaterial={previewMaterial}
         downloadMaterial={downloadMaterial}
         reparseMaterial={reparseMaterial}
+        deleteMaterial={deleteMaterial}
         setPage={setPage}
         onKnowledgeConfirmed={() => setCourseDashboardPanelIntent({ panel: "knowledge", nonce: Date.now() })}
         onQuoteMaterial={quoteMaterialFromLibrary}

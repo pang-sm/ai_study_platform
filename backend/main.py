@@ -155,6 +155,27 @@ def resolve_material_scope(course_id: str, subject_key: str = "", subject: str =
         raise HTTPException(status_code=400, detail="subject does not match course_id")
     return {"course_id": raw_course_id, "subject_key": expected_key, "subject": expected_subject, "track": track}
 
+
+def _material_domain(course_id: str | None) -> str:
+    """Derive the business domain of a stored material from its course_id.
+
+    Two materials with the same file hash may coexist across domains
+    (exam_11408 vs course_learning); duplicate detection is scoped by domain.
+    """
+    cid = (course_id or "").strip()
+    if cid.endswith("_11408") and cid[:-6] in EXAM_MATERIAL_SCOPE_NAMES:
+        return "exam_11408"
+    if cid in {value for value in COURSE_LEARNING_ID_MAP.values()}:
+        return "course_learning"
+    if cid == "programming":
+        return "programming"
+    return "legacy"
+
+
+def _material_domain_label(domain: str) -> str:
+    return {"exam_11408": "11408", "course_learning": "课程学习", "programming": "编程学习"}.get(domain, "资料库")
+
+
 load_dotenv()
 
 app = FastAPI()
@@ -3824,10 +3845,15 @@ def get_or_create_chat_session(
 
 
 def get_material_by_file_hash(db: Session, username: str, file_hash: str):
+    results = get_materials_by_file_hash(db, username, file_hash)
+    return results[0] if results else None
+
+
+def get_materials_by_file_hash(db: Session, username: str, file_hash: str):
     normalized_username = (username or "").strip()
     normalized_hash = (file_hash or "").strip().lower()
     if not normalized_username or not normalized_hash:
-        return None
+        return []
 
     return (
         db.query(models.StudyMaterial)
@@ -3837,7 +3863,7 @@ def get_material_by_file_hash(db: Session, username: str, file_hash: str):
             models.StudyMaterial.is_deleted.is_(False),
         )
         .order_by(models.StudyMaterial.created_at.desc())
-        .first()
+        .all()
     )
 
 
@@ -8173,7 +8199,8 @@ async def upload_material(
     if material_scope["track"] == "exam_11408":
         exam_permissions = get_exam_408_permissions_for_user(db, user)
         if exam_permissions:
-            max_file_size_mb = int(exam_permissions.get("material_upload_limit_mb") or max_file_size_mb)
+            # material_upload_limit_mb is the storage quota, NOT a per-file cap.
+            # Keep the single-file limit from the plan; only lift the count cap.
             max_material_count = 999999
 
     # Check file size before reading
@@ -8206,18 +8233,42 @@ async def upload_material(
     material_type = detect_material_type(original_filename, file.content_type)
     file_type = ALLOWED_UPLOAD_TYPES.get(file.content_type, material_type.lower())
     file_hash = calculate_file_hash(file_bytes)
-    existing_material = get_material_by_file_hash(db, user.username, file_hash)
-    if existing_material:
-        existing_scope = (getattr(existing_material, "course_id", None) or "").strip()
-        if existing_scope and existing_scope != material_scope["course_id"]:
-            raise HTTPException(status_code=409, detail="identical file already belongs to another course; it was not rebound")
-        if not existing_scope and (existing_material.subject or "").strip() != normalized_subject:
-            raise HTTPException(status_code=409, detail="identical legacy file has an unverified course scope; it was not rebound")
-        if not existing_scope:
-            existing_material.course_id = material_scope["course_id"]
-            existing_material.subject_key = material_scope["subject_key"]
-            db.commit()
-            db.refresh(existing_material)
+    domain = material_scope["track"]
+
+    if normalized_source_type == USER_UPLOAD_SOURCE:
+        # Duplicate detection is scoped by business domain (exam_11408 vs
+        # course_learning), NOT by course_id/subject_key. The same file may
+        # legitimately exist once per domain, but is rejected within a domain.
+        existing_materials = get_materials_by_file_hash(db, user.username, file_hash)
+        same_domain = next(
+            (m for m in existing_materials if _material_domain(m.course_id) == domain),
+            None,
+        )
+        if same_domain:
+            raise HTTPException(status_code=409, detail={
+                "code": "MATERIAL_DUPLICATE",
+                "message": "该文件已上传",
+                "existing_material_id": same_domain.id,
+                "existing_domain": domain,
+                "existing_domain_label": _material_domain_label(domain),
+                "existing_subject": (same_domain.subject or "").strip(),
+                "existing_created_at": serialize_datetime(same_domain.created_at) if same_domain.created_at else None,
+            })
+        existing_material = None
+    else:
+        # Non-user sources (exam_scope / past_paper) keep the legacy re-bind flow.
+        existing_material = get_material_by_file_hash(db, user.username, file_hash)
+        if existing_material:
+            existing_scope = (getattr(existing_material, "course_id", None) or "").strip()
+            if existing_scope and existing_scope != material_scope["course_id"]:
+                raise HTTPException(status_code=409, detail="identical file already belongs to another course; it was not rebound")
+            if not existing_scope and (existing_material.subject or "").strip() != normalized_subject:
+                raise HTTPException(status_code=409, detail="identical legacy file has an unverified course scope; it was not rebound")
+            if not existing_scope:
+                existing_material.course_id = material_scope["course_id"]
+                existing_material.subject_key = material_scope["subject_key"]
+                db.commit()
+                db.refresh(existing_material)
     if existing_material and (existing_material.parse_status or "").strip() == "success":
         existing_material = ensure_material_original_file(
             db,
@@ -8832,10 +8883,41 @@ def delete_material(material_id: int, username: str = "", db: Session = Depends(
     if not can_user_modify_material(material, user.username):
         raise HTTPException(status_code=403, detail="只有本人上传的私有资料可以删除")
 
+    file_hash = (material.file_hash or "").strip()
+    file_path_value = (material.file_path or "").strip()
+
     material.is_deleted = True
     material.deleted_at = utc_now()
     db.commit()
     soft_delete_material_chunks(db, material.id)
+
+    # Remove knowledge-point links so this material no longer contributes to
+    # knowledge retrieval after deletion.
+    db.query(models.MaterialKnowledgeLink).filter(
+        models.MaterialKnowledgeLink.material_id == material.id,
+    ).delete(synchronize_session=False)
+    db.commit()
+
+    # The physical file is stored keyed by content hash (dedup shared storage).
+    # Only unlink it when no other live material still references that hash,
+    # so deleting one domain's copy never breaks the other domain's copy.
+    if file_hash and file_path_value:
+        other_live = (
+            db.query(models.StudyMaterial.id)
+            .filter(
+                models.StudyMaterial.file_hash == file_hash,
+                models.StudyMaterial.is_deleted.is_(False),
+                models.StudyMaterial.id != material.id,
+            )
+            .first()
+        )
+        if not other_live:
+            try:
+                file_path = resolve_stored_file_path(file_path_value)
+                if file_path.exists() and file_path.is_file():
+                    file_path.unlink()
+            except (HTTPException, OSError):
+                pass
 
     return {"message": "资料已删除", "material_id": material.id}
 

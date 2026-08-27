@@ -353,6 +353,7 @@ export default function CourseMaterialsPage({
   previewMaterial,
   downloadMaterial,
   reparseMaterial,
+  deleteMaterial,
   setPage,
   onQuoteMaterial,
   onKnowledgeConfirmed,
@@ -881,6 +882,7 @@ export default function CourseMaterialsPage({
                         <button type="button" onClick={() => openMaterialDetail?.(material.id)}>查看</button>
                         <button type="button" onClick={() => onQuoteMaterial?.(material)}>引用</button>
                         <button type="button" title="查看原文" onClick={() => previewMaterial?.(material)} disabled={!material.can_preview}>···</button>
+                        <button type="button" className="cmp-table-action--danger" onClick={() => deleteMaterial?.(material.id, filenameOf(material))}>删除</button>
                       </div>
                     </td>
                   </tr>
@@ -970,6 +972,11 @@ export default function CourseMaterialsPage({
               {selected.can_download && selectedCanModify && (
                 <button className="cmp-btn cmp-btn--ghost cmp-btn--block" type="button" onClick={() => downloadMaterial?.(selected)}>
                   下载原文
+                </button>
+              )}
+              {selectedCanModify && (
+                <button className="cmp-btn cmp-btn--ghost cmp-btn--block cmp-btn--danger" type="button" onClick={() => deleteMaterial?.(selected.id, filenameOf(selected))}>
+                  删除资料
                 </button>
               )}
             </div>
