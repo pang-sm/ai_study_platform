@@ -12,6 +12,11 @@ const PROGRAMMING_PLAN_LABELS = {
 const GRADE_OPTIONS = ["大一", "大二", "大三", "大四", "研究生"];
 const SEMESTER_OPTIONS = ["上学期", "下学期"];
 
+// Phone verification backend is reserved for future commercial deployment.
+// Production UI is currently disabled because SMS provider credentials /
+// enterprise SMS qualification are not available.
+const PHONE_BINDING_UI_ENABLED = false;
+
 function maskEmail(email) {
   if (!email) return "";
   const at = email.indexOf("@");
@@ -375,9 +380,11 @@ export default function ProgrammingProfile({ user, apiBase = "/api", setPage, on
               <div><strong>登录密码</strong><p>用于登录账号的密码</p><span>********</span></div>
               <button type="button" className="ep-outline-btn" onClick={openPwdModal}>修改</button>
             </div>
-            <div className="ep-sec-item">
-              <div><strong>绑定手机号</strong><p>用于接收验证码和安全验证</p><span>{user?.phone || "未绑定"}</span></div>
-            </div>
+            {PHONE_BINDING_UI_ENABLED && (
+              <div className="ep-sec-item">
+                <div><strong>绑定手机号</strong><p>用于接收验证码和安全验证</p><span>{user?.phone || "未绑定"}</span></div>
+              </div>
+            )}
             <div className="ep-sec-item">
               <div><strong>绑定邮箱</strong><p>用于接收重要通知和找回密码</p><span>{emailDisplay}</span></div>
               <button type="button" className="ep-outline-btn" onClick={openEmailModal}>{emailBtnLabel}</button>

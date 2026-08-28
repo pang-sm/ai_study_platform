@@ -11,6 +11,11 @@ const PACKAGE_LABELS = {
 const GRADE_OPTIONS = ["大一", "大二", "大三", "大四", "研究生"];
 const SEMESTER_OPTIONS = ["上学期", "下学期"];
 
+// Phone verification backend is reserved for future commercial deployment.
+// Production UI is currently disabled because SMS provider credentials /
+// enterprise SMS qualification are not available.
+const PHONE_BINDING_UI_ENABLED = false;
+
 function maskEmail(email) {
   if (!email) return "";
   const at = email.indexOf("@");
@@ -372,13 +377,15 @@ export default function CourseLearningProfile({ user, setPage, onLogout, API_BAS
               </div>
               <button type="button" className="ep-outline-btn" onClick={openPwdModal}>修改</button>
             </div>
-            <div className="ep-sec-item">
-              <div>
-                <strong>绑定手机号</strong>
-                <p>用于接收验证码和安全验证</p>
-                <span>{user?.phone ? maskEmail(user.phone).replace("@","") : "未绑定"}</span>
+            {PHONE_BINDING_UI_ENABLED && (
+              <div className="ep-sec-item">
+                <div>
+                  <strong>绑定手机号</strong>
+                  <p>用于接收验证码和安全验证</p>
+                  <span>{user?.phone ? maskEmail(user.phone).replace("@","") : "未绑定"}</span>
+                </div>
               </div>
-            </div>
+            )}
             <div className="ep-sec-item">
               <div>
                 <strong>绑定邮箱</strong>
