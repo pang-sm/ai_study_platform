@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { resolveMediaUrl } from "../utils/mediaUrl.js";
+import AdminSupportCenter from "./AdminSupportCenter.jsx";
 
 const API_BASE = "/api";
 
@@ -16,6 +17,7 @@ const MENU_GROUPS = [
     title: "运营管理",
     items: [
       { page: "adminMembers", label: "会员管理", icon: "V" },
+      { page: "adminFeedback", label: "用户反馈", icon: "F" },
       { page: "adminOrders", label: "订单管理", icon: "O" },
       { page: "adminQuota", label: "额度管理", icon: "L" },
     ],
@@ -135,6 +137,7 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
   const [redemptionDetail, setRedemptionDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [supportUnreadCount, setSupportUnreadCount] = useState(0);
   const [userKeyword, setUserKeyword] = useState("");
   const [userStatus, setUserStatus] = useState("all");
   const [actionLoading, setActionLoading] = useState("");
@@ -172,6 +175,7 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
 
   const loadCurrentPage = async () => {
     if (!user?.username) return;
+    if (activePage === "adminFeedback") return;
     setLoading(true);
     setError("");
     try {
@@ -218,6 +222,13 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
     setAnnouncementFormError("");
     loadCurrentPage();
   }, [activePage, user?.username, userStatus, redemptionStatus]);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/admin/support/unread-count`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => setSupportUnreadCount(Number(d.count || 0)))
+      .catch(() => {});
+  }, [activePage, user?.username]);
 
   useEffect(() => {
     setProfileForm({ nickname: user?.nickname || "", avatar: user?.avatar || "" });
@@ -1080,6 +1091,9 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
   };
 
   const renderContent = () => {
+    if (activePage === "adminFeedback") {
+      return <AdminSupportCenter user={user} onUnreadCountChange={setSupportUnreadCount} />;
+    }
     if (loading) return <div className="admin-dashboard-card admin-dashboard-loading">数据加载中...</div>;
     if (error) {
       return (
@@ -1126,6 +1140,11 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
                 >
                   <span>{item.icon}</span>
                   {item.label}
+                  {item.page === "adminFeedback" && supportUnreadCount > 0 && (
+                    <span style={{ marginLeft: "auto", background: "#ef4444", color: "#fff", borderRadius: 999, fontSize: 11, padding: "1px 7px", fontWeight: 700 }}>
+                      {supportUnreadCount}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>

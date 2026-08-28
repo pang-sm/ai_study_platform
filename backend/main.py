@@ -31869,3 +31869,412 @@ async def interactive_run(ws: WebSocket):
             await ws.close()
         except Exception:
             pass
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Customer Support (SupportTicket / SupportMessage)
+# ═══════════════════════════════════════════════════════════════════════════
+
+SUPPORT_SERVICE_KEYS = {"exam_11408", "course_learning", "programming", "account", "general"}
+SUPPORT_CATEGORY_KEYS = {
+    "functional_bug", "ai", "materials", "question", "workbench",
+    "membership", "payment", "account", "suggestion", "other",
+}
+SUPPORT_TICKET_STATUSES = {
+    "pending", "in_progress", "waiting_confirmation", "resolved", "unresolved", "closed",
+}
+
+SUPPORT_STATUS_LABELS = {
+    "pending": "待处理",
+    "in_progress": "处理中",
+    "waiting_confirmation": "等待用户确认",
+    "resolved": "已解决",
+    "unresolved": "未解决",
+    "closed": "已关闭",
+}
+
+
+def _support_iso(value):
+    return value.isoformat() if value else None
+
+
+def serialize_support_message(message: models.SupportMessage) -> dict:
+    return {
+        "id": message.id,
+        "ticket_id": message.ticket_id,
+        "sender_type": message.sender_type,
+        "sender_user_id": message.sender_user_id,
+        "content": message.content,
+        "is_read": bool(message.is_read),
+        "created_at": _support_iso(message.created_at),
+    }
+
+
+def serialize_support_ticket(ticket: models.SupportTicket) -> dict:
+    return {
+        "id": ticket.id,
+        "user_id": ticket.user_id,
+        "username": ticket.username,
+        "service_key": ticket.service_key,
+        "category": ticket.category,
+        "title": ticket.title,
+        "status": ticket.status,
+        "status_label": SUPPORT_STATUS_LABELS.get(ticket.status, ticket.status),
+        "admin_read": bool(ticket.admin_read),
+        "user_read": bool(ticket.user_read),
+        "resolved_by_admin": bool(ticket.resolved_by_admin),
+        "resolved_by_user": bool(ticket.resolved_by_user),
+        "rating": ticket.rating,
+        "feedback": ticket.feedback,
+        "source_url": ticket.source_url,
+        "source_page": ticket.source_page,
+        "created_at": _support_iso(ticket.created_at),
+        "updated_at": _support_iso(ticket.updated_at),
+        "closed_at": _support_iso(ticket.closed_at),
+    }
+
+
+def _get_support_ticket_or_404(db: Session, ticket_id: int, user_id: int | None = None) -> models.SupportTicket:
+    query = db.query(models.SupportTicket).filter(models.SupportTicket.id == ticket_id)
+    if user_id is not None:
+        query = query.filter(models.SupportTicket.user_id == user_id)
+    ticket = query.first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="工单不存在")
+    return ticket
+
+
+def _last_support_message(db: Session, ticket_id: int):
+    return (
+        db.query(models.SupportMessage)
+        .filter(models.SupportMessage.ticket_id == ticket_id)
+        .order_by(models.SupportMessage.id.desc())
+        .first()
+    )
+
+
+def _support_ticket_list_item(db: Session, ticket: models.SupportTicket, unread: bool) -> dict:
+    data = serialize_support_ticket(ticket)
+    last = _last_support_message(db, ticket.id)
+    data["last_message"] = serialize_support_message(last) if last else None
+    data["unread"] = unread
+    return data
+
+
+# ── User endpoints ──────────────────────────────────────
+
+@app.post("/support/tickets")
+def create_support_ticket(
+    req: schemas.SupportTicketCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    service_key = (req.service_key or "").strip() or "general"
+    if service_key not in SUPPORT_SERVICE_KEYS:
+        service_key = "general"
+    category = (req.category or "").strip() or "other"
+    if category not in SUPPORT_CATEGORY_KEYS:
+        category = "other"
+    description = (req.description or "").strip()
+    if not description:
+        raise HTTPException(status_code=400, detail="请填写问题描述")
+    title = (req.title or "").strip() or (description[:60] if len(description) > 60 else description)
+
+    ticket = models.SupportTicket(
+        user_id=current_user.id,
+        username=current_user.username,
+        service_key=service_key,
+        category=category,
+        title=title[:255],
+        status="pending",
+        admin_read=False,
+        user_read=True,
+        source_url=(req.source_url or "")[:500],
+        source_page=(req.source_page or "")[:255],
+    )
+    db.add(ticket)
+    db.flush()
+    db.add(models.SupportMessage(
+        ticket_id=ticket.id,
+        sender_type="user",
+        sender_user_id=current_user.id,
+        content=description,
+        is_read=False,
+    ))
+    db.commit()
+    db.refresh(ticket)
+    return {"ticket": serialize_support_ticket(ticket), "message": "工单已提交"}
+
+
+@app.get("/support/tickets")
+def list_my_support_tickets(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    tickets = (
+        db.query(models.SupportTicket)
+        .filter(models.SupportTicket.user_id == current_user.id)
+        .order_by(models.SupportTicket.updated_at.desc())
+        .all()
+    )
+    items = [_support_ticket_list_item(db, t, unread=not t.user_read) for t in tickets]
+    return {"tickets": items}
+
+
+@app.get("/support/tickets/{ticket_id}")
+def get_my_support_ticket(
+    ticket_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    ticket = _get_support_ticket_or_404(db, ticket_id, user_id=current_user.id)
+    messages = (
+        db.query(models.SupportMessage)
+        .filter(models.SupportMessage.ticket_id == ticket.id)
+        .order_by(models.SupportMessage.id.asc())
+        .all()
+    )
+    data = serialize_support_ticket(ticket)
+    data["messages"] = [serialize_support_message(m) for m in messages]
+    return {"ticket": data}
+
+
+@app.post("/support/tickets/{ticket_id}/messages")
+def post_support_ticket_message(
+    ticket_id: int,
+    req: schemas.SupportMessageCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    ticket = _get_support_ticket_or_404(db, ticket_id, user_id=current_user.id)
+    content = (req.content or "").strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="消息内容不能为空")
+
+    message = models.SupportMessage(
+        ticket_id=ticket.id,
+        sender_type="user",
+        sender_user_id=current_user.id,
+        content=content,
+        is_read=False,
+    )
+    db.add(message)
+    ticket.user_read = True
+    ticket.admin_read = False
+    ticket.updated_at = utc_now()
+    db.commit()
+    db.refresh(message)
+    return {"message": serialize_support_message(message)}
+
+
+@app.post("/support/tickets/{ticket_id}/read")
+def mark_support_ticket_read(
+    ticket_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    ticket = _get_support_ticket_or_404(db, ticket_id, user_id=current_user.id)
+    if not ticket.user_read:
+        ticket.user_read = True
+        db.query(models.SupportMessage).filter(
+            models.SupportMessage.ticket_id == ticket.id,
+            models.SupportMessage.sender_type == "admin",
+        ).update({"is_read": True}, synchronize_session=False)
+        db.commit()
+    return {"success": True}
+
+
+@app.post("/support/tickets/{ticket_id}/confirm-resolution")
+def confirm_support_resolution(
+    ticket_id: int,
+    req: schemas.SupportResolutionConfirm,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    ticket = _get_support_ticket_or_404(db, ticket_id, user_id=current_user.id)
+    if ticket.status != "waiting_confirmation":
+        raise HTTPException(status_code=400, detail="当前工单尚未进入确认阶段")
+
+    if req.resolved:
+        rating = req.rating
+        if rating is not None:
+            try:
+                rating = max(1, min(5, int(rating)))
+            except (TypeError, ValueError):
+                rating = None
+        ticket.resolved_by_user = True
+        ticket.rating = rating
+        ticket.feedback = (req.feedback or "").strip()[:2000] or None
+        ticket.status = "resolved"
+        ticket.closed_at = utc_now()
+        ticket.user_read = True
+    else:
+        extra = (req.message or "").strip()
+        if extra:
+            db.add(models.SupportMessage(
+                ticket_id=ticket.id,
+                sender_type="user",
+                sender_user_id=current_user.id,
+                content=extra,
+                is_read=False,
+            ))
+        ticket.resolved_by_user = False
+        ticket.status = "unresolved"
+        ticket.admin_read = False
+        ticket.user_read = True
+
+    ticket.updated_at = utc_now()
+    db.commit()
+    db.refresh(ticket)
+    return {"ticket": serialize_support_ticket(ticket)}
+
+
+@app.get("/support/unread-count")
+def support_unread_count(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    count = (
+        db.query(models.SupportTicket)
+        .filter(models.SupportTicket.user_id == current_user.id, models.SupportTicket.user_read == False)
+        .count()
+    )
+    return {"count": count}
+
+
+# ── Admin endpoints ─────────────────────────────────────
+
+@app.get("/admin/support/tickets")
+def admin_list_support_tickets(
+    status: str = "",
+    service_key: str = "",
+    category: str = "",
+    username: str = "",
+    page: int = 1,
+    page_size: int = 50,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_admin_user),
+):
+    query = db.query(models.SupportTicket)
+    if status:
+        query = query.filter(models.SupportTicket.status == status)
+    if service_key:
+        query = query.filter(models.SupportTicket.service_key == service_key)
+    if category:
+        query = query.filter(models.SupportTicket.category == category)
+    if username.strip():
+        query = query.filter(models.SupportTicket.username.ilike(f"%{username.strip()}%"))
+    total = query.count()
+    tickets = (
+        query.order_by(models.SupportTicket.updated_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+    items = [_support_ticket_list_item(db, t, unread=not t.admin_read) for t in tickets]
+    return {"tickets": items, "total": total, "page": page, "page_size": page_size}
+
+
+@app.get("/admin/support/tickets/{ticket_id}")
+def admin_get_support_ticket(
+    ticket_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_admin_user),
+):
+    ticket = _get_support_ticket_or_404(db, ticket_id)
+    messages = (
+        db.query(models.SupportMessage)
+        .filter(models.SupportMessage.ticket_id == ticket.id)
+        .order_by(models.SupportMessage.id.asc())
+        .all()
+    )
+    user = db.query(models.User).filter(models.User.id == ticket.user_id).first()
+    data = serialize_support_ticket(ticket)
+    data["messages"] = [serialize_support_message(m) for m in messages]
+    data["user"] = {
+        "username": user.username if user else ticket.username,
+        "nickname": (user.nickname or "") if user else "",
+    }
+    return {"ticket": data}
+
+
+@app.post("/admin/support/tickets/{ticket_id}/messages")
+def admin_post_support_message(
+    ticket_id: int,
+    req: schemas.SupportMessageCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_admin_user),
+):
+    ticket = _get_support_ticket_or_404(db, ticket_id)
+    content = (req.content or "").strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="消息内容不能为空")
+
+    message = models.SupportMessage(
+        ticket_id=ticket.id,
+        sender_type="admin",
+        sender_user_id=None,
+        content=content,
+        is_read=False,
+    )
+    db.add(message)
+    ticket.user_read = False
+    ticket.admin_read = True
+    if ticket.status in ("pending", "unresolved"):
+        ticket.status = "in_progress"
+    ticket.updated_at = utc_now()
+    db.commit()
+    db.refresh(message)
+    return {"message": serialize_support_message(message), "ticket": serialize_support_ticket(ticket)}
+
+
+@app.patch("/admin/support/tickets/{ticket_id}/status")
+def admin_update_support_status(
+    ticket_id: int,
+    req: schemas.SupportStatusUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_admin_user),
+):
+    ticket = _get_support_ticket_or_404(db, ticket_id)
+    status = (req.status or "").strip()
+    if status not in SUPPORT_TICKET_STATUSES:
+        raise HTTPException(status_code=400, detail="无效的工单状态")
+    ticket.status = status
+    if status == "waiting_confirmation":
+        ticket.resolved_by_admin = True
+    if status == "closed":
+        ticket.closed_at = utc_now()
+    ticket.updated_at = utc_now()
+    db.commit()
+    db.refresh(ticket)
+    return {"ticket": serialize_support_ticket(ticket)}
+
+
+@app.post("/admin/support/tickets/{ticket_id}/read")
+def admin_mark_support_read(
+    ticket_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_admin_user),
+):
+    ticket = _get_support_ticket_or_404(db, ticket_id)
+    if not ticket.admin_read:
+        ticket.admin_read = True
+        db.query(models.SupportMessage).filter(
+            models.SupportMessage.ticket_id == ticket.id,
+            models.SupportMessage.sender_type == "user",
+        ).update({"is_read": True}, synchronize_session=False)
+        db.commit()
+    return {"success": True}
+
+
+@app.get("/admin/support/unread-count")
+def admin_support_unread_count(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_admin_user),
+):
+    count = (
+        db.query(models.SupportTicket)
+        .filter(models.SupportTicket.admin_read == False)
+        .count()
+    )
+    return {"count": count}

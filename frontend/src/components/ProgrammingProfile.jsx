@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { switchLearningDirection } from "../utils/serviceSwitch.js";
 import { resolveMediaUrl } from "../utils/mediaUrl.js";
 import EmailBindingModal from "./EmailBindingModal.jsx";
+import CustomerSupportModal from "./CustomerSupportModal.jsx";
 import "./ProgrammingHome.css";
 
 // Fallback only — the authoritative plan name/limit come from the backend
@@ -37,6 +38,7 @@ function formatAiQuota(remaining, limit) {
 
 export default function ProgrammingProfile({ user, apiBase = "/api", setPage, onLogout, onProfileUpdate, onReplayGuide }) {
   const [homeData, setHomeData] = useState(null);
+  const [showSupport, setShowSupport] = useState(false);
   const [entitlements, setEntitlements] = useState(null);
   const [servicePlans, setServicePlans] = useState(() => user?.service_plans || {});
   const [avatarUploading, setAvatarUploading] = useState(false);
@@ -434,7 +436,7 @@ export default function ProgrammingProfile({ user, apiBase = "/api", setPage, on
           </div>
         </div>
 
-        <p className="ep-footer">如有疑问，请联系<span className="ep-footer-link">客服支持</span></p>
+        <p className="ep-footer">如有疑问，请联系<span className="ep-footer-link" role="button" tabIndex={0} onClick={() => setShowSupport(true)}>客服支持</span></p>
       </div>
 
       {pwdModal && (
@@ -463,6 +465,15 @@ export default function ProgrammingProfile({ user, apiBase = "/api", setPage, on
         onClose={() => setEmailModal(false)}
         onBound={(email) => onProfileUpdate?.({ email, email_verified: true })}
       />
+
+      {showSupport && (
+        <CustomerSupportModal
+          user={user}
+          defaultServiceKey="programming"
+          sourcePage="编程学习 / 个人主页"
+          onClose={() => setShowSupport(false)}
+        />
+      )}
     </div>
   );
 }

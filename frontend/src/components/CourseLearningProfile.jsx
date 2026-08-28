@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { switchLearningDirection } from "../utils/serviceSwitch.js";
 import { resolveMediaUrl } from "../utils/mediaUrl.js";
 import EmailBindingModal from "./EmailBindingModal.jsx";
+import CustomerSupportModal from "./CustomerSupportModal.jsx";
 
 const PACKAGE_LABELS = {
   free: "免费模式",
@@ -29,6 +30,7 @@ function maskEmail(email) {
 
 export default function CourseLearningProfile({ user, setPage, onLogout, API_BASE, onProfileUpdate, onReplayGuide }) {
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [showSupport, setShowSupport] = useState(false);
   const [actionMsg, setActionMsg] = useState("");
   const [actionErr, setActionErr] = useState("");
   const [editing, setEditing] = useState(false);
@@ -436,7 +438,7 @@ export default function CourseLearningProfile({ user, setPage, onLogout, API_BAS
           </div>
         </div>
 
-        <p className="ep-footer">如有疑问，请联系<span className="ep-footer-link">客服支持</span></p>
+        <p className="ep-footer">如有疑问，请联系<span className="ep-footer-link" role="button" tabIndex={0} onClick={() => setShowSupport(true)}>客服支持</span></p>
       </div>
 
       {/* ── Password Modal ── */}
@@ -467,6 +469,15 @@ export default function CourseLearningProfile({ user, setPage, onLogout, API_BAS
         onClose={() => setEmailModal(false)}
         onBound={(email) => onProfileUpdate?.({ email, email_verified: true })}
       />
+
+      {showSupport && (
+        <CustomerSupportModal
+          user={user}
+          defaultServiceKey="course_learning"
+          sourcePage="课程学习 / 个人主页"
+          onClose={() => setShowSupport(false)}
+        />
+      )}
     </div>
   );
 }

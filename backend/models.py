@@ -1168,3 +1168,54 @@ class MembershipOrder(Base):
     paid_at = Column(DateTime, nullable=True)
     membership_started_at = Column(DateTime, nullable=True)
     membership_expires_at = Column(DateTime, nullable=True)
+
+
+class SupportTicket(Base):
+    """User-submitted customer-support ticket with two-way chat and resolution flow."""
+
+    __tablename__ = "support_tickets"
+    __table_args__ = (
+        Index("idx_support_tickets_user_status", "user_id", "status"),
+        Index("idx_support_tickets_service", "service_key"),
+        Index("idx_support_tickets_updated", "updated_at"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=False)
+    username = Column(String(50), index=True, nullable=False)
+    # Stable business source: exam_11408 / course_learning / programming / account / general
+    service_key = Column(String(50), index=True, nullable=False)
+    # Stable category code: functional_bug / ai / materials / question / workbench /
+    # membership / payment / account / suggestion / other
+    category = Column(String(50), nullable=False)
+    title = Column(String(255), nullable=False)
+    # pending / in_progress / waiting_confirmation / resolved / unresolved / closed
+    status = Column(String(30), nullable=False, default="pending")
+    admin_read = Column(Boolean, nullable=False, default=False)
+    user_read = Column(Boolean, nullable=False, default=True)
+    resolved_by_admin = Column(Boolean, nullable=False, default=False)
+    resolved_by_user = Column(Boolean, nullable=False, default=False)
+    rating = Column(Integer, nullable=True)
+    feedback = Column(Text, nullable=True)
+    source_url = Column(String(500), nullable=True)
+    source_page = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
+    closed_at = Column(DateTime, nullable=True)
+
+
+class SupportMessage(Base):
+    """One chat message inside a support ticket (sender_type: user | admin)."""
+
+    __tablename__ = "support_messages"
+    __table_args__ = (
+        Index("idx_support_messages_ticket", "ticket_id"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    ticket_id = Column(Integer, ForeignKey("support_tickets.id"), index=True, nullable=False)
+    sender_type = Column(String(10), nullable=False)
+    sender_user_id = Column(Integer, nullable=True)
+    content = Column(Text, nullable=False)
+    is_read = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)

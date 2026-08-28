@@ -1,0 +1,258 @@
+.csm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(76, 29, 149, 0.28);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.csm-modal {
+  width: 100%;
+  max-width: 520px;
+  max-height: 82vh;
+  background: #ffffff;
+  border-radius: 18px;
+  box-shadow: 0 24px 64px rgba(76, 29, 149, 0.28);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.csm-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 20px 22px 16px;
+  background: linear-gradient(135deg, #f5f3ff, #ede9fe);
+  border-bottom: 1px solid #e9e2ff;
+}
+
+.csm-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #4c1d95;
+}
+
+.csm-subtitle {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  color: #7c3aed;
+}
+
+.csm-close {
+  border: none;
+  background: transparent;
+  font-size: 24px;
+  line-height: 1;
+  color: #7c3aed;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.csm-error {
+  margin: 12px 22px 0;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 13px;
+}
+
+.csm-body {
+  padding: 18px 22px 22px;
+  overflow-y: auto;
+}
+
+.csm-unread-banner {
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #f5f3ff;
+  border: 1px solid #e9e2ff;
+  color: #6d28d9;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.csm-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 9px 16px;
+  border: none;
+  border-radius: 10px;
+  background: #7c3aed;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.csm-primary:hover { background: #6d28d9; }
+.csm-primary:disabled { background: #c4b5fd; cursor: not-allowed; }
+
+.csm-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 9px 16px;
+  border: 1px solid #ddd6fe;
+  border-radius: 10px;
+  background: #fff;
+  color: #6d28d9;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.csm-ghost:hover { background: #f5f3ff; }
+
+.csm-section-title {
+  margin: 18px 0 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #6d28d9;
+}
+
+.csm-empty {
+  padding: 22px;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 13px;
+}
+
+.csm-ticket-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.csm-ticket {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 13px 14px;
+  border: 1px solid #ede9fe;
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.csm-ticket:hover { border-color: #c4b5fd; box-shadow: 0 4px 14px rgba(124, 58, 237, 0.08); }
+.csm-ticket--unread { border-color: #c4b5fd; background: #faf5ff; }
+
+.csm-ticket-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.csm-ticket-title { font-size: 14px; font-weight: 600; color: #1f2937; }
+.csm-dot {
+  flex-shrink: 0;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #ef4444;
+}
+.csm-ticket-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 6px;
+}
+.csm-status {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  background: #f3f4f6;
+  color: #6b7280;
+}
+.csm-status--pending { background: #fff7ed; color: #c2410c; }
+.csm-status--in_progress { background: #eef2ff; color: #4338ca; }
+.csm-status--waiting_confirmation { background: #fdf4ff; color: #a21caf; }
+.csm-status--resolved { background: #ecfdf5; color: #047857; }
+.csm-status--unresolved { background: #fef2f2; color: #b91c1c; }
+.csm-status--closed { background: #f3f4f6; color: #6b7280; }
+.csm-ticket-time { font-size: 11.5px; color: #9ca3af; }
+.csm-ticket-preview {
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: #6b7280;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.csm-field { margin-bottom: 14px; }
+.csm-label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 600; color: #4b5563; }
+.csm-required { color: #ef4444; }
+.csm-input {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid #ddd6fe;
+  border-radius: 10px;
+  font-size: 14px;
+  color: #1f2937;
+  background: #fff;
+}
+.csm-input:focus { outline: none; border-color: #7c3aed; box-shadow: 0 0 0 3px #ede9fe; }
+.csm-textarea {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid #ddd6fe;
+  border-radius: 10px;
+  font-size: 14px;
+  color: #1f2937;
+  background: #fff;
+  resize: vertical;
+  font-family: inherit;
+}
+.csm-textarea:focus { outline: none; border-color: #7c3aed; box-shadow: 0 0 0 3px #ede9fe; }
+
+.csm-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+
+.csm-chat-body { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.csm-chat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.csm-back { border: none; background: transparent; color: #7c3aed; font-size: 13px; font-weight: 600; cursor: pointer; padding: 0; }
+.csm-messages { display: flex; flex-direction: column; gap: 12px; overflow-y: auto; flex: 1; min-height: 180px; padding-right: 4px; }
+.csm-msg { max-width: 82%; }
+.csm-msg--user { align-self: flex-end; }
+.csm-msg--admin { align-self: flex-start; }
+.csm-msg-meta { display: flex; gap: 8px; font-size: 11px; color: #9ca3af; margin-bottom: 3px; }
+.csm-msg--user .csm-msg-meta { justify-content: flex-end; }
+.csm-msg-bubble {
+  padding: 9px 12px;
+  border-radius: 12px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.csm-msg--admin .csm-msg-bubble { background: #f5f3ff; color: #1f2937; border-top-left-radius: 3px; }
+.csm-msg--user .csm-msg-bubble { background: #7c3aed; color: #fff; border-top-right-radius: 3px; }
+
+.csm-resolution {
+  margin-top: 6px;
+  padding: 14px;
+  border: 1px solid #e9e2ff;
+  border-radius: 12px;
+  background: #faf5ff;
+}
+.csm-resolution-text { margin: 0 0 10px; font-size: 13px; color: #4b5563; }
+.csm-resolution-actions { display: flex; gap: 10px; }
+.csm-stars { display: flex; gap: 6px; margin-bottom: 10px; }
+.csm-star { border: none; background: transparent; font-size: 28px; line-height: 1; color: #f59e0b; cursor: pointer; padding: 0; }
+
+.csm-composer { display: flex; gap: 8px; margin-top: 14px; }
+.csm-composer .csm-input { flex: 1; }

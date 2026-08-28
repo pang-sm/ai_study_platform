@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { switchLearningDirection } from "../utils/serviceSwitch.js";
 import { resolveMediaUrl } from "../utils/mediaUrl.js";
 import EmailBindingModal from "./EmailBindingModal.jsx";
+import CustomerSupportModal from "./CustomerSupportModal.jsx";
 
 const EXAM_408_SCHOOLS = [
   "北京大学", "南京大学", "浙江大学", "上海交通大学",
@@ -48,6 +49,7 @@ function maskPhone(phone) {
 
 export default function ExamProfile({ user, setPage, onLogout, API_BASE, onProfileUpdate, onReplayGuide }) {
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [showSupport, setShowSupport] = useState(false);
   const [actionMsg, setActionMsg] = useState("");
   const [actionErr, setActionErr] = useState("");
   const [editing, setEditing] = useState(false);
@@ -677,7 +679,7 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE, onProfi
           </div>
         </div>
 
-        <p className="ep-footer">如有疑问，请联系<span className="ep-footer-link">客服支持</span></p>
+        <p className="ep-footer">如有疑问，请联系<span className="ep-footer-link" role="button" tabIndex={0} onClick={() => setShowSupport(true)}>客服支持</span></p>
       </div>
 
       {/* ── Password Modal ── */}
@@ -731,6 +733,15 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE, onProfi
             </div>
           </div>
         </div>
+      )}
+
+      {showSupport && (
+        <CustomerSupportModal
+          user={user}
+          defaultServiceKey="exam_11408"
+          sourcePage="11408 / 个人主页"
+          onClose={() => setShowSupport(false)}
+        />
       )}
     </div>
   );

@@ -872,3 +872,29 @@ class PracticeImportJobOut(BaseModel):
     error_message: str | None = None
     result: dict | None = None
     created_at: str | None = None
+
+
+# ── Customer Support Tickets ───────────────────────────
+
+class SupportTicketCreate(BaseModel):
+    service_key: str = "general"
+    category: str = "other"
+    title: str = ""
+    description: str
+    source_url: str = ""
+    source_page: str = ""
+
+
+class SupportMessageCreate(BaseModel):
+    content: str
+
+
+class SupportResolutionConfirm(BaseModel):
+    resolved: bool
+    rating: int | None = None
+    feedback: str = ""
+    message: str = ""
+
+
+class SupportStatusUpdate(BaseModel):
+    status: str
