@@ -29123,7 +29123,7 @@ VALID_PLANS = ["free", "monthly", "quarterly", "full"]
 SERVICE_PLAN_LABELS = {
     "exam_11408": {"free": "普通用户", "monthly": "月度冲刺包", "quarterly": "季度强化包", "full": "全程备考包"},
     "course": {"free": "普通用户", "monthly": "月度学习包", "quarterly": "季度学习包", "full": "全程学习包"},
-    "programming": {"free": "普通用户", "monthly": "月度练习包", "quarterly": "季度练习包", "full": "年度提升包"},
+    "programming": {"free": "免费版", "monthly": "编程进阶月卡", "quarterly": "实验与算法强化季卡", "full": "编程全能年卡"},
 }
 
 
