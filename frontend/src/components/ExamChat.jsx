@@ -260,6 +260,14 @@ export default function ExamChat({
   hiddenInstruction = "",
   // Explicit service direction for backend quota enforcement ("programming").
   serviceKey = "",
+  // Hide the "AI 问答 · subject" / breadcrumb header (programming shows the
+  // chat workspace directly without repeating the course title).
+  hideHeader = false,
+  // Explicit material scope for the "引用资料" picker + upload. When provided
+  // it overrides the legacy subject-only material resolution, so programming
+  // materials stay isolated by service + language. Shape:
+  //   { course_id, subject_key, subject, track }
+  materialScope = null,
 }) {
   const isCourseMode = mode === "course_learning";
   const subjectLabel = isCourseMode
@@ -402,12 +410,20 @@ export default function ExamChat({
     setLibraryLoading(true);
     try {
       const query = new URLSearchParams({ username: user.username });
-      // Resolve subject for material filtering — prefer the stable scope identity
-      const resolvedSubject = scopeSubjectValue || courseName || courseId || displayCourseName
-        || (typeof courseName === 'string' ? courseName : '')
-        || (typeof courseId === 'string' ? courseId : '')
-        || (isCourseMode ? subjectLabel : "");
-      if (resolvedSubject) query.set("subject", resolvedSubject);
+      if (materialScope) {
+        // Programming (and any caller with an explicit material scope) filters
+        // by service + course, never by display subject.
+        if (materialScope.course_id) query.set("course_id", materialScope.course_id);
+        if (materialScope.subject_key) query.set("subject_key", materialScope.subject_key);
+        if (materialScope.track) query.set("track", materialScope.track);
+      } else {
+        // Legacy subject-only resolution (unchanged for existing callers).
+        const resolvedSubject = scopeSubjectValue || courseName || courseId || displayCourseName
+          || (typeof courseName === 'string' ? courseName : '')
+          || (typeof courseId === 'string' ? courseId : '')
+          || (isCourseMode ? subjectLabel : "");
+        if (resolvedSubject) query.set("subject", resolvedSubject);
+      }
       const res = await fetch(`${API_BASE}/materials?${query.toString()}`);
       const data = await res.json().catch(() => ({}));
       const materials = res.ok && Array.isArray(data.materials) ? data.materials : [];
@@ -419,7 +435,7 @@ export default function ExamChat({
     } finally {
       setLibraryLoading(false);
     }
-  }, [scopeSubjectValue, courseName, courseId, displayCourseName, isCourseMode, subjectLabel, user?.username]);
+  }, [materialScope, scopeSubjectValue, courseName, courseId, displayCourseName, isCourseMode, subjectLabel, user?.username]);
 
   const updateCurrentSessionId = useCallback((sessionId) => {
     const nextSessionId = sessionId === null || sessionId === undefined || sessionId === "" ? null : Number(sessionId);
@@ -607,7 +623,14 @@ export default function ExamChat({
         const formData = new FormData();
         formData.append("file", file);
         formData.append("username", user.username);
-        formData.append("subject", scopeSubjectValue || courseName || subjectLabel);
+        if (materialScope) {
+          formData.append("course_id", materialScope.course_id || "");
+          formData.append("subject_key", materialScope.subject_key || "");
+          formData.append("subject", materialScope.subject || "");
+          formData.append("track", materialScope.track || "");
+        } else {
+          formData.append("subject", scopeSubjectValue || courseName || subjectLabel);
+        }
         formData.append("save_to_materials", "true");
         const res = await fetch(`${API_BASE}/materials/upload`, {
           method: "POST",
@@ -946,12 +969,14 @@ export default function ExamChat({
       </aside>
 
       <section className="examchat-main-panel">
-        <header className="examchat-header">
-          <div>
-            <h2 className="examchat-title">{examCramMode ? subjectLabel : `AI 问答 · ${subjectLabel}`}</h2>
-            <p className="examchat-subtitle">{subtitleText}</p>
-          </div>
-        </header>
+        {!hideHeader && (
+          <header className="examchat-header">
+            <div>
+              <h2 className="examchat-title">{examCramMode ? subjectLabel : `AI 问答 · ${subjectLabel}`}</h2>
+              <p className="examchat-subtitle">{subtitleText}</p>
+            </div>
+          </header>
+        )}
 
         {error && (
           <div className="examchat-error">

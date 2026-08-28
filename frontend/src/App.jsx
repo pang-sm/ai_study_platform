@@ -4271,10 +4271,6 @@ function App() {
           <button className="programming-chat-back" type="button" onClick={() => setPage("programmingHome")}>
             ← 返回编程学习
           </button>
-          <div className="programming-chat-title">
-            <strong>编程 AI 问答</strong>
-            <span>{chatCtx.displayName}</span>
-          </div>
           {kpCtx && kpTitle && (
             <button
               className="programming-chat-kp-back"
@@ -4287,7 +4283,7 @@ function App() {
                 },
               })}
             >
-              返回知识点：{kpTitle}
+              返回知识点
             </button>
           )}
         </header>
@@ -4299,9 +4295,15 @@ function App() {
           subjectTitle={chatCtx.displayName}
           scopeSubject={chatCtx.scopeSubject}
           scopeCourse={chatCtx.scopeSubject}
-          contextDisplay={`编程学习 / ${chatCtx.displayName}`}
           hiddenInstruction={hiddenInstruction}
           serviceKey="programming"
+          hideHeader
+          materialScope={{
+            course_id: chatCtx.courseId,
+            subject_key: "programming",
+            subject: "programming",
+            track: "programming",
+          }}
           initialPrompt={initialPromptText ? { text: initialPromptText, nonce: kpTitle + "|" + kpChapter } : null}
         />
       </div>

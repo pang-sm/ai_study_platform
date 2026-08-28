@@ -2039,16 +2039,6 @@ export default function ProgrammingWorkbench({
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h7l2 3h9v9H3V7Z" /></svg>
               </button>
             )}
-              {onGoHome && (
-                <button
-                  type="button"
-                  className="pw-back-to-programming"
-                  data-action="back-programming-home"
-                  onClick={onGoHome}
-                >
-                  返回编程首页
-                </button>
-              )}
               <span className="pw-current-language">{language}</span>
             </div>
           </div>

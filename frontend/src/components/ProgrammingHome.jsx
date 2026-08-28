@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import "./ProgrammingHome.css";
 import ProgrammingWorkbench from "./ProgrammingWorkbench.jsx";
 import KnowledgeLearningPage from "./KnowledgeLearningPage.jsx";
+import ProgrammingMaterialsPage from "./ProgrammingMaterialsPage.jsx";
 import { getExerciseDescription, getExerciseTitle } from "./programmingExerciseCopy.js";
 import ProgrammingProfileTrigger from "./ProgrammingProfileTrigger.jsx";
 import FirstTimeGuideLauncher from "./FirstTimeGuideLauncher.jsx";
@@ -12,6 +13,7 @@ const NAV_ITEMS = [
   { key: "status", label: "知识点学习", icon: "chart" },
   { key: "workbench", label: "编程工作台", icon: "terminal" },
   { key: "questions", label: "题库", icon: "list" },
+  { key: "materials", label: "资料库", icon: "folder" },
   { key: "chat", label: "AI问答", icon: "chat" },
 ];
 
@@ -120,8 +122,7 @@ function ExerciseLibrary({ user, apiBase, onStart }) {
   };
   return (
     <section className="ph-exercise-panel">
-      <div className="ph-library-head">
-        <div><h2>编程题库</h2><p>包含标准输入输出原创 OJ 题与经典练习，做题后直接进入对应 Workbench。</p></div>
+      <div className="ph-library-head ph-library-head--end">
         <button type="button" onClick={() => setRefreshKey((value) => value + 1)} disabled={loading}>刷新</button>
       </div>
       <div className="ph-exercise-filters">
@@ -309,6 +310,16 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage, guide
           onNavigateToAI={(ctx) => openAIChat(knowledgeLanguage, ctx)}
           initialChapterCode={knowledgeDeepLinkTarget?.chapterCode || ""}
           initialNodeCode={knowledgeDeepLinkTarget?.nodeCode || ""}
+        />
+      );
+    }
+    if (activeNav === "materials") {
+      return (
+        <ProgrammingMaterialsPage
+          user={user}
+          apiBase={apiBase}
+          language={knowledgeLanguage}
+          onLanguageChange={setKnowledgeLanguage}
         />
       );
     }

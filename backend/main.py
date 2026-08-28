@@ -122,32 +122,54 @@ EXAM_MATERIAL_SCOPE_NAMES = {
     "computer_network": "计算机网络",
 }
 
+# Stable programming language course ids (mirrors frontend programmingCourses.js).
+PROGRAMMING_COURSE_IDS = {"c_programming", "cpp_programming", "python_programming", "java_programming"}
+PROGRAMMING_COURSE_ID_TO_DISPLAY = {
+    course_id: display for display, course_id in COURSE_LEARNING_ID_MAP.items()
+    if course_id in PROGRAMMING_COURSE_IDS
+}
 
-def resolve_material_scope(course_id: str, subject_key: str = "", subject: str = "") -> dict:
+
+def resolve_material_scope(course_id: str, subject_key: str = "", subject: str = "", track: str = "") -> dict:
     """Resolve one material-library identity and reject ambiguous input."""
     raw_course_id = (course_id or "").strip()
     raw_subject_key = (subject_key or "").strip()
     raw_subject = (subject or "").strip()
+    raw_track = (track or "").strip()
     if not raw_course_id:
         raise HTTPException(status_code=400, detail="course_id is required; the server will not choose a fallback course")
+
+    # Programming direction keeps its own isolated scope: service "programming"
+    # + a stable language course_id (python_programming / java_programming / ...).
+    # This must NOT be inferred from a display name or silently fall back to a
+    # course_learning subject.
+    if raw_track == "programming":
+        if raw_course_id not in PROGRAMMING_COURSE_IDS:
+            raise HTTPException(status_code=400, detail="unknown programming course_id")
+        return {
+            "course_id": raw_course_id,
+            "subject_key": "programming",
+            "subject": PROGRAMMING_COURSE_ID_TO_DISPLAY.get(raw_course_id, raw_course_id),
+            "track": "programming",
+        }
 
     display_by_id = {course_key: display for display, course_key in COURSE_LEARNING_ID_MAP.items()}
     if raw_course_id in display_by_id:
         expected_key = raw_course_id
         expected_subject = display_by_id[raw_course_id]
-        track = "course_learning"
+        resolved_track = "course_learning"
     elif raw_course_id.endswith("_11408") and raw_course_id[:-6] in EXAM_MATERIAL_SCOPE_NAMES:
         expected_key = raw_course_id[:-6]
         expected_subject = f"11408 {EXAM_MATERIAL_SCOPE_NAMES[expected_key]}"
-        track = "exam_11408"
+        resolved_track = "exam_11408"
     elif raw_course_id == "programming":
         expected_key = "programming"
         expected_subject = "programming"
-        track = "programming"
+        resolved_track = "programming"
     elif raw_course_id == "legacy_computer_system_basics":
         expected_key = raw_course_id
         expected_subject = "计算系统基础"
-        track = "legacy"
+        resolved_track = "legacy"
     else:
         raise HTTPException(status_code=400, detail="unknown course_id; a parent course or display name is not a valid material scope")
 
@@ -155,15 +177,20 @@ def resolve_material_scope(course_id: str, subject_key: str = "", subject: str =
         raise HTTPException(status_code=400, detail="subject_key does not match course_id")
     if raw_subject and _normalize_course_or_11408(raw_subject, default="") != expected_subject:
         raise HTTPException(status_code=400, detail="subject does not match course_id")
-    return {"course_id": raw_course_id, "subject_key": expected_key, "subject": expected_subject, "track": track}
+    return {"course_id": raw_course_id, "subject_key": expected_key, "subject": expected_subject, "track": resolved_track}
 
 
-def _material_domain(course_id: str | None) -> str:
-    """Derive the business domain of a stored material from its course_id.
+def _material_domain(course_id: str | None, subject_key: str | None = None) -> str:
+    """Derive the business domain of a stored material from its scope.
 
-    Two materials with the same file hash may coexist across domains
-    (exam_11408 vs course_learning); duplicate detection is scoped by domain.
+    Programming materials are identified by subject_key == "programming" so a
+    programming course (python_programming) never collides with the same course
+    id in course_learning. Two materials with the same file hash may coexist
+    across domains (exam_11408 vs course_learning vs programming).
     """
+    skey = (subject_key or "").strip()
+    if skey == "programming":
+        return "programming"
     cid = (course_id or "").strip()
     if cid.endswith("_11408") and cid[:-6] in EXAM_MATERIAL_SCOPE_NAMES:
         return "exam_11408"
@@ -192,7 +219,7 @@ def _material_quota_for_service(db: Session, user: models.User, service_key: str
     limits = get_material_plan_limits(service_key, plan)
     domain = service_key
     rows = (
-        db.query(models.StudyMaterial.course_id, models.StudyMaterial.file_size)
+        db.query(models.StudyMaterial.course_id, models.StudyMaterial.subject_key, models.StudyMaterial.file_size)
         .filter(
             models.StudyMaterial.username == user.username,
             models.StudyMaterial.is_deleted.is_(False),
@@ -200,7 +227,7 @@ def _material_quota_for_service(db: Session, user: models.User, service_key: str
         .all()
     )
     used_bytes = sum(
-        (int(row.file_size) or 0) for row in rows if _material_domain(row.course_id) == domain
+        (int(row.file_size) or 0) for row in rows if _material_domain(row.course_id, row.subject_key) == domain
     )
     limit_bytes = limits["material_storage_limit_mb"] * 1024 * 1024
     return {
@@ -8357,6 +8384,7 @@ async def upload_material(
     course_id: str = Form(...),
     subject_key: str = Form(...),
     subject: str = Form(""),
+    track: str = Form(""),
     question: str = Form(""),
     conversation_id: int | None = Form(None),
     save_to_materials: bool = Form(False),
@@ -8371,12 +8399,12 @@ async def upload_material(
     ensure_feature_enabled(db, "feature_material_upload_enabled", "资料上传功能暂时维护中，请稍后再试")
 
     user = current_user
-    material_scope = resolve_material_scope(course_id, subject_key, subject)
+    material_scope = resolve_material_scope(course_id, subject_key, subject, track)
     normalized_subject = material_scope["subject"]
     normalized_source_type = normalize_material_source_type(source_type)
     if material_scope["track"] == "course_learning":
-        track = get_user_track(db, user.id, "university_course")
-        selected_courses = get_course_learning_selected_courses(user, track)
+        user_track = get_user_track(db, user.id, "university_course")
+        selected_courses = get_course_learning_selected_courses(user, user_track)
         if normalized_subject not in selected_courses:
             raise HTTPException(status_code=403, detail="course_id is not selected by the current user")
 
@@ -8390,7 +8418,7 @@ async def upload_material(
 
     # Per-domain storage used (SUM of active file sizes for this business domain).
     user_material_rows = (
-        db.query(models.StudyMaterial.course_id, models.StudyMaterial.file_size)
+        db.query(models.StudyMaterial.course_id, models.StudyMaterial.subject_key, models.StudyMaterial.file_size)
         .filter(
             models.StudyMaterial.username == user.username,
             models.StudyMaterial.is_deleted.is_(False),
@@ -8400,7 +8428,7 @@ async def upload_material(
     used_bytes = sum(
         (int(row.file_size) or 0)
         for row in user_material_rows
-        if _material_domain(row.course_id) == domain
+        if _material_domain(row.course_id, row.subject_key) == domain
     )
 
     # Check single-file size.
@@ -8446,7 +8474,7 @@ async def upload_material(
         # legitimately exist once per domain, but is rejected within a domain.
         existing_materials = get_materials_by_file_hash(db, user.username, file_hash)
         same_domain = next(
-            (m for m in existing_materials if _material_domain(m.course_id) == domain),
+            (m for m in existing_materials if _material_domain(m.course_id, m.subject_key) == domain),
             None,
         )
         if same_domain:
@@ -8976,14 +9004,17 @@ def search_materials(
 
 
 @app.get("/materials")
-def get_materials(username: str = "", course_id: str = "", subject_key: str = "", subject: str | None = None, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+def get_materials(username: str = "", course_id: str = "", subject_key: str = "", subject: str | None = None, track: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     assert_username_matches_current_user(username, current_user)
     user = current_user
     query = query_accessible_materials(db, user.username)
 
-    if course_id or subject_key:
-        scope = resolve_material_scope(course_id, subject_key, subject or "")
-        query = query.filter(models.StudyMaterial.course_id == scope["course_id"])
+    if course_id or subject_key or track:
+        scope = resolve_material_scope(course_id, subject_key, subject or "", track)
+        query = query.filter(
+            models.StudyMaterial.course_id == scope["course_id"],
+            models.StudyMaterial.subject_key == scope["subject_key"],
+        )
     elif subject:
         raise HTTPException(status_code=400, detail="course_id and subject_key are required for a scoped material list")
 
@@ -10633,7 +10664,7 @@ def get_programming_project_file_counts(db: Session, project_ids: list[int]) -> 
 def query_programming_materials(db: Session, username: str):
     return query_accessible_materials(db, username).filter(
         models.StudyMaterial.username == username,
-        models.StudyMaterial.subject == "programming",
+        models.StudyMaterial.subject_key == "programming",
         models.StudyMaterial.visibility == PRIVATE_VISIBILITY,
         models.StudyMaterial.source_type.in_(list(USER_MANAGED_MATERIAL_SOURCES)),
     )
