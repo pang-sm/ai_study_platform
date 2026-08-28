@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { switchLearningDirection } from "../utils/serviceSwitch.js";
 import { resolveMediaUrl } from "../utils/mediaUrl.js";
+import EmailBindingModal from "./EmailBindingModal.jsx";
 
 const EXAM_408_SCHOOLS = [
   "北京大学", "南京大学", "浙江大学", "上海交通大学",
@@ -699,27 +700,14 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE, onProfi
         </div>
       )}
 
-      {/* ── Email Modal ── */}
-      {emailModal && (
-        <div className="eh-modal-backdrop" onClick={() => setEmailModal(false)}>
-          <div className="eh-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="eh-modal-head"><h3>绑定邮箱</h3><button type="button" className="eh-modal-close" onClick={() => setEmailModal(false)}>×</button></div>
-            {emailErr && <div className="ob-error" style={{ marginBottom: 12 }}>{emailErr}</div>}
-            {emailMsg && <div className="admin-dashboard-success" style={{ marginBottom: 12 }}>{emailMsg}</div>}
-            <label className="ob-label">邮箱地址</label>
-            <input className="ep-modal-input" style={{ marginBottom: 14 }} value={emailForm.email} placeholder="请输入邮箱地址" onChange={(e) => setEmailForm((p) => ({ ...p, email: e.target.value }))} />
-            <label className="ob-label">验证码</label>
-            <div className="ob-row" style={{ marginBottom: 16 }}>
-              <input className="ep-modal-input" style={{ flex: 1 }} value={emailForm.code} placeholder="请输入验证码" onChange={(e) => setEmailForm((p) => ({ ...p, code: e.target.value }))} />
-              <button type="button" className="ob-btn-secondary" style={{ width: 120, height: 44, flexShrink: 0 }} onClick={sendEmailCode} disabled={emailSending}>{emailSending ? "发送中..." : "发送验证码"}</button>
-            </div>
-            <div className="eh-modal-actions">
-              <button type="button" className="ob-btn-secondary" onClick={() => setEmailModal(false)}>取消</button>
-              <button type="button" className="ob-btn-primary" onClick={bindEmail} disabled={emailBinding}>{emailBinding ? "绑定中..." : "确认绑定"}</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ── Email Modal (shared, bind-once) ── */}
+      <EmailBindingModal
+        open={emailModal}
+        user={user}
+        apiBase={API_BASE}
+        onClose={() => setEmailModal(false)}
+        onBound={(email) => onProfileUpdate?.({ email, email_verified: true })}
+      />
       {PHONE_BINDING_UI_ENABLED && phoneModal && (
         <div className="eh-modal-backdrop" onClick={() => !phoneBinding && setPhoneModal(false)}>
           <div className="eh-modal" onClick={(e) => e.stopPropagation()}>

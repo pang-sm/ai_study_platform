@@ -272,7 +272,7 @@ export default function ProfilePage({ user, apiBase, onLogout, setPage, onProfil
         <div className="pp-overlay">
           <div className="pp-modal pp-modal-pwd" onClick={e => e.stopPropagation()}>
             <div className="pp-modal-header">
-              <div><h2>{profile.email?"更换邮箱":"绑定邮箱"}</h2><p>输入邮箱地址并验证</p></div>
+              <div><h2>绑定邮箱</h2><p>输入邮箱地址并验证</p></div>
               <button className="pp-modal-close" onClick={()=>{setEmailOpen(false);setEmailForm({email:"",code:""});setEmailCountdown(0);}}>×</button>
             </div>
             <div className="pp-modal-body">
