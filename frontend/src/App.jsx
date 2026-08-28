@@ -4389,6 +4389,19 @@ function App() {
         handleProgrammingFileChange={handleProgrammingFileChange}
         deleteMaterial={deleteMaterial}
         reindexLibrary={reindexLibrary}
+        materialSortMode={materialSortMode}
+        setMaterialSortMode={setMaterialSortMode}
+        materialCurrentPage={materialCurrentPage}
+        setMaterialCurrentPage={setMaterialCurrentPage}
+        materialSearchLoading={materialSearchLoading}
+        materialSearchResults={materialSearchResults}
+        selectedMaterialDetail={selectedMaterialDetail}
+        materialsFileInputRef={materialsFileInputRef}
+        openMaterialDetail={openMaterialDetail}
+        previewMaterial={previewMaterial}
+        downloadMaterial={downloadMaterial}
+        reparseMaterial={reparseMaterial}
+        searchMaterials={searchMaterials}
       />
     );
   }

@@ -153,7 +153,7 @@ function ExerciseLibrary({ user, apiBase, onStart }) {
   );
 }
 
-export default function ProgrammingHome({ user, apiBase = "/api", setPage, guideReplayToken = 0, knowledgeDeepLink = null, programmingRoute = null, onProgrammingRouteChange = null, materials = [], materialsLoading = false, loadProgrammingMaterials = null, handleProgrammingFileChange = null, deleteMaterial = null, reindexLibrary = null }) {
+export default function ProgrammingHome({ user, apiBase = "/api", setPage, guideReplayToken = 0, knowledgeDeepLink = null, programmingRoute = null, onProgrammingRouteChange = null, materials = [], materialsLoading = false, loadProgrammingMaterials = null, handleProgrammingFileChange = null, deleteMaterial = null, reindexLibrary = null, materialSortMode = "newest", setMaterialSortMode = null, materialCurrentPage = 1, setMaterialCurrentPage = null, materialSearchLoading = false, materialSearchResults = [], selectedMaterialDetail = null, materialsFileInputRef = null, openMaterialDetail = null, previewMaterial = null, downloadMaterial = null, reparseMaterial = null, searchMaterials = null }) {
   const savedPractice = readCurrentPractice(user?.username);
   const [activeNav, setActiveNav] = useState(() => {
     if (programmingRoute?.section) return SECTION_TO_NAV[programmingRoute.section] || "home";
@@ -369,10 +369,24 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage, guide
           materialCourseId={course.courseId}
           materials={materials}
           materialsLoading={materialsLoading}
-          loadMaterials={() => loadProgrammingMaterials?.(course.courseId)}
+          reindexLoading={false}
+          materialSortMode={materialSortMode}
+          setMaterialSortMode={setMaterialSortMode}
+          materialCurrentPage={materialCurrentPage}
+          setMaterialCurrentPage={setMaterialCurrentPage}
+          materialSearchLoading={materialSearchLoading}
+          materialSearchResults={materialSearchResults}
+          selectedMaterialDetail={selectedMaterialDetail}
+          materialsFileInputRef={materialsFileInputRef}
           handleFileChange={(event) => handleProgrammingFileChange?.(course.courseId, event)}
-          deleteMaterial={deleteMaterial}
+          loadMaterials={() => loadProgrammingMaterials?.(course.courseId)}
+          searchMaterials={searchMaterials}
           reindexLibrary={() => reindexLibrary?.(course.courseId)}
+          openMaterialDetail={openMaterialDetail}
+          previewMaterial={previewMaterial}
+          downloadMaterial={downloadMaterial}
+          reparseMaterial={reparseMaterial}
+          deleteMaterial={deleteMaterial}
           setPage={setPage}
         />
       );
