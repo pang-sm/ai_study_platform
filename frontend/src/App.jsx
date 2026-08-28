@@ -1375,6 +1375,13 @@ function App() {
     if (loginUser?.needs_onboarding === true || loginUser?.onboarding_completed === false) {
       return "onboarding";
     }
+    // A programming URL is authoritative and must be checked BEFORE the saved
+    // page, otherwise a stale localStorage "programmingHome" would override a
+    // direct /programming/.../chat URL and land on the wrong section.
+    {
+      const programmingPage = getProgrammingPageForRoute();
+      if (programmingPage) return programmingPage;
+    }
     if (restoredPage === "programmingPackageStep") {
       if (loginUser?.active_track_type === "exam_408") return "examHome";
       if (loginUser?.active_track_type === "university_course") return "home";
@@ -1383,14 +1390,6 @@ function App() {
     const isSavedAdminPage = ADMIN_PAGES.includes(restoredPage);
     if (restoredPage && VALID_PAGES.has(restoredPage) && restoredPage !== "login" && restoredPage !== "adminLogin" && restoredPage !== "onboarding" && !isSavedAdminPage) {
       return restoredPage;
-    }
-    // A programming URL is authoritative — never redirect a programming page to
-    // another service, even if the user's stored active_track_type is not
-    // "programming". Unknown programming params surface as a programming error
-    // page, not a cross-service fallback.
-    {
-      const programmingPage = getProgrammingPageForRoute();
-      if (programmingPage) return programmingPage;
     }
     // Route users based on tracks data (new system) or learning_goal_type (legacy)
     const activeTrack = loginUser?.active_track_type || loginUser?.learning_goal_type || "";
@@ -1691,7 +1690,7 @@ function App() {
   };
 
   // ── Programming material library (shared StudyMaterial domain, programming scope) ──
-  const loadProgrammingMaterials = async (courseId) => {
+  const loadProgrammingMaterials = useCallback(async (courseId) => {
     if (!user?.username || !courseId) return;
     const requestId = materialLoadRequestRef.current + 1;
     materialLoadRequestRef.current = requestId;
@@ -1716,7 +1715,7 @@ function App() {
         setMaterialsLoading(false);
       }
     }
-  };
+  }, [user?.username]);
 
   const handleProgrammingFileChange = (courseId, event) => {
     const files = Array.from(event.target.files || []);
