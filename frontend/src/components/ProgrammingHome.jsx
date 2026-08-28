@@ -63,6 +63,7 @@ function ExerciseLibrary({ user, apiBase, onStart }) {
   const [tag, setTag] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [sourceFilter, setSourceFilter] = useState("");
+  const [difficultyFilter, setDifficultyFilter] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(12);
   const [paging, setPaging] = useState({ total: 0, total_pages: 1 });
@@ -82,6 +83,7 @@ function ExerciseLibrary({ user, apiBase, onStart }) {
         if (tag.trim()) query.set("tag", tag.trim());
         if (statusFilter) query.set("status", statusFilter);
         if (sourceFilter) query.set("source", sourceFilter);
+        if (difficultyFilter) query.set("difficulty", difficultyFilter);
         const res = await fetch(`${apiBase}/programming/exercises?${query}`, { signal: controller.signal });
         const data = await safeJson(res);
         if (!res.ok) throw new Error(data.detail || "题库加载失败");
@@ -101,7 +103,7 @@ function ExerciseLibrary({ user, apiBase, onStart }) {
     };
     void loadExercises();
     return () => controller.abort();
-  }, [apiBase, language, tag, statusFilter, sourceFilter, page, pageSize, refreshKey, user?.username]);
+  }, [apiBase, language, tag, statusFilter, sourceFilter, difficultyFilter, page, pageSize, refreshKey, user?.username]);
   const start = async (exercise) => {
     setLoading(true);
     setError("");
@@ -131,6 +133,7 @@ function ExerciseLibrary({ user, apiBase, onStart }) {
       </div>
       {error && <div className="ph-error">{error}</div>}
       <div className="ph-exercise-filters ph-exercise-status-filters">
+        <select value={difficultyFilter} onChange={(event) => { setDifficultyFilter(event.target.value); setPage(1); }}><option value="">全部难度</option><option value="基础">基础</option><option value="中等">中等</option><option value="进阶">进阶</option></select>
         <select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }}><option value="">全部状态</option><option value="needs_improvement">待改进</option><option value="not_started">未开始</option><option value="passed">已通过</option></select>
         <select value={sourceFilter} onChange={(event) => { setSourceFilter(event.target.value); setPage(1); }}><option value="">全部题源</option><option value="first_party_original">原创题目</option><option value="classic_exercise">经典练习</option></select>
         <select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }}><option value={12}>12/页</option><option value={24}>24/页</option><option value={48}>48/页</option></select>

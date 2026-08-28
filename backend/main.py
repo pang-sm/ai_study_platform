@@ -10677,6 +10677,16 @@ def serialize_programming_recent_item(item_type: str, payload: dict):
     }
 
 
+# Stable difficulty tiers exposed by the programming question bank. Each tier
+# maps to the real `ProgrammingExercise.difficulty` values so filtering never
+# guesses difficulty from the title.
+PROGRAMMING_DIFFICULTY_TIERS = {
+    "基础": ["入门", "简单", "基础"],
+    "中等": ["中等"],
+    "进阶": ["进阶", "困难", "挑战"],
+}
+
+
 @app.get("/programming/exercises")
 def list_programming_exercises(language: str | None = None, difficulty: str | None = None, tag: str | None = None,
                                keyword: str | None = None, knowledge_point: str | None = None,
@@ -10694,7 +10704,11 @@ def list_programming_exercises(language: str | None = None, difficulty: str | No
     if language:
         query = query.filter(models.ProgrammingExercise.language == normalize_project_language(language))
     if difficulty:
-        query = query.filter(models.ProgrammingExercise.difficulty == difficulty)
+        tier_values = PROGRAMMING_DIFFICULTY_TIERS.get(difficulty)
+        if tier_values:
+            query = query.filter(models.ProgrammingExercise.difficulty.in_(tier_values))
+        else:
+            query = query.filter(models.ProgrammingExercise.difficulty == difficulty)
     page = max(1, int(page or 1))
     page_size = min(48, max(12, int(page_size or 12)))
     rows = query.order_by(models.ProgrammingExercise.language, models.ProgrammingExercise.id).all()
@@ -28295,14 +28309,39 @@ def admin_dashboard(admin_username: str = "", db: Session = Depends(get_db)):
             "learning_hours": round(learning_minutes / 60, 1),
         })
 
+    ai_usage_trend = []
+    for offset in range(6, -1, -1):
+        day_start = today_start - timedelta(days=offset)
+        next_day = day_start + timedelta(days=1)
+        count = (
+            db.query(models.AiUsageLog)
+            .filter(
+                models.AiUsageLog.status == "success",
+                models.AiUsageLog.created_at >= day_start,
+                models.AiUsageLog.created_at < next_day,
+            )
+            .count()
+        )
+        ai_usage_trend.append({"date": day_start.strftime("%m-%d"), "count": count})
+
+    support_summary = {
+        "unread": db.query(models.SupportTicket).filter(models.SupportTicket.admin_read == False).count(),
+        "pending": db.query(models.SupportTicket).filter(models.SupportTicket.status == "pending").count(),
+        "in_progress": db.query(models.SupportTicket).filter(models.SupportTicket.status == "in_progress").count(),
+        "waiting_confirmation": db.query(models.SupportTicket).filter(models.SupportTicket.status == "waiting_confirmation").count(),
+    }
+
     return {
         "overview": {
             "total_users": total_users,
             "total_courses": total_courses,
             "average_learning_hours": round(float(average_daily_minutes) / 60, 1),
             "active_users_today": active_users_today,
+            "today_ai_calls": today_ai_calls,
         },
         "user_growth": user_growth,
+        "ai_usage_trend": ai_usage_trend,
+        "support_summary": support_summary,
         "announcements": announcements,
         "recent_users": recent_user_rows,
     }
@@ -31203,6 +31242,61 @@ def admin_announcements_delete(a_id: int, admin_username: str, db: Session = Dep
 def public_announcements(db: Session = Depends(get_db)):
     items = db.query(models.SystemAnnouncement).filter(models.SystemAnnouncement.is_active == 1).order_by(models.SystemAnnouncement.created_at.desc()).limit(5).all()
     return {"items": [{"id": a.id, "title": a.title, "content": a.content, "type": a.type, "target": a.target} for a in items]}
+
+
+def _serialize_user_announcement(a):
+    return {
+        "id": a.id,
+        "title": a.title,
+        "content": a.content,
+        "type": a.type or "info",
+        "target": a.target or "all",
+        "created_at": serialize_datetime(a.created_at),
+    }
+
+
+@app.get("/announcements/unread")
+def my_unread_announcements(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    read_ids = {
+        row.announcement_id
+        for row in db.query(models.AnnouncementRead)
+        .filter(models.AnnouncementRead.user_id == current_user.id)
+        .all()
+    }
+    rows = (
+        db.query(models.SystemAnnouncement)
+        .filter(
+            models.SystemAnnouncement.is_active == 1,
+            models.SystemAnnouncement.withdrawn_at.is_(None),
+        )
+        .order_by(models.SystemAnnouncement.created_at.asc())
+        .all()
+    )
+    unread = [a for a in rows if a.id not in read_ids]
+    return {"items": [_serialize_user_announcement(a) for a in unread]}
+
+
+@app.post("/announcements/{a_id}/read")
+def mark_announcement_read(a_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    ann = db.query(models.SystemAnnouncement).filter(models.SystemAnnouncement.id == a_id).first()
+    if not ann:
+        raise HTTPException(status_code=404, detail="公告不存在")
+    now = utc_now()
+    record = (
+        db.query(models.AnnouncementRead)
+        .filter(
+            models.AnnouncementRead.user_id == current_user.id,
+            models.AnnouncementRead.announcement_id == a_id,
+        )
+        .first()
+    )
+    if record:
+        record.read_at = record.read_at or now
+        record.dismissed_at = now
+    else:
+        db.add(models.AnnouncementRead(user_id=current_user.id, announcement_id=a_id, read_at=now, dismissed_at=now))
+    db.commit()
+    return {"success": True}
 
 
 # ── Admin: Settings ───────────────────────────────────

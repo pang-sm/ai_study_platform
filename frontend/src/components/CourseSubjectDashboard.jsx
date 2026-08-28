@@ -202,19 +202,32 @@ function getTaskStatus(task) {
   return STATUS_LABELS[task.status] || textValue(task.status_label, task.statusLabel, task.status, "待安排");
 }
 
-function buildCramPrompt(kind, courseName, questionTypes, hasExamMaterials = false) {
+function buildCramPrompt(kind, courseName, questionTypes, materialContext = "") {
   const topics = questionTypes
     .flatMap((type) => [type.title, ...(type.examples || [])])
     .filter(Boolean)
     .slice(0, 10)
     .join("、");
-  const materialHint = hasExamMaterials
-    ? "请优先结合已上传的考试范围和往年卷；如果资料不足，再按课程常见期末题型补充。"
+  const materialHint = materialContext
+    ? `以下是用户已上传的考试范围与往年卷内容（请严格基于这些资料作答，不要编造资料中没有的信息）：\n${materialContext}\n\n`
     : "";
   if (kind === "prediction") {
     return `${materialHint}请根据${courseName}课程的考试突击场景，总结最值得优先复习的高频考点、典型题型和易错点，覆盖${topics}，并按优先级输出。`;
   }
   return `${materialHint}请根据${courseName}课程的期末考试突击场景，生成一套 10 分钟考前自测题，覆盖${topics}，并附参考答案。`;
+}
+
+function buildCramMaterialContext(examSummary) {
+  const lines = [];
+  (examSummary?.examScopes || []).forEach((m, i) => {
+    const summary = String(m?.summary || "").trim();
+    if (summary) lines.push(`【考试范围 ${i + 1}】${m.original_filename || ""}\n${summary.slice(0, 800)}`);
+  });
+  (examSummary?.pastPapers || []).forEach((m, i) => {
+    const summary = String(m?.summary || "").trim();
+    if (summary) lines.push(`【往年卷 ${i + 1}】${m.original_filename || ""}\n${summary.slice(0, 800)}`);
+  });
+  return lines.join("\n\n");
 }
 
 function enrichQuestionType(type) {
@@ -619,7 +632,7 @@ export default function CourseSubjectDashboard({
   const openAiWithPrompt = (kind) => {
     setChatPromptIntent({
       nonce: Date.now(),
-      text: buildCramPrompt(kind, courseName, questionTypes, hasExamMaterials),
+      text: buildCramPrompt(kind, courseName, questionTypes, buildCramMaterialContext(examMaterialSummary)),
     });
     setActiveSection("chat");
   };

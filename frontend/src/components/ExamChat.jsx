@@ -623,11 +623,24 @@ export default function ExamChat({
         const formData = new FormData();
         formData.append("file", file);
         formData.append("username", user.username);
-        if (materialScope) {
-          formData.append("course_id", materialScope.course_id || "");
-          formData.append("subject_key", materialScope.subject_key || "");
-          formData.append("subject", materialScope.subject || "");
-          formData.append("track", materialScope.track || "");
+        const uploadScope = materialScope || (isCourseMode
+          ? {
+              course_id: (scopeCourse || scopeSubject || courseId || "").trim(),
+              subject_key: (scopeCourse || scopeSubject || courseId || "").trim(),
+              subject: scopeSubjectValue,
+              track: "course_learning",
+            }
+          : {
+              course_id: subjectKey ? `${subjectKey}_11408` : "",
+              subject_key: subjectKey || "",
+              subject: courseName || `11408 ${subjectLabel}`,
+              track: "exam_11408",
+            });
+        if (uploadScope?.course_id) {
+          formData.append("course_id", uploadScope.course_id);
+          formData.append("subject_key", uploadScope.subject_key || "");
+          formData.append("subject", uploadScope.subject || "");
+          formData.append("track", uploadScope.track || "");
         } else {
           formData.append("subject", scopeSubjectValue || courseName || subjectLabel);
         }

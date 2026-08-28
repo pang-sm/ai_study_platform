@@ -237,10 +237,10 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
 
   const overview = dashboard?.overview || {};
   const statCards = useMemo(() => ([
-    { label: "用户总数", value: formatNumber(overview.total_users), sub: "当前数据库统计", icon: "U", tone: "purple" },
-    { label: "课程总数", value: formatNumber(overview.total_courses), sub: "资料与知识点关联课程", icon: "C", tone: "blue" },
-    { label: "平均学习时长", value: `${formatNumber(overview.average_learning_hours, 1)} 小时`, sub: "按用户学习时长计算", icon: "H", tone: "green" },
-    { label: "今日活跃用户", value: formatNumber(overview.active_users_today), sub: "今日 AI 活动用户数", icon: "A", tone: "orange" },
+    { label: "用户总数", value: formatNumber(overview.total_users), sub: "已注册用户", icon: "U", tone: "purple" },
+    { label: "今日活跃", value: formatNumber(overview.active_users_today), sub: "今日 AI 活跃用户", icon: "A", tone: "blue" },
+    { label: "课程数", value: formatNumber(overview.total_courses), sub: "资料与知识点课程", icon: "C", tone: "green" },
+    { label: "今日 AI 调用", value: formatNumber(overview.today_ai_calls), sub: "今日成功 AI 调用", icon: "⚡", tone: "orange" },
   ]), [overview]);
 
   const memberRows = (membersData?.items || []).filter((item) => item.plan && item.plan !== "free");
@@ -504,7 +504,7 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
         {statCards.map((card) => (
           <div className="admin-dashboard-stat" key={card.label}>
             <span className={`admin-dashboard-stat-icon admin-dashboard-stat-icon--${card.tone}`}>{card.icon}</span>
-            <div>
+            <div className="admin-dashboard-stat-body">
               <span>{card.label}</span>
               <strong>{card.value}</strong>
               <em>{card.sub}</em>
@@ -522,24 +522,52 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
           <TrendChart data={dashboard?.user_growth || []} emptyDescription="有用户注册数据后会展示近 7 天趋势。" />
         </div>
 
-        <div className="admin-dashboard-card">
+        <div className="admin-dashboard-card admin-dashboard-chart-card">
           <div className="admin-dashboard-card-head">
-            <h2>系统公告</h2>
+            <h2>AI 使用趋势</h2>
+            <span className="admin-dashboard-filter">近7天</span>
           </div>
-          {(dashboard?.announcements || []).length > 0 ? (
-            <div className="admin-dashboard-announcements">
-              {(dashboard?.announcements || []).map((item) => (
-                <div className="admin-dashboard-announcement" key={`${item.title}-${item.date}`}>
-                  <span>•</span>
-                  <strong>{item.title}</strong>
-                  <time>{formatDateTime(item.date).slice(0, 10)}</time>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <EmptyState title="暂无公告" description="暂无公告，发布系统公告后会展示在这里。" />
-          )}
+          <TrendChart data={dashboard?.ai_usage_trend || []} emptyDescription="有 AI 调用记录后会展示近 7 天趋势。" />
         </div>
+      </section>
+
+      <section className="admin-dashboard-card">
+        <div className="admin-dashboard-card-head">
+          <h2>待处理事项</h2>
+        </div>
+        <div className="admin-dashboard-todo-grid">
+          <button type="button" className="admin-dashboard-todo" onClick={() => navigate("adminFeedback")}>
+            <strong>{formatNumber(dashboard?.support_summary?.unread)}</strong>
+            <span>用户反馈未读</span>
+          </button>
+          <button type="button" className="admin-dashboard-todo" onClick={() => navigate("adminFeedback")}>
+            <strong>{formatNumber(dashboard?.support_summary?.pending)}</strong>
+            <span>待处理工单</span>
+          </button>
+          <button type="button" className="admin-dashboard-todo" onClick={() => navigate("adminFeedback")}>
+            <strong>{formatNumber(dashboard?.support_summary?.waiting_confirmation)}</strong>
+            <span>等待用户确认</span>
+          </button>
+        </div>
+      </section>
+
+      <section className="admin-dashboard-card">
+        <div className="admin-dashboard-card-head">
+          <h2>系统公告</h2>
+        </div>
+        {(dashboard?.announcements || []).length > 0 ? (
+          <div className="admin-dashboard-announcements">
+            {(dashboard?.announcements || []).map((item) => (
+              <div className="admin-dashboard-announcement" key={`${item.title}-${item.date}`}>
+                <span>•</span>
+                <strong>{item.title}</strong>
+                <time>{formatDateTime(item.date).slice(0, 10)}</time>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyState title="暂无公告" description="暂无公告，发布系统公告后会展示在这里。" />
+        )}
       </section>
 
       <section className="admin-dashboard-card admin-dashboard-users-card">

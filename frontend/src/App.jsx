@@ -26,6 +26,7 @@ import ExamSubjectDashboard, { EXAM_SUBJECTS, getExamCourseId } from "./componen
 import MembershipPage from "./components/MembershipPage.jsx";
 import { notifyFeatureEntitlementsUpdated } from "./hooks/useFeatureEntitlements.js";
 import CheckoutPage from "./components/CheckoutPage.jsx";
+import AnnouncementModal from "./components/AnnouncementModal.jsx";
 
 const TaskCenter = lazy(() => import("./components/TaskCenter.jsx"));
 const PracticeCenter = lazy(() => import("./components/PracticeCenter.jsx"));
@@ -974,13 +975,11 @@ function App() {
   const [serviceSwitchOnboarding, setServiceSwitchOnboarding] = useState(null);
   const [publicFeatures, setPublicFeatures] = useState(null);
   const [userAnnouncements, setUserAnnouncements] = useState([]);
-  const [dismissedAnnounceIds, setDismissedAnnounceIds] = useState(() => {
-    try { return JSON.parse(sessionStorage.getItem("dismissed_announcements") || "[]"); } catch { return []; }
-  });
-  const dismissAnnounce = (id) => {
-    const next = [...dismissedAnnounceIds, id];
-    setDismissedAnnounceIds(next);
-    try { sessionStorage.setItem("dismissed_announcements", JSON.stringify(next)); } catch {}
+  const dismissAnnouncement = async (id) => {
+    try {
+      await fetch(`${API_BASE}/announcements/${id}/read`, { method: "POST", credentials: "include" });
+    } catch { /* ignore network errors; local state still clears */ }
+    setUserAnnouncements((prev) => prev.filter((a) => a.id !== id));
   };
 
   /** Normalize feature value: missing/error → true (default open), "false"/0 → false, "true"/1 → true */
@@ -1026,7 +1025,11 @@ function App() {
         }
       })
       .catch(() => setPublicFeatures(null));
-    fetch(`${API_BASE}/announcements/active`).then((r) => r.json()).then((d) => setUserAnnouncements(d.items || [])).catch(() => setUserAnnouncements([]));
+    if (user?.username) {
+      fetch(`${API_BASE}/announcements/unread`, { credentials: "include" }).then((r) => r.json()).then((d) => setUserAnnouncements(d.items || [])).catch(() => setUserAnnouncements([]));
+    } else {
+      setUserAnnouncements([]);
+    }
   }, [user?.username]);
 
   // Sync to window so other components can read without prop-drilling
@@ -3819,6 +3822,8 @@ function App() {
       setPage("programmingOnboarding");
     };
     return (
+      <>
+      <AnnouncementModal announcements={userAnnouncements} onDismiss={dismissAnnouncement} />
         <Onboarding
         user={user}
         onComplete={handleOnboardingComplete}
@@ -3834,6 +3839,7 @@ function App() {
           setPage(returnPage || "home");
         }}
       />
+      </>
     );
   }
 
@@ -3847,6 +3853,8 @@ function App() {
     };
     const isServiceSwitchProgrammingOnboarding = Boolean(serviceSwitchOnboarding?.fromServiceSwitch);
     return (
+      <>
+      <AnnouncementModal announcements={userAnnouncements} onDismiss={dismissAnnouncement} />
       <ProgrammingOnboardingStep
         user={user}
         apiBase={API_BASE}
@@ -3860,6 +3868,7 @@ function App() {
           setPage(returnPage || "programmingHome");
         } : undefined}
       />
+      </>
     );
   }
 
@@ -3904,6 +3913,8 @@ function App() {
       setPage(nextPage);
     };
     return (
+      <>
+      <AnnouncementModal announcements={userAnnouncements} onDismiss={dismissAnnouncement} />
       <ProgrammingPackageStep
         user={user}
         apiBase={API_BASE}
@@ -3917,6 +3928,7 @@ function App() {
           setPage(returnPage || "programmingHome");
         } : undefined}
       />
+      </>
     );
   }
 
@@ -3930,6 +3942,8 @@ function App() {
     };
     const isServiceSwitchCourseOnboarding = Boolean(serviceSwitchOnboarding?.fromServiceSwitch);
     return (
+      <>
+      <AnnouncementModal announcements={userAnnouncements} onDismiss={dismissAnnouncement} />
       <CourseLearningOnboarding
         user={user}
         apiBase={API_BASE}
@@ -3944,6 +3958,7 @@ function App() {
           setPage(returnPage || "home");
         } : undefined}
       />
+      </>
     );
   }
 
@@ -4009,6 +4024,8 @@ function App() {
       }
     };
     return (
+      <>
+      <AnnouncementModal announcements={userAnnouncements} onDismiss={dismissAnnouncement} />
       <CourseLearningPackageStep
         apiBase={API_BASE}
         initialPlan={courseOnboardingStatus?.plan || "quarterly"}
@@ -4022,39 +4039,25 @@ function App() {
           setPage(returnPage || "home");
         } : undefined}
       />
+      </>
     );
   }
 
   if (page === "courseLearningComplete") {
     return (
+      <>
+      <AnnouncementModal announcements={userAnnouncements} onDismiss={dismissAnnouncement} />
       <CourseLearningCompletePage
         onEnter={() => setPage(courseOnboardingTargetPage || "home")}
       />
+      </>
     );
   }
 
   const wrapPage = (children, layoutContext = {}) => {
-    const visibleAnnouncements = userAnnouncements.filter((a) => !dismissedAnnounceIds.includes(a.id));
     const content = (
       <>
-      {visibleAnnouncements.length > 0 && (
-        <div className="announce-banner-area">
-          {visibleAnnouncements.map((a) => {
-            const bg = a.type === "danger" ? "#fef2f2" : a.type === "warning" ? "#fffbeb" : a.type === "success" ? "#f0fdf4" : "#eff6ff";
-            const border = a.type === "danger" ? "#fecaca" : a.type === "warning" ? "#fde68a" : a.type === "success" ? "#bbf7d0" : "#bfdbfe";
-            const color = a.type === "danger" ? "#991b1b" : a.type === "warning" ? "#92400e" : a.type === "success" ? "#166534" : "#1e40af";
-            return (
-              <div key={a.id} className="announce-banner" style={{ background: bg, border: `1px solid ${border}`, color }}>
-                <div className="announce-banner-body">
-                  <strong className="announce-banner-title">{a.title}</strong>
-                  <span className="announce-banner-content">{a.content}</span>
-                </div>
-                <button className="announce-banner-close" onClick={() => dismissAnnounce(a.id)} title="关闭">×</button>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      <AnnouncementModal announcements={userAnnouncements} onDismiss={dismissAnnouncement} />
       {children}
       </>
     );

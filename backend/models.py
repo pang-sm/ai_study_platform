@@ -780,6 +780,23 @@ class SystemAnnouncement(Base):
     withdrawn_at = Column(DateTime, nullable=True)
 
 
+class AnnouncementRead(Base):
+    """Records that a user has read/dismissed a system announcement."""
+
+    __tablename__ = "announcement_reads"
+    __table_args__ = (
+        Index("idx_announcement_reads_user", "user_id"),
+        UniqueConstraint("user_id", "announcement_id", name="uq_announcement_read_user"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=False)
+    announcement_id = Column(Integer, ForeignKey("system_announcements.id"), index=True, nullable=False)
+    read_at = Column(DateTime, nullable=True)
+    dismissed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+
+
 class SystemSetting(Base):
     __tablename__ = "system_settings"
     key = Column(String(100), primary_key=True)
