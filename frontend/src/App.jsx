@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
 import AppLayout from "./components/AppLayout.jsx";
 import ChatMessage from "./components/ChatMessage.jsx";
