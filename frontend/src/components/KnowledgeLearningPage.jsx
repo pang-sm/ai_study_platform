@@ -347,6 +347,8 @@ export default function KnowledgeLearningPage({
   programmingLanguageTabs = false,
   programmingLanguage = "Python",
   onProgrammingLanguageChange,
+  initialChapterCode = "",      // deep-link: select this chapter once data loads
+  initialNodeCode = "",         // deep-link: select this knowledge point once data loads
 }) {
   const isCourseMode = mode === "course_learning";
   const courseId = isCourseMode
@@ -408,6 +410,38 @@ export default function KnowledgeLearningPage({
       alive = false;
     };
   }, [courseId, user?.username]);
+
+  // Deep-link: when data has loaded and an explicit chapter/knowledge point is
+  // requested, select it so the map opens at the exact node (not just the home).
+  useEffect(() => {
+    const chapters = data?.chapters || [];
+    if (!chapters.length) return;
+    const targetChapter = initialChapterCode
+      ? chapters.find((chapter) => chapter.code === initialChapterCode) || chapters[0]
+      : chapters[0];
+    if (targetChapter?.code) setActiveChapterCode(targetChapter.code);
+    if (!initialNodeCode) {
+      setSelectedNode(targetChapter || null);
+      return;
+    }
+    const findNode = (nodes) => {
+      for (const node of nodes || []) {
+        if (node.code === initialNodeCode || String(node.id) === String(initialNodeCode)) return node;
+        const found = findNode(node.children || []);
+        if (found) return found;
+      }
+      return null;
+    };
+    const targetNode = findNode(targetChapter?.children || []) || targetChapter || null;
+    if (targetNode) {
+      setSelectedNode(targetNode);
+      setExpandedIds((prev) => {
+        const next = new Set(prev);
+        collectExpandableIds(targetChapter?.children || [], 3).forEach((id) => next.add(id));
+        return next;
+      });
+    }
+  }, [data, initialChapterCode, initialNodeCode]);
 
   useEffect(() => {
     if (!programmingLanguageTabs) return undefined;
@@ -607,6 +641,7 @@ export default function KnowledgeLearningPage({
       source_page: "knowledge_map",
       chapter: selectedChapterName,
       chapterTitle: selectedChapterName,
+      chapter_code: activeChapter?.code || "",
       knowledge_point_code: detailNode.code || "",
       knowledgePointCode: detailNode.code || "",
       knowledge_point_title: nodeLabel(detailNode),
@@ -614,6 +649,7 @@ export default function KnowledgeLearningPage({
       is_leaf: detailIsLeaf,
       knowledgePointStatus: detailNode.status || "not_started",
       nodeKey: detailNode.id,
+      node_code: detailNode.code || "",
       title: nodeLabel(detailNode),
       aiPromptContext: `当前围绕知识点「${getDisplayCode(detailNode) || ""} ${normalizeTitle(nodeLabel(detailNode))}」进行提问；所属章节：${selectedChapterName}。`,
     });

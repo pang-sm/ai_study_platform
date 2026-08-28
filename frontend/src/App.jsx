@@ -16,6 +16,7 @@ import ProgrammingHome from "./components/ProgrammingHome.jsx";
 import ProgrammingProfile from "./components/ProgrammingProfile.jsx";
 
 import AIQuestionPage from "./components/AIQuestionPage.jsx";
+import ExamChat from "./components/ExamChat.jsx";
 import MaterialPickerModal from "./components/MaterialPickerModal.jsx";
 import ProfilePage from "./components/ProfilePage.jsx";
 import Onboarding from "./components/Onboarding.jsx";
@@ -53,6 +54,7 @@ import {
   normalizeSubject,
 } from "./courseOptions.js";
 import { ID_TO_DISPLAY, isCanonicalCourseId, resolveCourseId as resolveCourseLearningId } from "./courseLearningCatalog.js";
+import { resolveProgrammingCourse, isProgrammingCourseId } from "./programmingCourses.js";
 
 const USER_STORAGE_KEY = "ai_study_platform_user";
 const ACTIVE_SESSION_STORAGE_KEY = "ai_study_platform_active_session_id";
@@ -61,6 +63,7 @@ const CURRENT_PAGE_KEY = "ai_study_current_page";
 const CURRENT_SUBJECT_KEY = "ai_study_current_subject";
 const CURRENT_EXAM_SUBJECT_KEY = "ai_study_current_exam_subject";
 const CURRENT_COURSE_CONTEXT_KEY = "ai_study_current_course_context";
+const PROGRAMMING_CHAT_CONTEXT_KEY = "ai_study_programming_chat_context";
 const API_BASE = "/api";
 // Absolute client-side ceiling (full-plan 200MB); the effective per-plan limit
 // is read from user.service_plans and enforced again by the backend.
@@ -291,6 +294,27 @@ function getInitialCourseContext() {
     // Ignore malformed navigation state and use the default course surface.
   }
   return null;
+}
+
+/** Restore the programming AI 问答 context (course identity + knowledge point) across refresh. */
+function getInitialProgrammingChatContext() {
+  try {
+    const raw = localStorage.getItem(PROGRAMMING_CHAT_CONTEXT_KEY);
+    const saved = raw ? JSON.parse(raw) : null;
+    if (!saved || typeof saved !== "object") return null;
+    // Strict validation: an unknown/invalid course must never be silently accepted.
+    const course = resolveProgrammingCourse(saved.language);
+    return {
+      language: course.language,
+      courseId: course.courseId,
+      scopeSubject: course.courseName,
+      displayName: course.language,
+      pendingAIContext: saved.pendingAIContext || null,
+    };
+  } catch {
+    try { localStorage.removeItem(PROGRAMMING_CHAT_CONTEXT_KEY); } catch { /* ignore */ }
+    return null;
+  }
 }
 
 function getExamSubjectKeyFromCourse(courseId) {
@@ -554,7 +578,7 @@ const VALID_PAGES = new Set([
   "adminUsageCenter", "adminCenter",
   "materials", "workspaceMaterials", "chat", "records", "history",
   "knowledgeLearning", "searchResults",
-  "profileEdit", "onboarding", "courseLearningOnboarding", "courseLearningPackageStep", "courseLearningComplete", "courseProfile", "programmingOnboarding", "programmingPackageStep", "programmingHome", "programmingProfile", "examHome", "examProfile", "examSubjectDashboard",
+  "profileEdit", "onboarding", "courseLearningOnboarding", "courseLearningPackageStep", "courseLearningComplete", "courseProfile", "programmingOnboarding", "programmingPackageStep", "programmingHome", "programmingProfile", "programmingChat", "examHome", "examProfile", "examSubjectDashboard",
   "login", "adminLogin",
 ]);
 
@@ -673,6 +697,8 @@ function App() {
   const [guideReplay, setGuideReplay] = useState({ serviceKey: "", nonce: 0 });
   const [membershipCheckoutContext, setMembershipCheckoutContext] = useState(getInitialMembershipCheckoutContext);
   const [membershipPageContext, setMembershipPageContext] = useState(getInitialMembershipCheckoutContext);
+  const [programmingChatContext, setProgrammingChatContext] = useState(getInitialProgrammingChatContext);
+  const [programmingKnowledgeDeepLink, setProgrammingKnowledgeDeepLink] = useState(null);
 
   const setPage = (nextPage, context = null) => {
     nextPage = normalizePageName(nextPage);
@@ -818,6 +844,43 @@ function App() {
     } else {
       setPracticeContext(null);
     }
+
+    // Programming AI 问答: persist a stable course identity + knowledge context
+    // so a hard refresh never falls back to another course.
+    if (nextPage === "programmingChat") {
+      try {
+        const course = resolveProgrammingCourse(context?.language || programmingChatContext?.language);
+        const nextCtx = {
+          language: course.language,
+          courseId: course.courseId,
+          scopeSubject: course.courseName,
+          displayName: course.language,
+          // Preserve the knowledge-point context on refresh (context === null);
+          // otherwise apply the navigation context explicitly (including a null
+          // that intentionally clears a previous knowledge point).
+          pendingAIContext: context?.pendingAIContext !== undefined
+            ? context.pendingAIContext
+            : (programmingChatContext?.pendingAIContext ?? null),
+        };
+        setProgrammingChatContext(nextCtx);
+        localStorage.setItem(PROGRAMMING_CHAT_CONTEXT_KEY, JSON.stringify(nextCtx));
+      } catch {
+        // Unknown course → surface error instead of silent fallback.
+        setProgrammingChatContext({ error: `未知编程课程：${context?.language || "（空）"}` });
+        try { localStorage.removeItem(PROGRAMMING_CHAT_CONTEXT_KEY); } catch { /* ignore */ }
+      }
+    }
+
+    // Returning to programming home may carry a knowledge deep-link (AI 问答 → 知识点).
+    if (nextPage === "programmingHome" && context?.knowledgeDeepLink) {
+      setProgrammingKnowledgeDeepLink({
+        ...context.knowledgeDeepLink,
+        nonce: context.knowledgeDeepLink.nonce || Date.now(),
+      });
+    } else if (nextPage !== "programmingHome") {
+      setProgrammingKnowledgeDeepLink(null);
+    }
+
     saveCurrentPage(nextPage);
     setPageRaw(nextPage);
   };
@@ -4167,7 +4230,80 @@ function App() {
         apiBase={API_BASE}
         setPage={setPage}
         guideReplayToken={guideReplay.serviceKey === "programming" ? guideReplay.nonce : 0}
+        knowledgeDeepLink={programmingKnowledgeDeepLink}
       />
+    );
+  }
+
+  if (page === "programmingChat") {
+    const chatCtx = programmingChatContext;
+    if (!chatCtx || chatCtx.error || !chatCtx.courseId) {
+      return (
+        <div className="app-shell standalone-page-main">
+          <div className="empty-state">
+            <h2>{chatCtx?.error || "未选择编程课程"}</h2>
+            <button className="primary-button" onClick={() => setPage("programmingHome")}>返回编程学习</button>
+          </div>
+        </div>
+      );
+    }
+    const kpCtx = chatCtx.pendingAIContext && chatCtx.pendingAIContext.type === "knowledge_point"
+      ? chatCtx.pendingAIContext
+      : null;
+    const kpTitle = kpCtx?.knowledgePointTitle || kpCtx?.knowledge_point_title || kpCtx?.title || "";
+    const kpChapter = kpCtx?.chapter || kpCtx?.chapterTitle || "";
+    const kpCode = kpCtx?.knowledge_point_code || kpCtx?.knowledgePointCode || kpCtx?.node_code || "";
+    const hiddenInstruction = kpTitle
+      ? [
+          "你是编程学习导师，学生正围绕一个具体知识点提问。",
+          `当前编程课程：${chatCtx.scopeSubject}`,
+          `所属章节：${kpChapter || "未指定"}`,
+          `当前知识点：${kpTitle}${kpCode ? `（${kpCode}）` : ""}`,
+          "请紧扣该知识点作答，结合课程上下文，避免泛泛而谈；不要在回答开头机械复述这些隐藏上下文。",
+        ].join("\n")
+      : "";
+    const initialPromptText = kpTitle
+      ? `请围绕「${kpTitle}」${kpChapter ? `（${kpChapter}）` : ""}帮我讲解这个知识点。`
+      : "";
+    return (
+      <div className="app-shell programming-chat-shell">
+        <header className="programming-chat-topbar">
+          <button className="programming-chat-back" type="button" onClick={() => setPage("programmingHome")}>
+            ← 返回编程学习
+          </button>
+          <div className="programming-chat-title">
+            <strong>编程 AI 问答</strong>
+            <span>{chatCtx.displayName}</span>
+          </div>
+          {kpCtx && kpTitle && (
+            <button
+              className="programming-chat-kp-back"
+              type="button"
+              onClick={() => setPage("programmingHome", {
+                knowledgeDeepLink: {
+                  language: chatCtx.language,
+                  chapterCode: kpCtx.chapter_code || "",
+                  nodeCode: kpCtx.node_code || kpCtx.knowledge_point_code || kpCtx.nodeKey || "",
+                },
+              })}
+            >
+              返回知识点：{kpTitle}
+            </button>
+          )}
+        </header>
+        <ExamChat
+          user={user}
+          mode="course_learning"
+          courseId={chatCtx.courseId}
+          courseName={chatCtx.displayName}
+          subjectTitle={chatCtx.displayName}
+          scopeSubject={chatCtx.scopeSubject}
+          scopeCourse={chatCtx.scopeSubject}
+          contextDisplay={`编程学习 / ${chatCtx.displayName}`}
+          hiddenInstruction={hiddenInstruction}
+          initialPrompt={initialPromptText ? { text: initialPromptText, nonce: kpTitle + "|" + kpChapter } : null}
+        />
+      </div>
     );
   }
 

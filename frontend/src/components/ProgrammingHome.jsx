@@ -5,12 +5,14 @@ import KnowledgeLearningPage from "./KnowledgeLearningPage.jsx";
 import { getExerciseDescription, getExerciseTitle } from "./programmingExerciseCopy.js";
 import ProgrammingProfileTrigger from "./ProgrammingProfileTrigger.jsx";
 import FirstTimeGuideLauncher from "./FirstTimeGuideLauncher.jsx";
+import { resolveProgrammingCourse } from "../programmingCourses.js";
 
 const NAV_ITEMS = [
   { key: "home", label: "首页", icon: "home" },
   { key: "status", label: "知识点学习", icon: "chart" },
   { key: "workbench", label: "编程工作台", icon: "terminal" },
   { key: "questions", label: "题库", icon: "list" },
+  { key: "chat", label: "AI问答", icon: "chat" },
 ];
 
 const PROGRAMMING_NAV_KEY = "ai_study_programming_active_nav";
@@ -42,6 +44,7 @@ function Icon({ type }) {
   if (type === "folder") return <svg {...common}><path d="M3 7h7l2 3h9v9H3V7Z" /></svg>;
   if (type === "quota") return <svg {...common}><path d="M12 3 4 7v10l8 4 8-4V7l-8-4ZM4 7l8 4 8-4M12 11v10" /></svg>;
   if (type === "code") return <svg {...common}><path d="m8 9-4 3 4 3M16 9l4 3-4 3" /></svg>;
+  if (type === "chat") return <svg {...common}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>;
   return <svg {...common}><path d="M4 12 12 5l8 7v8H4v-8Z" /></svg>;
 }
 
@@ -149,7 +152,7 @@ function ExerciseLibrary({ user, apiBase, onStart }) {
   );
 }
 
-export default function ProgrammingHome({ user, apiBase = "/api", setPage, guideReplayToken = 0 }) {
+export default function ProgrammingHome({ user, apiBase = "/api", setPage, guideReplayToken = 0, knowledgeDeepLink = null }) {
   const savedPractice = readCurrentPractice(user?.username);
   const [activeNav, setActiveNav] = useState(() => {
     try {
@@ -163,6 +166,7 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage, guide
   const [workbenchLanguage, setWorkbenchLanguage] = useState(() => savedPractice?.language || "");
   const [workbenchExerciseId, setWorkbenchExerciseId] = useState(() => savedPractice?.exerciseId || null);
   const [knowledgeLanguage, setKnowledgeLanguage] = useState(() => homeData?.onboarding?.main_language || "Python");
+  const [knowledgeDeepLinkTarget, setKnowledgeDeepLinkTarget] = useState(null);
   const [error, setError] = useState("");
 
   const loadHomeData = useCallback(() => {
@@ -179,6 +183,39 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage, guide
   }, [apiBase, user?.username]);
 
   useEffect(() => { loadHomeData(); }, [loadHomeData]);
+
+  // Apply an external knowledge deep-link (from AI 问答 "返回知识点") once.
+  useEffect(() => {
+    if (!knowledgeDeepLink) return;
+    if (knowledgeDeepLink.language) setKnowledgeLanguage(knowledgeDeepLink.language);
+    setKnowledgeDeepLinkTarget({
+      chapterCode: knowledgeDeepLink.chapterCode || "",
+      nodeCode: knowledgeDeepLink.nodeCode || "",
+      nonce: knowledgeDeepLink.nonce || Date.now(),
+    });
+    setActiveNav("status");
+  }, [knowledgeDeepLink?.nonce, knowledgeDeepLink?.language, knowledgeDeepLink?.chapterCode, knowledgeDeepLink?.nodeCode]);
+
+  const resolveCourse = useCallback((language) => {
+    try {
+      return resolveProgrammingCourse(language);
+    } catch (err) {
+      setError(err.message || "未知编程课程");
+      return null;
+    }
+  }, []);
+
+  const openAIChat = useCallback((language, pendingAIContext = null) => {
+    const course = resolveCourse(language);
+    if (!course) return;
+    setPage("programmingChat", {
+      language: course.language,
+      courseId: course.courseId,
+      scopeSubject: course.courseName,
+      displayName: course.language,
+      pendingAIContext,
+    });
+  }, [resolveCourse, setPage]);
 
   const openExercise = useCallback(async (exerciseId) => {
     if (!exerciseId || !user?.username) return;
@@ -249,24 +286,29 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage, guide
       return <ExerciseLibrary user={user} apiBase={apiBase} onStart={(projectId, language, exerciseId) => { setWorkbenchProjectId(projectId); setWorkbenchLanguage(language); setWorkbenchExerciseId(exerciseId); setActiveNav("workbench"); }} />;
     }
     if (activeNav === "status") {
-      const knowledgeCourse = {
-        C: { id: "c_programming", name: "C 语言程序设计" },
-        "C++": { id: "cpp_programming", name: "C++ 程序设计" },
-        Python: { id: "python_programming", name: "Python 程序设计" },
-        Java: { id: "java_programming", name: "Java 程序设计" },
-      }[knowledgeLanguage] || { id: "python_programming", name: "Python 程序设计" };
+      const knowledgeCourse = resolveCourse(knowledgeLanguage);
+      if (!knowledgeCourse) {
+        return (
+          <section className="ph-placeholder-panel">
+            <h2>知识点学习</h2>
+            <p>{error || "未知编程课程，无法加载知识点脉络。"}</p>
+          </section>
+        );
+      }
       return (
         <KnowledgeLearningPage
           user={user}
           mode="course_learning"
-          courseId={knowledgeCourse.id}
-          courseName={knowledgeCourse.name}
+          courseId={knowledgeCourse.courseId}
+          courseName={knowledgeCourse.courseName}
           programmingLanguageTabs
           programmingLanguage={knowledgeLanguage}
           onProgrammingLanguageChange={setKnowledgeLanguage}
           apiBase={apiBase}
           onOpenExercise={openExercise}
-          onNavigateToAI={() => setActiveNav("workbench")}
+          onNavigateToAI={(ctx) => openAIChat(knowledgeLanguage, ctx)}
+          initialChapterCode={knowledgeDeepLinkTarget?.chapterCode || ""}
+          initialNodeCode={knowledgeDeepLinkTarget?.nodeCode || ""}
         />
       );
     }
@@ -280,7 +322,7 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage, guide
       );
     }
     return null;
-  }, [activeNav, apiBase, homeData, knowledgeLanguage, loadHomeData, openExercise, setPage, user, workbenchExerciseId, workbenchLanguage, workbenchProjectId]);
+  }, [activeNav, apiBase, homeData, knowledgeLanguage, loadHomeData, openExercise, setPage, user, workbenchExerciseId, workbenchLanguage, workbenchProjectId, resolveCourse, openAIChat, error, knowledgeDeepLinkTarget]);
 
   return (
     <div className="ph-page">
@@ -295,8 +337,14 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage, guide
               type="button"
               key={item.key}
               className={activeNav === item.key ? "is-active" : ""}
-              onClick={() => activateNav(item.key)}
-              data-tour={item.key === "questions" ? "programming-questions" : item.key === "workbench" ? "programming-workbench" : item.key === "status" ? "programming-knowledge" : undefined}
+              onClick={() => {
+                if (item.key === "chat") {
+                  openAIChat(knowledgeLanguage);
+                  return;
+                }
+                activateNav(item.key);
+              }}
+              data-tour={item.key === "questions" ? "programming-questions" : item.key === "workbench" ? "programming-workbench" : item.key === "status" ? "programming-knowledge" : item.key === "chat" ? "programming-chat" : undefined}
             >
               <Icon type={item.icon} />
               <span>{item.label}</span>

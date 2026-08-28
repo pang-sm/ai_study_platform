@@ -248,12 +248,27 @@ export default function ExamChat({
   onInitialMaterialReferenced = null,
   initialPrompt = null,
   examCramMode = false,
+  // Stable scope identity for course_learning chats. When provided, it is used
+  // for the backend subject/course + material scoping, while `courseName`
+  // remains the display label. Defaults to `courseName` so existing callers are
+  // unaffected.
+  scopeSubject = "",
+  scopeCourse = "",
+  // Hidden instruction appended to every message so the assistant stays
+  // anchored to a specific knowledge point / course context (mirrors
+  // AIQuestionPage's hidden_instruction).
+  hiddenInstruction = "",
 }) {
   const isCourseMode = mode === "course_learning";
   const subjectLabel = isCourseMode
     ? (courseName || subjectTitle || "课程学习")
     : getSubjectLabel(subjectKey, subjectTitle);
   const displayCourseName = isCourseMode ? courseName : (courseName || `11408 ${subjectLabel}`);
+  // For course_learning, backend scoping must be a stable course identity that
+  // is consistent between chat/history/material endpoints. Fall back to the
+  // display name when no explicit scope is given.
+  const scopeSubjectValue = scopeSubject || courseName || subjectLabel;
+  const scopeCourseValue = scopeCourse || scopeSubjectValue;
   const subtitleText = isCourseMode
     ? (contextDisplay || `课程学习 / ${courseName || "当前课程"}`)
     : (contextDisplay || `当前上下文：${courseName || `11408 ${subjectLabel}`}`);
@@ -314,10 +329,10 @@ export default function ExamChat({
     const query = new URLSearchParams();
     if (includeUser && user?.username) query.set("username", user.username);
     if (isCourseMode) {
-      // course_learning mode: use courseName as subject/course, no exam_subject
-      if (courseName) {
-        query.set("subject", courseName);
-        query.set("course", courseName);
+      // course_learning mode: use the stable scope identity as subject/course
+      if (scopeSubjectValue) {
+        query.set("subject", scopeSubjectValue);
+        query.set("course", scopeCourseValue);
       }
     } else {
       if (subjectKey) {
@@ -328,14 +343,15 @@ export default function ExamChat({
       if (courseName) query.set("course", courseName);
     }
     return query;
-  }, [isCourseMode, courseName, subjectKey, subjectLabel, user?.username]);
+  }, [isCourseMode, scopeSubjectValue, scopeCourseValue, subjectKey, subjectLabel, courseName, user?.username]);
 
   const buildChatPayload = useCallback((message, extra = {}) => {
     const base = {
       username: user.username,
       message,
-      subject: subjectLabel,
-      course: displayCourseName,
+      subject: isCourseMode ? scopeSubjectValue : subjectLabel,
+      course: isCourseMode ? scopeCourseValue : displayCourseName,
+      hidden_instruction: hiddenInstruction || undefined,
     };
     if (isCourseMode) {
       // course_learning mode: no exam_subject or subject_key
@@ -352,7 +368,7 @@ export default function ExamChat({
       });
     }
     return base;
-  }, [isCourseMode, displayCourseName, knowledgeContext, subjectKey, subjectLabel, user?.username]);
+  }, [isCourseMode, scopeSubjectValue, scopeCourseValue, displayCourseName, knowledgeContext, hiddenInstruction, subjectKey, subjectLabel, user?.username]);
 
   const canReferenceMaterial = useCallback((material) => {
     const status = String(material?.parse_status || "").toLowerCase();
@@ -383,8 +399,8 @@ export default function ExamChat({
     setLibraryLoading(true);
     try {
       const query = new URLSearchParams({ username: user.username });
-      // Resolve subject for material filtering — try all available identifiers
-      const resolvedSubject = courseName || courseId || displayCourseName
+      // Resolve subject for material filtering — prefer the stable scope identity
+      const resolvedSubject = scopeSubjectValue || courseName || courseId || displayCourseName
         || (typeof courseName === 'string' ? courseName : '')
         || (typeof courseId === 'string' ? courseId : '')
         || (isCourseMode ? subjectLabel : "");
@@ -400,7 +416,7 @@ export default function ExamChat({
     } finally {
       setLibraryLoading(false);
     }
-  }, [courseName, courseId, displayCourseName, isCourseMode, subjectLabel, user?.username]);
+  }, [scopeSubjectValue, courseName, courseId, displayCourseName, isCourseMode, subjectLabel, user?.username]);
 
   const updateCurrentSessionId = useCallback((sessionId) => {
     const nextSessionId = sessionId === null || sessionId === undefined || sessionId === "" ? null : Number(sessionId);
@@ -588,7 +604,7 @@ export default function ExamChat({
         const formData = new FormData();
         formData.append("file", file);
         formData.append("username", user.username);
-        formData.append("subject", courseName || subjectLabel);
+        formData.append("subject", scopeSubjectValue || courseName || subjectLabel);
         formData.append("save_to_materials", "true");
         const res = await fetch(`${API_BASE}/materials/upload`, {
           method: "POST",
