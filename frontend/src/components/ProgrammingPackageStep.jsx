@@ -57,6 +57,7 @@ export default function ProgrammingPackageStep({
             plans={plans}
             mode="onboarding"
             selectedPlan={selectedPlan}
+            recommendedPlanCode="quarterly"
             saving={saving}
             onSelect={setSelectedPlan}
             onConfirm={completeWithPlan}

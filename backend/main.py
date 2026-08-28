@@ -686,42 +686,18 @@ COURSE_PACKAGE_QUOTA = {
     },
 }
 
+# Programming plan names/quotas are DERIVED from the single source of truth in
+# membership.SERVICE_PLAN_CATALOG["programming"], so Profile display, AI chat
+# quota, AI question quota, checkout prices and admin assignment can never drift
+# apart. Do NOT hardcode plan names or quota numbers elsewhere for programming.
 PROGRAMMING_PACKAGE_NAMES = {
-    "free": "免费模式",
-    "monthly": "编程练习月卡",
-    "quarterly": "编程进阶训练包",
-    "full": "实验与算法强化包",
+    plan_code: definition["name"]
+    for plan_code, definition in SERVICE_PLAN_CATALOG["programming"].items()
 }
 
 PROGRAMMING_PACKAGE_QUOTA = {
-    "free": {
-        "ai_chat_daily_limit": 50,
-        "ai_question_daily_limit": 5,
-        "material_upload_limit_mb": 0,
-        "problem_records": False,
-        "file_library": False,
-    },
-    "monthly": {
-        "ai_chat_daily_limit": 300,
-        "ai_question_daily_limit": 30,
-        "material_upload_limit_mb": 1024,
-        "problem_records": True,
-        "file_library": True,
-    },
-    "quarterly": {
-        "ai_chat_daily_limit": 300,
-        "ai_question_daily_limit": 30,
-        "material_upload_limit_mb": 1024,
-        "problem_records": True,
-        "file_library": True,
-    },
-    "full": {
-        "ai_chat_daily_limit": 999999,
-        "ai_question_daily_limit": 100,
-        "material_upload_limit_mb": 2048,
-        "problem_records": True,
-        "file_library": True,
-    },
+    plan_code: dict(definition.get("quota") or {})
+    for plan_code, definition in SERVICE_PLAN_CATALOG["programming"].items()
 }
 
 # Normalize legacy/Chinese package values to English enum.
@@ -8276,9 +8252,16 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db), current_user: 
         file_names = "、".join(m.original_filename for m in selected_materials)
         user_content = f"【本轮引用资料：{file_names}】\n{user_content}"
 
-    if is_exam_408_context(subject, req.course):
+    if is_exam_408_context(subject, req.course) or (req.service_key or "").strip() == "exam_11408":
+        usage_feature = "chat"
         check_exam_408_usage_limit(user, "chat", db)
+    elif (req.service_key or "").strip() == "programming":
+        # Programming AI 问答 shares the "AI问答/纠错" programming quota counter
+        # with /code/analyze, so both are limited by ai_chat_daily_limit together.
+        usage_feature = "code_analyze"
+        check_programming_usage_limit(user, "code_analyze", db)
     else:
+        usage_feature = "chat"
         check_usage_limit(user.username, "chat", db)
 
     answer = call_deepseek(
@@ -8288,7 +8271,7 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db), current_user: 
         ]
     )
 
-    record_ai_usage(user.username, "chat", db, estimated_tokens=estimate_tokens_from_text(answer), status="success")
+    record_ai_usage(user.username, usage_feature, db, estimated_tokens=estimate_tokens_from_text(answer), status="success")
 
     answer = normalize_assistant_markdown(answer)
 
@@ -13585,7 +13568,7 @@ def generate_code_challenge(
 
 {question_text}"""
 
-    check_usage_limit(user.username, "challenge_generate", db)
+    check_programming_usage_limit(user, "challenge_generate", db)
 
     ai_response = call_deepseek(
         [
@@ -13862,7 +13845,7 @@ def submit_code_challenge(
 
 请根据题目要求判定以上代码。"""
 
-        check_usage_limit(user.username, "code_analyze", db)
+        check_programming_usage_limit(user, "code_analyze", db)
 
         ai_feedback = call_deepseek(
             [

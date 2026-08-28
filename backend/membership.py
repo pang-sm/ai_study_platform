@@ -299,20 +299,20 @@ SERVICE_PLAN_CATALOG = {
         }},
     },
     "programming": {
-        "free": {"name": "免费模式", "rank": 0, "price_cents": 0, "duration_days": None, "quota": {
-            "ai_chat_daily_limit": 50, "ai_question_daily_limit": 5, "material_upload_limit_mb": 0,
-            "problem_records": False, "file_library": False,
+        "free": {"name": "免费版", "rank": 0, "price_cents": 0, "duration_days": None, "quota": {
+            "ai_chat_daily_limit": 5, "ai_question_daily_limit": 3, "material_upload_limit_mb": 0,
+            "problem_records": True, "file_library": False,
         }},
-        "monthly": {"name": "编程练习月卡", "rank": 1, "price_cents": 900, "duration_days": 30, "quota": {
-            "ai_chat_daily_limit": 300, "ai_question_daily_limit": 30, "material_upload_limit_mb": 1024,
+        "monthly": {"name": "编程进阶月卡", "rank": 1, "price_cents": 4900, "duration_days": 30, "quota": {
+            "ai_chat_daily_limit": 100, "ai_question_daily_limit": 30, "material_upload_limit_mb": 1024,
             "problem_records": True, "file_library": True,
         }},
-        "quarterly": {"name": "编程进阶训练包", "rank": 2, "price_cents": 1900, "duration_days": 90, "quota": {
-            "ai_chat_daily_limit": 300, "ai_question_daily_limit": 30, "material_upload_limit_mb": 1024,
+        "quarterly": {"name": "实验与算法强化季卡", "rank": 2, "price_cents": 12900, "duration_days": 90, "quota": {
+            "ai_chat_daily_limit": 200, "ai_question_daily_limit": 60, "material_upload_limit_mb": 1024,
             "problem_records": True, "file_library": True,
         }},
-        "full": {"name": "实验与算法强化包", "rank": 3, "price_cents": 5900, "duration_days": 365, "quota": {
-            "ai_chat_daily_limit": 999999, "ai_question_daily_limit": 100, "material_upload_limit_mb": 2048,
+        "full": {"name": "编程全能年卡", "rank": 3, "price_cents": 39900, "duration_days": 365, "quota": {
+            "ai_chat_daily_limit": 500, "ai_question_daily_limit": 100, "material_upload_limit_mb": 2048,
             "problem_records": True, "file_library": True,
         }},
     },

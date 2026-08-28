@@ -28,6 +28,9 @@ class ChatRequest(BaseModel):
     mastery_level: str = ""
     learning_goal: str = ""
     knowledge_context: dict | None = None
+    # Explicit service direction for quota enforcement. "programming" maps to the
+    # programming plan; empty/absent uses the legacy course-learning global quota.
+    service_key: str = ""
 
 
 class CourseLearningPreferenceUpsert(BaseModel):

@@ -484,7 +484,7 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
   const SERVICE_LABELS = {
     exam_11408: { name: "11408 考研", plans: { free: "普通用户", monthly: "月度冲刺包", quarterly: "季度强化包", full: "全程备考包" } },
     course: { name: "课程学习", plans: { free: "普通用户", monthly: "月度学习包", quarterly: "季度学习包", full: "全程学习包" } },
-    programming: { name: "编程能力提升", plans: { free: "普通用户", monthly: "月度练习包", quarterly: "季度练习包", full: "年度提升包" } },
+    programming: { name: "编程能力提升", plans: { free: "免费版", monthly: "编程进阶月卡", quarterly: "实验与算法强化季卡", full: "编程全能年卡" } },
   };
 
   const renderDashboard = () => (
@@ -647,7 +647,7 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
     const planOptions = redemptionForm.service_key === "exam_11408"
       ? [["monthly_sprint", "月度冲刺包"], ["quarterly_boost", "季度强化包"], ["full_exam", "全程备考包"]]
       : redemptionForm.service_key === "programming"
-        ? [["monthly", "月度练习包"], ["quarterly", "季度训练包"], ["full", "实验与算法强化包"]]
+        ? [["monthly", "编程进阶月卡"], ["quarterly", "实验与算法强化季卡"], ["full", "编程全能年卡"]]
         : [["monthly", "月度学习包"], ["quarterly", "季度学习包"], ["full", "全程学习包"]];
     const updateForm = (key, value) => setRedemptionForm((prev) => ({ ...prev, [key]: value }));
     const createCodes = async () => {
@@ -1257,7 +1257,7 @@ function MembershipEditModal({ user: targetUser, form, onChange, onSave, onClose
   const SERVICE_INFO = {
     exam_11408: { name: "11408 考研", icon: "📘", plans: { free: "普通用户", monthly: "月度冲刺包", quarterly: "季度强化包", full: "全程备考包" }, disabledHint: "当前用户尚未开通 11408 考研服务" },
     course: { name: "课程学习", icon: "📗", plans: { free: "普通用户", monthly: "月度学习包", quarterly: "季度学习包", full: "全程学习包" }, disabledHint: "当前用户尚未开通课程学习服务" },
-    programming: { name: "编程能力提升", icon: "📙", plans: { free: "普通用户", monthly: "月度练习包", quarterly: "季度练习包", full: "年度提升包" }, disabledHint: "当前用户尚未开通编程能力提升服务" },
+    programming: { name: "编程能力提升", icon: "📙", plans: { free: "免费版", monthly: "编程进阶月卡", quarterly: "实验与算法强化季卡", full: "编程全能年卡" }, disabledHint: "当前用户尚未开通编程能力提升服务" },
   };
   const updateField = (sk, field, val) => {
     onChange((prev) => ({ ...prev, [sk]: { ...prev[sk], [field]: val } }));

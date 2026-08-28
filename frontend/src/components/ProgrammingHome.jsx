@@ -53,7 +53,7 @@ function safeJson(res) {
 }
 
 function formatAiQuota(remaining, limit) {
-  return Number(limit) >= 999999 ? "无限" : `${remaining ?? 0} / ${limit ?? 0} 次`;
+  return `${remaining ?? 0} / ${limit ?? 0} 次`;
 }
 
 function ExerciseLibrary({ user, apiBase, onStart }) {

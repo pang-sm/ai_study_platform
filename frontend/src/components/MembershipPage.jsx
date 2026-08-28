@@ -197,7 +197,10 @@ export default function MembershipPage({
   };
 
   const currentPlanCode = effectivePlan?.plan_code || catalog?.current?.plan || "free";
-  const recommendedPlanCode = recommendation?.recommended_plan;
+  // Programming direction highlights its quarterly plan (实验与算法强化季卡).
+  // The legacy major-based recommendation only applies to the old global plan
+  // system, so it must never surface for the programming catalog.
+  const recommendedPlanCode = serviceKey === "programming" ? "quarterly" : recommendation?.recommended_plan;
 
   if (loading) {
     return <div className="membership-shell"><div className="membership-loading">正在加载会员方案…</div></div>;
@@ -230,14 +233,14 @@ export default function MembershipPage({
 
       {error && <div className="membership-error" role="alert">{error}</div>}
 
-      {recommendation && recommendation.source !== "fallback" && !recommendation.needs_manual_choice && (
+      {recommendation && recommendation.source !== "fallback" && !recommendation.needs_manual_choice && serviceKey !== "programming" && (
         <section className="membership-panel membership-recommendation">
           <div><span className="membership-eyebrow">PERSONALIZED</span><h2>为你推荐</h2><p>{recommendation.reason}</p></div>
           {recommendation.normalized_major && <span className="membership-recommendation-major">{recommendation.normalized_major}</span>}
         </section>
       )}
 
-      {recommendation?.needs_manual_choice && recommendation?.source !== "role" && (
+      {recommendation?.needs_manual_choice && recommendation?.source !== "role" && serviceKey !== "programming" && (
         <section className="membership-panel membership-manual-choice">
           <h2>告诉我们你的学习方向</h2>
           <p>选择后会用于优化会员建议，不会改变已购买的方案。</p>

@@ -258,6 +258,8 @@ export default function ExamChat({
   // anchored to a specific knowledge point / course context (mirrors
   // AIQuestionPage's hidden_instruction).
   hiddenInstruction = "",
+  // Explicit service direction for backend quota enforcement ("programming").
+  serviceKey = "",
 }) {
   const isCourseMode = mode === "course_learning";
   const subjectLabel = isCourseMode
@@ -352,6 +354,7 @@ export default function ExamChat({
       subject: isCourseMode ? scopeSubjectValue : subjectLabel,
       course: isCourseMode ? scopeCourseValue : displayCourseName,
       hidden_instruction: hiddenInstruction || undefined,
+      service_key: serviceKey || undefined,
     };
     if (isCourseMode) {
       // course_learning mode: no exam_subject or subject_key
@@ -368,7 +371,7 @@ export default function ExamChat({
       });
     }
     return base;
-  }, [isCourseMode, scopeSubjectValue, scopeCourseValue, displayCourseName, knowledgeContext, hiddenInstruction, subjectKey, subjectLabel, user?.username]);
+  }, [isCourseMode, scopeSubjectValue, scopeCourseValue, displayCourseName, knowledgeContext, hiddenInstruction, serviceKey, subjectKey, subjectLabel, user?.username]);
 
   const canReferenceMaterial = useCallback((material) => {
     const status = String(material?.parse_status || "").toLowerCase();

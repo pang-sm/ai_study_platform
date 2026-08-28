@@ -4301,6 +4301,7 @@ function App() {
           scopeCourse={chatCtx.scopeSubject}
           contextDisplay={`编程学习 / ${chatCtx.displayName}`}
           hiddenInstruction={hiddenInstruction}
+          serviceKey="programming"
           initialPrompt={initialPromptText ? { text: initialPromptText, nonce: kpTitle + "|" + kpChapter } : null}
         />
       </div>

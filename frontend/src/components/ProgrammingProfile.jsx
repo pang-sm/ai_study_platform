@@ -4,11 +4,14 @@ import { resolveMediaUrl } from "../utils/mediaUrl.js";
 import EmailBindingModal from "./EmailBindingModal.jsx";
 import "./ProgrammingHome.css";
 
+// Fallback only — the authoritative plan name/limit come from the backend
+// (/programming/entitlements + /programming/home), which read the unified
+// Programming Plan Catalog. Do NOT add plan-specific quota numbers here.
 const PROGRAMMING_PLAN_LABELS = {
-  free: "免费模式",
-  monthly: "编程练习月卡",
-  quarterly: "编程进阶训练包",
-  full: "实验与算法强化包",
+  free: "免费版",
+  monthly: "编程进阶月卡",
+  quarterly: "实验与算法强化季卡",
+  full: "编程全能年卡",
 };
 const GRADE_OPTIONS = ["大一", "大二", "大三", "大四", "研究生"];
 const SEMESTER_OPTIONS = ["上学期", "下学期"];
@@ -29,7 +32,7 @@ function maskEmail(email) {
 }
 
 function formatAiQuota(remaining, limit) {
-  return Number(limit) >= 999999 ? "无限" : `${remaining ?? 0} / ${limit ?? 0}`;
+  return `${remaining ?? 0} / ${limit ?? 0}`;
 }
 
 export default function ProgrammingProfile({ user, apiBase = "/api", setPage, onLogout, onProfileUpdate, onReplayGuide }) {
@@ -97,7 +100,7 @@ export default function ProgrammingProfile({ user, apiBase = "/api", setPage, on
     homeData?.plan_label ||
     servicePlans?.programming?.plan_label ||
     PROGRAMMING_PLAN_LABELS[plan] ||
-    "免费模式";
+    "免费版";
   const displayName = nickname || user?.nickname || user?.username || "同学";
   const username = user?.username || "";
   const displayGrade = grade || onboarding?.grade || "未设置";
