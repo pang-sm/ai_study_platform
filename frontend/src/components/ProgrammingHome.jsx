@@ -2,11 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import "./ProgrammingHome.css";
 import ProgrammingWorkbench from "./ProgrammingWorkbench.jsx";
 import KnowledgeLearningPage from "./KnowledgeLearningPage.jsx";
-import ProgrammingMaterialsPage from "./ProgrammingMaterialsPage.jsx";
+import CourseMaterialsPage from "./CourseMaterialsPage.jsx";
 import { getExerciseDescription, getExerciseTitle } from "./programmingExerciseCopy.js";
 import ProgrammingProfileTrigger from "./ProgrammingProfileTrigger.jsx";
 import FirstTimeGuideLauncher from "./FirstTimeGuideLauncher.jsx";
-import { resolveProgrammingCourse } from "../programmingCourses.js";
+import { resolveProgrammingCourse, resolveProgrammingCourseById, SECTION_TO_NAV, NAV_TO_SECTION } from "../programmingCourses.js";
 
 const NAV_ITEMS = [
   { key: "home", label: "首页", icon: "home" },
@@ -153,9 +153,10 @@ function ExerciseLibrary({ user, apiBase, onStart }) {
   );
 }
 
-export default function ProgrammingHome({ user, apiBase = "/api", setPage, guideReplayToken = 0, knowledgeDeepLink = null }) {
+export default function ProgrammingHome({ user, apiBase = "/api", setPage, guideReplayToken = 0, knowledgeDeepLink = null, programmingRoute = null, onProgrammingRouteChange = null, materials = [], materialsLoading = false, loadProgrammingMaterials = null, handleProgrammingFileChange = null, deleteMaterial = null, reindexLibrary = null }) {
   const savedPractice = readCurrentPractice(user?.username);
   const [activeNav, setActiveNav] = useState(() => {
+    if (programmingRoute?.section) return SECTION_TO_NAV[programmingRoute.section] || "home";
     try {
       return localStorage.getItem(PROGRAMMING_NAV_KEY) || "home";
     } catch {
@@ -166,7 +167,12 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage, guide
   const [workbenchProjectId, setWorkbenchProjectId] = useState(() => savedPractice?.projectId || null);
   const [workbenchLanguage, setWorkbenchLanguage] = useState(() => savedPractice?.language || "");
   const [workbenchExerciseId, setWorkbenchExerciseId] = useState(() => savedPractice?.exerciseId || null);
-  const [knowledgeLanguage, setKnowledgeLanguage] = useState(() => homeData?.onboarding?.main_language || "Python");
+  const [knowledgeLanguage, setKnowledgeLanguage] = useState(() => {
+    if (programmingRoute?.courseId) {
+      try { return resolveProgrammingCourseById(programmingRoute.courseId).language; } catch { /* ignore */ }
+    }
+    return homeData?.onboarding?.main_language || "Python";
+  });
   const [knowledgeDeepLinkTarget, setKnowledgeDeepLinkTarget] = useState(null);
   const [error, setError] = useState("");
 
@@ -185,6 +191,26 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage, guide
 
   useEffect(() => { loadHomeData(); }, [loadHomeData]);
 
+  // Re-sync internal nav state when the URL route changes (browser back/forward).
+  useEffect(() => {
+    if (!programmingRoute) return;
+    if (programmingRoute.courseId) {
+      try { setKnowledgeLanguage(resolveProgrammingCourseById(programmingRoute.courseId).language); } catch { /* ignore */ }
+    }
+    if (programmingRoute.section && programmingRoute.section !== "chat") {
+      setActiveNav(SECTION_TO_NAV[programmingRoute.section] || "home");
+    }
+  }, [programmingRoute?.courseId, programmingRoute?.section]);
+
+  // Keep the URL authoritative for the current course + section.
+  useEffect(() => {
+    try {
+      const course = resolveProgrammingCourse(knowledgeLanguage);
+      const section = NAV_TO_SECTION[activeNav] || "home";
+      onProgrammingRouteChange?.(course.courseId, section);
+    } catch { /* ignore */ }
+  }, [knowledgeLanguage, activeNav, onProgrammingRouteChange]);
+
   // Apply an external knowledge deep-link (from AI 问答 "返回知识点") once.
   useEffect(() => {
     if (!knowledgeDeepLink) return;
@@ -196,6 +222,16 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage, guide
     });
     setActiveNav("status");
   }, [knowledgeDeepLink?.nonce, knowledgeDeepLink?.language, knowledgeDeepLink?.chapterCode, knowledgeDeepLink?.nodeCode]);
+
+  // Load programming materials into the shared StudyMaterial list when the
+  // 资料库 section becomes active (and again when the language changes).
+  useEffect(() => {
+    if (activeNav !== "materials") return;
+    try {
+      const course = resolveProgrammingCourse(knowledgeLanguage);
+      loadProgrammingMaterials?.(course.courseId);
+    } catch { /* ignore */ }
+  }, [activeNav, knowledgeLanguage, loadProgrammingMaterials]);
 
   const resolveCourse = useCallback((language) => {
     try {
@@ -209,6 +245,7 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage, guide
   const openAIChat = useCallback((language, pendingAIContext = null) => {
     const course = resolveCourse(language);
     if (!course) return;
+    onProgrammingRouteChange?.(course.courseId, "chat");
     setPage("programmingChat", {
       language: course.language,
       courseId: course.courseId,
@@ -216,7 +253,7 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage, guide
       displayName: course.language,
       pendingAIContext,
     });
-  }, [resolveCourse, setPage]);
+  }, [resolveCourse, setPage, onProgrammingRouteChange]);
 
   const openExercise = useCallback(async (exerciseId) => {
     if (!exerciseId || !user?.username) return;
@@ -314,12 +351,29 @@ export default function ProgrammingHome({ user, apiBase = "/api", setPage, guide
       );
     }
     if (activeNav === "materials") {
+      const course = resolveCourse(knowledgeLanguage);
+      if (!course) {
+        return (
+          <section className="ph-placeholder-panel">
+            <h2>资料库</h2>
+            <p>{error || "未知编程课程，无法加载资料库。"}</p>
+          </section>
+        );
+      }
       return (
-        <ProgrammingMaterialsPage
+        <CourseMaterialsPage
           user={user}
-          apiBase={apiBase}
-          language={knowledgeLanguage}
-          onLanguageChange={setKnowledgeLanguage}
+          mode="course_learning"
+          subject={course.courseName}
+          courseName={course.courseName}
+          materialCourseId={course.courseId}
+          materials={materials}
+          materialsLoading={materialsLoading}
+          loadMaterials={() => loadProgrammingMaterials?.(course.courseId)}
+          handleFileChange={(event) => handleProgrammingFileChange?.(course.courseId, event)}
+          deleteMaterial={deleteMaterial}
+          reindexLibrary={() => reindexLibrary?.(course.courseId)}
+          setPage={setPage}
         />
       );
     }

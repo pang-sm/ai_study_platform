@@ -54,7 +54,7 @@ import {
   normalizeSubject,
 } from "./courseOptions.js";
 import { ID_TO_DISPLAY, isCanonicalCourseId, resolveCourseId as resolveCourseLearningId } from "./courseLearningCatalog.js";
-import { resolveProgrammingCourse, isProgrammingCourseId } from "./programmingCourses.js";
+import { resolveProgrammingCourse, isProgrammingCourseId, isProgrammingSection, resolveProgrammingCourseById, SECTION_TO_NAV, NAV_TO_SECTION } from "./programmingCourses.js";
 
 const USER_STORAGE_KEY = "ai_study_platform_user";
 const ACTIVE_SESSION_STORAGE_KEY = "ai_study_platform_active_session_id";
@@ -108,6 +108,47 @@ function getExamNavigationContext(route = getExamDashboardRoute()) {
     courseId: getExamCourseId(route.subjectKey),
     forcePanel: route.panel,
   };
+}
+
+// ── Programming direction canonical URL routing ──────────────────────────
+// The URL is the authoritative restore source for the programming direction,
+// so F5 / Ctrl+F5 / new-tab / back-forward all restore the same service/course/
+// section instead of falling back to course_learning.
+function getProgrammingRoute() {
+  const match = window.location.pathname.match(/^\/programming\/([^/]+)(?:\/([^/]+))?\/?$/);
+  if (!match) return null;
+  const courseId = decodeURIComponent(match[1]);
+  const section = (match[2] || "home").trim();
+  // Keep the programming namespace even for an invalid courseId so a /programming/
+  // URL never falls back to course_learning; ProgrammingHome surfaces the error.
+  return { courseId, section: isProgrammingSection(section) ? section : "home" };
+}
+
+function writeProgrammingRoute(courseId, section = "home") {
+  if (!isProgrammingCourseId(courseId) || !isProgrammingSection(section)) return;
+  const path = `/programming/${encodeURIComponent(courseId)}/${section}`;
+  if (window.location.pathname !== path) window.history.pushState({}, "", path);
+}
+
+function getProgrammingNavigationContext(route = getProgrammingRoute()) {
+  if (!route) return null;
+  try {
+    const course = resolveProgrammingCourseById(route.courseId);
+    return {
+      courseId: course.courseId,
+      language: course.language,
+      courseName: course.courseName,
+      section: route.section,
+      activeNav: SECTION_TO_NAV[route.section] || "home",
+    };
+  } catch {
+    return null;
+  }
+}
+
+function getProgrammingPageForRoute(route = getProgrammingRoute()) {
+  if (!route) return null;
+  return route.section === "chat" ? "programmingChat" : "programmingHome";
 }
 
 function resolveMaterialScope(targetCourse) {
@@ -610,6 +651,11 @@ const ADMIN_PAGES = [
 function getInitialPage() {
   const savedUser = getSavedUser();
   if (!savedUser) return "login";
+  // Programming URL is authoritative and never falls back to course_learning.
+  {
+    const programmingPage = getProgrammingPageForRoute();
+    if (programmingPage) return programmingPage;
+  }
   if (getCourseDashboardRoute()) return "dashboard";
   if (getExamDashboardRoute()) return "examSubjectDashboard";
   try {
@@ -699,6 +745,8 @@ function App() {
   const [membershipPageContext, setMembershipPageContext] = useState(getInitialMembershipCheckoutContext);
   const [programmingChatContext, setProgrammingChatContext] = useState(getInitialProgrammingChatContext);
   const [programmingKnowledgeDeepLink, setProgrammingKnowledgeDeepLink] = useState(null);
+  // Authoritative programming route restored from the URL (service + course + section).
+  const [programmingRoute, setProgrammingRoute] = useState(getProgrammingRoute);
 
   const setPage = (nextPage, context = null) => {
     nextPage = normalizePageName(nextPage);
@@ -884,6 +932,31 @@ function App() {
     saveCurrentPage(nextPage);
     setPageRaw(nextPage);
   };
+
+  // Programming URL is written on course/section change from inside ProgrammingHome.
+  const handleProgrammingRouteChange = useCallback((courseId, section) => {
+    if (!isProgrammingCourseId(courseId)) return;
+    const nextSection = isProgrammingSection(section) ? section : "home";
+    setProgrammingRoute({ courseId, section: nextSection });
+    writeProgrammingRoute(courseId, nextSection);
+  }, []);
+
+  // Browser back/forward must re-sync from the URL (authoritative source).
+  useEffect(() => {
+    const onPopState = () => {
+      const route = getProgrammingRoute();
+      setProgrammingRoute(route);
+      if (!route) return;
+      if (route.section === "chat") {
+        setPage("programmingChat", null);
+      } else {
+        setPage("programmingHome", null);
+      }
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [setPage]);
+
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -990,6 +1063,8 @@ function App() {
   const [reindexLoading, setReindexLoading] = useState(false);
   const [materialsLoading, setMaterialsLoading] = useState(false);
   const [materials, setMaterials] = useState([]);
+  // Programming material library scope (service=programming + course language).
+  const [programmingMaterialCourseId, setProgrammingMaterialCourseId] = useState("");
   const [materialSubjectFilter, setMaterialSubjectFilter] = useState("");
   const [materialSearchQuery, setMaterialSearchQuery] = useState("");
   const [materialInitialSearchQuery, setMaterialInitialSearchQuery] = useState("");
@@ -1309,6 +1384,14 @@ function App() {
     if (restoredPage && VALID_PAGES.has(restoredPage) && restoredPage !== "login" && restoredPage !== "adminLogin" && restoredPage !== "onboarding" && !isSavedAdminPage) {
       return restoredPage;
     }
+    // A programming URL is authoritative — never redirect a programming page to
+    // another service, even if the user's stored active_track_type is not
+    // "programming". Unknown programming params surface as a programming error
+    // page, not a cross-service fallback.
+    {
+      const programmingPage = getProgrammingPageForRoute();
+      if (programmingPage) return programmingPage;
+    }
     // Route users based on tracks data (new system) or learning_goal_type (legacy)
     const activeTrack = loginUser?.active_track_type || loginUser?.learning_goal_type || "";
     if (activeTrack === "exam_408") return "examHome";
@@ -1605,6 +1688,73 @@ function App() {
         setMaterialsLoading(false);
       }
     }
+  };
+
+  // ── Programming material library (shared StudyMaterial domain, programming scope) ──
+  const loadProgrammingMaterials = async (courseId) => {
+    if (!user?.username || !courseId) return;
+    const requestId = materialLoadRequestRef.current + 1;
+    materialLoadRequestRef.current = requestId;
+    setProgrammingMaterialCourseId(courseId);
+    setMaterialsLoading(true);
+    try {
+      const query = new URLSearchParams({ username: user.username, course_id: courseId, track: "programming" });
+      const res = await fetch(`${API_BASE}/materials?${query.toString()}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setTip(getDisplayMessage(data.detail, "加载资料失败"));
+        return;
+      }
+      if (requestId === materialLoadRequestRef.current) {
+        setMaterials(data.materials || []);
+      }
+    } catch (error) {
+      console.error("Failed to load programming materials:", error);
+      setTip("无法加载资料，请检查后端服务。");
+    } finally {
+      if (requestId === materialLoadRequestRef.current) {
+        setMaterialsLoading(false);
+      }
+    }
+  };
+
+  const handleProgrammingFileChange = (courseId, event) => {
+    const files = Array.from(event.target.files || []);
+    event.target.value = "";
+    if (!files.length || !user?.username || !courseId) return;
+    if (!guardFeature("feature_material_upload_enabled", "资料上传功能暂时维护中，请稍后再试")) return;
+
+    const course = (() => {
+      try { return resolveProgrammingCourseById(courseId); } catch { return null; }
+    })();
+    if (!course) { setTip("未知编程课程，无法上传资料"); return; }
+
+    (async () => {
+      for (const file of files) {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("username", user.username);
+        formData.append("course_id", courseId);
+        formData.append("subject_key", "programming");
+        formData.append("subject", course.courseName);
+        formData.append("track", "programming");
+        formData.append("save_to_materials", "true");
+        formData.append("source_type", "user_upload");
+        try {
+          const res = await fetch(`${API_BASE}/materials/upload`, {
+            method: "POST", credentials: "include", body: formData,
+          });
+          const text = await res.text();
+          let data = {};
+          try { data = text ? JSON.parse(text) : {}; } catch { data = {}; }
+          if (!res.ok) throw new Error(getUploadErrorMessage(res.status, data));
+        } catch (error) {
+          console.error("Failed to upload programming material:", error);
+          window.alert(error.message || "上传失败");
+        }
+      }
+      await loadProgrammingMaterials(courseId);
+    })();
   };
 
   const loadMaterialDetail = async (materialId) => {
@@ -4231,12 +4381,39 @@ function App() {
         setPage={setPage}
         guideReplayToken={guideReplay.serviceKey === "programming" ? guideReplay.nonce : 0}
         knowledgeDeepLink={programmingKnowledgeDeepLink}
+        programmingRoute={programmingRoute}
+        onProgrammingRouteChange={handleProgrammingRouteChange}
+        materials={materials}
+        materialsLoading={materialsLoading}
+        loadProgrammingMaterials={loadProgrammingMaterials}
+        handleProgrammingFileChange={handleProgrammingFileChange}
+        deleteMaterial={deleteMaterial}
+        reindexLibrary={reindexLibrary}
       />
     );
   }
 
   if (page === "programmingChat") {
-    const chatCtx = programmingChatContext;
+    const chatCtx = (() => {
+      if (programmingChatContext && !programmingChatContext.error && programmingChatContext.courseId) {
+        return programmingChatContext;
+      }
+      // Restore the course from the programming URL (authoritative) when state/
+      // localStorage is empty (e.g. a fresh tab opened from a shared URL).
+      if (programmingRoute?.courseId && programmingRoute.section === "chat") {
+        try {
+          const course = resolveProgrammingCourseById(programmingRoute.courseId);
+          return {
+            language: course.language,
+            courseId: course.courseId,
+            scopeSubject: course.courseName,
+            displayName: course.language,
+            pendingAIContext: null,
+          };
+        } catch { /* ignore */ }
+      }
+      return programmingChatContext;
+    })();
     if (!chatCtx || chatCtx.error || !chatCtx.courseId) {
       return (
         <div className="app-shell standalone-page-main">
@@ -4268,20 +4445,30 @@ function App() {
     return (
       <div className="app-shell programming-chat-shell">
         <header className="programming-chat-topbar">
-          <button className="programming-chat-back" type="button" onClick={() => setPage("programmingHome")}>
+          <button
+            className="programming-chat-back"
+            type="button"
+            onClick={() => {
+              handleProgrammingRouteChange(chatCtx.courseId, "home");
+              setPage("programmingHome");
+            }}
+          >
             ← 返回编程学习
           </button>
           {kpCtx && kpTitle && (
             <button
               className="programming-chat-kp-back"
               type="button"
-              onClick={() => setPage("programmingHome", {
-                knowledgeDeepLink: {
-                  language: chatCtx.language,
-                  chapterCode: kpCtx.chapter_code || "",
-                  nodeCode: kpCtx.node_code || kpCtx.knowledge_point_code || kpCtx.nodeKey || "",
-                },
-              })}
+              onClick={() => {
+                handleProgrammingRouteChange(chatCtx.courseId, "knowledge");
+                setPage("programmingHome", {
+                  knowledgeDeepLink: {
+                    language: chatCtx.language,
+                    chapterCode: kpCtx.chapter_code || "",
+                    nodeCode: kpCtx.node_code || kpCtx.knowledge_point_code || kpCtx.nodeKey || "",
+                  },
+                });
+              }}
             >
               返回知识点
             </button>

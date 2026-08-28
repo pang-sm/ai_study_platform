@@ -41,3 +41,42 @@ export const PROGRAMMING_COURSE_IDS = new Set(
 export function isProgrammingCourseId(courseId) {
   return PROGRAMMING_COURSE_IDS.has(String(courseId || "").trim());
 }
+
+/** courseId → 语言标签（用于 URL 恢复） */
+export const PROGRAMMING_COURSE_ID_TO_LANGUAGE = Object.fromEntries(
+  Object.entries(PROGRAMMING_COURSE_MAP).map(([language, entry]) => [entry.courseId, language])
+);
+
+/** 严格解析 courseId → 编程课程；未知直接抛错 */
+export function resolveProgrammingCourseById(courseId) {
+  const language = PROGRAMMING_COURSE_ID_TO_LANGUAGE[String(courseId || "").trim()];
+  if (!language) {
+    throw new Error(`未知编程课程 ID：${courseId || "（空）"}。`);
+  }
+  return resolveProgrammingCourse(language);
+}
+
+// URL section（对外可恢复路径段）↔ 侧栏 activeNav 内部键
+export const PROGRAMMING_SECTIONS = ["home", "knowledge", "workbench", "questions", "materials", "chat"];
+
+export const SECTION_TO_NAV = {
+  home: "home",
+  knowledge: "status",
+  workbench: "workbench",
+  questions: "questions",
+  materials: "materials",
+  chat: "chat",
+};
+
+export const NAV_TO_SECTION = {
+  home: "home",
+  status: "knowledge",
+  workbench: "workbench",
+  questions: "questions",
+  materials: "materials",
+  chat: "chat",
+};
+
+export function isProgrammingSection(section) {
+  return PROGRAMMING_SECTIONS.includes(String(section || "").trim());
+}

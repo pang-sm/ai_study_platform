@@ -938,29 +938,3 @@
 .ph-exercise-personal-status--passed { background: #ecfdf5; color: #16a34a; }
 .ph-pagination { display: flex; gap: 12px; align-items: center; justify-content: flex-end; margin-top: 16px; }
 
-/* ── Programming material library ── */
-.pm-page { padding: 34px 44px 56px; min-width: 0; }
-.pm-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
-.pm-language-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
-.pm-language-tabs button { min-height: 38px; border: 1px solid #e4dafa; border-radius: 9px; background: #fff; color: #31265f; padding: 0 16px; font: inherit; font-weight: 800; cursor: pointer; }
-.pm-language-tabs button.is-active { background: #5b21e6; color: #fff; border-color: #5b21e6; }
-.pm-head-actions { display: flex; gap: 10px; }
-.pm-refresh-btn, .pm-upload-btn { min-height: 40px; border: 0; border-radius: 8px; background: #5b21e6; color: #fff; font: inherit; font-weight: 900; cursor: pointer; padding: 0 16px; }
-.pm-refresh-btn { background: #fff; color: #5b21e6; border: 1px solid #5b21e6; }
-.pm-refresh-btn:disabled, .pm-upload-btn:disabled { opacity: .5; cursor: default; }
-.pm-notice { color: #059669; font-size: 13px; font-weight: 700; margin: 0 0 12px; }
-.pm-empty { padding: 46px 20px; text-align: center; color: #66618c; border: 1px dashed #e4dafa; border-radius: 12px; }
-.pm-empty p { margin: 0 0 6px; font-weight: 750; }
-.pm-empty-sub { font-weight: 500; color: #8a85ad; }
-.pm-list { display: flex; flex-direction: column; gap: 10px; }
-.pm-item { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border: 1px solid #ece7fb; border-radius: 12px; background: #fff; }
-.pm-item-icon { font-size: 20px; }
-.pm-item-body { flex: 1; min-width: 0; }
-.pm-item-name { display: block; color: #111247; font-weight: 900; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pm-item-meta { display: block; color: #66618c; font-size: 12.5px; font-weight: 600; margin-top: 2px; }
-.pm-status { padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 800; white-space: nowrap; }
-.pm-status--ok { background: #ecfdf5; color: #16a34a; }
-.pm-status--pending { background: #fff7ed; color: #c2410c; }
-.pm-status--err { background: #fef2f2; color: #dc2626; }
-.pm-delete-btn { border: 1px solid #fecaca; border-radius: 8px; background: #fff; color: #dc2626; font: inherit; font-weight: 800; font-size: 13px; padding: 6px 12px; cursor: pointer; }
-.pm-delete-btn:hover { background: #fef2f2; }
