@@ -121,6 +121,7 @@ EXAM_MATERIAL_SCOPE_NAMES = {
     "operating_system": "操作系统",
     "computer_network": "计算机网络",
 }
+EXAM_SCOPE_NAME_TO_KEY = {name: key for key, name in EXAM_MATERIAL_SCOPE_NAMES.items()}
 
 # Stable programming language course ids (mirrors frontend programmingCourses.js).
 PROGRAMMING_COURSE_IDS = {"c_programming", "cpp_programming", "python_programming", "java_programming"}
@@ -2770,12 +2771,11 @@ def get_plan_limits(plan: str, db: Session = None):
                     for k in base:
                         base[k] = 999999
                 elif v > 0:
-                    # Distribute total daily limit proportionally across features
-                    feature_count = len([k for k in base if k not in ("material_upload_count", "single_file_size_mb")])
-                    per_feature = max(1, v // max(1, feature_count))
-                    for k in base:
-                        if k not in ("material_upload_count", "single_file_size_mb"):
-                            base[k] = per_feature
+                    # `limit_{plan}_daily_ai_calls` caps the primary AI chat feature
+                    # (e.g. "AI问答 N 次/天") directly. It must NOT be divided across
+                    # all AI features — that silently reduced 5/day to 1/day and made
+                    # the displayed quota disagree with the real limit.
+                    base["chat"] = v
         except Exception:
             pass
     return base
@@ -8093,17 +8093,28 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db), current_user: 
     # share the same language display name (e.g. "Python 程序设计") and only
     # differ by subject_key ("programming" vs "python_programming").
     service_key = (req.service_key or "").strip().lower()
-    rag_subject_key = ""
-    rag_course_id = ""
+    # Prefer the explicit canonical scope carried by new requests; derive it as a
+    # legacy fallback when absent (never trust a bare Chinese display name alone).
+    rag_subject_key = (req.subject_key or "").strip().lower()
+    rag_course_id = (req.course_id or "").strip()
+
     if service_key == "programming":
-        rag_subject_key = "programming"
-        rag_course_id = resolve_course_id_from_display(subject)
+        if not rag_subject_key:
+            rag_subject_key = "programming"
+        if not rag_course_id:
+            rag_course_id = resolve_course_id_from_display(subject)
     elif service_key == "exam_11408" or exam_subject or subject.startswith("11408 "):
-        rag_subject_key = exam_subject or (req.subject_key or "").strip().lower()
-        rag_course_id = f"{rag_subject_key}_11408" if rag_subject_key else ""
+        if not rag_subject_key:
+            rag_subject_key = exam_subject
+        if not rag_subject_key and subject.startswith("11408 "):
+            rag_subject_key = EXAM_SCOPE_NAME_TO_KEY.get(subject[5:].strip(), "")
+        if not rag_course_id and rag_subject_key:
+            rag_course_id = f"{rag_subject_key}_11408"
     else:
-        rag_course_id = resolve_course_id_from_display(subject)
-        rag_subject_key = rag_course_id
+        if not rag_course_id:
+            rag_course_id = resolve_course_id_from_display(subject)
+        if not rag_subject_key:
+            rag_subject_key = rag_course_id
     material_ids = sorted({int(item) for item in (req.material_ids or []) if int(item) > 0})
     selected_materials: list[models.StudyMaterial] = []
     branch_id = (req.branch_id or "").strip()[:64]

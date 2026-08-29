@@ -348,18 +348,21 @@ export default function ExamChat({
       if (subjectKey) {
         query.set("subject_key", subjectKey);
         query.set("exam_subject", subjectKey);
+        query.set("course_id", `${subjectKey}_11408`);
       }
-      if (subjectLabel) query.set("subject", subjectLabel);
-      if (courseName) query.set("course", courseName);
+      if (displayCourseName) {
+        query.set("subject", displayCourseName);
+        query.set("course", displayCourseName);
+      }
     }
     return query;
-  }, [isCourseMode, scopeSubjectValue, scopeCourseValue, subjectKey, subjectLabel, courseName, user?.username]);
+  }, [isCourseMode, scopeSubjectValue, scopeCourseValue, subjectKey, displayCourseName, user?.username]);
 
   const buildChatPayload = useCallback((message, extra = {}) => {
     const base = {
       username: user.username,
       message,
-      subject: isCourseMode ? scopeSubjectValue : subjectLabel,
+      subject: isCourseMode ? scopeSubjectValue : displayCourseName,
       course: isCourseMode ? scopeCourseValue : displayCourseName,
       hidden_instruction: hiddenInstruction || undefined,
       service_key: serviceKey || undefined,
@@ -371,15 +374,19 @@ export default function ExamChat({
         ...extra,
       });
     } else {
+      // exam_11408 mode: canonical scope (service_key / course_id / subject_key),
+      // never the bare Chinese display name.
       Object.assign(base, {
         subject_key: subjectKey,
         exam_subject: subjectKey,
+        course_id: subjectKey ? `${subjectKey}_11408` : "",
+        service_key: "exam_11408",
         knowledge_context: knowledgeContext || undefined,
         ...extra,
       });
     }
     return base;
-  }, [isCourseMode, scopeSubjectValue, scopeCourseValue, displayCourseName, knowledgeContext, hiddenInstruction, serviceKey, subjectKey, subjectLabel, user?.username]);
+  }, [isCourseMode, scopeSubjectValue, scopeCourseValue, displayCourseName, knowledgeContext, hiddenInstruction, serviceKey, subjectKey, user?.username]);
 
   const canReferenceMaterial = useCallback((material) => {
     const status = String(material?.parse_status || "").toLowerCase();
