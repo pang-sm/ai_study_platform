@@ -7232,7 +7232,7 @@ def get_my_quota(username: str = "", db: Session = Depends(get_db), current_user
     user = current_user
     exam_track = ensure_exam_408_track(db, user)
     plan_info = get_user_plan(user.username, db)
-    limits = get_plan_limits(plan_info["plan"])
+    limits = get_plan_limits(plan_info["plan"], db)
     exam_serialized = serialize_track(exam_track) if exam_track else None
     exam_permissions = exam_serialized.get("permissions", {}) if exam_serialized else {}
     if exam_permissions:
