@@ -7269,12 +7269,16 @@ def get_my_quota(username: str = "", service_key: str = "", db: Session = Depend
         limits["challenge_generate"] = int(quota["ai_question_daily_limit"])
     elif canonical == "exam_11408":
         exam_permissions = exam_serialized.get("permissions", {}) if exam_serialized else {}
-        if exam_permissions:
-            limits["chat"] = int(exam_permissions.get("ai_chat_daily_limit") or limits.get("chat", 0))
-            limits["question_generate"] = int(exam_permissions.get("ai_question_daily_limit") or limits.get("question_generate", 0))
-            limits["single_file_size_mb"] = int(exam_permissions.get("material_upload_limit_mb") or limits.get("single_file_size_mb", 20))
-            limits["learning_plan_generate"] = 999999 if exam_permissions.get("learning_plan") else 0
-            limits["learning_report_generate"] = 999999 if exam_permissions.get("learning_report") else 0
+        if not exam_permissions:
+            # No exam track yet → fall back to the free exam package quota
+            # (single source of truth), so `service_key=exam_11408` still
+            # reports 50/5 instead of the legacy PLAN_LIMITS.
+            exam_permissions = get_exam_package_permissions("free")
+        limits["chat"] = int(exam_permissions.get("ai_chat_daily_limit") or limits.get("chat", 0))
+        limits["question_generate"] = int(exam_permissions.get("ai_question_daily_limit") or limits.get("question_generate", 0))
+        limits["single_file_size_mb"] = int(exam_permissions.get("material_upload_limit_mb") or limits.get("single_file_size_mb", 20))
+        limits["learning_plan_generate"] = 999999 if exam_permissions.get("learning_plan") else 0
+        limits["learning_report_generate"] = 999999 if exam_permissions.get("learning_report") else 0
     # course_learning: no override — legacy get_plan_limits already reflects it.
 
     usage = {}
