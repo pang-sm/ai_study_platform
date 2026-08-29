@@ -3720,6 +3720,11 @@ function App() {
 
   }
 
+  // ── Authenticated shell ──────────────────────────────────────────────────
+  // Everything below (until the final return) renders one authenticated page.
+  // The global announcement modal is mounted ONCE at the top of this shell so
+  // it is present on every business page — not just membership/onboarding.
+  const renderAuthenticatedApp = () => {
   const getUserAvatarElement = (sizeClass = "avatar-circle") => {
     const avatarVal = (user?.avatar || "").trim();
     const avatarUrl = user?.avatar_url || "";
@@ -3823,7 +3828,6 @@ function App() {
     };
     return (
       <>
-      <AnnouncementModal announcements={userAnnouncements} onDismiss={dismissAnnouncement} />
         <Onboarding
         user={user}
         onComplete={handleOnboardingComplete}
@@ -3854,7 +3858,6 @@ function App() {
     const isServiceSwitchProgrammingOnboarding = Boolean(serviceSwitchOnboarding?.fromServiceSwitch);
     return (
       <>
-      <AnnouncementModal announcements={userAnnouncements} onDismiss={dismissAnnouncement} />
       <ProgrammingOnboardingStep
         user={user}
         apiBase={API_BASE}
@@ -3914,7 +3917,6 @@ function App() {
     };
     return (
       <>
-      <AnnouncementModal announcements={userAnnouncements} onDismiss={dismissAnnouncement} />
       <ProgrammingPackageStep
         user={user}
         apiBase={API_BASE}
@@ -3943,7 +3945,6 @@ function App() {
     const isServiceSwitchCourseOnboarding = Boolean(serviceSwitchOnboarding?.fromServiceSwitch);
     return (
       <>
-      <AnnouncementModal announcements={userAnnouncements} onDismiss={dismissAnnouncement} />
       <CourseLearningOnboarding
         user={user}
         apiBase={API_BASE}
@@ -4025,7 +4026,6 @@ function App() {
     };
     return (
       <>
-      <AnnouncementModal announcements={userAnnouncements} onDismiss={dismissAnnouncement} />
       <CourseLearningPackageStep
         apiBase={API_BASE}
         initialPlan={courseOnboardingStatus?.plan || "quarterly"}
@@ -4046,7 +4046,6 @@ function App() {
   if (page === "courseLearningComplete") {
     return (
       <>
-      <AnnouncementModal announcements={userAnnouncements} onDismiss={dismissAnnouncement} />
       <CourseLearningCompletePage
         onEnter={() => setPage(courseOnboardingTargetPage || "home")}
       />
@@ -4057,7 +4056,6 @@ function App() {
   const wrapPage = (children, layoutContext = {}) => {
     const content = (
       <>
-      <AnnouncementModal announcements={userAnnouncements} onDismiss={dismissAnnouncement} />
       {children}
       </>
     );
@@ -6156,6 +6154,18 @@ function App() {
         />
       </main>
     </div>
+  );
+  };
+
+  // Global authenticated shell: the announcement modal is mounted exactly once
+  // here, on top of whichever authenticated page is currently rendered. This is
+  // the single source of truth for announcement display (login, refresh, and
+  // every business page), independent of Membership/Profile/onboarding.
+  return (
+    <>
+      <AnnouncementModal announcements={userAnnouncements} onDismiss={dismissAnnouncement} />
+      {renderAuthenticatedApp()}
+    </>
   );
 }
 
