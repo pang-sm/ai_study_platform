@@ -7288,8 +7288,15 @@ def get_course_learning_entitlements(
     entitlement = get_course_package_entitlements(plan)
     permissions = entitlement["permissions"]
 
+    # Single Source of Truth for the chat quota: align the displayed limit with
+    # the actual enforcement path (get_plan_limits applies the
+    # limit_{plan}_daily_ai_calls override). Copy, never mutate COURSE_PACKAGE_QUOTA.
+    enforcement_limits = get_plan_limits(get_user_plan(user.username, db)["plan"], db)
+    chat_limit = int(enforcement_limits.get("chat", permissions["ai_chat_daily_limit"]))
+    permissions = {**permissions, "ai_chat_daily_limit": chat_limit}
+
     feature_map = {
-        "chat": int(permissions["ai_chat_daily_limit"]),
+        "chat": chat_limit,
         "question_generate": int(permissions["ai_question_daily_limit"]),
         "learning_plan_generate": 999999 if permissions["learning_plan"] else 0,
         "learning_report_generate": 999999 if permissions["learning_report"] else 0,
@@ -7312,6 +7319,7 @@ def get_course_learning_entitlements(
 
     return {
         **entitlement,
+        "permissions": permissions,
         "feature_limits": feature_limits,
         "upload_limits": {
             "material_upload_count": {
