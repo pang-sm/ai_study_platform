@@ -16139,7 +16139,7 @@ def get_learning_report(
     assert_username_matches_current_user(username, current_user)
     require_learning_context_feature(current_user, db, "learning_report", course_id, course_name)
     username = current_user.username
-    dashboard = get_learning_dashboard(username=username, db=db)
+    dashboard = get_learning_dashboard(username=username, db=db, current_user=current_user)
     overview = dashboard.get("overview") or {}
     weak_points = dashboard.get("weak_points") or []
     recommendations = dashboard.get("recommendations") or []
