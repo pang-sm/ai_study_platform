@@ -895,6 +895,23 @@ FIRST_TIME_GUIDE_TRACKS = {
     "programming": "programming",
 }
 
+# Reverse of FIRST_TIME_GUIDE_TRACKS: legacy learning track → canonical service key.
+TRACK_TYPE_TO_SERVICE_KEY = {
+    "university_course": "course_learning",
+    "exam_408": "exam_11408",
+    "programming": "programming",
+}
+
+
+def _resolve_active_service_key(db: Session, user: models.User) -> str:
+    """Resolve the user's currently active business direction to a canonical service key."""
+    tracks = [serialize_track(t) for t in get_user_tracks(db, user.id)]
+    active_track = next(
+        (t["track_type"] for t in tracks if t.get("is_active")),
+        tracks[0]["track_type"] if tracks else None,
+    )
+    return TRACK_TYPE_TO_SERVICE_KEY.get(active_track, "course_learning")
+
 
 def _first_time_guide_eligible(user: models.User, service_key: str, track: models.UserLearningTrack | None) -> bool:
     """A guide is available only after its direction has really finished onboarding."""
@@ -7227,24 +7244,49 @@ def email_login(req: EmailLoginRequest, response: Response, db: Session = Depend
 
 
 @app.get("/me/quota")
-def get_my_quota(username: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+def get_my_quota(username: str = "", service_key: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     assert_username_matches_current_user(username, current_user)
     user = current_user
     exam_track = ensure_exam_408_track(db, user)
     plan_info = get_user_plan(user.username, db)
     limits = get_plan_limits(plan_info["plan"], db)
     exam_serialized = serialize_track(exam_track) if exam_track else None
-    exam_permissions = exam_serialized.get("permissions", {}) if exam_serialized else {}
-    if exam_permissions:
-        limits["chat"] = int(exam_permissions.get("ai_chat_daily_limit") or limits.get("chat", 0))
-        limits["question_generate"] = int(exam_permissions.get("ai_question_daily_limit") or limits.get("question_generate", 0))
-        limits["single_file_size_mb"] = int(exam_permissions.get("material_upload_limit_mb") or limits.get("single_file_size_mb", 20))
-        limits["learning_plan_generate"] = 999999 if exam_permissions.get("learning_plan") else 0
-        limits["learning_report_generate"] = 999999 if exam_permissions.get("learning_report") else 0
+
+    # Determine the effective service direction: an explicit query param wins,
+    # otherwise fall back to the user's active learning track.
+    canonical = canonical_service_key(service_key) if (service_key or "").strip() else ""
+    if not canonical:
+        canonical = _resolve_active_service_key(db, user)
+
+    if canonical == "programming":
+        # Programming quota comes from the programming plan catalog (single source
+        # of truth), never from the legacy PLAN_LIMITS.
+        plan = normalize_programming_plan(get_effective_service_plan(db, user.id, "programming"))
+        quota = PROGRAMMING_PACKAGE_QUOTA[plan]
+        limits["chat"] = int(quota["ai_chat_daily_limit"])
+        limits["code_analyze"] = int(quota["ai_chat_daily_limit"])
+        limits["question_generate"] = int(quota["ai_question_daily_limit"])
+        limits["challenge_generate"] = int(quota["ai_question_daily_limit"])
+    elif canonical == "exam_11408":
+        exam_permissions = exam_serialized.get("permissions", {}) if exam_serialized else {}
+        if exam_permissions:
+            limits["chat"] = int(exam_permissions.get("ai_chat_daily_limit") or limits.get("chat", 0))
+            limits["question_generate"] = int(exam_permissions.get("ai_question_daily_limit") or limits.get("question_generate", 0))
+            limits["single_file_size_mb"] = int(exam_permissions.get("material_upload_limit_mb") or limits.get("single_file_size_mb", 20))
+            limits["learning_plan_generate"] = 999999 if exam_permissions.get("learning_plan") else 0
+            limits["learning_report_generate"] = 999999 if exam_permissions.get("learning_report") else 0
+    # course_learning: no override — legacy get_plan_limits already reflects it.
 
     usage = {}
     for feature in ALL_FEATURES:
         usage[feature] = get_today_usage(user.username, feature, db)
+
+    # Programming records AI chat as code_analyze and AI question as
+    # challenge_generate, so map the generic display counters onto those so
+    # `chat` / `question_generate` used never mix across services.
+    if canonical == "programming":
+        usage["chat"] = usage.get("code_analyze", 0)
+        usage["question_generate"] = usage.get("challenge_generate", 0)
 
     feature_limits = {}
     for feature in ALL_FEATURES:
@@ -7271,6 +7313,7 @@ def get_my_quota(username: str = "", db: Session = Depends(get_db), current_user
         "feature_limits": feature_limits,
         "upload_limits": upload_limits,
         "all_features": ALL_FEATURES,
+        "service_key": canonical,
         "active_track_type": "exam_408" if exam_track else None,
         "exam_408_track": exam_serialized,
     }
