@@ -305,6 +305,7 @@ def search_relevant_material_chunks(
     question: str,
     top_k: int = DEFAULT_TOP_K,
     course_id: str | None = None,
+    subject_key: str | None = None,
 ):
     safe_top_k = max(1, min(top_k, MAX_TOP_K))
     question_tokens = tokenize_query(question, subject)
@@ -325,6 +326,8 @@ def search_relevant_material_chunks(
             base_filter = base_filter.filter(models.MaterialChunk.subject == subject)
         if course_id:
             base_filter = base_filter.filter(models.MaterialChunk.course_id == course_id)
+        if subject_key:
+            base_filter = base_filter.filter(models.MaterialChunk.subject_key == subject_key)
 
         if is_material_chunks_fts_enabled() and fts_query:
             try:
@@ -363,6 +366,7 @@ def search_relevant_material_chunks(
                           )
                           AND (:subject = '' OR mc.subject = :subject)
                           AND (:course_id = '' OR mc.course_id = :course_id)
+                          AND (:subject_key = '' OR mc.subject_key = :subject_key)
                         LIMIT 24
                         """
                     ),
@@ -371,6 +375,7 @@ def search_relevant_material_chunks(
                         "username": username,
                         "subject": subject or "",
                         "course_id": course_id or "",
+                        "subject_key": subject_key or "",
                     },
                 ).mappings().all()
 

@@ -8088,6 +8088,22 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db), current_user: 
     user = current_user
     subject = _normalize_course_or_11408_optional(req.subject or req.course)
     exam_subject = normalize_exam_subject_key(req.exam_subject, req.subject_key)
+    # Determine the auto-RAG material scope from canonical service/track params.
+    # Never rely on the display `subject` alone: programming and course_learning
+    # share the same language display name (e.g. "Python 程序设计") and only
+    # differ by subject_key ("programming" vs "python_programming").
+    service_key = (req.service_key or "").strip().lower()
+    rag_subject_key = ""
+    rag_course_id = ""
+    if service_key == "programming":
+        rag_subject_key = "programming"
+        rag_course_id = resolve_course_id_from_display(subject)
+    elif service_key == "exam_11408" or exam_subject or subject.startswith("11408 "):
+        rag_subject_key = exam_subject or (req.subject_key or "").strip().lower()
+        rag_course_id = f"{rag_subject_key}_11408" if rag_subject_key else ""
+    else:
+        rag_course_id = resolve_course_id_from_display(subject)
+        rag_subject_key = rag_course_id
     material_ids = sorted({int(item) for item in (req.material_ids or []) if int(item) > 0})
     selected_materials: list[models.StudyMaterial] = []
     branch_id = (req.branch_id or "").strip()[:64]
@@ -8223,6 +8239,8 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db), current_user: 
             subject=subject,
             question=req.message,
             top_k=TOP_K_CHUNKS,
+            course_id=rag_course_id or None,
+            subject_key=rag_subject_key or None,
         )
 
     knowledge_context = build_knowledge_context(user.username, subject, db)
