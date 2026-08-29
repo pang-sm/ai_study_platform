@@ -35,7 +35,6 @@ const ExamPastPaperAttemptPage = lazy(() => import("./components/ExamPastPaperAt
 const ExamAIQuestionAttemptPage = lazy(() => import("./components/ExamAIQuestionAttemptPage.jsx"));
 const ExamChapterPracticeSession = lazy(() => import("./components/ExamChapterPracticeSession.jsx"));
 const LearningDataCenter = lazy(() => import("./components/LearningDataCenter.jsx"));
-const ReviewCenter = lazy(() => import("./components/ReviewCenter.jsx"));
 import FeatureUnavailable from "./components/FeatureUnavailable.jsx";
 const KnowledgeBaseCenter = lazy(() => import("./components/KnowledgeBaseCenter.jsx"));
 const QuotaCenter = lazy(() => import("./components/QuotaCenter.jsx"));
@@ -611,7 +610,7 @@ function normalizePageName(pageName) {
 const VALID_PAGES = new Set([
   "home", "dashboard", "profile", "membership",
   "membershipCheckout",
-  "taskCenter", "practiceCenter", "learningDataCenter", "reviewCenter",
+  "taskCenter", "practiceCenter", "learningDataCenter",
   "learningPlanCenter", "knowledgeBaseCenter", "quotaCenter",
   "learningReportCenter", "adminDashboard", "adminAnnouncements", "adminUsers",
   "adminOrders", "adminMembers", "adminFeedback", "adminQuota", "adminStatistics", "adminUsage",
@@ -635,7 +634,6 @@ const COURSE_LEARNING_ENTRY_PAGES = new Set([
   "practiceCenter",
   "taskCenter",
   "learningDataCenter",
-  "reviewCenter",
   "learningPlanCenter",
   "knowledgeBaseCenter",
   "learningReportCenter",
@@ -4824,21 +4822,6 @@ function App() {
             user={user}
             getSubjectLabel={getSubjectLabel}
             onNavigate={setPage}
-          />
-        </Suspense>
-      </div>
-    );
-  }
-
-  if (page === "reviewCenter") {
-    return wrapPage(
-      <div className="app-shell">
-        <Suspense fallback={<div className="empty-state">复盘中心加载中...</div>}>
-          <ReviewCenter
-            user={user}
-            getSubjectLabel={getSubjectLabel}
-            setPage={setPage}
-            courseId={subject || getExamCourseId(examSubjectKey)}
           />
         </Suspense>
       </div>

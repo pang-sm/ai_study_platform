@@ -3,9 +3,8 @@ import ExamChat from "./ExamChat.jsx";
 import ExamStudyPlan from "./ExamStudyPlan.jsx";
 import KnowledgeLearningPage from "./KnowledgeLearningPage.jsx";
 const LearningReportCenter = lazy(() => import("./LearningReportCenter.jsx"));
-const ReviewCenter = lazy(() => import("./ReviewCenter.jsx"));
 import useFeatureEntitlements from "../hooks/useFeatureEntitlements.js";
-import LockedFeaturePrompt, { LockedFeatureView } from "./LockedFeaturePrompt.jsx";
+import LockedFeaturePrompt, { LockedFeatureView, LockIcon } from "./LockedFeaturePrompt.jsx";
 import "./CourseSubjectDashboard.css";
 import FirstTimeGuideLauncher from "./FirstTimeGuideLauncher.jsx";
 import { COURSE_GUIDE_STEPS } from "./firstTimeGuideFlows.js";
@@ -24,9 +23,7 @@ const NAV_ITEMS = [
 ];
 
 const EXAM_CRAM_NAV_ITEMS = NAV_ITEMS.filter((item) => item.key !== "report");
-NAV_ITEMS.splice(NAV_ITEMS.findIndex((item) => item.key === "report"), 0, { key: "review", label: "练习复盘", icon: "↻" });
-EXAM_CRAM_NAV_ITEMS.splice(EXAM_CRAM_NAV_ITEMS.findIndex((item) => item.key === "report"), 0, { key: "review", label: "练习复盘", icon: "↻" });
-const FEATURE_BY_PANEL = { plan: "learning_plan", review: "practice_review", report: "learning_report" };
+const FEATURE_BY_PANEL = { plan: "learning_plan", report: "learning_report" };
 
 const MATERIAL_CARDS = [
   { key: "slides", label: "课件讲义", tone: "purple", match: ["ppt", "课件", "讲义", "slides"] },
@@ -396,8 +393,8 @@ export default function CourseSubjectDashboard({
     coursePreference?.learning_goal === "考试突击";
   const navItems = isExamCramMode ? EXAM_CRAM_NAV_ITEMS : NAV_ITEMS;
   const allowedPanels = isExamCramMode
-    ? ["overview", "chat", "materials", "knowledge", "practice", "plan", "review"]
-    : ["overview", "chat", "materials", "knowledge", "practice", "plan", "review", "report"];
+    ? ["overview", "chat", "materials", "knowledge", "practice", "plan"]
+    : ["overview", "chat", "materials", "knowledge", "practice", "plan", "report"];
 
   const normalizePanel = (panel) =>
     allowedPanels.includes(panel)
@@ -1044,14 +1041,6 @@ export default function CourseSubjectDashboard({
       );
     }
 
-    if (activeSection === "review") {
-      return (
-        <Suspense fallback={<div className="csd-loading">练习复盘加载中...</div>}>
-          <ReviewCenter user={user} getSubjectLabel={getSubjectLabel} setPage={setPage} courseId={courseId} />
-        </Suspense>
-      );
-    }
-
     // Learning Report — use content prop if available, else use LearningReportCenter with course context
     if (activeSection === "report") {
       if (reportContent) return reportContent;
@@ -1086,7 +1075,7 @@ export default function CourseSubjectDashboard({
             >
               <span>{item.icon}</span>
               {item.label}
-              {FEATURE_BY_PANEL[item.key] && !featureEntitlements.loading && !featureEntitlements.features[FEATURE_BY_PANEL[item.key]]?.allowed && <b className="csd-nav-lock" aria-label="需要升级">🔒</b>}
+              {FEATURE_BY_PANEL[item.key] && !featureEntitlements.loading && !featureEntitlements.features[FEATURE_BY_PANEL[item.key]]?.allowed && <b className="csd-nav-lock" aria-label="需要升级"><LockIcon size={13} /></b>}
             </button>
           ))}
         </nav>

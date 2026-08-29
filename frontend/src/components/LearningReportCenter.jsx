@@ -44,6 +44,12 @@ function formatStudyDays(count) {
   return `${n} 天`;
 }
 
+const EVENT_LABELS = {
+  question_incorrect: "答题错误",
+  ai_feedback_negative: "AI 负向反馈",
+  task_reopened: "任务重开",
+};
+
 const EMPTY_REPORT = {
   range: { start_date: "", end_date: "", label: "" },
   metrics: { study_minutes: 0, completed_knowledge_count: 0, practice_accuracy: null, study_days: 0 },
@@ -283,6 +289,7 @@ export default function LearningReportCenter({
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [selectedReportId, setSelectedReportId] = useState(null);
+  const [reviewData, setReviewData] = useState({ wrong_questions: [], negative_events: [], review_tasks: [] });
 
   const loadHistory = async () => {
     if (!user?.username) return;
@@ -311,6 +318,30 @@ export default function LearningReportCenter({
   useEffect(() => {
     loadHistory();
   }, [user?.username, isCourseMode, courseId, courseName]);
+
+  // Merged from the former 练习复盘 (ReviewCenter): 错题 / 负向事件 / 复盘任务.
+  const loadReviewData = async () => {
+    if (!user?.username) return;
+    try {
+      const params = new URLSearchParams({ username: user.username });
+      if (courseId) params.set("course_id", courseId);
+      const res = await fetch(`/api/review/center?${params.toString()}`);
+      if (res.ok) {
+        const json = await res.json();
+        setReviewData({
+          wrong_questions: Array.isArray(json.wrong_questions) ? json.wrong_questions : [],
+          negative_events: Array.isArray(json.negative_events) ? json.negative_events : [],
+          review_tasks: Array.isArray(json.review_tasks) ? json.review_tasks : [],
+        });
+      }
+    } catch {
+      /* best effort */
+    }
+  };
+
+  useEffect(() => {
+    loadReviewData();
+  }, [user?.username, courseId, courseName]);
 
   const handleGenerate = async ({ rangeType, startDate, endDate }) => {
     setGenerating(true);
@@ -406,6 +437,19 @@ export default function LearningReportCenter({
         <KnowledgeListCard title="AI 建议" type="review"
           items={report.summary.suggestions.map((s, i) => ({ title: s, meta: `建议 ${i + 1}` }))}
           emptyText="生成AI报告后将显示个性化建议。" />
+      </section>
+
+      {/* 错题与复盘（由原练习复盘合并进学习报告） */}
+      <section className="report-bottom-grid">
+        <KnowledgeListCard title="错题" type="error"
+          items={reviewData.wrong_questions.slice(0, 6).map((wq) => ({ title: wq.title || "错题", meta: wq.knowledge_point_title || "" }))}
+          emptyText="暂无错题记录。" />
+        <KnowledgeListCard title="负向事件" type="review"
+          items={reviewData.negative_events.slice(0, 6).map((evt) => ({ title: EVENT_LABELS[evt.event_type] || evt.event_type || "负向事件", meta: evt.knowledge_point_title || "" }))}
+          emptyText="暂无负向事件。" />
+        <KnowledgeListCard title="复盘任务" type="review"
+          items={reviewData.review_tasks.slice(0, 6).map((task) => ({ title: task.title || "复盘任务", meta: task.knowledge_point_title || "" }))}
+          emptyText="暂无复盘任务。" />
       </section>
 
       <section className="report-card report-history-card">

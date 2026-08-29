@@ -2,12 +2,11 @@ import { useEffect, useState, useCallback, lazy, Suspense } from "react";
 import ExamChat from "./ExamChat.jsx";
 import ExamStudyPlan from "./ExamStudyPlan.jsx";
 import useFeatureEntitlements from "../hooks/useFeatureEntitlements.js";
-import LockedFeaturePrompt, { LockedFeatureView } from "./LockedFeaturePrompt.jsx";
+import LockedFeaturePrompt, { LockedFeatureView, LockIcon } from "./LockedFeaturePrompt.jsx";
 import FirstTimeGuideLauncher from "./FirstTimeGuideLauncher.jsx";
 import { EXAM_GUIDE_STEPS } from "./firstTimeGuideFlows.js";
 import UserAvatar from "./UserAvatar.jsx";
 const LearningReportCenter = lazy(() => import("./LearningReportCenter.jsx"));
-const ReviewCenter = lazy(() => import("./ReviewCenter.jsx"));
 
 const SUBJECT_CONFIG = {
   data_structure: {
@@ -51,8 +50,7 @@ const NAV_ITEMS = [
 ];
 
 export const EXAM_SUBJECTS = SUBJECT_CONFIG;
-const FEATURE_BY_PANEL = { plan: "learning_plan", review: "practice_review", report: "learning_report" };
-NAV_ITEMS.splice(NAV_ITEMS.findIndex((item) => item.key === "report"), 0, { key: "review", label: "练习复盘", icon: "↻" });
+const FEATURE_BY_PANEL = { plan: "learning_plan", report: "learning_report" };
 
 export function getExamSubjectConfig(subjectKey) {
   return SUBJECT_CONFIG[subjectKey] || SUBJECT_CONFIG.data_structure;
@@ -73,7 +71,7 @@ export default function ExamSubjectDashboard({
 }) {
   const panelStorageKey = `exam_subject_active_panel_${subjectKey}`;
   const normalizePanel = (panel) => (
-    panel === "ai" || panel === "home" || panel === "materials" || panel === "knowledge" || panel === "practice" || panel === "review" || panel === "report" || panel === "plan" ? panel : null
+    panel === "ai" || panel === "home" || panel === "materials" || panel === "knowledge" || panel === "practice" || panel === "report" || panel === "plan" ? panel : null
   );
   const getSavedPanel = () => {
     try {
@@ -200,7 +198,7 @@ export default function ExamSubjectDashboard({
             >
               <span>{item.icon}</span>
               {item.label}
-              {FEATURE_BY_PANEL[item.key] && !featureEntitlements.loading && !featureEntitlements.features[FEATURE_BY_PANEL[item.key]]?.allowed && <b className="exam-subject-nav-lock" aria-label="需要升级">🔒</b>}
+              {FEATURE_BY_PANEL[item.key] && !featureEntitlements.loading && !featureEntitlements.features[FEATURE_BY_PANEL[item.key]]?.allowed && <b className="exam-subject-nav-lock" aria-label="需要升级"><LockIcon size={13} /></b>}
             </button>
           ))}
         </nav>
@@ -225,10 +223,6 @@ export default function ExamSubjectDashboard({
           knowledgeContent
         ) : activeSection === "practice" && practiceContent ? (
           practiceContent
-        ) : activeSection === "review" ? (
-          <Suspense fallback={<div className="empty-state">练习复盘加载中...</div>}>
-            <ReviewCenter user={user} courseId={courseId} />
-          </Suspense>
         ) : activeSection === "report" ? (
           reportContent || <Suspense fallback={<div className="empty-state">学习报告加载中...</div>}>
             <LearningReportCenter user={user} mode="exam_11408" courseId={courseId} courseName={config.title} />

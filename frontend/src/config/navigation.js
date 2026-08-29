@@ -16,7 +16,6 @@ export const APP_PAGES = {
   // ── 学习沉淀 ──
   learningDataCenter:   { key: "learningDataCenter",   icon: "📊", label: "学习数据中心", group: "review" },
   learningReportCenter: { key: "learningReportCenter", icon: "📄", label: "学习报告",     group: "review" },
-  reviewCenter:         { key: "reviewCenter",         icon: "🔄", label: "复盘中心",     group: "review" },
   learningPlanCenter:   { key: "learningPlanCenter",   icon: "📅", label: "AI 学习计划",  group: "review" },
   knowledgeBaseCenter:  { key: "knowledgeBaseCenter",  icon: "📚", label: "知识库中心",   group: "review" },
 
@@ -51,7 +50,6 @@ export const SIDEBAR_NAV_GROUPS = [
     items: [
       APP_PAGES.learningDataCenter,
       APP_PAGES.learningReportCenter,
-      APP_PAGES.reviewCenter,
       APP_PAGES.knowledgeBaseCenter,
     ],
   },
@@ -124,12 +122,6 @@ export const HOME_LEARNING_TOOLS = [
     icon: APP_PAGES.learningDataCenter.icon,
     title: "学习数据中心",
     desc: "全局学习统计",
-  },
-  {
-    id: APP_PAGES.reviewCenter.key,
-    icon: APP_PAGES.reviewCenter.icon,
-    title: "复盘中心",
-    desc: "错题与薄弱点",
   },
   {
     id: APP_PAGES.learningReportCenter.key,

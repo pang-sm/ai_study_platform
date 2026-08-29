@@ -265,7 +265,7 @@ SERVICE_PLAN_CATALOG = {
     "exam_11408": {
         "free": {"name": "免费模式", "rank": 0, "price_cents": 0, "duration_days": None, "quota": {
             "ai_chat_daily_limit": 50, "ai_question_daily_limit": 5, "material_upload_limit_mb": 100,
-            "learning_plan": False, "mistake_review": False, "learning_report": False,
+            "learning_plan": False, "mistake_review": False, "learning_report": True,
         }},
         "monthly_sprint": {"name": "月度冲刺包", "rank": 1, "price_cents": 2900, "duration_days": 30, "quota": {
             "ai_chat_daily_limit": 300, "ai_question_daily_limit": 30, "material_upload_limit_mb": 500,
@@ -283,7 +283,7 @@ SERVICE_PLAN_CATALOG = {
     "course_learning": {
         "free": {"name": "免费模式", "rank": 0, "price_cents": 0, "duration_days": None, "quota": {
             "ai_chat_daily_limit": 50, "ai_question_daily_limit": 5, "material_upload_limit_mb": 100,
-            "learning_plan": False, "mistake_review": False, "learning_report": False,
+            "learning_plan": False, "mistake_review": False, "learning_report": True,
         }},
         "monthly": {"name": "月度学习包", "rank": 1, "price_cents": 2900, "duration_days": 30, "quota": {
             "ai_chat_daily_limit": 300, "ai_question_daily_limit": 30, "material_upload_limit_mb": 500,

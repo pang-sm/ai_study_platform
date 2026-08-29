@@ -381,7 +381,7 @@ export default function LearningDataCenter({ user, getSubjectLabel, onNavigate }
                   </div>
                 );
               })}
-              <button type="button" className="ldc-review-center-button" onClick={() => navigate("reviewCenter")}>
+              <button type="button" className="ldc-review-center-button" onClick={() => navigate("learningReportCenter")}>
                 去复盘中心处理
               </button>
             </div>
@@ -391,7 +391,7 @@ export default function LearningDataCenter({ user, getSubjectLabel, onNavigate }
                 <strong>暂无明显薄弱知识点</strong>
                 <p>继续完成练习和学习任务后，系统会自动生成分析。</p>
               </div>
-              <button type="button" className="ldc-review-center-button" onClick={() => navigate("reviewCenter")}>
+              <button type="button" className="ldc-review-center-button" onClick={() => navigate("learningReportCenter")}>
                 去复盘中心处理
               </button>
             </div>
@@ -466,7 +466,7 @@ export default function LearningDataCenter({ user, getSubjectLabel, onNavigate }
               {dashboard.recommendations.slice(0, 4).map((item, index) => {
                 const text = `${item.id || ""}${item.title || ""}${item.reason || ""}`;
                 const shouldReview = /weak|薄弱|复盘|复习/.test(text);
-                const target = shouldReview ? "reviewCenter" : item.target_page;
+                const target = shouldReview ? "learningReportCenter" : item.target_page;
                 return (
                   <div key={item.id || `${item.title}-${index}`} className="ldc-recommend-item">
                     <span>{index + 1}</span>

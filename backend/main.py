@@ -644,7 +644,7 @@ EXAM_PACKAGE_QUOTA = {
         "material_upload_limit_mb": 100,
         "learning_plan": False,
         "mistake_review": False,
-        "learning_report": False,
+        "learning_report": True,
     },
     "monthly_sprint": {
         "ai_chat_daily_limit": 300,
@@ -686,7 +686,7 @@ COURSE_PACKAGE_QUOTA = {
         "material_upload_limit_mb": 100,
         "learning_plan": False,
         "mistake_review": False,
-        "learning_report": False,
+        "learning_report": True,
     },
     "monthly": {
         "ai_chat_daily_limit": 300,
@@ -16394,7 +16394,6 @@ def ai_generate_learning_report(req: schemas.LearningReportAiGenerateRequest, db
 @app.get("/review/center")
 def get_review_center(username: str = "", course_id: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     request_username(username, current_user)
-    require_learning_context_feature(current_user, db, "practice_review", course_id)
     user = current_user
     normalized_course = normalize_subject(course_id, default="")
 
