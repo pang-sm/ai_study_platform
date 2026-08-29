@@ -351,14 +351,14 @@ export default function LearningReportCenter({
         rangeType, startDate, endDate,
         username: user?.username,
         mode: isCourseMode ? "course_learning" : "exam_11408",
-        courseId: isCourseMode ? courseId : "",
-        courseName: isCourseMode ? courseName : undefined,
+        courseId: courseId || "",
+        courseName: courseName || "",
       });
       const saved = await saveLearningReport({
         username: user?.username,
         report: data,
-        courseId: isCourseMode ? courseId : "",
-        courseName: isCourseMode ? courseName : "",
+        courseId: courseId || "",
+        courseName: courseName || "",
         mode,
       });
       setReport(normalizeReport({ ...data, id: saved.report_id }));

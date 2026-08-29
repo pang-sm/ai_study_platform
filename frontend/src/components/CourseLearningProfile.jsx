@@ -83,7 +83,6 @@ export default function CourseLearningProfile({ user, setPage, onLogout, API_BAS
     { icon: "📝", label: "AI 出题次数", value: questionLimit, unit: "次 / 每天", sub: `已使用 ${questionUsed} 次` },
     { icon: "📁", label: "资料上传限制", value: formatUploadLimit(uploadLimitMb), unit: "", sub: `已上传 ${uploadUsed} 份资料` },
     { icon: "📋", label: "学习计划", value: permissions.learning_plan ? "已解锁" : "未解锁", unit: "", sub: permissions.learning_plan ? "当前套餐可用" : "升级后可用" },
-    { icon: "🔄", label: "错题复盘", value: permissions.mistake_review ? "已解锁" : "未解锁", unit: "", sub: permissions.mistake_review ? "当前套餐可用" : "升级后可用" },
     { icon: "📊", label: "学习报告", value: permissions.learning_report ? "已解锁" : "未解锁", unit: "", sub: permissions.learning_report ? "当前套餐可用" : "升级后可用" },
   ];
   const fallbackBenefits = [
@@ -91,7 +90,6 @@ export default function CourseLearningProfile({ user, setPage, onLogout, API_BAS
     { label: `AI 出题 ${questionLimit} 次 / 每天`, enabled: true },
     { label: `资料上传限制 ${formatUploadLimit(uploadLimitMb)}`, enabled: true },
     { label: "学习计划", enabled: Boolean(permissions.learning_plan) },
-    { label: "错题复盘", enabled: Boolean(permissions.mistake_review) },
     { label: "学习报告", enabled: Boolean(permissions.learning_report) },
   ];
   const packageBenefits = (courseEntitlements?.benefits || []).length > 0

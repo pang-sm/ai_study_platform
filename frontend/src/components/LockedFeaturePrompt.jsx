@@ -2,7 +2,6 @@ import "./LockedFeaturePrompt.css";
 
 const FEATURE_LABELS = {
   learning_plan: "学习计划",
-  practice_review: "练习复盘",
   learning_report: "学习报告",
 };
 

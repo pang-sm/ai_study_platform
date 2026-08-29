@@ -321,7 +321,15 @@ export default function ExamSubjectDashboard({
         serviceLabel="11408 备考"
         steps={EXAM_GUIDE_STEPS}
         ready={false}
-        onStepChange={(index, _step, direction) => {
+        onStepChange={(index, step, direction) => {
+          const panel = {
+            '[data-tour="exam-nav-home"]': "home",
+            '[data-tour="exam-nav-knowledge"]': "knowledge",
+            '[data-tour="exam-nav-practice"]': "practice",
+            '[data-tour="exam-nav-materials"]': "materials",
+            '[data-tour="exam-nav-ai"]': "ai",
+          }[step?.selector];
+          if (panel) navigate(panel);
           if (index === 0 && direction === "previous") onBackHome?.();
         }}
       />

@@ -30,7 +30,6 @@ export default function MembershipPage({
   const [redeeming, setRedeeming] = useState(false);
   const [redeemResult, setRedeemResult] = useState(null);
   const [redeemPreview, setRedeemPreview] = useState(null);
-  const [manualChoiceOpen, setManualChoiceOpen] = useState(false);
 
   const loadMembership = useCallback(async () => {
     if (!user?.username) return;
@@ -85,23 +84,6 @@ export default function MembershipPage({
       .catch(() => {});
     return () => { alive = false; };
   }, [apiBase, serviceKey]);
-
-  const handleManualChoice = async (selectedPlan) => {
-    try {
-      const response = await fetch(`${apiBase}/membership/recommendation/manual?username=${encodeURIComponent(user.username)}`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ selected_plan: selectedPlan }),
-      });
-      const data = await readJson(response);
-      if (!response.ok) throw new Error(data.detail || "保存偏好失败");
-      setManualChoiceOpen(false);
-      await loadMembership();
-    } catch (choiceError) {
-      setError(choiceError.message || "保存偏好失败");
-    }
-  };
 
   const handleRedeem = async () => {
     if (redeemPreview) {
@@ -237,22 +219,6 @@ export default function MembershipPage({
         <section className="membership-panel membership-recommendation">
           <div><span className="membership-eyebrow">PERSONALIZED</span><h2>为你推荐</h2><p>{recommendation.reason}</p></div>
           {recommendation.normalized_major && <span className="membership-recommendation-major">{recommendation.normalized_major}</span>}
-        </section>
-      )}
-
-      {recommendation?.needs_manual_choice && recommendation?.source !== "role" && serviceKey !== "programming" && (
-        <section className="membership-panel membership-manual-choice">
-          <h2>告诉我们你的学习方向</h2>
-          <p>选择后会用于优化会员建议，不会改变已购买的方案。</p>
-          {manualChoiceOpen ? (
-            <div className="membership-choice-list">
-              {[
-                ["python_basic", "Python / 数据分析"],
-                ["engineering_plus", "工科课程 / 建模"],
-                ["cs_pro", "计算机 / 编程 / 算法"],
-              ].map(([value, label]) => <button key={value} type="button" onClick={() => handleManualChoice(value)}>{label}<span>→</span></button>)}
-            </div>
-          ) : <button type="button" className="membership-button membership-button-secondary" onClick={() => setManualChoiceOpen(true)}>选择学习方向</button>}
         </section>
       )}
 

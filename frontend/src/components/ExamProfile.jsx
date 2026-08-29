@@ -120,7 +120,6 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE, onProfi
     { icon: "📝", label: "AI 出题次数", value: questionLimit, unit: "次 / 每天", sub: `已使用 ${questionUsed} 次` },
     { icon: "📁", label: "资料上传限制", value: formatUploadLimit(uploadLimitMb), unit: "", sub: `已上传 ${uploadUsed} 份资料` },
     { icon: "📋", label: "学习计划", value: permissions.learning_plan ? "已解锁" : "未解锁", unit: "", sub: permissions.learning_plan ? "当前套餐可用" : "升级后可用" },
-    { icon: "🔄", label: "错题复盘", value: permissions.mistake_review ? "已解锁" : "未解锁", unit: "", sub: permissions.mistake_review ? "当前套餐可用" : "升级后可用" },
     { icon: "📊", label: "学习报告", value: permissions.learning_report ? "已解锁" : "未解锁", unit: "", sub: permissions.learning_report ? "当前套餐可用" : "升级后可用" },
   ];
 
@@ -664,7 +663,6 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE, onProfi
                   { label: `AI 出题 ${questionLimit} 次 / 每天`, ok: true },
                   { label: `资料上传限制 ${formatUploadLimit(uploadLimitMb)}`, ok: true },
                   { label: "学习计划", ok: Boolean(permissions.learning_plan) },
-                  { label: "错题复盘", ok: Boolean(permissions.mistake_review) },
                   { label: "学习报告", ok: Boolean(permissions.learning_report) },
                 ].map((p, i) => (
                   <li key={i} className={p.ok ? "" : "ep-perk--off"}>

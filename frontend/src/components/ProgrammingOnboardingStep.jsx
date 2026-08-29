@@ -1,15 +1,25 @@
 import { useEffect, useState } from "react";
 import "./ProgrammingOnboarding.css";
 
-const LANGUAGE_OPTIONS = ["C", "Python", "Java", "C++", "暂时不确定"];
+const LANGUAGE_OPTIONS = ["C", "Python", "Java", "C++"];
+const UNCERTAIN_LANGUAGE = "暂时不确定";
 const LEVEL_OPTIONS = [
-  { key: "零基础", title: "零基础", icon: "rocket" },
-  { key: "学过语法", title: "学过语法", icon: "bars" },
+  { key: "beginner_zero", title: "零基础", desc: "从未系统学过编程" },
+  { key: "beginner", title: "入门", desc: "学过基础语法，但独立写代码困难" },
+  { key: "basic", title: "基础", desc: "能完成简单程序，函数/数组/类等已有基础" },
+  { key: "advanced", title: "进阶", desc: "能独立完成中等规模题目或课程项目" },
 ];
 const PROBLEM_OPTIONS = [
-  { key: "概念不熟", title: "概念不熟", desc: "基础概念理解不牢，容易混淆", icon: "brain" },
-  { key: "题目思路不足", title: "题目思路不足", desc: "面对编程题时，不清楚解题思路", icon: "puzzle" },
-  { key: "缺少系统练习计划", title: "缺少系统练习计划", desc: "不知道每天练什么，缺少规划", icon: "calendar" },
+  { key: "concept_confusion", title: "概念理解不牢", desc: "基础概念理解不深，容易混淆" },
+  { key: "syntax_confusion", title: "语法容易混淆", desc: "不同语言/语法点容易记混" },
+  { key: "logic_to_code", title: "不会把思路转成代码", desc: "有思路但难落到代码" },
+  { key: "problem_analysis", title: "题目分析困难", desc: "面对题目不清楚解题方向" },
+  { key: "debugging", title: "Debug / 定位错误困难", desc: "报错或结果不对时难定位" },
+  { key: "ds_algo_weak", title: "数据结构与算法薄弱", desc: "数组/链表/树图等不熟练" },
+  { key: "oop_unfamiliar", title: "面向对象不熟", desc: "类/继承/多态等概念模糊" },
+  { key: "no_plan", title: "缺少系统练习计划", desc: "不知道每天练什么" },
+  { key: "engineering_weak", title: "代码规范 / 工程能力不足", desc: "命名、结构、调试习惯待加强" },
+  { key: "no_clear_problem", title: "暂时没有明确问题", desc: "当前没有特别突出的困难" },
 ];
 
 function ProgrammingIcon({ type }) {
@@ -58,17 +68,27 @@ export default function ProgrammingOnboardingStep({
   onNext,
   hideBackButton = false,
 }) {
-  const [language, setLanguage] = useState("Python");
-  const [level, setLevel] = useState("零基础");
-  const [problems, setProblems] = useState(["概念不熟"]);
+  const [languages, setLanguages] = useState([]);
+  const [uncertain, setUncertain] = useState(false);
+  const [level, setLevel] = useState("beginner_zero");
+  const [problems, setProblems] = useState(["concept_confusion"]);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
+  const applyProfile = (data) => {
+    if (!data) return;
+    const langs = Array.isArray(data.selected_languages) && data.selected_languages.length
+      ? data.selected_languages
+      : (data.main_language ? [data.main_language] : []);
+    setLanguages(langs);
+    setUncertain(langs.length === 0);
+    setLevel(data.level || "beginner_zero");
+    setProblems(Array.isArray(data.problems) && data.problems.length ? data.problems : ["concept_confusion"]);
+  };
+
   useEffect(() => {
     if (!initialData) return;
-    setLanguage(initialData.main_language || "Python");
-    setLevel(initialData.level || "零基础");
-    setProblems(Array.isArray(initialData.problems) && initialData.problems.length ? initialData.problems : ["概念不熟"]);
+    applyProfile(initialData);
   }, [initialData]);
 
   useEffect(() => {
@@ -76,26 +96,35 @@ export default function ProgrammingOnboardingStep({
     let alive = true;
     fetch(`${apiBase}/programming/onboarding`, { credentials: "include" })
       .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (!alive || !data) return;
-        setLanguage(data.main_language || "Python");
-        setLevel(data.level || "零基础");
-        setProblems(Array.isArray(data.problems) && data.problems.length ? data.problems : ["概念不熟"]);
-      })
+      .then((data) => { if (alive && data) applyProfile(data); })
       .catch(() => {});
     return () => { alive = false; };
   }, [apiBase, initialData, user?.username]);
 
-  const toggleProblem = (key) => {
-    setProblems((prev) => (
-      prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key]
+  const toggleLanguage = (item) => {
+    setUncertain(false);
+    setLanguages((prev) => (
+      prev.includes(item) ? prev.filter((x) => x !== item) : [...prev, item]
     ));
+    setMessage("");
+  };
+  const selectUncertain = () => {
+    setUncertain(true);
+    setLanguages([]);
+    setMessage("");
+  };
+  const toggleProblem = (key) => {
+    setProblems((prev) => {
+      if (key === "no_clear_problem") return ["no_clear_problem"];
+      const next = prev.filter((x) => x !== "no_clear_problem");
+      return next.includes(key) ? next.filter((x) => x !== key) : [...next, key];
+    });
     setMessage("");
   };
 
   const handleNext = async () => {
-    if (!language) {
-      setMessage("请选择主要练习语言");
+    if (!uncertain && languages.length === 0) {
+      setMessage("请选择至少一种练习语言");
       return;
     }
     if (!level) {
@@ -112,11 +141,10 @@ export default function ProgrammingOnboardingStep({
       const res = await fetch(`${apiBase}/programming/onboarding`, {
         method: "POST",
         credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          main_language: language,
+          main_language: languages[0] || "",
+          selected_languages: uncertain ? [] : languages,
           level,
           problems,
           onboarding_completed: false,
@@ -142,20 +170,30 @@ export default function ProgrammingOnboardingStep({
         </div>
 
         <div className="programming-question">
-          <h2>1. 你想要练习什么编程语言？</h2>
-          <div className="programming-language-grid" role="radiogroup" aria-label="主要练习语言">
-            {LANGUAGE_OPTIONS.map((item) => (
-              <button
-                key={item}
-                type="button"
-                className={language === item ? "is-selected" : ""}
-                role="radio"
-                aria-checked={language === item}
-                onClick={() => { setLanguage(item); setMessage(""); }}
-              >
-                {item}
-              </button>
-            ))}
+          <h2>1. 你想练习哪些编程语言？（可多选）</h2>
+          <div className="programming-language-grid" role="group" aria-label="练习语言">
+            {LANGUAGE_OPTIONS.map((item) => {
+              const selected = !uncertain && languages.includes(item);
+              return (
+                <button
+                  key={item}
+                  type="button"
+                  className={selected ? "is-selected" : ""}
+                  aria-pressed={selected}
+                  onClick={() => toggleLanguage(item)}
+                >
+                  {item}
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              className={uncertain ? "is-selected" : ""}
+              aria-pressed={uncertain}
+              onClick={selectUncertain}
+            >
+              {UNCERTAIN_LANGUAGE}
+            </button>
           </div>
         </div>
 
@@ -171,15 +209,15 @@ export default function ProgrammingOnboardingStep({
                 aria-checked={level === item.key}
                 onClick={() => { setLevel(item.key); setMessage(""); }}
               >
-                <span className="programming-icon"><ProgrammingIcon type={item.icon} /></span>
                 <strong>{item.title}</strong>
+                <small>{item.desc}</small>
               </button>
             ))}
           </div>
         </div>
 
         <div className="programming-question">
-          <h2>3. 目前代码学习遇到的问题？</h2>
+          <h2>3. 目前代码学习遇到的问题？（可多选）</h2>
           <div className="programming-problem-grid">
             {PROBLEM_OPTIONS.map((item) => (
               <button
@@ -188,7 +226,7 @@ export default function ProgrammingOnboardingStep({
                 className={problems.includes(item.key) ? "is-selected" : ""}
                 onClick={() => toggleProblem(item.key)}
               >
-                <span className="programming-icon"><ProgrammingIcon type={item.icon} /></span>
+                <span className="programming-icon"><ProgrammingIcon type={item.key === "no_plan" ? "calendar" : item.key === "concept_confusion" ? "brain" : item.key === "problem_analysis" ? "puzzle" : "bars"} /></span>
                 <span>
                   <strong>{item.title}</strong>
                   <small>{item.desc}</small>

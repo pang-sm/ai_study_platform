@@ -52,7 +52,7 @@ def test_feature_entitlement_treats_expired_membership_as_free(client, db_sessio
     user = db_session.query(models.User).filter(models.User.id == profile["id"]).one()
     _set_membership(db_session, user.id, "course_learning", "full", utc_now() - timedelta(minutes=1))
 
-    entitlement = get_feature_entitlement(user, db_session, "course_learning", "practice_review")
+    entitlement = get_feature_entitlement(user, db_session, "course_learning", "learning_plan")
     assert entitlement["allowed"] is False
     assert entitlement["current_plan"] == "free"
     assert entitlement["required_plan"] == "monthly"

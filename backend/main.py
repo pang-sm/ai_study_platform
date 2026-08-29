@@ -498,10 +498,111 @@ class CourseLearningOnboardingRequest(BaseModel):
 
 class ProgrammingOnboardingRequest(BaseModel):
     main_language: str = ""
+    selected_languages: list[str] = []
     level: str = ""
     problems: list[str] = []
     plan: str | None = None
     onboarding_completed: bool = False
+
+
+# Stable programming learner-profile enums (never store display text alone).
+PROGRAMMING_LEVEL_ENUMS = ("beginner_zero", "beginner", "basic", "advanced")
+PROGRAMMING_LEVEL_ALIASES = {
+    "零基础": "beginner_zero",
+    "入门": "beginner",
+    "学过语法": "beginner",
+    "基础": "basic",
+    "进阶": "advanced",
+}
+PROGRAMMING_PROBLEM_ENUMS = (
+    "concept_confusion", "syntax_confusion", "logic_to_code", "problem_analysis",
+    "debugging", "ds_algo_weak", "oop_unfamiliar", "no_plan", "engineering_weak", "no_clear_problem",
+)
+# Legacy Chinese problem labels → stable enum (for old users).
+PROGRAMMING_PROBLEM_ALIASES = {
+    "概念不熟": "concept_confusion",
+    "概念理解不牢": "concept_confusion",
+    "语法容易混淆": "syntax_confusion",
+    "不会把思路转成代码": "logic_to_code",
+    "题目思路不足": "problem_analysis",
+    "题目分析困难": "problem_analysis",
+    "Debug 困难": "debugging",
+    "Debug / 定位错误困难": "debugging",
+    "数据结构与算法薄弱": "ds_algo_weak",
+    "面向对象不熟": "oop_unfamiliar",
+    "缺少系统练习计划": "no_plan",
+    "代码规范 / 工程能力不足": "engineering_weak",
+    "暂时没有明确问题": "no_clear_problem",
+}
+
+
+def normalize_programming_level(value: str) -> str:
+    v = (value or "").strip()
+    if v in PROGRAMMING_LEVEL_ENUMS:
+        return v
+    return PROGRAMMING_LEVEL_ALIASES.get(v, "beginner_zero")
+
+
+def normalize_programming_problems(values) -> list[str]:
+    result = []
+    for item in values or []:
+        v = (item or "").strip()
+        if not v:
+            continue
+        key = v if v in PROGRAMMING_PROBLEM_ENUMS else PROGRAMMING_PROBLEM_ALIASES.get(v)
+        if key and key not in result:
+            result.append(key)
+    return result
+
+
+PROGRAMMING_LEVEL_LABELS = {
+    "beginner_zero": "零基础",
+    "beginner": "入门",
+    "basic": "基础",
+    "advanced": "进阶",
+}
+PROGRAMMING_PROBLEM_LABELS = {
+    "concept_confusion": "概念理解不牢",
+    "syntax_confusion": "语法容易混淆",
+    "logic_to_code": "不会把思路转成代码",
+    "problem_analysis": "题目分析困难",
+    "debugging": "Debug / 定位错误困难",
+    "ds_algo_weak": "数据结构与算法薄弱",
+    "oop_unfamiliar": "面向对象不熟",
+    "no_plan": "缺少系统练习计划",
+    "engineering_weak": "代码规范 / 工程能力不足",
+    "no_clear_problem": "暂时没有明确问题",
+}
+
+
+def build_programming_learner_context(user: models.User, db: Session) -> str:
+    """Build a background context string from the persisted programming learner profile.
+
+    This is injected into the AI system prompt as a background constraint (never
+    echoed verbatim to the user), so explanation depth / example language / code
+    complexity follow the learner's real profile.
+    """
+    track = get_user_track(db, user.id, "programming")
+    detail = _parse_track_onboarding_detail(track)
+    languages = detail.get("selected_languages")
+    if not isinstance(languages, list) or not languages:
+        languages = [detail.get("main_language")] if detail.get("main_language") else []
+    languages = [str(x) for x in languages if x]
+    level = normalize_programming_level(detail.get("level") or "")
+    problems = normalize_programming_problems(detail.get("problems") if isinstance(detail.get("problems"), list) else [])
+
+    if not languages and not level and not problems:
+        return ""
+    lines = [
+        "编程学习者画像（作为背景约束，调整讲解深度、示例语言与代码复杂度，不要在回复中机械复述画像）：",
+    ]
+    if languages:
+        lines.append(f"- 练习语言：{'、'.join(languages)}")
+    if level:
+        lines.append(f"- 当前水平：{PROGRAMMING_LEVEL_LABELS.get(level, level)}")
+    if problems:
+        lines.append(f"- 主要困难：{'、'.join(PROGRAMMING_PROBLEM_LABELS.get(p, p) for p in problems)}")
+    return "\n".join(lines)
 
 
 class FirstTimeGuideCompleteRequest(BaseModel):
@@ -643,7 +744,6 @@ EXAM_PACKAGE_QUOTA = {
         "ai_question_daily_limit": 5,
         "material_upload_limit_mb": 100,
         "learning_plan": False,
-        "mistake_review": False,
         "learning_report": True,
     },
     "monthly_sprint": {
@@ -651,7 +751,6 @@ EXAM_PACKAGE_QUOTA = {
         "ai_question_daily_limit": 30,
         "material_upload_limit_mb": 500,
         "learning_plan": True,
-        "mistake_review": True,
         "learning_report": True,
     },
     "quarterly_boost": {
@@ -659,7 +758,6 @@ EXAM_PACKAGE_QUOTA = {
         "ai_question_daily_limit": 50,
         "material_upload_limit_mb": 1024,
         "learning_plan": True,
-        "mistake_review": True,
         "learning_report": True,
     },
     "full_exam": {
@@ -667,7 +765,6 @@ EXAM_PACKAGE_QUOTA = {
         "ai_question_daily_limit": 100,
         "material_upload_limit_mb": 2048,
         "learning_plan": True,
-        "mistake_review": True,
         "learning_report": True,
     },
 }
@@ -685,7 +782,6 @@ COURSE_PACKAGE_QUOTA = {
         "ai_question_daily_limit": 5,
         "material_upload_limit_mb": 100,
         "learning_plan": False,
-        "mistake_review": False,
         "learning_report": True,
     },
     "monthly": {
@@ -693,7 +789,6 @@ COURSE_PACKAGE_QUOTA = {
         "ai_question_daily_limit": 30,
         "material_upload_limit_mb": 500,
         "learning_plan": True,
-        "mistake_review": True,
         "learning_report": True,
     },
     "quarterly": {
@@ -701,7 +796,6 @@ COURSE_PACKAGE_QUOTA = {
         "ai_question_daily_limit": 50,
         "material_upload_limit_mb": 1024,
         "learning_plan": True,
-        "mistake_review": True,
         "learning_report": True,
     },
     "full": {
@@ -709,7 +803,6 @@ COURSE_PACKAGE_QUOTA = {
         "ai_question_daily_limit": 100,
         "material_upload_limit_mb": 2048,
         "learning_plan": True,
-        "mistake_review": True,
         "learning_report": True,
     },
 }
@@ -753,7 +846,6 @@ def get_exam_package_permissions(package_type: str | None):
     permissions = dict(TRACK_PERMISSIONS.get("exam_408", {}))
     permissions.update(EXAM_PACKAGE_QUOTA.get(package, EXAM_PACKAGE_QUOTA["free"]))
     # Legacy aliases for older frontend code. New code should use the canonical keys above.
-    permissions["review"] = permissions["mistake_review"]
     permissions["report"] = permissions["learning_report"]
     permissions["ai_generate_question_daily_limit"] = permissions["ai_question_daily_limit"]
     return permissions
@@ -1559,7 +1651,6 @@ def get_course_package_entitlements(plan: str | None) -> dict:
             {"key": "question_generate", "label": "AI 出题", "limit": quota["ai_question_daily_limit"], "unit": "次 / 每天", "enabled": True},
             {"key": "material_upload", "label": "资料上传限制", "limit": quota["material_upload_limit_mb"], "unit": "MB", "enabled": True},
             {"key": "learning_plan", "label": "学习计划", "limit": None, "unit": "", "enabled": bool(quota["learning_plan"])},
-            {"key": "mistake_review", "label": "练习复盘", "limit": None, "unit": "", "enabled": bool(quota["mistake_review"])},
             {"key": "learning_report", "label": "学习报告", "limit": None, "unit": "", "enabled": bool(quota["learning_report"])},
         ],
     }
@@ -6165,13 +6256,18 @@ def _programming_onboarding_payload(user: models.User, track: models.UserLearnin
         or (track.package_type if track else None)
         or get_effective_service_plan(db, user.id, "programming")
     )
+    raw_languages = detail.get("selected_languages") if isinstance(detail.get("selected_languages"), list) else []
+    # Backward compat: old single-language data ("Python") migrates to ["Python"].
+    if not raw_languages and detail.get("main_language"):
+        raw_languages = [detail.get("main_language")]
     return {
         "service_key": "programming",
         "onboarding_completed": bool(detail.get("programming_onboarding_completed")),
         "plan": plan,
         "main_language": detail.get("main_language") or "",
-        "level": detail.get("level") or "",
-        "problems": detail.get("problems") if isinstance(detail.get("problems"), list) else [],
+        "selected_languages": [str(x) for x in raw_languages if x],
+        "level": normalize_programming_level(detail.get("level") or ""),
+        "problems": normalize_programming_problems(detail.get("problems") if isinstance(detail.get("problems"), list) else []),
         "created_at": detail.get("programming_created_at") or (serialize_datetime(track.created_at) if track else None),
         "updated_at": detail.get("programming_updated_at") or (serialize_datetime(track.updated_at) if track else None),
     }
@@ -6198,17 +6294,21 @@ def save_programming_onboarding(
     current_user: models.User = Depends(get_current_user),
 ):
     user = current_user
-    language = (req.main_language or "").strip()[:30]
-    level = (req.level or "").strip()[:30]
-    if not language:
-        raise HTTPException(status_code=400, detail="请选择主要练习语言")
+    selected_languages = []
+    for item in req.selected_languages or []:
+        value = (item or "").strip()[:30]
+        if value and value not in selected_languages:
+            selected_languages.append(value)
+    # Backward compat: old single-language payload (main_language) migrates to a list.
+    if not selected_languages and (req.main_language or "").strip():
+        selected_languages = [(req.main_language or "").strip()[:30]]
+    if not selected_languages:
+        raise HTTPException(status_code=400, detail="请选择至少一种练习语言")
+    language = selected_languages[0]
+    level = normalize_programming_level(req.level)
     if not level:
         raise HTTPException(status_code=400, detail="请选择当前水平")
-    problems = []
-    for item in req.problems or []:
-        value = (item or "").strip()
-        if value and value not in problems:
-            problems.append(value[:60])
+    problems = normalize_programming_problems(req.problems)
 
     requested_plan = normalize_programming_plan(req.plan)
 
@@ -6223,6 +6323,7 @@ def save_programming_onboarding(
     detail.update({
         "service_key": "programming",
         "main_language": language,
+        "selected_languages": selected_languages,
         "level": level,
         "problems": problems,
         "programming_plan": plan,
@@ -8331,6 +8432,10 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db), current_user: 
     course_preference_context = build_course_preference_prompt(course_preference, subject)
     if course_preference_context:
         knowledge_context = "\n\n".join([item for item in [knowledge_context, course_preference_context] if item])
+    if service_key == "programming":
+        programming_learner_context = build_programming_learner_context(user, db)
+        if programming_learner_context:
+            knowledge_context = "\n\n".join([item for item in [knowledge_context, programming_learner_context] if item])
 
     system_prompt = build_system_prompt(
         subject,
@@ -9412,8 +9517,6 @@ def mark_learning_record_reviewed(
     )
     if not record:
         raise HTTPException(status_code=404, detail="学习记录不存在")
-
-    require_learning_context_feature(current_user, db, "practice_review", getattr(record, "subject", "") or "")
 
     record.review_status = "reviewed"
     record.reviewed_at = utc_now()
@@ -16555,7 +16658,6 @@ class ReviewTaskCreateRequest(BaseModel):
 @app.post("/review/tasks/create")
 def create_review_task(req: ReviewTaskCreateRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     request_username(req, current_user)
-    require_learning_context_feature(current_user, db, "practice_review", req.course_id)
     user = current_user
     course_id = normalize_subject(req.course_id, default="") or None
 

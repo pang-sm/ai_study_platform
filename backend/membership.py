@@ -265,37 +265,37 @@ SERVICE_PLAN_CATALOG = {
     "exam_11408": {
         "free": {"name": "免费模式", "rank": 0, "price_cents": 0, "duration_days": None, "quota": {
             "ai_chat_daily_limit": 50, "ai_question_daily_limit": 5, "material_upload_limit_mb": 100,
-            "learning_plan": False, "mistake_review": False, "learning_report": True,
+            "learning_plan": False, "learning_report": True,
         }},
         "monthly_sprint": {"name": "月度冲刺包", "rank": 1, "price_cents": 2900, "duration_days": 30, "quota": {
             "ai_chat_daily_limit": 300, "ai_question_daily_limit": 30, "material_upload_limit_mb": 500,
-            "learning_plan": True, "mistake_review": True, "learning_report": True,
+            "learning_plan": True, "learning_report": True,
         }},
         "quarterly_boost": {"name": "季度强化包", "rank": 2, "price_cents": 7900, "duration_days": 90, "quota": {
             "ai_chat_daily_limit": 500, "ai_question_daily_limit": 50, "material_upload_limit_mb": 1024,
-            "learning_plan": True, "mistake_review": True, "learning_report": True,
+            "learning_plan": True, "learning_report": True,
         }},
         "full_exam": {"name": "全程考包", "rank": 3, "price_cents": 14900, "duration_days": 365, "quota": {
             "ai_chat_daily_limit": 1000, "ai_question_daily_limit": 100, "material_upload_limit_mb": 2048,
-            "learning_plan": True, "mistake_review": True, "learning_report": True,
+            "learning_plan": True, "learning_report": True,
         }},
     },
     "course_learning": {
         "free": {"name": "免费模式", "rank": 0, "price_cents": 0, "duration_days": None, "quota": {
             "ai_chat_daily_limit": 50, "ai_question_daily_limit": 5, "material_upload_limit_mb": 100,
-            "learning_plan": False, "mistake_review": False, "learning_report": True,
+            "learning_plan": False, "learning_report": True,
         }},
         "monthly": {"name": "月度学习包", "rank": 1, "price_cents": 2900, "duration_days": 30, "quota": {
             "ai_chat_daily_limit": 300, "ai_question_daily_limit": 30, "material_upload_limit_mb": 500,
-            "learning_plan": True, "mistake_review": True, "learning_report": True,
+            "learning_plan": True, "learning_report": True,
         }},
         "quarterly": {"name": "季度学习包", "rank": 2, "price_cents": 7900, "duration_days": 90, "quota": {
             "ai_chat_daily_limit": 500, "ai_question_daily_limit": 50, "material_upload_limit_mb": 1024,
-            "learning_plan": True, "mistake_review": True, "learning_report": True,
+            "learning_plan": True, "learning_report": True,
         }},
         "full": {"name": "全程学习包", "rank": 3, "price_cents": 14900, "duration_days": 365, "quota": {
             "ai_chat_daily_limit": 1000, "ai_question_daily_limit": 100, "material_upload_limit_mb": 2048,
-            "learning_plan": True, "mistake_review": True, "learning_report": True,
+            "learning_plan": True, "learning_report": True,
         }},
     },
     "programming": {
@@ -389,12 +389,10 @@ def serialize_service_plan(service_key: str, plan_code: str, definition: dict) -
 SERVICE_FEATURE_QUOTAS = {
     "exam_11408": {
         "learning_plan": "learning_plan",
-        "practice_review": "mistake_review",
         "learning_report": "learning_report",
     },
     "course_learning": {
         "learning_plan": "learning_plan",
-        "practice_review": "mistake_review",
         "learning_report": "learning_report",
     },
 }

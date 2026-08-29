@@ -5,7 +5,6 @@ const QUOTA_LABELS = {
   ai_question_daily_limit: "AI 出题",
   material_upload_limit_mb: "资料上传",
   learning_plan: "学习计划",
-  mistake_review: "练习复盘",
   learning_report: "学习报告",
   problem_records: "题目记录",
   file_library: "文件库",

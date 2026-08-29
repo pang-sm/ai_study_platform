@@ -1114,7 +1114,15 @@ export default function CourseSubjectDashboard({
         serviceLabel="课程学习"
         steps={COURSE_GUIDE_STEPS}
         ready={false}
-        onStepChange={(index, _step, direction) => {
+        onStepChange={(index, step, direction) => {
+          const panel = {
+            '[data-tour="course-nav-overview"]': "overview",
+            '[data-tour="course-nav-knowledge"]': "knowledge",
+            '[data-tour="course-nav-practice"]': "practice",
+            '[data-tour="course-nav-materials"]': "materials",
+            '[data-tour="course-nav-chat"]': "chat",
+          }[step?.selector];
+          if (panel) selectPanel(panel);
           if (index === 0 && direction === "previous") setPage?.("home");
         }}
       />
