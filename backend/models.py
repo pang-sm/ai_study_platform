@@ -620,6 +620,7 @@ class AiUsageLog(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(50), index=True, nullable=False)
+    service_key = Column(String(50), index=True, nullable=True)
     feature = Column(String(50), index=True, nullable=False)
     model = Column(String(100), nullable=True)
     estimated_tokens = Column(Integer, nullable=True, default=0)

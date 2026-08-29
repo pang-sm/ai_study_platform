@@ -53,6 +53,11 @@ REDEMPTION_CODE_COLUMNS: Mapping[str, str] = {
     "note": "TEXT",
 }
 
+# AI usage service isolation (nullable → legacy rows keep NULL, never backfilled).
+AI_USAGE_LOG_COLUMNS: Mapping[str, str] = {
+    "service_key": "VARCHAR(50)",
+}
+
 
 def ensure_programming_exercise_schema(engine: Engine) -> dict:
     """Add missing catalog columns and return an auditable migration result."""
@@ -109,4 +114,20 @@ def ensure_database_schema(engine_or_url: Engine | str) -> dict:
                 )
                 added.append(name)
     result["redemption_codes"] = {"added": added}
+
+    with engine.begin() as connection:
+        existing = {
+            row[1]
+            for row in connection.exec_driver_sql(
+                "PRAGMA table_info(ai_usage_logs)"
+            ).fetchall()
+        }
+        added: list[str] = []
+        for name, definition in AI_USAGE_LOG_COLUMNS.items():
+            if name not in existing:
+                connection.exec_driver_sql(
+                    f"ALTER TABLE ai_usage_logs ADD COLUMN {name} {definition}"
+                )
+                added.append(name)
+    result["ai_usage_logs"] = {"added": added}
     return result

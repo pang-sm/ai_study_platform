@@ -2798,9 +2798,14 @@ def get_plan_limits(plan: str, db: Session = None):
     return base
 
 
-def get_today_usage(username: str, feature: str, db: Session):
+def get_today_usage(username: str, feature: str, db: Session, service_key: str | None = None):
+    """Count today's successful AI usage for (username, feature), optionally by service.
+
+    When `service_key` is provided the count is scoped to that business direction;
+    legacy rows (service_key IS NULL) are never counted by a service-scoped query.
+    """
     today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-    count = (
+    query = (
         db.query(models.AiUsageLog)
         .filter(
             models.AiUsageLog.username == username,
@@ -2808,17 +2813,18 @@ def get_today_usage(username: str, feature: str, db: Session):
             models.AiUsageLog.status == "success",
             models.AiUsageLog.created_at >= today_start,
         )
-        .count()
     )
-    return count
+    if service_key:
+        query = query.filter(models.AiUsageLog.service_key == service_key)
+    return query.count()
 
 
-def check_usage_limit(username: str, feature: str, db: Session):
+def check_usage_limit(username: str, feature: str, db: Session, service_key: str = "course_learning"):
     plan_info = get_user_plan(username, db)
     plan = plan_info["plan"]
     limits = get_plan_limits(plan, db)
     limit = limits.get(feature, 999999)
-    used = get_today_usage(username, feature, db)
+    used = get_today_usage(username, feature, db, service_key or None)
     remaining = max(0, limit - used)
     if used >= limit:
         raise HTTPException(
@@ -2844,7 +2850,7 @@ def check_programming_usage_limit(user: models.User, feature: str, db: Session):
         "challenge_generate": quota["ai_question_daily_limit"],
     }
     limit = int(feature_limits.get(feature, 999999))
-    used = get_today_usage(user.username, feature, db)
+    used = get_today_usage(user.username, feature, db, "programming")
     if used >= limit:
         raise HTTPException(
             status_code=429,
@@ -2900,11 +2906,11 @@ def get_exam_408_feature_limit(permissions: dict, feature: str):
 def check_exam_408_usage_limit(user: models.User, feature: str, db: Session):
     permissions = get_exam_408_permissions_for_user(db, user)
     if not permissions:
-        return check_usage_limit(user.username, feature, db)
+        return check_usage_limit(user.username, feature, db, "exam_11408")
     limit = get_exam_408_feature_limit(permissions, feature)
     if limit is None:
-        return check_usage_limit(user.username, feature, db)
-    used = get_today_usage(user.username, feature, db)
+        return check_usage_limit(user.username, feature, db, "exam_11408")
+    used = get_today_usage(user.username, feature, db, "exam_11408")
     remaining = max(0, limit - used)
     if used >= limit:
         raise HTTPException(
@@ -2922,11 +2928,12 @@ def check_exam_408_usage_limit(user: models.User, feature: str, db: Session):
 
 def record_ai_usage(username: str, feature: str, db: Session, model: str = None,
                     estimated_tokens: int = 0, status: str = "success",
-                    error_message: str = None):
+                    error_message: str = None, service_key: str = ""):
     try:
         runtime_model = model or get_model_runtime_config(db).get("model") or "deepseek-chat"
         log = models.AiUsageLog(
             username=username,
+            service_key=service_key or None,
             feature=feature,
             model=runtime_model,
             estimated_tokens=estimated_tokens,
@@ -6303,8 +6310,8 @@ def get_programming_home(username: str = "", db: Session = Depends(get_db), curr
     payload = _programming_onboarding_payload(user, track, db)
     plan = normalize_programming_plan(get_effective_service_plan(db, user.id, "programming"))
     quota = PROGRAMMING_PACKAGE_QUOTA[plan]
-    chat_used = get_today_usage(user.username, "code_analyze", db)
-    question_used = get_today_usage(user.username, "challenge_generate", db)
+    chat_used = get_today_usage(user.username, "code_analyze", db, "programming")
+    question_used = get_today_usage(user.username, "challenge_generate", db, "programming")
     projects = (
         db.query(models.CodeProject)
         .filter(
@@ -7283,7 +7290,7 @@ def get_my_quota(username: str = "", service_key: str = "", db: Session = Depend
 
     usage = {}
     for feature in ALL_FEATURES:
-        usage[feature] = get_today_usage(user.username, feature, db)
+        usage[feature] = get_today_usage(user.username, feature, db, canonical or None)
 
     # Programming records AI chat as code_analyze and AI question as
     # challenge_generate, so map the generic display counters onto those so
@@ -7350,7 +7357,7 @@ def get_course_learning_entitlements(
     }
     feature_limits = {}
     for feature, limit in feature_map.items():
-        used = get_today_usage(user.username, feature, db)
+        used = get_today_usage(user.username, feature, db, "course_learning")
         feature_limits[feature] = {
             "used": used,
             "limit": limit,
@@ -8365,15 +8372,18 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db), current_user: 
 
     if is_exam_408_context(subject, req.course) or (req.service_key or "").strip() == "exam_11408":
         usage_feature = "chat"
+        usage_service = "exam_11408"
         check_exam_408_usage_limit(user, "chat", db)
     elif (req.service_key or "").strip() == "programming":
         # Programming AI 问答 shares the "AI问答/纠错" programming quota counter
         # with /code/analyze, so both are limited by ai_chat_daily_limit together.
         usage_feature = "code_analyze"
+        usage_service = "programming"
         check_programming_usage_limit(user, "code_analyze", db)
     else:
         usage_feature = "chat"
-        check_usage_limit(user.username, "chat", db)
+        usage_service = "course_learning"
+        check_usage_limit(user.username, "chat", db, "course_learning")
 
     answer = call_deepseek(
         [
@@ -8382,7 +8392,7 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db), current_user: 
         ]
     )
 
-    record_ai_usage(user.username, usage_feature, db, estimated_tokens=estimate_tokens_from_text(answer), status="success")
+    record_ai_usage(user.username, usage_feature, db, estimated_tokens=estimate_tokens_from_text(answer), status="success", service_key=usage_service)
 
     answer = normalize_assistant_markdown(answer)
 
@@ -13083,8 +13093,10 @@ def analyze_code(
 
     if str(req.course_id or "").strip().lower() in {"programming", "编程", "编程学习"}:
         check_programming_usage_limit(user, "code_analyze", db)
+        analyze_service = "programming"
     else:
-        check_usage_limit(user.username, "code_analyze", db)
+        check_usage_limit(user.username, "code_analyze", db, "course_learning")
+        analyze_service = "course_learning"
 
     answer = call_deepseek(
         [
@@ -13093,7 +13105,7 @@ def analyze_code(
         ]
     )
 
-    record_ai_usage(user.username, "code_analyze", db, estimated_tokens=estimate_tokens_from_text(answer), status="success")
+    record_ai_usage(user.username, "code_analyze", db, estimated_tokens=estimate_tokens_from_text(answer), status="success", service_key=analyze_service)
 
     answer = normalize_assistant_markdown(answer)
 
@@ -13706,7 +13718,7 @@ def generate_code_challenge(
         ]
     )
 
-    record_ai_usage(user.username, "challenge_generate", db, estimated_tokens=estimate_tokens_from_text(ai_response), status="success")
+    record_ai_usage(user.username, "challenge_generate", db, estimated_tokens=estimate_tokens_from_text(ai_response), status="success", service_key="programming")
 
     # Parse JSON from AI response — support wrapped array and bare array
     json_str = ai_response
@@ -13983,7 +13995,7 @@ def submit_code_challenge(
             ]
         )
 
-        record_ai_usage(user.username, "code_analyze", db, estimated_tokens=estimate_tokens_from_text(ai_feedback), status="success")
+        record_ai_usage(user.username, "code_analyze", db, estimated_tokens=estimate_tokens_from_text(ai_feedback), status="success", service_key="programming")
 
         ai_feedback = normalize_assistant_markdown(ai_feedback)
 
@@ -14297,7 +14309,7 @@ def explain_challenge_failure(
         }
 
     # Check usage limit
-    check_usage_limit(user.username, "challenge_explain", db)
+    check_usage_limit(user.username, "challenge_explain", db, "programming")
 
     # Build hints based on failure characteristics
     timed_out_hint = ""
@@ -14351,12 +14363,12 @@ def explain_challenge_failure(
 
     try:
         explanation = call_deepseek(messages)
-        record_ai_usage(user.username, "challenge_explain", db, estimated_tokens=len(code) // 2 + 500)
+        record_ai_usage(user.username, "challenge_explain", db, estimated_tokens=len(code) // 2 + 500, service_key="programming")
         return {"success": True, "explanation": explanation}
     except HTTPException:
         raise
     except Exception as exc:
-        record_ai_usage(req.username, "challenge_explain", db, status="error", error_message=str(exc)[:200])
+        record_ai_usage(req.username, "challenge_explain", db, status="error", error_message=str(exc)[:200], service_key="programming")
         return {
             "success": True,
             "explanation": "## AI 解释失败\n\n很抱歉，AI 服务暂时不可用，请稍后重试。\n\n错误信息：" + str(exc)[:200],
@@ -14433,7 +14445,7 @@ def generate_challenge_tests(
             "message": "当前题目已有测试用例，无需重复生成。",
         }
 
-    check_usage_limit(user.username, "challenge_test_gen", db)
+    check_usage_limit(user.username, "challenge_test_gen", db, "programming")
 
     prompt = CODE_CHALLENGE_GENERATE_TESTS_PROMPT
 
@@ -14465,11 +14477,11 @@ def generate_challenge_tests(
 
     try:
         ai_response = call_deepseek(messages)
-        record_ai_usage(user.username, "challenge_test_gen", db, estimated_tokens=estimate_tokens_from_text(ai_response))
+        record_ai_usage(user.username, "challenge_test_gen", db, estimated_tokens=estimate_tokens_from_text(ai_response), service_key="programming")
     except HTTPException:
         raise
     except Exception as exc:
-        record_ai_usage(user.username, "challenge_test_gen", db, status="error", error_message=str(exc)[:200])
+        record_ai_usage(user.username, "challenge_test_gen", db, status="error", error_message=str(exc)[:200], service_key="programming")
         return {
             "success": True,
             "test_cases": "[]",
@@ -14963,7 +14975,7 @@ def generate_learning_diagnosis(
 
 请根据以上数据生成编程学习诊断报告。"""
 
-    check_usage_limit(user.username, "learning_diagnosis", db)
+    check_usage_limit(user.username, "learning_diagnosis", db, "programming")
 
     ai_response = call_deepseek(
         [
@@ -14972,7 +14984,7 @@ def generate_learning_diagnosis(
         ]
     )
 
-    record_ai_usage(user.username, "learning_diagnosis", db, estimated_tokens=estimate_tokens_from_text(ai_response), status="success")
+    record_ai_usage(user.username, "learning_diagnosis", db, estimated_tokens=estimate_tokens_from_text(ai_response), status="success", service_key="programming")
 
     return {
         "success": True,
@@ -16334,7 +16346,7 @@ def ai_generate_learning_report(req: schemas.LearningReportAiGenerateRequest, db
         ai_summary = json.loads(text)
         record_ai_usage(user.username, "learning_report_ai_generate", db,
                         estimated_tokens=estimate_tokens_from_text(prompt) + estimate_tokens_from_text(raw),
-                        status="success")
+                        status="success", service_key="course_learning")
     except Exception as exc:
         generation_mode = "fallback"
         fallback_reason = "模型不可用或返回格式无效"
@@ -18837,6 +18849,7 @@ def get_exam_subject_dashboard_summary(subject_key: str, username: str = "", db:
         today_start = utc_now().replace(hour=0, minute=0, second=0, microsecond=0)
         ai_today = db.query(models.AiUsageLog).filter(
             models.AiUsageLog.username == user.username,
+            models.AiUsageLog.service_key == "exam_11408",
             models.AiUsageLog.created_at >= today_start,
             models.AiUsageLog.status == "success",
         ).all()
@@ -21515,7 +21528,7 @@ def generate_knowledge_points_preview(req: schemas.KnowledgePointGeneratePreview
             ]
         )
 
-        record_ai_usage(user.username, "knowledge_generate", db, estimated_tokens=estimate_tokens_from_text(ai_response), status="success")
+        record_ai_usage(user.username, "knowledge_generate", db, estimated_tokens=estimate_tokens_from_text(ai_response), status="success", service_key="course_learning")
 
         # Parse JSON
         json_match = re.search(r"\{[\s\S]*\}", ai_response)
@@ -23019,13 +23032,15 @@ def structure_practice_paper_text(
 ) -> tuple[dict, float]:
     prompt = build_practice_paper_prompt(extract_meta, course_norm, original_filename, extracted_text)
     paper_title = Path(original_filename).stem or "导入试卷"
+    usage_service = "course_learning"
     try:
         if username and db:
             user = get_user_by_username(username, db)
             if is_exam_408_context(course_norm, ""):
                 check_exam_408_usage_limit(user, "question_generate", db)
+                usage_service = "exam_11408"
             else:
-                check_usage_limit(username, "question_generate", db)
+                check_usage_limit(username, "question_generate", db, "course_learning")
         logger.info("%s deepseek start input_text_len=%d", log_prefix, len(extracted_text[:PRACTICE_PAPER_MAX_CHARS]))
         t_deepseek = time.perf_counter()
         raw = call_deepseek([
@@ -23041,6 +23056,7 @@ def structure_practice_paper_text(
                 db,
                 estimated_tokens=estimate_tokens_from_text(raw),
                 status="success",
+                service_key=usage_service,
             )
 
         parsed_object = extract_json_object(raw)
@@ -23053,7 +23069,7 @@ def structure_practice_paper_text(
     except json.JSONDecodeError as exc:
         logger.exception("%s JSON decode failed", log_prefix)
         if username and db:
-            record_ai_usage(username, "question_generate", db, status="failed", error_message=str(exc))
+            record_ai_usage(username, "question_generate", db, status="failed", error_message=str(exc), service_key=usage_service)
         raise ValueError(
             f"试卷题目识别失败，AI 返回了包含公式或特殊符号的内容导致解析失败。请重试，或先上传文字版 PDF/TXT。错误详情：{exc}"
         ) from exc
@@ -23065,7 +23081,7 @@ def structure_practice_paper_text(
     except Exception as exc:
         logger.exception("%s unexpected error", log_prefix)
         if username and db:
-            record_ai_usage(username, "question_generate", db, status="failed", error_message=str(exc))
+            record_ai_usage(username, "question_generate", db, status="failed", error_message=str(exc), service_key=usage_service)
         raise
 
     drafts = [normalize_paper_draft(item, course_norm, knowledge_point_id) for item in parsed if isinstance(item, dict)]
@@ -23665,9 +23681,9 @@ def explain_practice_question(question_id: int, req: schemas.QuestionAiExplainRe
             {"role": "system", "content": "你是练习题解析助手，输出严格 JSON 对象。"},
             {"role": "user", "content": prompt},
         ])
-        record_ai_usage(user.username, "question_feedback", db, estimated_tokens=estimate_tokens_from_text(raw), status="success")
+        record_ai_usage(user.username, "question_feedback", db, estimated_tokens=estimate_tokens_from_text(raw), status="success", service_key="course_learning")
     except Exception as exc:
-        record_ai_usage(user.username, "question_feedback", db, status="failed", error_message=str(exc))
+        record_ai_usage(user.username, "question_feedback", db, status="failed", error_message=str(exc), service_key="course_learning")
         raise HTTPException(status_code=500, detail=f"AI 解析失败：{str(exc)}") from exc
 
     parsed = extract_json_object(raw)
@@ -23875,9 +23891,9 @@ def request_feedback(question_id: int, req: schemas.QuestionFeedbackRequest, db:
             ]
         )
 
-        record_ai_usage(user.username, "question_feedback", db, estimated_tokens=estimate_tokens_from_text(ai_response), status="success")
+        record_ai_usage(user.username, "question_feedback", db, estimated_tokens=estimate_tokens_from_text(ai_response), status="success", service_key="course_learning")
     except Exception as e:
-        record_ai_usage(user.username, "question_feedback", db, status="failed", error_message=str(e))
+        record_ai_usage(user.username, "question_feedback", db, status="failed", error_message=str(e), service_key="course_learning")
         raise HTTPException(status_code=500, detail=f"AI 反馈请求失败：{str(e)}")
 
     # Keyword-based sentiment analysis on AI feedback
@@ -24540,8 +24556,10 @@ def generate_questions(req: schemas.GenerateQuestionRequest, db: Session = Depen
 
     if is_exam_408_context(course_id, course_name):
         check_exam_408_usage_limit(user, "question_generate", db)
+        usage_service = "exam_11408"
     else:
-        check_usage_limit(user.username, "question_generate", db)
+        check_usage_limit(user.username, "question_generate", db, "course_learning")
+        usage_service = "course_learning"
 
     raw_responses_preview = []
     all_candidates = []
@@ -24609,12 +24627,12 @@ def generate_questions(req: schemas.GenerateQuestionRequest, db: Session = Depen
             if valid_count >= count:
                 break
 
-        record_ai_usage(user.username, "question_generate", db, estimated_tokens=estimate_tokens_from_text(total_ai_text), status="success")
+        record_ai_usage(user.username, "question_generate", db, estimated_tokens=estimate_tokens_from_text(total_ai_text), status="success", service_key=usage_service)
         questions_data = all_candidates
     except HTTPException:
         raise
     except Exception as e:
-        record_ai_usage(user.username, "question_generate", db, status="failed", error_message=str(e))
+        record_ai_usage(user.username, "question_generate", db, status="failed", error_message=str(e), service_key=usage_service)
         logger.error("[practice-generate] exception: %s", e)
         raise HTTPException(status_code=500, detail=f"AI 生成题目失败：{str(e)}")
 
@@ -24818,8 +24836,10 @@ def generate_task_question_preview(req: schemas.GenerateTaskQuestionPreviewReque
 
     if is_exam_408_context(course_id, ""):
         check_exam_408_usage_limit(user, "question_generate", db)
+        usage_service = "exam_11408"
     else:
-        check_usage_limit(user.username, "question_generate", db)
+        check_usage_limit(user.username, "question_generate", db, "course_learning")
+        usage_service = "course_learning"
 
     # Build prompt
     context_parts = [f"课程：{course_id}"]
@@ -24854,6 +24874,7 @@ def generate_task_question_preview(req: schemas.GenerateTaskQuestionPreviewReque
         user.username, "question_generate", db,
         estimated_tokens=estimate_tokens_from_text(user_prompt) + estimate_tokens_from_text(raw),
         status="success",
+        service_key=usage_service,
     )
 
     # Parse JSON
@@ -25939,7 +25960,7 @@ def _generate_plan_preview_core(
     try:
         raw = call_deepseek(messages)
 
-        record_ai_usage(user.username, "learning_plan_generate", db, estimated_tokens=estimate_tokens_from_text(raw), status="success")
+        record_ai_usage(user.username, "learning_plan_generate", db, estimated_tokens=estimate_tokens_from_text(raw), status="success", service_key="course_learning")
     except HTTPException:
         raise
     except Exception as exc:
@@ -26632,7 +26653,7 @@ def recommend_material_knowledge_links(
     try:
         raw = call_deepseek(messages)
 
-        record_ai_usage(user.username, "material_link_recommend", db, estimated_tokens=estimate_tokens_from_text(raw), status="success")
+        record_ai_usage(user.username, "material_link_recommend", db, estimated_tokens=estimate_tokens_from_text(raw), status="success", service_key="course_learning")
     except HTTPException:
         raise
     except Exception as exc:
@@ -26950,6 +26971,7 @@ def _analyze_knowledge_preview_impl(req, db):
         user.username, "knowledge_generate", db,
         estimated_tokens=estimate_tokens_from_text(user_prompt) + estimate_tokens_from_text(raw),
         status="success",
+        service_key="course_learning",
     )
 
     # Parse JSON response
@@ -30137,7 +30159,7 @@ def generate_report_preview(req: schemas.LearningReportGenerateRequest, db: Sess
 
     record_ai_usage(user.username, "learning_report_generate", db,
                     estimated_tokens=estimate_tokens_from_text(user_prompt) + estimate_tokens_from_text(raw),
-                    status="success")
+                    status="success", service_key="course_learning")
 
     # Parse JSON
     text = raw.strip()
