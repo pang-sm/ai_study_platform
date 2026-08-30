@@ -20,10 +20,14 @@ export default function FirstTimeGuideLauncher({ serviceKey, serviceLabel, steps
   const [activeGuide, setActiveGuide] = useState(() => readActiveGuide(serviceKey, steps));
   // When the guide resumes across a page navigation (home → dashboard), the
   // resumed step's panel/page must already match the highlighted target, so the
-  // background never lags behind the guide copy.
+  // background never lags behind the guide copy. Deferred one tick so it runs
+  // after the dashboard's own panel-intent effect has settled on its default.
   useEffect(() => {
     if (activeGuide && activeGuide.index > 0) {
-      onStepChange?.(activeGuide.index, steps[activeGuide.index], "next");
+      const timer = window.setTimeout(() => {
+        onStepChange?.(activeGuide.index, steps[activeGuide.index], "next");
+      }, 0);
+      return () => window.clearTimeout(timer);
     }
   }, [activeGuide?.index]);
   const isOpen = open || Boolean(activeGuide);
