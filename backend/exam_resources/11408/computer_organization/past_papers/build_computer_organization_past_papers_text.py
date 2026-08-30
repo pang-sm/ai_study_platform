@@ -238,13 +238,15 @@ SUBJECT_KEY = 'computer_organization'
 SUBJECT_NAME = '计算机组成原理'
 
 db = SessionLocal()
-# Deactivate old CO past papers
-deactivated = db.query(models.ExamQuestionBank).filter(
+# Idempotent import: DELETE old CO past papers, then insert fresh.
+# (Previously used UPDATE is_active=False which accumulated one duplicate
+# batch per deploy — the root cause of the 5070-question over-seeding.)
+deleted = db.query(models.ExamQuestionBank).filter(
     models.ExamQuestionBank.subject_key == SUBJECT_KEY,
     models.ExamQuestionBank.source_type == 'past_paper',
-).update({'is_active': False})
+).delete()
 db.commit()
-print(f'Deactivated {deactivated} old CO past paper questions')
+print(f'Deleted {deleted} old CO past paper questions')
 
 inserted = 0
 for q in questions:
