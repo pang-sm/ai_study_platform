@@ -168,10 +168,40 @@ function MobileChatShell({ route, course, user }) {
   const [editingText, setEditingText] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadItem, setUploadItem] = useState(null);
+  const [addSheetOpen, setAddSheetOpen] = useState(false);
+  const [materialPickerOpen, setMaterialPickerOpen] = useState(false);
+  const [libraryMaterials, setLibraryMaterials] = useState([]);
+  const [libraryLoading, setLibraryLoading] = useState(false);
+  const [selectedMaterials, setSelectedMaterials] = useState([]);
   const messagesRef = useRef(null);
   const inputRef = useRef(null);
   const fileRef = useRef(null);
   const holdTimer = useRef(null);
+
+  const loadLibraryMaterials = async () => {
+    if (!user?.username) return;
+    setLibraryLoading(true);
+    try {
+      const query = new URLSearchParams({ username: user.username });
+      if (exam) {
+        query.set("course_id", `${route.subject}_11408`);
+        query.set("subject_key", route.subject);
+      } else if (isCourse) {
+        query.set("course_id", courseId(course));
+        query.set("subject_key", courseId(course));
+      }
+      const response = await fetch(`${API_BASE}/materials?${query.toString()}`, { credentials: "include" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(typeof data.detail === "string" ? data.detail : "资料读取失败");
+      setLibraryMaterials(safeArray(data.materials).filter((m) => (m.parse_status === "success" || m.parse_status === "partial") && Number(m.chunk_count || 0) > 0));
+    } catch (error) {
+      setLibraryMaterials([]);
+      setStatus({ type: "error", message: error.message || "资料读取失败" });
+    } finally { setLibraryLoading(false); }
+  };
+  const openMaterialPicker = () => { setAddSheetOpen(false); setSelectedMaterials([]); setMaterialPickerOpen(true); loadLibraryMaterials(); };
+  const toggleMaterial = (material) => { setSelectedMaterials((prev) => prev.some((m) => m.id === material.id) ? prev.filter((m) => m.id !== material.id) : [...prev, material]); };
+  const confirmMaterials = () => { setMaterialPickerOpen(false); };
 
   const scopeQuery = () => {
     const query = new URLSearchParams({ username: user?.username || "" });
@@ -224,6 +254,7 @@ function MobileChatShell({ route, course, user }) {
     setMessages([]);
     setInput("");
     setUploadItem(null);
+    setSelectedMaterials([]);
     setHistoryOpen(false);
     setSheetMessage(null);
     setSessionSheet(null);
@@ -255,6 +286,8 @@ function MobileChatShell({ route, course, user }) {
   useEffect(() => {
     setSessionId(null);
     setMessages([]);
+    setUploadItem(null);
+    setSelectedMaterials([]);
     setHistoryOpen(false);
     loadHistory();
     requestAnimationFrame(() => inputRef.current?.focus());
@@ -282,18 +315,19 @@ function MobileChatShell({ route, course, user }) {
     setInput("");
     const localId = `mobile-user-${Date.now()}`;
     setMessages((previous) => [...previous, { id: localId, role: "user", content: text, created_at: new Date().toISOString() }]);
+    const examScopeSubject = `11408 ${subjectLabel}`;
     const payload = {
       username: user.username,
       message: text,
-      subject: exam ? subjectLabel : isCourse ? courseLabel : "general",
-      course: isCourse ? courseLabel : "general",
+      subject: exam ? examScopeSubject : isCourse ? courseLabel : "general",
+      course: exam ? examScopeSubject : isCourse ? courseLabel : "general",
       session_id: sessionId,
       branch_id: options.branchId || "",
       edit_source_message_id: options.sourceId ? Number(options.sourceId) || null : undefined,
       knowledge_context: context,
-      material_ids: uploadItem?.material_id ? [uploadItem.material_id] : [],
+      material_ids: Array.from(new Set([...(uploadItem?.material_id ? [uploadItem.material_id] : []), ...selectedMaterials.map((m) => m.id)])),
     };
-    if (exam) Object.assign(payload, { subject_key: route.subject, exam_subject: route.subject });
+    if (exam) Object.assign(payload, { subject_key: route.subject, exam_subject: route.subject, course_id: `${route.subject}_11408`, service_key: "exam_11408" });
     try {
       const response = await fetch(`${API_BASE}/chat`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(payload) });
       const data = await response.json().catch(() => ({}));
@@ -302,6 +336,7 @@ function MobileChatShell({ route, course, user }) {
       setSessionId(nextSessionId);
       setMessages((previous) => [...previous.map((message) => message.id === localId ? { ...message, id: data.user_message_id || message.id, branch_id: data.branch_id || "" } : message), { id: data.assistant_message_id || `mobile-ai-${Date.now()}`, role: "assistant", content: data.answer || data.content || "", references: data.references || [], created_at: new Date().toISOString() }]);
       setUploadItem(null);
+      setSelectedMaterials([]);
       await loadHistory();
     } catch (error) {
       setMessages((previous) => previous.filter((message) => message.id !== localId));
@@ -320,11 +355,25 @@ function MobileChatShell({ route, course, user }) {
       const form = new FormData();
       form.append("file", file);
       form.append("username", user.username);
-      form.append("subject", exam ? subjectLabel : courseLabel || "general");
       form.append("save_to_materials", "true");
+      form.append("source_type", "user_upload");
+      if (exam) {
+        // 11408 material scope must match the PC upload chain (course_id / subject_key / subject / track).
+        form.append("course_id", `${route.subject}_11408`);
+        form.append("subject_key", route.subject);
+        form.append("subject", `11408 ${subjectLabel}`);
+        form.append("track", "exam_11408");
+      } else if (isCourse) {
+        form.append("course_id", courseId(course));
+        form.append("subject_key", courseId(course));
+        form.append("subject", courseLabel);
+        form.append("track", "course_learning");
+      } else {
+        form.append("subject", "general");
+      }
       const response = await fetch(`${API_BASE}/materials/upload`, { method: "POST", credentials: "include", body: form });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.detail || "文件上传失败");
+      if (!response.ok) throw new Error(typeof data.detail === "string" ? data.detail : (data.detail?.message || data.detail?.detail || "文件上传失败"));
       setUploadItem({ ...data, material_id: data.material_id || data.id, filename: data.filename || data.original_filename || file.name, parse_status: data.parse_status || "pending" });
     } catch (error) {
       setUploadItem({ filename: file.name, parse_status: "failed" });
@@ -344,8 +393,11 @@ function MobileChatShell({ route, course, user }) {
     {historyOpen && <section className="mobile-chat-history"><div className="mobile-chat-history-head"><strong>历史对话</strong><button type="button" onClick={startNewConversation}>新对话</button></div>{status.type === "loading" ? <small>正在读取历史…</small> : status.type === "error" ? <><small>{status.message}</small><button type="button" className="text-button" onClick={loadHistory}>点击重试</button></> : sessions.length ? sessions.map((session) => <div className="mobile-chat-history-row" key={session.id}><button type="button" onClick={() => loadSession(session.id)}><span>{session.title || "未命名对话"}</span><small>{session.created_at ? new Date(session.created_at).toLocaleString("zh-CN") : ""}</small></button><button type="button" className="mobile-chat-history-more" aria-label="对话操作" onClick={() => { setSessionSheet(session); setSessionTitle(session.title || ""); }}>···</button></div>) : <small>暂无历史对话</small>}</section>}
     <div className="mobile-chat-messages" ref={messagesRef}>{messages.length === 0 && !loading ? <div className="mobile-ai-empty"><Icon name="ai" /><strong>有什么想问的？</strong><span>{contextLabel}</span></div> : messages.map((message) => <article key={`${message.role}-${message.id}`} className={`mobile-ai-message ${message.role === "user" ? "is-user" : "is-assistant"}`} onContextMenu={(event) => { if (message.role === "user") { event.preventDefault(); setSheetMessage(message); } }} onTouchStart={() => message.role === "user" && beginHold(message)} onTouchEnd={endHold} onTouchCancel={endHold}><div className="mobile-ai-message-role">{message.role === "user" ? "我" : "AI"}</div>{editingId === String(message.id) ? <div className="mobile-ai-edit"><textarea value={editingText} onChange={(event) => setEditingText(event.target.value)} autoFocus /><div><button type="button" onClick={() => setEditingId("")}>取消</button><button type="button" onClick={() => commitEdit(message)}>提交</button></div></div> : <div className="mobile-ai-message-body"><MarkdownMessage content={message.content || ""} /></div>}</article>)}{loading && <div className="mobile-chat-loading">AI 正在思考…</div>}</div>
     {uploadItem && <div className={`mobile-upload-card is-${uploadItem.parse_status}`}><strong>{uploadItem.filename}</strong><span>{uploadItem.parse_status === "uploading" ? "上传中…" : uploadItem.parse_status === "failed" ? "上传失败" : "已上传，可随问题发送"}</span></div>}
+    {selectedMaterials.length > 0 && <div className="mobile-material-chips">{selectedMaterials.map((m) => <button type="button" key={m.id} className="mobile-material-chip" onClick={() => toggleMaterial(m)}><span>{m.original_filename || m.file_name || m.filename || "未命名资料"}</span><b>×</b></button>)}</div>}
     {status.type === "error" && !historyOpen && <div className="mobile-chat-error">{status.message}<button type="button" onClick={loadHistory}>重试</button></div>}
-    <form className="mobile-chat-composer" onSubmit={(event) => { event.preventDefault(); send(); }}><input ref={fileRef} type="file" hidden accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.pptx,.txt,.md,.markdown,.py,.java,.c,.cpp,.h,.hpp,.js,.jsx,.ts,.tsx,.html,.htm,.css,.json,.xml,.yaml,.yml,.sql,.sh,.bash,.go,.rs,.php,.rb" onChange={upload} /><button type="button" className="mobile-ai-tool" onClick={() => fileRef.current?.click()} disabled={uploading}>{uploading ? "…" : "＋"}</button><textarea ref={inputRef} value={input} onChange={(event) => setInput(event.target.value)} onInput={(event) => { event.currentTarget.style.height = "auto"; event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 120)}px`; }} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); send(); } }} placeholder="输入你的问题…" rows={1} /><button type="submit" className="primary-button" disabled={loading || !input.trim()}>发送</button></form>
+    <form className="mobile-chat-composer" onSubmit={(event) => { event.preventDefault(); send(); }}><input ref={fileRef} type="file" hidden accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.pptx,.txt,.md,.markdown,.py,.java,.c,.cpp,.h,.hpp,.js,.jsx,.ts,.tsx,.html,.htm,.css,.json,.xml,.yaml,.yml,.sql,.sh,.bash,.go,.rs,.php,.rb" onChange={upload} /><button type="button" className="mobile-ai-tool" onClick={() => setAddSheetOpen(true)} disabled={uploading}>{uploading ? "…" : "＋"}</button><textarea ref={inputRef} value={input} onChange={(event) => setInput(event.target.value)} onInput={(event) => { event.currentTarget.style.height = "auto"; event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 120)}px`; }} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); send(); } }} placeholder="输入你的问题…" rows={1} /><button type="submit" className="primary-button" disabled={loading || !input.trim()}>发送</button></form>
+    {addSheetOpen && <div className="mobile-action-sheet-backdrop" onClick={() => setAddSheetOpen(false)}><section className="mobile-action-sheet" onClick={(event) => event.stopPropagation()}><div className="sheet-handle" /><strong>添加内容</strong><button type="button" onClick={() => { setAddSheetOpen(false); fileRef.current?.click(); }}>上传资料</button><button type="button" onClick={openMaterialPicker}>从资料库选择</button><button type="button" className="secondary-button" onClick={() => setAddSheetOpen(false)}>取消</button></section></div>}
+    {materialPickerOpen && <div className="mobile-sheet-backdrop" onClick={() => setMaterialPickerOpen(false)}><section className="mobile-bottom-sheet material-picker-sheet" onClick={(event) => event.stopPropagation()}><header className="material-picker-head"><button type="button" onClick={() => setMaterialPickerOpen(false)}>返回</button><strong>选择资料</strong><button type="button" disabled={!selectedMaterials.length} onClick={confirmMaterials}>确定</button></header><div className="material-picker-list">{libraryLoading ? <div className="inline-state">正在读取资料…</div> : libraryMaterials.length === 0 ? <div className="empty-course"><strong>暂无可用资料</strong><span>上传资料解析完成后会出现在这里。</span></div> : libraryMaterials.map((m) => <button type="button" key={m.id} className={selectedMaterials.some((x) => x.id === m.id) ? "is-selected" : ""} onClick={() => toggleMaterial(m)}><span className="material-picker-name">{m.original_filename || m.filename || m.file_name || "未命名资料"}</span><span className="material-picker-check">{selectedMaterials.some((x) => x.id === m.id) ? "✓" : ""}</span></button>)}</div></section></div>}
     {sheetMessage && <div className="mobile-action-sheet-backdrop" onClick={() => setSheetMessage(null)}><section className="mobile-action-sheet" onClick={(event) => event.stopPropagation()}><div className="sheet-handle" /><strong>消息操作</strong><button type="button" onClick={() => copy(sheetMessage)}>复制</button><button type="button" onClick={() => openEdit(sheetMessage)}>编辑</button><button type="button" onClick={() => { setSheetMessage(null); send(sheetMessage.content, { sourceId: sheetMessage.id, branchId: sheetMessage.branch_id || "" }); }}>重新生成</button><button type="button" onClick={() => { setSheetMessage(null); send(sheetMessage.content, { sourceId: sheetMessage.id, branchId: `mobile-branch-${Date.now()}` }); }}>创建分支</button><button type="button" className="secondary-button" onClick={() => setSheetMessage(null)}>取消</button></section></div>}
     {sessionSheet && <div className="mobile-action-sheet-backdrop" onClick={() => setSessionSheet(null)}><section className="mobile-action-sheet mobile-session-sheet" onClick={(event) => event.stopPropagation()}><div className="sheet-handle" /><strong>对话管理</strong><input value={sessionTitle} onChange={(event) => setSessionTitle(event.target.value)} placeholder="对话标题" maxLength={50} /><button type="button" onClick={renameSession}>保存标题</button><button type="button" className="is-danger" onClick={deleteSession}>删除对话</button><button type="button" className="secondary-button" onClick={() => setSessionSheet(null)}>取消</button></section></div>}
   </div>;

@@ -556,3 +556,21 @@
   .v16-subject-card strong { font-size: 18px; }
   .v16-subject-card small { margin-top: 6px; font-size: 12px; }
 }
+
+/* v16.4 11408 mobile material upload + library picker. */
+.mobile-sheet-backdrop { position: fixed; inset: 0; z-index: 13; display: flex; align-items: flex-end; background: #141a3866; }
+.material-picker-sheet { width: min(540px, 100%); max-height: min(70dvh, 560px); display: flex; flex-direction: column; padding: 10px 20px max(20px, env(safe-area-inset-bottom)); border-radius: 25px 25px 0 0; background: var(--surface); box-shadow: 0 -12px 40px #141a3822; }
+.material-picker-head { display: flex; align-items: center; gap: 10px; padding: 4px 0 12px; }
+.material-picker-head strong { flex: 1; text-align: center; font-size: 15px; }
+.material-picker-head button { min-width: 52px; padding: 8px 12px; border-radius: 10px; background: #eeeaff; color: var(--purple); font-size: 13px; font-weight: 700; }
+.material-picker-head button:disabled { opacity: 0.45; }
+.material-picker-list { display: grid; gap: 8px; overflow-y: auto; }
+.material-picker-list > button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 13px 14px; border: 1px solid var(--line); border-radius: 13px; background: #fff; color: var(--ink); text-align: left; font-size: 13px; }
+.material-picker-list > button.is-selected { border-color: var(--purple); background: #eeeaff; }
+.material-picker-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.material-picker-check { width: 22px; height: 22px; flex: 0 0 22px; display: grid; place-items: center; border-radius: 50%; border: 1px solid #d4d7e2; color: #fff; font-size: 13px; }
+.material-picker-list > button.is-selected .material-picker-check { background: var(--purple); border-color: var(--purple); }
+.mobile-material-chips { display: flex; flex-wrap: wrap; gap: 7px; flex: 0 0 auto; padding: 0 12px 8px; }
+.mobile-material-chip { display: flex; align-items: center; gap: 6px; max-width: 100%; padding: 7px 10px; border-radius: 999px; background: #eeeaff; color: var(--purple); font-size: 12px; }
+.mobile-material-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mobile-material-chip b { color: #8c82e8; font-weight: 700; }
