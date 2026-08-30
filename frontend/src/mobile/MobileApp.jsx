@@ -74,7 +74,7 @@ function AIQuestionGenerateV15({ subject, user }) {
 function ExamPracticeHomeV15({ subject, user }) {
   const name = EXAM_SUBJECTS.find(([id]) => id === subject)?.[1] || subject;
   const entries = [["past-paper", "真题", "按年份开始答题", "practice"], ["chapter", "章节练习", "按知识图谱范围练习", "knowledge"], ["wrong", "错题本", "重新练习未掌握题目", "knowledge"], ["ai", "AI出题", "生成当前科目的练习题", "ai"]];
-  return <div className="page exam-practice-page-v15"><ExamTopBarV15 subject={subject} user={user} title="练习" /><div className="v16-practice-intro"><h1>练习</h1><span>{name} · 选择练习方式</span></div><div className="v16-practice-entry-list">{entries.map(([type, title, description, icon]) => <button type="button" className="v16-practice-entry" key={type} onClick={() => go(`/m/exam11408/${subject}/practice?type=${type}`)}><span className="v16-entry-icon"><Icon name={icon} /></span><span><strong>{title}</strong><small>{description}</small></span><b aria-hidden="true">›</b></button>)}</div><ExamBottomNavV15 subject={subject} active="practice" /></div>;
+  return <div className="page exam-practice-page-v15"><ExamTopBarV15 subject={subject} user={user} title="练习" /><div className="v16-practice-entry-list">{entries.map(([type, title, description, icon]) => <button type="button" className="v16-practice-entry" key={type} onClick={() => go(`/m/exam11408/${subject}/practice?type=${type}`)}><span className="v16-entry-icon"><Icon name={icon} /></span><span><strong>{title}</strong><small>{description}</small></span><b aria-hidden="true">›</b></button>)}</div><ExamBottomNavV15 subject={subject} active="practice" /></div>;
 }
 
 const examBottomNavV14BeforeV15 = ExamBottomNavV14;
@@ -878,7 +878,7 @@ function V16PracticeHeader({ subject, title, onBack }) {
   return <header className="v16-practice-header"><button type="button" onClick={onBack}>返回</button><strong>{title}</strong><span>{name}</span></header>;
 }
 
-function V16KnowledgeTree({ nodes, counts, selected, onSelect, picker = false, showCounts = false }) {
+function V16KnowledgeTree({ nodes, counts, selected, onSelect, picker = false, showCounts = false, showStatus = false }) {
   const [expanded, setExpanded] = useState(() => new Set());
   const countFor = (node) => {
     const key = String(node.code || node.id || "");
@@ -892,10 +892,11 @@ function V16KnowledgeTree({ nodes, counts, selected, onSelect, picker = false, s
     const count = countFor(node);
     const isOpen = expanded.has(key);
     const isSelected = String(selected?.key || "") === key;
+    const isLeaf = !children.length;
     return <div className={`v16-tree-node depth-${Math.min(depth, 3)}`} key={key}>
-      <div className={`v16-tree-row${isSelected ? " is-selected" : ""}`}>
-        {children.length > 0 ? <button type="button" className="v16-tree-toggle" aria-label={isOpen ? "收起" : "展开"} onClick={() => setExpanded((previous) => { const next = new Set(previous); if (next.has(key)) next.delete(key); else next.add(key); return next; })}>{isOpen ? "⌄" : "›"}</button> : <span className="v16-tree-toggle-placeholder" />}
-        <button type="button" className="v16-tree-select" onClick={() => onSelect({ key, node, path: [...parentPath, title].filter(Boolean).join(" / ") })}><strong>{title}</strong>{showCounts && count > 0 && <small>{count}题</small>}</button>
+      <div className={`v16-tree-row${isSelected ? " is-selected" : ""}${isLeaf ? " is-leaf" : ""}`}>
+        {children.length > 0 ? <button type="button" className="v16-tree-toggle" aria-label={isOpen ? "收起" : "展开"} onClick={() => setExpanded((previous) => { const next = new Set(previous); if (next.has(key)) next.delete(key); else next.add(key); return next; })}>{isOpen ? "⌄" : "›"}</button> : <span className="v16-tree-dot" />}
+        <button type="button" className="v16-tree-select" onClick={() => onSelect({ key, node, path: [...parentPath, title].filter(Boolean).join(" / ") })}><strong>{title}</strong>{showStatus && isLeaf && <em className={`v16-status-badge status-${node.status || "not_started"}`}>{knowledgeStatusLabel(node.status)}</em>}{showCounts && count > 0 && <small>{count}题</small>}</button>
       </div>
       {children.length > 0 && isOpen && <div className="v16-tree-children">{children.map((child) => render(child, depth + 1, [...parentPath, title]))}</div>}
     </div>;
@@ -960,8 +961,9 @@ function AIQuestionGeneratorV16({ subject, user }) {
 
 function ExamChaptersV16({ subject, user }) {
   const data = useV16KnowledgeData(subject, user);
+  const name = EXAM_SUBJECTS.find(([id]) => id === subject)?.[1] || subject;
   const [selected, setSelected] = useState(null);
-  return <div className="page exam-practice-page-v16"><V16PracticeHeader subject={subject} title="知识点" onBack={() => go("/m/exam11408")} /><div className="v16-practice-intro"><h1>知识点</h1><span>展开知识图谱查看章节与知识点</span></div>{data.status === "loading" && <div className="inline-state">正在加载知识图谱…</div>}{data.status === "error" && <div className="inline-error">{data.error}<button type="button" className="text-button" onClick={data.retry}>重试</button></div>}{data.status === "success" && !data.data.nodes.length && <div className="empty-course"><strong>暂无知识点</strong></div>}{data.status === "success" && data.data.nodes.length > 0 && <V16KnowledgeTree nodes={data.data.nodes} counts={data.data.counts} selected={selected} onSelect={setSelected} />}{selected && <KnowledgeStatusSheetV14 subject={subject} node={{ ...selected.node, chapter: selected.path }} user={user} onClose={() => setSelected(null)} onSaved={() => setSelected(null)} />}<ExamBottomNavV14 subject={subject} active="knowledge" /></div>;
+  return <div className="page exam-practice-page-v16"><ExamTopBarV15 subject={subject} user={user} title="知识点" /><div className="v16-knowledge-head"><h1>{name}</h1></div>{data.status === "loading" && <div className="inline-state">正在加载知识图谱…</div>}{data.status === "error" && <div className="inline-error">{data.error}<button type="button" className="text-button" onClick={data.retry}>重试</button></div>}{data.status === "success" && !data.data.nodes.length && <div className="empty-course"><strong>暂无知识点</strong></div>}{data.status === "success" && data.data.nodes.length > 0 && <V16KnowledgeTree nodes={data.data.nodes} counts={data.data.counts} selected={selected} onSelect={setSelected} showStatus />}{selected && <KnowledgeStatusSheetV14 subject={subject} node={{ ...selected.node, chapter: selected.path }} user={user} onClose={() => setSelected(null)} onSaved={() => setSelected(null)} />}<ExamBottomNavV14 subject={subject} active="knowledge" /></div>;
 }
 
 const routeForV15FinalBase = routeFor;
