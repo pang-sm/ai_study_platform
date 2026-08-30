@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { switchLearningDirection } from "../utils/serviceSwitch.js";
 import { resolveMediaUrl } from "../utils/mediaUrl.js";
+import { formatDate } from "../utils/programmingLabels.js";
 import EmailBindingModal from "./EmailBindingModal.jsx";
 import CustomerSupportModal from "./CustomerSupportModal.jsx";
 
@@ -200,7 +201,7 @@ export default function ExamProfile({ user, setPage, onLogout, API_BASE, onProfi
   const examTime = onboardingDetail?.exam_time || "2026 年 12 月";
   const examStage = onboardingDetail?.stage || "基础阶段";
   const examDaily = onboardingDetail?.daily_study_time || "6 - 8 小时";
-  const registerTime = user?.created_at ? String(user.created_at).slice(0, 10) : "暂无";
+  const registerTime = formatDate(user?.created_at);
   const realEmail = user?.email || "";
   const emailDisplay = realEmail ? maskEmail(realEmail) : "未绑定";
   const emailBtnLabel = realEmail ? "修改" : "绑定";

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { switchLearningDirection } from "../utils/serviceSwitch.js";
 import { resolveMediaUrl } from "../utils/mediaUrl.js";
+import { formatDate } from "../utils/programmingLabels.js";
 import EmailBindingModal from "./EmailBindingModal.jsx";
 import CustomerSupportModal from "./CustomerSupportModal.jsx";
 
@@ -137,7 +138,7 @@ export default function CourseLearningProfile({ user, setPage, onLogout, API_BAS
 
   const displayName = user?.nickname || user?.username || "同学";
   const username = user?.username || "";
-  const registerTime = user?.created_at || "";
+  const registerTime = formatDate(user?.created_at);
   const realEmail = user?.email || "";
   const emailDisplay = realEmail ? maskEmail(realEmail) : "未绑定";
   const emailBtnLabel = realEmail ? "修改" : "绑定";

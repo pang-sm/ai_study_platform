@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { switchLearningDirection } from "../utils/serviceSwitch.js";
 import { resolveMediaUrl } from "../utils/mediaUrl.js";
+import { formatDate, formatProgrammingLevel, formatProgrammingLanguages } from "../utils/programmingLabels.js";
 import EmailBindingModal from "./EmailBindingModal.jsx";
 import CustomerSupportModal from "./CustomerSupportModal.jsx";
 import FirstTimeGuideLauncher from "./FirstTimeGuideLauncher.jsx";
@@ -108,7 +109,7 @@ export default function ProgrammingProfile({ user, apiBase = "/api", setPage, on
   const displayName = nickname || user?.nickname || user?.username || "同学";
   const username = user?.username || "";
   const displayGrade = grade || onboarding?.grade || "未设置";
-  const registerTime = user?.created_at || "";
+  const registerTime = formatDate(user?.created_at);
   const realEmail = user?.email || "";
   const emailDisplay = realEmail ? maskEmail(realEmail) : "未绑定";
   const emailBtnLabel = realEmail ? "修改" : "绑定";
@@ -136,13 +137,13 @@ export default function ProgrammingProfile({ user, apiBase = "/api", setPage, on
     },
     {
       label: "当前编程语言",
-      value: onboarding.main_language || "未设置",
+      value: formatProgrammingLanguages(onboarding.selected_languages, onboarding.main_language),
       unit: "",
       sub: "来自编程学习详情",
     },
     {
       label: "当前学习水平",
-      value: onboarding.level || "未设置",
+      value: formatProgrammingLevel(onboarding.level),
       unit: "",
       sub: "来自编程学习详情",
     },
@@ -347,9 +348,9 @@ export default function ProgrammingProfile({ user, apiBase = "/api", setPage, on
             <div className="ep-info-col">
               <div className="ep-info-row"><span className="ep-info-label">年级</span>{editing ? <select className="ep-info-input" value={grade} onChange={(event) => setGrade(event.target.value)}><option value="">未设置</option>{GRADE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</select> : <span>{displayGrade}</span>}</div>
               <div className="ep-info-row"><span className="ep-info-label">当前学期</span>{editing ? <select className="ep-info-input" value={semester} onChange={(event) => setSemester(event.target.value)}><option value="">未设置</option>{SEMESTER_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</select> : <span>{semester || "未设置"}</span>}</div>
-              <div className="ep-info-row"><span className="ep-info-label">主要语言</span><span>{onboarding.main_language || "未设置"}</span></div>
-              <div className="ep-info-row"><span className="ep-info-label">当前水平</span><span>{onboarding.level || "未设置"}</span></div>
-              <div className="ep-info-row"><span className="ep-info-label">注册时间</span><span className="ep-info-time">{registerTime || "未记录"}</span></div>
+              <div className="ep-info-row"><span className="ep-info-label">当前编程语言</span><span>{formatProgrammingLanguages(onboarding.selected_languages, onboarding.main_language)}</span></div>
+              <div className="ep-info-row"><span className="ep-info-label">当前水平</span><span>{formatProgrammingLevel(onboarding.level)}</span></div>
+              <div className="ep-info-row"><span className="ep-info-label">注册时间</span><span className="ep-info-time">{registerTime}</span></div>
             </div>
           </div>
         </div>
