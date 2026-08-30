@@ -558,7 +558,7 @@
 }
 
 /* v16.4 11408 mobile material upload + library picker. */
-.mobile-sheet-backdrop { position: fixed; inset: 0; z-index: 13; display: flex; align-items: flex-end; background: #141a3866; }
+.mobile-sheet-backdrop { position: fixed; inset: 0; z-index: 100; display: flex; align-items: flex-end; background: #141a3866; }
 .material-picker-sheet { width: min(540px, 100%); max-height: min(70dvh, 560px); display: flex; flex-direction: column; padding: 10px 20px max(20px, env(safe-area-inset-bottom)); border-radius: 25px 25px 0 0; background: var(--surface); box-shadow: 0 -12px 40px #141a3822; }
 .material-picker-head { display: flex; align-items: center; gap: 10px; padding: 4px 0 12px; }
 .material-picker-head strong { flex: 1; text-align: center; font-size: 15px; }
