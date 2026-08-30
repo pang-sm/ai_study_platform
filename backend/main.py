@@ -9852,6 +9852,12 @@ def delete_chat_session(
         models.ChatMessage.user_id == user.id,
     ).delete()
 
+    # Clear dangling learning_record references to the deleted session/messages,
+    # otherwise learning_records keep FK references to now-deleted chat rows.
+    db.query(models.LearningRecord).filter(
+        models.LearningRecord.session_id == session_id,
+    ).update({"session_id": None, "message_id": None}, synchronize_session=False)
+
     db.delete(chat_session)
     db.commit()
 
