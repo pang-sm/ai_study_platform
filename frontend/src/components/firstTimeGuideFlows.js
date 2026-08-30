@@ -14,3 +14,11 @@ export const EXAM_GUIDE_STEPS = [
   { selector: '[data-tour="exam-nav-materials"]', title: "资料库", description: "在当前科目的资料库中查看和管理学习资料。" },
   { selector: '[data-tour="exam-nav-ai"]', title: "AI 问答", description: "围绕当前科目、资料和知识点继续提问。" },
 ];
+
+export const PROGRAMMING_GUIDE_STEPS = [
+  { selector: '[data-guide-id="programming-overview"]', title: "今日学习概览", description: "在首页查看连续学习天数和今日 AI 使用额度，开始当天的真实练习。" },
+  { selector: '[data-guide-id="programming-questions"]', title: "编程题库", description: "按语言、难度选择真实编程题。" },
+  { selector: '[data-guide-id="programming-workbench"]', title: "编程工作台", description: "在 Workbench 中编写、运行和提交代码。" },
+  { selector: '[data-guide-id="programming-knowledge"]', title: "知识点学习", description: "在对应语言的学习脉络中，按章节和知识点巩固薄弱环节。" },
+  { selector: '[data-guide-id="programming-profile"]', title: "个人中心与会员", description: "在个人中心查看资料、会员与套餐权益。" },
+];

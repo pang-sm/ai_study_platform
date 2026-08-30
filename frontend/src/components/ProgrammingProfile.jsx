@@ -3,6 +3,8 @@ import { switchLearningDirection } from "../utils/serviceSwitch.js";
 import { resolveMediaUrl } from "../utils/mediaUrl.js";
 import EmailBindingModal from "./EmailBindingModal.jsx";
 import CustomerSupportModal from "./CustomerSupportModal.jsx";
+import FirstTimeGuideLauncher from "./FirstTimeGuideLauncher.jsx";
+import { PROGRAMMING_GUIDE_STEPS } from "./firstTimeGuideFlows.js";
 import "./ProgrammingHome.css";
 
 // Fallback only — the authoritative plan name/limit come from the backend
@@ -306,7 +308,7 @@ export default function ProgrammingProfile({ user, apiBase = "/api", setPage, on
 
   return (
     <div className="ep-page-wrap">
-      <div className="ep-shell">
+      <div className="ep-shell" data-guide-id="programming-profile">
         <div className="ep-header">
           <button type="button" className="ep-outline-btn" onClick={() => setPage?.("programmingHome")}>返回编程学习主页</button>
           <h1 className="ep-title">编程学习 · 个人中心</h1>
@@ -474,6 +476,19 @@ export default function ProgrammingProfile({ user, apiBase = "/api", setPage, on
           onClose={() => setShowSupport(false)}
         />
       )}
+      <FirstTimeGuideLauncher
+        serviceKey="programming"
+        serviceLabel="编程学习"
+        steps={PROGRAMMING_GUIDE_STEPS}
+        apiBase={apiBase}
+        ready={false}
+        onStepChange={(index, step, direction) => {
+          // Only the last step (个人中心) lives on this page; going back returns
+          // to the ProgrammingHome where the previous step's real page renders.
+          if (direction === "previous") setPage?.("programmingHome");
+        }}
+        onComplete={() => setPage?.("programmingHome")}
+      />
     </div>
   );
 }

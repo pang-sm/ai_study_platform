@@ -15,7 +15,7 @@ function readActiveGuide(serviceKey, steps) {
   }
 }
 
-export default function FirstTimeGuideLauncher({ serviceKey, serviceLabel, steps, ready, replayToken, apiBase, onStepChange }) {
+export default function FirstTimeGuideLauncher({ serviceKey, serviceLabel, steps, ready, replayToken, apiBase, onStepChange, onComplete }) {
   const { open, complete, skip } = useFirstTimeGuide({ serviceKey, apiBase, ready, replayToken });
   const [activeGuide, setActiveGuide] = useState(() => readActiveGuide(serviceKey, steps));
   // When the guide resumes across a page navigation (home → dashboard), the
@@ -37,10 +37,11 @@ export default function FirstTimeGuideLauncher({ serviceKey, serviceLabel, steps
     try { sessionStorage.setItem(`${ACTIVE_GUIDE_PREFIX}${serviceKey}`, JSON.stringify(next)); } catch { /* ignore */ }
     setActiveGuide(next);
   };
-  const finish = async (handler) => {
+  const finish = async (handler, after) => {
     await handler();
     try { sessionStorage.removeItem(`${ACTIVE_GUIDE_PREFIX}${serviceKey}`); } catch { /* ignore */ }
     setActiveGuide(null);
+    after?.();
   };
   return (
     <Suspense fallback={null}>
@@ -52,7 +53,7 @@ export default function FirstTimeGuideLauncher({ serviceKey, serviceLabel, steps
           persistActiveStep(index);
           onStepChange?.(index, step, direction);
         }}
-        onComplete={() => finish(complete)}
+        onComplete={() => finish(complete, onComplete)}
         onSkip={() => finish(skip)}
       />
     </Suspense>
