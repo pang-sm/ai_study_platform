@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import useFirstTimeGuide from "../hooks/useFirstTimeGuide.js";
 
 const FirstTimeGuide = lazy(() => import("./FirstTimeGuide.jsx"));
@@ -18,6 +18,14 @@ function readActiveGuide(serviceKey, steps) {
 export default function FirstTimeGuideLauncher({ serviceKey, serviceLabel, steps, ready, replayToken, apiBase, onStepChange }) {
   const { open, complete, skip } = useFirstTimeGuide({ serviceKey, apiBase, ready, replayToken });
   const [activeGuide, setActiveGuide] = useState(() => readActiveGuide(serviceKey, steps));
+  // When the guide resumes across a page navigation (home → dashboard), the
+  // resumed step's panel/page must already match the highlighted target, so the
+  // background never lags behind the guide copy.
+  useEffect(() => {
+    if (activeGuide && activeGuide.index > 0) {
+      onStepChange?.(activeGuide.index, steps[activeGuide.index], "next");
+    }
+  }, [activeGuide?.index]);
   const isOpen = open || Boolean(activeGuide);
   if (!isOpen) return null;
   const persistActiveStep = (index) => {
