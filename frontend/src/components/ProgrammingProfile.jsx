@@ -487,7 +487,12 @@ export default function ProgrammingProfile({ user, apiBase = "/api", setPage, on
           // to the ProgrammingHome where the previous step's real page renders.
           if (direction === "previous") setPage?.("programmingHome");
         }}
-        onComplete={() => setPage?.("programmingHome")}
+        onComplete={() => {
+          // 结束引导后回到正常编程学习首页（重置内部 nav 状态 + URL）。
+          try { localStorage.removeItem("ai_study_programming_active_nav"); } catch { /* ignore */ }
+          const courseId = (window.location.pathname.match(/^\/programming\/([^/]+)/) || [])[1] || "python_programming";
+          window.location.assign(`/programming/${courseId}/home`);
+        }}
       />
     </div>
   );
