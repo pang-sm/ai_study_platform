@@ -10,6 +10,7 @@ BASE = Path(__file__).resolve().parent.parent.parent.parent.parent
 sys.path.insert(0, str(BASE))
 from database import SessionLocal
 import models
+import chapter_question_upsert
 
 TXT = BASE / "exam_resources/11408/computer_organization/chapter_questions/raw/2027计算机组成原理_原创配套习题_全章总汇_带知识点标注.txt"
 CHKD = BASE / "exam_resources/11408/computer_organization/chapter_questions/checked"
@@ -109,20 +110,12 @@ def main():
     if dry_run:
         print("DRY-RUN: skipping DB import.")
         return
-    # Import
+    # Import (idempotent upsert — preserves IDs so user references survive deploys)
     db=SessionLocal()
-    db.query(models.ExamQuestionBank).filter(models.ExamQuestionBank.subject_key==SUBJECT_KEY,models.ExamQuestionBank.source_type=="chapter").update({"is_active":False})
-    db.commit()
-    ins=0
-    for q in qs:
-        it=models.ExamQuestionBank(subject_key=SUBJECT_KEY,subject_name=SUBJECT_NAME,source_type="chapter",visibility="public",
-            knowledge_point_id=q["kp"],knowledge_point_name=q["kp_name"],knowledge_point_path=f"{q['ch_title']} / {q['kp_name']}",
-            question_type="choice" if q["type"]=="choice" else "big",stem=q["stem"],options_json=json.dumps(q.get("opts",{}),ensure_ascii=False),
-            standard_answer=q.get("ans",""),analysis="",difficulty="基础",source_ref=f"annotated:{q['raw_kp']}",is_active=True)
-        db.add(it); ins+=1
+    ins, upd, deact = chapter_question_upsert.upsert_chapter_questions(db, models, SUBJECT_KEY, SUBJECT_NAME, qs)
     db.commit()
     act=db.query(models.ExamQuestionBank).filter(models.ExamQuestionBank.subject_key==SUBJECT_KEY,models.ExamQuestionBank.source_type=="chapter",models.ExamQuestionBank.is_active==True).count()
     db.close()
-    print(f"DB: {ins} inserted, {act} active")
+    print(f"DB: {ins} inserted, {upd} updated, {deact} deactivated, {act} active")
 
 if __name__=="__main__": main()
