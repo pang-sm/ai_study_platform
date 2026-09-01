@@ -53,11 +53,11 @@ def test_membership_order_uses_server_catalog_and_is_idempotent(client: TestClie
     )
     assert downgrade.status_code == 400
 
-    same_or_lower = client.post(
+    same_plan_renewal = client.post(
         "/membership/orders",
         json={"service_key": "course_learning", "target_plan": "monthly"},
     )
-    assert same_or_lower.status_code == 409
+    assert same_plan_renewal.status_code == 200
 
 
 def test_paid_exam_onboarding_keeps_pending_order_until_payment(client: TestClient):

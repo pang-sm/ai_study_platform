@@ -621,8 +621,28 @@ class AiUsageLog(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(50), index=True, nullable=False)
     service_key = Column(String(50), index=True, nullable=True)
+    user_id = Column(Integer, index=True, nullable=True)
     feature = Column(String(50), index=True, nullable=False)
     model = Column(String(100), nullable=True)
+    provider = Column(String(50), nullable=True)
+    requested_model = Column(String(100), nullable=True)
+    resolved_model = Column(String(100), nullable=True)
+    input_tokens = Column(Integer, nullable=True)
+    output_tokens = Column(Integer, nullable=True)
+    cached_input_tokens = Column(Integer, nullable=True)
+    reasoning_tokens = Column(Integer, nullable=True)
+    total_tokens = Column(Integer, nullable=True)
+    request_count = Column(Integer, nullable=False, default=1)
+    retry_count = Column(Integer, nullable=False, default=0)
+    latency_ms = Column(Integer, nullable=True)
+    provider_request_id = Column(String(160), nullable=True)
+    usage_source = Column(String(30), nullable=False, default="UNKNOWN")
+    price_snapshot_key = Column(String(120), nullable=True)
+    estimated_api_cost = Column(Float, nullable=True)
+    action_id = Column(String(64), index=True, nullable=True)
+    plan_snapshot = Column(String(80), nullable=True)
+    entitlement_snapshot = Column(String(120), nullable=True)
+    snapshot_at = Column(DateTime, nullable=True)
     estimated_tokens = Column(Integer, nullable=True, default=0)
     estimated_cost = Column(Float, nullable=True, default=0.0)
     status = Column(String(20), nullable=True, default="success")
@@ -1165,8 +1185,29 @@ class UserServiceMembership(Base):
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
 
+class UserQuotaOverride(Base):
+    """Per-user, per-service, per-quota personal override above the plan catalog default.
+
+    The plan catalog (SERVICE_PLAN_CATALOG) is the default; this table is the
+    per-user exception. Deleting a row restores the catalog default.
+    """
+    __tablename__ = "user_quota_overrides"
+    __table_args__ = (
+        Index("idx_user_quota_overrides_user_service_quota", "user_id", "service_key", "quota_key", unique=True),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=False)
+    service_key = Column(String(50), index=True, nullable=False)
+    quota_key = Column(String(50), nullable=False)
+    override_limit = Column(Integer, nullable=False)
+    enabled = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+
 class MembershipOrder(Base):
-    """Server-owned mock payment order for one service direction upgrade."""
+    """Server-owned commercial order. Historical price and quota are immutable snapshots."""
     __tablename__ = "membership_orders"
     __table_args__ = (
         Index("idx_membership_orders_user_status", "user_id", "status"),
@@ -1174,18 +1215,94 @@ class MembershipOrder(Base):
     )
 
     id = Column(Integer, primary_key=True, index=True)
+    order_no = Column(String(64), unique=True, index=True, nullable=True)
     user_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=False)
     service_key = Column(String(50), index=True, nullable=False)
     target_plan = Column(String(30), nullable=False)
     amount = Column(Integer, nullable=False, default=0)
+    list_price = Column(Integer, nullable=True)
+    paid_amount = Column(Integer, nullable=True)
+    pricing_version = Column(String(64), nullable=True)
+    quota_snapshot_json = Column(Text, nullable=True)
     currency = Column(String(10), nullable=False, default="CNY")
     payment_provider = Column(String(20), nullable=False, default="mock")
     status = Column(String(20), nullable=False, default="pending")
     created_at = Column(DateTime, default=utc_now, nullable=False)
     order_expires_at = Column(DateTime, nullable=False)
     paid_at = Column(DateTime, nullable=True)
+    provider_transaction_id = Column(String(128), unique=True, nullable=True)
+    refunded_amount = Column(Integer, nullable=False, default=0)
+    refund_status = Column(String(30), nullable=True)
     membership_started_at = Column(DateTime, nullable=True)
     membership_expires_at = Column(DateTime, nullable=True)
+
+
+class PaymentEvent(Base):
+    """One normalized provider callback/event; unique keys make callbacks idempotent."""
+    __tablename__ = "payment_events"
+    __table_args__ = (
+        Index("idx_payment_events_provider_event", "provider", "provider_event_id", unique=True),
+        Index("idx_payment_events_order", "order_id"),
+    )
+    id = Column(Integer, primary_key=True)
+    provider = Column(String(32), nullable=False)
+    provider_event_id = Column(String(128), nullable=False)
+    order_id = Column(Integer, ForeignKey("membership_orders.id"), nullable=True)
+    provider_transaction_id = Column(String(128), nullable=True)
+    event_type = Column(String(32), nullable=False)
+    amount = Column(Integer, nullable=True)
+    currency = Column(String(10), nullable=True)
+    verification_result = Column(String(32), nullable=False)
+    processing_status = Column(String(32), nullable=False, default="received")
+    metadata_json = Column(Text, nullable=True)
+    received_at = Column(DateTime, default=utc_now, nullable=False)
+    processed_at = Column(DateTime, nullable=True)
+
+
+class MembershipGrant(Base):
+    __tablename__ = "membership_grants"
+    __table_args__ = (Index("idx_membership_grants_user_service", "user_id", "service_key"),)
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    service_key = Column(String(50), nullable=False)
+    order_id = Column(Integer, ForeignKey("membership_orders.id"), nullable=False, unique=True)
+    old_plan = Column(String(30), nullable=True)
+    new_plan = Column(String(30), nullable=False)
+    old_expiry = Column(DateTime, nullable=True)
+    new_expiry = Column(DateTime, nullable=True)
+    grant_reason = Column(String(50), nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+
+
+class Refund(Base):
+    __tablename__ = "refunds"
+    __table_args__ = (Index("idx_refunds_order", "order_id"),)
+    id = Column(Integer, primary_key=True)
+    refund_no = Column(String(64), unique=True, nullable=False, index=True)
+    order_id = Column(Integer, ForeignKey("membership_orders.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    amount = Column(Integer, nullable=False)
+    reason = Column(Text, nullable=True)
+    status = Column(String(30), nullable=False, default="requested")
+    provider_refund_id = Column(String(128), unique=True, nullable=True)
+    requested_at = Column(DateTime, default=utc_now, nullable=False)
+    refunded_at = Column(DateTime, nullable=True)
+
+
+class RevenueLedgerEntry(Base):
+    __tablename__ = "revenue_ledger_entries"
+    __table_args__ = (Index("idx_revenue_ledger_order_type", "order_id", "entry_type", unique=True),)
+    id = Column(Integer, primary_key=True)
+    order_id = Column(Integer, ForeignKey("membership_orders.id"), nullable=True)
+    refund_id = Column(Integer, ForeignKey("refunds.id"), nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    service_key = Column(String(50), nullable=False)
+    entry_type = Column(String(30), nullable=False)  # PAYMENT / REFUND / PAYMENT_FEE
+    amount = Column(Integer, nullable=False)
+    currency = Column(String(10), nullable=False, default="CNY")
+    status = Column(String(30), nullable=False, default="confirmed")
+    source = Column(String(32), nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
 
 
 class SupportTicket(Base):

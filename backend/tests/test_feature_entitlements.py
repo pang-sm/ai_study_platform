@@ -27,14 +27,13 @@ def test_feature_entitlement_uses_catalog_and_keeps_services_isolated(client, db
     profile = register_and_login(client, "feature-entitlement-user")
     user = db_session.query(models.User).filter(models.User.id == profile["id"]).one()
 
+    # learning_report 免费（练习复盘已合并进学习报告，学习报告免费）。
     free = get_feature_entitlement(user, db_session, "course_learning", "learning_report")
-    assert free == {
-        "allowed": False,
-        "feature": "learning_report",
-        "service_key": "course_learning",
-        "current_plan": "free",
-        "required_plan": "monthly",
-    }
+    assert free["allowed"] is True
+    assert free["feature"] == "learning_report"
+    assert free["service_key"] == "course_learning"
+    assert free["current_plan"] == "free"
+    assert free["required_plan"] == "free"
 
     _set_membership(db_session, user.id, "course_learning", "monthly")
     course_paid = get_feature_entitlement(user, db_session, "course_learning", "learning_report")
@@ -89,24 +88,15 @@ def test_entitlement_api_and_course_plan_guard_use_current_user(client, db_sessi
     assert allowed.status_code == 200, allowed.text
 
 
-def test_free_users_cannot_bypass_report_or_review_apis(client, db_session):
+def test_free_users_can_access_report_review_but_not_learning_plan(client, db_session):
     profile = register_and_login(client, "feature-api-free-user")
     username = profile["username"]
 
+    # 学习报告 / 练习复盘已免费
     course_review = client.get("/review/center", params={"username": username, "course_id": "data_structure"})
-    assert course_review.status_code == 403
-    assert course_review.json()["detail"]["feature"] == "practice_review"
-    assert course_review.json()["detail"]["service_key"] == "course_learning"
+    assert course_review.status_code == 200
 
-    course_report = client.post("/learning-report/ai-generate", json={
-        "username": username,
-        "course_id": "data_structure",
-        "course_name": "data structure",
-        "mode": "course_learning",
-    })
-    assert course_report.status_code == 403
-    assert course_report.json()["detail"]["feature"] == "learning_report"
-
+    # 学习计划仍为付费权益
     exam_plan = client.get("/exam/11408/subjects/data_structure/study-plan", params={"username": username})
     assert exam_plan.status_code == 403
     assert exam_plan.json()["detail"] == {
@@ -123,23 +113,22 @@ def test_paid_direction_does_not_unlock_another_direction_or_expired_access(clie
     user = db_session.query(models.User).filter(models.User.id == profile["id"]).one()
     _set_membership(db_session, user.id, "course_learning", "monthly")
 
+    # 学习报告/练习复盘免费，course_learning 付费不解锁 exam_11408 的学习计划
     allowed_review = client.get("/review/center", params={"username": profile["username"], "course_id": "data_structure"})
     assert allowed_review.status_code == 200
-    allowed_reports = client.get("/learning/reports", params={"username": profile["username"], "course_id": "data_structure"})
-    assert allowed_reports.status_code == 200
 
-    exam_review = client.get("/review/center", params={"username": profile["username"], "course_id": "11408 数据结构"})
-    assert exam_review.status_code == 403
-    assert exam_review.json()["detail"]["service_key"] == "exam_11408"
+    exam_plan = client.get("/exam/11408/subjects/data_structure/study-plan", params={"username": profile["username"]})
+    assert exam_plan.status_code == 403
+    assert exam_plan.json()["detail"]["service_key"] == "exam_11408"
 
     _set_membership(db_session, user.id, "exam_11408", "monthly_sprint")
     paid_exam_plan = client.get("/exam/11408/subjects/data_structure/study-plan", params={"username": profile["username"]})
     assert paid_exam_plan.status_code == 200, paid_exam_plan.text
 
-    _set_membership(db_session, user.id, "course_learning", "monthly", utc_now() - timedelta(minutes=1))
-    expired_review = client.get("/review/center", params={"username": profile["username"], "course_id": "data_structure"})
-    assert expired_review.status_code == 403
-    assert expired_review.json()["detail"]["current_plan"] == "free"
+    _set_membership(db_session, user.id, "exam_11408", "monthly_sprint", utc_now() - timedelta(minutes=1))
+    expired_plan = client.get("/exam/11408/subjects/data_structure/study-plan", params={"username": profile["username"]})
+    assert expired_plan.status_code == 403
+    assert expired_plan.json()["detail"]["current_plan"] == "free"
 
 
 def test_entitlement_errors_and_ordinary_http_errors_keep_json_contract(client):

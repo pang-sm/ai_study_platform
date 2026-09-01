@@ -16,6 +16,7 @@ import asyncio
 import uuid
 import importlib.util
 import threading
+from contextvars import ContextVar
 import signal
 import time
 import zipfile
@@ -76,7 +77,9 @@ from membership import (
     redeem_code,
     preload_redemption_codes,
     is_developer_account,
-    get_material_plan_limits,
+    CORE_QUOTA_KEYS,
+    resolve_effective_quota,
+    resolve_effective_material_limits,
 )
 from tencent_sms import send_verification_sms, SmsNotConfiguredError, SmsSendError
 from prompts import build_system_prompt
@@ -98,6 +101,8 @@ from rag import (
     soft_delete_material_chunks,
 )
 from subjects import COURSE_LEARNING_ID_MAP, normalize_subject, normalize_subject_course_learning, resolve_course_id_from_display
+from payments import get_payment_provider, is_production_runtime, is_mock_payment_allowed
+from payments.service import apply_verified_payment, recompute_membership_after_refund, PENDING, PAID, CANCELLED, EXPIRED, REFUNDED
 
 
 def _normalize_course_or_11408(subject: str, default: str = "") -> str:
@@ -217,7 +222,7 @@ TRACK_SERVICE_KEY = {
 def _material_quota_for_service(db: Session, user: models.User, service_key: str) -> dict:
     """Return the effective material plan quota + live usage for one domain."""
     plan = get_effective_service_plan(db, user.id, service_key)
-    limits = get_material_plan_limits(service_key, plan)
+    limits = resolve_effective_material_limits(db, user.id, service_key)
     domain = service_key
     rows = (
         db.query(models.StudyMaterial.course_id, models.StudyMaterial.subject_key, models.StudyMaterial.file_size)
@@ -243,6 +248,7 @@ def _material_quota_for_service(db: Session, user: models.User, service_key: str
 load_dotenv()
 
 app = FastAPI()
+_ai_usage_action_id: ContextVar[str | None] = ContextVar("ai_usage_action_id", default=None)
 
 Base.metadata.create_all(bind=engine)
 init_user_profile_schema()
@@ -279,6 +285,21 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def ai_usage_action_scope(request: Request, call_next):
+    """Give every HTTP user action one non-sensitive correlation id.
+
+    The id is only audit metadata; it never participates in entitlement or
+    provider behavior.  Nested helper calls reuse it through thread-local
+    state, while non-HTTP/background work lazily receives its own id.
+    """
+    token = _ai_usage_action_id.set(uuid.uuid4().hex)
+    try:
+        return await call_next(request)
+    finally:
+        _ai_usage_action_id.reset(token)
 
 
 # ── Global Exception Handlers ── ensure ALL responses are JSON ──
@@ -738,35 +759,12 @@ EXAM_PACKAGE_PLANS = {
     "quarterly_boost": "exam_quarterly",
     "full_exam": "exam_yearly",
 }
+# Exam package quota is DERIVED from the single source of truth
+# SERVICE_PLAN_CATALOG["exam_11408"], so 11408 quota can never drift from the
+# catalog used by the unified resolver and runtime enforcement.
 EXAM_PACKAGE_QUOTA = {
-    "free": {
-        "ai_chat_daily_limit": 50,
-        "ai_question_daily_limit": 5,
-        "material_upload_limit_mb": 100,
-        "learning_plan": False,
-        "learning_report": True,
-    },
-    "monthly_sprint": {
-        "ai_chat_daily_limit": 300,
-        "ai_question_daily_limit": 30,
-        "material_upload_limit_mb": 500,
-        "learning_plan": True,
-        "learning_report": True,
-    },
-    "quarterly_boost": {
-        "ai_chat_daily_limit": 500,
-        "ai_question_daily_limit": 50,
-        "material_upload_limit_mb": 1024,
-        "learning_plan": True,
-        "learning_report": True,
-    },
-    "full_exam": {
-        "ai_chat_daily_limit": 1000,
-        "ai_question_daily_limit": 100,
-        "material_upload_limit_mb": 2048,
-        "learning_plan": True,
-        "learning_report": True,
-    },
+    plan_code: dict(definition.get("quota") or {})
+    for plan_code, definition in SERVICE_PLAN_CATALOG["exam_11408"].items()
 }
 
 COURSE_PACKAGE_NAMES = {
@@ -776,35 +774,12 @@ COURSE_PACKAGE_NAMES = {
     "full": "全程学习包",
 }
 
+# Course package quota is DERIVED from the single source of truth
+# SERVICE_PLAN_CATALOG["course_learning"], so course quota can never drift from
+# the catalog used by the unified resolver and runtime enforcement.
 COURSE_PACKAGE_QUOTA = {
-    "free": {
-        "ai_chat_daily_limit": 50,
-        "ai_question_daily_limit": 5,
-        "material_upload_limit_mb": 100,
-        "learning_plan": False,
-        "learning_report": True,
-    },
-    "monthly": {
-        "ai_chat_daily_limit": 300,
-        "ai_question_daily_limit": 30,
-        "material_upload_limit_mb": 500,
-        "learning_plan": True,
-        "learning_report": True,
-    },
-    "quarterly": {
-        "ai_chat_daily_limit": 500,
-        "ai_question_daily_limit": 50,
-        "material_upload_limit_mb": 1024,
-        "learning_plan": True,
-        "learning_report": True,
-    },
-    "full": {
-        "ai_chat_daily_limit": 1000,
-        "ai_question_daily_limit": 100,
-        "material_upload_limit_mb": 2048,
-        "learning_plan": True,
-        "learning_report": True,
-    },
+    plan_code: dict(definition.get("quota") or {})
+    for plan_code, definition in SERVICE_PLAN_CATALOG["course_learning"].items()
 }
 
 # Programming plan names/quotas are DERIVED from the single source of truth in
@@ -2750,6 +2725,63 @@ def get_vision_runtime_config(db: Session | None = None) -> dict:
     }
 
 
+_ai_usage_meter = threading.local()
+
+
+def _usage_value(usage, *names):
+    """Read an SDK usage field without serializing prompts or response content."""
+    for name in names:
+        value = usage.get(name) if isinstance(usage, dict) else getattr(usage, name, None)
+        if value is not None:
+            return value
+    return None
+
+
+def _capture_provider_usage(response, provider: str, requested_model: str, latency_ms: int) -> None:
+    usage = getattr(response, "usage", None)
+    details = _usage_value(usage, "prompt_tokens_details") or {}
+    completion_details = _usage_value(usage, "completion_tokens_details") or {}
+    input_tokens = _usage_value(usage, "prompt_tokens", "input_tokens")
+    output_tokens = _usage_value(usage, "completion_tokens", "output_tokens")
+    cached_tokens = _usage_value(details, "cached_tokens", "cached_input_tokens")
+    reasoning_tokens = _usage_value(completion_details, "reasoning_tokens")
+    total_tokens = _usage_value(usage, "total_tokens")
+    reported = input_tokens is not None or output_tokens is not None or total_tokens is not None
+    _ai_usage_meter.last = {
+        "provider": provider,
+        "requested_model": requested_model,
+        "resolved_model": getattr(response, "model", None) or requested_model,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "cached_input_tokens": cached_tokens,
+        "reasoning_tokens": reasoning_tokens,
+        "total_tokens": total_tokens,
+        "latency_ms": latency_ms,
+        "provider_request_id": getattr(response, "_request_id", None) or getattr(response, "id", None),
+        "usage_source": "PROVIDER_REPORTED" if reported else "UNKNOWN",
+    }
+
+
+def _price_snapshot_for_usage(meter: dict) -> tuple[str | None, float | None]:
+    """Return a reproducible price key and estimated billed cost, never inventing alias pricing."""
+    model = str(meter.get("resolved_model") or "").lower()
+    if meter.get("provider") == "deepseek" and model == "deepseek-v4-flash":
+        inp, out = meter.get("input_tokens"), meter.get("output_tokens")
+        if inp is not None and out is not None:
+            # Official off-peak prices. Cached input must not also be billed as cache-miss input.
+            return "deepseek-v4-flash-offpeak-2026-08-30", _deepseek_v4_flash_cost_cny(inp, out, meter.get("cached_input_tokens"))
+    return None, None
+
+
+def _deepseek_v4_flash_cost_cny(input_tokens, output_tokens, cached_input_tokens=0) -> float:
+    """Official semantic: cached input is a subset of input, never additive."""
+    if input_tokens is None or output_tokens is None:
+        return 0.0
+    input_count = max(0, int(input_tokens))
+    cached_count = min(max(0, int(cached_input_tokens or 0)), input_count)
+    return ((input_count - cached_count) * .22 + cached_count * .007 + max(0, int(output_tokens)) * .66) / 1_000_000 * 7.2
+
+
 def call_deepseek(messages: list[dict], timeout_seconds: int | float | None = None,
                   model: str | None = None, temperature: float | None = None,
                   max_tokens: int | None = None):
@@ -2757,6 +2789,8 @@ def call_deepseek(messages: list[dict], timeout_seconds: int | float | None = No
     final_model = (model or runtime_config["model"] or "deepseek-chat").strip()
     final_temperature = runtime_config["temperature"] if temperature is None else temperature
     final_max_tokens = runtime_config["max_tokens"] if max_tokens is None else max_tokens
+    started_at = time.perf_counter()
+    _ai_usage_meter.last = None
     try:
         response = client.chat.completions.create(
             model=final_model,
@@ -2765,8 +2799,12 @@ def call_deepseek(messages: list[dict], timeout_seconds: int | float | None = No
             max_tokens=final_max_tokens,
             timeout=timeout_seconds,
         )
+        _capture_provider_usage(response, "deepseek", final_model, round((time.perf_counter() - started_at) * 1000))
         return (response.choices[0].message.content or "").strip()
     except Exception as exc:
+        _ai_usage_meter.last = {"provider": "deepseek", "requested_model": final_model,
+            "resolved_model": None, "latency_ms": round((time.perf_counter() - started_at) * 1000),
+            "usage_source": "UNKNOWN"}
         raise HTTPException(status_code=500, detail="AI 服务调用失败，请稍后重试") from exc
 
 
@@ -2907,14 +2945,66 @@ def get_today_usage(username: str, feature: str, db: Session, service_key: str |
     )
     if service_key:
         query = query.filter(models.AiUsageLog.service_key == service_key)
-    return query.count()
+    # Quotas are user actions. One action may have multiple billable provider
+    # calls (JSON repair/quality retry), which share action_id.
+    return query.with_entities(func.count(func.distinct(func.coalesce(models.AiUsageLog.action_id, models.AiUsageLog.id)))).scalar() or 0
+
+
+# Core quota → per-service AI usage feature names. Single mapping so admin
+# display and runtime enforcement agree on what "used" means for each direction.
+CORE_QUOTA_USAGE_FEATURE = {
+    "ai_chat_daily_limit": {"exam_11408": "chat", "course_learning": "chat", "programming": "code_analyze"},
+    "ai_question_daily_limit": {"exam_11408": "question_generate", "course_learning": "question_generate", "programming": "challenge_generate"},
+}
+
+FEATURE_TO_CORE_QUOTA_KEY = {
+    "chat": "ai_chat_daily_limit",
+    "code_analyze": "ai_chat_daily_limit",
+    "question_generate": "ai_question_daily_limit",
+    "challenge_generate": "ai_question_daily_limit",
+}
+
+
+def get_core_quota_used(db: Session, user: models.User, service_key: str, quota_key: str):
+    """Return today's used value for a core quota (None for non-metered quotas).
+
+    AI quotas read today's successful AiUsageLog actions scoped to the direction;
+    storage sums active StudyMaterial bytes for the direction. single_file has no
+    counter (it is a per-file cap), so it returns None.
+    """
+    if quota_key == "single_file_limit_mb":
+        return None
+    if quota_key == "material_upload_limit_mb":
+        rows = (
+            db.query(models.StudyMaterial.course_id, models.StudyMaterial.subject_key, models.StudyMaterial.file_size)
+            .filter(models.StudyMaterial.username == user.username, models.StudyMaterial.is_deleted.is_(False))
+            .all()
+        )
+        used_bytes = sum(
+            (int(r.file_size) or 0) for r in rows if _material_domain(r.course_id, r.subject_key) == service_key
+        )
+        return round(used_bytes / 1024 / 1024, 2)
+    feature = CORE_QUOTA_USAGE_FEATURE.get(quota_key, {}).get(service_key)
+    if not feature:
+        return 0
+    return get_today_usage(user.username, feature, db, service_key)
 
 
 def check_usage_limit(username: str, feature: str, db: Session, service_key: str = "course_learning"):
-    plan_info = get_user_plan(username, db)
-    plan = plan_info["plan"]
-    limits = get_plan_limits(plan, db)
-    limit = limits.get(feature, 999999)
+    canonical = canonical_service_key(service_key)
+    quota_key = FEATURE_TO_CORE_QUOTA_KEY.get(feature)
+    user = get_user_by_username(username, db)
+    if user and canonical in SERVICE_PLAN_CATALOG and quota_key:
+        # Core AI quota → unified resolver (catalog default + user override).
+        q = resolve_effective_quota(db, user.id, canonical, quota_key)
+        limit = q["effective_limit"]
+        plan = q["plan"]
+    else:
+        # Legacy / non-core AI features keep the historical global-plan path.
+        plan_info = get_user_plan(username, db)
+        plan = plan_info["plan"]
+        limits = get_plan_limits(plan, db)
+        limit = limits.get(feature, 999999)
     used = get_today_usage(username, feature, db, service_key or None)
     remaining = max(0, limit - used)
     if used >= limit:
@@ -2932,15 +3022,21 @@ def check_usage_limit(username: str, feature: str, db: Session, service_key: str
 
 
 def check_programming_usage_limit(user: models.User, feature: str, db: Session):
-    """Enforce Programming quotas from the service membership source of truth."""
-    plan = normalize_programming_plan(get_effective_service_plan(db, user.id, "programming"))
-    quota = PROGRAMMING_PACKAGE_QUOTA[plan]
-    feature_limits = {
-        "code_analyze": quota["ai_chat_daily_limit"],
-        "chat": quota["ai_chat_daily_limit"],
-        "challenge_generate": quota["ai_question_daily_limit"],
-    }
-    limit = int(feature_limits.get(feature, 999999))
+    """Enforce Programming quotas from the unified core-quota resolver."""
+    quota_key = FEATURE_TO_CORE_QUOTA_KEY.get(feature)
+    if quota_key:
+        q = resolve_effective_quota(db, user.id, "programming", quota_key)
+        limit = q["effective_limit"]
+        plan = q["plan"]
+    else:
+        plan = normalize_programming_plan(get_effective_service_plan(db, user.id, "programming"))
+        quota = PROGRAMMING_PACKAGE_QUOTA[plan]
+        feature_limits = {
+            "code_analyze": quota["ai_chat_daily_limit"],
+            "chat": quota["ai_chat_daily_limit"],
+            "challenge_generate": quota["ai_question_daily_limit"],
+        }
+        limit = int(feature_limits.get(feature, 999999))
     used = get_today_usage(user.username, feature, db, "programming")
     if used >= limit:
         raise HTTPException(
@@ -2995,6 +3091,29 @@ def get_exam_408_feature_limit(permissions: dict, feature: str):
 
 
 def check_exam_408_usage_limit(user: models.User, feature: str, db: Session):
+    quota_key = FEATURE_TO_CORE_QUOTA_KEY.get(feature)
+    if quota_key:
+        # Core AI quota → unified resolver (catalog default + user override).
+        q = resolve_effective_quota(db, user.id, "exam_11408", quota_key)
+        limit = q["effective_limit"]
+        plan = q["plan"]
+        used = get_today_usage(user.username, feature, db, "exam_11408")
+        remaining = max(0, limit - used)
+        if used >= limit:
+            raise HTTPException(
+                status_code=429,
+                detail=f"今日 11408 套餐 {feature} 使用次数已达上限（{used}/{limit}），当前套餐限制为 {limit} 次/天。",
+            )
+        return {
+            "allowed": True,
+            "used": used,
+            "limit": limit,
+            "remaining": remaining,
+            "plan": plan,
+        }
+
+    # Boolean entitlements (learning_plan_generate / learning_report_generate)
+    # keep the track-permission path.
     permissions = get_exam_408_permissions_for_user(db, user)
     if not permissions:
         return check_usage_limit(user.username, feature, db, "exam_11408")
@@ -3019,14 +3138,52 @@ def check_exam_408_usage_limit(user: models.User, feature: str, db: Session):
 
 def record_ai_usage(username: str, feature: str, db: Session, model: str = None,
                     estimated_tokens: int = 0, status: str = "success",
-                    error_message: str = None, service_key: str = ""):
+                    error_message: str = None, service_key: str = "", action_id: str | None = None):
     try:
         runtime_model = model or get_model_runtime_config(db).get("model") or "deepseek-chat"
+        meter = getattr(_ai_usage_meter, "last", None) or {}
+        snapshot_key, api_cost = _price_snapshot_for_usage(meter)
+        user = db.query(models.User).filter(models.User.username == username).first()
+        resolved_action_id = action_id or _ai_usage_action_id.get() or getattr(_ai_usage_meter, "action_id", None) or uuid.uuid4().hex
+        # Sync FastAPI endpoints may run in a worker thread distinct from the
+        # async middleware thread. Persist the lazily created id locally so
+        # nested calls in that endpoint still share one action.
+        _ai_usage_meter.action_id = resolved_action_id
+        _ai_usage_action_id.set(resolved_action_id)
+        # Snapshot at request time avoids attributing historical usage to a
+        # membership acquired later. It is audit-only and never changes access.
+        if service_key in ("exam_11408", "course_learning", "programming") and user:
+            try:
+                plan_snapshot = str(get_effective_service_plan(db, user.id, service_key) or "free")
+            except Exception:
+                plan_snapshot = get_user_plan(username, db).get("plan", "free")
+        else:
+            plan_snapshot = get_user_plan(username, db).get("plan", "free") if user else None
         log = models.AiUsageLog(
             username=username,
+            user_id=user.id if user else None,
             service_key=service_key or None,
             feature=feature,
-            model=runtime_model,
+            model=meter.get("resolved_model") or runtime_model,
+            provider=meter.get("provider"),
+            requested_model=meter.get("requested_model") or runtime_model,
+            resolved_model=meter.get("resolved_model"),
+            input_tokens=meter.get("input_tokens"),
+            output_tokens=meter.get("output_tokens"),
+            cached_input_tokens=meter.get("cached_input_tokens"),
+            reasoning_tokens=meter.get("reasoning_tokens"),
+            total_tokens=meter.get("total_tokens"),
+            request_count=1,
+            retry_count=0,
+            latency_ms=meter.get("latency_ms"),
+            provider_request_id=meter.get("provider_request_id"),
+            usage_source=meter.get("usage_source") or "ESTIMATED",
+            price_snapshot_key=snapshot_key,
+            estimated_api_cost=api_cost,
+            action_id=resolved_action_id,
+            plan_snapshot=plan_snapshot,
+            entitlement_snapshot=f"{service_key or 'unknown'}:{plan_snapshot}" if plan_snapshot else None,
+            snapshot_at=utc_now(),
             estimated_tokens=estimated_tokens,
             estimated_cost=round(estimated_tokens * 0.000001, 6),
             status=status,
@@ -3034,6 +3191,7 @@ def record_ai_usage(username: str, feature: str, db: Session, model: str = None,
         )
         db.add(log)
         db.commit()
+        _ai_usage_meter.last = None
     except Exception:
         logger.warning(f"Failed to record AI usage for {username}/{feature}")
 
@@ -3141,7 +3299,7 @@ def normalize_assistant_markdown(text: str) -> str:
     return _FENCE_RE.sub(_replace, text)
 
 
-def summarize_material(subject: str, extracted_text: str):
+def summarize_material(subject: str, extracted_text: str, db: Session | None = None, user: models.User | None = None):
     preview = extracted_text[:5000]
     prompt = f"""
 请为以下学习资料生成一段简短摘要，要求：
@@ -3155,7 +3313,7 @@ def summarize_material(subject: str, extracted_text: str):
 {preview}
 """.strip()
 
-    return call_deepseek(
+    summary = call_deepseek(
         [
             {
                 "role": "system",
@@ -3164,6 +3322,9 @@ def summarize_material(subject: str, extracted_text: str):
             {"role": "user", "content": prompt},
         ]
     )
+    if db and user:
+        record_ai_usage(user.username, "material_summary", db, service_key="course_learning")
+    return summary
 
 
 FILE_TYPE_LABELS = {
@@ -4922,7 +5083,7 @@ def create_material_from_message(
     }
 
     if (message.extracted_text or "").strip():
-        summary = summarize_material(normalized_subject, message.extracted_text)
+        summary = summarize_material(normalized_subject, message.extracted_text, db, user)
     else:
         summary = final_parse_metadata.get("parse_error") or "该资料解析失败，暂未提取到可用于检索的文本内容。"
     material = models.StudyMaterial(
@@ -5188,6 +5349,7 @@ async def handle_material_upload(
                     },
                 ]
             )
+            record_ai_usage(user.username, "chat", db, service_key="exam_11408" if is_exam_408_context(normalized_subject, "") else "course_learning")
 
             answer = normalize_assistant_markdown(answer)
 
@@ -7366,28 +7528,26 @@ def get_my_quota(username: str = "", service_key: str = "", db: Session = Depend
     if not canonical:
         canonical = _resolve_active_service_key(db, user)
 
-    if canonical == "programming":
-        # Programming quota comes from the programming plan catalog (single source
-        # of truth), never from the legacy PLAN_LIMITS.
-        plan = normalize_programming_plan(get_effective_service_plan(db, user.id, "programming"))
-        quota = PROGRAMMING_PACKAGE_QUOTA[plan]
-        limits["chat"] = int(quota["ai_chat_daily_limit"])
-        limits["code_analyze"] = int(quota["ai_chat_daily_limit"])
-        limits["question_generate"] = int(quota["ai_question_daily_limit"])
-        limits["challenge_generate"] = int(quota["ai_question_daily_limit"])
-    elif canonical == "exam_11408":
+    # Core quotas (AI chat / AI question / single-file) all resolve from the
+    # unified resolver — catalog default + user override — for every direction,
+    # so the user-facing numbers can never drift from runtime enforcement.
+    if canonical in SERVICE_PLAN_CATALOG:
+        chat_q = resolve_effective_quota(db, user.id, canonical, "ai_chat_daily_limit")
+        limits["chat"] = chat_q["effective_limit"]
+        limits["code_analyze"] = chat_q["effective_limit"]
+        question_q = resolve_effective_quota(db, user.id, canonical, "ai_question_daily_limit")
+        limits["question_generate"] = question_q["effective_limit"]
+        limits["challenge_generate"] = question_q["effective_limit"]
+        material_q = resolve_effective_material_limits(db, user.id, canonical)
+        limits["single_file_size_mb"] = material_q["single_file_limit_mb"]
+
+    # Boolean feature entitlements for the exam direction (learning plan / report).
+    if canonical == "exam_11408":
         exam_permissions = exam_serialized.get("permissions", {}) if exam_serialized else {}
         if not exam_permissions:
-            # No exam track yet → fall back to the free exam package quota
-            # (single source of truth), so `service_key=exam_11408` still
-            # reports 50/5 instead of the legacy PLAN_LIMITS.
             exam_permissions = get_exam_package_permissions("free")
-        limits["chat"] = int(exam_permissions.get("ai_chat_daily_limit") or limits.get("chat", 0))
-        limits["question_generate"] = int(exam_permissions.get("ai_question_daily_limit") or limits.get("question_generate", 0))
-        limits["single_file_size_mb"] = int(exam_permissions.get("material_upload_limit_mb") or limits.get("single_file_size_mb", 20))
         limits["learning_plan_generate"] = 999999 if exam_permissions.get("learning_plan") else 0
         limits["learning_report_generate"] = 999999 if exam_permissions.get("learning_report") else 0
-    # course_learning: no override — legacy get_plan_limits already reflects it.
 
     usage = {}
     for feature in ALL_FEATURES:
@@ -7443,16 +7603,21 @@ def get_course_learning_entitlements(
     entitlement = get_course_package_entitlements(plan)
     permissions = entitlement["permissions"]
 
-    # Single Source of Truth for the chat quota: align the displayed limit with
-    # the actual enforcement path (get_plan_limits applies the
-    # limit_{plan}_daily_ai_calls override). Copy, never mutate COURSE_PACKAGE_QUOTA.
-    enforcement_limits = get_plan_limits(get_user_plan(user.username, db)["plan"], db)
-    chat_limit = int(enforcement_limits.get("chat", permissions["ai_chat_daily_limit"]))
-    permissions = {**permissions, "ai_chat_daily_limit": chat_limit}
+    # Single source of truth for core quotas: read the unified resolver so the
+    # displayed chat / question / material limits match runtime enforcement
+    # exactly (catalog default + any user override). No legacy get_plan_limits.
+    chat_limit = resolve_effective_quota(db, user.id, "course_learning", "ai_chat_daily_limit")["effective_limit"]
+    question_limit = resolve_effective_quota(db, user.id, "course_learning", "ai_question_daily_limit")["effective_limit"]
+    material_limits = resolve_effective_material_limits(db, user.id, "course_learning")
+    permissions = {
+        **permissions,
+        "ai_chat_daily_limit": chat_limit,
+        "ai_question_daily_limit": question_limit,
+    }
 
     feature_map = {
         "chat": chat_limit,
-        "question_generate": int(permissions["ai_question_daily_limit"]),
+        "question_generate": question_limit,
         "learning_plan_generate": 999999 if permissions["learning_plan"] else 0,
         "learning_report_generate": 999999 if permissions["learning_report"] else 0,
     }
@@ -7481,7 +7646,8 @@ def get_course_learning_entitlements(
                 "used": upload_used,
                 "limit": permissions["material_upload_limit_mb"],
             },
-            "single_file_size_mb": permissions["material_upload_limit_mb"],
+            "single_file_size_mb": material_limits["single_file_limit_mb"],
+            "material_storage_limit_mb": material_limits["material_storage_limit_mb"],
         },
     }
 
@@ -8607,11 +8773,12 @@ async def upload_material(
         if normalized_subject not in selected_courses:
             raise HTTPException(status_code=403, detail="course_id is not selected by the current user")
 
-    # Upload quota checks — single source of truth from the service plan.
+    # Upload quota checks — single source of truth from the unified resolver
+    # (service plan catalog default + any user override).
     domain = material_scope["track"]
     service_key = TRACK_SERVICE_KEY.get(domain, "course_learning")
     effective_plan = get_effective_service_plan(db, user.id, service_key)
-    material_limits = get_material_plan_limits(service_key, effective_plan)
+    material_limits = resolve_effective_material_limits(db, user.id, service_key)
     max_file_size_mb = material_limits["single_file_limit_mb"]
     storage_limit_mb = material_limits["material_storage_limit_mb"]
 
@@ -13577,7 +13744,7 @@ def validate_generated_challenge(challenge_data: dict, language: str) -> dict:
     return {"ok": len(errors) == 0, "errors": errors, "warnings": warnings}
 
 
-def _repair_generated_challenge_with_ai(challenge_data: dict, language: str, validation: dict) -> dict | None:
+def _repair_generated_challenge_with_ai(challenge_data: dict, language: str, validation: dict, db: Session, user: models.User) -> dict | None:
     issues = list(validation.get("errors") or []) + list(validation.get("warnings") or [])
     if not issues:
         return None
@@ -13604,6 +13771,7 @@ def _repair_generated_challenge_with_ai(challenge_data: dict, language: str, val
             {"role": "system", "content": "你只输出修复后的编程题 JSON 对象。"},
             {"role": "user", "content": repair_prompt},
         ], timeout_seconds=45)
+        record_ai_usage(user.username, "json_repair", db, service_key="programming")
     except Exception as exc:
         logger.warning("challenge repair call failed: %s", exc)
         return None
@@ -13872,7 +14040,7 @@ def generate_code_challenge(
     for item in challenges_list[:count]:
         validation = validate_generated_challenge(item, language)
         if not validation.get("ok"):
-            fixed_item = _repair_generated_challenge_with_ai(item, language, validation)
+            fixed_item = _repair_generated_challenge_with_ai(item, language, validation, db, user)
             if fixed_item:
                 fixed_validation = validate_generated_challenge(fixed_item, language)
                 if fixed_validation.get("ok"):
@@ -16815,6 +16983,7 @@ def generate_tasks_from_diagnosis(req: schemas.GenerateTasksFromDiagnosisRequest
                 {"role": "user", "content": user_prompt},
             ]
         )
+        record_ai_usage(user.username, "programming_task_generate", db, service_key="programming")
         # Parse JSON array from response
         json_match = re.search(r"\[[\s\S]*?\]", ai_response)
         if json_match:
@@ -19887,6 +20056,7 @@ def generate_course_learning_practice(req: dict, db: Session = Depends(get_db), 
             {"role": "system", "content": "你只输出符合要求的 JSON 对象。"},
             {"role": "user", "content": prompt},
         ], timeout_seconds=60)
+        record_ai_usage(user.username, "question_generate", db, service_key="course_learning")
         text = raw.strip()
         if text.startswith("```"):
             text = text.split("```", 2)[1]
@@ -21007,6 +21177,9 @@ def generate_exam_ai_questions(subject_key: str, req: dict, db: Session = Depend
             max_tokens=max(1600, min(6000, count * 900)),
         )
     except HTTPException as exc:
+        # Best-effort meter entry: a failed provider call may still matter for audit.
+        record_ai_usage(username, "question_generate", db, status="failed",
+                        error_message=str(exc.detail)[:200], service_key="exam_11408")
         created_items = _create_mock_exam_ai_questions(
             db,
             username=username,
@@ -21032,6 +21205,11 @@ def generate_exam_ai_questions(subject_key: str, req: dict, db: Session = Depend
             "items": [_serialize_ai_generated_question(item) for item in created_items],
         }
 
+    # This endpoint has its own historical generation flow and formerly bypassed
+    # the shared usage log even when the real provider call succeeded.
+    record_ai_usage(username, "question_generate", db,
+                    estimated_tokens=estimate_tokens_from_text(raw_ai_response),
+                    status="success", service_key="exam_11408")
     parsed_payload = extract_json_object(raw_ai_response)
     validated_questions = _validate_exam_ai_choice_payload(parsed_payload, subject_key, count)
 
@@ -22067,6 +22245,7 @@ def generate_knowledge_path_from_materials(
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ])
+        record_ai_usage(user.username, "material_learning_path", db, service_key="course_learning")
         path_data = _normalize_generated_path(
             _parse_learning_path_json(raw),
             subject,
@@ -23804,6 +23983,7 @@ def explain_practice_question(question_id: int, req: schemas.QuestionAiExplainRe
             raw_explanation,
             question.content or "",
             question.answer or "",
+            db, user, "course_learning",
         )
         if refined_explanation:
             explanation = clean_question_analysis(refined_explanation)
@@ -24320,7 +24500,7 @@ def clean_question_analysis(analysis: str, max_length: int = 1200) -> str:
     return cleaned_text
 
 
-def refine_question_analysis_with_ai(raw_analysis: str, stem: str, answer: str) -> str:
+def refine_question_analysis_with_ai(raw_analysis: str, stem: str, answer: str, db: Session, user: models.User, service_key: str) -> str:
     """
     将混乱解析压缩成适合学生阅读的正式解析。
     仅在解析明显过长或包含内部推理痕迹时调用，避免不必要成本。
@@ -24356,6 +24536,7 @@ def refine_question_analysis_with_ai(raw_analysis: str, stem: str, answer: str) 
             ],
             timeout_seconds=30,
         )
+        record_ai_usage(user.username, "parse_cleanup", db, service_key=service_key)
     except Exception as exc:
         logger.warning("[practice-generate] refine analysis failed: %s", str(exc)[:200])
         return ""
@@ -24695,6 +24876,9 @@ def generate_questions(req: schemas.GenerateQuestionRequest, db: Session = Depen
                     {"role": "user", "content": prompt},
                 ]
             )
+            # Each quality retry is a separately billable provider request but
+            # inherits this HTTP action_id, so quota/action and cost stay apart.
+            record_ai_usage(user.username, "question_generate", db, estimated_tokens=estimate_tokens_from_text(ai_response), status="success", service_key=usage_service)
             total_ai_text += "\n" + ai_response
             preview = ai_response[:1500] if ai_response else "(empty)"
             raw_responses_preview.append(preview)
@@ -24737,7 +24921,6 @@ def generate_questions(req: schemas.GenerateQuestionRequest, db: Session = Depen
             if valid_count >= count:
                 break
 
-        record_ai_usage(user.username, "question_generate", db, estimated_tokens=estimate_tokens_from_text(total_ai_text), status="success", service_key=usage_service)
         questions_data = all_candidates
     except HTTPException:
         raise
@@ -24778,6 +24961,7 @@ def generate_questions(req: schemas.GenerateQuestionRequest, db: Session = Depen
                 raw_analysis,
                 normalized.get("content") or "",
                 normalized.get("answer") or "",
+                db, user, usage_service,
             )
             if refined_analysis:
                 cleaned_analysis = clean_question_analysis(refined_analysis)
@@ -25556,7 +25740,7 @@ def _extract_json_bracket_balanced(text: str) -> str | None:
     return None
 
 
-def _repair_json_with_ai(bad_json_text: str, parse_error: str) -> str | None:
+def _repair_json_with_ai(bad_json_text: str, parse_error: str, db: Session | None = None, user: models.User | None = None, service_key: str = "course_learning") -> str | None:
     """Call AI to repair malformed JSON.
 
     Returns repaired JSON string, or None if repair fails.
@@ -25586,6 +25770,8 @@ def _repair_json_with_ai(bad_json_text: str, parse_error: str) -> str | None:
             {"role": "user", "content": repair_prompt},
         ]
         repaired = call_deepseek(messages, timeout_seconds=45)
+        if db and user:
+            record_ai_usage(user.username, "json_repair", db, service_key=service_key)
         if not repaired or not repaired.strip():
             return None
         # Extract JSON from repaired response
@@ -25717,7 +25903,7 @@ def _normalize_plan_items(
     return items
 
 
-def _parse_plan_json(raw_text: str, valid_kp_ids: set[int], username: str) -> dict:
+def _parse_plan_json(raw_text: str, valid_kp_ids: set[int], username: str, db: Session | None = None, user: models.User | None = None, service_key: str = "course_learning") -> dict:
     """Parse and validate AI-generated plan JSON with repair retry and fallback.
 
     Strategy:
@@ -25761,7 +25947,7 @@ def _parse_plan_json(raw_text: str, valid_kp_ids: set[int], username: str) -> di
     # ── Step 4: AI repair retry ──
     if data is None:
         logger.info("plan_parser: attempting AI repair...")
-        repaired = _repair_json_with_ai(json_text, parse_error)
+        repaired = _repair_json_with_ai(json_text, parse_error, db, user, service_key)
         if repaired:
             try:
                 data = json.loads(repaired)
@@ -26088,7 +26274,7 @@ def _generate_plan_preview_core(
             daily_minutes=req.daily_minutes,
         )
     else:
-        result = _parse_plan_json(raw, valid_kp_ids, req.username)
+        result = _parse_plan_json(raw, valid_kp_ids, req.username, db, user, "exam_11408" if is_exam_408_context(req.course_id, "") else "course_learning")
 
     if _looks_english(result["plan_title"]):
         result["plan_title"] = _fallback_plan_title(req.course_id, req.plan_type, req.plan_scene)
@@ -27346,15 +27532,25 @@ class MembershipOrderCreateRequest(BaseModel):
     target_plan: str
 
 
+class MembershipRefundRequest(BaseModel):
+    reason: str = ""
+
+
 def _serialize_membership_order(order: models.MembershipOrder) -> dict:
     return {
         "id": order.id,
+        "order_no": order.order_no,
         "service_key": order.service_key,
         "target_plan": order.target_plan,
         "amount": order.amount,
+        "list_price": order.list_price if order.list_price is not None else order.amount,
+        "paid_amount": order.paid_amount,
+        "pricing_version": order.pricing_version,
         "amount_yuan": order.amount / 100,
         "currency": order.currency,
         "payment_provider": order.payment_provider,
+        "refund_status": order.refund_status,
+        "refunded_amount": order.refunded_amount,
         "status": order.status,
         "created_at": serialize_datetime(order.created_at),
         "order_expires_at": serialize_datetime(order.order_expires_at),
@@ -27365,13 +27561,13 @@ def _serialize_membership_order(order: models.MembershipOrder) -> dict:
 
 
 def _expire_pending_membership_order(order: models.MembershipOrder) -> None:
-    if order.status != "pending":
+    if order.status != PENDING:
         return
     expires_at = order.order_expires_at
     if expires_at and expires_at.tzinfo is None:
         expires_at = expires_at.replace(tzinfo=timezone.utc)
     if expires_at and expires_at <= utc_now():
-        order.status = "expired"
+        order.status = EXPIRED
 
 
 def _current_membership_payload(db: Session, user: models.User, service_key: str) -> dict:
@@ -27406,7 +27602,7 @@ def get_service_membership_catalog(
     return {
         "service_key": canonical,
         "payment_available": True,
-        "payment_provider": "mock",
+        "payment_provider": get_payment_provider().name,
         "payment_notice": "当前为模拟支付环境，不产生真实扣款",
         "current": current,
         "plans": [serialize_service_plan(canonical, code, definition) for code, definition in catalog.items()],
@@ -27452,29 +27648,35 @@ def create_membership_order(
         raise HTTPException(status_code=400, detail="无效的付费套餐")
 
     current_plan = get_effective_service_plan(db, current_user.id, canonical)
-    if service_plan_rank(canonical, target_plan) <= service_plan_rank(canonical, current_plan):
-        raise HTTPException(status_code=409, detail="当前套餐已达到该等级或更高等级")
+    if service_plan_rank(canonical, target_plan) < service_plan_rank(canonical, current_plan):
+        raise HTTPException(status_code=409, detail="当前套餐高于目标套餐，暂不支持降级购买")
 
     pending_orders = db.query(models.MembershipOrder).filter(
         models.MembershipOrder.user_id == current_user.id,
         models.MembershipOrder.service_key == canonical,
         models.MembershipOrder.target_plan == target_plan,
-        models.MembershipOrder.status == "pending",
+        models.MembershipOrder.status == PENDING,
     ).order_by(models.MembershipOrder.id.desc()).all()
     for pending in pending_orders:
         _expire_pending_membership_order(pending)
-        if pending.status == "pending":
+        if pending.status == PENDING:
             db.commit()
             return {"order": _serialize_membership_order(pending), "reused": True}
 
+    pricing_snapshot = {"duration_days": int(definition["duration_days"]), "quota": dict(definition.get("quota") or {})}
+    provider = get_payment_provider()
     order = models.MembershipOrder(
+        order_no=f"MT{utc_now().strftime('%Y%m%d%H%M%S')}{secrets.token_hex(5).upper()}",
         user_id=current_user.id,
         service_key=canonical,
         target_plan=target_plan,
         amount=int(definition["price_cents"]),
         currency="CNY",
-        payment_provider="mock",
-        status="pending",
+        list_price=int(definition["price_cents"]),
+        pricing_version="market_trial_candidate_v1",
+        quota_snapshot_json=json.dumps(pricing_snapshot, ensure_ascii=False, sort_keys=True),
+        payment_provider=provider.name,
+        status=PENDING,
         order_expires_at=utc_now() + timedelta(minutes=30),
     )
     db.add(order)
@@ -27527,57 +27729,86 @@ def get_membership_order(order_id: int, db: Session = Depends(get_db), current_u
 @app.post("/membership/orders/{order_id}/pay")
 def pay_membership_order(order_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     order = _get_membership_order_for_user(db, order_id, current_user.id)
-    if order.status == "paid":
+    if order.status == PAID:
         return {"order": _serialize_membership_order(order), "idempotent": True}
-    if order.status != "pending":
+    if order.status != PENDING:
         raise HTTPException(status_code=409, detail="订单当前不可支付")
-
-    current_plan = get_effective_service_plan(db, current_user.id, order.service_key)
-    if service_plan_rank(order.service_key, order.target_plan) <= service_plan_rank(order.service_key, current_plan):
-        raise HTTPException(status_code=409, detail="当前套餐已达到该等级或更高等级")
-    definition = get_service_plan(order.service_key, order.target_plan)
-    now = utc_now()
-    membership_expires = now + timedelta(days=int(definition["duration_days"]))
-    membership = get_user_service_membership(db, current_user.id, order.service_key)
-    if not membership:
-        membership = models.UserServiceMembership(
-            user_id=current_user.id,
-            service_key=order.service_key,
-            is_enabled=True,
-            plan=order.target_plan,
-            status="active",
-            activated_at=now,
-            expires_at=membership_expires,
-        )
-        db.add(membership)
-    else:
-        membership.is_enabled = True
-        membership.plan = order.target_plan
-        membership.status = "active"
-        membership.activated_at = now
-        membership.expires_at = membership_expires
-        membership.updated_at = now
-    order.status = "paid"
-    order.paid_at = now
-    order.membership_started_at = now
-    order.membership_expires_at = membership_expires
-    if order.service_key == "exam_11408":
-        db.flush()
-        _sync_membership_to_track(db, current_user)
-    db.commit()
+    if order.payment_provider != "mock" or not is_mock_payment_allowed():
+        raise HTTPException(status_code=403, detail="模拟支付仅可用于本地开发或自动化测试")
+    event = get_payment_provider().verify_callback({"order_no": order.order_no, "amount": order.amount, "currency": order.currency})
+    try:
+        order, idempotent = apply_verified_payment(db, event, _sync_membership_to_track)
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(exc))
     db.refresh(order)
-    return {"order": _serialize_membership_order(order), "idempotent": False}
+    return {"order": _serialize_membership_order(order), "idempotent": idempotent}
+
+
+@app.post("/payments/callback/{provider_name}")
+async def receive_payment_callback(provider_name: str, request: Request, db: Session = Depends(get_db)):
+    """Provider callback boundary. Mock has no public callback by design."""
+    if provider_name.strip().lower() == "mock":
+        raise HTTPException(status_code=404, detail="mock provider has no public callback")
+    try:
+        provider = get_payment_provider()
+    except RuntimeError:
+        raise HTTPException(status_code=503, detail="支付服务商未配置")
+    if provider.name != provider_name.strip().lower():
+        raise HTTPException(status_code=404, detail="支付服务商不匹配")
+    try:
+        raw_body = await request.body()
+        payload = json.loads(raw_body) if "application/json" in request.headers.get("content-type", "").lower() else {}
+        event = provider.verify_callback(payload, dict(request.headers), raw_body=raw_body)
+        order, idempotent = apply_verified_payment(db, event, _sync_membership_to_track)
+        db.commit()
+    except (ValueError, KeyError) as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=f"支付回调验证失败: {exc}")
+    return {"accepted": True, "order_no": order.order_no, "idempotent": idempotent}
 
 
 @app.post("/membership/orders/{order_id}/cancel")
 def cancel_membership_order(order_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     order = _get_membership_order_for_user(db, order_id, current_user.id)
-    if order.status == "pending":
-        order.status = "cancelled"
+    if order.status == PENDING:
+        order.status = CANCELLED
         db.commit()
-    elif order.status not in ("cancelled", "expired"):
+    elif order.status not in (CANCELLED, EXPIRED):
         raise HTTPException(status_code=409, detail="已支付订单不能取消")
     return {"order": _serialize_membership_order(order)}
+
+
+@app.post("/membership/orders/{order_id}/refund")
+def refund_membership_order(order_id: int, req: MembershipRefundRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    """Local/mock technical refund only. Real-provider callbacks will use the same ledgers."""
+    order = _get_membership_order_for_user(db, order_id, current_user.id)
+    if order.payment_provider != "mock" or not is_mock_payment_allowed():
+        raise HTTPException(status_code=403, detail="退款必须由已配置支付服务商处理")
+    if order.status != PAID:
+        raise HTTPException(status_code=409, detail="仅已支付订单可以退款")
+    existing = db.query(models.Refund).filter(models.Refund.order_id == order.id, models.Refund.status == "refunded").first()
+    if existing:
+        return {"refund": {"refund_no": existing.refund_no, "status": existing.status}, "idempotent": True}
+    # V1 deliberately supports full refunds only; partial-refund fields exist for
+    # future provider policy but are NOT_SUPPORTED_V1 at the public surface.
+    now = utc_now()
+    refund = models.Refund(refund_no=f"RF{now.strftime('%Y%m%d%H%M%S')}{secrets.token_hex(5).upper()}",
+        order_id=order.id, user_id=current_user.id, amount=order.paid_amount or order.amount,
+        reason=(req.reason or "")[:500], status="refunded", provider_refund_id=f"mock-refund:{order.order_no}", refunded_at=now)
+    db.add(refund)
+    order.refunded_amount = refund.amount
+    order.refund_status = REFUNDED
+    # Preserve PAID history for audit/rebuild; refund state is represented in
+    # refund_status rather than erasing payment confirmation.
+    db.flush()
+    db.add(models.RevenueLedgerEntry(order_id=order.id, refund_id=refund.id, user_id=current_user.id,
+        service_key=order.service_key, entry_type="REFUND", amount=-refund.amount,
+        currency=order.currency, source="mock"))
+    recompute_membership_after_refund(db, current_user.id, order.service_key, _sync_membership_to_track)
+    db.commit()
+    return {"refund": {"refund_no": refund.refund_no, "status": refund.status, "amount": refund.amount}, "idempotent": False}
 
 
 @app.get("/membership/reminders")
@@ -27833,6 +28064,8 @@ def admin_create_redemption_codes(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_admin_user),
 ):
+    # Minting redemption codes is super-admin only.
+    require_admin_permission(current_user, "redeem_code.create")
     service_key = canonical_service_key(req.service_key)
     if service_key not in SERVICE_PLAN_CATALOG:
         raise HTTPException(status_code=400, detail="服务方向无效")
@@ -27936,9 +28169,20 @@ def admin_revoke_redemption_code(
 
 ADMIN_ROLE_LABELS = {
     "super_admin": "超级管理员",
-    "operator": "运营管理员",
+    "operator": "普通管理员",
     "auditor": "只读审计员",
     "none": "非管理员",
+}
+
+# Permission codes only the super_admin owns. Keep these out of ROLE_PERMISSIONS
+# for every other role so ordinary admins can never delete users, mint codes,
+# create/manage admins, or read other admins' full audit trail.
+SUPER_ADMIN_ONLY_PERMISSIONS = {
+    "user.delete",
+    "redeem_code.create",
+    "admin.create",
+    "admin.manage",
+    "audit.view_all",
 }
 
 PERMISSIONS = {
@@ -27972,6 +28216,7 @@ PERMISSIONS = {
     "backups.delete",
     "model_config.view",
     "model_config.manage",
+    *SUPER_ADMIN_ONLY_PERMISSIONS,
 }
 
 ROLE_PERMISSIONS = {
@@ -27990,6 +28235,9 @@ ROLE_PERMISSIONS = {
         "report_shares.moderate",
         "system_monitor.view",
         "audit_logs.view",
+        "settings.view",
+        "settings.manage",
+        "announcements.manage",
         "batch.users",
         "batch.materials",
         "batch.reports",
@@ -28037,15 +28285,26 @@ def require_admin(username: str, db: Session):
     return admin
 
 
-def require_admin_permission(db: Session, admin_username: str, permission: str):
-    admin = require_admin(admin_username, db)
-    if permission not in get_admin_permissions(admin):
+def require_admin_permission(current_user: models.User, permission: str):
+    """Authorize the authenticated session user for one admin permission.
+
+    Never accept a client-provided username here: doing so lets callers borrow
+    another administrator's RBAC grants.
+    """
+    if not bool(getattr(current_user, "is_admin", 0)):
+        raise HTTPException(status_code=403, detail="仅管理员可访问")
+    ensure_user_can_access(current_user)
+    if getattr(current_user, "is_active", 1) == 0:
+        raise HTTPException(status_code=403, detail="管理员账号已被禁用")
+    if normalize_admin_role(current_user) not in ("super_admin", "operator", "auditor"):
+        raise HTTPException(status_code=403, detail="管理员角色无效")
+    if permission not in get_admin_permissions(current_user):
         raise HTTPException(status_code=403, detail="当前管理员没有权限执行该操作")
-    return admin
+    return current_user
 
 
-def require_super_admin(db: Session, admin_username: str):
-    admin = require_admin(admin_username, db)
+def require_super_admin(current_user: models.User):
+    admin = require_admin_permission(current_user, "users.manage_role")
     if normalize_admin_role(admin) != "super_admin":
         raise HTTPException(status_code=403, detail="仅超级管理员可执行该操作")
     return admin
@@ -28360,8 +28619,8 @@ def validate_model_config_updates(req: dict) -> dict:
 
 
 @app.get("/admin/me/permissions")
-def admin_me_permissions(admin_username: str, db: Session = Depends(get_db)):
-    admin = require_admin(admin_username, db)
+def admin_me_permissions(current_user: models.User = Depends(require_admin_user)):
+    admin = current_user
     role = normalize_admin_role(admin)
     return {
         "username": admin.username,
@@ -28372,124 +28631,80 @@ def admin_me_permissions(admin_username: str, db: Session = Depends(get_db)):
     }
 
 
-@app.get("/admin/dashboard")
-def admin_dashboard(admin_username: str = "", db: Session = Depends(get_db)):
-    require_admin_permission(db, admin_username, "dashboard.view")
-
-    today_start = utc_now().replace(hour=0, minute=0, second=0, microsecond=0)
-
-    registered_user_scope = db.query(models.User).filter(models.User.is_deleted == 0)
-    active_user_scope = registered_user_scope.filter(models.User.is_active != 0)
-    total_users = registered_user_scope.count()
-    plan_counts = {}
-    for p in ("free", "pro", "admin"):
-        plan_counts[p] = registered_user_scope.filter(models.User.plan == p).count()
-
-    total_materials = (
-        db.query(models.StudyMaterial)
-        .filter(models.StudyMaterial.is_deleted.is_(False))
-        .count()
+def _normal_user_scope(db: Session):
+    """Users excluding admin accounts — the base for platform user metrics."""
+    return db.query(models.User).filter(
+        models.User.is_deleted == 0,
+        or_(models.User.is_admin.is_(None), models.User.is_admin == 0),
     )
 
-    # Distinct courses from materials and knowledge_points
-    material_courses = {
-        row[0] for row in
-        db.query(models.StudyMaterial.subject)
-        .filter(models.StudyMaterial.is_deleted.is_(False), models.StudyMaterial.subject != "")
-        .distinct().all()
-        if row[0]
-    }
-    kp_courses = {
-        row[0] for row in
-        db.query(models.KnowledgePoint.course_id)
-        .filter(models.KnowledgePoint.course_id != "")
-        .distinct().all()
-        if row[0]
-    }
-    total_courses = len(material_courses | kp_courses)
 
-    total_knowledge_points = db.query(models.KnowledgePoint).count()
-    total_tasks = db.query(models.LearningTask).count()
-    total_questions = db.query(models.Question).count()
+def _effective_paid_membership_scope(db: Session, now=None):
+    """Effective (non-free, enabled, active, not expired) memberships."""
+    now = now or utc_now()
+    return db.query(models.UserServiceMembership).filter(
+        models.UserServiceMembership.is_enabled.is_(True),
+        models.UserServiceMembership.status == "active",
+        models.UserServiceMembership.plan.isnot(None),
+        models.UserServiceMembership.plan != "free",
+        or_(
+            models.UserServiceMembership.expires_at.is_(None),
+            models.UserServiceMembership.expires_at > now,
+        ),
+    )
 
+
+@app.get("/admin/dashboard")
+def admin_dashboard(db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
+    require_admin_permission(current_user, "dashboard.view")
+
+    today_start = utc_now().replace(hour=0, minute=0, second=0, microsecond=0)
+    normal_scope = _normal_user_scope(db)
+
+    total_users = normal_scope.count()
+    admin_users = db.query(models.User).filter(models.User.is_deleted == 0, models.User.is_admin == 1).count()
+    new_users_today = normal_scope.filter(models.User.created_at >= today_start).count()
+
+    paid_scope = _effective_paid_membership_scope(db)
+    paid_users = paid_scope.with_entities(func.count(func.distinct(models.UserServiceMembership.user_id))).scalar() or 0
+    effective_memberships = paid_scope.count()
+
+    total_materials = (
+        db.query(models.StudyMaterial).filter(models.StudyMaterial.is_deleted.is_(False)).count()
+    )
     today_ai_calls = (
         db.query(models.AiUsageLog)
         .filter(models.AiUsageLog.created_at >= today_start, models.AiUsageLog.status == "success")
         .count()
     )
-    total_ai_calls = (
-        db.query(models.AiUsageLog)
-        .filter(models.AiUsageLog.status == "success")
-        .count()
-    )
+    pending_tickets = db.query(models.SupportTicket).filter(models.SupportTicket.status == "pending").count()
 
-    # Today usage by feature
-    today_usage_by_feature = []
-    for feature in ALL_FEATURES:
-        count = (
-            db.query(models.AiUsageLog)
-            .filter(
-                models.AiUsageLog.feature == feature,
-                models.AiUsageLog.status == "success",
-                models.AiUsageLog.created_at >= today_start,
-            )
-            .count()
-        )
-        if count > 0:
-            today_usage_by_feature.append({"feature": feature, "count": count})
-
-    # Recent users
-    recent_users = (
-        registered_user_scope
-        .order_by(models.User.created_at.desc())
-        .limit(10)
-        .all()
-    )
-
-    # Recent AI logs
-    recent_ai_logs = (
-        db.query(models.AiUsageLog)
-        .order_by(models.AiUsageLog.created_at.desc())
-        .limit(20)
-        .all()
-    )
-
-    system_notes = ["AI 使用记录正常"]
-    ai_error_today = (
-        db.query(models.AiUsageLog)
-        .filter(
-            models.AiUsageLog.status != "success",
-            models.AiUsageLog.created_at >= today_start,
-        )
-        .count()
-    )
-    if ai_error_today > 0:
-        system_notes.append(f"今日有 {ai_error_today} 条 AI 调用失败记录")
-    else:
-        system_notes.append("今日暂无 AI 调用异常")
-
-    active_users_today = (
-        db.query(func.count(func.distinct(models.AiUsageLog.username)))
-        .join(models.User, models.User.username == models.AiUsageLog.username)
-        .filter(models.AiUsageLog.created_at >= today_start)
-        .filter(models.User.is_deleted == 0, models.User.is_active != 0)
-        .scalar()
-        or 0
-    )
-    average_daily_minutes = (
-        active_user_scope.with_entities(func.coalesce(func.avg(models.User.daily_study_minutes), 0)).scalar()
-        or 0
-    )
+    # New-user growth for the last 30 days (frontend can slice 7 or 30).
     user_growth = []
+    for offset in range(29, -1, -1):
+        day_start = today_start - timedelta(days=offset)
+        next_day = day_start + timedelta(days=1)
+        count = normal_scope.filter(models.User.created_at >= day_start, models.User.created_at < next_day).count()
+        user_growth.append({"date": day_start.strftime("%Y-%m-%d"), "count": count})
+
+    # AI usage trend (success only) for the last 7 days.
+    ai_usage_trend = []
     for offset in range(6, -1, -1):
         day_start = today_start - timedelta(days=offset)
         next_day = day_start + timedelta(days=1)
         count = (
-            registered_user_scope
-            .filter(models.User.created_at >= day_start, models.User.created_at < next_day)
+            db.query(models.AiUsageLog)
+            .filter(models.AiUsageLog.status == "success", models.AiUsageLog.created_at >= day_start, models.AiUsageLog.created_at < next_day)
             .count()
         )
-        user_growth.append({"date": day_start.strftime("%m-%d"), "count": count})
+        ai_usage_trend.append({"date": day_start.strftime("%Y-%m-%d"), "count": count})
+
+    support_summary = {
+        "unread": db.query(models.SupportTicket).filter(models.SupportTicket.admin_read == False).count(),
+        "pending": db.query(models.SupportTicket).filter(models.SupportTicket.status == "pending").count(),
+        "in_progress": db.query(models.SupportTicket).filter(models.SupportTicket.status == "in_progress").count(),
+        "waiting_confirmation": db.query(models.SupportTicket).filter(models.SupportTicket.status == "waiting_confirmation").count(),
+    }
 
     announcement_rows = (
         db.query(models.SystemAnnouncement)
@@ -28499,61 +28714,33 @@ def admin_dashboard(admin_username: str = "", db: Session = Depends(get_db)):
         .all()
     )
     announcements = [
-        {
-            "title": item.title,
-            "date": serialize_datetime(item.created_at) or "",
-            "is_active": bool(item.is_active),
-            "type": item.type or "info",
-        }
+        {"title": item.title, "date": serialize_datetime(item.created_at) or "", "is_active": bool(item.is_active), "type": item.type or "info"}
         for item in announcement_rows
     ]
+
     recent_user_rows = []
-    for item in recent_users[:5]:
-        last_active = (
-            db.query(func.max(models.AiUsageLog.created_at))
-            .filter(models.AiUsageLog.username == item.username)
-            .scalar()
-        )
-        learning_minutes = int(getattr(item, "daily_study_minutes", 0) or 0)
+    for item in normal_scope.order_by(models.User.created_at.desc()).limit(6).all():
         recent_user_rows.append({
+            "user_id": str(item.id),
             "username": item.username,
             "nickname": item.nickname or "",
-            "user_id": str(item.id),
-            "register_method": "账号注册",
+            "is_banned": bool(getattr(item, "is_banned", 0)),
+            "is_admin": bool(item.is_admin),
+            "admin_role": normalize_admin_role(item),
             "register_time": serialize_datetime(item.created_at) or "",
-            "last_active_time": serialize_datetime(last_active or item.created_at) or "",
-            "learning_hours": round(learning_minutes / 60, 1),
+            "learning_hours": round((int(getattr(item, "daily_study_minutes", 0) or 0)) / 60, 1),
         })
-
-    ai_usage_trend = []
-    for offset in range(6, -1, -1):
-        day_start = today_start - timedelta(days=offset)
-        next_day = day_start + timedelta(days=1)
-        count = (
-            db.query(models.AiUsageLog)
-            .filter(
-                models.AiUsageLog.status == "success",
-                models.AiUsageLog.created_at >= day_start,
-                models.AiUsageLog.created_at < next_day,
-            )
-            .count()
-        )
-        ai_usage_trend.append({"date": day_start.strftime("%m-%d"), "count": count})
-
-    support_summary = {
-        "unread": db.query(models.SupportTicket).filter(models.SupportTicket.admin_read == False).count(),
-        "pending": db.query(models.SupportTicket).filter(models.SupportTicket.status == "pending").count(),
-        "in_progress": db.query(models.SupportTicket).filter(models.SupportTicket.status == "in_progress").count(),
-        "waiting_confirmation": db.query(models.SupportTicket).filter(models.SupportTicket.status == "waiting_confirmation").count(),
-    }
 
     return {
         "overview": {
             "total_users": total_users,
-            "total_courses": total_courses,
-            "average_learning_hours": round(float(average_daily_minutes) / 60, 1),
-            "active_users_today": active_users_today,
+            "admin_users": admin_users,
+            "new_users_today": new_users_today,
+            "paid_users": paid_users,
+            "effective_memberships": effective_memberships,
             "today_ai_calls": today_ai_calls,
+            "total_materials": total_materials,
+            "pending_tickets": pending_tickets,
         },
         "user_growth": user_growth,
         "ai_usage_trend": ai_usage_trend,
@@ -28563,9 +28750,66 @@ def admin_dashboard(admin_username: str = "", db: Session = Depends(get_db)):
     }
 
 
+@app.get("/admin/statistics")
+def admin_statistics(db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
+    """Platform business statistics: users / memberships / materials / tickets / mock orders."""
+    require_admin_permission(current_user, "dashboard.view")
+    now = utc_now()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    normal_scope = _normal_user_scope(db)
+
+    users = {
+        "total": normal_scope.count(),
+        "active": normal_scope.filter(models.User.is_active != 0).count(),
+        "banned": normal_scope.filter(models.User.is_banned == 1).count(),
+        "new_7_days": normal_scope.filter(models.User.created_at >= today_start - timedelta(days=7)).count(),
+        "new_30_days": normal_scope.filter(models.User.created_at >= today_start - timedelta(days=30)).count(),
+    }
+
+    paid_scope = _effective_paid_membership_scope(db, now)
+    memberships = {
+        "paid_users": paid_scope.with_entities(func.count(func.distinct(models.UserServiceMembership.user_id))).scalar() or 0,
+        "directions": {
+            sk: paid_scope.filter(models.UserServiceMembership.service_key == sk).count()
+            for sk in ADMIN_MEMBERSHIP_SERVICE_KEYS
+        },
+    }
+
+    material_rows = (
+        db.query(models.StudyMaterial.course_id, models.StudyMaterial.subject_key, models.StudyMaterial.file_size)
+        .filter(models.StudyMaterial.is_deleted.is_(False))
+        .all()
+    )
+    material_stats = {sk: {"count": 0, "bytes": 0} for sk in ("exam_11408", "course_learning", "programming", "legacy")}
+    for course_id, subject_key, file_size in material_rows:
+        domain = _material_domain(course_id, subject_key)
+        material_stats.setdefault(domain, {"count": 0, "bytes": 0})
+        material_stats[domain]["count"] += 1
+        material_stats[domain]["bytes"] += int(file_size or 0)
+
+    ticket_status = {}
+    for status in ("pending", "in_progress", "waiting_confirmation", "resolved", "closed"):
+        ticket_status[status] = db.query(models.SupportTicket).filter(models.SupportTicket.status == status).count()
+
+    orders = {
+        "total": db.query(models.MembershipOrder).count(),
+        "paid": db.query(models.MembershipOrder).filter(models.MembershipOrder.status == "paid").count(),
+        "cancelled": db.query(models.MembershipOrder).filter(models.MembershipOrder.status == "cancelled").count(),
+        "refunded": db.query(models.MembershipOrder).filter(models.MembershipOrder.refund_status == "refunded").count(),
+    }
+
+    return {
+        "users": users,
+        "memberships": memberships,
+        "materials": material_stats,
+        "tickets": ticket_status,
+        "orders": orders,
+    }
+
+
 @app.get("/admin/operations-dashboard")
-def admin_operations_dashboard(admin_username: str, db: Session = Depends(get_db)):
-    require_admin_permission(db, admin_username, "dashboard.view")
+def admin_operations_dashboard(db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
+    require_admin_permission(current_user, "dashboard.view")
     from sqlalchemy import func as sqlfunc
     today = utc_now().replace(hour=0, minute=0, second=0, microsecond=0)
     week_ago = today - timedelta(days=7)
@@ -28649,8 +28893,9 @@ def admin_operations_dashboard(admin_username: str, db: Session = Depends(get_db
 
 
 @app.get("/admin/dashboard-v1")
-def admin_dashboard_v1(db: Session = Depends(get_db)):
+def admin_dashboard_v1(db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
     """Legacy v1 dashboard preserved for compatibility."""
+    require_admin_permission(current_user, "dashboard.view")
     from datetime import datetime as _dt
     today_start = _dt.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     _total_users = db.query(models.User).count()
@@ -28696,15 +28941,14 @@ def admin_dashboard_v1(db: Session = Depends(get_db)):
 
 @app.get("/admin/users")
 def admin_users_list(
-    admin_username: str = "",
     keyword: str = "",
     plan: str = "",
     status: str = "",
     page: int = 1,
     page_size: int = 20,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user),
 ):
-    require_admin_permission(db, admin_username, "users.view")
+    require_admin_permission(current_user, "users.view")
 
     page = max(1, page)
     page_size = min(100, max(1, page_size))
@@ -28727,6 +28971,7 @@ def admin_users_list(
         query = query.filter(models.User.is_banned == 0)
 
     total = query.count()
+    total_pages = max(1, (total + page_size - 1) // page_size)
     users = query.order_by(models.User.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
 
     items = []
@@ -28766,21 +29011,19 @@ def admin_users_list(
             models.UserServiceMembership.user_id == u.id,
         ).all()
         memberships = {}
-        SERVICE_LABELS = {
-            "exam_11408": {"free": "普通用户", "monthly": "月度冲刺包", "quarterly": "季度强化包", "full": "全程备考包"},
-            "course": {"free": "普通用户", "monthly": "月度学习包", "quarterly": "季度学习包", "full": "全程学习包"},
-            "programming": {"free": "普通用户", "monthly": "月度练习包", "quarterly": "季度练习包", "full": "年度提升包"},
-        }
         for m in membership_rows:
-            labels = SERVICE_LABELS.get(m.service_key, {})
-            memberships[m.service_key] = {
-                "is_enabled": bool(m.is_enabled),
-                "plan": m.plan or "free",
-                "plan_label": labels.get(m.plan or "free", "普通用户") if m.is_enabled else "未开通",
-            }
-        for sk in ["exam_11408", "course", "programming"]:
+            if m.service_key not in ADMIN_MEMBERSHIP_SERVICE_KEYS:
+                continue
+            payload = _admin_membership_payload(u, m, m.service_key)
+            definition = get_service_plan(m.service_key, payload["plan"])
+            payload["plan_label"] = definition["name"] if definition else payload["plan"]
+            memberships[m.service_key] = payload
+        for sk in ADMIN_MEMBERSHIP_SERVICE_KEYS:
             if sk not in memberships:
-                memberships[sk] = {"is_enabled": False, "plan": "free", "plan_label": "未开通"}
+                payload = _admin_membership_payload(u, None, sk)
+                definition = get_service_plan(sk, payload["plan"])
+                payload["plan_label"] = definition["name"] if definition else payload["plan"]
+                memberships[sk] = payload
 
         items.append({
             "id": u.id,
@@ -28813,12 +29056,12 @@ def admin_users_list(
             "memberships": memberships,
         })
 
-    return {"items": items, "total": total, "page": page, "page_size": page_size}
+    return {"items": items, "total": total, "page": page, "page_size": page_size, "total_pages": total_pages}
 
 
 @app.get("/admin/courses")
-def admin_courses_list(admin_username: str = "", db: Session = Depends(get_db)):
-    require_admin_permission(db, admin_username, "courses.view")
+def admin_courses_list(db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
+    require_admin_permission(current_user, "courses.view")
 
     material_rows = (
         db.query(
@@ -28866,8 +29109,8 @@ def admin_courses_list(admin_username: str = "", db: Session = Depends(get_db)):
 
 
 @app.get("/admin/practice")
-def admin_practice_list(admin_username: str = "", db: Session = Depends(get_db)):
-    require_admin_permission(db, admin_username, "courses.view")
+def admin_practice_list(db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
+    require_admin_permission(current_user, "courses.view")
 
     question_total = db.query(models.Question).count()
     paper_total = db.query(models.PracticePaper).count()
@@ -28918,8 +29161,8 @@ def admin_practice_list(admin_username: str = "", db: Session = Depends(get_db))
 
 
 @app.get("/admin/tasks")
-def admin_tasks_list(admin_username: str = "", db: Session = Depends(get_db)):
-    require_admin_permission(db, admin_username, "courses.view")
+def admin_tasks_list(db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
+    require_admin_permission(current_user, "courses.view")
 
     total = db.query(models.LearningTask).count()
     rows = (
@@ -28944,55 +29187,227 @@ def admin_tasks_list(admin_username: str = "", db: Session = Depends(get_db)):
     return {"items": items, "total": total}
 
 
+ADMIN_QUOTA_SERVICE_LABELS = {
+    "exam_11408": "11408 考研",
+    "course_learning": "课程学习",
+    "programming": "编程能力提升",
+}
+
+
+def _admin_quota_user_detail(db: Session, user: models.User) -> dict:
+    """Build the 用户 → 业务方向 → quota detail for one user."""
+    services = []
+    for sk in ADMIN_MEMBERSHIP_SERVICE_KEYS:
+        plan = get_effective_service_plan(db, user.id, sk)
+        plan_def = get_service_plan(sk, plan) or {}
+        quotas = []
+        for qk in CORE_QUOTA_KEYS:
+            q = resolve_effective_quota(db, user.id, sk, qk)
+            used = get_core_quota_used(db, user, sk, qk)
+            remaining = None if used is None else round(max(0, q["effective_limit"] - used), 2)
+            quotas.append({
+                "quota_key": qk,
+                "label": q["label"],
+                "unit": q["unit"],
+                "period": q["period"],
+                "default_limit": q["default_limit"],
+                "override_limit": q["override_limit"],
+                "effective_limit": q["effective_limit"],
+                "has_override": q["has_override"],
+                "used": used,
+                "remaining": remaining,
+            })
+        services.append({
+            "service_key": sk,
+            "service_label": ADMIN_QUOTA_SERVICE_LABELS.get(sk, sk),
+            "plan": plan,
+            "plan_label": plan_def.get("name", plan),
+            "quotas": quotas,
+        })
+    return {
+        "user_id": user.id,
+        "username": user.username,
+        "nickname": user.nickname or "",
+        "services": services,
+    }
+
+
 @app.get("/admin/quota")
 def admin_quota_list(
-    admin_username: str = "",
+    keyword: str = "",
     page: int = 1,
     page_size: int = 20,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user),
 ):
-    require_admin_permission(db, admin_username, "users.view")
+    require_admin_permission(current_user, "users.view")
 
     page = max(1, page)
     page_size = min(100, max(1, page_size))
-    query = db.query(models.User)
+    query = db.query(models.User).filter(models.User.is_deleted == 0)
+    if keyword.strip():
+        needle = keyword.strip()
+        query = query.filter(or_(
+            models.User.username.contains(needle),
+            models.User.nickname.contains(needle),
+            models.User.id == (int(needle) if needle.isdigit() else -1),
+        ))
     total = query.count()
     users = query.order_by(models.User.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
-    items = []
-    for u in users:
-        effective_plan = get_effective_plan(u)
-        limits = get_plan_limits_v2(effective_plan["plan_code"])
-        total_calls = (
-            db.query(models.AiUsageLog)
-            .filter(models.AiUsageLog.username == u.username, models.AiUsageLog.status == "success")
-            .count()
-        )
-        items.append({
-            "user_id": str(u.id),
+    items = [
+        {
+            "user_id": u.id,
             "username": u.username,
             "nickname": u.nickname or "",
-            "plan": effective_plan["plan_code"],
-            "daily_ai_limit": limits.get("daily_ai_limit", -1),
-            "monthly_ai_limit": -1,
-            "total_ai_calls": total_calls,
-            "plan_expires_at": serialize_datetime(u.plan_expire_at),
-        })
+            "memberships": {sk: get_effective_service_plan(db, u.id, sk) for sk in ADMIN_MEMBERSHIP_SERVICE_KEYS},
+        }
+        for u in users
+    ]
     return {"items": items, "total": total, "page": page, "page_size": page_size}
+
+
+@app.get("/admin/quota/{user_id}")
+def admin_quota_detail(user_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
+    require_admin_permission(current_user, "users.view")
+    user = db.query(models.User).filter(models.User.id == user_id, models.User.is_deleted == 0).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    return _admin_quota_user_detail(db, user)
+
+
+def _admin_quota_target_user(db: Session, user_id: int) -> models.User:
+    user = db.query(models.User).filter(models.User.id == user_id, models.User.is_deleted == 0).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    return user
+
+
+def _admin_validate_override_input(service_key: str, quota_key: str, limit: int) -> tuple[str, str]:
+    canonical = canonical_service_key(service_key)
+    if canonical not in ADMIN_MEMBERSHIP_SERVICE_KEYS:
+        raise HTTPException(status_code=400, detail="无效的 service_key")
+    if quota_key not in CORE_QUOTA_KEYS:
+        raise HTTPException(status_code=400, detail="无效的 quota_key")
+    if isinstance(limit, bool) or not isinstance(limit, int) or limit < 0:
+        raise HTTPException(status_code=400, detail="limit 必须为非负整数")
+    return canonical, quota_key
+
+
+@app.put("/admin/quota/{user_id}/override")
+def admin_quota_upsert_override(
+    user_id: int,
+    req: schemas.AdminQuotaOverrideUpsert,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_admin_user),
+):
+    admin = require_admin_permission(current_user, "users.manage_plan")
+    target = _admin_quota_target_user(db, user_id)
+    canonical, quota_key = _admin_validate_override_input(req.service_key, req.quota_key, req.limit)
+
+    before = resolve_effective_quota(db, user_id, canonical, quota_key)
+    existing = db.query(models.UserQuotaOverride).filter(
+        models.UserQuotaOverride.user_id == user_id,
+        models.UserQuotaOverride.service_key == canonical,
+        models.UserQuotaOverride.quota_key == quota_key,
+    ).first()
+    old_override = existing.override_limit if existing else None
+    if existing:
+        existing.override_limit = req.limit
+        existing.enabled = True
+        existing.updated_at = utc_now()
+        action = "quota_override_update"
+    else:
+        db.add(models.UserQuotaOverride(
+            user_id=user_id, service_key=canonical, quota_key=quota_key,
+            override_limit=req.limit, enabled=True,
+        ))
+        action = "quota_override_create"
+    db.commit()
+    after = resolve_effective_quota(db, user_id, canonical, quota_key)
+    _write_audit_log(
+        admin.username, action, db,
+        target_type="quota_override", target_id=str(user_id), target_username=target.username,
+        detail=f"{canonical}.{quota_key}: {old_override} → {req.limit}",
+        details={
+            "service_key": canonical, "quota_key": quota_key,
+            "old_override": old_override, "new_override": req.limit,
+            "effective_before": before["effective_limit"], "effective_after": after["effective_limit"],
+        },
+    )
+    return {"success": True, **after}
+
+
+@app.delete("/admin/quota/{user_id}/override")
+def admin_quota_delete_override(
+    user_id: int,
+    service_key: str,
+    quota_key: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_admin_user),
+):
+    admin = require_admin_permission(current_user, "users.manage_plan")
+    target = _admin_quota_target_user(db, user_id)
+    canonical = canonical_service_key(service_key)
+    if canonical not in ADMIN_MEMBERSHIP_SERVICE_KEYS:
+        raise HTTPException(status_code=400, detail="无效的 service_key")
+    if quota_key not in CORE_QUOTA_KEYS:
+        raise HTTPException(status_code=400, detail="无效的 quota_key")
+
+    before = resolve_effective_quota(db, user_id, canonical, quota_key)
+    existing = db.query(models.UserQuotaOverride).filter(
+        models.UserQuotaOverride.user_id == user_id,
+        models.UserQuotaOverride.service_key == canonical,
+        models.UserQuotaOverride.quota_key == quota_key,
+    ).first()
+    old_override = existing.override_limit if existing else None
+    if existing:
+        db.delete(existing)
+        db.commit()
+    after = resolve_effective_quota(db, user_id, canonical, quota_key)
+    _write_audit_log(
+        admin.username, "quota_override_delete", db,
+        target_type="quota_override", target_id=str(user_id), target_username=target.username,
+        detail=f"{canonical}.{quota_key}: {old_override} → (删除，恢复默认)",
+        details={
+            "service_key": canonical, "quota_key": quota_key,
+            "old_override": old_override, "new_override": None,
+            "effective_before": before["effective_limit"], "effective_after": after["effective_limit"],
+        },
+    )
+    return {"success": True, **after}
 
 
 @app.get("/admin/logs")
 def admin_logs_list(
-    admin_username: str = "",
+    actor: str = "",
+    action: str = "",
+    keyword: str = "",
     page: int = 1,
     page_size: int = 20,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user),
 ):
-    require_admin_permission(db, admin_username, "audit_logs.view")
+    require_admin_permission(current_user, "audit_logs.view")
+    can_view_all = "audit.view_all" in get_admin_permissions(current_user)
 
     page = max(1, page)
     page_size = min(100, max(1, page_size))
     query = db.query(models.AdminAuditLog)
+    # Ordinary admins only see their own audit trail; super admins see everyone.
+    if not can_view_all:
+        query = query.filter(models.AdminAuditLog.admin_username == current_user.username)
+    elif actor_filter := actor.strip():
+        query = query.filter(models.AdminAuditLog.admin_username.contains(actor_filter))
+    if action_filter := action.strip():
+        query = query.filter(models.AdminAuditLog.action.contains(action_filter))
+    if keyword_filter := keyword.strip():
+        query = query.filter(or_(
+            models.AdminAuditLog.action.contains(keyword_filter),
+            models.AdminAuditLog.target_type.contains(keyword_filter),
+            models.AdminAuditLog.target_username.contains(keyword_filter),
+            models.AdminAuditLog.detail.contains(keyword_filter),
+        ))
+
     total = query.count()
+    total_pages = max(1, (total + page_size - 1) // page_size)
     rows = (
         query.order_by(models.AdminAuditLog.created_at.desc())
         .offset((page - 1) * page_size)
@@ -29009,17 +29424,18 @@ def admin_logs_list(
             "target_username": item.target_username or "",
             "result": item.result or "",
             "detail": item.detail or item.details or "",
+            "details": _parse_audit_details(getattr(item, "details", None)),
             "ip": item.ip or "",
             "created_at": serialize_datetime(item.created_at),
         }
         for item in rows
     ]
-    return {"items": items, "total": total, "page": page, "page_size": page_size}
+    return {"items": items, "total": total, "page": page, "page_size": page_size, "total_pages": total_pages, "can_view_all": can_view_all}
 
 
 @app.get("/admin/users/{target_username}/detail")
-def admin_user_detail(target_username: str, admin_username: str, db: Session = Depends(get_db)):
-    require_admin_permission(db, admin_username, "users.view")
+def admin_user_detail(target_username: str, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
+    require_admin_permission(current_user, "users.view")
     u = get_user_by_username(target_username, db)
 
     material_count = (
@@ -29109,8 +29525,9 @@ def admin_update_user_admin_role(
     target_username: str,
     req: schemas.AdminUpdateRoleRequest,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_admin_user),
 ):
-    admin = require_super_admin(db, req.admin_username)
+    admin = require_super_admin(current_user)
     target_user = get_user_by_username(target_username, db)
     new_role = (req.admin_role or "none").strip()
     if new_role not in VALID_ADMIN_ROLES:
@@ -29119,6 +29536,8 @@ def admin_update_user_admin_role(
         raise HTTPException(status_code=400, detail="目标用户不是管理员，不能设置后台角色")
 
     old_role = normalize_admin_role(target_user)
+    if target_user.username == "admin" and new_role != "super_admin":
+        raise HTTPException(status_code=400, detail="不能降级内置超级管理员 admin")
     if old_role == "super_admin" and new_role != "super_admin":
         if count_active_super_admins(db) <= 1:
             raise HTTPException(status_code=400, detail="不能降级最后一个超级管理员")
@@ -29146,17 +29565,140 @@ def admin_update_user_admin_role(
     }
 
 
+@app.get("/admin/admins")
+def admin_list_admins(
+    keyword: str = "",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_admin_user),
+):
+    """List admin accounts (super-admin only)."""
+    require_admin_permission(current_user, "admin.manage")
+    query = db.query(models.User).filter(models.User.is_admin == 1, models.User.is_deleted == 0)
+    if keyword.strip():
+        needle = keyword.strip()
+        query = query.filter(or_(
+            models.User.username.contains(needle),
+            models.User.nickname.contains(needle),
+        ))
+    admins = query.order_by(models.User.created_at.asc()).all()
+    items = []
+    for a in admins:
+        last_login = (
+            db.query(func.max(models.AuthSession.last_seen_at))
+            .filter(models.AuthSession.user_id == a.id)
+            .scalar()
+        )
+        items.append({
+            "id": a.id,
+            "user_id": str(a.id),
+            "username": a.username,
+            "nickname": a.nickname or "",
+            "admin_role": normalize_admin_role(a),
+            "admin_role_label": get_admin_role_label(normalize_admin_role(a)),
+            "is_active": bool(getattr(a, "is_active", 1)),
+            "is_admin": bool(a.is_admin),
+            "is_builtin_admin": a.username == "admin",
+            "last_login_at": serialize_datetime(last_login),
+            "created_at": serialize_datetime(a.created_at),
+        })
+    return {"items": items, "total": len(items)}
+
+
+@app.post("/admin/admins")
+def admin_create_admin(
+    req: schemas.AdminCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_admin_user),
+):
+    """Create a new ordinary admin. Never mint a super_admin from a request."""
+    admin = require_admin_permission(current_user, "admin.create")
+    username = (req.username or "").strip()
+    password = req.password or ""
+    if not username:
+        raise HTTPException(status_code=400, detail="管理员账号不能为空")
+    if len(password) < 6:
+        raise HTTPException(status_code=400, detail="密码至少需要 6 位")
+    if password != req.confirm_password:
+        raise HTTPException(status_code=400, detail="两次输入的密码不一致")
+    if db.query(models.User).filter(models.User.username == username).first():
+        raise HTTPException(status_code=400, detail="账号已存在")
+
+    new_admin = models.User(
+        username=username,
+        hashed_password=hash_password(password),
+        nickname=(req.nickname or "").strip(),
+        is_admin=1,
+        admin_role="operator",
+        is_active=1,
+    )
+    db.add(new_admin)
+    db.commit()
+    db.refresh(new_admin)
+    _write_audit_log(
+        admin.username,
+        "创建普通管理员",
+        db,
+        target_type="admin",
+        target_id=str(new_admin.id),
+        target_username=new_admin.username,
+        detail=f"创建普通管理员 {username}",
+        details={"username": username, "admin_role": "operator"},
+    )
+    return {
+        "success": True,
+        "id": new_admin.id,
+        "username": new_admin.username,
+        "admin_role": "operator",
+        "admin_role_label": "普通管理员",
+    }
+
+
+@app.put("/admin/admins/{user_id}/status")
+def admin_update_admin_status(
+    user_id: int,
+    req: schemas.AdminUpdateStatusRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_admin_user),
+):
+    """Enable/disable an admin account (super-admin only)."""
+    admin = require_admin_permission(current_user, "admin.manage")
+    target = db.query(models.User).filter(models.User.id == user_id).first()
+    if not target or not bool(target.is_admin):
+        raise HTTPException(status_code=404, detail="管理员不存在")
+    if target.username == admin.username:
+        raise HTTPException(status_code=400, detail="不能停用/启用当前管理员自己的账号")
+    if target.username == "admin":
+        raise HTTPException(status_code=400, detail="不能停用内置超级管理员 admin")
+    if not req.is_active and normalize_admin_role(target) == "super_admin":
+        if count_active_super_admins(db) <= 1:
+            raise HTTPException(status_code=400, detail="不能停用最后一个超级管理员")
+
+    target.is_active = 1 if req.is_active else 0
+    db.commit()
+    _write_audit_log(
+        admin.username,
+        f"{'启用' if req.is_active else '停用'}管理员 {target.username}",
+        db,
+        target_type="admin",
+        target_id=str(target.id),
+        target_username=target.username,
+        detail=f"is_active={1 if req.is_active else 0}",
+        details={"new_is_active": bool(req.is_active)},
+    )
+    return {"success": True, "user_id": user_id, "is_active": bool(req.is_active)}
+
+
 @app.get("/admin/ai-logs")
 def admin_ai_logs(
-    admin_username: str,
     feature: str = "",
     target_username: str = "",
     status: str = "",
+    service_key: str = "",
     page: int = 1,
     page_size: int = 30,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user),
 ):
-    require_admin_permission(db, admin_username, "ai_logs.view")
+    require_admin_permission(current_user, "ai_logs.view")
 
     page = max(1, page)
     page_size = min(100, max(1, page_size))
@@ -29168,8 +29710,15 @@ def admin_ai_logs(
         query = query.filter(models.AiUsageLog.username.contains(username_filter))
     if status_filter := status.strip():
         query = query.filter(models.AiUsageLog.status == status_filter)
+    if service_key.strip():
+        sk = canonical_service_key(service_key)
+        if sk:
+            query = query.filter(models.AiUsageLog.service_key == sk)
+        elif service_key.strip().lower() == "unknown":
+            query = query.filter(or_(models.AiUsageLog.service_key.is_(None), models.AiUsageLog.service_key == ""))
 
     total = query.count()
+    total_pages = max(1, (total + page_size - 1) // page_size)
     logs = query.order_by(models.AiUsageLog.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
 
     return {
@@ -29177,6 +29726,7 @@ def admin_ai_logs(
             {
                 "username": log.username,
                 "feature": log.feature,
+                "service_key": log.service_key or "",
                 "model": log.model,
                 "estimated_tokens": log.estimated_tokens,
                 "status": log.status,
@@ -29188,20 +29738,20 @@ def admin_ai_logs(
         "total": total,
         "page": page,
         "page_size": page_size,
+        "total_pages": total_pages,
     }
 
 
 @app.get("/admin/ai-logs/export")
 def admin_ai_logs_export(
-    admin_username: str,
     feature: str = "",
     target_username: str = "",
     status: str = "",
     start_date: str = "",
     end_date: str = "",
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user),
 ):
-    require_admin_permission(db, admin_username, "ai_logs.export")
+    require_admin_permission(current_user, "ai_logs.export")
     import csv, io as _io
     query = db.query(models.AiUsageLog)
     if f := feature.strip(): query = query.filter(models.AiUsageLog.feature == f)
@@ -29228,7 +29778,7 @@ def admin_ai_logs_export(
             serialize_datetime(log.created_at) or "",
         ])
     _write_audit_log(
-        admin_username,
+        current_user.username,
         f"导出AI使用日志 ({len(logs)}条)",
         db,
         target_type="ai_logs",
@@ -29249,14 +29799,13 @@ def admin_ai_logs_export(
 
 @app.get("/admin/materials")
 def admin_materials(
-    admin_username: str = "",
     keyword: str = "",
     course_id: str = "",
     page: int = 1,
     page_size: int = 20,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user),
 ):
-    require_admin_permission(db, admin_username, "materials.view")
+    require_admin_permission(current_user, "materials.view")
 
     page = max(1, page)
     page_size = min(100, max(1, page_size))
@@ -29306,8 +29855,8 @@ def admin_materials(
 
 
 @app.get("/admin/courses-summary")
-def admin_courses_summary(admin_username: str, db: Session = Depends(get_db)):
-    require_admin_permission(db, admin_username, "courses.view")
+def admin_courses_summary(db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
+    require_admin_permission(current_user, "courses.view")
 
     # Collect unique course_id values
     course_ids = set()
@@ -29369,8 +29918,9 @@ def admin_update_user_plan(
     target_username: str,
     req: schemas.AdminUpdatePlanRequest,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_admin_user),
 ):
-    admin = require_admin_permission(db, req.admin_username, "users.manage_plan")
+    admin = require_admin_permission(current_user, "users.manage_plan")
 
     target_user = get_user_by_username(target_username, db)
     if bool(target_user.is_admin) and normalize_admin_role(admin) != "super_admin":
@@ -29404,13 +29954,54 @@ def admin_update_user_plan(
     }
 
 
-SERVICE_KEYS = ["exam_11408", "course_learning", "programming"]
-VALID_PLANS = ["free", "monthly", "quarterly", "full"]
-SERVICE_PLAN_LABELS = {
-    "exam_11408": {"free": "普通用户", "monthly": "月度冲刺包", "quarterly": "季度强化包", "full": "全程备考包"},
-    "course": {"free": "普通用户", "monthly": "月度学习包", "quarterly": "季度学习包", "full": "全程学习包"},
-    "programming": {"free": "免费版", "monthly": "编程进阶月卡", "quarterly": "实验与算法强化季卡", "full": "编程全能年卡"},
-}
+ADMIN_MEMBERSHIP_SERVICE_KEYS = ("exam_11408", "course_learning", "programming")
+
+
+def _admin_membership_payload(user, membership, service_key: str) -> dict:
+    now = utc_now()
+    expires_at = membership.expires_at if membership else None
+    if expires_at and expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    is_expired = bool(expires_at and expires_at <= now)
+    stored_status = membership.status if membership else "inactive"
+    is_enabled = bool(membership and membership.is_enabled)
+    current_is_effective = bool(is_enabled and stored_status == "active" and not is_expired and (membership.plan or "free") != "free")
+    display_status = "expired" if is_expired else ("disabled" if not is_enabled or stored_status == "disabled" else stored_status)
+    return {"user_id": user.id, "username": user.username, "nickname": user.nickname or "", "service_key": service_key,
+            "plan": (membership.plan if membership else "free") or "free", "is_enabled": is_enabled,
+            "status": display_status, "activated_at": serialize_datetime(membership.activated_at) if membership else None,
+            "expires_at": serialize_datetime(membership.expires_at) if membership else None,
+            "is_expired": is_expired, "current_is_effective": current_is_effective}
+
+
+@app.get("/admin/memberships")
+def admin_memberships_list(keyword: str = "", service_key: str = "", plan: str = "", status: str = "", page: int = 1, page_size: int = 20,
+                           db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
+    require_admin_permission(current_user, "users.view")
+    if service_key and service_key not in ADMIN_MEMBERSHIP_SERVICE_KEYS:
+        raise HTTPException(status_code=400, detail="无效的 service_key")
+    query = db.query(models.User).filter(models.User.is_deleted == 0)
+    if keyword.strip():
+        needle = keyword.strip()
+        query = query.filter(or_(models.User.username.contains(needle), models.User.nickname.contains(needle), models.User.id == (int(needle) if needle.isdigit() else -1)))
+    users = query.order_by(models.User.created_at.desc()).all()
+    rows = []
+    for user in users:
+        existing = {m.service_key: m for m in db.query(models.UserServiceMembership).filter(models.UserServiceMembership.user_id == user.id).all()}
+        for key in ADMIN_MEMBERSHIP_SERVICE_KEYS:
+            row = _admin_membership_payload(user, existing.get(key), key)
+            if service_key and row["service_key"] != service_key: continue
+            if plan and row["plan"] != plan: continue
+            if status and row["status"] != status: continue
+            rows.append(row)
+    total = len(rows); page = max(1, page); page_size = min(100, max(1, page_size))
+    return {"items": rows[(page - 1) * page_size: page * page_size], "total": total, "page": page, "page_size": page_size}
+
+
+@app.get("/admin/memberships/catalog")
+def admin_memberships_catalog(current_user: models.User = Depends(require_admin_user)):
+    require_admin_permission(current_user, "users.manage_plan")
+    return {"services": [{"service_key": key, "plans": [serialize_service_plan(key, code, definition) for code, definition in SERVICE_PLAN_CATALOG[key].items()]} for key in ADMIN_MEMBERSHIP_SERVICE_KEYS]}
 
 
 @app.patch("/admin/users/{user_id}/memberships")
@@ -29418,9 +30009,10 @@ def admin_update_user_memberships(
     user_id: int,
     req: schemas.AdminUpdateMembershipsRequest,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_admin_user),
 ):
     """Update a user's three-direction service memberships."""
-    admin = require_admin_permission(db, req.admin_username, "users.manage_plan")
+    admin = require_admin_permission(current_user, "users.manage_plan")
     target_user = db.query(models.User).filter(
         models.User.id == user_id, models.User.is_deleted == 0,
     ).first()
@@ -29434,74 +30026,252 @@ def admin_update_user_memberships(
     now = utc_now()
     updated = {}
     for sk, data in memberships_data.items():
-        if sk not in SERVICE_KEYS:
-            continue
-        is_enabled = bool(data.get("is_enabled", False)) if isinstance(data, dict) else False
-        plan = str(data.get("plan", "free")).strip().lower() if isinstance(data, dict) else "free"
-        if plan not in VALID_PLANS:
-            plan = "free"
+        if sk not in ADMIN_MEMBERSHIP_SERVICE_KEYS:
+            raise HTTPException(status_code=400, detail=f"无效的 service_key: {sk}")
+        if not isinstance(data, dict): raise HTTPException(status_code=400, detail=f"{sk} membership 必须为对象")
+        plan = str(data.get("plan", "free")).strip().lower()
+        definition = get_service_plan(sk, plan)
+        if not definition: raise HTTPException(status_code=400, detail=f"{sk} 不支持套餐: {plan}")
+        is_enabled = bool(data.get("is_enabled", plan != "free"))
+        requested_status = str(data.get("status", "active" if is_enabled else "disabled")).strip().lower()
+        if requested_status not in {"active", "disabled", "expired"}: raise HTTPException(status_code=400, detail="status 必须为 active/disabled/expired")
+        raw_expiry = data.get("expires_at")
+        try: expires_at = datetime.fromisoformat(str(raw_expiry).replace("Z", "+00:00")) if raw_expiry else None
+        except ValueError as exc: raise HTTPException(status_code=400, detail="expires_at 必须为 ISO 日期时间") from exc
+        if expires_at and expires_at.tzinfo is None: expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if plan == "free": is_enabled, requested_status, expires_at = False, "disabled", None
+        elif not is_enabled:
+            requested_status = "disabled"
+        elif requested_status == "disabled":
+            # The management UI has an enable/disable control but no separate
+            # status selector.  A paid plan that is enabled must be active;
+            # otherwise it looks opened but grants no entitlement.
+            requested_status = "active"
+        elif requested_status == "expired":
+            expires_at = expires_at or now
+        if plan != "free" and requested_status == "active" and is_enabled and not expires_at:
+            expires_at = now + timedelta(days=int(definition["duration_days"]))
 
         membership = db.query(models.UserServiceMembership).filter(
             models.UserServiceMembership.user_id == user_id,
             models.UserServiceMembership.service_key == sk,
         ).first()
+        old_value = _admin_membership_payload(target_user, membership, sk)
         if not membership:
             membership = models.UserServiceMembership(
                 user_id=user_id, service_key=sk,
-                is_enabled=is_enabled, plan=plan,
+                is_enabled=is_enabled, plan=plan, status=requested_status, activated_at=now if is_enabled else None, expires_at=expires_at,
                 created_at=now, updated_at=now,
             )
             db.add(membership)
         else:
             membership.is_enabled = is_enabled
             membership.plan = plan
+            membership.status = requested_status
+            membership.expires_at = expires_at
+            if is_enabled and requested_status == "active": membership.activated_at = membership.activated_at or now
             membership.updated_at = now
-
-        # Sync exam_11408 plan to legacy users.plan for backward compat
-        if sk == "exam_11408" and is_enabled:
-            target_user.plan = plan  # free / monthly / quarterly / full
-            db.add(target_user)
-
-        labels = SERVICE_PLAN_LABELS.get(sk, {})
-        updated[sk] = {
-            "is_enabled": is_enabled,
-            "plan": plan,
-            "plan_label": labels.get(plan, "普通用户") if is_enabled else "未开通",
-        }
+        updated[sk] = (membership, old_value)
 
     db.commit()
-    return {"success": True, "user_id": user_id, "memberships": updated}
+    result = {}
+    for sk, (membership, old_value) in updated.items():
+        db.refresh(membership); new_value = _admin_membership_payload(target_user, membership, sk)
+        _write_audit_log(admin.username, "admin_membership_update", db, target_type="membership", target_id=str(membership.id), target_username=target_user.username, detail=f"service_key={sk}", details={"service_key": sk, "old": old_value, "new": new_value})
+        result[sk] = new_value
+    return {"success": True, "user_id": user_id, "memberships": result}
+
+
+# ── Admin: Order Management ───────────────────────────────
+
+def _admin_order_payload(db: Session, order: models.MembershipOrder) -> dict:
+    """Order + user + grant + refund, as one read-only admin view."""
+    user = db.query(models.User).filter(models.User.id == order.user_id).first()
+    grant = db.query(models.MembershipGrant).filter(models.MembershipGrant.order_id == order.id).first()
+    refund = db.query(models.Refund).filter(models.Refund.order_id == order.id).order_by(models.Refund.id.desc()).first()
+    return {
+        "id": order.id,
+        "order_no": order.order_no,
+        "user_id": order.user_id,
+        "username": user.username if user else "",
+        "nickname": (user.nickname or "") if user else "",
+        "service_key": order.service_key,
+        "target_plan": order.target_plan,
+        "amount": order.amount,
+        "amount_yuan": round((order.amount or 0) / 100, 2),
+        "list_price": order.list_price,
+        "list_price_yuan": round((order.list_price or 0) / 100, 2) if order.list_price is not None else None,
+        "paid_amount": order.paid_amount,
+        "paid_amount_yuan": round((order.paid_amount or 0) / 100, 2) if order.paid_amount is not None else None,
+        "pricing_version": order.pricing_version,
+        "currency": order.currency,
+        "payment_provider": order.payment_provider,
+        "is_mock": order.payment_provider == "mock",
+        "status": order.status,
+        "refund_status": order.refund_status,
+        "refunded_amount": order.refunded_amount,
+        "created_at": serialize_datetime(order.created_at),
+        "order_expires_at": serialize_datetime(order.order_expires_at),
+        "paid_at": serialize_datetime(order.paid_at),
+        "membership_started_at": serialize_datetime(order.membership_started_at),
+        "membership_expires_at": serialize_datetime(order.membership_expires_at),
+        "grant": {
+            "granted": grant is not None,
+            "old_plan": grant.old_plan if grant else None,
+            "new_plan": grant.new_plan if grant else None,
+            "new_expiry": serialize_datetime(grant.new_expiry) if grant and grant.new_expiry else None,
+            "grant_reason": grant.grant_reason if grant else None,
+        } if grant else {"granted": False},
+        "refund": {
+            "refund_no": refund.refund_no,
+            "amount": refund.amount,
+            "status": refund.status,
+            "refunded_at": serialize_datetime(refund.refunded_at),
+            "reason": refund.reason or "",
+        } if refund else None,
+    }
+
+
+@app.get("/admin/orders")
+def admin_orders_list(
+    keyword: str = "",
+    service_key: str = "",
+    plan: str = "",
+    status: str = "",
+    provider: str = "",
+    page: int = 1,
+    page_size: int = 20,
+    db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user),
+):
+    """Read real MembershipOrder rows; filters + pagination. Read-only."""
+    require_admin_permission(current_user, "users.view")
+    page = max(1, page)
+    page_size = min(100, max(1, page_size))
+
+    query = db.query(models.MembershipOrder)
+    if kw := keyword.strip():
+        query = query.join(models.User, models.MembershipOrder.user_id == models.User.id).filter(or_(
+            models.User.username.contains(kw),
+            models.User.nickname.contains(kw),
+            models.MembershipOrder.order_no.contains(kw),
+            models.User.id == (int(kw) if kw.isdigit() else -1),
+        ))
+    if sk := service_key.strip():
+        query = query.filter(models.MembershipOrder.service_key == sk)
+    if pl := plan.strip():
+        query = query.filter(models.MembershipOrder.target_plan == pl)
+    if st := status.strip():
+        query = query.filter(models.MembershipOrder.status == st)
+    if pv := provider.strip():
+        query = query.filter(models.MembershipOrder.payment_provider == pv)
+
+    total = query.count()
+    total_pages = max(1, (total + page_size - 1) // page_size)
+    orders = query.order_by(models.MembershipOrder.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    items = [_admin_order_payload(db, o) for o in orders]
+    return {"items": items, "total": total, "page": page, "page_size": page_size, "total_pages": total_pages}
+
+
+@app.get("/admin/orders/{order_id}")
+def admin_order_detail(order_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
+    require_admin_permission(current_user, "users.view")
+    order = db.query(models.MembershipOrder).filter(models.MembershipOrder.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="订单不存在")
+    return {"order": _admin_order_payload(db, order)}
+
+
+@app.post("/admin/orders/{order_id}/cancel")
+def admin_cancel_order(order_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
+    """Cancel a pending order. Mirrors the user-side state machine."""
+    admin = require_admin_permission(current_user, "users.manage_plan")
+    order = db.query(models.MembershipOrder).filter(models.MembershipOrder.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="订单不存在")
+    old_status = order.status
+    if order.status == PENDING:
+        order.status = CANCELLED
+    elif order.status not in (CANCELLED, EXPIRED):
+        raise HTTPException(status_code=409, detail="已支付订单不能取消")
+    db.commit()
+    user = db.query(models.User).filter(models.User.id == order.user_id).first()
+    _write_audit_log(
+        admin.username, "admin_order_cancel", db,
+        target_type="order", target_id=str(order.id), target_username=(user.username if user else ""),
+        detail=f"order status {old_status} -> {order.status}",
+        details={"order_id": order.id, "old_status": old_status, "new_status": order.status, "service_key": order.service_key, "amount": order.amount},
+    )
+    return {"order": _admin_order_payload(db, order)}
+
+
+@app.post("/admin/orders/{order_id}/refund")
+def admin_refund_order(order_id: int, req: MembershipRefundRequest, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
+    """Refund a mock paid order. Mirrors the user-side full-refund flow."""
+    admin = require_admin_permission(current_user, "users.manage_plan")
+    order = db.query(models.MembershipOrder).filter(models.MembershipOrder.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="订单不存在")
+    if order.payment_provider != "mock" or not is_mock_payment_allowed():
+        raise HTTPException(status_code=403, detail="退款必须由已配置支付服务商处理")
+    if order.status != PAID:
+        raise HTTPException(status_code=409, detail="仅已支付订单可以退款")
+    existing = db.query(models.Refund).filter(models.Refund.order_id == order.id, models.Refund.status == "refunded").first()
+    if existing:
+        return {"refund": {"refund_no": existing.refund_no, "status": existing.status}, "order": _admin_order_payload(db, order), "idempotent": True}
+
+    old_refund_status = order.refund_status
+    now = utc_now()
+    refund = models.Refund(
+        refund_no=f"RF{now.strftime('%Y%m%d%H%M%S')}{secrets.token_hex(5).upper()}",
+        order_id=order.id, user_id=order.user_id, amount=order.paid_amount or order.amount,
+        reason=(req.reason or "")[:500], status="refunded", provider_refund_id=f"mock-refund:{order.order_no}", refunded_at=now,
+    )
+    db.add(refund)
+    order.refunded_amount = refund.amount
+    order.refund_status = REFUNDED
+    db.flush()
+    db.add(models.RevenueLedgerEntry(order_id=order.id, refund_id=refund.id, user_id=order.user_id,
+        service_key=order.service_key, entry_type="REFUND", amount=-refund.amount, currency=order.currency, source="mock"))
+    recompute_membership_after_refund(db, order.user_id, order.service_key, _sync_membership_to_track)
+    db.commit()
+    user = db.query(models.User).filter(models.User.id == order.user_id).first()
+    _write_audit_log(
+        admin.username, "admin_order_refund", db,
+        target_type="order", target_id=str(order.id), target_username=(user.username if user else ""),
+        detail=f"refund {refund.amount}",
+        details={"order_id": order.id, "old_refund_status": old_refund_status, "new_refund_status": REFUNDED, "service_key": order.service_key, "amount": refund.amount, "reason": (req.reason or "")[:500]},
+    )
+    return {"refund": {"refund_no": refund.refund_no, "status": refund.status, "amount": refund.amount}, "order": _admin_order_payload(db, order), "idempotent": False}
 
 
 @app.get("/admin/usage-trend")
-def admin_usage_trend(admin_username: str = "", days: int = 7, db: Session = Depends(get_db)):
-    """Return per-day AI call counts for trend chart (7/30/90 days)."""
-    require_admin_permission(db, admin_username, "dashboard.view")
+def admin_usage_trend(days: int = 7, service_key: str = "", db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
+    """Return per-day AI call counts for trend chart (7/30/90 days), optionally by direction."""
+    require_admin_permission(current_user, "dashboard.view")
     days = max(1, min(365, days))
     items = []
     now = utc_now()
+    canonical = canonical_service_key(service_key) if service_key.strip() else ""
     for i in range(days - 1, -1, -1):
         day_start = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=i)
         day_end = day_start + timedelta(days=1)
-        count = (
-            db.query(models.AiUsageLog)
-            .filter(
-                models.AiUsageLog.status == "success",
-                models.AiUsageLog.created_at >= day_start,
-                models.AiUsageLog.created_at < day_end,
-            )
-            .count()
+        query = db.query(models.AiUsageLog).filter(
+            models.AiUsageLog.status == "success",
+            models.AiUsageLog.created_at >= day_start,
+            models.AiUsageLog.created_at < day_end,
         )
+        if canonical:
+            query = query.filter(models.AiUsageLog.service_key == canonical)
         items.append({
             "date": day_start.strftime("%Y-%m-%d"),
-            "count": count,
+            "count": query.count(),
         })
-    return {"days": days, "items": items}
+    return {"days": days, "service_key": canonical, "items": items}
 
 
 @app.get("/admin/usage-summary")
-def admin_usage_summary(admin_username: str = "", db: Session = Depends(get_db)):
-    require_admin_permission(db, admin_username, "dashboard.view")
+def admin_usage_summary(db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
+    require_admin_permission(current_user, "dashboard.view")
     from sqlalchemy import func as sqlfunc
 
     registered_user_scope = db.query(models.User).filter(models.User.is_deleted == 0)
@@ -29563,23 +30333,34 @@ def admin_usage_summary(admin_username: str = "", db: Session = Depends(get_db))
 
     recent_logs = db.query(models.AiUsageLog).order_by(models.AiUsageLog.created_at.desc()).limit(100).all()
 
+    # Per-service direction isolation (legacy rows keep NULL service_key).
+    service_stats = {}
+    for sk in ("exam_11408", "course_learning", "programming"):
+        service_stats[sk] = {
+            "success": db.query(models.AiUsageLog).filter(models.AiUsageLog.service_key == sk, models.AiUsageLog.status == "success").count(),
+            "failed": db.query(models.AiUsageLog).filter(models.AiUsageLog.service_key == sk, models.AiUsageLog.status != "success").count(),
+        }
+    service_stats["unknown"] = {
+        "success": db.query(models.AiUsageLog).filter(or_(models.AiUsageLog.service_key.is_(None), models.AiUsageLog.service_key == ""), models.AiUsageLog.status == "success").count(),
+        "failed": db.query(models.AiUsageLog).filter(or_(models.AiUsageLog.service_key.is_(None), models.AiUsageLog.service_key == ""), models.AiUsageLog.status != "success").count(),
+    }
+
     return {
         "total_calls_all": total_calls_all, "total_success": total_success, "total_failed": total_failed,
         "total_tokens_all": total_tokens_all, "today_tokens": today_tokens,
         "today_total": today_calls, "today_failed": today_failed,
         "feature_stats": feature_stats, "feature_failed": feature_failed,
+        "service_stats": service_stats,
         "user_usage": user_usage, "model_usage": model_usage,
         "cost_estimate": {"total_tokens": total_tokens_all, "today_tokens": today_tokens,
                           "estimated_cost_cny": total_cost, "pricing_note": "按估算单价计算，仅供参考", "by_model": model_cost},
         "alerts": alerts,
-        "plan_counts": {p: registered_user_scope.filter(models.User.plan == p).count() for p in ["free", "pro", "admin"]},
-        "recent_logs": [{"username": log.username, "feature": log.feature, "model": log.model, "estimated_tokens": log.estimated_tokens, "status": log.status, "error_message": log.error_message, "created_at": serialize_datetime(log.created_at)} for log in recent_logs],
+        "recent_logs": [{"username": log.username, "feature": log.feature, "service_key": log.service_key or "", "model": log.model, "estimated_tokens": log.estimated_tokens, "status": log.status, "error_message": log.error_message, "created_at": serialize_datetime(log.created_at)} for log in recent_logs],
     }
 
 
 @app.get("/admin/audit-logs")
 def admin_audit_logs(
-    admin_username: str,
     actor: str = "",
     action: str = "",
     target_type: str = "",
@@ -29588,9 +30369,9 @@ def admin_audit_logs(
     end_date: str = "",
     page: int = 1,
     page_size: int = 30,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user),
 ):
-    require_admin_permission(db, admin_username, "audit_logs.view")
+    require_admin_permission(current_user, "audit_logs.view")
 
     page = max(1, page)
     page_size = min(100, max(1, page_size))
@@ -29641,16 +30422,15 @@ def admin_audit_logs(
 
 @app.get("/admin/audit-logs/export")
 def admin_audit_logs_export(
-    admin_username: str,
     actor: str = "",
     action: str = "",
     target_type: str = "",
     keyword: str = "",
     start_date: str = "",
     end_date: str = "",
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user),
 ):
-    require_admin_permission(db, admin_username, "audit_logs.export")
+    require_admin_permission(current_user, "audit_logs.export")
     query = _build_admin_audit_query(db, actor, action, target_type, keyword, start_date, end_date)
     logs = query.order_by(models.AdminAuditLog.created_at.desc()).limit(5000).all()
     output = StringIO()
@@ -29671,7 +30451,7 @@ def admin_audit_logs_export(
             item["detail"] or _audit_details_to_text(item["details"]),
         ])
     _write_audit_log(
-        admin_username,
+        current_user.username,
         "audit_logs_export",
         db,
         target_type="audit_logs",
@@ -29698,16 +30478,15 @@ def admin_audit_logs_export(
 
 
 @app.get("/admin/backups")
-def admin_backups_list(admin_username: str, db: Session = Depends(get_db)):
-    require_admin_permission(db, admin_username, "backups.view")
+def admin_backups_list(db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
+    require_admin_permission(current_user, "backups.view")
     files = list_backup_files()
     return {"items": [serialize_backup_file(path) for path in files], "total": len(files)}
 
 
 @app.post("/admin/backups")
-def admin_backups_create(req: dict, db: Session = Depends(get_db)):
-    admin_username = str(req.get("admin_username", "")).strip()
-    require_admin_permission(db, admin_username, "backups.create")
+def admin_backups_create(req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
+    admin_username = require_admin_permission(current_user, "backups.create").username
     source_path = get_sqlite_db_path()
     get_backup_dir()
     filename = f"ai_study_backup_{utc_now().strftime('%Y%m%d_%H%M%S')}.sqlite3"
@@ -29732,8 +30511,8 @@ def admin_backups_create(req: dict, db: Session = Depends(get_db)):
 
 
 @app.get("/admin/backups/{filename}/download")
-def admin_backups_download(filename: str, admin_username: str, db: Session = Depends(get_db)):
-    require_admin_permission(db, admin_username, "backups.download")
+def admin_backups_download(filename: str, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
+    admin_username = require_admin_permission(current_user, "backups.download").username
     file_path = get_backup_file_path(filename)
     if not file_path.exists() or not file_path.is_file():
         raise HTTPException(status_code=404, detail="备份文件不存在")
@@ -29755,8 +30534,8 @@ def admin_backups_download(filename: str, admin_username: str, db: Session = Dep
 
 
 @app.delete("/admin/backups/{filename}")
-def admin_backups_delete(filename: str, admin_username: str, db: Session = Depends(get_db)):
-    require_admin_permission(db, admin_username, "backups.delete")
+def admin_backups_delete(filename: str, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
+    admin_username = require_admin_permission(current_user, "backups.delete").username
     file_path = get_backup_file_path(filename)
     if not file_path.exists() or not file_path.is_file():
         raise HTTPException(status_code=404, detail="备份文件不存在")
@@ -29865,15 +30644,14 @@ def validate_model_config_updates(req: dict) -> dict:
 
 
 @app.get("/admin/model-config")
-def admin_model_config(admin_username: str, db: Session = Depends(get_db)):
-    require_admin_permission(db, admin_username, "model_config.view")
+def admin_model_config(db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
+    require_admin_permission(current_user, "model_config.view")
     return get_model_config_payload(db)
 
 
 @app.put("/admin/model-config")
-def admin_model_config_update(req: dict, db: Session = Depends(get_db)):
-    admin_username = str(req.get("admin_username", "")).strip()
-    require_admin_permission(db, admin_username, "model_config.manage")
+def admin_model_config_update(req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
+    admin_username = require_admin_permission(current_user, "model_config.manage").username
     updates = validate_model_config_updates(req)
     old_values = {key: str(get_system_setting(db, key, MODEL_CONFIG_DEFAULTS[key])) for key in updates.keys()}
     for key, value in updates.items():
@@ -30847,12 +31625,11 @@ def public_shared_report(share_token: str, db: Session = Depends(get_db)):
 
 @app.get("/admin/report-shares")
 def admin_report_shares(
-    admin_username: str,
     page: int = 1,
     page_size: int = 30,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user),
 ):
-    require_admin_permission(db, admin_username, "report_shares.view")
+    require_admin_permission(current_user, "report_shares.view")
 
     page = max(1, page)
     page_size = min(100, max(1, page_size))
@@ -30915,19 +31692,16 @@ def _chunk_text_for_material(text: str, filename: str, material_id: int, usernam
 # ── Admin: User Status (disable/enable) ─────────────────
 
 @app.put("/admin/users/{target_username}/status")
-def admin_user_status(target_username: str, req: dict, db: Session = Depends(get_db)):
+def admin_user_status(target_username: str, req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
     """Disable or enable a user account."""
-    admin_name = str(req.get("admin_username", "")).strip()
-    if not admin_name:
-        raise HTTPException(status_code=400, detail="缺少 admin_username")
-    require_admin_permission(db, admin_name, "users.manage_status")
+    admin = require_admin_permission(current_user, "users.manage_status")
+    admin_name = admin.username
     is_active = req.get("is_active", True)
     if not isinstance(is_active, bool) and not isinstance(is_active, int):
         raise HTTPException(status_code=400, detail="is_active 必须为布尔值")
     user = db.query(models.User).filter(models.User.username == target_username).first()
     if not user:
         raise HTTPException(status_code=404, detail="用户不存在")
-    admin = get_user_by_username(admin_name, db)
     if bool(user.is_admin) and normalize_admin_role(admin) != "super_admin":
         raise HTTPException(status_code=403, detail="当前管理员没有权限修改管理员账号状态")
     if user.username == admin_name:
@@ -30961,17 +31735,24 @@ def get_admin_target_user(db: Session, user_id: int):
     return user
 
 
+def _is_builtin_super_admin(target: models.User) -> bool:
+    """The platform's immutable highest-privilege account."""
+    return (getattr(target, "username", "") or "") == "admin" or normalize_admin_role(target) == "super_admin"
+
+
 def ensure_admin_can_modify_user(admin: models.User, target: models.User, action: str):
     if target.username == admin.username:
         raise HTTPException(status_code=400, detail=f"不能{action}当前管理员自己的账号")
     if bool(getattr(target, "is_admin", 0)) or normalize_admin_role(target) != "none":
         raise HTTPException(status_code=403, detail=f"不能{action}管理员账号")
+    if _is_builtin_super_admin(target):
+        raise HTTPException(status_code=403, detail=f"不能{action}超级管理员账号")
 
 
 @app.post("/admin/users/{user_id}/ban")
-def admin_ban_user(user_id: int, req: dict, db: Session = Depends(get_db)):
-    admin_name = str(req.get("admin_username", "")).strip()
-    admin = require_admin_permission(db, admin_name, "users.manage_status")
+def admin_ban_user(user_id: int, req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
+    admin = require_admin_permission(current_user, "users.manage_status")
+    admin_name = admin.username
     target = get_admin_target_user(db, user_id)
     ensure_admin_can_modify_user(admin, target, "封禁")
     if bool(getattr(target, "is_deleted", 0)):
@@ -30996,9 +31777,8 @@ def admin_ban_user(user_id: int, req: dict, db: Session = Depends(get_db)):
 
 
 @app.post("/admin/users/{user_id}/unban")
-def admin_unban_user(user_id: int, req: dict, db: Session = Depends(get_db)):
-    admin_name = str(req.get("admin_username", "")).strip()
-    require_admin_permission(db, admin_name, "users.manage_status")
+def admin_unban_user(user_id: int, req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
+    admin_name = require_admin_permission(current_user, "users.manage_status").username
     target = get_admin_target_user(db, user_id)
     if bool(getattr(target, "is_deleted", 0)):
         raise HTTPException(status_code=400, detail="用户已被删除")
@@ -31021,8 +31801,11 @@ def admin_unban_user(user_id: int, req: dict, db: Session = Depends(get_db)):
 
 
 @app.delete("/admin/users/{user_id}")
-def admin_delete_user(user_id: int, admin_username: str = "", db: Session = Depends(get_db)):
-    admin = require_admin_permission(db, admin_username, "users.manage_status")
+def admin_delete_user(user_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
+    # Deletion is a super-admin-only capability; ban/unban stays on
+    # users.manage_status for ordinary admins.
+    admin = require_admin_permission(current_user, "user.delete")
+    admin_username = admin.username
     target = get_admin_target_user(db, user_id)
     ensure_admin_can_modify_user(admin, target, "删除")
 
@@ -31043,12 +31826,73 @@ def admin_delete_user(user_id: int, admin_username: str = "", db: Session = Depe
     return {"success": True, "user_id": user_id, "is_deleted": True}
 
 
+@app.post("/admin/users/batch")
+def admin_batch_users(
+    req: schemas.AdminBatchUsersRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_admin_user),
+):
+    """Batch ban / unban / delete. Delete is super-admin only."""
+    action = (req.action or "").strip().lower()
+    if action not in {"ban", "unban", "delete"}:
+        raise HTTPException(status_code=400, detail="action 必须为 ban/unban/delete")
+    if not isinstance(req.user_ids, list) or not req.user_ids:
+        raise HTTPException(status_code=400, detail="请选择要操作的用户")
+    user_ids = [int(i) for i in req.user_ids if str(i).isdigit()]
+    if not user_ids:
+        raise HTTPException(status_code=400, detail="user_ids 无效")
+
+    if action == "delete":
+        admin = require_admin_permission(current_user, "user.delete")
+    else:
+        admin = require_admin_permission(current_user, "users.manage_status")
+
+    reason = (req.reason or "").strip()[:500]
+    targets = db.query(models.User).filter(models.User.id.in_(user_ids)).all()
+    succeeded = []
+    skipped = []
+    for target in targets:
+        try:
+            ensure_admin_can_modify_user(admin, target, {"ban": "封禁", "unban": "解封", "delete": "删除"}[action])
+        except HTTPException as exc:
+            skipped.append({"user_id": target.id, "username": target.username, "reason": str(exc.detail)})
+            continue
+        if action == "delete":
+            if not bool(getattr(target, "is_deleted", 0)):
+                target.is_deleted = 1
+                target.deleted_at = serialize_datetime(utc_now())
+            succeeded.append(target.username)
+        elif action == "ban":
+            target.is_banned = 1
+            target.banned_reason = reason
+            target.banned_at = serialize_datetime(utc_now())
+            succeeded.append(target.username)
+        else:
+            target.is_banned = 0
+            target.banned_reason = None
+            target.banned_at = None
+            succeeded.append(target.username)
+
+    db.commit()
+    for username in succeeded:
+        _write_audit_log(
+            admin.username,
+            f"批量{'删除' if action == 'delete' else ('封禁' if action == 'ban' else '解封')}用户 {username}",
+            db,
+            target_type="user",
+            target_username=username,
+            detail=f"batch action={action}",
+            details={"action": action, "reason": reason},
+        )
+    return {"success": True, "action": action, "succeeded": succeeded, "skipped": skipped}
+
+
 # ── Admin: Material Delete ──────────────────────────────
 
 @app.delete("/admin/materials/{material_id}")
-def admin_delete_material(material_id: int, admin_username: str, db: Session = Depends(get_db)):
+def admin_delete_material(material_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
     """Soft-delete a material and its chunks."""
-    require_admin_permission(db, admin_username, "materials.delete")
+    admin_username = require_admin_permission(current_user, "materials.delete").username
     material = db.query(models.StudyMaterial).filter(models.StudyMaterial.id == material_id).first()
     if not material:
         raise HTTPException(status_code=404, detail="资料不存在")
@@ -31078,9 +31922,9 @@ def admin_delete_material(material_id: int, admin_username: str, db: Session = D
 # ── Admin: Material Reindex ─────────────────────────────
 
 @app.post("/admin/materials/{material_id}/reindex")
-def admin_reindex_material(material_id: int, admin_username: str, db: Session = Depends(get_db)):
+def admin_reindex_material(material_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
     """Rebuild material chunks from existing extracted text."""
-    require_admin_permission(db, admin_username, "materials.reindex")
+    admin_username = require_admin_permission(current_user, "materials.reindex").username
     material = db.query(models.StudyMaterial).filter(
         models.StudyMaterial.id == material_id,
         models.StudyMaterial.is_deleted.is_(False),
@@ -31115,12 +31959,9 @@ def admin_reindex_material(material_id: int, admin_username: str, db: Session = 
 # ── Admin: Report Share Status ──────────────────────────
 
 @app.put("/admin/report-shares/{share_id}/status")
-def admin_report_share_status(share_id: int, req: dict, db: Session = Depends(get_db)):
+def admin_report_share_status(share_id: int, req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
     """Approve, revoke, or restore a report share."""
-    admin_name = str(req.get("admin_username", "")).strip()
-    if not admin_name:
-        raise HTTPException(status_code=400, detail="缺少 admin_username")
-    require_admin_permission(db, admin_name, "report_shares.moderate")
+    admin_name = require_admin_permission(current_user, "report_shares.moderate").username
     new_status = str(req.get("status", "")).strip().lower()
     if new_status not in ("approved", "revoked", "pending"):
         raise HTTPException(status_code=400, detail="无效的状态，支持: approved, revoked, pending")
@@ -31147,8 +31988,8 @@ def admin_report_share_status(share_id: int, req: dict, db: Session = Depends(ge
 # ── Admin: System Health ─────────────────────────────
 
 @app.get("/admin/system-health")
-def admin_system_health(admin_username: str, db: Session = Depends(get_db)):
-    require_admin_permission(db, admin_username, "system_monitor.view")
+def admin_system_health(db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
+    require_admin_permission(current_user, "system_monitor.view")
     import os as _os, sys as _sys
 
     # Server
@@ -31208,8 +32049,8 @@ def admin_system_health(admin_username: str, db: Session = Depends(get_db)):
 # ── Admin: Material Issues ───────────────────────────
 
 @app.get("/admin/material-issues")
-def admin_material_issues(admin_username: str, issue_type: str = "all", page: int = 1, page_size: int = 20, db: Session = Depends(get_db)):
-    require_admin_permission(db, admin_username, "system_monitor.view")
+def admin_material_issues(issue_type: str = "all", page: int = 1, page_size: int = 20, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
+    require_admin_permission(current_user, "system_monitor.view")
     page = max(1, page); page_size = min(100, max(1, page_size))
     query = db.query(models.StudyMaterial).filter(models.StudyMaterial.is_deleted.is_(False))
     it = issue_type.strip()
@@ -31233,8 +32074,8 @@ def admin_material_issues(admin_username: str, issue_type: str = "all", page: in
 # ── Admin: Announcements ──────────────────────────────
 
 @app.get("/admin/announcements")
-def admin_announcements_list(admin_username: str = "", db: Session = Depends(get_db)):
-    require_admin_permission(db, admin_username, "settings.view")
+def admin_announcements_list(db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
+    require_admin_permission(current_user, "settings.view")
     items = db.query(models.SystemAnnouncement).order_by(models.SystemAnnouncement.created_at.desc()).all()
     return {"items": [_serialize_admin_announcement(a) for a in items]}
 
@@ -31270,9 +32111,8 @@ def _validate_announcement_fields(title: str, content: str):
 
 
 @app.post("/admin/announcements")
-def admin_announcements_create(req: dict, db: Session = Depends(get_db)):
-    admin_name = str(req.get("admin_username", "")).strip()
-    require_admin_permission(db, admin_name, "announcements.manage")
+def admin_announcements_create(req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
+    admin_name = require_admin_permission(current_user, "announcements.manage").username
     title = str(req.get("title", "")).strip()
     content = str(req.get("content", "")).strip()
     if not title or not content:
@@ -31301,9 +32141,8 @@ def admin_announcements_create(req: dict, db: Session = Depends(get_db)):
 
 
 @app.put("/admin/announcements/{a_id}")
-def admin_announcements_update(a_id: int, req: dict, db: Session = Depends(get_db)):
-    admin_name = str(req.get("admin_username", "")).strip()
-    require_admin_permission(db, admin_name, "announcements.manage")
+def admin_announcements_update(a_id: int, req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
+    admin_name = require_admin_permission(current_user, "announcements.manage").username
     a = db.query(models.SystemAnnouncement).filter(models.SystemAnnouncement.id == a_id).first()
     if not a: raise HTTPException(status_code=404, detail="公告不存在")
     old_values = {"title": a.title, "content": a.content, "type": a.type, "target": a.target, "is_active": bool(a.is_active)}
@@ -31334,9 +32173,8 @@ def admin_announcements_update(a_id: int, req: dict, db: Session = Depends(get_d
 
 
 @app.patch("/admin/announcements/{a_id}")
-def admin_announcements_patch(a_id: int, req: dict, db: Session = Depends(get_db)):
-    admin_name = str(req.get("admin_username", "")).strip()
-    require_admin_permission(db, admin_name, "announcements.manage")
+def admin_announcements_patch(a_id: int, req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
+    admin_name = require_admin_permission(current_user, "announcements.manage").username
     a = db.query(models.SystemAnnouncement).filter(models.SystemAnnouncement.id == a_id).first()
     if not a:
         raise HTTPException(status_code=404, detail="公告不存在")
@@ -31391,9 +32229,8 @@ def admin_announcements_patch(a_id: int, req: dict, db: Session = Depends(get_db
 
 
 @app.post("/admin/announcements/{a_id}/withdraw")
-def admin_announcements_withdraw(a_id: int, req: dict, db: Session = Depends(get_db)):
-    admin_name = str(req.get("admin_username", "")).strip()
-    require_admin_permission(db, admin_name, "announcements.manage")
+def admin_announcements_withdraw(a_id: int, req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
+    admin_name = require_admin_permission(current_user, "announcements.manage").username
     a = db.query(models.SystemAnnouncement).filter(models.SystemAnnouncement.id == a_id).first()
     if not a:
         raise HTTPException(status_code=404, detail="公告不存在")
@@ -31415,9 +32252,8 @@ def admin_announcements_withdraw(a_id: int, req: dict, db: Session = Depends(get
 
 
 @app.put("/admin/announcements/{a_id}/status")
-def admin_announcements_toggle(a_id: int, req: dict, db: Session = Depends(get_db)):
-    admin_name = str(req.get("admin_username", "")).strip()
-    require_admin_permission(db, admin_name, "announcements.manage")
+def admin_announcements_toggle(a_id: int, req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
+    admin_name = require_admin_permission(current_user, "announcements.manage").username
     a = db.query(models.SystemAnnouncement).filter(models.SystemAnnouncement.id == a_id).first()
     if not a: raise HTTPException(status_code=404, detail="公告不存在")
     old_active = bool(a.is_active)
@@ -31442,8 +32278,8 @@ def admin_announcements_toggle(a_id: int, req: dict, db: Session = Depends(get_d
 
 
 @app.delete("/admin/announcements/{a_id}")
-def admin_announcements_delete(a_id: int, admin_username: str, db: Session = Depends(get_db)):
-    require_admin_permission(db, admin_username, "announcements.manage")
+def admin_announcements_delete(a_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
+    admin_username = require_admin_permission(current_user, "announcements.manage").username
     a = db.query(models.SystemAnnouncement).filter(models.SystemAnnouncement.id == a_id).first()
     if not a: raise HTTPException(status_code=404, detail="公告不存在")
     deleted_info = {"id": a.id, "title": a.title, "type": a.type, "target": a.target, "is_active": bool(a.is_active)}
@@ -31528,38 +32364,90 @@ def _safe_setting_audit_value(key: str, value):
         return "***"
     return str(value)
 
+
+# ── Admin-editable system settings registry ──────────────
+# Only settings with a REAL runtime reader are editable. Dead keys (no reader)
+# and legacy global-quota keys (superseded by the direction-scoped quota
+# resolver) are intentionally absent, so they can never be mistaken for live
+# controls. Secrets / API keys / JWT / DB URLs stay in env, never here.
+ADMIN_SETTING_REGISTRY = {
+    "feature_ai_chat_enabled": {"type": "bool", "default": True, "category": "功能开关", "label": "AI 问答", "description": "控制 AI 问答功能是否可用"},
+    "feature_material_upload_enabled": {"type": "bool", "default": True, "category": "功能开关", "label": "资料上传", "description": "控制资料上传功能是否可用"},
+    "feature_report_share_enabled": {"type": "bool", "default": True, "category": "功能开关", "label": "报告分享", "description": "控制学习报告分享功能是否可用"},
+    "feature_practice_center_enabled": {"type": "bool", "default": True, "category": "功能开关", "label": "练习中心", "description": "控制练习中心功能是否可用"},
+}
+
+
+def _normalize_bool_setting(value) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, str):
+        v = value.strip().lower()
+        if v in ("true", "1", "yes", "on", "已开启", "开启"):
+            return "true"
+        if v in ("false", "0", "no", "off", "已关闭", "关闭"):
+            return "false"
+    raise HTTPException(status_code=400, detail="布尔配置项必须为 true/false")
+
+
 @app.get("/admin/settings")
-def admin_settings(admin_username: str = "", db: Session = Depends(get_db)):
-    require_admin_permission(db, admin_username, "settings.view")
-    items = db.query(models.SystemSetting).all()
-    return {"items": [{"key": s.key, "value": s.value, "description": s.description, "updated_by": s.updated_by, "updated_at": serialize_datetime(s.updated_at)} for s in items]}
+def admin_settings(db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
+    require_admin_permission(current_user, "settings.view")
+    items = []
+    for key, spec in ADMIN_SETTING_REGISTRY.items():
+        s = db.query(models.SystemSetting).filter(models.SystemSetting.key == key).first()
+        value = s.value if (s and s.value is not None) else ("true" if spec["default"] else "false")
+        items.append({
+            "key": key,
+            "value": value,
+            "type": spec["type"],
+            "default": "true" if spec["default"] else "false",
+            "label": spec["label"],
+            "description": spec["description"],
+            "category": spec["category"],
+            "editable": True,
+            "updated_by": s.updated_by if s else None,
+            "updated_at": serialize_datetime(s.updated_at) if s else None,
+        })
+    return {"items": items}
 
 
 @app.put("/admin/settings")
-def admin_settings_update(req: dict, db: Session = Depends(get_db)):
-    admin_name = str(req.get("admin_username", "")).strip()
-    require_admin_permission(db, admin_name, "settings.manage")
+def admin_settings_update(req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin_user)):
+    admin_name = require_admin_permission(current_user, "settings.manage").username
     updates = req.get("updates", {})
     if not isinstance(updates, dict) or not updates:
         raise HTTPException(status_code=400, detail="请提供要更新的配置项")
-    old_values = {}
+    validated = {}
     for k, v in updates.items():
+        spec = ADMIN_SETTING_REGISTRY.get(k)
+        if not spec:
+            raise HTTPException(status_code=400, detail=f"未知或不可编辑的配置项: {k}")
+        if spec["type"] == "bool":
+            validated[k] = _normalize_bool_setting(v)
+        else:
+            raise HTTPException(status_code=400, detail=f"不支持的配置类型: {spec['type']}")
+    old_values = {}
+    for k, v in validated.items():
         s = db.query(models.SystemSetting).filter(models.SystemSetting.key == k).first()
-        if not s: s = models.SystemSetting(key=k)
+        if not s:
+            s = models.SystemSetting(key=k, description=ADMIN_SETTING_REGISTRY[k]["description"])
         old_values[k] = _safe_setting_audit_value(k, s.value if s else "")
-        s.value = str(v); s.updated_by = admin_name; s.updated_at = utc_now()
+        s.value = v
+        s.updated_by = admin_name
+        s.updated_at = utc_now()
         db.add(s)
     db.commit()
     _write_audit_log(
         admin_name,
-        f"更新平台配置 ({len(updates)}项)",
+        f"更新平台配置 ({len(validated)}项)",
         db,
         target_type="settings",
-        detail=str(list(updates.keys())),
+        detail=str(list(validated.keys())),
         details={
-            "changed_keys": list(updates.keys()),
+            "changed_keys": list(validated.keys()),
             "old_values": old_values,
-            "new_values": {k: _safe_setting_audit_value(k, v) for k, v in updates.items()},
+            "new_values": {k: _safe_setting_audit_value(k, v) for k, v in validated.items()},
         },
     )
     return {"success": True}

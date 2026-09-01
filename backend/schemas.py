@@ -781,13 +781,11 @@ class MaterialConfirmKnowledgeTreeRequest(BaseModel):
 
 
 class AdminUpdatePlanRequest(BaseModel):
-    admin_username: str
     plan: str = "free"
     plan_expires_at: str | None = None
 
 
 class AdminUpdateRoleRequest(BaseModel):
-    admin_username: str
     admin_role: str = "none"
 
 
@@ -820,8 +818,30 @@ class LearningReportSaveRequest(BaseModel):
 
 
 class AdminUpdateMembershipsRequest(BaseModel):
-    admin_username: str
     memberships: dict
+
+
+class AdminQuotaOverrideUpsert(BaseModel):
+    service_key: str
+    quota_key: str
+    limit: int
+
+
+class AdminBatchUsersRequest(BaseModel):
+    user_ids: list[int]
+    action: str  # "ban" | "unban" | "delete"
+    reason: str = ""
+
+
+class AdminCreateRequest(BaseModel):
+    username: str
+    password: str
+    confirm_password: str
+    nickname: str = ""
+
+
+class AdminUpdateStatusRequest(BaseModel):
+    is_active: bool
 
 
 class AdminRedemptionCodeCreateRequest(BaseModel):

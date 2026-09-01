@@ -29,6 +29,7 @@ const MENU_GROUPS = [
       { page: "adminUsage", label: "AI 用量统计", icon: "A" },
       { page: "adminSettings", label: "系统设置", icon: "G" },
       { page: "adminLogs", label: "操作日志", icon: "R" },
+      { page: "adminAdmins", label: "管理员管理", icon: "M" },
     ],
   },
 ];
@@ -37,6 +38,138 @@ const MENU_ITEMS = MENU_GROUPS.flatMap((group) => group.items);
 MENU_GROUPS[1].items.push({ page: "adminRedemptionCodes", label: "兑换码", icon: "C" });
 MENU_ITEMS.push(MENU_GROUPS[1].items[MENU_GROUPS[1].items.length - 1]);
 const WEEKDAY_LABELS = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
+
+// ── 用户可见 enum → 中文映射（仅改 UI 文案，不改后端内部 key）──
+const FEATURE_LABELS = {
+  chat: "AI 对话",
+  question_generate: "AI 出题",
+  code_analyze: "代码分析",
+  challenge_generate: "挑战题生成",
+  learning_diagnosis: "学习诊断",
+  knowledge_generate: "知识内容生成",
+  learning_plan_generate: "学习计划生成",
+  material_link_recommend: "学习资料推荐",
+  question_feedback: "题目反馈",
+  learning_report_generate: "学习报告生成",
+  challenge_explain: "挑战题讲解",
+  challenge_test_gen: "挑战测试生成",
+  material_summary: "资料摘要",
+};
+
+const SERVICE_KEY_LABELS = {
+  exam_11408: "11408 考研",
+  course_learning: "课程学习",
+  programming: "编程学习",
+};
+
+const STATUS_LABELS = {
+  active: "有效",
+  disabled: "已停用",
+  expired: "已过期",
+  success: "成功",
+  failed: "失败",
+  pending: "待处理",
+  revoked: "已撤销",
+  exhausted: "已用完",
+  inactive: "未生效",
+  normal: "正常",
+  banned: "已封禁",
+};
+
+const PLAN_LABELS = {
+  free: "免费版",
+  monthly: "月度学习包",
+  quarterly: "季度学习包",
+  full: "全程学习包",
+  monthly_sprint: "月度冲刺包",
+  quarterly_boost: "季度强化包",
+  full_exam: "全程考包",
+  exam_monthly: "月度冲刺包",
+  exam_quarterly: "季度强化包",
+  exam_yearly: "全程考包",
+  pro: "专业版",
+  admin: "管理员",
+  gift_pro: "礼品卡权益",
+};
+
+const ROLE_LABELS = {
+  super_admin: "超级管理员",
+  operator: "普通管理员",
+  auditor: "只读审计员",
+  none: "非管理员",
+};
+
+const ACTION_LABELS = {
+  update_admin_role: "修改管理员角色",
+  update_plan: "修改用户套餐",
+  admin_membership_update: "修改会员",
+  audit_logs_export: "导出审计日志",
+  backup_create: "创建数据备份",
+  backup_download: "下载数据备份",
+  backup_delete: "删除数据备份",
+  model_config_update: "修改模型配置",
+  quota_override_create: "新增额度覆盖",
+  quota_override_update: "修改额度覆盖",
+  quota_override_delete: "删除额度覆盖",
+};
+
+function zhFeature(feature) { return FEATURE_LABELS[feature] || feature || "-"; }
+function zhServiceKey(key) { return SERVICE_KEY_LABELS[key] || key || "-"; }
+function zhPlan(plan) { return PLAN_LABELS[plan] || plan || "免费版"; }
+function zhRole(role) { return ROLE_LABELS[role] || role || "非管理员"; }
+function zhStatus(status) { return STATUS_LABELS[status] || status || "-"; }
+function zhAction(action) { return ACTION_LABELS[action] || action || "-"; }
+
+const ORDER_STATUS_LABELS = {
+  pending: "待支付",
+  paid: "已支付",
+  cancelled: "已取消",
+  expired: "已过期",
+  refund_pending: "退款中",
+  partially_refunded: "部分退款",
+  refunded: "已退款",
+  failed: "支付失败",
+};
+const PAYMENT_PROVIDER_LABELS = { mock: "模拟支付" };
+function zhOrderStatus(status) { return ORDER_STATUS_LABELS[status] || status || "-"; }
+function zhProvider(provider) { return PAYMENT_PROVIDER_LABELS[provider] || provider || "-"; }
+
+const QUOTA_KEY_LABELS = {
+  ai_chat_daily_limit: "AI 对话",
+  ai_question_daily_limit: "AI 出题",
+  single_file_limit_mb: "单文件大小",
+  material_upload_limit_mb: "资料总容量",
+};
+function zhQuotaKey(k) { return QUOTA_KEY_LABELS[k] || k; }
+
+function logDetailRows(item) {
+  const d = item.details || {};
+  const rows = [];
+  const add = (label, value) => { if (value !== undefined && value !== null && value !== "") rows.push([label, String(value)]); };
+  if (d.service_key) add("业务方向", zhServiceKey(d.service_key));
+  if (d.quota_key) add("额度项目", zhQuotaKey(d.quota_key));
+  if (d.old_override !== undefined) add("修改前覆盖值", d.old_override);
+  if (d.new_override !== undefined) add("修改后覆盖值", d.new_override);
+  if (d.effective_before !== undefined) add("修改前生效额度", d.effective_before);
+  if (d.effective_after !== undefined) add("修改后生效额度", d.effective_after);
+  if (d.old_role) add("原角色", zhRole(d.old_role));
+  if (d.new_role) add("新角色", zhRole(d.new_role));
+  if (d.old && typeof d.old === "object") {
+    if (d.old.plan) add("原套餐", zhPlan(d.old.plan));
+    if (d.old.status) add("原状态", zhStatus(d.old.status));
+    if (d.old.expires_at) add("原到期时间", formatDateTime(d.old.expires_at));
+  }
+  if (d.new && typeof d.new === "object") {
+    if (d.new.plan) add("新套餐", zhPlan(d.new.plan));
+    if (d.new.status) add("新状态", zhStatus(d.new.status));
+    if (d.new.expires_at) add("新到期时间", formatDateTime(d.new.expires_at));
+  }
+  if (d.old_is_active !== undefined) add("原状态", d.old_is_active ? "启用" : "停用");
+  if (d.new_is_active !== undefined) add("新状态", d.new_is_active ? "启用" : "停用");
+  if (d.reason) add("原因", d.reason);
+  if (d.username) add("账号", d.username);
+  return rows;
+}
 
 function formatToday() {
   const now = new Date();
@@ -124,11 +257,21 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
   const [dashboard, setDashboard] = useState(null);
   const [usersData, setUsersData] = useState(null);
   const [membersData, setMembersData] = useState(null);
+  const [membershipCatalog, setMembershipCatalog] = useState([]);
   const [announcements, setAnnouncements] = useState(null);
   const [settings, setSettings] = useState(null);
   const [usageSummary, setUsageSummary] = useState(null);
   const [usageTrend, setUsageTrend] = useState(null);
+  const [statisticsData, setStatisticsData] = useState(null);
+  const [aiServiceFilter, setAiServiceFilter] = useState("");
+  const [aiTrendDays, setAiTrendDays] = useState(7);
+  const [growthDays, setGrowthDays] = useState(7);
   const [quota, setQuota] = useState(null);
+  const [quotaKeyword, setQuotaKeyword] = useState("");
+  const [quotaDetail, setQuotaDetail] = useState(null);
+  const [quotaOverrideTarget, setQuotaOverrideTarget] = useState(null);
+  const [quotaOverrideValue, setQuotaOverrideValue] = useState("");
+  const [quotaOverrideError, setQuotaOverrideError] = useState("");
   const [logs, setLogs] = useState(null);
   const [redemptionCodes, setRedemptionCodes] = useState([]);
   const [redemptionStatus, setRedemptionStatus] = useState("all");
@@ -140,6 +283,7 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
   const [supportUnreadCount, setSupportUnreadCount] = useState(0);
   const [userKeyword, setUserKeyword] = useState("");
   const [userStatus, setUserStatus] = useState("all");
+  const [memberKeyword, setMemberKeyword] = useState("");
   const [actionLoading, setActionLoading] = useState("");
   const [actionError, setActionError] = useState("");
   const [actionSuccess, setActionSuccess] = useState("");
@@ -157,14 +301,37 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
   const [showConfirmPwd, setShowConfirmPwd] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [userAvatarUrl, setUserAvatarUrl] = useState(() => resolveMediaUrl(user?.avatar_url, API_BASE) || null);
-  const adminRoleLabel = user?.admin_role === "super_admin" ? "超级管理员" : user?.admin_role === "operator" ? "运营管理员" : "管理员";
-  const adminRoleDesc = user?.admin_role === "super_admin" ? "负责平台整体运营与管理" : user?.admin_role === "operator" ? "负责日常运营与用户服务" : "负责平台管理与维护";
+  const [userPage, setUserPage] = useState(1);
+  const [userPageSize, setUserPageSize] = useState(20);
+  const [selectedUsers, setSelectedUsers] = useState([]);
+  const [logPage, setLogPage] = useState(1);
+  const [logPageSize, setLogPageSize] = useState(20);
+  const [logActor, setLogActor] = useState("");
+  const [logAction, setLogAction] = useState("");
+  const [logDetail, setLogDetail] = useState(null);
+  const [adminsData, setAdminsData] = useState(null);
+  const [adminKeyword, setAdminKeyword] = useState("");
+  const [showAdminCreate, setShowAdminCreate] = useState(false);
+  const [adminCreateForm, setAdminCreateForm] = useState({ username: "", password: "", confirm_password: "", nickname: "" });
+  const [adminCreateError, setAdminCreateError] = useState("");
+  const [ordersData, setOrdersData] = useState(null);
+  const [orderKeyword, setOrderKeyword] = useState("");
+  const [orderService, setOrderService] = useState("");
+  const [orderPlan, setOrderPlan] = useState("");
+  const [orderStatusFilter, setOrderStatusFilter] = useState("");
+  const [orderProvider, setOrderProvider] = useState("");
+  const [orderPage, setOrderPage] = useState(1);
+  const [orderPageSize, setOrderPageSize] = useState(20);
+  const [orderDetail, setOrderDetail] = useState(null);
+  const [settingsDraft, setSettingsDraft] = useState({});
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const isSuperAdmin = user?.admin_role === "super_admin" || user?.username === "admin";
+  const adminRoleLabel = zhRole(user?.admin_role === "operator" ? "operator" : (user?.admin_role || (user?.is_admin ? "super_admin" : "none")));
+  const adminRoleDesc = isSuperAdmin ? "负责平台整体运营与管理" : "负责日常运营与用户服务";
 
   const navigate = (pageName) => {
     if (setPage) setPage(pageName);
   };
-
-  const adminParam = user?.username ? `admin_username=${encodeURIComponent(user.username)}` : "";
 
   const getJson = async (url, options) => {
     const res = await fetch(url, options);
@@ -180,31 +347,65 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
     setError("");
     try {
       if (activePage === "adminDashboard") {
-        setDashboard(await getJson(`${API_BASE}/admin/dashboard?${adminParam}`));
+        setDashboard(await getJson(`${API_BASE}/admin/dashboard`));
       } else if (activePage === "adminAnnouncements") {
-        const data = await getJson(`${API_BASE}/admin/announcements?${adminParam}`);
+        const data = await getJson(`${API_BASE}/admin/announcements`);
         setAnnouncements(data.items || []);
       } else if (activePage === "adminUsers") {
-        const params = new URLSearchParams({ admin_username: user.username, page_size: "16" });
+        const params = new URLSearchParams({ page: String(userPage), page_size: String(userPageSize) });
         if (userKeyword.trim()) params.set("keyword", userKeyword.trim());
         if (userStatus !== "all") params.set("status", userStatus);
-        setUsersData(await getJson(`${API_BASE}/admin/users?${params.toString()}`));
+        const [users, catalog] = await Promise.all([
+          getJson(`${API_BASE}/admin/users?${params.toString()}`),
+          getJson(`${API_BASE}/admin/memberships/catalog`),
+        ]);
+        setUsersData(users);
+        setMembershipCatalog(catalog.services || []);
+        setSelectedUsers([]);
       } else if (activePage === "adminMembers") {
-        setMembersData(await getJson(`${API_BASE}/admin/users?${adminParam}&page_size=16`));
+        const params = new URLSearchParams({ page_size: "100" });
+        if (memberKeyword.trim()) params.set("keyword", memberKeyword.trim());
+        const [memberships, catalog] = await Promise.all([
+          getJson(`${API_BASE}/admin/memberships?${params.toString()}`),
+          getJson(`${API_BASE}/admin/memberships/catalog`),
+        ]);
+        setMembersData(memberships);
+        setMembershipCatalog(catalog.services || []);
       } else if (activePage === "adminQuota") {
-        setQuota(await getJson(`${API_BASE}/admin/quota?${adminParam}&page_size=16`));
-      } else if (activePage === "adminStatistics" || activePage === "adminUsage") {
+        const params = new URLSearchParams({ page_size: "100" });
+        if (quotaKeyword.trim()) params.set("keyword", quotaKeyword.trim());
+        setQuota(await getJson(`${API_BASE}/admin/quota?${params.toString()}`));
+      } else if (activePage === "adminStatistics") {
+        setStatisticsData(await getJson(`${API_BASE}/admin/statistics`));
+      } else if (activePage === "adminUsage") {
+        const params = new URLSearchParams({ days: String(aiTrendDays) });
+        if (aiServiceFilter) params.set("service_key", aiServiceFilter);
         const [summary, trend] = await Promise.all([
-          getJson(`${API_BASE}/admin/usage-summary?${adminParam}`),
-          getJson(`${API_BASE}/admin/usage-trend?${adminParam}&days=7`),
+          getJson(`${API_BASE}/admin/usage-summary`),
+          getJson(`${API_BASE}/admin/usage-trend?${params.toString()}`),
         ]);
         setUsageSummary(summary);
         setUsageTrend(trend);
       } else if (activePage === "adminSettings") {
-        const data = await getJson(`${API_BASE}/admin/settings?${adminParam}`);
+        const data = await getJson(`${API_BASE}/admin/settings`);
         setSettings(data.items || []);
       } else if (activePage === "adminLogs") {
-        setLogs(await getJson(`${API_BASE}/admin/logs?${adminParam}&page_size=16`));
+        const params = new URLSearchParams({ page: String(logPage), page_size: String(logPageSize) });
+        if (logActor.trim()) params.set("actor", logActor.trim());
+        if (logAction.trim()) params.set("action", logAction.trim());
+        setLogs(await getJson(`${API_BASE}/admin/logs?${params.toString()}`));
+      } else if (activePage === "adminAdmins") {
+        const params = new URLSearchParams();
+        if (adminKeyword.trim()) params.set("keyword", adminKeyword.trim());
+        setAdminsData(await getJson(`${API_BASE}/admin/admins?${params.toString()}`));
+      } else if (activePage === "adminOrders") {
+        const params = new URLSearchParams({ page: String(orderPage), page_size: String(orderPageSize) });
+        if (orderKeyword.trim()) params.set("keyword", orderKeyword.trim());
+        if (orderService) params.set("service_key", orderService);
+        if (orderPlan) params.set("plan", orderPlan);
+        if (orderStatusFilter) params.set("status", orderStatusFilter);
+        if (orderProvider) params.set("provider", orderProvider);
+        setOrdersData(await getJson(`${API_BASE}/admin/orders?${params.toString()}`));
       } else if (activePage === "adminRedemptionCodes") {
         const params = new URLSearchParams({ status: redemptionStatus });
         setRedemptionCodes((await getJson(`${API_BASE}/admin/membership/redemption-codes?${params.toString()}`)).items || []);
@@ -221,7 +422,7 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
     setActionSuccess("");
     setAnnouncementFormError("");
     loadCurrentPage();
-  }, [activePage, user?.username, userStatus, redemptionStatus]);
+  }, [activePage, user?.username, userStatus, redemptionStatus, userPage, userPageSize, logPage, logPageSize, orderPage, orderPageSize, aiServiceFilter, aiTrendDays]);
 
   useEffect(() => {
     fetch(`${API_BASE}/admin/support/unread-count`, { credentials: "include" })
@@ -237,9 +438,9 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
 
   const overview = dashboard?.overview || {};
   const statCards = useMemo(() => ([
-    { label: "用户总数", value: formatNumber(overview.total_users), sub: "已注册用户", icon: "U", tone: "purple" },
-    { label: "今日活跃", value: formatNumber(overview.active_users_today), sub: "今日 AI 活跃用户", icon: "A", tone: "blue" },
-    { label: "课程数", value: formatNumber(overview.total_courses), sub: "资料与知识点课程", icon: "C", tone: "green" },
+    { label: "普通用户", value: formatNumber(overview.total_users), sub: "不含管理员账号", icon: "U", tone: "purple" },
+    { label: "今日新增", value: formatNumber(overview.new_users_today), sub: "今日新增用户", icon: "＋", tone: "blue" },
+    { label: "有效付费用户", value: formatNumber(overview.paid_users), sub: "去重后的付费用户", icon: "V", tone: "green" },
     { label: "今日 AI 调用", value: formatNumber(overview.today_ai_calls), sub: "今日成功 AI 调用", icon: "⚡", tone: "orange" },
   ]), [overview]);
 
@@ -286,7 +487,6 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
         method: isEditing ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          admin_username: user.username,
           title,
           content,
           status: announcementForm.status,
@@ -311,7 +511,7 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
       await getJson(`${API_BASE}/admin/announcements/${item.id}/withdraw`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ admin_username: user.username }),
+        body: JSON.stringify({}),
       });
       setActionSuccess("公告已撤回");
       await loadCurrentPage();
@@ -418,7 +618,7 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
       await getJson(`${API_BASE}/admin/users/${item.user_id}/ban`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ admin_username: user.username, reason }),
+        body: JSON.stringify({ reason }),
       });
       await loadCurrentPage();
     } catch (err) {
@@ -436,7 +636,7 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
       await getJson(`${API_BASE}/admin/users/${item.user_id}/unban`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ admin_username: user.username }),
+        body: JSON.stringify({}),
       });
       await loadCurrentPage();
     } catch (err) {
@@ -452,7 +652,7 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
     setActionError("");
     setActionLoading(`delete-${item.user_id}`);
     try {
-      await getJson(`${API_BASE}/admin/users/${item.user_id}?admin_username=${encodeURIComponent(user.username)}`, {
+      await getJson(`${API_BASE}/admin/users/${item.user_id}`, {
         method: "DELETE",
       });
       await loadCurrentPage();
@@ -463,12 +663,88 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
     }
   };
 
+  const toggleSelectUser = (id) => {
+    setSelectedUsers((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  const toggleSelectAll = () => {
+    const ids = (usersData?.items || []).map((u) => u.user_id).filter(Boolean);
+    if (ids.length && ids.every((id) => selectedUsers.includes(id))) setSelectedUsers([]);
+    else setSelectedUsers(ids);
+  };
+
+  const batchAction = async (action) => {
+    if (!selectedUsers.length) return;
+    const label = { ban: "封禁", unban: "解封", delete: "删除" }[action];
+    const msg = action === "delete"
+      ? `确认删除选中的 ${selectedUsers.length} 个用户吗？删除后该用户将无法登录。`
+      : `确认批量${label}选中的 ${selectedUsers.length} 个用户吗？`;
+    if (!window.confirm(msg)) return;
+    setActionError("");
+    setActionSuccess("");
+    setActionLoading(`batch-${action}`);
+    try {
+      const data = await getJson(`${API_BASE}/admin/users/batch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_ids: selectedUsers, action }),
+      });
+      setSelectedUsers([]);
+      setActionSuccess(`批量${label}完成：${data.succeeded?.length || 0} 个成功${data.skipped?.length ? `，${data.skipped.length} 个跳过` : ""}`);
+      await loadCurrentPage();
+    } catch (err) {
+      setActionError(err.message || `批量${label}失败`);
+    } finally {
+      setActionLoading("");
+    }
+  };
+
+  const createAdmin = async () => {
+    setAdminCreateError("");
+    if (!adminCreateForm.username.trim()) { setAdminCreateError("请输入管理员账号"); return; }
+    if (adminCreateForm.password !== adminCreateForm.confirm_password) { setAdminCreateError("两次输入的密码不一致"); return; }
+    setActionLoading("admin-create");
+    try {
+      await getJson(`${API_BASE}/admin/admins`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(adminCreateForm),
+      });
+      setShowAdminCreate(false);
+      setAdminCreateForm({ username: "", password: "", confirm_password: "", nickname: "" });
+      setActionSuccess("普通管理员创建成功");
+      await loadCurrentPage();
+    } catch (err) {
+      setAdminCreateError(err.message || "创建失败");
+    } finally {
+      setActionLoading("");
+    }
+  };
+
+  const toggleAdminStatus = async (adminItem) => {
+    const toActive = !adminItem.is_active;
+    if (!window.confirm(`确认${toActive ? "启用" : "停用"}管理员 ${adminItem.username} 吗？`)) return;
+    setActionLoading(`admin-status-${adminItem.user_id}`);
+    try {
+      await getJson(`${API_BASE}/admin/admins/${adminItem.id || adminItem.user_id}/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_active: toActive }),
+      });
+      await loadCurrentPage();
+    } catch (err) {
+      setActionError(err.message || "操作失败");
+    } finally {
+      setActionLoading("");
+    }
+  };
+
   const openMembershipEditor = (item) => {
     const m = item.memberships || {};
     setMembershipForm({
-      exam_11408: { is_enabled: m.exam_11408?.is_enabled ?? true, plan: m.exam_11408?.plan || "free" },
-      course: { is_enabled: m.course?.is_enabled ?? false, plan: m.course?.plan || "free" },
-      programming: { is_enabled: m.programming?.is_enabled ?? false, plan: m.programming?.plan || "free" },
+      exam_11408: { is_enabled: m.exam_11408?.is_enabled ?? false, plan: m.exam_11408?.plan || "free", status: m.exam_11408?.status || "disabled", expires_at: m.exam_11408?.expires_at || "" },
+      course_learning: { is_enabled: m.course_learning?.is_enabled ?? false, plan: m.course_learning?.plan || "free", status: m.course_learning?.status || "disabled", expires_at: m.course_learning?.expires_at || "" },
+      programming: { is_enabled: m.programming?.is_enabled ?? false, plan: m.programming?.plan || "free", status: m.programming?.status || "disabled", expires_at: m.programming?.expires_at || "" },
     });
     setEditingMemberUser(item);
   };
@@ -481,7 +757,7 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
       await getJson(`${API_BASE}/admin/users/${editingMemberUser.user_id || editingMemberUser.id}/memberships`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ admin_username: user.username, memberships: membershipForm }),
+        body: JSON.stringify({ memberships: membershipForm }),
       });
       setEditingMemberUser(null);
       await loadCurrentPage();
@@ -492,10 +768,92 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
     }
   };
 
+  const loadQuotaDetail = async (user) => {
+    setActionError("");
+    setActionSuccess("");
+    setQuotaOverrideError("");
+    setQuotaDetail(await getJson(`${API_BASE}/admin/quota/${user.user_id || user.id}`));
+  };
+
+  const openQuotaOverride = (serviceKey, quota) => {
+    setQuotaOverrideError("");
+    setQuotaOverrideTarget({ service_key: serviceKey, quota_key: quota.quota_key, label: quota.label, current: quota.override_limit });
+    setQuotaOverrideValue(quota.override_limit == null ? String(quota.effective_limit) : String(quota.override_limit));
+  };
+
+  const saveQuotaOverride = async () => {
+    if (!quotaDetail || !quotaOverrideTarget) return;
+    const limit = Number(quotaOverrideValue);
+    if (!Number.isInteger(limit) || limit < 0) {
+      setQuotaOverrideError("请输入非负整数");
+      return;
+    }
+    setActionLoading("quota-override");
+    setQuotaOverrideError("");
+    try {
+      await getJson(`${API_BASE}/admin/quota/${quotaDetail.user_id}/override`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          service_key: quotaOverrideTarget.service_key,
+          quota_key: quotaOverrideTarget.quota_key,
+          limit,
+        }),
+      });
+      setQuotaOverrideTarget(null);
+      setActionSuccess("额度覆盖已保存");
+      await loadQuotaDetail({ user_id: quotaDetail.user_id });
+    } catch (err) {
+      setQuotaOverrideError(err.message || "保存失败");
+    } finally {
+      setActionLoading("");
+    }
+  };
+
+  const deleteQuotaOverride = async (serviceKey, quotaKey) => {
+    if (!quotaDetail) return;
+    setActionError("");
+    setActionSuccess("");
+    setActionLoading(`del-${serviceKey}-${quotaKey}`);
+    try {
+      await getJson(
+        `${API_BASE}/admin/quota/${quotaDetail.user_id}/override?service_key=${encodeURIComponent(serviceKey)}&quota_key=${encodeURIComponent(quotaKey)}`,
+        { method: "DELETE" },
+      );
+      setActionSuccess("已删除覆盖，恢复套餐默认值");
+      await loadQuotaDetail({ user_id: quotaDetail.user_id });
+    } catch (err) {
+      setActionError(err.message || "删除失败");
+    } finally {
+      setActionLoading("");
+    }
+  };
+
   const SERVICE_LABELS = {
-    exam_11408: { name: "11408 考研", plans: { free: "普通用户", monthly: "月度冲刺包", quarterly: "季度强化包", full: "全程备考包" } },
-    course: { name: "课程学习", plans: { free: "普通用户", monthly: "月度学习包", quarterly: "季度学习包", full: "全程学习包" } },
-    programming: { name: "编程能力提升", plans: { free: "免费版", monthly: "编程进阶月卡", quarterly: "实验与算法强化季卡", full: "编程全能年卡" } },
+    exam_11408: { name: "11408 考研" }, course_learning: { name: "课程学习" }, programming: { name: "编程能力提升" },
+  };
+  const memberUsers = useMemo(() => {
+    const grouped = new Map();
+    (membersData?.items || []).forEach((item) => {
+      const key = String(item.user_id);
+      const user = grouped.get(key) || { user_id: item.user_id, username: item.username, nickname: item.nickname, memberships: {} };
+      user.memberships[item.service_key] = item;
+      grouped.set(key, user);
+    });
+    return [...grouped.values()];
+  }, [membersData]);
+
+  const membershipState = (membership) => {
+    if (!membership || membership.plan === "free") return { label: "免费", tone: "muted" };
+    if (membership.is_expired) return { label: "已过期", tone: "danger" };
+    if (!membership.is_enabled || membership.status === "disabled") return { label: "已停用", tone: "muted" };
+    if (membership.current_is_effective) return { label: "有效会员", tone: "ok" };
+    return { label: "未生效", tone: "warning" };
+  };
+
+  const membershipCell = (membership) => {
+    const state = membershipState(membership);
+    return <><span>{zhPlan(membership?.plan)}</span><StatusBadge tone={state.tone}>{state.label}</StatusBadge></>;
   };
 
   const renderDashboard = () => (
@@ -517,9 +875,12 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
         <div className="admin-dashboard-card admin-dashboard-chart-card">
           <div className="admin-dashboard-card-head">
             <h2>用户增长趋势</h2>
-            <span className="admin-dashboard-filter">近7天</span>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button type="button" className={growthDays === 7 ? "admin-dashboard-primary-action" : ""} onClick={() => setGrowthDays(7)}>近7天</button>
+              <button type="button" className={growthDays === 30 ? "admin-dashboard-primary-action" : ""} onClick={() => setGrowthDays(30)}>近30天</button>
+            </div>
           </div>
-          <TrendChart data={dashboard?.user_growth || []} emptyDescription="有用户注册数据后会展示近 7 天趋势。" />
+          <TrendChart data={(dashboard?.user_growth || []).slice(-growthDays)} emptyDescription="该时间范围暂无数据" />
         </div>
 
         <div className="admin-dashboard-card admin-dashboard-chart-card">
@@ -527,7 +888,7 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
             <h2>AI 使用趋势</h2>
             <span className="admin-dashboard-filter">近7天</span>
           </div>
-          <TrendChart data={dashboard?.ai_usage_trend || []} emptyDescription="有 AI 调用记录后会展示近 7 天趋势。" />
+          <TrendChart data={dashboard?.ai_usage_trend || []} emptyDescription="该时间范围暂无数据" />
         </div>
       </section>
 
@@ -645,42 +1006,209 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
     </AdminPageCard>
   );
 
-  const renderUsers = () => (
-    <AdminPageCard title="用户管理" subtitle="管理用户账号、状态和权限">
-      <div className="admin-dashboard-toolbar">
-        <input
-          value={userKeyword}
-          placeholder="按用户名 / 昵称 / 邮箱搜索"
-          onChange={(e) => setUserKeyword(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") loadCurrentPage(); }}
+  const renderUsers = () => {
+    const total = usersData?.total || 0;
+    const totalPages = usersData?.total_pages || Math.max(1, Math.ceil(total / userPageSize));
+    const pageIds = (usersData?.items || []).map((u) => u.user_id).filter(Boolean);
+    const allSelected = pageIds.length > 0 && pageIds.every((id) => selectedUsers.includes(id));
+    return (
+      <AdminPageCard title="用户管理" subtitle="管理用户账号、状态和权限">
+        <div className="admin-dashboard-toolbar">
+          <input
+            value={userKeyword}
+            placeholder="按用户名 / 昵称 / 邮箱搜索"
+            onChange={(e) => setUserKeyword(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { setUserPage(1); loadCurrentPage(); } }}
+          />
+          <select value={userStatus} onChange={(e) => { setUserStatus(e.target.value); setUserPage(1); }}>
+            <option value="all">全部</option>
+            <option value="normal">正常</option>
+            <option value="banned">已封禁</option>
+          </select>
+          <button type="button" onClick={() => { setUserPage(1); loadCurrentPage(); }}>搜索</button>
+        </div>
+        {actionError && <div className="admin-dashboard-error">{actionError}</div>}
+        {actionSuccess && <div className="admin-dashboard-success">{actionSuccess}</div>}
+        {selectedUsers.length > 0 && (
+          <div className="admin-dashboard-toolbar" style={{ background: "#f5f3ff", borderRadius: 8, padding: 8 }}>
+            <span>已选 {selectedUsers.length} 个用户</span>
+            <button type="button" onClick={() => batchAction("ban")} disabled={!!actionLoading}>批量封禁</button>
+            <button type="button" onClick={() => batchAction("unban")} disabled={!!actionLoading}>批量解封</button>
+            {isSuperAdmin && <button type="button" className="danger" onClick={() => batchAction("delete")} disabled={!!actionLoading}>批量删除</button>}
+          </div>
+        )}
+        <UsersTable
+          rows={usersData?.items || []}
+          onBan={banUser} onUnban={unbanUser} onDelete={isSuperAdmin ? deleteUser : null}
+          onEditMembership={openMembershipEditor}
+          actionLoading={actionLoading}
+          selectable
+          selectedUsers={selectedUsers}
+          allSelected={allSelected}
+          onToggleSelect={toggleSelectUser}
+          onToggleSelectAll={toggleSelectAll}
         />
-        <select value={userStatus} onChange={(e) => setUserStatus(e.target.value)}>
-          <option value="all">全部</option>
-          <option value="normal">正常</option>
-          <option value="banned">已封禁</option>
-        </select>
-        <button type="button" onClick={loadCurrentPage}>刷新</button>
-      </div>
-      {actionError && <div className="admin-dashboard-error">{actionError}</div>}
-      <UsersTable rows={usersData?.items || []} onBan={banUser} onUnban={unbanUser} onDelete={deleteUser} onEditMembership={openMembershipEditor} actionLoading={actionLoading} />
-      {editingMemberUser && (
-        <MembershipEditModal
-          user={editingMemberUser}
-          form={membershipForm}
-          onChange={setMembershipForm}
-          onSave={saveMemberships}
-          onClose={() => setEditingMemberUser(null)}
-          loading={actionLoading === "membership"}
-        />
-      )}
-    </AdminPageCard>
-  );
+        <div className="admin-dashboard-toolbar" style={{ justifyContent: "space-between" }}>
+          <span style={{ color: "#64748b" }}>共 {total} 个用户 · 第 {userPage} / {totalPages} 页</span>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <select value={userPageSize} onChange={(e) => { setUserPageSize(Number(e.target.value)); setUserPage(1); }}>
+              <option value={20}>每页 20</option>
+              <option value={50}>每页 50</option>
+              <option value={100}>每页 100</option>
+            </select>
+            <button type="button" disabled={userPage <= 1} onClick={() => setUserPage((p) => p - 1)}>上一页</button>
+            <button type="button" disabled={userPage >= totalPages} onClick={() => setUserPage((p) => p + 1)}>下一页</button>
+          </div>
+        </div>
+        {editingMemberUser && (
+          <MembershipEditModal
+            user={editingMemberUser}
+            form={membershipForm}
+            onChange={setMembershipForm}
+            onSave={saveMemberships}
+            onClose={() => setEditingMemberUser(null)}
+            loading={actionLoading === "membership"}
+            catalog={membershipCatalog}
+          />
+        )}
+      </AdminPageCard>
+    );
+  };
 
-  const renderOrders = () => (
-    <AdminPageCard title="订单管理" subtitle="查看用户订单和支付记录。">
-      <EmptyState title="暂无订单数据" description="当前项目暂未接入真实订单或支付记录接口。" />
-    </AdminPageCard>
-  );
+  const viewOrder = (item) => setOrderDetail(item);
+
+  const cancelOrder = async (item) => {
+    if (!window.confirm(`确认取消订单 #${item.id}（${zhServiceKey(item.service_key)} / ${zhPlan(item.target_plan)}）吗？`)) return;
+    setActionError("");
+    setActionLoading(`cancel-order-${item.id}`);
+    try {
+      await getJson(`${API_BASE}/admin/orders/${item.id}/cancel`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      await loadCurrentPage();
+    } catch (err) {
+      setActionError(err.message || "取消失败");
+    } finally {
+      setActionLoading("");
+    }
+  };
+
+  const refundOrder = async (item) => {
+    if (!window.confirm(`确认退款订单 #${item.id}（${zhServiceKey(item.service_key)} / ${zhPlan(item.target_plan)}，金额 ¥${item.amount_yuan}）吗？退款后用户会员将按剩余订单重新计算。`)) return;
+    setActionError("");
+    setActionSuccess("");
+    setActionLoading(`refund-order-${item.id}`);
+    try {
+      await getJson(`${API_BASE}/admin/orders/${item.id}/refund`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: "管理员退款" }),
+      });
+      setActionSuccess("订单已退款");
+      await loadCurrentPage();
+    } catch (err) {
+      setActionError(err.message || "退款失败");
+    } finally {
+      setActionLoading("");
+    }
+  };
+
+  const renderOrders = () => {
+    const total = ordersData?.total || 0;
+    const totalPages = ordersData?.total_pages || Math.max(1, Math.ceil(total / orderPageSize));
+    const orders = ordersData?.items || [];
+    return (
+      <AdminPageCard title="订单管理" subtitle="查看会员订单、支付与权益授予情况。">
+        <div className="admin-dashboard-toolbar">
+          <input value={orderKeyword} placeholder="按用户名 / 昵称 / 订单号 / ID 搜索" onChange={(e) => setOrderKeyword(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { setOrderPage(1); loadCurrentPage(); } }} />
+          <select value={orderService} onChange={(e) => { setOrderService(e.target.value); setOrderPage(1); }}>
+            <option value="">全部方向</option>
+            <option value="exam_11408">11408 考研</option>
+            <option value="course_learning">课程学习</option>
+            <option value="programming">编程学习</option>
+          </select>
+          <select value={orderStatusFilter} onChange={(e) => { setOrderStatusFilter(e.target.value); setOrderPage(1); }}>
+            <option value="">全部状态</option>
+            <option value="pending">待支付</option>
+            <option value="paid">已支付</option>
+            <option value="cancelled">已取消</option>
+            <option value="expired">已过期</option>
+          </select>
+          <button type="button" onClick={() => { setOrderPage(1); loadCurrentPage(); }}>查询</button>
+          <button type="button" onClick={() => { setOrderKeyword(""); setOrderService(""); setOrderStatusFilter(""); setOrderPage(1); setTimeout(loadCurrentPage, 0); }}>重置</button>
+        </div>
+        {actionError && <div className="admin-dashboard-error">{actionError}</div>}
+        {actionSuccess && <div className="admin-dashboard-success">{actionSuccess}</div>}
+        {orders.length > 0 ? (
+          <DataTable
+            columns={["订单", "用户", "业务方向", "套餐", "金额", "支付方式", "状态", "创建时间", "操作"]}
+            rows={orders.map((item) => [
+              <><strong>#{item.id}</strong>{item.order_no ? <small style={{ display: "block", color: "#64748b" }}>{item.order_no}</small> : <small style={{ display: "block", color: "#94a3b8" }}>（历史订单无编号）</small>}</>,
+              <>{item.nickname || item.username}<small style={{ display: "block", color: "#64748b" }}>ID {item.user_id}</small></>,
+              zhServiceKey(item.service_key),
+              zhPlan(item.target_plan),
+              `¥${formatNumber(item.amount_yuan, 2)}`,
+              item.is_mock ? <StatusBadge tone="muted">模拟支付</StatusBadge> : zhProvider(item.payment_provider),
+              <StatusBadge tone={item.status === "paid" ? "ok" : item.status === "cancelled" ? "muted" : "warning"}>{zhOrderStatus(item.refund_status === "refunded" ? "refunded" : item.status)}</StatusBadge>,
+              formatDateTime(item.created_at),
+              <div className="admin-dashboard-actions">
+                <button type="button" onClick={() => viewOrder(item)}>详情</button>
+                {item.status === "pending" && <button type="button" className="warning" disabled={actionLoading === `cancel-order-${item.id}`} onClick={() => cancelOrder(item)}>取消</button>}
+                {item.status === "paid" && item.refund_status !== "refunded" && <button type="button" className="danger" disabled={actionLoading === `refund-order-${item.id}`} onClick={() => refundOrder(item)}>退款</button>}
+              </div>,
+            ])}
+          />
+        ) : (
+          <EmptyState title="暂无订单记录" description="当前没有符合条件的订单。" />
+        )}
+        <div className="admin-dashboard-toolbar" style={{ justifyContent: "space-between" }}>
+          <span style={{ color: "#64748b" }}>共 {total} 笔订单 · 第 {orderPage} / {totalPages} 页</span>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <select value={orderPageSize} onChange={(e) => { setOrderPageSize(Number(e.target.value)); setOrderPage(1); }}>
+              <option value={20}>每页 20</option>
+              <option value={50}>每页 50</option>
+              <option value={100}>每页 100</option>
+            </select>
+            <button type="button" disabled={orderPage <= 1} onClick={() => setOrderPage((p) => p - 1)}>上一页</button>
+            <button type="button" disabled={orderPage >= totalPages} onClick={() => setOrderPage((p) => p + 1)}>下一页</button>
+          </div>
+        </div>
+        {orderDetail && (
+          <div className="admin-dashboard-modal-backdrop" role="presentation" onClick={() => setOrderDetail(null)}>
+            <div className="admin-dashboard-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+              <div className="admin-dashboard-modal-head">
+                <h3>订单详情 #{orderDetail.id}</h3>
+                <button type="button" onClick={() => setOrderDetail(null)}>×</button>
+              </div>
+              {orderDetail.is_mock && <div className="admin-dashboard-error" style={{ margin: "8px 0" }}>模拟支付订单，仅用于当前测试流程，不代表真实商业收款。</div>}
+              <div className="admin-dashboard-card-head admin-dashboard-inner-head"><h2>订单信息</h2></div>
+              <DataTable columns={["字段", "值"]} rows={[
+                ["订单号", orderDetail.order_no || "（历史订单无编号）"],
+                ["用户", `${orderDetail.nickname || orderDetail.username}（ID ${orderDetail.user_id}）`],
+                ["业务方向", zhServiceKey(orderDetail.service_key)],
+                ["套餐", zhPlan(orderDetail.target_plan)],
+                ["创建时间", formatDateTime(orderDetail.created_at)],
+                ["订单状态", zhOrderStatus(orderDetail.status)],
+              ]} />
+              <div className="admin-dashboard-card-head admin-dashboard-inner-head"><h2>支付信息</h2></div>
+              <DataTable columns={["字段", "值"]} rows={[
+                ["支付方式", orderDetail.is_mock ? "模拟支付" : zhProvider(orderDetail.payment_provider)],
+                ["标价", orderDetail.list_price_yuan != null ? `¥${formatNumber(orderDetail.list_price_yuan, 2)}` : "—"],
+                ["实付金额", orderDetail.paid_amount_yuan != null ? `¥${formatNumber(orderDetail.paid_amount_yuan, 2)}` : "—"],
+                ["支付时间", formatDateTime(orderDetail.paid_at)],
+                ["退款状态", orderDetail.refund_status ? zhOrderStatus(orderDetail.refund_status) : "—"],
+              ]} />
+              <div className="admin-dashboard-card-head admin-dashboard-inner-head"><h2>权益授予</h2></div>
+              <DataTable columns={["字段", "值"]} rows={[
+                ["是否生成 MembershipGrant", orderDetail.grant?.granted ? "已授予" : "未生成"],
+                ["授予方向", orderDetail.grant?.granted ? zhServiceKey(orderDetail.service_key) : "—"],
+                ["授予套餐", orderDetail.grant?.granted ? zhPlan(orderDetail.grant.new_plan) : "—"],
+                ["权益有效期", orderDetail.grant?.granted ? formatDateTime(orderDetail.grant.new_expiry) : formatDateTime(orderDetail.membership_expires_at)],
+              ]} />
+            </div>
+          </div>
+        )}
+      </AdminPageCard>
+    );
+  };
 
   const renderRedemptionCodes = () => {
     const planOptions = redemptionForm.service_key === "exam_11408"
@@ -730,20 +1258,22 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
             <option value="all">全部</option><option value="active">有效</option><option value="exhausted">已用完</option><option value="expired">已过期</option><option value="revoked">已撤销</option>
           </select>
         </div>
-        <div className="admin-dashboard-form-grid">
-          <label>服务方向<select value={redemptionForm.service_key} onChange={(e) => { updateForm("service_key", e.target.value); updateForm("target_plan", e.target.value === "exam_11408" ? "monthly_sprint" : "monthly"); }}><option value="exam_11408">11408</option><option value="course_learning">课程学习</option><option value="programming">编程</option></select></label>
-          <label>目标套餐<select value={redemptionForm.target_plan} onChange={(e) => updateForm("target_plan", e.target.value)}>{planOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-          <label>会员时长（天）<input type="number" min="1" max="3650" value={redemptionForm.membership_duration_days} onChange={(e) => updateForm("membership_duration_days", e.target.value)} /></label>
-          <label>兑换码有效期<input type="datetime-local" value={redemptionForm.code_expires_at} onChange={(e) => updateForm("code_expires_at", e.target.value)} /></label>
-          <label>每码最大兑换次数<input type="number" min="1" max="100000" value={redemptionForm.max_redemptions} onChange={(e) => updateForm("max_redemptions", e.target.value)} /></label>
-          <label>创建数量<input type="number" min="1" max="100" value={redemptionForm.count} onChange={(e) => updateForm("count", e.target.value)} /></label>
-          <label>备注<input value={redemptionForm.note} onChange={(e) => updateForm("note", e.target.value)} /></label>
-          <button type="button" className="admin-dashboard-primary-action" onClick={createCodes}>创建兑换码</button>
-        </div>
+        {isSuperAdmin && (
+          <div className="admin-dashboard-form-grid">
+            <label>服务方向<select value={redemptionForm.service_key} onChange={(e) => { updateForm("service_key", e.target.value); updateForm("target_plan", e.target.value === "exam_11408" ? "monthly_sprint" : "monthly"); }}><option value="exam_11408">11408 考研</option><option value="course_learning">课程学习</option><option value="programming">编程学习</option></select></label>
+            <label>目标套餐<select value={redemptionForm.target_plan} onChange={(e) => updateForm("target_plan", e.target.value)}>{planOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+            <label>会员时长（天）<input type="number" min="1" max="3650" value={redemptionForm.membership_duration_days} onChange={(e) => updateForm("membership_duration_days", e.target.value)} /></label>
+            <label>兑换码有效期<input type="datetime-local" value={redemptionForm.code_expires_at} onChange={(e) => updateForm("code_expires_at", e.target.value)} /></label>
+            <label>每码最大兑换次数<input type="number" min="1" max="100000" value={redemptionForm.max_redemptions} onChange={(e) => updateForm("max_redemptions", e.target.value)} /></label>
+            <label>创建数量<input type="number" min="1" max="100" value={redemptionForm.count} onChange={(e) => updateForm("count", e.target.value)} /></label>
+            <label>备注<input value={redemptionForm.note} onChange={(e) => updateForm("note", e.target.value)} /></label>
+            <button type="button" className="admin-dashboard-primary-action" onClick={createCodes}>创建兑换码</button>
+          </div>
+        )}
         {createdRedemptionCodes.length > 0 && <div className="admin-dashboard-success" style={{ marginTop: 16 }}><strong>本次新建明文（离开页面后不再展示）：</strong>{createdRedemptionCodes.map((item) => <div key={item.id} style={{ display: "flex", justifyContent: "space-between", gap: 12, marginTop: 6 }}><code>{item.code}</code><button type="button" onClick={() => navigator.clipboard?.writeText(item.code)}>复制</button></div>)}</div>}
         {redemptionDetail && <div className="admin-dashboard-card" style={{ margin: "16px 0" }}><div className="admin-dashboard-card-head"><h2>兑换码使用明细</h2><button type="button" onClick={() => setRedemptionDetail(null)}>关闭</button></div><p>{redemptionDetail.code?.service_key} / {redemptionDetail.code?.target_plan} · {redemptionDetail.code?.redeemed_count}/{redemptionDetail.code?.max_redemptions}</p>{(redemptionDetail.usage || []).length ? <DataTable columns={["用户", "兑换时间"]} rows={redemptionDetail.usage.map((row) => [row.username || row.user_id, formatDateTime(row.redeemed_at)])} /> : <EmptyState title="暂无兑换记录" description="该兑换码尚未被使用。" />}</div>}
         <DataTable columns={["服务方向", "目标套餐", "会员时长", "有效期", "使用情况", "状态", "操作"]} rows={redemptionCodes.map((item) => [
-          item.service_key || "-", item.target_plan || "-", `${item.membership_duration_days || 0} 天`, formatDateTime(item.code_expires_at), `${item.redeemed_count}/${item.max_redemptions}`, item.status,
+          zhServiceKey(item.service_key), zhPlan(item.target_plan), `${item.membership_duration_days || 0} 天`, formatDateTime(item.code_expires_at), `${item.redeemed_count}/${item.max_redemptions}`, zhStatus(item.status),
           <div className="admin-dashboard-actions"><button type="button" onClick={() => viewCode(item.id)}>查看</button><button type="button" className="warning" disabled={item.status !== "active"} onClick={() => revokeCode(item.id)}>撤销</button></div>,
         ])} />
       </AdminPageCard>
@@ -752,74 +1282,281 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
 
   const renderMembers = () => (
     <AdminPageCard title="会员管理" subtitle="管理用户会员、套餐和有效期。">
-      {memberRows.length > 0 ? (
+      <div className="admin-dashboard-toolbar">
+        <input
+          value={memberKeyword}
+          placeholder="按用户 ID / 用户名 / 昵称搜索"
+          onChange={(e) => setMemberKeyword(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") loadCurrentPage(); }}
+        />
+        <button type="button" onClick={loadCurrentPage}>搜索</button>
+        <button type="button" onClick={() => { setMemberKeyword(""); setTimeout(loadCurrentPage, 0); }}>重置</button>
+      </div>
+      {memberUsers.length > 0 ? (
         <DataTable
-          columns={["用户", "套餐", "到期时间", "管理员角色", "状态"]}
-          rows={memberRows.map((item) => [
-            displayUserName(item),
-            item.plan || "free",
-            formatDateTime(item.plan_expires_at),
-            item.admin_role_label || item.admin_role || "-",
-            item.is_active === 0 ? "已停用" : "正常",
+          columns={["用户", "11408", "课程学习", "编程", "操作"]}
+          rows={memberUsers.map((item) => [
+            <>{item.nickname || item.username}<small style={{ display: "block", color: "#64748b" }}>ID {item.user_id}</small></>,
+            membershipCell(item.memberships.exam_11408),
+            membershipCell(item.memberships.course_learning),
+            membershipCell(item.memberships.programming),
+            <button type="button" onClick={() => openMembershipEditor(item)}>管理</button>,
           ])}
         />
       ) : (
-        <EmptyState title="暂无会员数据" description="当前没有专业版或管理员套餐用户。" />
+        <EmptyState title="暂无会员数据" description="调整筛选条件后重试。" />
       )}
+      {editingMemberUser && <MembershipEditModal user={editingMemberUser} form={membershipForm} onChange={setMembershipForm} onSave={saveMemberships} onClose={() => setEditingMemberUser(null)} loading={actionLoading === "membership"} catalog={membershipCatalog} />}
     </AdminPageCard>
   );
 
-  const renderQuota = () => (
-    <AdminPageCard title="额度管理" subtitle="查看用户套餐、AI 调用额度和累计使用情况。">
-      {(quota?.items || []).length > 0 ? (
+  const quotaUnitLabel = (q) => {
+    if (q.period === "每天") return `${q.unit} / 每天`;
+    if (q.period === "单文件") return `${q.unit} / 单文件`;
+    if (q.period === "总容量") return `${q.unit} / 总容量`;
+    return q.unit || "";
+  };
+
+  const quotaValueLabel = (value, unit, digits = 0) => {
+    if (value == null) return "—";
+    const suffix = unit === "次" ? " 次" : ` ${unit}`;
+    return `${formatNumber(value, digits)}${suffix}`;
+  };
+
+  const quotaPlanBadge = (sk, plan) => {
+    const labels = { exam_11408: "11408", course_learning: "课程学习", programming: "编程" };
+    const planLabels = { free: "免费", monthly: "月度", quarterly: "季度", full: "全程", monthly_sprint: "月度冲刺", quarterly_boost: "季度强化", full_exam: "全程考包" };
+    return (
+      <span className="adm-membership-badge" title={labels[sk] || sk}>
+        {planLabels[plan] || plan || "free"}
+      </span>
+    );
+  };
+
+  const quotaOverrideModal = quotaOverrideTarget ? (
+    <div className="admin-dashboard-modal-backdrop" role="presentation">
+      <div className="admin-dashboard-modal" role="dialog" aria-modal="true">
+        <div className="admin-dashboard-modal-head">
+          <h3>设置额度覆盖</h3>
+          <button type="button" onClick={() => setQuotaOverrideTarget(null)}>×</button>
+        </div>
+        {quotaOverrideError && <div className="admin-dashboard-error admin-dashboard-modal-error">{quotaOverrideError}</div>}
+        <label>
+          覆盖对象
+          <input value={`${quotaOverrideTarget.service_key} · ${quotaOverrideTarget.label}`} disabled />
+        </label>
+        <label>
+          覆盖额度（0 表示该额度归零）
+          <input type="number" min="0" step="1" value={quotaOverrideValue}
+            onChange={(e) => setQuotaOverrideValue(e.target.value)} />
+        </label>
+        <div className="admin-dashboard-modal-actions">
+          <button type="button" onClick={() => setQuotaOverrideTarget(null)}>取消</button>
+          <button type="button" className="admin-dashboard-primary-action"
+            disabled={actionLoading === "quota-override"} onClick={saveQuotaOverride}>
+            {actionLoading === "quota-override" ? "保存中..." : "保存"}
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  const renderQuota = () => {
+    if (quotaDetail) {
+      return (
+        <AdminPageCard
+          title="额度管理"
+          subtitle={`${quotaDetail.nickname || quotaDetail.username}（ID ${quotaDetail.user_id}）的三方向额度明细`}
+          action={<button type="button" onClick={() => { setQuotaDetail(null); setQuotaOverrideTarget(null); }}>← 返回用户列表</button>}
+        >
+          {actionError && <div className="admin-dashboard-error">{actionError}</div>}
+          {actionSuccess && <div className="admin-dashboard-success">{actionSuccess}</div>}
+          {(quotaDetail.services || []).map((svc) => (
+            <div key={svc.service_key} className="admin-dashboard-card-head admin-dashboard-inner-head">
+              <h2>{svc.service_label} · 当前套餐：{svc.plan_label || svc.plan}</h2>
+              <div className="admin-dashboard-table-wrap" style={{ marginTop: 8 }}>
+                <table className="admin-dashboard-table">
+                  <thead>
+                    <tr>{["额度项", "套餐默认", "用户覆盖", "生效额度", "已用", "剩余", "单位 / 周期", "操作"].map((c) => <th key={c}>{c}</th>)}</tr>
+                  </thead>
+                  <tbody>
+                    {(svc.quotas || []).map((q) => {
+                      const isMb = q.unit === "MB";
+                      const digits = isMb ? 2 : 0;
+                      return (
+                        <tr key={q.quota_key}>
+                          <td>
+                            <strong>{q.label}</strong>
+                            <small style={{ display: "block", color: "#64748b" }}>{q.quota_key}</small>
+                          </td>
+                          <td>{quotaValueLabel(q.default_limit, q.unit, digits)}</td>
+                          <td>
+                            {q.has_override ? (
+                              <><StatusBadge tone="ok">覆盖中</StatusBadge><small style={{ display: "block" }}>{quotaValueLabel(q.override_limit, q.unit, digits)}</small></>
+                            ) : "—"}
+                          </td>
+                          <td><strong>{quotaValueLabel(q.effective_limit, q.unit, digits)}</strong></td>
+                          <td>{quotaValueLabel(q.used, q.unit, digits)}</td>
+                          <td>{quotaValueLabel(q.remaining, q.unit, digits)}</td>
+                          <td>{quotaUnitLabel(q)}</td>
+                          <td>
+                            <div className="admin-dashboard-actions">
+                              <button type="button" disabled={!!actionLoading}
+                                onClick={() => openQuotaOverride(svc.service_key, q)}>
+                                {q.has_override ? "修改" : "设置"}
+                              </button>
+                              {q.has_override && (
+                                <button type="button" className="danger"
+                                  disabled={actionLoading === `del-${svc.service_key}-${q.quota_key}`}
+                                  onClick={() => deleteQuotaOverride(svc.service_key, q.quota_key)}>
+                                  删除
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+          {quotaOverrideModal}
+        </AdminPageCard>
+      );
+    }
+
+    return (
+      <AdminPageCard title="额度管理" subtitle="按用户 → 业务方向 → 额度 查看并设置个性化覆盖。">
+        <div className="admin-dashboard-toolbar">
+          <input
+            value={quotaKeyword}
+            placeholder="按用户 ID / 用户名 / 昵称搜索"
+            onChange={(e) => setQuotaKeyword(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") loadCurrentPage(); }}
+          />
+          <button type="button" onClick={loadCurrentPage}>搜索</button>
+          <button type="button" onClick={() => { setQuotaKeyword(""); setTimeout(loadCurrentPage, 0); }}>重置</button>
+        </div>
+        {actionError && <div className="admin-dashboard-error">{actionError}</div>}
+        {(quota?.items || []).length > 0 ? (
+          <DataTable
+            columns={["用户", "11408", "课程学习", "编程", "操作"]}
+            rows={quota.items.map((item) => [
+              <>{item.nickname || item.username}<small style={{ display: "block", color: "#64748b" }}>ID {item.user_id}</small></>,
+              quotaPlanBadge("exam_11408", item.memberships?.exam_11408),
+              quotaPlanBadge("course_learning", item.memberships?.course_learning),
+              quotaPlanBadge("programming", item.memberships?.programming),
+              <button type="button" onClick={() => loadQuotaDetail(item)}>查看额度</button>,
+            ])}
+          />
+        ) : (
+          <EmptyState title="暂无额度数据" description="调整筛选条件后重试。" />
+        )}
+        {quotaOverrideModal}
+      </AdminPageCard>
+    );
+  };
+
+  const fmtBytes = (bytes) => {
+    const b = Number(bytes || 0);
+    if (b < 1024 * 1024) return `${formatNumber(b / 1024, 1)} KB`;
+    if (b < 1024 * 1024 * 1024) return `${formatNumber(b / 1024 / 1024, 1)} MB`;
+    return `${formatNumber(b / 1024 / 1024 / 1024, 2)} GB`;
+  };
+  const DOMAIN_LABELS = { exam_11408: "11408 考研", course_learning: "课程学习", programming: "编程学习", legacy: "历史未归属" };
+  const TICKET_LABELS = { pending: "待处理", in_progress: "处理中", waiting_confirmation: "等待用户确认", resolved: "已解决", closed: "已关闭" };
+
+  const renderStatistics = () => {
+    const s = statisticsData || {};
+    const users = s.users || {};
+    const memberships = s.memberships || {};
+    const materials = s.materials || {};
+    const tickets = s.tickets || {};
+    const orders = s.orders || {};
+    return (
+      <AdminPageCard title="数据统计" subtitle="平台业务运营数据（用户 / 会员 / 资料 / 客服 / 模拟订单）。">
+        <div className="admin-dashboard-card-head admin-dashboard-inner-head"><h2>用户</h2></div>
+        <div className="admin-dashboard-mini-stats">
+          <div><span>普通用户总数</span><strong>{formatNumber(users.total)}</strong></div>
+          <div><span>正常用户</span><strong>{formatNumber(users.active)}</strong></div>
+          <div><span>封禁用户</span><strong>{formatNumber(users.banned)}</strong></div>
+          <div><span>近 7 天新增</span><strong>{formatNumber(users.new_7_days)}</strong></div>
+          <div><span>近 30 天新增</span><strong>{formatNumber(users.new_30_days)}</strong></div>
+        </div>
+        <div className="admin-dashboard-card-head admin-dashboard-inner-head"><h2>有效付费会员</h2></div>
+        <div className="admin-dashboard-mini-stats">
+          <div><span>去重付费用户</span><strong>{formatNumber(memberships.paid_users)}</strong></div>
+          <div><span>11408 会员</span><strong>{formatNumber(memberships.directions?.exam_11408)}</strong></div>
+          <div><span>课程学习会员</span><strong>{formatNumber(memberships.directions?.course_learning)}</strong></div>
+          <div><span>编程学习会员</span><strong>{formatNumber(memberships.directions?.programming)}</strong></div>
+        </div>
+        <div className="admin-dashboard-card-head admin-dashboard-inner-head"><h2>资料</h2></div>
         <DataTable
-          columns={["用户", "套餐", "日额度", "月额度", "累计调用", "到期时间"]}
-          rows={quota.items.map((item) => [
-            displayUserName(item),
-            item.plan || "free",
-            item.daily_ai_limit < 0 ? "不限" : formatNumber(item.daily_ai_limit),
-            item.monthly_ai_limit < 0 ? "不限" : formatNumber(item.monthly_ai_limit),
-            formatNumber(item.total_ai_calls),
-            formatDateTime(item.plan_expires_at),
-          ])}
+          columns={["业务方向", "文件数量", "总容量"]}
+          rows={["exam_11408", "course_learning", "programming", "legacy"].map((d) => [DOMAIN_LABELS[d] || d, formatNumber(materials[d]?.count), fmtBytes(materials[d]?.bytes)])}
         />
-      ) : (
-        <EmptyState title="暂无额度数据" description="用户数据初始化后会展示额度概况。" />
-      )}
-    </AdminPageCard>
-  );
-
-  const renderStatistics = () => (
-    <AdminPageCard title="数据统计" subtitle="查看平台核心数据与近 7 天 AI 调用趋势。">
-      <div className="admin-dashboard-mini-stats">
-        <div><span>今日调用</span><strong>{formatNumber(usageSummary?.today_total)}</strong></div>
-        <div><span>总调用</span><strong>{formatNumber(usageSummary?.total_calls_all)}</strong></div>
-        <div><span>今日 Token</span><strong>{formatNumber(usageSummary?.today_tokens)}</strong></div>
-        <div><span>失败次数</span><strong>{formatNumber(usageSummary?.today_failed)}</strong></div>
-      </div>
-      <div className="admin-dashboard-card-head admin-dashboard-inner-head">
-        <h2>近 7 天 AI 调用趋势</h2>
-      </div>
-      <TrendChart data={(usageTrend?.items || []).map((item) => ({ date: item.date?.slice(5), count: item.count }))} />
-    </AdminPageCard>
-  );
+        <div className="admin-dashboard-card-head admin-dashboard-inner-head"><h2>客服工单</h2></div>
+        <div className="admin-dashboard-mini-stats">
+          {["pending", "in_progress", "waiting_confirmation", "resolved", "closed"].map((st) => (
+            <div key={st}><span>{TICKET_LABELS[st] || st}</span><strong>{formatNumber(tickets[st])}</strong></div>
+          ))}
+        </div>
+        <div className="admin-dashboard-card-head admin-dashboard-inner-head"><h2>模拟订单</h2></div>
+        <div className="admin-dashboard-mini-stats">
+          <div><span>订单总数</span><strong>{formatNumber(orders.total)}</strong></div>
+          <div><span>已支付</span><strong>{formatNumber(orders.paid)}</strong></div>
+          <div><span>已取消</span><strong>{formatNumber(orders.cancelled)}</strong></div>
+          <div><span>已退款</span><strong>{formatNumber(orders.refunded)}</strong></div>
+        </div>
+        <p style={{ color: "#64748b", fontSize: 13, marginTop: 8 }}>当前全部为模拟支付订单，不代表真实商业收款。</p>
+      </AdminPageCard>
+    );
+  };
 
   const renderUsage = () => {
     const featureStats = usageSummary?.feature_stats || {};
     const ranking = Object.entries(featureStats)
       .map(([feature, count]) => ({ feature, count }))
       .sort((a, b) => Number(b.count || 0) - Number(a.count || 0));
+    const serviceStats = usageSummary?.service_stats || {};
+    const SERVICE_OPTIONS = [
+      ["", "全部"],
+      ["exam_11408", "11408 考研"],
+      ["course_learning", "课程学习"],
+      ["programming", "编程学习"],
+      ["unknown", "历史未归属"],
+    ];
+    const SERVICE_DIRECTIONS = ["exam_11408", "course_learning", "programming", "unknown"];
+    const SERVICE_DIRECTION_LABELS = { exam_11408: "11408 考研", course_learning: "课程学习", programming: "编程学习", unknown: "历史未归属" };
     return (
-      <AdminPageCard title="AI 用量统计" subtitle="查看模型调用总量、趋势和功能调用排行。">
+      <AdminPageCard title="AI 用量统计" subtitle="按业务方向与功能统计 AI 调用（成功 / 失败 / 趋势）。">
+        <div className="admin-dashboard-toolbar">
+          <select value={aiServiceFilter} onChange={(e) => setAiServiceFilter(e.target.value)}>
+            {SERVICE_OPTIONS.map(([v, l]) => <option key={v || "all"} value={v}>{l}</option>)}
+          </select>
+          <select value={aiTrendDays} onChange={(e) => setAiTrendDays(Number(e.target.value))}>
+            <option value={7}>近 7 天</option>
+            <option value={30}>近 30 天</option>
+          </select>
+        </div>
         <div className="admin-dashboard-mini-stats">
           <div><span>总调用</span><strong>{formatNumber(usageSummary?.total_calls_all)}</strong></div>
           <div><span>成功调用</span><strong>{formatNumber(usageSummary?.total_success)}</strong></div>
           <div><span>失败调用</span><strong>{formatNumber(usageSummary?.total_failed)}</strong></div>
           <div><span>累计 Token</span><strong>{formatNumber(usageSummary?.total_tokens_all)}</strong></div>
         </div>
-        <TrendChart data={(usageTrend?.items || []).map((item) => ({ date: item.date?.slice(5), count: item.count }))} />
+        <div className="admin-dashboard-card-head admin-dashboard-inner-head"><h2>业务方向统计</h2></div>
+        <DataTable
+          columns={["业务方向", "成功", "失败"]}
+          rows={SERVICE_DIRECTIONS.map((d) => [SERVICE_DIRECTION_LABELS[d] || d, formatNumber(serviceStats[d]?.success), formatNumber(serviceStats[d]?.failed)])}
+        />
+        <div className="admin-dashboard-card-head admin-dashboard-inner-head"><h2>调用趋势</h2></div>
+        <TrendChart data={(usageTrend?.items || []).map((item) => ({ date: item.date?.slice(5), count: item.count }))} emptyDescription="该时间范围暂无数据" />
+        <div className="admin-dashboard-card-head admin-dashboard-inner-head"><h2>功能排行</h2></div>
         {ranking.length > 0 ? (
-          <DataTable columns={["功能", "调用次数"]} rows={ranking.map((item) => [item.feature, formatNumber(item.count)])} />
+          <DataTable columns={["功能", "调用次数"]} rows={ranking.map((item) => [zhFeature(item.feature), formatNumber(item.count)])} />
         ) : (
           <EmptyState title="暂无 AI 用量排行" description="产生 AI 调用后会展示功能使用排行。" />
         )}
@@ -827,35 +1564,196 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
     );
   };
 
-  const renderSettings = () => (
-    <AdminPageCard title="系统设置" subtitle="查看当前平台基础配置与功能开关。">
-      {(settings || []).length > 0 ? (
-        <DataTable
-          columns={["配置项", "当前值", "说明", "更新时间"]}
-          rows={settings.map((item) => [item.key, String(item.value ?? ""), item.description || "-", formatDateTime(item.updated_at)])}
-        />
-      ) : (
-        <EmptyState title="暂无设置项" description="系统设置初始化后会展示在这里。" />
-      )}
-    </AdminPageCard>
-  );
+  const renderSettings = () => {
+    const items = settings || [];
+    const categories = [...new Set(items.map((i) => i.category || "其他"))];
+    const isDirty = Object.keys(settingsDraft).length > 0;
+    const toggleSetting = (key, currentValue) => {
+      setSettingsDraft((prev) => ({ ...prev, [key]: currentValue === "true" ? "false" : "true" }));
+    };
+    const saveSettings = async () => {
+      setSettingsSaving(true);
+      setActionError("");
+      setActionSuccess("");
+      try {
+        await getJson(`${API_BASE}/admin/settings`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ updates: settingsDraft }),
+        });
+        setSettingsDraft({});
+        setActionSuccess("保存成功");
+        await loadCurrentPage();
+      } catch (err) {
+        setActionError(err.message || "保存失败");
+      } finally {
+        setSettingsSaving(false);
+      }
+    };
+    return (
+      <AdminPageCard title="系统设置" subtitle="管理平台功能开关，保存后立即生效。">
+        {actionError && <div className="admin-dashboard-error">{actionError}</div>}
+        {actionSuccess && <div className="admin-dashboard-success">{actionSuccess}</div>}
+        {isDirty && (
+          <div className="admin-dashboard-toolbar" style={{ background: "#f5f3ff", borderRadius: 8, padding: 8 }}>
+            <span>有未保存的修改</span>
+            <button type="button" disabled={settingsSaving} onClick={saveSettings}>{settingsSaving ? "保存中..." : "保存修改"}</button>
+            <button type="button" onClick={() => { setSettingsDraft({}); loadCurrentPage(); }}>取消</button>
+          </div>
+        )}
+        {items.length > 0 ? (
+          categories.map((cat) => (
+            <div key={cat} className="admin-dashboard-card-head admin-dashboard-inner-head">
+              <h2>{cat}</h2>
+              <div className="admin-dashboard-table-wrap" style={{ marginTop: 8 }}>
+                <table className="admin-dashboard-table">
+                  <thead><tr>{["配置项", "说明", "当前状态", "更新时间"].map((c) => <th key={c}>{c}</th>)}</tr></thead>
+                  <tbody>
+                    {items.filter((i) => (i.category || "其他") === cat).map((item) => {
+                      const val = settingsDraft[item.key] ?? item.value;
+                      const enabled = val === "true";
+                      return (
+                        <tr key={item.key}>
+                          <td><strong>{item.label || item.key}</strong><small style={{ display: "block", color: "#64748b" }}>{item.key}</small></td>
+                          <td>{item.description || "-"}</td>
+                          <td>
+                            <label className="adm-toggle">
+                              <input type="checkbox" checked={enabled} onChange={() => toggleSetting(item.key, val)} />
+                              <span className="adm-toggle-slider" />
+                              <span className="adm-toggle-label">{enabled ? "已开启" : "已关闭"}</span>
+                            </label>
+                          </td>
+                          <td>{formatDateTime(item.updated_at)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))
+        ) : (
+          <EmptyState title="暂无设置项" description="系统设置初始化后会展示在这里。" />
+        )}
+      </AdminPageCard>
+    );
+  };
 
-  const renderLogs = () => (
-    <AdminPageCard title="操作日志" subtitle="查看管理员操作审计记录。">
-      {(logs?.items || []).length > 0 ? (
+  const renderLogs = () => {
+    const total = logs?.total || 0;
+    const totalPages = logs?.total_pages || Math.max(1, Math.ceil(total / logPageSize));
+    return (
+      <AdminPageCard title="操作日志" subtitle="查看管理员操作审计记录。">
+        <div className="admin-dashboard-toolbar">
+          {isSuperAdmin && (
+            <input value={logActor} placeholder="按管理员用户名筛选" onChange={(e) => setLogActor(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { setLogPage(1); loadCurrentPage(); } }} />
+          )}
+          <input value={logAction} placeholder="按动作类型筛选" onChange={(e) => setLogAction(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { setLogPage(1); loadCurrentPage(); } }} />
+          <button type="button" onClick={() => { setLogPage(1); loadCurrentPage(); }}>查询</button>
+          <button type="button" onClick={() => { setLogActor(""); setLogAction(""); setLogPage(1); setTimeout(loadCurrentPage, 0); }}>重置</button>
+        </div>
+        {(logs?.items || []).length > 0 ? (
+          <DataTable
+            columns={["管理员", "动作", "目标", "结果", "时间", "IP", "操作"]}
+            rows={logs.items.map((item) => [
+              item.admin_username || "-",
+              zhAction(item.action),
+              item.target_username || item.target_id || item.target_type || "-",
+              <StatusBadge tone={item.result === "success" ? "ok" : "danger"}>{zhStatus(item.result) || item.result || "-"}</StatusBadge>,
+              formatDateTime(item.created_at),
+              item.ip || "-",
+              <button type="button" onClick={() => setLogDetail(item)}>详情</button>,
+            ])}
+          />
+        ) : (
+          <EmptyState title="暂无操作日志" description="产生管理员操作记录后会展示在这里。" />
+        )}
+        <div className="admin-dashboard-toolbar" style={{ justifyContent: "space-between" }}>
+          <span style={{ color: "#64748b" }}>共 {total} 条 · 第 {logPage} / {totalPages} 页</span>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <select value={logPageSize} onChange={(e) => { setLogPageSize(Number(e.target.value)); setLogPage(1); }}>
+              <option value={20}>每页 20</option>
+              <option value={50}>每页 50</option>
+              <option value={100}>每页 100</option>
+            </select>
+            <button type="button" disabled={logPage <= 1} onClick={() => setLogPage((p) => p - 1)}>上一页</button>
+            <button type="button" disabled={logPage >= totalPages} onClick={() => setLogPage((p) => p + 1)}>下一页</button>
+          </div>
+        </div>
+        {logDetail && (
+          <div className="admin-dashboard-modal-backdrop" role="presentation" onClick={() => setLogDetail(null)}>
+            <div className="admin-dashboard-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+              <div className="admin-dashboard-modal-head">
+                <h3>操作日志详情</h3>
+                <button type="button" onClick={() => setLogDetail(null)}>×</button>
+              </div>
+              <DataTable
+                columns={["字段", "值"]}
+                rows={[
+                  ["管理员", logDetail.admin_username || "-"],
+                  ["操作", zhAction(logDetail.action)],
+                  ["目标", logDetail.target_username || logDetail.target_id || logDetail.target_type || "-"],
+                  ["结果", zhStatus(logDetail.result) || logDetail.result || "-"],
+                  ["时间", formatDateTime(logDetail.created_at)],
+                  ["IP", logDetail.ip || "-"],
+                  ...logDetailRows(logDetail),
+                ]}
+              />
+            </div>
+          </div>
+        )}
+      </AdminPageCard>
+    );
+  };
+
+  const renderAdmins = () => (
+    <AdminPageCard title="管理员管理" subtitle="管理管理员账号（仅超级管理员可见）。">
+      <div className="admin-dashboard-toolbar">
+        <input value={adminKeyword} placeholder="按用户名 / 昵称搜索" onChange={(e) => setAdminKeyword(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") loadCurrentPage(); }} />
+        <button type="button" onClick={loadCurrentPage}>搜索</button>
+        <button type="button" onClick={() => { setAdminKeyword(""); setTimeout(loadCurrentPage, 0); }}>重置</button>
+        <button type="button" className="admin-dashboard-primary-action" style={{ marginLeft: "auto" }} onClick={() => { setAdminCreateError(""); setShowAdminCreate(true); }}>新增普通管理员</button>
+      </div>
+      {actionError && <div className="admin-dashboard-error">{actionError}</div>}
+      {actionSuccess && <div className="admin-dashboard-success">{actionSuccess}</div>}
+      {(adminsData?.items || []).length > 0 ? (
         <DataTable
-          columns={["管理员", "动作", "目标", "结果", "时间", "IP"]}
-          rows={logs.items.map((item) => [
-            item.admin_username || "-",
-            item.action || "-",
-            item.target_username || item.target_id || item.target_type || "-",
-            item.result || "-",
+          columns={["用户名", "昵称", "角色", "状态", "最近登录", "创建时间", "操作"]}
+          rows={adminsData.items.map((item) => [
+            item.username,
+            item.nickname || "-",
+            <StatusBadge tone={item.admin_role === "super_admin" ? "ok" : "muted"}>{item.admin_role_label || zhRole(item.admin_role)}</StatusBadge>,
+            item.is_active ? <StatusBadge tone="ok">正常</StatusBadge> : <StatusBadge tone="danger">已停用</StatusBadge>,
+            formatDateTime(item.last_login_at),
             formatDateTime(item.created_at),
-            item.ip || "-",
+            item.is_builtin_admin ? <span style={{ color: "#94a3b8" }}>内置</span> : (
+              <button type="button" disabled={actionLoading === `admin-status-${item.user_id}`} onClick={() => toggleAdminStatus(item)}>{item.is_active ? "停用" : "启用"}</button>
+            ),
           ])}
         />
       ) : (
-        <EmptyState title="暂无操作日志" description="产生管理员操作记录后会展示在这里。" />
+        <EmptyState title="暂无管理员数据" description="暂无其他管理员账号。" />
+      )}
+      {showAdminCreate && (
+        <div className="admin-dashboard-modal-backdrop" role="presentation" onClick={() => setShowAdminCreate(false)}>
+          <div className="admin-dashboard-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-dashboard-modal-head">
+              <h3>新增普通管理员</h3>
+              <button type="button" onClick={() => setShowAdminCreate(false)}>×</button>
+            </div>
+            {adminCreateError && <div className="admin-dashboard-error admin-dashboard-modal-error">{adminCreateError}</div>}
+            <label>管理员用户名<input value={adminCreateForm.username} onChange={(e) => setAdminCreateForm((p) => ({ ...p, username: e.target.value }))} /></label>
+            <label>初始密码<input type="password" value={adminCreateForm.password} onChange={(e) => setAdminCreateForm((p) => ({ ...p, password: e.target.value }))} /></label>
+            <label>确认密码<input type="password" value={adminCreateForm.confirm_password} onChange={(e) => setAdminCreateForm((p) => ({ ...p, confirm_password: e.target.value }))} /></label>
+            <label>昵称（可选）<input value={adminCreateForm.nickname} onChange={(e) => setAdminCreateForm((p) => ({ ...p, nickname: e.target.value }))} /></label>
+            <div className="admin-dashboard-modal-actions">
+              <button type="button" onClick={() => setShowAdminCreate(false)}>取消</button>
+              <button type="button" className="admin-dashboard-primary-action" disabled={actionLoading === "admin-create"} onClick={createAdmin}>
+                {actionLoading === "admin-create" ? "创建中..." : "创建"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </AdminPageCard>
   );
@@ -1141,6 +2039,7 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
     if (activePage === "adminUsage") return renderUsage();
     if (activePage === "adminSettings") return renderSettings();
     if (activePage === "adminLogs") return renderLogs();
+    if (activePage === "adminAdmins") return renderAdmins();
     if (activePage === "adminProfile") return renderProfile();
     return renderDashboard();
   };
@@ -1159,7 +2058,7 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
           {MENU_GROUPS.map((group) => (
             <div className="admin-dashboard-nav-group" key={group.title}>
               <p>{group.title}</p>
-              {group.items.map((item) => (
+              {group.items.filter((item) => item.page !== "adminAdmins" || isSuperAdmin).map((item) => (
                 <button
                   key={item.page}
                   className={`admin-dashboard-nav-item${activePage === item.page ? " active" : ""}`}
@@ -1182,13 +2081,9 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
 
       <main className="admin-dashboard-main">
         <header className="admin-dashboard-header">
-          <div>
-            <h1>{activeLabel}</h1>
-            <p>{activePage === "adminProfile" ? "管理您的个人信息、账号安全与绑定设置" : `欢迎回来，管理员！今天是 ${formatToday()}`}</p>
-          </div>
-          <button className="admin-dashboard-profile" type="button" onClick={() => navigate("adminProfile")}>
+          <button className="admin-dashboard-profile" type="button" onClick={() => navigate("adminProfile")} style={{ marginLeft: "auto" }}>
             <span className="admin-dashboard-avatar">管</span>
-            <strong>管理员</strong>
+            <strong>{adminRoleLabel}</strong>
             <span>⌄</span>
           </button>
         </header>
@@ -1237,21 +2132,23 @@ function StatusBadge({ tone = "ok", children }) {
   return <span className={`admin-dashboard-status admin-dashboard-status--${tone}`}>{children}</span>;
 }
 
-function UsersTable({ rows, hideActions = false, onBan, onUnban, onDelete, onEditMembership, actionLoading = "" }) {
+function UsersTable({ rows, hideActions = false, onBan, onUnban, onDelete, onEditMembership, actionLoading = "", selectable = false, selectedUsers = [], allSelected = false, onToggleSelect, onToggleSelectAll }) {
   if (!rows || rows.length === 0) {
     return <EmptyState title="暂无用户数据" description="当前没有可展示的用户记录。" />;
   }
-  const columns = ["用户昵称", "用户ID", "账号", "三方向会员", "注册时间", "学习时长", "状态"];
+  const columns = [];
+  if (selectable) columns.push(<input type="checkbox" checked={allSelected} onChange={onToggleSelectAll} aria-label="全选当前页" />);
+  columns.push("用户昵称", "用户ID", "账号", "三方向会员", "注册时间", "学习时长", "状态");
   if (!hideActions) columns.push("操作");
 
   const M_BADGE = (m, sk) => {
     const mb = (m && m[sk]) || {};
-    const label = mb.plan_label || (mb.is_enabled ? mb.plan : "未开通");
-    const enabled = mb.is_enabled;
+    const enabled = Boolean(mb.current_is_effective);
+    const label = enabled ? (mb.plan_label || zhPlan(mb.plan)) : (mb.plan === "free" ? "免费" : (mb.is_expired ? "已过期" : "未开通"));
     return (
       <span key={sk} className={`adm-membership-badge${enabled ? "" : " disabled"}`}
-        title={sk === "exam_11408" ? "11408 考研" : sk === "course" ? "课程学习" : "编程能力提升"}>
-        {sk === "exam_11408" ? "📘" : sk === "course" ? "📗" : "📙"} {label}
+        title={zhServiceKey(sk)}>
+        {sk === "exam_11408" ? "📘" : sk === "course_learning" ? "📗" : "📙"} {label}
       </span>
     );
   };
@@ -1259,12 +2156,13 @@ function UsersTable({ rows, hideActions = false, onBan, onUnban, onDelete, onEdi
   const tableRows = rows.map((item) => {
     const isBanned = Boolean(item.is_banned);
     const isAdmin = Boolean(item.is_admin) || (item.admin_role && item.admin_role !== "none");
+    const uid = item.user_id || item.id;
     const m = item.memberships || {};
     const status = isBanned ? <StatusBadge tone="danger">已封禁</StatusBadge> : <StatusBadge tone="ok">正常</StatusBadge>;
     const membershipCell = (
       <div className="adm-membership-cell">
         {M_BADGE(m, "exam_11408")}
-        {M_BADGE(m, "course")}
+        {M_BADGE(m, "course_learning")}
         {M_BADGE(m, "programming")}
       </div>
     );
@@ -1281,30 +2179,30 @@ function UsersTable({ rows, hideActions = false, onBan, onUnban, onDelete, onEdi
         ) : (
           <button type="button" className="warning" disabled={!!actionLoading || isAdmin} onClick={() => onBan?.(item)}>封号</button>
         )}
-        <button type="button" className="danger" disabled={!!actionLoading || isAdmin} onClick={() => onDelete?.(item)}>删除</button>
+        {onDelete && <button type="button" className="danger" disabled={!!actionLoading || isAdmin} onClick={() => onDelete(item)}>删除</button>}
       </div>
     );
-    const base = [
+    const base = [];
+    if (selectable) base.push(<input type="checkbox" checked={selectedUsers.includes(uid)} onChange={() => onToggleSelect(uid)} aria-label={`选择用户 ${uid}`} />);
+    base.push(
       <><span className="admin-dashboard-user-avatar">U</span>{displayUserName(item)}</>,
-      item.user_id || item.id || "-",
+      uid || "-",
       item.username || "-",
       membershipCell,
       formatDateTime(item.register_time || item.created_at),
       `${formatNumber(item.learning_hours, 1)} 小时`,
       status,
-    ];
+    );
     if (!hideActions) base.push(actions);
     return base;
   });
   return <DataTable columns={columns} rows={tableRows} />;
 }
 
-function MembershipEditModal({ user: targetUser, form, onChange, onSave, onClose, loading }) {
-  const SERVICE_KEYS = ["exam_11408", "course", "programming"];
+function MembershipEditModal({ user: targetUser, form, onChange, onSave, onClose, loading, catalog = [] }) {
+  const SERVICE_KEYS = ["exam_11408", "course_learning", "programming"];
   const SERVICE_INFO = {
-    exam_11408: { name: "11408 考研", icon: "📘", plans: { free: "普通用户", monthly: "月度冲刺包", quarterly: "季度强化包", full: "全程备考包" }, disabledHint: "当前用户尚未开通 11408 考研服务" },
-    course: { name: "课程学习", icon: "📗", plans: { free: "普通用户", monthly: "月度学习包", quarterly: "季度学习包", full: "全程学习包" }, disabledHint: "当前用户尚未开通课程学习服务" },
-    programming: { name: "编程能力提升", icon: "📙", plans: { free: "免费版", monthly: "编程进阶月卡", quarterly: "实验与算法强化季卡", full: "编程全能年卡" }, disabledHint: "当前用户尚未开通编程能力提升服务" },
+    exam_11408: { name: "11408 考研", icon: "📘" }, course_learning: { name: "课程学习", icon: "📗" }, programming: { name: "编程能力提升", icon: "📙" },
   };
   const updateField = (sk, field, val) => {
     onChange((prev) => ({ ...prev, [sk]: { ...prev[sk], [field]: val } }));
@@ -1321,13 +2219,14 @@ function MembershipEditModal({ user: targetUser, form, onChange, onSave, onClose
           {SERVICE_KEYS.map((sk) => {
             const info = SERVICE_INFO[sk];
             const f = form[sk] || { is_enabled: false, plan: "free" };
+            const plans = catalog.find((item) => item.service_key === sk)?.plans || [];
             return (
               <div key={sk} className={`adm-membership-card${f.is_enabled ? "" : " disabled"}`}>
                 <div className="adm-membership-card-head">
                   <span>{info.icon} <strong>{info.name}</strong></span>
                   <label className="adm-toggle">
                     <input type="checkbox" checked={f.is_enabled}
-                      onChange={(e) => updateField(sk, "is_enabled", e.target.checked)} disabled={loading} />
+                      onChange={(e) => onChange((prev) => ({ ...prev, [sk]: { ...prev[sk], is_enabled: e.target.checked, status: e.target.checked ? "active" : "disabled" } }))} disabled={loading} />
                     <span className="adm-toggle-slider" />
                     <span className="adm-toggle-label">{f.is_enabled ? "已开通" : "未开通"}</span>
                   </label>
@@ -1336,10 +2235,11 @@ function MembershipEditModal({ user: targetUser, form, onChange, onSave, onClose
                   <div className="adm-membership-card-body">
                     <label>会员等级</label>
                     <select value={f.plan} onChange={(e) => updateField(sk, "plan", e.target.value)} disabled={loading}>
-                      {Object.entries(info.plans).map(([k, v]) => (
-                        <option key={k} value={k}>{v}</option>
+                      {plans.map((item) => (
+                        <option key={item.plan_code} value={item.plan_code}>{item.name}</option>
                       ))}
                     </select>
+                    <label>到期时间<input type="datetime-local" value={String(f.expires_at || "").slice(0, 16)} onChange={(e) => updateField(sk, "expires_at", e.target.value)} disabled={loading} /></label>
                   </div>
                 ) : (
                   <p className="adm-membership-hint">{info.disabledHint}</p>

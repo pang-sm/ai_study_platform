@@ -616,7 +616,6 @@ const VALID_PAGES = new Set([
   "adminOrders", "adminMembers", "adminFeedback", "adminQuota", "adminStatistics", "adminUsage",
   "adminRedemptionCodes",
   "adminSettings", "adminLogs", "adminProfile",
-  "adminUsageCenter", "adminCenter",
   "materials", "workspaceMaterials", "chat", "records", "history",
   "knowledgeLearning", "searchResults",
   "profileEdit", "onboarding", "courseLearningOnboarding", "courseLearningPackageStep", "courseLearningComplete", "courseProfile", "programmingOnboarding", "programmingPackageStep", "programmingHome", "programmingProfile", "programmingChat", "examHome", "examProfile", "examSubjectDashboard",
@@ -644,7 +643,7 @@ const ADMIN_PAGES = [
   "adminDashboard", "adminAnnouncements", "adminUsers", "adminOrders",
   "adminRedemptionCodes",
   "adminMembers", "adminFeedback", "adminQuota", "adminStatistics", "adminUsage",
-  "adminSettings", "adminLogs", "adminProfile", "adminUsageCenter", "adminCenter",
+  "adminSettings", "adminLogs", "adminProfile",
 ];
 
 function getInitialPage() {
@@ -4931,26 +4930,6 @@ function App() {
       <Suspense fallback={<div className="empty-state">管理员首页加载中...</div>}>
         <AdminDashboard user={user} activePage={page} setPage={setPage} onLogout={logout} onUserUpdate={saveLoginUser} />
       </Suspense>
-    );
-  }
-
-  if (page === "adminUsageCenter") {
-    return wrapPage(
-      <div className="app-shell">
-        <Suspense fallback={<div className="empty-state">管理后台加载中...</div>}>
-          <AdminUsageCenter user={user} />
-        </Suspense>
-      </div>
-    );
-  }
-
-  if (page === "adminCenter") {
-    return wrapPage(
-      <div className="app-shell">
-        <Suspense fallback={<div className="empty-state">管理后台加载中...</div>}>
-          <AdminCenter user={user} />
-        </Suspense>
-      </div>
     );
   }
 

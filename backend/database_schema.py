@@ -56,6 +56,26 @@ REDEMPTION_CODE_COLUMNS: Mapping[str, str] = {
 # AI usage service isolation (nullable → legacy rows keep NULL, never backfilled).
 AI_USAGE_LOG_COLUMNS: Mapping[str, str] = {
     "service_key": "VARCHAR(50)",
+    "user_id": "INTEGER",
+    "provider": "VARCHAR(50)",
+    "requested_model": "VARCHAR(100)",
+    "resolved_model": "VARCHAR(100)",
+    "input_tokens": "INTEGER",
+    "output_tokens": "INTEGER",
+    "cached_input_tokens": "INTEGER",
+    "reasoning_tokens": "INTEGER",
+    "total_tokens": "INTEGER",
+    "request_count": "INTEGER NOT NULL DEFAULT 1",
+    "retry_count": "INTEGER NOT NULL DEFAULT 0",
+    "latency_ms": "INTEGER",
+    "provider_request_id": "VARCHAR(160)",
+    "usage_source": "VARCHAR(30) NOT NULL DEFAULT 'UNKNOWN'",
+    "price_snapshot_key": "VARCHAR(120)",
+    "estimated_api_cost": "REAL",
+    "action_id": "VARCHAR(64)",
+    "plan_snapshot": "VARCHAR(80)",
+    "entitlement_snapshot": "VARCHAR(120)",
+    "snapshot_at": "DATETIME",
 }
 
 

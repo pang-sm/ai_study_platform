@@ -10,6 +10,10 @@ import models
 def _seed_scope_data(username, db_session):
     course_id = main.normalize_subject_course_learning("operating_system")
     other_course_id = main.normalize_subject_course_learning("data_structure")
+    # Upload now requires the course to be selected by the user.
+    user = db_session.query(models.User).filter_by(username=username).one()
+    user.default_course_id = "operating_system"
+    db_session.commit()
     material = models.StudyMaterial(
         username=username,
         subject=course_id,
@@ -42,8 +46,11 @@ def test_exam_scope_endpoint_persists_sources_isolates_and_injects_ai_context(cl
     register_and_login(client, "exam-scope-user-a")
     course_id, other_course_id, material, parent, child_a, child_b, foreign_point = _seed_scope_data("exam-scope-user-a", db_session)
 
+    course_key = main.COURSE_LEARNING_ID_MAP.get(course_id, course_id)
     uploaded = client.post("/materials/upload", data={
         "username": "exam-scope-user-a",
+        "course_id": course_key,
+        "subject_key": course_key,
         "subject": course_id,
         "source_type": "exam_scope",
     }, files={"file": ("uploaded-exam-scope.txt", b"final exam scope", "text/plain")})

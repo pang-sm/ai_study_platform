@@ -87,8 +87,8 @@ export default function Figure2Sidebar({
             {!collapsed && <div className="fig2-section-label">管理</div>}
             <button
               type="button"
-              className={`fig2-nav-item${activePage === "adminCenter" ? " active" : ""}`}
-              onClick={() => onNavigate("adminCenter")}
+              className={`fig2-nav-item${activePage === "adminDashboard" ? " active" : ""}`}
+              onClick={() => onNavigate("adminDashboard")}
               title={collapsed ? "管理后台" : undefined}
             >
               <span className="fig2-nav-icon">管</span>

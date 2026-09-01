@@ -25,7 +25,7 @@ export default function AdminUsageCenter({ user }) {
   const fetchSummary = async () => {
     setLoading(true); setError("");
     try {
-      const res = await fetch(`${API_BASE}/admin/usage-summary?admin_username=${encodeURIComponent(user.username)}`);
+      const res = await fetch(`${API_BASE}/admin/usage-summary`);
       if(!res.ok){ const b=await res.json().catch(()=>({})); throw new Error(b.detail||"加载失败"); }
       setSummary(await res.json());
     }catch(e){ setError(e.message||"加载失败"); }
@@ -40,7 +40,7 @@ export default function AdminUsageCenter({ user }) {
     try {
       const res=await fetch(`${API_BASE}/admin/users/${encodeURIComponent(target)}/plan`,{
         method:"POST", headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({ admin_username:user.username, plan:planForm.plan }),
+        body:JSON.stringify({ plan:planForm.plan }),
       });
       const data=await res.json();
       if(!res.ok) throw new Error(data.detail||"修改失败");

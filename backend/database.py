@@ -419,6 +419,23 @@ AI_USAGE_LOGS_COLUMNS = {
     "status": "VARCHAR(20) DEFAULT 'success'",
     "error_message": "TEXT",
     "created_at": "DATETIME NOT NULL",
+    "service_key": "VARCHAR(50)",
+    "user_id": "INTEGER",
+    "provider": "VARCHAR(50)",
+    "requested_model": "VARCHAR(100)",
+    "resolved_model": "VARCHAR(100)",
+    "input_tokens": "INTEGER",
+    "output_tokens": "INTEGER",
+    "cached_input_tokens": "INTEGER",
+    "reasoning_tokens": "INTEGER",
+    "total_tokens": "INTEGER",
+    "request_count": "INTEGER NOT NULL DEFAULT 1",
+    "retry_count": "INTEGER NOT NULL DEFAULT 0",
+    "latency_ms": "INTEGER",
+    "provider_request_id": "VARCHAR(160)",
+    "usage_source": "VARCHAR(30) NOT NULL DEFAULT 'UNKNOWN'",
+    "price_snapshot_key": "VARCHAR(120)",
+    "estimated_api_cost": "REAL",
 }
 
 ADMIN_AUDIT_LOGS_COLUMNS = {
@@ -2235,6 +2252,61 @@ def ensure_user_service_memberships_schema(conn):
     """))
     conn.execute(text("CREATE INDEX IF NOT EXISTS idx_membership_orders_user_status ON membership_orders (user_id, status)"))
     conn.execute(text("CREATE INDEX IF NOT EXISTS idx_membership_orders_service_plan ON membership_orders (service_key, target_plan)"))
+    # Additive commercial-payment migration. Existing mock orders retain their
+    # original amount; new orders receive immutable server-owned snapshots.
+    ensure_columns(conn, "membership_orders", {
+        "order_no": "VARCHAR(64)",
+        "list_price": "INTEGER",
+        "paid_amount": "INTEGER",
+        "pricing_version": "VARCHAR(64)",
+        "quota_snapshot_json": "TEXT",
+        "provider_transaction_id": "VARCHAR(128)",
+        "refunded_amount": "INTEGER NOT NULL DEFAULT 0",
+        "refund_status": "VARCHAR(30)",
+    })
+    conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS idx_membership_orders_order_no ON membership_orders (order_no)"))
+    conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS idx_membership_orders_provider_transaction ON membership_orders (provider_transaction_id) WHERE provider_transaction_id IS NOT NULL"))
+    conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS payment_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, provider VARCHAR(32) NOT NULL,
+            provider_event_id VARCHAR(128) NOT NULL, order_id INTEGER REFERENCES membership_orders(id),
+            provider_transaction_id VARCHAR(128), event_type VARCHAR(32) NOT NULL,
+            amount INTEGER, currency VARCHAR(10), verification_result VARCHAR(32) NOT NULL,
+            processing_status VARCHAR(32) NOT NULL DEFAULT 'received', metadata_json TEXT,
+            received_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, processed_at DATETIME
+        )
+    """))
+    conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS idx_payment_events_provider_event ON payment_events (provider, provider_event_id)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_payment_events_order ON payment_events (order_id)"))
+    conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS membership_grants (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id),
+            service_key VARCHAR(50) NOT NULL, order_id INTEGER NOT NULL REFERENCES membership_orders(id),
+            old_plan VARCHAR(30), new_plan VARCHAR(30) NOT NULL, old_expiry DATETIME,
+            new_expiry DATETIME, grant_reason VARCHAR(50) NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+    """))
+    conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS idx_membership_grants_order ON membership_grants (order_id)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_membership_grants_user_service ON membership_grants (user_id, service_key)"))
+    conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS refunds (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, refund_no VARCHAR(64) NOT NULL, order_id INTEGER NOT NULL REFERENCES membership_orders(id),
+            user_id INTEGER NOT NULL REFERENCES users(id), amount INTEGER NOT NULL, reason TEXT,
+            status VARCHAR(30) NOT NULL DEFAULT 'requested', provider_refund_id VARCHAR(128),
+            requested_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, refunded_at DATETIME
+        )
+    """))
+    conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS idx_refunds_refund_no ON refunds (refund_no)"))
+    conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS idx_refunds_provider_refund ON refunds (provider_refund_id) WHERE provider_refund_id IS NOT NULL"))
+    conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS revenue_ledger_entries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, order_id INTEGER REFERENCES membership_orders(id), refund_id INTEGER REFERENCES refunds(id),
+            user_id INTEGER NOT NULL REFERENCES users(id), service_key VARCHAR(50) NOT NULL,
+            entry_type VARCHAR(30) NOT NULL, amount INTEGER NOT NULL, currency VARCHAR(10) NOT NULL DEFAULT 'CNY',
+            status VARCHAR(30) NOT NULL DEFAULT 'confirmed', source VARCHAR(32) NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+    """))
+    conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS idx_revenue_ledger_order_type ON revenue_ledger_entries (order_id, entry_type)"))
     conn.execute(
         text(
             """

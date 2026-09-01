@@ -282,7 +282,7 @@ SERVICE_PLAN_CATALOG = {
     },
     "course_learning": {
         "free": {"name": "免费模式", "rank": 0, "price_cents": 0, "duration_days": None, "quota": {
-            "ai_chat_daily_limit": 50, "ai_question_daily_limit": 5, "material_upload_limit_mb": 100,
+            "ai_chat_daily_limit": 5, "ai_question_daily_limit": 10, "material_upload_limit_mb": 100,
             "learning_plan": False, "learning_report": True,
         }},
         "monthly": {"name": "月度学习包", "rank": 1, "price_cents": 2900, "duration_days": 30, "quota": {
@@ -348,6 +348,104 @@ def get_material_plan_limits(service_key: str | None, plan_code: str | None) -> 
         "material_storage_limit_mb": int(quota.get("material_upload_limit_mb") or 0),
     }
 
+
+# ── User-level quota override + unified effective resolver ─────────────────
+#
+# The plan catalog (SERVICE_PLAN_CATALOG) is the single default source for the
+# four core numeric quotas below. A UserQuotaOverride row is a per-user
+# exception layered on top; removing the row restores the catalog default.
+# Every layer — admin API, admin UI, and runtime enforcement — reads the same
+# resolver so they can never drift apart.
+
+# Finite set of override-able core quota keys. Do NOT invent quota keys here for
+# UI completeness; each key below already drives a real runtime enforcement path.
+CORE_QUOTA_KEYS = [
+    "ai_chat_daily_limit",
+    "ai_question_daily_limit",
+    "single_file_limit_mb",
+    "material_upload_limit_mb",
+]
+
+QUOTA_DEFINITIONS = {
+    "ai_chat_daily_limit": {"label": "AI 对话", "unit": "次", "period": "每天", "source": "catalog"},
+    "ai_question_daily_limit": {"label": "AI 出题", "unit": "次", "period": "每天", "source": "catalog"},
+    "single_file_limit_mb": {"label": "单文件大小", "unit": "MB", "period": "单文件", "source": "rank"},
+    "material_upload_limit_mb": {"label": "资料总容量", "unit": "MB", "period": "总容量", "source": "catalog"},
+}
+
+
+def get_default_quota_limit(service_key: str | None, plan_code: str | None, quota_key: str) -> int:
+    """Return the catalog default for one core quota key under a service plan."""
+    catalog = get_service_plan_catalog(service_key)
+    definition = catalog.get((plan_code or "free").strip().lower()) or catalog["free"]
+    if quota_key == "single_file_limit_mb":
+        rank = int(definition.get("rank", 0))
+        return int(SINGLE_FILE_LIMIT_MB_BY_RANK.get(rank, 20))
+    return int((definition.get("quota") or {}).get(quota_key) or 0)
+
+
+def _membership_plan(db: Session, user_id: int, service_key: str) -> str:
+    """Resolve the effective membership plan for one service direction.
+
+    Mirrors main.get_effective_service_plan but lives here so the resolver stays
+    self-contained and does not import the web layer.
+    """
+    m = _current_service_membership(db, user_id, service_key)
+    if m and m.is_enabled and (getattr(m, "status", None) or "active") == "active":
+        expires_at = getattr(m, "expires_at", None)
+        if expires_at:
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if expires_at <= datetime.now(timezone.utc):
+                return "free"
+        return m.plan or "free"
+    return "free"
+
+
+def resolve_effective_quota(db: Session, user_id: int, service_key: str, quota_key: str) -> dict:
+    """Single source of truth for one core quota: catalog default + user override.
+
+    Raises ValueError for an unsupported service_key or quota_key so callers can
+    surface a clear 4xx instead of silently ignoring bad input.
+    """
+    canonical = canonical_service_key(service_key)
+    if canonical not in SERVICE_PLAN_CATALOG:
+        raise ValueError(f"Unsupported service key: {service_key}")
+    if quota_key not in QUOTA_DEFINITIONS:
+        raise ValueError(f"Unsupported quota key: {quota_key}")
+
+    plan = _membership_plan(db, user_id, canonical)
+    default_limit = get_default_quota_limit(canonical, plan, quota_key)
+    override = db.query(models.UserQuotaOverride).filter(
+        models.UserQuotaOverride.user_id == user_id,
+        models.UserQuotaOverride.service_key == canonical,
+        models.UserQuotaOverride.quota_key == quota_key,
+    ).first()
+    override_limit = override.override_limit if (override and override.enabled) else None
+    effective_limit = override_limit if override_limit is not None else default_limit
+    meta = QUOTA_DEFINITIONS[quota_key]
+    return {
+        "user_id": user_id,
+        "service_key": canonical,
+        "quota_key": quota_key,
+        "label": meta["label"],
+        "unit": meta["unit"],
+        "period": meta["period"],
+        "plan": plan,
+        "default_limit": default_limit,
+        "override_limit": override_limit,
+        "effective_limit": effective_limit,
+        "has_override": override_limit is not None,
+    }
+
+
+def resolve_effective_material_limits(db: Session, user_id: int, service_key: str) -> dict:
+    """Return single-file + storage material limits with any user override applied."""
+    canonical = canonical_service_key(service_key)
+    return {
+        "single_file_limit_mb": resolve_effective_quota(db, user_id, canonical, "single_file_limit_mb")["effective_limit"],
+        "material_storage_limit_mb": resolve_effective_quota(db, user_id, canonical, "material_upload_limit_mb")["effective_limit"],
+    }
 
 
 def canonical_service_key(service_key: str | None) -> str:

@@ -139,6 +139,27 @@ def _normalize_message_content(content) -> str:
     return str(content or "").strip()
 
 
+def _provider_usage_payload(response) -> dict:
+    """Expose provider-reported usage only; do not retain prompt/image/answer content."""
+    usage = getattr(response, "usage", None)
+    def read(obj, name):
+        return obj.get(name) if isinstance(obj, dict) else getattr(obj, name, None)
+    details = read(usage, "prompt_tokens_details") or {}
+    input_tokens = read(usage, "prompt_tokens") or read(usage, "input_tokens")
+    output_tokens = read(usage, "completion_tokens") or read(usage, "output_tokens")
+    total_tokens = read(usage, "total_tokens")
+    return {
+        "provider": "qwen",
+        "resolved_model": getattr(response, "model", None),
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "cached_input_tokens": read(details, "cached_tokens") or read(details, "cached_input_tokens"),
+        "total_tokens": total_tokens,
+        "provider_request_id": getattr(response, "_request_id", None) or getattr(response, "id", None),
+        "usage_source": "PROVIDER_REPORTED" if any(v is not None for v in (input_tokens, output_tokens, total_tokens)) else "UNKNOWN",
+    }
+
+
 def parse_image_with_qwen(
     image_path: str,
     prompt: str | None = None,
@@ -207,4 +228,5 @@ def parse_image_with_qwen(
         "image_size_bytes": image_size_bytes,
         "encode_seconds": encode_seconds,
         "qwen_seconds": qwen_seconds,
+        "provider_usage": _provider_usage_payload(response),
     }
