@@ -136,7 +136,7 @@ export default function SharedReportPage() {
         </div>
 
         <div className="shared-report-footer">
-          由 AI Study Platform 生成
+          由 智学AI 生成
         </div>
       </div>
     </div>

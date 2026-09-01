@@ -4950,7 +4950,7 @@ function App() {
     return (
       <div className="auth-shell">
         <div className="onboarding-card">
-          <div className="auth-badge">AI 学习平台</div>
+          <div className="auth-badge">智学AI</div>
           <h1>编辑学习信息</h1>
 
           <label className="field-label">昵称</label>

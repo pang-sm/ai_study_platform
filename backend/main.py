@@ -5419,7 +5419,7 @@ async def handle_material_upload(
 
 @app.get("/")
 def root():
-    return {"message": "AI Study Platform Backend is running"}
+    return {"message": "智学AI Backend is running"}
 
 
 @app.get("/health")
@@ -7271,10 +7271,10 @@ def _send_email_code(to_email: str, code: str) -> bool:
 
     try:
         msg = _MIMEText(
-            f"您的邮箱验证码是：{code}\n\n该验证码 10 分钟内有效，请勿泄露给他人。\n\nAI 学习平台",
+            f"您的邮箱验证码是：{code}\n\n该验证码 10 分钟内有效，请勿泄露给他人。\n\n智学AI",
             "plain", "utf-8"
         )
-        msg["Subject"] = "AI 学习平台 - 邮箱验证码"
+        msg["Subject"] = "智学AI - 邮箱验证码"
         msg["From"] = smtp_from
         msg["To"] = to_email
 
@@ -31371,7 +31371,7 @@ def _format_report_as_markdown(report, metrics, suggestions) -> str:
         lines.append("")
 
     lines.append("---")
-    lines.append("由 AI Study Platform 生成")
+    lines.append("由 智学AI 生成")
     return "\n".join(lines)
 
 

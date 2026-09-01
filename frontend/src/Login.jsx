@@ -13,7 +13,7 @@ export default function Login({ onLogin }) {
 
   return (
     <div style={{ padding: "40px", fontFamily: "Arial" }}>
-      <h2>欢迎使用 AI 学习助手</h2>
+      <h2>欢迎使用智学AI</h2>
       <form onSubmit={handleSubmit}>
         <div>
           <label>姓名:</label>
@@ -36,7 +36,7 @@ export default function Login({ onLogin }) {
           <label>学习习惯:</label>
           <input value={habit} onChange={e => setHabit(e.target.value)}/>
         </div>
-        <button type="submit" style={{ marginTop: "20px" }}>进入学习助手</button>
+        <button type="submit" style={{ marginTop: "20px" }}>进入智学AI</button>
       </form>
     </div>
   );

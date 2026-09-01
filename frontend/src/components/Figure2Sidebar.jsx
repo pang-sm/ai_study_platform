@@ -66,7 +66,7 @@ export default function Figure2Sidebar({
         {!collapsed && (
           <div className="fig2-brand-copy">
              <strong>{directionLabel}</strong>
-            <span>AI Study Platform</span>
+            <span>智学AI</span>
           </div>
         )}
         <button

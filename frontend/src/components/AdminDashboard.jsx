@@ -2050,7 +2050,7 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
         <div className="admin-dashboard-brand">
           <span className="admin-dashboard-logo">AI</span>
           <div>
-            <strong>学习助手 管理平台</strong>
+            <strong>智学AI 管理平台</strong>
             <span>管理员</span>
           </div>
         </div>
