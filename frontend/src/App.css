@@ -662,10 +662,10 @@ body {
 
 .admin-dashboard-header {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  align-items: center;
+  justify-content: flex-end;
   gap: 20px;
-  margin-bottom: 22px;
+  margin-bottom: 16px;
 }
 
 .admin-dashboard-header h1 {

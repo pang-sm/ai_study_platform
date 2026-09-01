@@ -615,7 +615,7 @@ const VALID_PAGES = new Set([
   "learningReportCenter", "adminDashboard", "adminAnnouncements", "adminUsers",
   "adminOrders", "adminMembers", "adminFeedback", "adminQuota", "adminStatistics", "adminUsage",
   "adminRedemptionCodes",
-  "adminSettings", "adminLogs", "adminProfile",
+  "adminSettings", "adminLogs", "adminProfile", "adminAdmins",
   "materials", "workspaceMaterials", "chat", "records", "history",
   "knowledgeLearning", "searchResults",
   "profileEdit", "onboarding", "courseLearningOnboarding", "courseLearningPackageStep", "courseLearningComplete", "courseProfile", "programmingOnboarding", "programmingPackageStep", "programmingHome", "programmingProfile", "programmingChat", "examHome", "examProfile", "examSubjectDashboard",
@@ -643,12 +643,15 @@ const ADMIN_PAGES = [
   "adminDashboard", "adminAnnouncements", "adminUsers", "adminOrders",
   "adminRedemptionCodes",
   "adminMembers", "adminFeedback", "adminQuota", "adminStatistics", "adminUsage",
-  "adminSettings", "adminLogs", "adminProfile",
+  "adminSettings", "adminLogs", "adminProfile", "adminAdmins",
 ];
 
 function getInitialPage() {
   const savedUser = getSavedUser();
   if (!savedUser) return "login";
+  // Admin/super_admin/operator are pure backend accounts and never land in a
+  // learning direction. Route them straight to the admin dashboard on reload.
+  if (hasAdminAccess(savedUser)) return "adminDashboard";
   // Programming URL is authoritative and never falls back to course_learning.
   {
     const programmingPage = getProgrammingPageForRoute();
@@ -2645,6 +2648,16 @@ function App() {
     if (!hasAdminAccess(user)) {
       setPage("home");
     }
+  }, [page, user?.username, user?.is_admin, user?.admin_role, user?.role]);
+
+  useEffect(() => {
+    // Admin / super_admin / operator are backend-only accounts. If they land on
+    // any learning-direction page (home / profile / 11408 / course / programming)
+    // they are redirected straight back to the admin dashboard.
+    if (!user || !hasAdminAccess(user)) return;
+    if (page === "login" || page === "adminLogin") return;
+    if (ADMIN_PAGES.includes(page)) return;
+    setPage("adminDashboard");
   }, [page, user?.username, user?.is_admin, user?.admin_role, user?.role]);
 
   useEffect(() => {
@@ -4924,7 +4937,7 @@ function App() {
     "adminDashboard", "adminAnnouncements", "adminUsers", "adminOrders",
     "adminMembers", "adminFeedback", "adminQuota", "adminStatistics", "adminUsage",
     "adminRedemptionCodes",
-    "adminSettings", "adminLogs", "adminProfile",
+    "adminSettings", "adminLogs", "adminProfile", "adminAdmins",
   ].includes(page)) {
     return (
       <Suspense fallback={<div className="empty-state">管理员首页加载中...</div>}>
