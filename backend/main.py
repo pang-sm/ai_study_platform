@@ -17405,6 +17405,9 @@ def delete_knowledge_point(
     return {"success": True, "message": "知识点已删除"}
 
 
+KNOWLEDGE_LEARNING_STATUSES = frozenset({"not_started", "learning", "mastered"})
+
+
 def normalize_knowledge_status(status: str | None) -> str:
     """Map any legacy status into the 3-state model: not_started | learning | mastered."""
     if not status:
@@ -17414,11 +17417,11 @@ def normalize_knowledge_status(status: str | None) -> str:
     if s in ("not_started", "learning", "mastered"):
         return s
     # Chinese 3-state
-    if s in ("未开始",):
+    if s in ("未开始", "未学习"):
         return "not_started"
     if s in ("学习中",):
         return "learning"
-    if s in ("已掌握",):
+    if s in ("已掌握", "已学习"):
         return "mastered"
     # Legacy → learning
     if s in ("need_review", "需要复习", "待复习", "review", "reviewing", "needs_review",
@@ -17824,7 +17827,7 @@ def update_knowledge_map_progress(req: schemas.KnowledgeMapProgressUpdate, db: S
     next_status = (req.status or "").strip()
     if not course_id:
         raise HTTPException(status_code=400, detail="course_id is required")
-    if next_status not in {"not_started", "learning", "mastered", "review_due"}:
+    if next_status not in KNOWLEDGE_LEARNING_STATUSES:
         raise HTTPException(status_code=400, detail="invalid status")
 
     seed_path = _knowledge_map_seed_path(course_id)
@@ -17900,10 +17903,6 @@ def update_knowledge_map_progress(req: schemas.KnowledgeMapProgressUpdate, db: S
         progress.learned_at = now
         progress.review_interval_days = interval_days
         progress.review_due_at = now + timedelta(days=interval_days)
-    elif next_status == "review_due":
-        progress.mastery_score = progress.mastery_score if progress.mastery_score is not None else 0
-        progress.learned_at = progress.learned_at
-
     db.commit()
     db.refresh(progress)
     display_status = _display_map_progress_status(progress)
@@ -18254,8 +18253,7 @@ def update_exam_study_plan_knowledge_item(
     course_id = f"{subject_key}_11408"
 
     # Validate status
-    valid_statuses = {"not_started", "learning", "mastered"}
-    if req.status not in valid_statuses:
+    if req.status not in KNOWLEDGE_LEARNING_STATUSES:
         raise HTTPException(status_code=400, detail=f"Invalid status: {req.status}")
 
     request_username(req, current_user)
@@ -18304,6 +18302,7 @@ def update_exam_study_plan_knowledge_item(
     progress.knowledge_point_code = item_code
     progress.knowledge_point_title = canonical_title
     progress.status = req.status
+    progress.user_confirmed_status = req.status
     progress.updated_at = now
     progress.last_studied_at = now
 
@@ -19986,7 +19985,6 @@ def _update_course_learning_progress(
             knowledge_point_title=point.get("title") or "",
             mastery_score=0,
             status="not_started",
-            user_confirmed_status="not_started",
             practice_count=0,
             task_count=0,
             created_at=now,
@@ -19997,8 +19995,12 @@ def _update_course_learning_progress(
     progress.practice_count = (progress.practice_count or 0) + 1
     score = max(0, min(100, (progress.mastery_score or 0) + (15 if is_correct else -8)))
     progress.mastery_score = score
-    progress.status = "mastered" if score >= 80 else ("learning" if score > 0 else "not_started")
-    progress.user_confirmed_status = progress.status
+    suggested_status = "mastered" if score >= 80 else ("learning" if score > 0 else "not_started")
+    progress.system_suggested_status = suggested_status
+    # Practice results are a recommendation. They must never replace a learner's
+    # explicit choice made in the knowledge-map status controls.
+    if not progress.user_confirmed_status:
+        progress.status = suggested_status
     progress.last_studied_at = now
     progress.updated_at = now
 
@@ -21637,6 +21639,7 @@ def update_knowledge_point_progress(
         progress.mastery_score = max(0, min(100, req.mastery_score))
     if req.status is not None:
         progress.status = normalize_knowledge_status(req.status)
+        progress.user_confirmed_status = progress.status
     progress.updated_at = utc_now()
     progress.last_studied_at = utc_now()
 

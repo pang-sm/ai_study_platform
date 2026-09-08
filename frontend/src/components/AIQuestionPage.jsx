@@ -32,9 +32,9 @@ function normalizeKnowledgeStatus(status) {
   if (!status) return "not_started";
   const s = String(status).trim();
   // Direct 3-state values
-  if (s === "not_started" || s === "未开始") return "not_started";
+  if (s === "not_started" || s === "未开始" || s === "未学习") return "not_started";
   if (s === "learning" || s === "学习中") return "learning";
-  if (s === "mastered" || s === "已掌握") return "mastered";
+  if (s === "mastered" || s === "已掌握" || s === "已学习") return "mastered";
   // Legacy → learning
   if (s === "need_review" || s === "需要复习" || s === "待复习" ||
       s === "review" || s === "reviewing" || s === "needs_review" ||
