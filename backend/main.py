@@ -17406,6 +17406,7 @@ def delete_knowledge_point(
 
 
 KNOWLEDGE_LEARNING_STATUSES = frozenset({"not_started", "learning", "mastered", "review_due"})
+KNOWLEDGE_HISTORICALLY_COMPLETED_STATUSES = frozenset({"mastered", "review_due"})
 
 
 def normalize_knowledge_status(status: str | None) -> str:
@@ -17431,7 +17432,7 @@ def normalize_knowledge_status(status: str | None) -> str:
              "in_progress", "studying"):
         return "learning"
     # Legacy → mastered
-    if s in ("done", "completed"):
+    if s in ("done", "completed", "learned"):
         return "mastered"
     # Legacy → not_started
     if s in ("later", "稍后再学", "postponed"):
@@ -17548,6 +17549,18 @@ def _display_map_progress_status(progress: models.UserKnowledgeProgress | None, 
         if now >= due_at:
             return "review_due"
     return status
+
+
+def _is_historically_completed_map_progress(
+    progress: models.UserKnowledgeProgress | None, now: datetime | None = None
+) -> bool:
+    """Whether a knowledge point has ever been completed for progress reporting.
+
+    ``review_due`` is an already-mastered point whose review interval elapsed;
+    it must remain part of historical completion metrics such as the 11408
+    home-page learning progress.
+    """
+    return _display_map_progress_status(progress, now) in KNOWLEDGE_HISTORICALLY_COMPLETED_STATUSES
 
 
 def _materialize_due_review_statuses(
@@ -18495,8 +18508,7 @@ def get_exam_study_plan_summary(username: str = "", db: Session = Depends(get_db
                 )
                 has_activity = bool(progress_rows)
                 for p in progress_rows:
-                    status = _display_map_progress_status(p)
-                    if status == "mastered":
+                    if _is_historically_completed_map_progress(p):
                         mastered_leaves += 1
 
         # Determine which sections have chapter practice completed
