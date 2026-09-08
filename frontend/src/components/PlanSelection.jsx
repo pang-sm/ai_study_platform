@@ -17,6 +17,13 @@ function formatPeriod(days) {
   return "";
 }
 
+function formatMoney(cents) {
+  const amount = Number(cents || 0);
+  const yuan = Math.trunc(amount / 100);
+  const fraction = String(Math.abs(amount % 100)).padStart(2, "0").replace(/0+$/, "");
+  return fraction ? `${yuan}.${fraction}` : String(yuan);
+}
+
 function formatQuota(key, value) {
   if (typeof value === "boolean") return value ? "已包含" : "未包含";
   if (key === "material_upload_limit_mb") {
@@ -72,7 +79,7 @@ export default function PlanSelection({
               {isCurrent && <span className="plan-selection-badge plan-selection-badge-current">当前方案</span>}
               <div className="plan-selection-name">{plan.name}</div>
               <div className="plan-selection-price">
-                {Number(plan.price_cents || 0) > 0 ? <><strong>¥{Number(plan.price_yuan || 0).toFixed(0)}</strong><span>{formatPeriod(plan.duration_days)}</span></> : <strong className="plan-selection-free">免费</strong>}
+                {Number(plan.price_cents || 0) > 0 ? <><strong>¥{formatMoney(plan.price_cents)}</strong><span>{formatPeriod(plan.duration_days)}</span></> : <strong className="plan-selection-free">免费</strong>}
               </div>
               <ul className="plan-selection-features">
                 {getFeatures(plan).map((feature) => (

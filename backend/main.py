@@ -30039,24 +30039,39 @@ def admin_update_user_memberships(
         try: expires_at = datetime.fromisoformat(str(raw_expiry).replace("Z", "+00:00")) if raw_expiry else None
         except ValueError as exc: raise HTTPException(status_code=400, detail="expires_at 必须为 ISO 日期时间") from exc
         if expires_at and expires_at.tzinfo is None: expires_at = expires_at.replace(tzinfo=timezone.utc)
-        if plan == "free": is_enabled, requested_status, expires_at = False, "disabled", None
-        elif not is_enabled:
-            requested_status = "disabled"
-        elif requested_status == "disabled":
-            # The management UI has an enable/disable control but no separate
-            # status selector.  A paid plan that is enabled must be active;
-            # otherwise it looks opened but grants no entitlement.
-            requested_status = "active"
-        elif requested_status == "expired":
-            expires_at = expires_at or now
-        if plan != "free" and requested_status == "active" and is_enabled and not expires_at:
-            expires_at = now + timedelta(days=int(definition["duration_days"]))
-
         membership = db.query(models.UserServiceMembership).filter(
             models.UserServiceMembership.user_id == user_id,
             models.UserServiceMembership.service_key == sk,
         ).first()
         old_value = _admin_membership_payload(target_user, membership, sk)
+
+        if plan == "free":
+            # A free direction is always disabled.  Never leave an invalid
+            # enabled+free row or a stale expiry behind.
+            is_enabled, requested_status, expires_at = False, "disabled", None
+        elif not is_enabled:
+            requested_status = "disabled"
+        else:
+            # "Open" and "renew" are active grants.  In particular, an
+            # expired value posted by a stale form must never survive a new
+            # paid activation and make the effective resolver return free.
+            requested_status = "active"
+            expiry_is_future = bool(expires_at and expires_at > now)
+            unchanged_active_grant = bool(
+                membership
+                and membership.is_enabled
+                and membership.status == "active"
+                and membership.plan == plan
+                and membership.expires_at
+                and (membership.expires_at.replace(tzinfo=timezone.utc) if membership.expires_at.tzinfo is None else membership.expires_at) > now
+            )
+            # An explicit future date wins.  Otherwise preserve an unchanged,
+            # still-effective grant; all reopens, expired rows, and plan
+            # changes receive a fresh catalog duration from now.
+            if not expiry_is_future and not (raw_expiry is None and unchanged_active_grant):
+                expires_at = now + timedelta(days=int(definition["duration_days"]))
+            elif raw_expiry is None and unchanged_active_grant:
+                expires_at = membership.expires_at
         if not membership:
             membership = models.UserServiceMembership(
                 user_id=user_id, service_key=sk,
@@ -30076,7 +30091,12 @@ def admin_update_user_memberships(
     db.commit()
     result = {}
     for sk, (membership, old_value) in updated.items():
-        db.refresh(membership); new_value = _admin_membership_payload(target_user, membership, sk)
+        # Read the persisted row again rather than returning an optimistic
+        # in-memory shape.  The admin UI relies on this as its saved state.
+        persisted = db.query(models.UserServiceMembership).filter(
+            models.UserServiceMembership.id == membership.id,
+        ).one()
+        new_value = _admin_membership_payload(target_user, persisted, sk)
         _write_audit_log(admin.username, "admin_membership_update", db, target_type="membership", target_id=str(membership.id), target_username=target_user.username, detail=f"service_key={sk}", details={"service_key": sk, "old": old_value, "new": new_value})
         result[sk] = new_value
     return {"success": True, "user_id": user_id, "memberships": result}

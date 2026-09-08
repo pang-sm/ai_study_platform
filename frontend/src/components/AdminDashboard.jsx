@@ -741,10 +741,21 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
 
   const openMembershipEditor = (item) => {
     const m = item.memberships || {};
+    const editableMembership = (membership) => {
+      const expired = membership?.status === "expired" || (membership?.expires_at && new Date(membership.expires_at).getTime() <= Date.now());
+      return {
+        is_enabled: membership?.is_enabled ?? false,
+        plan: membership?.plan || "free",
+        status: expired ? "disabled" : (membership?.status || "disabled"),
+        // An expired date is not a renewal instruction.  Leave it blank so
+        // the server computes the catalog duration when the admin reopens it.
+        expires_at: expired ? "" : (membership?.expires_at || ""),
+      };
+    };
     setMembershipForm({
-      exam_11408: { is_enabled: m.exam_11408?.is_enabled ?? false, plan: m.exam_11408?.plan || "free", status: m.exam_11408?.status || "disabled", expires_at: m.exam_11408?.expires_at || "" },
-      course_learning: { is_enabled: m.course_learning?.is_enabled ?? false, plan: m.course_learning?.plan || "free", status: m.course_learning?.status || "disabled", expires_at: m.course_learning?.expires_at || "" },
-      programming: { is_enabled: m.programming?.is_enabled ?? false, plan: m.programming?.plan || "free", status: m.programming?.status || "disabled", expires_at: m.programming?.expires_at || "" },
+      exam_11408: editableMembership(m.exam_11408),
+      course_learning: editableMembership(m.course_learning),
+      programming: editableMembership(m.programming),
     });
     setEditingMemberUser(item);
   };
@@ -759,8 +770,8 @@ export default function AdminDashboard({ user, activePage = "adminDashboard", se
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ memberships: membershipForm }),
       });
-      setEditingMemberUser(null);
       await loadCurrentPage();
+      setEditingMemberUser(null);
     } catch (err) {
       setActionError(err.message || "修改会员失败");
     } finally {
@@ -2207,6 +2218,7 @@ function MembershipEditModal({ user: targetUser, form, onChange, onSave, onClose
   const updateField = (sk, field, val) => {
     onChange((prev) => ({ ...prev, [sk]: { ...prev[sk], [field]: val } }));
   };
+  const firstPaidPlan = (plans) => plans.find((item) => item.plan_code !== "free")?.plan_code || "free";
 
   return (
     <div className="esp-modal-overlay" onClick={loading ? undefined : onClose}>
@@ -2220,13 +2232,27 @@ function MembershipEditModal({ user: targetUser, form, onChange, onSave, onClose
             const info = SERVICE_INFO[sk];
             const f = form[sk] || { is_enabled: false, plan: "free" };
             const plans = catalog.find((item) => item.service_key === sk)?.plans || [];
+            const paidPlans = plans.filter((item) => item.plan_code !== "free");
             return (
               <div key={sk} className={`adm-membership-card${f.is_enabled ? "" : " disabled"}`}>
                 <div className="adm-membership-card-head">
                   <span>{info.icon} <strong>{info.name}</strong></span>
                   <label className="adm-toggle">
                     <input type="checkbox" checked={f.is_enabled}
-                      onChange={(e) => onChange((prev) => ({ ...prev, [sk]: { ...prev[sk], is_enabled: e.target.checked, status: e.target.checked ? "active" : "disabled" } }))} disabled={loading} />
+                      onChange={(e) => onChange((prev) => {
+                        const enabled = e.target.checked;
+                        const current = prev[sk] || {};
+                        return {
+                          ...prev,
+                          [sk]: {
+                            ...current,
+                            is_enabled: enabled,
+                            plan: enabled && (!current.plan || current.plan === "free") ? firstPaidPlan(paidPlans) : (current.plan || "free"),
+                            status: enabled ? "active" : "disabled",
+                            expires_at: enabled && (current.status === "expired" || current.expires_at && new Date(current.expires_at).getTime() <= Date.now()) ? "" : current.expires_at,
+                          },
+                        };
+                      })} disabled={loading} />
                     <span className="adm-toggle-slider" />
                     <span className="adm-toggle-label">{f.is_enabled ? "已开通" : "未开通"}</span>
                   </label>
@@ -2234,9 +2260,9 @@ function MembershipEditModal({ user: targetUser, form, onChange, onSave, onClose
                 {f.is_enabled ? (
                   <div className="adm-membership-card-body">
                     <label>会员等级</label>
-                    <select value={f.plan} onChange={(e) => updateField(sk, "plan", e.target.value)} disabled={loading}>
-                      {plans.map((item) => (
-                        <option key={item.plan_code} value={item.plan_code}>{item.name}</option>
+                    <select value={f.plan === "free" ? firstPaidPlan(paidPlans) : f.plan} onChange={(e) => onChange((prev) => ({ ...prev, [sk]: { ...prev[sk], plan: e.target.value, status: "active", expires_at: prev[sk]?.plan === e.target.value ? prev[sk]?.expires_at : "" } }))} disabled={loading}>
+                      {paidPlans.map((item) => (
+                        <option key={item.plan_code} value={item.plan_code}>{item.name} · ¥{formatNumber(item.price_cents / 100, 2).replace(/\.00$/, "")} · {item.duration_days}天</option>
                       ))}
                     </select>
                     <label>到期时间<input type="datetime-local" value={String(f.expires_at || "").slice(0, 16)} onChange={(e) => updateField(sk, "expires_at", e.target.value)} disabled={loading} /></label>
