@@ -20,10 +20,12 @@ const KNOWLEDGE_STATUS_OPTIONS = [
   { status: "not_started", label: "未开始", color: "#94a3b8", bg: "#f8fafc", score: 0 },
   { status: "learning", label: "学习中", color: "#2563eb", bg: "#eff6ff", score: 40 },
   { status: "mastered", label: "已掌握", color: "#059669", bg: "#ecfdf5", score: 100 },
+  { status: "review_due", label: "待复习", color: "#dc2626", bg: "#fef2f2", score: 100 },
 ];
 
 const KNOWLEDGE_STATUS_LABELS = {
   mastered: "已掌握",
+  review_due: "待复习",
   learning: "学习中",
   not_started: "未开始",
 };
@@ -35,8 +37,9 @@ function normalizeKnowledgeStatus(status) {
   if (s === "not_started" || s === "未开始" || s === "未学习") return "not_started";
   if (s === "learning" || s === "学习中") return "learning";
   if (s === "mastered" || s === "已掌握" || s === "已学习") return "mastered";
+  if (s === "review_due" || s === "待复习") return "review_due";
   // Legacy → learning
-  if (s === "need_review" || s === "需要复习" || s === "待复习" ||
+  if (s === "need_review" || s === "需要复习" ||
       s === "review" || s === "reviewing" || s === "needs_review" ||
       s === "not_understood" || s === "还没理解" || s === "薄弱" ||
       s === "weak" || s === "confused" ||

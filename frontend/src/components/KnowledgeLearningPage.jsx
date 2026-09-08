@@ -50,6 +50,7 @@ const EXAM_VALUE_OPTIONS = [
 ];
 
 const MANUAL_STATUS_OPTIONS = [
+  { value: "review_due", label: "待复习" },
   { value: "not_started", label: "未学习" },
   { value: "learning", label: "学习中" },
   { value: "mastered", label: "已学习" },

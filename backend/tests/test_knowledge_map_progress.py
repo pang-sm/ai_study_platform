@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from fastapi.testclient import TestClient
 
 from conftest import register_and_login
@@ -43,12 +45,12 @@ def _leaf_status(payload, code: str):
     return find(payload["chapters"])
 
 
-def test_knowledge_map_three_manual_statuses_persist_across_reload(client: TestClient):
+def test_knowledge_map_four_manual_statuses_persist_across_reload(client: TestClient):
     username = "knowledge-map-status"
     register_and_login(client, username)
     _, leaf = _map_and_leaf(client, username)
 
-    for status in ("learning", "mastered", "not_started"):
+    for status in ("learning", "mastered", "review_due", "not_started"):
         saved = client.patch("/knowledge-map/progress", json={
             "username": username,
             "course_id": "data_structure",
@@ -65,19 +67,61 @@ def test_knowledge_map_three_manual_statuses_persist_across_reload(client: TestC
         assert _leaf_status(reloaded, leaf["code"]) == status
 
 
-def test_knowledge_map_rejects_display_only_review_status(client: TestClient):
-    username = "knowledge-map-display-only"
+def test_mastered_review_schedule_materializes_and_restarts(client: TestClient, monkeypatch):
+    username = "knowledge-map-review-cycle"
     register_and_login(client, username)
     _, leaf = _map_and_leaf(client, username)
+    started_at = main.utc_now()
+    monkeypatch.setattr(main, "utc_now", lambda: started_at)
+    mastered = client.patch("/knowledge-map/progress", json={
+        "username": username, "course_id": "data_structure", "knowledge_point_code": leaf["code"],
+        "knowledge_point_title": leaf["title"], "status": "mastered",
+    })
+    assert mastered.status_code == 200, mastered.text
+    first_learned_at = mastered.json()["node"]["learned_at"]
 
-    response = client.patch("/knowledge-map/progress", json={
+    monkeypatch.setattr(main, "utc_now", lambda: started_at + timedelta(days=8))
+    due_map, _ = _map_and_leaf(client, username)
+    assert _leaf_status(due_map, leaf["code"]) == "review_due"
+
+    restarted = client.patch("/knowledge-map/progress", json={
         "username": username,
         "course_id": "data_structure",
         "knowledge_point_code": leaf["code"],
         "knowledge_point_title": leaf["title"],
-        "status": "review_due",
+        "status": "mastered",
     })
-    assert response.status_code == 400
+    assert restarted.status_code == 200, restarted.text
+    assert restarted.json()["node"]["status"] == "mastered"
+    assert restarted.json()["node"]["learned_at"] != first_learned_at
+    assert restarted.json()["node"]["review_due_at"]
+
+
+def test_review_settings_recalculate_existing_learned_points(client: TestClient, monkeypatch):
+    username = "knowledge-map-review-setting"
+    register_and_login(client, username)
+    _, leaf = _map_and_leaf(client, username)
+    learned_at = main.utc_now()
+    monkeypatch.setattr(main, "utc_now", lambda: learned_at)
+    assert client.patch("/knowledge-map/progress", json={
+        "username": username, "course_id": "data_structure", "knowledge_point_code": leaf["code"],
+        "knowledge_point_title": leaf["title"], "status": "mastered",
+    }).status_code == 200
+
+    monkeypatch.setattr(main, "utc_now", lambda: learned_at + timedelta(days=2))
+    saved = client.patch("/knowledge-map/review-settings", json={
+        "username": username,
+        "course_id": "data_structure",
+        "review_interval_days": 1,
+    })
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["review_interval_days"] == 1
+    reloaded_setting = client.get("/knowledge-map/review-settings", params={
+        "username": username, "course_id": "data_structure"
+    })
+    assert reloaded_setting.json()["review_interval_days"] == 1
+    reloaded_map, _ = _map_and_leaf(client, username)
+    assert _leaf_status(reloaded_map, leaf["code"]) == "review_due"
 
 
 def test_legacy_chinese_learned_value_is_read_as_mastered():
@@ -91,6 +135,7 @@ def test_legacy_chinese_learned_value_is_read_as_mastered():
     assert main.normalize_knowledge_status("\u672a\u5b66\u4e60") == "not_started"
     assert main.normalize_knowledge_status("\u5b66\u4e60\u4e2d") == "learning"
     assert main.normalize_knowledge_status("\u5df2\u5b66\u4e60") == "mastered"
+    assert main.normalize_knowledge_status("\u5f85\u590d\u4e60") == "review_due"
 
 
 def test_practice_suggestion_does_not_overwrite_confirmed_status(client: TestClient, db_session):

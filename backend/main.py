@@ -17405,16 +17405,16 @@ def delete_knowledge_point(
     return {"success": True, "message": "知识点已删除"}
 
 
-KNOWLEDGE_LEARNING_STATUSES = frozenset({"not_started", "learning", "mastered"})
+KNOWLEDGE_LEARNING_STATUSES = frozenset({"not_started", "learning", "mastered", "review_due"})
 
 
 def normalize_knowledge_status(status: str | None) -> str:
-    """Map any legacy status into the 3-state model: not_started | learning | mastered."""
+    """Map current and legacy values into the four-state knowledge-map model."""
     if not status:
         return "not_started"
     s = status.strip()
     # Direct 3-state values
-    if s in ("not_started", "learning", "mastered"):
+    if s in KNOWLEDGE_LEARNING_STATUSES:
         return s
     # Chinese 3-state
     if s in ("未开始", "未学习"):
@@ -17423,8 +17423,10 @@ def normalize_knowledge_status(status: str | None) -> str:
         return "learning"
     if s in ("已掌握", "已学习"):
         return "mastered"
+    if s in ("待复习",):
+        return "review_due"
     # Legacy → learning
-    if s in ("need_review", "需要复习", "待复习", "review", "reviewing", "needs_review",
+    if s in ("need_review", "需要复习", "review", "reviewing", "needs_review",
              "not_understood", "还没理解", "weak", "薄弱", "confused",
              "in_progress", "studying"):
         return "learning"
@@ -17498,10 +17500,8 @@ def _compute_aggregate_status(node: dict) -> str:
 
 def _normalize_map_node_status(status: str | None) -> str:
     normalized = normalize_knowledge_status(status)
-    if normalized in {"mastered", "learning", "not_started"}:
+    if normalized in KNOWLEDGE_LEARNING_STATUSES:
         return normalized
-    if str(status or "").strip() == "review_due":
-        return "review_due"
     return "not_started"
 
 
@@ -17548,6 +17548,36 @@ def _display_map_progress_status(progress: models.UserKnowledgeProgress | None, 
         if now >= due_at:
             return "review_due"
     return status
+
+
+def _materialize_due_review_statuses(
+    db: Session, username: str, course_id: str, now: datetime | None = None
+) -> bool:
+    """Persist due mastered points as review_due before a knowledge-map response."""
+    now = now or utc_now()
+    changed = False
+    rows = db.query(models.UserKnowledgeProgress).filter(
+        models.UserKnowledgeProgress.username == username,
+        models.UserKnowledgeProgress.course_id == course_id,
+        models.UserKnowledgeProgress.review_due_at.isnot(None),
+    ).all()
+    for progress in rows:
+        confirmed = _normalize_map_node_status(
+            getattr(progress, "user_confirmed_status", None) or progress.status
+        )
+        due_at = progress.review_due_at
+        if confirmed != "mastered" or not due_at:
+            continue
+        comparable_due = due_at.astimezone(timezone.utc).replace(tzinfo=None) if due_at.tzinfo else due_at
+        comparable_now = now.astimezone(timezone.utc).replace(tzinfo=None) if now.tzinfo else now
+        if comparable_now >= comparable_due:
+            progress.status = "review_due"
+            progress.user_confirmed_status = "review_due"
+            progress.updated_at = now
+            changed = True
+    if changed:
+        db.commit()
+    return changed
 
 
 def _serialize_map_progress(progress: models.UserKnowledgeProgress | None, display_status: str | None = None) -> dict:
@@ -17756,6 +17786,7 @@ def get_knowledge_map(course_id: str, username: str = "", db: Session = Depends(
     review_interval_days = 7
     if username:
         user = get_user_by_username(username, db)
+        _materialize_due_review_statuses(db, user.username, normalized_course)
         review_interval_days = _get_review_interval_days(db, user.username, normalized_course)
         progress_rows = (
             db.query(models.UserKnowledgeProgress)
@@ -17903,6 +17934,10 @@ def update_knowledge_map_progress(req: schemas.KnowledgeMapProgressUpdate, db: S
         progress.learned_at = now
         progress.review_interval_days = interval_days
         progress.review_due_at = now + timedelta(days=interval_days)
+    elif next_status == "review_due":
+        progress.learned_at = progress.learned_at or now
+        progress.review_interval_days = _get_review_interval_days(db, user.username, course_id)
+        progress.review_due_at = now
     db.commit()
     db.refresh(progress)
     display_status = _display_map_progress_status(progress)
@@ -17966,6 +18001,31 @@ def update_knowledge_map_review_settings(req: schemas.KnowledgeMapReviewSettings
         db.add(setting)
     setting.review_interval_days = interval
     setting.updated_at = now
+    progress_rows = db.query(models.UserKnowledgeProgress).filter(
+        models.UserKnowledgeProgress.username == user.username,
+        models.UserKnowledgeProgress.course_id == course_id,
+    ).all()
+    for progress in progress_rows:
+        current = _normalize_map_node_status(
+            getattr(progress, "user_confirmed_status", None) or progress.status
+        )
+        if current != "mastered" or not progress.learned_at:
+            continue
+        progress.review_interval_days = interval
+        progress.review_due_at = progress.learned_at + timedelta(days=interval)
+        comparable_due = (
+            progress.review_due_at.astimezone(timezone.utc).replace(tzinfo=None)
+            if progress.review_due_at.tzinfo
+            else progress.review_due_at
+        )
+        comparable_now = now.astimezone(timezone.utc).replace(tzinfo=None) if now.tzinfo else now
+        if comparable_due <= comparable_now:
+            progress.status = "review_due"
+            progress.user_confirmed_status = "review_due"
+        else:
+            progress.status = "mastered"
+            progress.user_confirmed_status = "mastered"
+        progress.updated_at = now
     db.commit()
     return {"success": True, "course_id": course_id, "review_interval_days": interval}
 
@@ -18322,6 +18382,10 @@ def update_exam_study_plan_knowledge_item(
         progress.learned_at = now
         progress.review_interval_days = interval_days
         progress.review_due_at = now + timedelta(days=interval_days)
+    elif req.status == "review_due":
+        progress.learned_at = progress.learned_at or now
+        progress.review_interval_days = _get_review_interval_days(db, user.username, course_id)
+        progress.review_due_at = now
 
     db.commit()
     db.refresh(progress)
