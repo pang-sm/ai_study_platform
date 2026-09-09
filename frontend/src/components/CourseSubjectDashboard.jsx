@@ -950,6 +950,8 @@ export default function CourseSubjectDashboard({
           examCramMode={isExamCramMode}
           courseId={courseId}
           courseName={courseName}
+          scopeSubject={courseId}
+          scopeCourse={courseId}
           contextDisplay={isExamCramMode ? "考试突击 · AI 复习问答" : courseContextDisplay}
           knowledgeContext={knowledgeContext}
           initialMaterialToReference={initialMaterialToReference}

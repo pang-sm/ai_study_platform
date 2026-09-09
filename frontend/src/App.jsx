@@ -735,6 +735,7 @@ function App() {
     return route ? { panel: route.panel, nonce: 0 } : null;
   });
   const [examInitialMaterialReference, setExamInitialMaterialReference] = useState(null);
+  const [courseInitialMaterialReference, setCourseInitialMaterialReference] = useState(null);
   const [examKnowledgeContext, setExamKnowledgeContext] = useState(null);
   const [courseSubjectContext, setCourseSubjectContext] = useState(getInitialCourseContext);
   const [courseDashboardPanelIntent, setCourseDashboardPanelIntent] = useState(() => {
@@ -875,7 +876,13 @@ function App() {
     if (context?.examCourseId) {
       setSubject(context.examCourseId);
     } else if (context?.courseId) {
-      setSubject(normalizeSubject(context.courseId));
+      // course_learning course ids are canonical route identities, not legacy
+      // subject aliases. Preserve them verbatim when restoring a course route.
+      setSubject(
+        context?.track === "course_learning" || context?.serviceKey === "course_learning"
+          ? context.courseId
+          : normalizeSubject(context.courseId),
+      );
     }
     if (nextPage === "workspaceMaterials") {
       const nextMaterialSubject = normalizeSubject(context?.courseId || context?.examCourseId || subject);
@@ -1600,8 +1607,34 @@ function App() {
     });
   };
 
-  const quoteMaterialFromLibrary = (material) => {
+  const quoteMaterialFromLibrary = (material, sourceContext = null) => {
     if (!material?.id) return;
+    if (sourceContext?.track === "course_learning") {
+      const courseId = resolveCourseLearningId(sourceContext.courseId) || sourceContext.courseId;
+      if (!courseId) return;
+
+      setSelectedLibraryMaterials((prev) => {
+        if (prev.some((item) => item.id === material.id)) return prev;
+        return [...prev, material];
+      });
+      setCourseInitialMaterialReference({
+        material,
+        courseId,
+        courseName: sourceContext.courseName || ID_TO_DISPLAY[courseId] || courseId,
+        nonce: Date.now(),
+      });
+      setPage("dashboard", {
+        courseId,
+        courseName: sourceContext.courseName || ID_TO_DISPLAY[courseId] || courseId,
+        courseTitle: sourceContext.courseTitle || sourceContext.courseName || ID_TO_DISPLAY[courseId] || courseId,
+        learningGoal: sourceContext.learningGoal || sourceContext.learning_goal || "",
+        track: "course_learning",
+        serviceKey: "course_learning",
+        forcePanel: "chat",
+      });
+      return;
+    }
+
     const materialCourse = normalizeSubject(material.subject || subject);
     const materialExamSubjectKey = getExamSubjectKeyFromCourse(materialCourse);
     setSubject(materialCourse);
@@ -4589,7 +4622,11 @@ function App() {
         deleteMaterial={deleteMaterial}
         setPage={setPage}
         onKnowledgeConfirmed={() => setCourseDashboardPanelIntent({ panel: "knowledge", nonce: Date.now() })}
-        onQuoteMaterial={quoteMaterialFromLibrary}
+        onQuoteMaterial={(material) => quoteMaterialFromLibrary(material, {
+          ...activeCourseContext,
+          track: "course_learning",
+          serviceKey: "course_learning",
+        })}
     />
     );
     const coursePracticeContent = (
@@ -4620,8 +4657,8 @@ function App() {
         reportContent={null}
         planContent={null}
         knowledgeContext={examKnowledgeContext}
-        initialMaterialToReference={examInitialMaterialReference}
-        onInitialMaterialReferenced={() => setExamInitialMaterialReference(null)}
+        initialMaterialToReference={courseInitialMaterialReference}
+        onInitialMaterialReferenced={() => setCourseInitialMaterialReference(null)}
         onPanelChange={(panel, courseId) => writeCourseDashboardRoute(courseId, panel)}
       />
     );
