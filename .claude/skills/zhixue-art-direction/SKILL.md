@@ -10,11 +10,12 @@ Visual Concept，再写代码」，并桥接通用 `frontend-design` Skill 与�
 
 ## 强制流程（写代码之前）
 
-1. 读取 `docs/design/ZHIXUE_VISUAL_DIRECTION_V1.md`（视觉方向 SSOT）。
-2. 读取 `docs/UI_DESIGN_SPEC.md`（视觉规则与红线）。
-3. 查看相关 `reference/UI/`、`reference/PAGE/`、`reference/LOGO/`（参考与品牌资产，Logo 不可修改）。
-4. 调用并遵守通用 `frontend-design` Skill（distinctive visual identity、avoid SaaS-card kit、两遍法）。
-5. 在写代码之前，明确输出内部 **design brief**：
+1. 读取 `docs/product/ZHIXUE_LEARNING_EXPERIENCE_BASELINE_V1.md`（学习体验/IA SSOT）。
+2. 读取 `docs/design/ZHIXUE_VISUAL_DIRECTION_V1.md`（视觉方向 SSOT）。
+3. 读取 `docs/UI_DESIGN_SPEC.md`（视觉规则与红线）。
+4. 查看相关 `reference/UI/`、`reference/PAGE/`、`reference/LOGO/`（参考与品牌资产，Logo 不可修改）。
+5. 调用并遵守通用 `frontend-design` Skill（distinctive visual identity、avoid SaaS-card kit、两遍法）。
+6. 在写代码之前，明确输出内部 **design brief**：
 
 ```text
 Primary task        —— 用户此刻要完成的一件事
@@ -28,7 +29,7 @@ Interaction character —— hover / focus / motion 的性格
 Mobile adaptation   —— 移动端如何重新构图（不是 desktop 纵向堆叠）
 ```
 
-6. 自检：**这个设计是否可能收敛成 Dashboard？**（KPI tiles / 同款白卡 / 灰进度条 / 网格面板 / 纯文字列表 / 灰底）。若「遮住 Logo 就像 admin/SaaS 后台」，则重新设计。
+7. 自检：**这个设计是否可能收敛成 Dashboard？**（KPI tiles / 同款白卡 / 灰进度条 / 网格面板 / 纯文字列表 / 灰底）。若「遮住 Logo 就像 admin/SaaS 后台」，则重新设计。
 
 只有完成以上步骤后才能开始实现。
 

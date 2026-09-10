@@ -16,6 +16,8 @@
 ```text
 ZHIXUE_PLATFORM_BASELINE（总体架构）
         ↓
+ZHIXUE_LEARNING_EXPERIENCE_BASELINE（学习体验/IA）
+        ↓
 ZHIXUE_VISUAL_DIRECTION（本文档，视觉人格）
         ↓
 UI_DESIGN_SPEC（视觉规则与红线）
@@ -27,6 +29,10 @@ Component（组件实现）
 
 本文档是**视觉方向 Single Source of Truth**。`docs/UI_DESIGN_SPEC.md` 应引用本文档，
 而本文档不复制 UI_DESIGN_SPEC 的工程规则。
+
+> **视觉层级必须遵循学习体验的信息优先级**：`Current > Next > Action > Path > Tools`。
+> 视觉设计不能把 Tools / Dashboard metrics / directory 重新放到 Current Learning 前面。
+> 权威 IA 见 `docs/product/ZHIXUE_LEARNING_EXPERIENCE_BASELINE_V1.md`。
 
 ---
 

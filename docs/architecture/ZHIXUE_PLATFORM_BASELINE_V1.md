@@ -1,7 +1,7 @@
 # 智学平台总体架构基准（ZHIXUE PLATFORM BASELINE）
 
 - **文档名称**：智学平台总体架构基准
-- **Version**：V1.0
+- **Version**：V1.1
 - **Status**：BASELINE
 - **Date**：2026-09-10
 - **Scope**：产品架构、AI 架构、数据架构、自研模型路线、扩展原则
@@ -10,6 +10,8 @@
 > 本文档是智学平台**总体产品 + 技术架构的 Single Source of Truth**。
 >
 > 相关但不替代本文档的规范：
+> - `docs/product/ZHIXUE_LEARNING_EXPERIENCE_BASELINE_V1.md` —— **用户学习体验与信息架构的权威基准**（Learning-first IA）。
+> - `docs/design/ZHIXUE_VISUAL_DIRECTION_V1.md` —— 视觉方向基准。
 > - `docs/UI_DESIGN_SPEC.md` —— 前端 UI/UX 的唯一权威规范（视觉层）。
 > - `docs/FRONTEND_ARCHITECTURE.md` —— 前端工程架构（React/Vite/Router/Query 层）。
 > - `docs/FRONTEND_API_CONTRACT.md` —— 前后端 API 契约说明。
@@ -43,6 +45,10 @@
 - 数据体系
 
 **禁止**未来把三大业务重新做成三个互相割裂的网站。
+
+> **用户学习体验（Learning-first）**：三大业务是**三个 Learning Worlds**，但用户进入平台后的第一优先级是
+> **「当前学习 / 下一步行动」**，而不是三大业务目录或学习 KPI。三大业务作为**次级探索层**。权威定义见
+> `docs/product/ZHIXUE_LEARNING_EXPERIENCE_BASELINE_V1.md`。
 
 ---
 
@@ -944,3 +950,4 @@ zhixue_logo_horizontal_simple.png
 | Version | Date | Change | Reason | Compatibility Impact | Migration Impact |
 | --- | --- | --- | --- | --- | --- |
 | V1.0 | 2026-09-10 | Initial baseline | 建立总体架构 Single Source of Truth | — | — |
+| V1.1 | 2026-09-10 | Homepage and learning-flow IA changed from module-first to learning-action-first | User testing / design iterations showed module-first IA encouraged dashboard-like layouts and increased decision cost | Three-domain product structure and technical architecture unchanged | Future pages should prioritize Current → Next → Action → Path → Tools |

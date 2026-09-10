@@ -11,6 +11,7 @@ description: 智学平台总体产品与技术架构基准入口。当任务涉�
 ## 基准文档
 
 - 唯一权威：`docs/architecture/ZHIXUE_PLATFORM_BASELINE_V1.md`
+- 学习体验/IA：`docs/product/ZHIXUE_LEARNING_EXPERIENCE_BASELINE_V1.md`
 - 前端视觉规范：`docs/UI_DESIGN_SPEC.md`
 - 前端工程架构：`docs/FRONTEND_ARCHITECTURE.md`
 

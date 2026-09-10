@@ -20,4 +20,5 @@
 - 修改前先检查已有 shared components / tokens，避免重复建设。
 - 页面完成后必须执行一次视觉一致性检查（可用 `/frontend-review`）。
 - 涉及智学平台产品/技术架构设计或结构性重构时，遵循 `docs/architecture/ZHIXUE_PLATFORM_BASELINE_V1.md`，并使用 `zhixue-platform-baseline` Skill。
+- 涉及智学平台产品信息架构、学习流程或页面设计时，遵循 `docs/product/ZHIXUE_LEARNING_EXPERIENCE_BASELINE_V1.md`。
 - 涉及智学平台视觉设计/页面重构时，遵循 `docs/design/ZHIXUE_VISUAL_DIRECTION_V1.md`，并使用 `zhixue-art-direction` Skill。
