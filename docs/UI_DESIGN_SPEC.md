@@ -1,12 +1,14 @@
 # 智学平台 UI / UX 设计规范（Single Source of Truth）
 
-> 本文档是智学平台全部前端 UI 的**唯一权威规范**。所有页面、组件、视觉决策都以本文件为准。
+> 本文档是智学平台全部前端 UI 的**权威规范**。所有页面、组件、视觉决策都以本文件为准。
+>
+> **视觉方向（Art Direction）以 `docs/design/ZHIXUE_VISUAL_DIRECTION_V1.md` 为唯一权威**，
+> 其层级在本文件之上。本文件负责视觉规则与红线（red lines），不重复视觉方向的具体内容。
+> 设计页面前，必须先读取视觉方向基准建立 Visual Concept。
 >
 > 适用范围：前端全量重构阶段及之后所有前端工作。
 > 配套执行入口：`.claude/rules/frontend-ui.md`（处理 frontend 代码时的强制流程）、`.claude/skills/frontend-review/`（页面完成后的 UI/UX 审核）。
-> Design Token 的语义规范由本文件定义。当前 frontend 尚未初始化；正式初始化 frontend 时，
-> 必须根据本规范建立代码级 token implementation，其实际文件路径由届时选定的 styling
-> architecture 决定。不得在 frontend 初始化前提前制造 frontend 文件树。
+> Design Token 的语义规范由本文件定义；代码级 token implementation 位于 `frontend/src/styles/tokens.css`。
 
 ---
 
@@ -412,3 +414,30 @@ architecture 决定，不预先固定为某个文件路径。
 8. loading / empty / error 是否统一
 9. responsive / accessibility 是否达标
 10. 是否错误修改 backend
+
+---
+
+## 30. 正向视觉方向与 Dashboard Detection
+
+正向视觉方向的完整定义见 **`docs/design/ZHIXUE_VISUAL_DIRECTION_V1.md`**（视觉方向 SSOT）。
+本节只列出本文件必须遵守的**正向原则指针**，具体内容以 SSOT 为准，不在此重复。
+
+设计页面时，必须先回答「What is the visual idea of this page?」建立 Visual Concept，再写代码。
+
+本文件补充/强调以下正向项：
+
+1. **Surface 分层**：区分 CANVAS / EDITORIAL / FOCUS / OBJECT；**Section ≠ Card**，不得把每个 section 包成 rounded rectangle。
+2. **Card Eligibility**：Card 只用于独立可点击对象/任务/资源；section title、普通说明、简单分类、装饰性分组不用 Card。
+3. **Brand Intensity**：颜色使用强度层级（Subtle/Soft/Default/Strong/Emphasis），不只一个主色；领域 accent（考研/课程/编程）仅作识别辅助。
+4. **Typography Hierarchy**：Display / Page Title / Section Title / Object Title / Body / Meta / Label 需通过 size+weight+line-height+spacing 拉开明显差异。
+5. **Content Visuals**：鼓励学科插图、课程封面、路径图示、里程碑节点等**内容视觉载体**；「不要 AI 插画」≠「不要任何视觉内容」。
+6. **Domain Visual Grammar**：考研=目标/里程碑；课程=知识/结构/关联；编程=代码/运行/反馈——三者可感知为不同学习模式但保持统一品牌。
+
+### Dashboard Detection（硬性检查）
+
+如果页面同时大量存在：KPI tiles、identical white bordered cards、generic progress bars、
+grid panels、text lists、gray canvas——即使 spacing / token / responsive / a11y 全部正确，**仍不能 PASS**。
+
+必须回答：「**如果删除 Logo，这个页面是否看起来像任何一个 admin / SaaS dashboard？**」
+
+若答案为 YES → **Visual Design FAIL。**

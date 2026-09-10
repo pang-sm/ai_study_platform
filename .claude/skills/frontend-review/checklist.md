@@ -74,10 +74,23 @@
 - [ ] tests（无测试则标注 N/A，**不得伪造通过**）
 - [ ] build（无脚本则标注 N/A）
 
+## I. 视觉质量（Art Direction）
+
+> 一致性（A–H）与工程测试全部 PASS，但本部分任一「必须项」FAIL → 总结论仍为 `FAIL`。
+
+- [ ] **ART DIRECTION**：页面是否有明确视觉概念（Visual Concept），而非机械卡片矩阵
+- [ ] **BRAND**：是否明显属于智学平台（品牌母题、蓝青关系、Logo 几何语言）
+- [ ] **LEARNING PRODUCT**：是否表现「学习/知识/路径」，而非只表现「数据/状态」
+- [ ] **CONTENT VISUAL**：是否有有意义视觉载体（学科插图/课程封面/路径图示/里程碑节点），而非纯文字列表
+- [ ] **HIERARCHY**：是否有强弱节奏（Display/Page/Section/Object 层级明显拉开），而非均匀卡片
+- [ ] **CARD USAGE**：是否有不必要 Card（Section 被包成 rounded rectangle / 卡片只为装饰分组）
+- [ ] **DASHBOARD TEST**：遮住 Logo，是否像通用 admin / SaaS 后台？（若 YES → FAIL）
+- [ ] **MOBILE COMPOSITION**：移动端是否重新构图，而非 desktop 内容纵向堆叠
+
 ---
 
 ## 结论
 
-- 任一「必须项」FAIL 且未被修复 → 总结论 `FAIL`。
+- 任一「必须项」FAIL 且未被修复 → 总结论 `FAIL`。视觉质量（I 节）各项均为「必须项」。
 - 全部通过或仅剩已记录在案的豁免 → `PASS`。
 - 输出：PASS/FAIL + 具体文件 + 问题 + 修改建议。

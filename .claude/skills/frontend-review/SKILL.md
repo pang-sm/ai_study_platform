@@ -23,8 +23,8 @@ description: 页面开发完成后，按统一流程对 frontend 变更做 UI/UX
 
 1. 获取当前 frontend diff（`git diff` + `git status`，聚焦 `frontend/**`）。
 2. 确认涉及哪些页面和组件。
-3. 阅读 `docs/UI_DESIGN_SPEC.md` 中与本次变更相关的章节。
-4. 逐条执行 `checklist.md` 中的检查项（重点：Design Tokens、随机值、gradient/glass/glow、Card、emoji、typography、spacing、button、primary action、loading/empty/error、responsive、accessibility）。
+3. 阅读 `docs/design/ZHIXUE_VISUAL_DIRECTION_V1.md`（视觉方向）与 `docs/UI_DESIGN_SPEC.md` 中与本次变更相关的章节。
+4. 逐条执行 `checklist.md` 中的检查项（除一致性外，还必须执行「视觉质量」维度：art direction、brand、learning product、content visual、hierarchy、card usage、dashboard test、mobile composition）。
 5. 检查是否错误修改了 backend（`backend/**`、数据库、API）。
 6. 执行现有 frontend lint / typecheck / tests / build（若项目有对应脚本则真实执行，没有则明确标注「无脚本，未执行」，**不得伪造通过**）。
 7. 汇总并给出结论。
