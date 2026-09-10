@@ -1,0 +1,137 @@
+/* ============================================================================
+ * 智学平台 — Design Tokens
+ * ----------------------------------------------------------------------------
+ * 这是全站 UI 原始值的唯一来源（Single Source of Truth）。
+ * 权威规范见：docs/UI_DESIGN_SPEC.md
+ *
+ * 规则：
+ *   - 所有组件/页面必须优先消费这里的 token，禁止直接写无依据的魔法值
+ *     （例如 border-radius: 13px、color: #2761ef、margin-top: 37px）。
+ *   - 确需特殊值时，必须有明确原因并在代码中注释说明。
+ *   - 不新增颜色、圆角、shadow、spacing，除非先在此处登记并说明用途。
+ *
+ * 技术栈（见 AGENTS.md）：React + Vite。
+ * 本文件采用 CSS 自定义属性，框架无关，可被以下任意方式消费：
+ *   - 原生 CSS / CSS Modules
+ *   - Tailwind（v4 的 @theme，或 v3 的 theme.extend.colors 映射）
+ *   - 任意 CSS-in-JS 方案
+ * ============================================================================ */
+
+:root {
+  /* ------------------------------------------------------------------ *
+   * Color — 品牌色与语义色
+   * 语义对照（详见 UI_DESIGN_SPEC.md）：
+   *   蓝 = 当前状态 / 主操作 / 链接 / 普通进度
+   *   绿 = 已学习 / 已完成 / 掌握 / 正确
+   *   橙 = 待复习 / 提醒
+   *   红 = 错误 / 删除 / 危险
+   *   灰 = 未开始 / Disabled / 次级信息
+   *   紫 = 仅作为 AI 功能辅助识别，不得成为全站主色
+   * ------------------------------------------------------------------ */
+  --color-primary: #2563EB;
+  --color-primary-hover: #1D4ED8;
+  --color-primary-soft: #EFF6FF;
+
+  --color-success: #16A34A;
+  --color-success-soft: #F0FDF4;
+
+  --color-warning: #F59E0B;
+  --color-warning-soft: #FFFBEB;
+
+  --color-danger: #DC2626;
+  --color-danger-soft: #FEF2F2;
+
+  --color-ai: #7C3AED;
+  --color-ai-soft: #F5F3FF;
+
+  /* ------------------------------------------------------------------ *
+   * Color — 中性色（背景 / 文本 / 边框）
+   * ------------------------------------------------------------------ */
+  --color-page-bg: #F8FAFC;
+  --color-surface: #FFFFFF;
+  --color-text-primary: #111827;
+  --color-text-secondary: #4B5563;
+  --color-text-muted: #6B7280;
+  --color-border: #E5E7EB;
+
+  /* ------------------------------------------------------------------ *
+   * Typography
+   * 层级优先依赖 size + weight + whitespace，而非大量颜色。
+   * 避免全页面大量 bold。
+   * ------------------------------------------------------------------ */
+  --font-sans: "Inter", "PingFang SC", "Microsoft YaHei", system-ui,
+    -apple-system, "Segoe UI", sans-serif;
+
+  --text-hero: 48px;          /* 48–56px */
+  --text-page-title: 34px;    /* 32–36px */
+  --text-section-title: 26px; /* 24–28px */
+  --text-card-title: 18px;    /* 17–20px */
+  --text-body: 15px;          /* 14–16px */
+  --text-metadata: 13px;      /* 12–14px */
+
+  --leading-tight: 1.2;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.7;
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* ------------------------------------------------------------------ *
+   * Spacing — 固定 4px 基数，禁止组件任意创造随机间距
+   * 大区块间距：48–80px（--section-gap）
+   * ------------------------------------------------------------------ */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+
+  --section-gap: var(--space-12);
+
+  /* ------------------------------------------------------------------ *
+   * Radius — 统一圆角，禁止随机 10/14/18/22/24/28px
+   * ------------------------------------------------------------------ */
+  --radius-sm: 6px;   /* 小元素 */
+  --radius-md: 8px;   /* button / input */
+  --radius-lg: 12px;  /* card */
+  --radius-xl: 16px;  /* section */
+  --radius-2xl: 20px; /* 特殊 hero */
+
+  /* ------------------------------------------------------------------ *
+   * Shadow & Border — 默认优先 1px border，而非 heavy shadow
+   * 禁止：黑色重阴影 / 大面积漂浮 / 蓝紫发光 / Neon Glow
+   * ------------------------------------------------------------------ */
+  --border-default: 1px solid var(--color-border);
+  --shadow-xs: 0 1px 2px rgba(17, 24, 39, 0.05);
+  --shadow-sm: 0 1px 3px rgba(17, 24, 39, 0.08), 0 1px 2px rgba(17, 24, 39, 0.06);
+  --shadow-md: 0 4px 6px -1px rgba(17, 24, 39, 0.08),
+    0 2px 4px -1px rgba(17, 24, 39, 0.06);
+
+  /* ------------------------------------------------------------------ *
+   * Layout — 容器宽度
+   *   普通页面 1200–1280px；Dashboard/Workspace 最大 1360–1440px；
+   *   长文本阅读 700–850px
+   * ------------------------------------------------------------------ */
+  --container-page: 1280px;
+  --container-wide: 1440px;
+  --container-reading: 820px;
+
+  /* Desktop 页面左右 padding：24–48px */
+  --page-padding-x: clamp(24px, 4vw, 48px);
+
+  /* ------------------------------------------------------------------ *
+   * Motion — 统一过渡
+   * ------------------------------------------------------------------ */
+  --transition-fast: 120ms;
+  --transition-base: 160ms;
+  --transition-slow: 240ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
