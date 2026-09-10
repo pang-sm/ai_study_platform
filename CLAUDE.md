@@ -19,3 +19,4 @@
 - Reference 设计素材位于 `reference/`、`design/`、`design-references/`，不得随意删除、重命名、移动。
 - 修改前先检查已有 shared components / tokens，避免重复建设。
 - 页面完成后必须执行一次视觉一致性检查（可用 `/frontend-review`）。
+- 涉及智学平台产品/技术架构设计或结构性重构时，遵循 `docs/architecture/ZHIXUE_PLATFORM_BASELINE_V1.md`，并使用 `zhixue-platform-baseline` Skill。
