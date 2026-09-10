@@ -1,0 +1,32 @@
+@import "tailwindcss";
+@import "./tokens.css";
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-page-background text-text-primary font-sans;
+    line-height: 1.5;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  ::selection {
+    background-color: var(--color-primary-soft);
+    color: var(--color-text-primary);
+  }
+
+  a {
+    @apply text-primary;
+  }
+
+  a:hover {
+    @apply text-primary-hover;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+}
