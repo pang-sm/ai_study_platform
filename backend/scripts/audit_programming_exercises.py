@@ -26,7 +26,7 @@ from database import SessionLocal
 import models
 
 
-COPY_PATH = ROOT / "frontend" / "src" / "components" / "programmingExerciseCopy.js"
+COPY_PATH = ROOT / "backend" / "data" / "programming_exercise_copy.json"
 TIMEOUT_SECONDS = 30
 
 
@@ -245,11 +245,7 @@ def test_count(language: str, output: str) -> int:
 
 
 def copy_keys() -> set[str]:
-    source = COPY_PATH.read_text(encoding="utf-8")
-    result = set()
-    for match in re.finditer(r"^\s*(?:\"([^\"]+)\"|([A-Za-z0-9-]+))\s*:\s*\[", source, re.MULTILINE):
-        result.add(match.group(1) or match.group(2))
-    return result
+    return set(json.loads(COPY_PATH.read_text(encoding="utf-8")).keys())
 
 
 def base_slug(slug: str) -> str:

@@ -1,6 +1,6 @@
 """Idempotently fill stable Chinese display fields for imported Exercism rows."""
 from __future__ import annotations
-import re, sys
+import json, sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from database import SessionLocal
@@ -8,11 +8,11 @@ from models import ProgrammingExercise
 
 # Existing curated card copy remains the title/summary source; source English
 # is preserved separately and never rendered as the primary description.
-COPY = Path(__file__).resolve().parents[2] / 'frontend/src/components/programmingExerciseCopy.js'
+COPY = Path(__file__).resolve().parents[2] / 'backend/data/programming_exercise_copy.json'
 OVERRIDES = {'electric-bill': ('电费计算', '根据用电量和分段费率计算电费。')}
 def curated():
- text=COPY.read_text(encoding='utf-8')
- return {m.group(1): (m.group(2),m.group(3)) for m in re.finditer(r'^[ \t]*["\']?([\w-]+)["\']?\s*:\s*\["([^"]+)",\s*"([^"]+)"\]',text,re.M)}
+ data=json.loads(COPY.read_text(encoding='utf-8'))
+ return {k: tuple(v) for k, v in data.items()}
 def main():
  data=curated(); db=SessionLocal()
  try:
