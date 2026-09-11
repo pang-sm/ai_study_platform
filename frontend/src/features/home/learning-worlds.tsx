@@ -15,7 +15,7 @@ function Motif({ type }: { type: (typeof worlds)[number]['motif'] }) {
 export function LearningWorlds() {
   return <section id="learning-worlds" className="lab-index" aria-labelledby="worlds-title">
     <div className="lab-index__heading"><p>LEARNING INDEX / 03 PATHS</p><h2 id="worlds-title">选择你的学习方向</h2><span aria-hidden="true">↓</span></div>
-    <div className="lab-index__rows">{worlds.map((world) => <a href="/#learning-worlds" className={`lab-index__row lab-index__row--${world.motif}`} key={world.id}>
+    <div className="lab-index__rows">{worlds.map((world) => <a href={world.motif === 'target' ? '/exam' : '/#learning-worlds'} className={`lab-index__row lab-index__row--${world.motif}`} key={world.id}>
       <span className="lab-index__number">{world.id}</span><div className="lab-index__identity"><p>{world.english}</p><h3>{world.title}</h3></div><Motif type={world.motif} />
       <div className="lab-index__description"><p>{world.description}</p><small>{world.summary}</small></div><span className="lab-index__action">{world.action}<ArrowUpRight className="size-4" aria-hidden="true" /></span>
     </a>)}</div>
