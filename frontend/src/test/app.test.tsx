@@ -24,7 +24,8 @@ function renderApp(initialPath = '/') {
 describe('App', () => {
   it('renders the index route', async () => {
     renderApp('/');
-    expect(await screen.findByText('Frontend architecture initialized.')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: '继续学习' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '选择你的学习方向' })).toBeInTheDocument();
   });
 
   it('renders the not-found route for unknown paths', async () => {

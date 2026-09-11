@@ -17,12 +17,30 @@
   --color-danger-soft: #fef2f2;
   --color-ai-accent: #7c3aed;
   --color-ai-soft: #f5f3ff;
-  --color-page-background: #f8fafc;
+  --color-page-background: #fbfaf7;
   --color-surface: #ffffff;
-  --color-text-primary: #111827;
+  --color-text-primary: #172033;
   --color-text-secondary: #4b5563;
   --color-text-muted: #6b7280;
-  --color-border-default: #e5e7eb;
+  --color-border-default: #e4e5e8;
+  --color-ink-soft: #eef2f8;
+  --color-visual-coral: #d4654a;
+  --color-visual-coral-soft: #fff0eb;
+  --color-visual-violet: #6656c8;
+  --color-visual-violet-soft: #efedff;
+  --color-visual-warm: #8a5a25;
+  --color-exam: #5150a6;
+  --color-course: #08736f;
+  --color-programming: #6656c8;
+  --color-lab-paper: #e8e5da;
+  --color-lab-paper-deep: #dcd8ca;
+  --color-lab-paper-muted: #c4c6cb;
+  --color-lab-ink: #0c1730;
+  --color-lab-grid: #607096;
+  --color-lab-grid-light: #9ca8c1;
+  --color-lab-blue-light: #7ea5ff;
+  --color-lab-accent: #ff684d;
+  --color-lab-accent-ink: #c94532;
 
   /* --- Radius (§6) --- */
   --radius-small: 6px;
@@ -39,6 +57,7 @@
   --text-section-title: 1.5rem; /* 24px */
   --text-page-title: 2rem; /* 32px */
   --text-hero: 3rem; /* 48px */
+  --text-display: clamp(3rem, 5.25vw, 5.75rem);
 
   /* --- Layout (§5) --- */
   --container-content: 1280px;
@@ -49,6 +68,7 @@
   /* --- Shadow (§7) — light only, never heavy/dark/neon --- */
   --shadow-card: 0 1px 2px 0 rgb(17 24 39 / 0.06);
   --shadow-card-hover: 0 2px 4px 0 rgb(17 24 39 / 0.08);
+  --shadow-visual: 0 18px 48px -32px rgb(23 32 51 / 0.36);
 
   /* --- Motion (§7) --- */
   --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
