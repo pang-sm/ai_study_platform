@@ -32,6 +32,7 @@ fi
 sudo ln -sfn "$RELEASE_DIR" "$CURRENT"
 
 echo "[zhixue-runtime] create dedicated venv (numpy only; NOT backend/.venv)"
+sudo chown -R "$(whoami):$(whoami)" "$RUNTIME_HOME"
 if [ ! -x "$RUNTIME_HOME/venv/bin/python" ]; then
     python3 -m venv "$RUNTIME_HOME/venv"
 fi
