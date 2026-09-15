@@ -71,7 +71,6 @@ def _resolve_financial():
     try:
         total_orders = conn.execute("SELECT COUNT(*) FROM membership_orders").fetchone()[0]
         real_txn = conn.execute("SELECT COUNT(*) FROM membership_orders WHERE provider_transaction_id IS NOT NULL").fetchone()[0]
-        paid = conn.execute("SELECT COUNT(*) FROM membership_orders WHERE paid_at IS NOT NULL").fetchone()[0]
         total_usages = conn.execute("SELECT COUNT(*) FROM redemption_code_usages").fetchone()[0]
 
         conn.execute("BEGIN")
@@ -79,8 +78,8 @@ def _resolve_financial():
             conn.commit()
             return {"classification": "NO_FINANCIAL_DATA", "action": "NOTHING_TO_DELETE",
                     "membership_orders": 0, "redemption_code_usages": 0}
-        if real_txn == 0 and paid == 0:
-            # No external transaction reference and nothing settled -> test/sandbox.
+        if real_txn == 0:
+            # No external gateway transaction reference -> mock/test/sandbox, not settled.
             conn.execute("DELETE FROM redemption_code_usages")
             conn.execute("DELETE FROM membership_orders")
             conn.commit()
@@ -88,13 +87,10 @@ def _resolve_financial():
                     "membership_orders_deleted": total_orders,
                     "redemption_code_usages_deleted": total_usages}
         else:
-            # Real financial records -> minimize user identifiers (do NOT fabricate "deleted").
-            cols = [r[1] for r in conn.execute("PRAGMA table_info(membership_orders)")]
-            if "user_id" in cols:
-                conn.execute("UPDATE membership_orders SET user_id = NULL WHERE user_id IS NOT NULL")
-            ucols = [r[1] for r in conn.execute("PRAGMA table_info(redemption_code_usages)")]
-            if "user_id" in ucols:
-                conn.execute("UPDATE redemption_code_usages SET user_id = NULL WHERE user_id IS NOT NULL")
+            # Real financial records -> minimize user identifiers (neutral, not fabricated).
+            conn.execute("UPDATE membership_orders SET user_id = 0")
+            conn.execute("UPDATE redemption_code_usages SET user_id = 0")
+            conn.execute("UPDATE redemption_code_usages SET username = ''")
             conn.commit()
             return {"classification": "REAL_FINANCIAL", "action": "USER_IDENTIFIERS_MINIMIZED",
                     "membership_orders_retained": total_orders,
