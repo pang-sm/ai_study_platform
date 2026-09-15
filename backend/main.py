@@ -51,6 +51,7 @@ from course_workbench import (
     normalize_progress_status,
 )
 import models
+from data_plane import models as data_plane_models  # noqa: F401 — registers Data Plane tables for create_all
 import schemas
 from auth import hash_password, verify_password
 from database import Base, SessionLocal, engine, get_db, init_user_profile_schema, update_conversation_title
@@ -20255,6 +20256,13 @@ def submit_course_learning_practice(attempt_id: int, req: dict, db: Session = De
         is_deleted=False,
     ))
     db.commit()
+    # Phase 2B1: post-commit best-effort Data Plane emission (failure-isolated; never fails submit)
+    try:
+        from data_plane import emitter as _dp_emitter
+        _dp_events = _dp_emitter.build_course_practice_events(attempt, item, answer, is_correct, current_user)
+        _dp_emitter.best_effort_emit(_dp_events, SessionLocal)
+    except Exception as _dp_exc:  # noqa: BLE001
+        logger.warning("data_plane emit hook failed: %s", type(_dp_exc).__name__)
     return {"success": True, "attempt_id": attempt.id, "result": result}
 
 
