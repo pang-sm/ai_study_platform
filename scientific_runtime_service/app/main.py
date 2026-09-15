@@ -52,6 +52,25 @@ def infer_student_twin(req: StudentTwinInferenceRequest):
         )
     if not req.events:
         raise HTTPException(status_code=400, detail="events must not be empty")
+    if req.events[-1].event_id != req.target_event_id:
+        raise HTTPException(
+            status_code=400,
+            detail="target_event_id must equal the last event's event_id",
+        )
+    ids = [e.event_id for e in req.events]
+    if len(ids) != len(set(ids)):
+        raise HTTPException(status_code=400, detail="event_id must be unique")
+    for prev, cur in zip(req.events, req.events[1:]):
+        if (cur.occurred_at, cur.event_id) < (prev.occurred_at, prev.event_id):
+            raise HTTPException(
+                status_code=400,
+                detail="events must be non-decreasing by (occurred_at, event_id)",
+            )
+    if req.runtime_release_id and req.runtime_release_id != RUNTIME_RELEASE_ID:
+        raise HTTPException(
+            status_code=400,
+            detail=f"runtime_release_id mismatch: {req.runtime_release_id}",
+        )
 
     started = time.time()
     state = runtime_bridge.replay_state(req.user_ref, req.events)

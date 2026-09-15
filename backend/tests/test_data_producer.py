@@ -167,7 +167,8 @@ def test_worker_enabled_flag_separate():
 # --------------------------------------------------------------------------- #
 class _FakeRuntimeClient:
     """Stand-in for the Scientific Runtime Service HTTP client (no real HTTP)."""
-    targets: list = []
+    targets: list = []     # target_event_id per call, in order
+    requests: list = []    # (target_event_id, [event_id, ...]) per call, in order
     fail_users: set = set()
 
     def __init__(self, *args, **kwargs):
@@ -177,8 +178,21 @@ class _FakeRuntimeClient:
         user = request["user_ref"]
         if user in _FakeRuntimeClient.fail_users:
             raise RuntimeError(f"injected failure for user {user}")
+        event_ids = [e["event_id"] for e in request["events"]]
         _FakeRuntimeClient.targets.append(request["target_event_id"])
-        return {"contract_version": 1, "state": {"user_id": user, "event_count": len(request["events"])}}
+        _FakeRuntimeClient.requests.append((request["target_event_id"], event_ids))
+        return {
+            "contract_version": 1,
+            "request_id": request["request_id"],
+            "runtime_release_id": "zhixue-runtime-v1-phase1gr-p1",
+            "component_id": "student_twin",
+            "scientific_source_class": "ORIGINAL_ARCHIVE_VERIFIED",
+            "scientific_source_commit": "a16efa27aac90d9c8d8d9ee703aefe5919f4839e",
+            "target_event_id": request["target_event_id"],
+            "replayed_events": len(request["events"]),
+            "state": {"user_id": user, "event_count": len(request["events"])},
+            "latency_ms": 1.0,
+        }
 
 
 def _make_event(session, event_id, user_id, correct=True, occurred_at=1000.0, question_id="q1"):
@@ -279,7 +293,7 @@ def test_worker_none_correct_not_fabricated(clean_data_plane, monkeypatch):
 
     report = worker.run_once(database.SessionLocal)
 
-    assert report["events_scanned"] == 1
+    assert report["events_scanned"] == 0    # None-outcome event is not even a target
     assert report["events_eligible"] == 0   # None outcome is not an observation
     assert report["events_inferred"] == 0
     assert clean_data_plane.query(dp_models.ModelInferenceRun).count() == 0
@@ -306,3 +320,114 @@ def test_worker_no_product_control(clean_data_plane, monkeypatch):
     assert pred.predicted_label is None and pred.rank is None
     assert pred.weak_label is False
     assert pred.score_semantics == "deterministic_student_twin_state"
+
+
+# --------------------------------------------------------------------------- #
+# Phase 6R semantic regression: target vs history separation
+# --------------------------------------------------------------------------- #
+def test_event_id_target_replays_prior_history(clean_data_plane, monkeypatch):
+    monkeypatch.setenv("DATA_PRODUCER_EXECUTION_ENABLED", "true")
+    monkeypatch.setattr(runtime_client, "StudentTwinRuntimeClient", _FakeRuntimeClient)
+    _FakeRuntimeClient.fail_users = set()
+    _FakeRuntimeClient.requests = []
+    _make_event(clean_data_plane, "e1", 1, correct=True, occurred_at=100.0)
+    _make_event(clean_data_plane, "e2", 1, correct=True, occurred_at=200.0)
+    _make_event(clean_data_plane, "e3", 1, correct=True, occurred_at=300.0)
+
+    report = worker.run_once(database.SessionLocal, event_id="e3")
+
+    assert report["events_inferred"] == 1
+    # full history [e1,e2,e3], NOT [e3]
+    assert _FakeRuntimeClient.requests == [("e3", ["e1", "e2", "e3"])]
+
+
+def test_no_future_leakage(clean_data_plane, monkeypatch):
+    monkeypatch.setenv("DATA_PRODUCER_EXECUTION_ENABLED", "true")
+    monkeypatch.setattr(runtime_client, "StudentTwinRuntimeClient", _FakeRuntimeClient)
+    _FakeRuntimeClient.fail_users = set()
+    _FakeRuntimeClient.requests = []
+    _make_event(clean_data_plane, "e1", 1, correct=True, occurred_at=100.0)
+    _make_event(clean_data_plane, "e2", 1, correct=True, occurred_at=200.0)
+    _make_event(clean_data_plane, "e3", 1, correct=True, occurred_at=300.0)
+    _make_event(clean_data_plane, "e4", 1, correct=True, occurred_at=400.0)  # future
+
+    worker.run_once(database.SessionLocal, event_id="e3")
+
+    assert _FakeRuntimeClient.requests == [("e3", ["e1", "e2", "e3"])]  # no e4
+
+
+def test_other_users_excluded(clean_data_plane, monkeypatch):
+    monkeypatch.setenv("DATA_PRODUCER_EXECUTION_ENABLED", "true")
+    monkeypatch.setattr(runtime_client, "StudentTwinRuntimeClient", _FakeRuntimeClient)
+    _FakeRuntimeClient.fail_users = set()
+    _FakeRuntimeClient.requests = []
+    _make_event(clean_data_plane, "u1-e1", 1, correct=True, occurred_at=100.0)
+    _make_event(clean_data_plane, "u2-e1", 2, correct=True, occurred_at=150.0)  # other user
+    _make_event(clean_data_plane, "u1-e2", 1, correct=True, occurred_at=200.0)
+
+    worker.run_once(database.SessionLocal, event_id="u1-e2")
+
+    assert _FakeRuntimeClient.requests == [("u1-e2", ["u1-e1", "u1-e2"])]  # no u2
+
+
+def test_same_timestamp_tie_break(clean_data_plane, monkeypatch):
+    monkeypatch.setenv("DATA_PRODUCER_EXECUTION_ENABLED", "true")
+    monkeypatch.setattr(runtime_client, "StudentTwinRuntimeClient", _FakeRuntimeClient)
+    _FakeRuntimeClient.fail_users = set()
+    _FakeRuntimeClient.requests = []
+    _make_event(clean_data_plane, "e-a", 1, correct=True, occurred_at=100.0)
+    _make_event(clean_data_plane, "e-b", 1, correct=True, occurred_at=100.0)
+
+    worker.run_once(database.SessionLocal, event_id="e-b")
+
+    # same timestamp -> event_id tie-break, e-b is the boundary (e-a <= e-b)
+    assert _FakeRuntimeClient.requests == [("e-b", ["e-a", "e-b"])]
+
+
+def test_limit_does_not_truncate_history(clean_data_plane, monkeypatch):
+    monkeypatch.setenv("DATA_PRODUCER_EXECUTION_ENABLED", "true")
+    monkeypatch.setattr(runtime_client, "StudentTwinRuntimeClient", _FakeRuntimeClient)
+    _FakeRuntimeClient.fail_users = set()
+    _FakeRuntimeClient.requests = []
+    _make_event(clean_data_plane, "e1", 1, correct=True, occurred_at=100.0)
+    _make_event(clean_data_plane, "e2", 1, correct=True, occurred_at=200.0)
+    _make_event(clean_data_plane, "e3", 1, correct=True, occurred_at=300.0)
+
+    report = worker.run_once(database.SessionLocal, limit=1)
+
+    # limit=1 -> only ONE target (e1), but e1's history is still [e1]
+    assert report["events_inferred"] == 1
+    assert _FakeRuntimeClient.requests == [("e1", ["e1"])]
+
+
+def test_hash_history_sensitive():
+    e0 = _le(event_id="e0", occurred_at=50.0, correct=True)
+    e1 = _le(event_id="e1", occurred_at=100.0, correct=True)
+    e2 = _le(event_id="e2", occurred_at=200.0, correct=True)
+    h_short = runtime_client.canonical_input_hash(runtime_client.build_request(e2, [e1, e2]))
+    h_long = runtime_client.canonical_input_hash(runtime_client.build_request(e2, [e0, e1, e2]))
+    assert h_short != h_long  # different history -> different hash
+
+
+def test_hash_stable_same_input():
+    e1 = _le(event_id="e1", occurred_at=100.0, correct=True)
+    e2 = _le(event_id="e2", occurred_at=200.0, correct=True)
+    req = runtime_client.build_request(e2, [e1, e2])
+    assert runtime_client.canonical_input_hash(req) == runtime_client.canonical_input_hash(req)
+
+
+def test_event_id_rerun_idempotent(clean_data_plane, monkeypatch):
+    monkeypatch.setenv("DATA_PRODUCER_EXECUTION_ENABLED", "true")
+    monkeypatch.setattr(runtime_client, "StudentTwinRuntimeClient", _FakeRuntimeClient)
+    _FakeRuntimeClient.fail_users = set()
+    _make_event(clean_data_plane, "e1", 1, correct=True, occurred_at=100.0)
+    _make_event(clean_data_plane, "e2", 1, correct=True, occurred_at=200.0)
+
+    r1 = worker.run_once(database.SessionLocal, event_id="e2")
+    r2 = worker.run_once(database.SessionLocal, event_id="e2")
+
+    assert r1["inference_runs_created"] == 1
+    assert r2["inference_runs_created"] == 0   # same history -> same run id -> no new row
+    assert r2["predictions_created"] == 0
+    assert clean_data_plane.query(dp_models.ModelInferenceRun).count() == 1
+    assert clean_data_plane.query(dp_models.ModelPrediction).count() == 1

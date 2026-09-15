@@ -2,8 +2,10 @@
 
 The Product Backend does NOT import ``zhixue_runtime``; it delegates scientific inference
 to the separate Scientific Runtime Service over localhost HTTP.  This module maps a
-product LearningEvent to the contract-v1 event and performs the HTTP call + validation.
+product LearningEvent to the contract-v1 event, computes the canonical scientific-input
+hash, and performs the HTTP call + full contract validation.
 """
+import hashlib
 import json
 
 import httpx
@@ -11,6 +13,9 @@ import httpx
 from core import config
 
 CONTRACT_VERSION = 1
+COMPONENT_ID = "student_twin"
+SCIENTIFIC_SOURCE_CLASS = "ORIGINAL_ARCHIVE_VERIFIED"
+SCIENTIFIC_SOURCE_COMMIT = "a16efa27aac90d9c8d8d9ee703aefe5919f4839e"
 
 ACTIVITY_TYPE_PRACTICE = "PRACTICE"
 
@@ -47,7 +52,8 @@ def map_learning_event(le) -> dict:
     }
 
 
-def _user_ref(le) -> str:
+def user_ref(le) -> str:
+    """Stable per-user key: canonical user_id, falling back only for foreign records."""
     return str(le.user_id) if le.user_id is not None else (le.source_user_ref or le.event_id)
 
 
@@ -57,10 +63,34 @@ def build_request(target, history) -> dict:
         "contract_version": CONTRACT_VERSION,
         "request_id": "run-" + target.event_id,
         "runtime_release_id": config.SCIENTIFIC_RUNTIME_RELEASE_ID,
-        "user_ref": _user_ref(target),
+        "user_ref": user_ref(target),
         "target_event_id": target.event_id,
         "events": [map_learning_event(e) for e in history],
     }
+
+
+def canonical_inference_payload(request: dict) -> dict:
+    """Only the fields that actually influence scientific inference.
+
+    Excludes tracing metadata (``request_id``) and any execution-generated timestamps.
+    """
+    return {
+        "contract_version": request["contract_version"],
+        "runtime_release_id": request["runtime_release_id"],
+        "user_ref": request["user_ref"],
+        "target_event_id": request["target_event_id"],
+        "events": request["events"],
+    }
+
+
+def canonical_input_hash(request: dict) -> str:
+    """SHA-256 over the canonical JSON of the scientific input (history included).
+
+    Canonical form: UTF-8, sort_keys=True, ensure_ascii=False, separators=(",", ":").
+    """
+    payload = canonical_inference_payload(request)
+    canonical = json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 class StudentTwinRuntimeClient:
@@ -84,8 +114,24 @@ class StudentTwinRuntimeClient:
             data = resp.json()
         except ValueError as exc:
             raise RuntimeClientError(f"runtime service returned non-JSON: {exc}") from exc
+
+        # --- full contract validation (a mismatch must never produce a Prediction) ---
         if data.get("contract_version") != CONTRACT_VERSION:
+            raise RuntimeClientError(f"unsupported contract_version {data.get('contract_version')}")
+        if data.get("request_id") != request["request_id"]:
+            raise RuntimeClientError("runtime response request_id mismatch")
+        if data.get("runtime_release_id") != config.SCIENTIFIC_RUNTIME_RELEASE_ID:
             raise RuntimeClientError(
-                f"unsupported runtime contract_version {data.get('contract_version')}"
-            )
+                f"runtime_release_id mismatch: {data.get('runtime_release_id')}")
+        if data.get("component_id") != COMPONENT_ID:
+            raise RuntimeClientError(f"component_id mismatch: {data.get('component_id')}")
+        if data.get("target_event_id") != request["target_event_id"]:
+            raise RuntimeClientError("runtime response target_event_id mismatch")
+        if data.get("replayed_events") != len(request["events"]):
+            raise RuntimeClientError(
+                f"replayed_events mismatch: {data.get('replayed_events')} != {len(request['events'])}")
+        if data.get("scientific_source_class") != SCIENTIFIC_SOURCE_CLASS:
+            raise RuntimeClientError("scientific_source_class mismatch")
+        if data.get("scientific_source_commit") != SCIENTIFIC_SOURCE_COMMIT:
+            raise RuntimeClientError("scientific_source_commit mismatch")
         return data

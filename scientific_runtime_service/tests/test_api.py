@@ -99,3 +99,30 @@ def test_optional_fields_preserved_as_null():
     assert body["events"][0]["response_time_ms"] is None
     assert body["events"][0]["attempt_no"] is None
     assert body["events"][0]["hints"] is None
+
+
+# --- Phase 6R request validation ---
+def test_target_event_id_must_match_last_event():
+    # events end with e2, but target_event_id is e1
+    r = client.post("/v1/inference/student-twin", json=_request(target_event_id="e1"))
+    assert r.status_code == 400
+
+
+def test_non_unique_event_id_rejected():
+    body = _request()
+    body["events"][1]["event_id"] = "e1"  # duplicate e1
+    r = client.post("/v1/inference/student-twin", json=body)
+    assert r.status_code == 400
+
+
+def test_out_of_order_events_rejected():
+    body = _request()
+    body["events"] = list(reversed(body["events"]))  # decreasing occurred_at
+    r = client.post("/v1/inference/student-twin", json=body)
+    assert r.status_code == 400
+
+
+def test_wrong_runtime_release_id_rejected():
+    r = client.post("/v1/inference/student-twin",
+                    json=_request(runtime_release_id="zhixue-runtime-v1-phase1gr"))
+    assert r.status_code == 400
