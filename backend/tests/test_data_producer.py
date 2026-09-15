@@ -1,13 +1,12 @@
-"""Data Producer foundation tests (eligibility, inference, worker)."""
+"""Data Producer foundation tests (eligibility, inference, worker, runtime client)."""
 import json
-import os
 import time
 from types import SimpleNamespace
 
 import pytest
 
 import database
-from data_plane import eligibility, inference, student_twin_runtime, worker
+from data_plane import eligibility, inference, runtime_client, worker
 from data_plane import models as dp_models
 
 
@@ -55,7 +54,7 @@ def test_student_twin_model_version_idempotent(db_session):
     mv2 = inference.ensure_student_twin_model_version(db_session)
     assert mv1.model_version_id == mv2.model_version_id == inference.STUDENT_TWIN_MODEL_VERSION_ID
     assert mv1.component_id == "student_twin"
-    assert mv1.runtime_release_id == "zhixue-runtime-v1-phase1gr"
+    assert mv1.runtime_release_id == "zhixue-runtime-v1-phase1gr-p1"
     assert mv1.product_role == "DATA_PRODUCER"
     assert db_session.query(dp_models.ModelVersion).count() == 1
 
@@ -100,7 +99,7 @@ def test_prediction_idempotent(db_session):
 
 
 # --------------------------------------------------------------------------- #
-# StudentTwin event mapping (pure)
+# LearningEvent -> contract-v1 event mapping (pure)
 # --------------------------------------------------------------------------- #
 def _le(**kw):
     base = dict(event_id="e1", user_id=7, source_user_ref="alice", occurred_at=1000.0,
@@ -112,22 +111,36 @@ def _le(**kw):
 
 
 def test_map_event_optional_fields_not_fabricated():
-    m = student_twin_runtime.map_event(_le())
+    m = runtime_client.map_learning_event(_le())
     assert m["response_time_ms"] is None
-    assert m["attempts"] is None
+    assert m["attempt_no"] is None
     assert m["hints"] is None  # not recorded -> None, not 0
 
 
 def test_map_event_concept_ref_provenance():
-    m = student_twin_runtime.map_event(_le())
-    assert m["concept_id"] == "kp1"  # FREE_TEXT value, NOT a scientific ontology id
+    m = runtime_client.map_learning_event(_le())
+    assert m["concept_ref"] == "kp1"  # FREE_TEXT value, NOT a scientific ontology id
     assert m["activity_type"] == "PRACTICE"
-    assert m["user_id"] == "7"
+    assert m["item_id"] == "q1"
 
 
 def test_map_event_concept_null_when_missing():
-    m = student_twin_runtime.map_event(_le(knowledge_point_ref_json=None))
-    assert m["concept_id"] is None
+    m = runtime_client.map_learning_event(_le(knowledge_point_ref_json=None))
+    assert m["concept_ref"] is None
+
+
+# --------------------------------------------------------------------------- #
+# runtime client (pure, no real HTTP)
+# --------------------------------------------------------------------------- #
+def test_build_request_contract_shape():
+    target = _le()
+    history = [_le(event_id="e0", occurred_at=500.0, correct=False), target]
+    req = runtime_client.build_request(target, history)
+    assert req["contract_version"] == 1
+    assert req["runtime_release_id"] == "zhixue-runtime-v1-phase1gr-p1"
+    assert req["user_ref"] == "7"
+    assert req["target_event_id"] == "e1"
+    assert [e["event_id"] for e in req["events"]] == ["e0", "e1"]
 
 
 # --------------------------------------------------------------------------- #
@@ -150,31 +163,22 @@ def test_worker_enabled_flag_separate():
 
 
 # --------------------------------------------------------------------------- #
-# Worker (DB + fake scientific runtime)
+# Worker (DB + fake runtime client)
 # --------------------------------------------------------------------------- #
-class _FakeReplayer:
-    """Deterministic in-memory replayer standing in for the scientific StudentTwin.
-
-    ``ingested`` records the global ingestion order across the whole run; ``fail_users``
-    injects a per-event failure for the named users (error-isolation tests).
-    """
-    ingested: list = []
+class _FakeRuntimeClient:
+    """Stand-in for the Scientific Runtime Service HTTP client (no real HTTP)."""
+    targets: list = []
     fail_users: set = set()
 
-    def __init__(self):
-        self.local: list = []
-
-    def ingest(self, ev):
-        if str(ev.user_id) in _FakeReplayer.fail_users:
-            raise RuntimeError(f"injected failure for user {ev.user_id}")
-        self.local.append(ev.event_id)
-        _FakeReplayer.ingested.append(ev.event_id)
-
-    def state(self, user_id):
-        return {"user_id": user_id, "event_count": len(self.local)}
-
-    def close(self):
+    def __init__(self, *args, **kwargs):
         pass
+
+    def infer(self, request):
+        user = request["user_ref"]
+        if user in _FakeRuntimeClient.fail_users:
+            raise RuntimeError(f"injected failure for user {user}")
+        _FakeRuntimeClient.targets.append(request["target_event_id"])
+        return {"contract_version": 1, "state": {"user_id": user, "event_count": len(request["events"])}}
 
 
 def _make_event(session, event_id, user_id, correct=True, occurred_at=1000.0, question_id="q1"):
@@ -201,11 +205,7 @@ def _make_event(session, event_id, user_id, correct=True, occurred_at=1000.0, qu
 
 @pytest.fixture
 def clean_data_plane(db_session):
-    """Isolate the worker tests: clear all data-plane tables before each test.
-
-    The suite shares one SQLite DB, so a worker test must not see rows left by an
-    earlier test (or by the worker's own idempotent writes).
-    """
+    """Isolate the worker tests: clear all data-plane tables before each test."""
     for model in (dp_models.ModelPrediction, dp_models.ModelInferenceRun,
                   dp_models.ModelVersion, dp_models.LearningOutcome, dp_models.LearningEvent):
         db_session.query(model).delete()
@@ -215,9 +215,9 @@ def clean_data_plane(db_session):
 
 def test_worker_once_creates_runs_and_predictions(clean_data_plane, monkeypatch):
     monkeypatch.setenv("DATA_PRODUCER_EXECUTION_ENABLED", "true")
-    monkeypatch.setattr(student_twin_runtime, "StudentTwinReplayer", _FakeReplayer)
-    _FakeReplayer.fail_users = set()
-    _FakeReplayer.ingested = []
+    monkeypatch.setattr(runtime_client, "StudentTwinRuntimeClient", _FakeRuntimeClient)
+    _FakeRuntimeClient.fail_users = set()
+    _FakeRuntimeClient.targets = []
     _make_event(clean_data_plane, "e-once-1", 1, correct=True, occurred_at=1000.0)
     _make_event(clean_data_plane, "e-once-2", 1, correct=False, occurred_at=2000.0)
 
@@ -230,7 +230,7 @@ def test_worker_once_creates_runs_and_predictions(clean_data_plane, monkeypatch)
     assert report["predictions_created"] == 2
     assert report["errors"] == 0
     # deterministic multi-event ordering (occurred_at asc, then event_id)
-    assert _FakeReplayer.ingested == ["e-once-1", "e-once-2"]
+    assert _FakeRuntimeClient.targets == ["e-once-1", "e-once-2"]
     preds = (clean_data_plane.query(dp_models.ModelPrediction)
              .order_by(dp_models.ModelPrediction.event_id).all())
     assert [p.prediction_type for p in preds] == ["student_twin_snapshot", "student_twin_snapshot"]
@@ -239,8 +239,8 @@ def test_worker_once_creates_runs_and_predictions(clean_data_plane, monkeypatch)
 
 def test_worker_second_run_no_duplicates(clean_data_plane, monkeypatch):
     monkeypatch.setenv("DATA_PRODUCER_EXECUTION_ENABLED", "true")
-    monkeypatch.setattr(student_twin_runtime, "StudentTwinReplayer", _FakeReplayer)
-    _FakeReplayer.fail_users = set()
+    monkeypatch.setattr(runtime_client, "StudentTwinRuntimeClient", _FakeRuntimeClient)
+    _FakeRuntimeClient.fail_users = set()
     _make_event(clean_data_plane, "e-second-1", 1, correct=True)
 
     r1 = worker.run_once(database.SessionLocal)
@@ -257,24 +257,24 @@ def test_worker_second_run_no_duplicates(clean_data_plane, monkeypatch):
 
 def test_worker_one_user_failure_does_not_break_others(clean_data_plane, monkeypatch):
     monkeypatch.setenv("DATA_PRODUCER_EXECUTION_ENABLED", "true")
-    monkeypatch.setattr(student_twin_runtime, "StudentTwinReplayer", _FakeReplayer)
-    _FakeReplayer.fail_users = {"2"}
-    _FakeReplayer.ingested = []
+    monkeypatch.setattr(runtime_client, "StudentTwinRuntimeClient", _FakeRuntimeClient)
+    _FakeRuntimeClient.fail_users = {"2"}
+    _FakeRuntimeClient.targets = []
     _make_event(clean_data_plane, "e-fail-1", 1, correct=True, occurred_at=1000.0)
     _make_event(clean_data_plane, "e-fail-2", 2, correct=True, occurred_at=2000.0)
 
     report = worker.run_once(database.SessionLocal)
 
     assert report["errors"] >= 1          # user 2's event failed
-    assert _FakeReplayer.ingested == ["e-fail-1"]  # user 2 never ingested
+    assert _FakeRuntimeClient.targets == ["e-fail-1"]  # user 2 never inferred
     runs = clean_data_plane.query(dp_models.ModelInferenceRun).all()
     assert [r.event_id for r in runs] == ["e-fail-1"]  # user 1 still inferred
 
 
 def test_worker_none_correct_not_fabricated(clean_data_plane, monkeypatch):
     monkeypatch.setenv("DATA_PRODUCER_EXECUTION_ENABLED", "true")
-    monkeypatch.setattr(student_twin_runtime, "StudentTwinReplayer", _FakeReplayer)
-    _FakeReplayer.fail_users = set()
+    monkeypatch.setattr(runtime_client, "StudentTwinRuntimeClient", _FakeRuntimeClient)
+    _FakeRuntimeClient.fail_users = set()
     _make_event(clean_data_plane, "e-none-1", 1, correct=None)
 
     report = worker.run_once(database.SessionLocal)
@@ -290,8 +290,8 @@ def test_worker_no_product_control(clean_data_plane, monkeypatch):
     from models import User
 
     monkeypatch.setenv("DATA_PRODUCER_EXECUTION_ENABLED", "true")
-    monkeypatch.setattr(student_twin_runtime, "StudentTwinReplayer", _FakeReplayer)
-    _FakeReplayer.fail_users = set()
+    monkeypatch.setattr(runtime_client, "StudentTwinRuntimeClient", _FakeRuntimeClient)
+    _FakeRuntimeClient.fail_users = set()
     _make_event(clean_data_plane, "e-control-1", 1, correct=True)
 
     users_before = clean_data_plane.query(User).count()

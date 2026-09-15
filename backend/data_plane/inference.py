@@ -11,7 +11,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from .models import ModelVersion, ModelInferenceRun, ModelPrediction
 
 # StudentTwin scientific provenance (frozen)
-STUDENT_TWIN_MODEL_VERSION_ID = "student_twin@zhixue-runtime-v1-phase1gr@a16efa2"
+STUDENT_TWIN_MODEL_VERSION_ID = "student_twin@zhixue-runtime-v1-phase1gr-p1@a16efa2"
 
 
 def ensure_student_twin_model_version(session) -> ModelVersion:
@@ -20,7 +20,7 @@ def ensure_student_twin_model_version(session) -> ModelVersion:
     stmt = (sqlite_insert(ModelVersion).values(
         model_version_id=mv_id,
         component_id="student_twin",
-        runtime_release_id="zhixue-runtime-v1-phase1gr",
+        runtime_release_id="zhixue-runtime-v1-phase1gr-p1",
         scientific_source_class="ORIGINAL_ARCHIVE_VERIFIED",
         scientific_source_sha="student_digital_twin@a16efa2",
         asset_version=None,
@@ -52,7 +52,7 @@ def insert_inference_run(session, run_id, event_id, component_id, model_version_
                          device="cpu", offline=True, error_type=None, error_message_safe=None) -> bool:
     stmt = (sqlite_insert(ModelInferenceRun).values(
         inference_run_id=run_id, event_id=event_id, component_id=component_id,
-        model_version_id=model_version_id, runtime_release_id="zhixue-runtime-v1-phase1gr",
+        model_version_id=model_version_id, runtime_release_id="zhixue-runtime-v1-phase1gr-p1",
         input_contract_version="1", input_payload_hash=input_payload_hash,
         eligibility_status=eligibility_status, execution_status=execution_status,
         started_at=started_at, finished_at=finished_at, latency_ms=latency_ms,
