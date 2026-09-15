@@ -1,32 +1,35 @@
 #!/usr/bin/env bash
 # Deploy the Scientific Runtime Service (zhixue-runtime) to /opt/zhixue-runtime.
 #
-# Idempotent. Run on the production host as the deploy user (sudo for systemd/opt).
-#
-# The service code (scientific_runtime_service/) is deployed from the repo.
-# The frozen scientific closure (zhixue-runtime-v1-phase1gr-student-twin: the
-# zhixue_runtime package + student_twin source, NO heavy model assets) is a separate
-# one-time upload; pass its path via CLOSURE_SRC. If it is already installed under
-# $RUNTIME_HOME, CLOSURE_SRC can be omitted.
+# Uses the immutable artifact committed under deploy/artifacts/ — it does NOT require the
+# production host to already hold the closure. Idempotent. Versioned release dir with a
+# /opt/zhixue-runtime/current symlink so rollback never re-downloads scientific source.
 set -euo pipefail
 
 RUNTIME_HOME=/opt/zhixue-runtime
 REPO_ROOT="${REPO_ROOT:-$HOME/ai_study_platform}"
-CLOSURE_SRC="${CLOSURE_SRC:-}"
+
+ARTIFACT_ID="zhixue-runtime-v1-phase1gr-p1-student-twin"
+ARTIFACT_DIR="$REPO_ROOT/deploy/artifacts"
+ARTIFACT="$ARTIFACT_DIR/$ARTIFACT_ID.tar.gz"
+ARTIFACT_SHA="$ARTIFACT_DIR/$ARTIFACT_ID.sha256"
+RELEASE_DIR="$RUNTIME_HOME/releases/$ARTIFACT_ID"
+CURRENT="$RUNTIME_HOME/current"
 
 echo "[zhixue-runtime] install service code"
-sudo mkdir -p "$RUNTIME_HOME"
+sudo mkdir -p "$RUNTIME_HOME/scientific_runtime_service"
 sudo rsync -a --delete "$REPO_ROOT/scientific_runtime_service/" "$RUNTIME_HOME/scientific_runtime_service/"
 
-echo "[zhixue-runtime] install frozen closure (zhixue_runtime + student_twin source)"
-if [ -n "$CLOSURE_SRC" ] && [ -d "$CLOSURE_SRC" ]; then
-    sudo mkdir -p "$RUNTIME_HOME/zhixue-runtime-v1-phase1gr-student-twin"
-    sudo rsync -a --delete "$CLOSURE_SRC/" "$RUNTIME_HOME/zhixue-runtime-v1-phase1gr-student-twin/"
+echo "[zhixue-runtime] verify artifact SHA-256"
+(cd "$ARTIFACT_DIR" && sha256sum -c "$ARTIFACT_ID.sha256")
+
+echo "[zhixue-runtime] extract immutable artifact to versioned release dir"
+if [ ! -f "$RELEASE_DIR/closure_manifest.json" ]; then
+    sudo rm -rf "$RELEASE_DIR"
+    sudo mkdir -p "$RELEASE_DIR"
+    sudo tar -xzf "$ARTIFACT" -C "$RELEASE_DIR"
 fi
-if [ ! -f "$RUNTIME_HOME/zhixue-runtime-v1-phase1gr-student-twin/src/zhixue_runtime/__init__.py" ]; then
-    echo "[zhixue-runtime] ERROR: closure not present; upload zhixue-runtime-v1-phase1gr-student-twin first" >&2
-    exit 1
-fi
+sudo ln -sfn "$RELEASE_DIR" "$CURRENT"
 
 echo "[zhixue-runtime] create dedicated venv (numpy only; NOT backend/.venv)"
 if [ ! -x "$RUNTIME_HOME/venv/bin/python" ]; then

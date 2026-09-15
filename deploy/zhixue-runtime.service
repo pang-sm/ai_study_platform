@@ -5,8 +5,8 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=/opt/zhixue-runtime/scientific_runtime_service
-Environment=ZHIXUE_HOME=/opt/zhixue-runtime
-Environment=ZHIXUE_RUNTIME_SRC=/opt/zhixue-runtime/zhixue-runtime-v1-phase1gr-student-twin/src
+Environment=ZHIXUE_HOME=/opt/zhixue-runtime/current
+Environment=ZHIXUE_RUNTIME_SRC=/opt/zhixue-runtime/current/src
 ExecStart=/opt/zhixue-runtime/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8101
 Restart=on-failure
 RestartSec=5
