@@ -19,6 +19,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -219,6 +220,7 @@ jobs:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
           SMTP_FROM: ${{ secrets.SMTP_FROM }}
+          DATA_PLANE_WRITE_ENABLED: ${{ vars.DATA_PLANE_WRITE_ENABLED || 'false' }}
         run: |
           set -euo pipefail
 
@@ -249,6 +251,7 @@ jobs:
             SMTP_USER="${SMTP_USER:-}" \
             SMTP_PASSWORD="${SMTP_PASSWORD:-}" \
             SMTP_FROM="${SMTP_FROM:-}" \
+            DATA_PLANE_WRITE_ENABLED="${DATA_PLANE_WRITE_ENABLED:-false}" \
             'bash -se' <<'DEPLOYEOF'
           set -euo pipefail
 
@@ -468,6 +471,19 @@ jobs:
           INNEREOF
           sudo systemctl daemon-reload
           echo "[deploy] DATABASE_URL configured"
+
+          # ── Configure DATA_PLANE_WRITE_ENABLED for systemd service (fail-closed) ──
+          DP_WRITE="false"
+          if [ "${DATA_PLANE_WRITE_ENABLED:-}" = "true" ]; then
+            DP_WRITE="true"
+          fi
+          echo "[deploy] DATA_PLANE_WRITE_ENABLED=${DP_WRITE}"
+          sudo mkdir -p /etc/systemd/system/ai-backend.service.d
+          sudo tee /etc/systemd/system/ai-backend.service.d/data-plane.conf > /dev/null <<INNEREOF
+          [Service]
+          Environment="DATA_PLANE_WRITE_ENABLED=${DP_WRITE}"
+          INNEREOF
+          sudo systemctl daemon-reload
 
           # ── Configure ADMIN_LOGIN_CODE for systemd service ──
           if [ -n "${ADMIN_LOGIN_CODE:-}" ]; then
