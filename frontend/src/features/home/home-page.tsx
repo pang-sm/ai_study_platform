@@ -1,5 +1,4 @@
 import { ArrowDownRight } from 'lucide-react';
-import { Link } from '@tanstack/react-router';
 import { LearningWorlds } from './learning-worlds';
 import './home-page.css';
 import { VirtualMemoryVisual } from './virtual-memory-visual';
@@ -26,7 +25,7 @@ export function HomePage({ hasCurrentLearning = true }: HomePageProps) {
         </div>
         <VirtualMemoryVisual />
         <div className="lab-hero__action-area">
-          <Link className="lab-hero__action" to="/exam/11408/operating-system/workspace"><span>{action}</span><ArrowDownRight aria-hidden="true" className="size-5" /></Link>
+          <span className="lab-hero__action"><span>{action}</span><ArrowDownRight aria-hidden="true" className="size-5" /></span>
           {hasCurrentLearning && <p className="lab-hero__next">下一步：页面置换算法</p>}
         </div>
         <p className="lab-hero__coordinate">MEM / 02.05<br />VIRTUAL → PHYSICAL</p>

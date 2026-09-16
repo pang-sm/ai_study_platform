@@ -8,4 +8,4 @@ import { env } from '@/lib/env';
 //
 // All API access must go through this typed client — never fetch('/api/...') in
 // components, and never hand-write backend DTO interfaces.
-export const apiClient = createClient<paths>({ baseUrl: env.apiBaseUrl });
+export const apiClient = createClient<paths>({ baseUrl: env.apiBaseUrl, credentials: 'include' });

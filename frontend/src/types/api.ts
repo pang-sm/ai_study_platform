@@ -659,6 +659,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/register/send-code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send Register Email Code */
+        post: operations["send_register_email_code_auth_register_send_code_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/register/verify-code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Verify Register Email Code */
+        post: operations["verify_register_email_code_auth_register_verify_code_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/email/send-code": {
         parameters: {
             query?: never;
@@ -7188,6 +7222,18 @@ export interface components {
             /** Service Key */
             service_key?: string | null;
         };
+        /** RegisterEmailSendCodeRequest */
+        RegisterEmailSendCodeRequest: {
+            /** Email */
+            email: string;
+        };
+        /** RegisterEmailVerifyRequest */
+        RegisterEmailVerifyRequest: {
+            /** Email */
+            email: string;
+            /** Code */
+            code: string;
+        };
         /** ReindexMaterialsRequest */
         ReindexMaterialsRequest: {
             /** Username */
@@ -7310,6 +7356,8 @@ export interface components {
             username: string;
             /** Password */
             password: string;
+            /** Email */
+            email: string;
         };
         /** UserLogin */
         UserLogin: {
@@ -8613,6 +8661,72 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ChangePasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    send_register_email_code_auth_register_send_code_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterEmailSendCodeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verify_register_email_code_auth_register_verify_code_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterEmailVerifyRequest"];
             };
         };
         responses: {

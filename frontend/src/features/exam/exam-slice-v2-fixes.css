@@ -1,6 +1,0 @@
-.knowledge-path li.is-current > small { display: none; }
-.knowledge-path li.is-current > .exam-action { grid-column: 4; grid-row: 1; }
-
-@media (max-width: 760px) {
-  .knowledge-path li.is-current > .exam-action { grid-column: 2; grid-row: auto; }
-}

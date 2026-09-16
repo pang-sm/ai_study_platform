@@ -24,7 +24,9 @@ function renderApp(initialPath = '/') {
 describe('App', () => {
   it('renders the index route', async () => {
     renderApp('/');
-    expect(await screen.findByRole('button', { name: '继续学习' })).toBeInTheDocument();
+    // Frozen Hero — the learning question that anchors the page.
+    expect(await screen.findByRole('heading', { name: /一个虚拟地址/ })).toBeInTheDocument();
+    // Primary content — the three learning worlds.
     expect(screen.getByRole('heading', { name: '选择你的学习方向' })).toBeInTheDocument();
   });
 

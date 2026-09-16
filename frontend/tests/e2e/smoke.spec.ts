@@ -10,7 +10,7 @@ test('index route renders cleanly with no console errors', async ({ page }) => {
 
   await page.goto('/');
 
-  await expect(page.getByRole('button', { name: '继续学习' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /一个虚拟地址/ })).toBeVisible();
   await expect(page.getByRole('heading', { name: '选择你的学习方向' })).toBeVisible();
 
   const results = await new AxeBuilder({ page }).analyze();

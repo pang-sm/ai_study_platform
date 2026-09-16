@@ -10,88 +10,33 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ExamRouteImport } from './routes/exam'
-import { Route as Exam11408RouteImport } from './routes/exam.11408'
-import { Route as Exam11408OperatingSystemRouteImport } from './routes/exam.11408.operating-system'
-import { Route as Exam11408OperatingSystemWorkspaceRouteImport } from './routes/exam.11408.operating-system.workspace'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ExamRoute = ExamRouteImport.update({
-  id: '/exam',
-  path: '/exam',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const Exam11408Route = Exam11408RouteImport.update({
-  id: '/11408',
-  path: '/11408',
-  getParentRoute: () => ExamRoute,
-} as any)
-const Exam11408OperatingSystemRoute =
-  Exam11408OperatingSystemRouteImport.update({
-    id: '/operating-system',
-    path: '/operating-system',
-    getParentRoute: () => Exam11408Route,
-  } as any)
-const Exam11408OperatingSystemWorkspaceRoute =
-  Exam11408OperatingSystemWorkspaceRouteImport.update({
-    id: '/workspace',
-    path: '/workspace',
-    getParentRoute: () => Exam11408OperatingSystemRoute,
-  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/exam': typeof ExamRouteWithChildren
-  '/exam/11408': typeof Exam11408RouteWithChildren
-  '/exam/11408/operating-system': typeof Exam11408OperatingSystemRouteWithChildren
-  '/exam/11408/operating-system/workspace': typeof Exam11408OperatingSystemWorkspaceRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/exam': typeof ExamRouteWithChildren
-  '/exam/11408': typeof Exam11408RouteWithChildren
-  '/exam/11408/operating-system': typeof Exam11408OperatingSystemRouteWithChildren
-  '/exam/11408/operating-system/workspace': typeof Exam11408OperatingSystemWorkspaceRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/exam': typeof ExamRouteWithChildren
-  '/exam/11408': typeof Exam11408RouteWithChildren
-  '/exam/11408/operating-system': typeof Exam11408OperatingSystemRouteWithChildren
-  '/exam/11408/operating-system/workspace': typeof Exam11408OperatingSystemWorkspaceRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths:
-    | '/'
-    | '/exam'
-    | '/exam/11408'
-    | '/exam/11408/operating-system'
-    | '/exam/11408/operating-system/workspace'
+  fullPaths: '/'
   fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/'
-    | '/exam'
-    | '/exam/11408'
-    | '/exam/11408/operating-system'
-    | '/exam/11408/operating-system/workspace'
-  id:
-    | '__root__'
-    | '/'
-    | '/exam'
-    | '/exam/11408'
-    | '/exam/11408/operating-system'
-    | '/exam/11408/operating-system/workspace'
+  to: '/'
+  id: '__root__' | '/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  ExamRoute: typeof ExamRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -103,77 +48,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/exam': {
-      id: '/exam'
-      path: '/exam'
-      fullPath: '/exam'
-      preLoaderRoute: typeof ExamRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/exam/11408': {
-      id: '/exam/11408'
-      path: '/11408'
-      fullPath: '/exam/11408'
-      preLoaderRoute: typeof Exam11408RouteImport
-      parentRoute: typeof ExamRoute
-    }
-    '/exam/11408/operating-system': {
-      id: '/exam/11408/operating-system'
-      path: '/operating-system'
-      fullPath: '/exam/11408/operating-system'
-      preLoaderRoute: typeof Exam11408OperatingSystemRouteImport
-      parentRoute: typeof Exam11408Route
-    }
-    '/exam/11408/operating-system/workspace': {
-      id: '/exam/11408/operating-system/workspace'
-      path: '/workspace'
-      fullPath: '/exam/11408/operating-system/workspace'
-      preLoaderRoute: typeof Exam11408OperatingSystemWorkspaceRouteImport
-      parentRoute: typeof Exam11408OperatingSystemRoute
-    }
   }
 }
-
-interface Exam11408OperatingSystemRouteChildren {
-  Exam11408OperatingSystemWorkspaceRoute: typeof Exam11408OperatingSystemWorkspaceRoute
-}
-
-const Exam11408OperatingSystemRouteChildren: Exam11408OperatingSystemRouteChildren =
-  {
-    Exam11408OperatingSystemWorkspaceRoute:
-      Exam11408OperatingSystemWorkspaceRoute,
-  }
-
-const Exam11408OperatingSystemRouteWithChildren =
-  Exam11408OperatingSystemRoute._addFileChildren(
-    Exam11408OperatingSystemRouteChildren,
-  )
-
-interface Exam11408RouteChildren {
-  Exam11408OperatingSystemRoute: typeof Exam11408OperatingSystemRouteWithChildren
-}
-
-const Exam11408RouteChildren: Exam11408RouteChildren = {
-  Exam11408OperatingSystemRoute: Exam11408OperatingSystemRouteWithChildren,
-}
-
-const Exam11408RouteWithChildren = Exam11408Route._addFileChildren(
-  Exam11408RouteChildren,
-)
-
-interface ExamRouteChildren {
-  Exam11408Route: typeof Exam11408RouteWithChildren
-}
-
-const ExamRouteChildren: ExamRouteChildren = {
-  Exam11408Route: Exam11408RouteWithChildren,
-}
-
-const ExamRouteWithChildren = ExamRoute._addFileChildren(ExamRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  ExamRoute: ExamRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
