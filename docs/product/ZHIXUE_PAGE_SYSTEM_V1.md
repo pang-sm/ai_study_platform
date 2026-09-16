@@ -1,7 +1,11 @@
 # 智学平台页面系统 V1（ZHIXUE PAGE SYSTEM）
 
+> **权威层级**：唯一最高权威是仓库根目录 `ZHIXUE_AI_PRODUCT_REDESIGN_SSOT.md`。
+> 本文档从属于 SSOT；冲突时 SSOT wins。
+> 页面语法（Page Grammar）作为设计参考保留，但不得覆盖 SSOT §12 的用户侧信息架构 TARGET。
+
 - **Version**: V1.0
-- **Status**: PROPOSED — ready for human review
+- **Status**: PROPOSED — ready for human review（subordinate to `ZHIXUE_AI_PRODUCT_REDESIGN_SSOT.md`）
 - **Date**: 2026-09-11
 - **Scope**: 把 Phase 1 的页面责任落实为页面语法、跨页体验、世界视觉语法和首条实施链路。不含具体 UI、前端实现、后端/数据库变更、依赖或部署。
 - **Depends on**: `ZHIXUE_PAGE_ARCHITECTURE_V1.md`（Phase 1 BASELINE）

@@ -64,7 +64,7 @@
 ## G. 边界与保护
 
 - [ ] 是否修改了 backend / 数据库 / API（若仅为视觉需求 → FAIL）
-- [ ] 是否删除/重命名/移动了 `reference/`、`design/`、`design-references/` 素材
+- [ ] 是否删除/重命名/移动了 `reference/` 素材
 - [ ] 是否删除现有真实业务能力
 
 ## H. 工程验证（如实报告）

@@ -1,17 +1,29 @@
 # 智学平台总体架构基准（ZHIXUE PLATFORM BASELINE）
 
+> ## ⚠️ 权威状态：已被取代（SUPERSEDED）
+>
+> **本文档不再是项目 SSOT。** 唯一最高权威是仓库根目录
+> **`ZHIXUE_AI_PRODUCT_REDESIGN_SSOT.md`**（ZHIXUE_AI_PRODUCT_REDESIGN_SSOT）。
+>
+> 冲突时 **SSOT wins**。本文档保留为历史架构基准，仅在 SSOT 未覆盖的细节上作为参考。
+>
+> 已被 SSOT 明确改写之处（不得再按本文档执行）：
+> - 本文档的 `ZhiXue-KT` / `ZhiXue-Ranker` / `ZhiXue-Retriever` / `ZhiXue-CodeDiag`
+>   自研模型命名，已被 SSOT §36 的 **13 个 Scientific Component** 取代。
+> - 会员 / 额度 / AI 分层，以 SSOT §4–§9、§30–§31 为准。
+> - 当前阶段以 SSOT `# 73. SSOT 状态` 为准（`CURRENT_STEP = STEP_7`）。
+> - Java 后端路线已取消（`JAVA_BACKEND = CANCELLED`，SSOT §2.1）。
+
 - **文档名称**：智学平台总体架构基准
 - **Version**：V1.1
-- **Status**：BASELINE
+- **Status**：SUPERSEDED by `ZHIXUE_AI_PRODUCT_REDESIGN_SSOT.md`
 - **Date**：2026-09-10
 - **Scope**：产品架构、AI 架构、数据架构、自研模型路线、扩展原则
-- **原则**：后续架构级改动不得静默偏离本文件；若确需修改，应升级版本并在 `Baseline Change Log` 记录原因
+- **原则**：后续架构级改动不得静默偏离 SSOT；本文档保留历史记录，不再作为执行依据。
 
-> 本文档是智学平台**总体产品 + 技术架构的 Single Source of Truth**。
->
 > 相关但不替代本文档的规范：
-> - `docs/product/ZHIXUE_LEARNING_EXPERIENCE_BASELINE_V1.md` —— **用户学习体验与信息架构的权威基准**（Learning-first IA）。
-> - `docs/design/ZHIXUE_VISUAL_DIRECTION_V1.md` —— 视觉方向基准。
+> - `docs/product/ZHIXUE_LEARNING_EXPERIENCE_BASELINE_V1.md` —— 学习体验与信息架构历史基准（同样已被 SSOT 取代）。
+> - `docs/design/ZHIXUE_VISUAL_DIRECTION_V1.md` —— 视觉方向基准（从属于 SSOT）。
 > - `docs/UI_DESIGN_SPEC.md` —— 前端 UI/UX 的唯一权威规范（视觉层）。
 > - `docs/FRONTEND_ARCHITECTURE.md` —— 前端工程架构（React/Vite/Router/Query 层）。
 > - `docs/FRONTEND_API_CONTRACT.md` —— 前后端 API 契约说明。

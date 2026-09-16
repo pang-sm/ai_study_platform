@@ -1,8 +1,12 @@
 # 智学平台视觉方向基准（ZHIXUE VISUAL DIRECTION）
 
+> **权威层级**：唯一最高权威是仓库根目录 `ZHIXUE_AI_PRODUCT_REDESIGN_SSOT.md`。
+> 本文档在**视觉方向**这一层保持权威，但**从属于** SSOT；冲突时 SSOT wins。
+> 前端状态见 SSOT §3 / §38：`OLD_FRONTEND_RESURRECTED = NO`，全新前端 = `NOT_STARTED`。
+
 - **Title**：智学平台视觉方向基准
 - **Version**：V1.0
-- **Status**：BASELINE
+- **Status**：BASELINE（subordinate to `ZHIXUE_AI_PRODUCT_REDESIGN_SSOT.md`）
 - **Date**：2026-09-10
 
 ## Purpose
@@ -14,9 +18,9 @@
 它的层级位置：
 
 ```text
-ZHIXUE_PLATFORM_BASELINE（总体架构）
+ZHIXUE_AI_PRODUCT_REDESIGN_SSOT（唯一最高权威）
         ↓
-ZHIXUE_LEARNING_EXPERIENCE_BASELINE（学习体验/IA）
+ZHIXUE_PLATFORM_BASELINE / ZHIXUE_LEARNING_EXPERIENCE_BASELINE（历史基准）
         ↓
 ZHIXUE_VISUAL_DIRECTION（本文档，视觉人格）
         ↓
@@ -27,12 +31,12 @@ Page（页面设计）
 Component（组件实现）
 ```
 
-本文档是**视觉方向 Single Source of Truth**。`docs/UI_DESIGN_SPEC.md` 应引用本文档，
-而本文档不复制 UI_DESIGN_SPEC 的工程规则。
+本文档是**视觉方向**这一层的权威，`docs/UI_DESIGN_SPEC.md` 应引用本文档，
+而本文档不复制 UI_DESIGN_SPEC 的工程规则。**两者都不得凌驾于 SSOT 之上。**
 
-> **视觉层级必须遵循学习体验的信息优先级**：`Current > Next > Action > Path > Tools`。
+> **视觉层级必须遵循学习体验的信息优先级**：`CURRENT > NEXT > ACTION > PATH > TOOLS`。
 > 视觉设计不能把 Tools / Dashboard metrics / directory 重新放到 Current Learning 前面。
-> 权威 IA 见 `docs/product/ZHIXUE_LEARNING_EXPERIENCE_BASELINE_V1.md`。
+> IA 权威见 `ZHIXUE_AI_PRODUCT_REDESIGN_SSOT.md` §12。
 
 ---
 

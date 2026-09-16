@@ -14,6 +14,8 @@ backend/.venv/
 # 系统文件
 .DS_Store
 .env
+.env.local
+backend/.env.local
 app.db
 *.db
 *.db-shm
@@ -36,8 +38,34 @@ storage-state*.json
 verification-traces/
 frontend/node_modules/
 frontend/dist/
+# 任意位置的第三方依赖树都不进版本控制（避免 git add -A 误纳入数万个文件）
+node_modules/
 uploads/
 backend/uploads/
-.claude/
 design-reference/
-docs/
+
+# .claude/ —— 默认忽略整个目录（含 local machine state 与第三方通用 skill）
+# 注意：negation 不能救回「父目录已被排除」的文件，因此必须逐层放行，而不是直接放行 .claude/。
+.claude/*
+# 项目治理规则
+!.claude/rules/
+# 项目专属 skill：先放行目录本身，再排除全部 skill，最后逐个放行项目独有的
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/frontend-review/
+!.claude/skills/project-deploy/
+!.claude/skills/zhixue-api-contract/
+!.claude/skills/zhixue-art-direction/
+!.claude/skills/zhixue-db-migration/
+!.claude/skills/zhixue-platform-baseline/
+!.claude/skills/zhixue-ui-acceptance/
+# 明确保持忽略：local machine state（permission 历史）
+.claude/settings.json
+.claude/settings.local.json
+
+# docs/ —— 项目治理文档进版本控制，其余忽略
+docs/*
+!docs/*.md
+!docs/architecture/
+!docs/design/
+!docs/product/

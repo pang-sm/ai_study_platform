@@ -1,15 +1,25 @@
 # 智学平台 — 后端 API 契约盘点
 
+> **权威层级**：唯一最高权威是仓库根目录 `ZHIXUE_AI_PRODUCT_REDESIGN_SSOT.md`。
+> 本文档是 **2026-09-10 的只读快照（LEGACY CURRENT）**，从属于 SSOT；冲突时 SSOT wins。
+> API 的处置分类以 SSOT §56.3 的冻结矩阵为准。
+>
+> **⚠️ 本文档记录的会员模型是旧体系，不是目标架构。**
+> 目标会员架构（FROZEN，SSOT §4 / §5 / §67）是统一的 `Free / Standard / Advanced`
+> + `Subscription → Capability Permission → Usage Budget → Model / Workflow Router`。
+> **禁止**把本文档描述的「三个服务方向各自独立会员」当作未来设计延续。
+
 > 本文档由「前端全量重构前清理」生成，用于新前端架构设计参考。
 > 生成时间：2026-09-10。后端 API 未做任何修改，仅做盘点。
-> 路由总数：**352**（`@app.get/post/put/delete/patch/websocket`）。
+> 路由总数：**352**（`@app.get/post/put/delete/patch/websocket`）；
+> SSOT §39 / §56.3 的分类口径为 **351 business HTTP endpoint**（+2 WebSocket +4 framework）。
 
 ## 全局约定
 
 - **认证方式**：Session Cookie 认证（`ai_session` cookie），登录/注册后由后端 `Set-Cookie`。
 - **认证依赖**：`get_current_user`（需登录）、`require_admin_user` / `require_admin_permission`（管理员）。
-- **会员模型**：三个服务方向 `exam_11408` / `course_learning` / `programming`，各自有 `free / monthly / quarterly / full` 套餐，独立开通与续期。
-- **公开接口**（无需登录）：`/register`、`/login`、`/auth/email-login*`、`/health`、`/api/health`、`/settings/public`、`/shared/reports/{token}`、`/announcements/active`、`/payments/callback/{provider}`。
+- **会员模型（CURRENT = 旧体系，目标见上）**：三个服务方向 `exam_11408` / `course_learning` / `programming`，各自有 `free / monthly / quarterly / full` 套餐，独立开通与续期。SSOT §41 明确此结构为 legacy，统一会员 `Unified Subscription = MISSING`（目标）。
+- **公开接口**（无需登录）：`/register`、`/auth/register/send-code`、`/auth/register/verify-code`、`/login`、`/auth/email-login*`、`/health`、`/api/health`、`/settings/public`、`/shared/reports/{token}`、`/announcements/active`、`/payments/callback/{provider}`。
 - **响应结构**：成功大多返回 JSON（`{"message": "...", ...}` 或领域对象）；错误返回 `{"detail": "..."}`。
 - **服务前缀**：Nginx 将 `/api/*` 反向代理到后端 `127.0.0.1:8000/*`；Vite 开发代理 `/api` → 后端并去掉 `/api` 前缀。后端本身路由多数不带 `/api` 前缀。
 
@@ -19,10 +29,12 @@
 
 | Method | Path | 用途 |
 |---|---|---|
-| POST | `/register` | 注册（`username` + `password`，密码 ≥6 位），成功后建立会话并返回 `user`/`profile` |
+| POST | `/auth/register/send-code` | 注册第一步：向邮箱发送验证码（校验邮箱格式 + 未注册 + 60s 限频） |
+| POST | `/auth/register/verify-code` | 注册第一步：校验验证码并签发邮箱验证凭证 cookie（`zhixue_register_email_proof`） |
+| POST | `/register` | 注册第二步（`username` + `password` + 已验证 `email`），要求先完成邮箱验证；成功后建立会话，`email_verified=true` |
 | POST | `/login` | 登录（`username` 字段可填账号或已验证邮箱 + `password`），返回 `user`/`profile` |
-| POST | `/logout` | 退出登录，清除会话 cookie |
-| POST | `/auth/email-login/send-code` | 发送邮箱登录验证码 |
+| POST | `/logout` | 退出登录，撤销会话并清除 cookie |
+| POST | `/auth/email-login/send-code` | 发送邮箱登录验证码（仅限已绑定并验证的邮箱，未注册邮箱不自动注册） |
 | POST | `/auth/email-login` | 邮箱验证码登录 |
 | POST | `/admin/login` | 已废弃（返回 410，提示改用 `/login`） |
 

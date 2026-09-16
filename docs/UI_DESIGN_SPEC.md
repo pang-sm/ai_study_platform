@@ -1,12 +1,16 @@
-# 智学平台 UI / UX 设计规范（Single Source of Truth）
+# 智学平台 UI / UX 设计规范
 
-> 本文档是智学平台全部前端 UI 的**权威规范**。所有页面、组件、视觉决策都以本文件为准。
+> **权威层级**：唯一最高权威是仓库根目录 **`ZHIXUE_AI_PRODUCT_REDESIGN_SSOT.md`**。
+> 本文档是前端 **UI / UX 规则**的权威（red lines），但**从属于** SSOT；冲突时 SSOT wins。
 >
-> **视觉方向（Art Direction）以 `docs/design/ZHIXUE_VISUAL_DIRECTION_V1.md` 为唯一权威**，
-> 其层级在本文件之上。本文件负责视觉规则与红线（red lines），不重复视觉方向的具体内容。
-> 设计页面前，必须先读取视觉方向基准建立 Visual Concept。
+> 本文档是智学AI 全部前端 UI 的规则来源。所有页面、组件、视觉决策都以本文件为准
+> （在不与 SSOT 冲突的前提下）。
 >
-> 适用范围：前端全量重构阶段及之后所有前端工作。
+> **视觉方向（Art Direction）以 `docs/design/ZHIXUE_VISUAL_DIRECTION_V1.md` 为权威**，
+> 其层级在本文件之上（同样从属于 SSOT）。本文件负责视觉规则与红线（red lines），
+> 不重复视觉方向的具体内容。设计页面前，必须先读取视觉方向基准建立 Visual Concept。
+>
+> 适用范围：STEP 9–10 的全新前端建设，及之后所有前端工作。
 > 配套执行入口：`.claude/rules/frontend-ui.md`（处理 frontend 代码时的强制流程）、`.claude/skills/frontend-review/`（页面完成后的 UI/UX 审核）。
 > Design Token 的语义规范由本文件定义；代码级 token implementation 位于 `frontend/src/styles/tokens.css`。
 

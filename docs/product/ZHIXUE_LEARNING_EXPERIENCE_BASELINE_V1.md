@@ -1,14 +1,26 @@
 # 智学平台学习体验与信息架构基准（ZHIXUE LEARNING EXPERIENCE BASELINE）
 
+> ## ⚠️ 权威状态：已被取代（SUPERSEDED）
+>
+> **本文档不再是项目 SSOT。** 唯一最高权威是仓库根目录
+> **`ZHIXUE_AI_PRODUCT_REDESIGN_SSOT.md`**。
+>
+> 冲突时 **SSOT wins**。本文档保留为历史学习体验 / IA 基准，仅在 SSOT 未覆盖的细节上作为参考。
+>
+> 已被 SSOT 明确改写之处（不得再按本文档执行）：
+> - 用户侧信息架构以 SSOT §12（`首页 / 学习 / 资料 / 练习 / AI / 计划 / 我的`）为准。
+> - `LearnerState` 语义以 SSOT §36.13 为准：输出是 **next-response `P(correct)`**，
+>   不是 mastery probability。
+> - 模型路线以 SSOT §36 的 13 个 Scientific Component 为准（本文档的 `ZhiXue-KT` 阶段划分已过时）。
+> - 当前阶段以 SSOT `# 73. SSOT 状态` 为准（`CURRENT_STEP = STEP_7`）。
+
 - **Title**：智学平台学习体验与信息架构基准
 - **Version**：V1.0
-- **Status**：BASELINE
+- **Status**：SUPERSEDED by `ZHIXUE_AI_PRODUCT_REDESIGN_SSOT.md`
 - **Date**：2026-09-10
 - **Scope**：Learning-first 产品架构、信息层级、Homepage IA、Course IA、Exam IA、Programming IA、LearningContext / LearningNode / LearnerState / LearningAction / NextBestAction、Capability 角色、模型集成方向
 
-> 本文档是智学平台 **User Experience / Product Information Architecture 的 SSOT**。
->
-> 层级：`ZHIXUE_PLATFORM_BASELINE`（总体架构）→ 本文档（学习体验/IA）→ `ZHIXUE_VISUAL_DIRECTION`（视觉方向）→ `UI_DESIGN_SPEC`（视觉规则）。
+> 层级（现行）：`ZHIXUE_AI_PRODUCT_REDESIGN_SSOT.md`（唯一权威）→ 本文档与 `ZHIXUE_PLATFORM_BASELINE`（历史参考）→ `ZHIXUE_VISUAL_DIRECTION`（视觉方向）→ `UI_DESIGN_SPEC`（视觉规则）。
 
 ---
 
@@ -224,6 +236,11 @@ Homepage / Course / Exam / Programming 未来都消费 **Next Action Service**�
 ---
 
 ## 10. Recommendation Evolution
+
+> ⚠️ **本节已过时（historical）**。下文 `ZhiXue-KT` / `ZhiXue-Ranker` 命名已被
+> `ZHIXUE_AI_PRODUCT_REDESIGN_SSOT.md` §36 的 13 个 Scientific Component 取代。
+> 现行产品化顺序见 SSOT §57（第一优先级 = `student_twin`）与 SSOT §36 最终分类。
+> 保留本段仅作历史记录，不得据此设计。
 
 目标路线：
 

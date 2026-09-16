@@ -1,7 +1,11 @@
 # 前端架构决策（Frontend Architecture）
 
-> 智学平台全新前端（`frontend/`）的长期架构约定。本文记录**决策与边界**，不记录过程日志。
-> 视觉规范以 `docs/UI_DESIGN_SPEC.md` 为唯一权威；本文只负责工程架构。
+> **权威层级**：唯一最高权威是仓库根目录 `ZHIXUE_AI_PRODUCT_REDESIGN_SSOT.md`。
+> 本文档负责**工程架构**，从属于 SSOT；冲突时 SSOT wins。
+> 视觉规则以 `docs/UI_DESIGN_SPEC.md` 为准，视觉方向以 `docs/design/ZHIXUE_VISUAL_DIRECTION_V1.md` 为准。
+
+> 智学AI 全新前端（`frontend/`）的长期架构约定。本文记录**决策与边界**，不记录过程日志。
+> 当前前端状态见 SSOT §3 / §38：`frontend/` 只有 Clean-Slate 骨架与首页，全新前端 = `NOT_STARTED`。
 
 ## 技术基线
 

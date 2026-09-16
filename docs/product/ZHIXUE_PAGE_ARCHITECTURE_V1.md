@@ -1,11 +1,22 @@
 # 智学平台页面架构 V1（ZHIXUE PAGE ARCHITECTURE）
 
+> **权威层级**：唯一最高权威是仓库根目录 `ZHIXUE_AI_PRODUCT_REDESIGN_SSOT.md`。
+> 本文档是**页面层级 / 责任**的参考基准，从属于 SSOT；冲突时 SSOT wins。
+>
+> **⚠️ 导航结构冲突待决**：本文档 §2.1 冻结的 Global Navigation 为
+> `首页 | 我的学习 | 探索 | 资料`，而 SSOT §12（用户侧信息架构 TARGET）为
+> `首页 / 学习 / 资料 / 练习 / AI / 计划 / 我的`。
+> **以 SSOT §12 为准**；本文档的导航建议不构成最终 IA。
+> 在 STEP 9（前端信息架构）正式冻结前，不得把两者中的任一方当作已实现。
+>
+> **学习空间命名以 SSOT 为准**：`course_learning` / `exam_11408` / `programming`。
+
 - **Version**: V1.0
-- **Status**: BASELINE — Phase 1 human-approved
+- **Status**: BASELINE — Phase 1 human-approved（subordinate to `ZHIXUE_AI_PRODUCT_REDESIGN_SSOT.md`）
 - **Date**: 2026-09-11
 - **Scope**: 前端信息架构、页面层级、导航图与学习主流程；不包含 UI 实现、路由冻结、后端/数据库变更或部署。
 
-> Phase 2 的页面语法、跨页体验和世界视觉语法见 `docs/product/ZHIXUE_PAGE_SYSTEM_V1.md`。本文继续作为页面层级与责任的权威基准。
+> Phase 2 的页面语法、跨页体验和世界视觉语法见 `docs/product/ZHIXUE_PAGE_SYSTEM_V1.md`。本文继续作为页面层级与责任的参考基准。
 
 ## 1. 决策摘要
 
