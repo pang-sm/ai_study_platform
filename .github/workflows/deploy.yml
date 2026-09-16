@@ -569,6 +569,27 @@ jobs:
             sleep 2
           done
 
+          echo "=== Deploy Scientific Runtime Service (zhixue-runtime) ==="
+          # Prerequisite: the frozen scientific closure
+          # (zhixue-runtime-v1-phase1gr-student-twin) must already be uploaded to
+          # /opt/zhixue-runtime/ (one-time). The service code ships in this repo.
+          REPO_ROOT="$REPO_ROOT" bash "$REPO_ROOT/deploy/deploy-runtime-service.sh"
+
+          echo "=== Verify Scientific Runtime Service health ==="
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:8101/health >/dev/null; then
+              echo "[deploy] zhixue-runtime health ok"
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "[deploy] zhixue-runtime health failed"
+              sudo systemctl status zhixue-runtime --no-pager -l || true
+              sudo journalctl -u zhixue-runtime -n 80 --no-pager || true
+              exit 1
+            fi
+            sleep 2
+          done
+
           echo "=== Provisioning trusted HTTPS for public IP ==="
           AI_STUDY_REPO_ROOT="$REPO_ROOT" \
             AI_STUDY_PUBLIC_IP="101.32.190.42" \
