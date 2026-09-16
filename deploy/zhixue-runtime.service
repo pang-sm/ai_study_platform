@@ -1,0 +1,18 @@
+[Unit]
+Description=ZhixueAI Scientific Runtime Service (zhixue-runtime)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/zhixue-runtime/scientific_runtime_service
+Environment=ZHIXUE_HOME=/opt/zhixue-runtime/current
+Environment=ZHIXUE_RUNTIME_SRC=/opt/zhixue-runtime/current/src
+ExecStart=/opt/zhixue-runtime/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8101
+Restart=on-failure
+RestartSec=5
+# Loopback only — never bind 0.0.0.0, never proxy via public nginx.
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

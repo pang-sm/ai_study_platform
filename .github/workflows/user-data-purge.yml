@@ -1,0 +1,56 @@
+name: User Data Purge
+
+# One-shot production user-data purge. Fixed logic only — no arbitrary SQL/shell/path
+# input. It deletes user/person-specific data and preserves static content. Financial
+# tables are only deleted if empty (reported as a retention blocker otherwise).
+on:
+  workflow_dispatch:
+
+jobs:
+  purge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare SSH
+        shell: bash
+        env:
+          TENCENT_HOST: ${{ secrets.TENCENT_HOST }}
+          TENCENT_SSH_KEY: ${{ secrets.TENCENT_SSH_KEY }}
+          SSH_PORT: ${{ secrets.TENCENT_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          : "${TENCENT_HOST:?TENCENT_HOST secret required}"
+          : "${TENCENT_SSH_KEY:?TENCENT_SSH_KEY secret required}"
+          SSH_PORT="${SSH_PORT:-22}"
+          HOST_CLEAN="${TENCENT_HOST#*@}"
+          HOST_CLEAN="${HOST_CLEAN%%:*}"
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+          printf '%s\n' "$TENCENT_SSH_KEY" | tr -d '\r' > "$HOME/.ssh/tencent_deploy_key"
+          chmod 600 "$HOME/.ssh/tencent_deploy_key"
+          ssh-keygen -y -f "$HOME/.ssh/tencent_deploy_key" >/dev/null 2>/tmp/purge-keygen.err
+          ssh-keyscan -T 20 -p "$SSH_PORT" -H "$HOST_CLEAN" >> "$HOME/.ssh/known_hosts" 2>/dev/null || true
+          echo "[purge] SSH ready"
+
+      - name: Run production purge (no arbitrary input)
+        shell: bash
+        env:
+          TENCENT_HOST: ${{ secrets.TENCENT_HOST }}
+          TENCENT_USER: ${{ secrets.TENCENT_USER }}
+          SSH_PORT: ${{ secrets.TENCENT_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          HOST_CLEAN="${TENCENT_HOST#*@}"
+          HOST_CLEAN="${HOST_CLEAN%%:*}"
+          SSH_PORT="${SSH_PORT:-22}"
+          ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=10 \
+            -i "$HOME/.ssh/tencent_deploy_key" -p "$SSH_PORT" \
+            "$TENCENT_USER@$HOST_CLEAN" 'bash -se' <<'PURGEEOF'
+          set -euo pipefail
+          cd "$HOME/ai_study_platform"
+          echo "[purge] running purge_old_user_data.py"
+          PURGE_DB_PATH="/var/lib/ai_study_platform/app.db" \
+          backend/.venv/bin/python scripts/purge_old_user_data.py
+          PURGEEOF

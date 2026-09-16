@@ -1,0 +1,29 @@
+{
+  "artifact_id": "zhixue-runtime-v1-phase1gr-p1-student-twin",
+  "runtime_release_id": "zhixue-runtime-v1-phase1gr-p1",
+  "component": "student_twin",
+  "source_root": "D:\\ZhixueAI\\runtime_package\\v1\\closure\\zhixue-runtime-v1-phase1gr-student-twin",
+  "file_count": 44,
+  "uncompressed_size": 210312,
+  "archive_sha256": "d30783f5f890aca86468422ad5d72511da2756410e29e9341794cc32acd864d6",
+  "scientific_source_commit": "a16efa27aac90d9c8d8d9ee703aefe5919f4839e",
+  "scientific_source_hashes": {
+    "runtime_src/v1/student_twin/adapters/adapters.py": "ced770e34fd26fe419e3072bf011bd8c77404b25ed989b96bf4222bb4585503d",
+    "runtime_src/v1/student_twin/event_store/store.py": "ca460630b377e9c4fbfe315b9592e799c1470021374872c4d2ee49383e307204",
+    "runtime_src/v1/student_twin/fixtures/fixtures.py": "838d589680355e3a450ba80ddb0eab5afb0ece3219d4c7ed85c48291f82e220b",
+    "runtime_src/v1/student_twin/policies/policies.py": "a07294d8d118fc57dd1f5b87134d6957b112afdd92800b8d4b4da762fc9732b3",
+    "runtime_src/v1/student_twin/schemas/models.py": "c8adc613bfa4a079d022c4719cf6a180cb9f9232e2a1a1212411ff1865ae7862",
+    "runtime_src/v1/student_twin/state_engine/engine.py": "88db38336cd3d711df1f3d71ea0ae0792d59039560d4d226dbacb698c379ee38",
+    "runtime_src/v1/student_twin/state_engine/reload.py": "dee8cc5f92b12abc78e2972285b2d27f1b161bfd15e4bbf6b485958dfc55287a",
+    "runtime_src/v1/student_twin/state_engine/router.py": "257c78b40a200360e288b18ff79a55e1633af3eb4cdf3a278b2fe27860ab27d2"
+  },
+  "engineering_patch_type": "ENGINEERING_PACKAGING_ONLY",
+  "created_at": "2026-09-15T09:32:38.588373+00:00",
+  "python_requirement": [
+    "numpy"
+  ],
+  "platform_target": "linux-x86_64",
+  "generated_deployment_artifact": true,
+  "source_of_truth": "D:\\ZhixueAI",
+  "edit_in_product_repo": "FORBIDDEN"
+}
