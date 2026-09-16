@@ -1,0 +1,15 @@
+import { chromium } from "playwright";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const AUTH = path.join(PROJECT_ROOT, ".playwright", ".auth", "programming-workbench-online.json");
+const BASE = "https://101.32.190.42";
+const browser = await chromium.launch({ headless: true });
+const ctx = await browser.newContext({ storageState: AUTH, viewport: { width: 1440, height: 900 } });
+const page = await ctx.newPage();
+await page.goto(BASE + "/programming/python_programming/materials", { waitUntil: "domcontentloaded", timeout: 60000 });
+await page.waitForTimeout(6000);
+const t = await page.evaluate(() => document.body.innerText);
+console.log("=== FULL BODY (" + t.length + " chars) ===");
+console.log(t);
+await browser.close();

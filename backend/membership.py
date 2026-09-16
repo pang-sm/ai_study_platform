@@ -189,6 +189,64 @@ def redeem_code(username: str, code_input: str, db: Session) -> dict:
         return {"success": False, "message": "用户不存在"}
     return redeem_membership_code(user, code_input, db)
 
+
+def redeem_unified_code(user: models.User, code_input: str, db: Session, activate_hook=None) -> dict:
+    """Atomically consume a real redemption code and delegate activation to a hook.
+
+    Mirrors ``redeem_membership_code`` validation + atomic consume (STEP5 frozen
+    redemption flow), but instead of activating the legacy per-service membership it
+    calls ``activate_hook(db, user, payload)`` so the caller performs the unified
+    subscription activation. The hook runs BEFORE the single commit, so code
+    consumption and activation are atomic (a concurrency race loses cleanly).
+    """
+    now = datetime.now(timezone.utc)
+    entry = db.query(models.RedemptionCode).filter(
+        models.RedemptionCode.code_hash == hash_code(code_input)
+    ).first()
+    error = _validate_redemption_entry(entry, now)
+    if error:
+        db.rollback()
+        return {"success": False, "message": error}
+    try:
+        if db.query(models.RedemptionCodeUsage).filter(
+            models.RedemptionCodeUsage.code_id == entry.id,
+            models.RedemptionCodeUsage.user_id == user.id,
+        ).first():
+            db.rollback()
+            return {"success": False, "message": "同一用户不能重复兑换此码"}
+
+        payload = _preview_payload(entry, user, db, now)
+        updated = db.query(models.RedemptionCode).filter(
+            models.RedemptionCode.id == entry.id,
+            models.RedemptionCode.status == "active",
+            models.RedemptionCode.used_count < models.RedemptionCode.max_uses,
+        ).update({models.RedemptionCode.used_count: models.RedemptionCode.used_count + 1}, synchronize_session=False)
+        if updated != 1:
+            db.rollback()
+            return {"success": False, "message": "兑换码已用完"}
+
+        db.add(models.RedemptionCodeUsage(
+            code_id=entry.id,
+            user_id=user.id,
+            username=user.username,
+            redeemed_at=now,
+        ))
+        db.flush()
+        db.refresh(entry)
+        entry.status = "exhausted" if entry.used_count >= entry.max_uses else "active"
+        if entry.max_uses == 1:
+            entry.used_by_user_id = user.id
+            entry.used_by_username = user.username
+            entry.used_at = now
+
+        hook_result = activate_hook(db, user, payload) if activate_hook else {}
+        db.commit()
+        return {"success": True, "message": "兑换成功", "redemption": payload, **hook_result}
+    except Exception:
+        db.rollback()
+        logger.exception("Unified redemption failed")
+        return {"success": False, "message": "兑换失败，请稍后重试"}
+
 # ── Plan Definitions ────────────────────────────────────────
 
 PLAN_DEFINITIONS = {

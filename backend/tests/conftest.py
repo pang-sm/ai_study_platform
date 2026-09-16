@@ -1,6 +1,7 @@
 import os
 import sys
 import tempfile
+from unittest.mock import patch
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,8 @@ from fastapi.testclient import TestClient
 TEST_ROOT = Path(tempfile.mkdtemp(prefix="ai-study-platform-tests-"))
 os.environ["DATABASE_URL"] = f"sqlite:///{(TEST_ROOT / 'test.db').as_posix()}"
 os.environ["UPLOAD_ROOT"] = str(TEST_ROOT / "uploads")
+# STEP 7A: tests exercise the SHADOW (INTERNAL) pipeline by default; production stays OFF.
+os.environ["STUDENT_TWIN_MODE"] = "internal"
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 if str(BACKEND_ROOT) not in sys.path:
@@ -35,7 +38,20 @@ def db_session():
 
 
 def register_and_login(test_client: TestClient, username: str, password: str = "secret123"):
-    register = test_client.post("/register", json={"username": username, "password": password})
+    """TEST ONLY: establish a verified registration proof through public routes."""
+    email = f"{username}@example.test"
+    sent_codes: list[str] = []
+
+    def capture_test_email(_recipient: str, code: str) -> bool:
+        sent_codes.append(code)
+        return True
+
+    with patch.object(main, "_send_email_code", side_effect=capture_test_email):
+        sent = test_client.post("/auth/register/send-code", json={"email": email})
+        assert sent.status_code == 200, sent.text
+        verified = test_client.post("/auth/register/verify-code", json={"email": email, "code": sent_codes[-1]})
+        assert verified.status_code == 200, verified.text
+    register = test_client.post("/register", json={"username": username, "password": password, "email": email})
     assert register.status_code == 200, register.text
     login = test_client.post("/login", json={"username": username, "password": password})
     assert login.status_code == 200, login.text

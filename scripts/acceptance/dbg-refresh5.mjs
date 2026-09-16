@@ -1,0 +1,28 @@
+import { chromium } from "playwright";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const AUTH = path.join(PROJECT_ROOT, ".playwright", ".auth", "programming-workbench-online.json");
+const BASE = "https://101.32.190.42";
+const browser = await chromium.launch({ headless: true });
+const ctx = await browser.newContext({ storageState: AUTH, viewport: { width: 1440, height: 900 } });
+const page = await ctx.newPage();
+await page.goto(BASE + "/programming/python_programming/materials", { waitUntil: "domcontentloaded", timeout: 60000 });
+await page.waitForTimeout(6000);
+const t = await page.evaluate(() => document.body.innerText);
+console.log("含 Python测试资料:", t.includes("Python测试资料"));
+console.log("含 coa26:", t.includes("coa26"));
+console.log("含 数据结构:", t.includes("数据结构"));
+console.log("含 离散数学:", t.includes("离散数学"));
+console.log("资料总数行:", (t.match(/资料总数.*/) || [""])[0].slice(0, 30));
+// count list rows
+console.log("--- chat body ---");
+await page.goto(BASE + "/programming/python_programming/chat", { waitUntil: "domcontentloaded", timeout: 60000 });
+await page.waitForTimeout(6000);
+const t2 = await page.evaluate(() => document.body.innerText);
+console.log("含 历史对话:", t2.includes("历史对话"));
+console.log("含 新对话:", t2.includes("新对话"));
+console.log("含 未选择编程课程:", t2.includes("未选择编程课程"));
+console.log("含 页面加载异常:", t2.includes("页面加载异常"));
+console.log(t2.slice(0, 400));
+await browser.close();

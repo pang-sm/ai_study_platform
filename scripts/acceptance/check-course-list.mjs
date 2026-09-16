@@ -1,0 +1,12 @@
+import { chromium } from "playwright";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const AUTH = path.join(PROJECT_ROOT, ".playwright", ".auth", "stage4-materials-relogin-production.json");
+const BASE = "https://101.32.190.42";
+const browser = await chromium.launch({ headless: true });
+const ctx = await browser.newContext({ storageState: AUTH });
+const r = await ctx.request.get(`${BASE}/api/course-learning/courses?username=${encodeURIComponent("奶12")}`);
+const j = await r.json().catch(() => ({}));
+console.log(JSON.stringify(j, null, 2).slice(0, 3000));
+await browser.close();

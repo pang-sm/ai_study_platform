@@ -52,6 +52,10 @@ from course_workbench import (
 )
 import models
 from data_plane import models as data_plane_models  # noqa: F401 — registers Data Plane tables for create_all
+from usage import models as usage_models  # noqa: F401 — registers Unified Subscription/Usage tables
+from routers.health import router as health_router
+from routers.subscription import router as subscription_router
+from routers.ai_models import router as ai_models_router
 import schemas
 from auth import hash_password, verify_password
 from database import Base, SessionLocal, engine, get_db, init_user_profile_schema, update_conversation_title
@@ -1936,6 +1940,8 @@ def ensure_user_can_access(user: models.User):
 
 AUTH_SESSION_COOKIE = "ai_session"
 AUTH_SESSION_TTL = timedelta(days=30)
+REGISTER_EMAIL_PROOF_COOKIE = "zhixue_register_email_proof"
+REGISTER_EMAIL_PROOF_TTL = timedelta(minutes=10)
 
 
 def _env_flag(name: str, default: bool = False) -> bool:
@@ -5423,14 +5429,9 @@ def root():
     return {"message": "智学AI Backend is running"}
 
 
-@app.get("/health")
-def health():
-    return {"status": "ok"}
-
-
-@app.get("/api/health")
-def api_health():
-    return health()
+app.include_router(health_router)
+app.include_router(subscription_router)
+app.include_router(ai_models_router)
 
 
 @app.get("/home/summary")
@@ -5834,18 +5835,38 @@ def get_qwen_status():
 
 
 @app.post("/register")
-def register(user: schemas.UserCreate, response: Response, db: Session = Depends(get_db)):
+def register(user: schemas.UserCreate, request: Request, response: Response, db: Session = Depends(get_db)):
     username = user.username.strip()
     password = user.password.strip()
+    email = user.email.strip()
+    normalized_email = _normalize_email(email)
 
     if not username:
         raise HTTPException(status_code=400, detail="账号不能为空")
     if len(password) < 6:
         raise HTTPException(status_code=400, detail="密码至少需要 6 位")
+    if not email or "@" not in email or "." not in email.split("@")[-1]:
+        raise HTTPException(status_code=400, detail="请输入有效的邮箱地址")
+
+    proof = request.cookies.get(REGISTER_EMAIL_PROOF_COOKIE)
+    proof_record = db.query(models.VerificationCode).filter(
+        models.VerificationCode.username == "registration",
+        func.lower(func.trim(models.VerificationCode.target)) == normalized_email,
+        models.VerificationCode.purpose == REGISTER_EMAIL_VERIFIED_PURPOSE,
+        models.VerificationCode.code_hash == _hash_code(proof or ""),
+        models.VerificationCode.used == False,
+    ).order_by(models.VerificationCode.created_at.desc()).first()
+    if not proof_record or proof_record.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="请先完成邮箱验证")
 
     existing_user = db.query(models.User).filter(models.User.username == username).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="账号已存在")
+    existing_email = db.query(models.User).filter(
+        func.lower(func.trim(models.User.email)) == normalized_email,
+    ).first()
+    if existing_email:
+        raise HTTPException(status_code=400, detail="该邮箱已关联智学平台账号，请直接登录")
 
     new_user = models.User(
         username=username,
@@ -5856,12 +5877,17 @@ def register(user: schemas.UserCreate, response: Response, db: Session = Depends
         major="",
         onboarding_completed=False,
         learning_goals=None,
+        email=email,
+        email_verified=True,
     )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
 
     create_auth_session(db, new_user, response)
+    proof_record.used = True
+    db.commit()
+    response.delete_cookie(REGISTER_EMAIL_PROOF_COOKIE, path="/", secure=AUTH_SESSION_COOKIE_SECURE, httponly=True, samesite="lax")
 
     return {"message": "注册成功", "user": user_profile(new_user), "profile": user_profile(new_user)}
 
@@ -5880,11 +5906,7 @@ def login(user: schemas.UserLogin, response: Response, db: Session = Depends(get
     # allow it to contain either the exact username or a verified email.
     db_user = db.query(models.User).filter(models.User.username == identifier).first()
     if not db_user:
-        normalized_email = identifier.casefold()
-        db_user = db.query(models.User).filter(
-            func.lower(func.trim(models.User.email)) == normalized_email,
-            models.User.email_verified == True,
-        ).first()
+        db_user = _user_by_verified_email(db, identifier)
     if not db_user:
         raise HTTPException(status_code=400, detail="账号、邮箱或密码错误")
     if not verify_password(password, db_user.hashed_password):
@@ -7254,10 +7276,32 @@ def change_password(req: ChangePasswordRequest, username: str = "", db: Session 
 import hashlib as _hashlib
 import smtplib as _smtplib
 from email.mime.text import MIMEText as _MIMEText
-import string as _string
+
+# Unified email verification-code primitives shared by register / bind / login.
+EMAIL_CODE_TTL_MINUTES = 10
+EMAIL_CODE_MAX_ATTEMPTS = 5
+EMAIL_CODE_RESEND_SECONDS = 60
+
+REGISTER_EMAIL_PURPOSE = "register_email"
+REGISTER_EMAIL_VERIFIED_PURPOSE = "register_email_verified"
+BIND_EMAIL_PURPOSE = "bind_email"
+LOGIN_EMAIL_PURPOSE = "login_email"
+
+
+def _normalize_email(value: str) -> str:
+    return (value or "").strip().casefold()
+
+
+def _is_valid_email(email: str) -> bool:
+    return bool(email and "@" in email and "." in email.split("@")[-1])
+
 
 def _hash_code(code: str) -> str:
     return _hashlib.sha256(code.encode()).hexdigest()
+
+
+def _generate_email_code() -> str:
+    return "".join(secrets.choice("0123456789") for _ in range(6))
 
 
 def _send_email_code(to_email: str, code: str) -> bool:
@@ -7293,6 +7337,90 @@ def _send_email_code(to_email: str, code: str) -> bool:
         return False
 
 
+def _user_by_email(db: Session, email: str):
+    """Any account already holding this email (for uniqueness checks)."""
+    return (
+        db.query(models.User)
+        .filter(func.lower(func.trim(models.User.email)) == _normalize_email(email))
+        .first()
+    )
+
+
+def _user_by_verified_email(db: Session, email: str):
+    """Only verified-email accounts (for email login / password-by-email)."""
+    return (
+        db.query(models.User)
+        .filter(
+            func.lower(func.trim(models.User.email)) == _normalize_email(email),
+            models.User.email_verified == True,
+        )
+        .first()
+    )
+
+
+def _email_code_recent(db: Session, purpose: str, owner_key: str, target: str) -> bool:
+    """True when a code for (purpose, owner, target) was issued inside the resend window."""
+    since = datetime.utcnow() - timedelta(seconds=EMAIL_CODE_RESEND_SECONDS)
+    return (
+        db.query(models.VerificationCode)
+        .filter(
+            models.VerificationCode.username == owner_key,
+            models.VerificationCode.purpose == purpose,
+            func.lower(func.trim(models.VerificationCode.target)) == _normalize_email(target),
+            models.VerificationCode.created_at >= since,
+        )
+        .first()
+        is not None
+    )
+
+
+def _issue_email_code(db: Session, purpose: str, owner_key: str, target: str, code: str) -> models.VerificationCode:
+    record = models.VerificationCode(
+        username=owner_key,
+        target=_normalize_email(target),
+        purpose=purpose,
+        code_hash=_hash_code(code),
+        expires_at=datetime.utcnow() + timedelta(minutes=EMAIL_CODE_TTL_MINUTES),
+        used=False,
+        attempts=0,
+    )
+    db.add(record)
+    db.commit()
+    return record
+
+
+def _find_email_code(db: Session, purpose: str, owner_key: str, target: str):
+    return (
+        db.query(models.VerificationCode)
+        .filter(
+            models.VerificationCode.username == owner_key,
+            models.VerificationCode.purpose == purpose,
+            func.lower(func.trim(models.VerificationCode.target)) == _normalize_email(target),
+            models.VerificationCode.used == False,
+        )
+        .order_by(models.VerificationCode.created_at.desc())
+        .first()
+    )
+
+
+def _consume_email_code(db: Session, purpose: str, owner_key: str, target: str, code: str):
+    """Validate and one-time-consume an email code. Raises HTTPException on failure."""
+    record = _find_email_code(db, purpose, owner_key, target)
+    if not record:
+        raise HTTPException(status_code=400, detail="验证码无效或已过期")
+    if record.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="验证码已过期，请重新发送")
+    if (record.attempts or 0) >= EMAIL_CODE_MAX_ATTEMPTS:
+        raise HTTPException(status_code=400, detail="验证码尝试次数过多，请重新发送")
+    if record.code_hash != _hash_code((code or "").strip()):
+        record.attempts = (record.attempts or 0) + 1
+        db.commit()
+        raise HTTPException(status_code=400, detail="验证码错误")
+    record.used = True
+    db.commit()
+    return record
+
+
 class SendEmailCodeRequest(BaseModel):
     email: str
 
@@ -7302,8 +7430,48 @@ class VerifyEmailRequest(BaseModel):
     code: str
 
 
-def _normalize_email(value: str) -> str:
-    return value.strip().casefold()
+class RegisterEmailSendCodeRequest(BaseModel):
+    email: str
+
+
+class RegisterEmailVerifyRequest(BaseModel):
+    email: str
+    code: str
+
+
+@app.post("/auth/register/send-code")
+def send_register_email_code(req: RegisterEmailSendCodeRequest, db: Session = Depends(get_db)):
+    email = (req.email or "").strip()
+    if not _is_valid_email(email):
+        raise HTTPException(status_code=400, detail="请输入有效的邮箱地址")
+    if _user_by_email(db, email):
+        raise HTTPException(status_code=400, detail="该邮箱已关联智学平台账号，请直接登录")
+    if _email_code_recent(db, REGISTER_EMAIL_PURPOSE, "registration", email):
+        raise HTTPException(status_code=429, detail="请 60 秒后再试")
+    code = _generate_email_code()
+    if not _send_email_code(email, code):
+        raise HTTPException(status_code=503, detail="邮件服务暂未配置，请联系管理员")
+    _issue_email_code(db, REGISTER_EMAIL_PURPOSE, "registration", email, code)
+    return {"message": "验证码已发送"}
+
+
+@app.post("/auth/register/verify-code")
+def verify_register_email_code(req: RegisterEmailVerifyRequest, response: Response, db: Session = Depends(get_db)):
+    email = (req.email or "").strip()
+    code = (req.code or "").strip()
+    if not email or not code:
+        raise HTTPException(status_code=400, detail="邮箱和验证码不能为空")
+    _consume_email_code(db, REGISTER_EMAIL_PURPOSE, "registration", email, code)
+    if _user_by_email(db, email):
+        raise HTTPException(status_code=400, detail="该邮箱已关联智学平台账号，请直接登录")
+    proof = secrets.token_urlsafe(32)
+    _issue_email_code(db, REGISTER_EMAIL_VERIFIED_PURPOSE, "registration", email, proof)
+    response.set_cookie(
+        key=REGISTER_EMAIL_PROOF_COOKIE, value=proof,
+        max_age=int(REGISTER_EMAIL_PROOF_TTL.total_seconds()), httponly=True,
+        samesite="lax", secure=AUTH_SESSION_COOKIE_SECURE, path="/",
+    )
+    return {"message": "邮箱验证成功"}
 
 
 @app.post("/me/email/send-code")
@@ -7313,9 +7481,8 @@ def send_email_code(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    email = req.email.strip()
-    normalized_email = _normalize_email(email)
-    if not email or "@" not in email or "." not in email.split("@")[-1]:
+    email = (req.email or "").strip()
+    if not _is_valid_email(email):
         raise HTTPException(status_code=400, detail="请输入有效的邮箱地址")
 
     assert_username_matches_current_user(username, current_user)
@@ -7324,36 +7491,17 @@ def send_email_code(
         raise HTTPException(status_code=400, detail={"code": "EMAIL_ALREADY_BOUND", "message": "当前账号已绑定邮箱，绑定后不可更换。"})
     duplicate = db.query(models.User).filter(
         models.User.id != user.id,
-        func.lower(func.trim(models.User.email)) == normalized_email,
+        func.lower(func.trim(models.User.email)) == _normalize_email(email),
     ).first()
     if duplicate:
         raise HTTPException(status_code=400, detail={"code": "EMAIL_ALREADY_IN_USE", "message": "该邮箱已绑定其他账号。"})
-
-    # Rate limit: 60s per email
-    one_min_ago = datetime.utcnow() - timedelta(seconds=60)
-    recent = db.query(models.VerificationCode).filter(
-        models.VerificationCode.username == user.username,
-        func.lower(func.trim(models.VerificationCode.target)) == normalized_email,
-        models.VerificationCode.purpose == "bind_email",
-        models.VerificationCode.created_at >= one_min_ago,
-    ).first()
-    if recent:
+    if _email_code_recent(db, BIND_EMAIL_PURPOSE, user.username, email):
         raise HTTPException(status_code=429, detail="请 60 秒后再试")
 
-    code = "".join(__import__("secrets").choice("0123456789") for _ in range(6))
-    code_hash = _hash_code(code)
-    expires_at = datetime.utcnow() + timedelta(minutes=10)
-
-    record = models.VerificationCode(
-        username=user.username, target=normalized_email, purpose="bind_email",
-        code_hash=code_hash, expires_at=expires_at,
-    )
-    db.add(record)
-    db.commit()
-
-    sent = _send_email_code(email, code)
-    if not sent:
+    code = _generate_email_code()
+    if not _send_email_code(email, code):
         raise HTTPException(status_code=503, detail="邮件服务暂未配置，请联系管理员")
+    _issue_email_code(db, BIND_EMAIL_PURPOSE, user.username, email, code)
 
     return {"message": "验证码已发送"}
 
@@ -7365,9 +7513,8 @@ def verify_email_code(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    email = req.email.strip()
-    normalized_email = _normalize_email(email)
-    code = req.code.strip()
+    email = (req.email or "").strip()
+    code = (req.code or "").strip()
     if not email or not code:
         raise HTTPException(status_code=400, detail="邮箱和验证码不能为空")
 
@@ -7376,35 +7523,14 @@ def verify_email_code(
     if user.email or bool(getattr(user, "email_verified", False)):
         raise HTTPException(status_code=400, detail={"code": "EMAIL_ALREADY_BOUND", "message": "当前账号已绑定邮箱，绑定后不可更换。"})
 
-    code_hash = _hash_code(code)
-    now = datetime.utcnow()
-
-    record = db.query(models.VerificationCode).filter(
-        models.VerificationCode.username == user.username,
-        func.lower(func.trim(models.VerificationCode.target)) == normalized_email,
-        models.VerificationCode.purpose == "bind_email",
-        models.VerificationCode.used == False,
-    ).order_by(models.VerificationCode.created_at.desc()).first()
-
-    if not record:
-        raise HTTPException(status_code=400, detail="验证码无效或已过期")
-    if record.expires_at < now:
-        raise HTTPException(status_code=400, detail="验证码已过期，请重新发送")
-    if record.attempts >= 5:
-        raise HTTPException(status_code=400, detail="验证码尝试次数过多，请重新发送")
-    if record.code_hash != code_hash:
-        record.attempts = (record.attempts or 0) + 1
-        db.commit()
-        raise HTTPException(status_code=400, detail="验证码错误")
-
     duplicate = db.query(models.User).filter(
         models.User.id != user.id,
-        func.lower(func.trim(models.User.email)) == normalized_email,
+        func.lower(func.trim(models.User.email)) == _normalize_email(email),
     ).first()
     if duplicate:
         raise HTTPException(status_code=400, detail={"code": "EMAIL_ALREADY_IN_USE", "message": "该邮箱已绑定其他账号。"})
 
-    record.used = True
+    _consume_email_code(db, BIND_EMAIL_PURPOSE, user.username, email, code)
     user.email = email
     user.email_verified = True
     db.commit()
@@ -7427,87 +7553,36 @@ class EmailLoginRequest(BaseModel):
 
 @app.post("/auth/email-login/send-code")
 def email_login_send_code(req: EmailLoginSendCodeRequest, db: Session = Depends(get_db)):
-    email = req.email.strip()
-    normalized_email = _normalize_email(email)
-    if not email or "@" not in email:
+    email = (req.email or "").strip()
+    if not _is_valid_email(email):
         raise HTTPException(status_code=400, detail="请输入有效的邮箱地址")
 
-    # Find user by verified email
-    user = db.query(models.User).filter(
-        func.lower(func.trim(models.User.email)) == normalized_email,
-        models.User.email_verified == True,
-    ).first()
+    user = _user_by_verified_email(db, email)
     if not user:
         raise HTTPException(status_code=400, detail="该邮箱尚未绑定账号，请先用账号密码登录后在个人资料中绑定邮箱")
-
-    # Rate limit: 60s
-    one_min_ago = datetime.utcnow() - timedelta(seconds=60)
-    recent = db.query(models.VerificationCode).filter(
-        models.VerificationCode.username == user.username,
-        models.VerificationCode.target == email,
-        models.VerificationCode.purpose == "login_email",
-        models.VerificationCode.created_at >= one_min_ago,
-    ).first()
-    if recent:
+    if _email_code_recent(db, LOGIN_EMAIL_PURPOSE, user.username, email):
         raise HTTPException(status_code=429, detail="请 60 秒后再试")
 
-    code = "".join(__import__("secrets").choice("0123456789") for _ in range(6))
-    code_hash = _hash_code(code)
-    expires_at = datetime.utcnow() + timedelta(minutes=10)
-
-    record = models.VerificationCode(
-        username=user.username, target=email, purpose="login_email",
-        code_hash=code_hash, expires_at=expires_at,
-    )
-    db.add(record)
-    db.commit()
-
-    sent = _send_email_code(email, code)
-    if not sent:
+    code = _generate_email_code()
+    if not _send_email_code(email, code):
         raise HTTPException(status_code=503, detail="邮件服务暂未配置，请联系管理员")
+    _issue_email_code(db, LOGIN_EMAIL_PURPOSE, user.username, email, code)
 
     return {"message": "验证码已发送"}
 
 
 @app.post("/auth/email-login")
 def email_login(req: EmailLoginRequest, response: Response, db: Session = Depends(get_db)):
-    email = req.email.strip()
-    normalized_email = _normalize_email(email)
-    code = req.code.strip()
+    email = (req.email or "").strip()
+    code = (req.code or "").strip()
     if not email or not code:
         raise HTTPException(status_code=400, detail="邮箱和验证码不能为空")
 
-    # Find user by verified email
-    user = db.query(models.User).filter(
-        func.lower(func.trim(models.User.email)) == normalized_email,
-        models.User.email_verified == True,
-    ).first()
+    user = _user_by_verified_email(db, email)
     if not user:
         raise HTTPException(status_code=400, detail="该邮箱尚未绑定账号")
 
-    code_hash = _hash_code(code)
-    now = datetime.utcnow()
-
-    record = db.query(models.VerificationCode).filter(
-        models.VerificationCode.username == user.username,
-        models.VerificationCode.target == email,
-        models.VerificationCode.purpose == "login_email",
-        models.VerificationCode.used == False,
-    ).order_by(models.VerificationCode.created_at.desc()).first()
-
-    if not record:
-        raise HTTPException(status_code=400, detail="验证码无效或已过期")
-    if record.expires_at < now:
-        raise HTTPException(status_code=400, detail="验证码已过期，请重新发送")
-    if record.attempts >= 5:
-        raise HTTPException(status_code=400, detail="验证码尝试次数过多，请重新发送")
-    if record.code_hash != code_hash:
-        record.attempts = (record.attempts or 0) + 1
-        db.commit()
-        raise HTTPException(status_code=400, detail="验证码错误")
-
-    record.used = True
-    db.commit()
+    _consume_email_code(db, LOGIN_EMAIL_PURPOSE, user.username, email, code)
     create_auth_session(db, user, response)
 
     profile = user_profile(user)
@@ -21385,8 +21460,12 @@ def get_ai_question_raw_response(subject_key: str, question_id: int, username: s
 
 
 @app.post("/exam/11408/{subject_key}/question-analysis")
-def generate_question_analysis(subject_key: str, req: dict, current_user: models.User = Depends(get_current_user)):
-    """Generate on-demand AI analysis for a question. Not persisted."""
+def generate_question_analysis(subject_key: str, req: dict, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    """Generate on-demand AI analysis for a question. Not persisted.
+
+    STEP 7C: routed through the AI Orchestrator (permission → router → estimate →
+    reserve → gateway → cost → settle); no direct provider HTTP.
+    """
     stem = (req.get("stem") or "").strip()
     opts = req.get("options") or {}
     sa = (req.get("standard_answer") or "").strip()
@@ -21397,10 +21476,6 @@ def generate_question_analysis(subject_key: str, req: dict, current_user: models
 
     if not stem:
         raise HTTPException(status_code=400, detail="stem is required")
-
-    api_key = (os.getenv("DEEPSEEK_API_KEY") or "").strip()
-    if not api_key:
-        raise HTTPException(status_code=503, detail="AI 解析服务暂不可用（未配置 DEEPSEEK_API_KEY）")
 
     is_wrong = ua and sa and ua.upper() != sa.upper()
     opts_text = "\n".join([f"{k}. {v}" for k, v in (opts or {}).items()]) if opts else "无选项"
@@ -21415,13 +21490,17 @@ def generate_question_analysis(subject_key: str, req: dict, current_user: models
 
 要求：1)指出本题考点 2)说明正确答案为什么正确 3)说明其他选项错误原因 4)给11408复习建议。300字以内。"""
     try:
-        from openai import OpenAI
-        client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
-        resp = client.chat.completions.create(model="deepseek-chat", messages=[{"role":"user","content":prompt}], temperature=0.4, max_tokens=500)
-        analysis = resp.choices[0].message.content.strip()
-        return {"analysis": analysis, "generated_at": serialize_datetime(utc_now())}
+        from ai.orchestrator import AIOrchestrator
+        result = AIOrchestrator().execute(
+            db, current_user.id, "question.explain",
+            [{"role": "user", "content": prompt}],
+            temperature=0.4, max_tokens=500)
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"AI 解析生成失败：{str(e)[:200]}")
+    if not result.ok or result.content is None:
+        raise HTTPException(status_code=503, detail="AI 解析服务暂不可用")
+    return {"analysis": result.content, "generated_at": serialize_datetime(utc_now()),
+            "model": result.model, "request_id": result.request_id}
 
 
 @app.delete("/exam/11408/{subject_key}/ai-questions/{question_id}")

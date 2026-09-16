@@ -17,16 +17,16 @@ def test_login_cookie_and_me(client: TestClient):
 
 
 def test_auth_cookie_secure_flag_can_be_enabled_for_production(client: TestClient, monkeypatch):
+    register_and_login(client, "secure-cookie-owner")
     monkeypatch.setattr(main, "AUTH_SESSION_COOKIE_SECURE", True)
-    response = client.post("/register", json={"username": "secure-cookie-owner", "password": "secret123"})
+    response = client.post("/login", json={"username": "secure-cookie-owner", "password": "secret123"})
     assert response.status_code == 200
     assert "ai_session=" in response.headers["set-cookie"]
     assert "; Secure" in response.headers["set-cookie"]
 
 
 def test_wrong_password_and_invalid_session(client: TestClient):
-    register = client.post("/register", json={"username": "wrong-password", "password": "secret123"})
-    assert register.status_code == 200
+    register_and_login(client, "wrong-password")
     client.cookies.clear()
     wrong = client.post("/login", json={"username": "wrong-password", "password": "bad-password"})
     assert wrong.status_code == 400

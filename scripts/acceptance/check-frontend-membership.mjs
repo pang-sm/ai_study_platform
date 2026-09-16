@@ -1,0 +1,22 @@
+import { chromium } from "playwright";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const AUTH = path.join(PROJECT_ROOT, ".playwright", ".auth", "stage4-materials-relogin-production.json");
+const BASE = "https://101.32.190.42";
+const browser = await chromium.launch({ headless: true });
+const ctx = await browser.newContext({ storageState: AUTH, viewport: { width: 1440, height: 900 } });
+const page = await ctx.newPage();
+const errors = [];
+page.on("pageerror", e => errors.push("pageerror:" + e.message));
+page.on("console", m => { if (m.type() === "error") errors.push("console:" + m.text().slice(0,200)); });
+
+await page.goto(BASE + "/", { waitUntil: "domcontentloaded", timeout: 60000 });
+await page.waitForTimeout(4000);
+let t = await page.evaluate(() => document.body.innerText);
+console.log("=== 首页 landing ===");
+console.log("URL:", page.url());
+console.log("has 全程考包:", t.includes("全程考包"), "| has 免费模式:", t.includes("免费模式"), "| has 全程学习包:", t.includes("全程学习包"));
+console.log("head:", t.slice(0, 400).replace(/\n+/g, " | "));
+console.log("JS errors:", JSON.stringify(errors.slice(0,6)));
+await browser.close();

@@ -1,0 +1,25 @@
+import { chromium } from "playwright";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const AUTH = path.join(PROJECT_ROOT, ".playwright", ".auth", "programming-workbench-online.json");
+const BASE = "https://101.32.190.42";
+const browser = await chromium.launch({ headless: true });
+const ctx = await browser.newContext({ storageState: AUTH, viewport: { width: 1440, height: 900 } });
+const page = await ctx.newPage();
+await page.goto(BASE + "/", { waitUntil: "domcontentloaded", timeout: 60000 });
+await page.waitForTimeout(4000);
+let t = await page.evaluate(() => document.body.innerText);
+console.log("=== 初始页面 body 前 600 字 ===");
+console.log(t.slice(0, 600));
+console.log("=== 含 个人主页 按钮? ===");
+console.log("个人主页 buttons:", await page.getByRole("button", { name: "个人主页" }).count());
+console.log("个人中心 buttons:", await page.getByRole("button", { name: /个人中心/ }).count());
+console.log("sidebar nav:", await page.locator("nav.ph-nav").innerText().catch(()=>"(none)"));
+// try clicking
+await page.getByRole("button", { name: "个人主页" }).first().click({ timeout: 10000 }).catch(e=>console.log("click err", e.message));
+await page.waitForTimeout(4000);
+t = await page.evaluate(() => document.body.innerText);
+console.log("=== 点击后 body 前 800 字 ===");
+console.log(t.slice(0, 800));
+await browser.close();

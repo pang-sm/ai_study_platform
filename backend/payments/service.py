@@ -50,6 +50,28 @@ def apply_verified_payment(db, event, sync_exam_membership=None):
     if order.status != PENDING:
         raise ValueError("Order is not payable")
     now = _utc_now()
+    if order.service_key == "unified":
+        # Unified subscription order (STEP 7B): activate the unified subscription
+        # (one effective tier) instead of a per-service membership, while preserving
+        # the payment_event + revenue_ledger audit trail. Activation only happens here,
+        # after a verified + successful payment on a pending order.
+        from usage.service import activate_subscription  # lazy import
+        snapshot = json.loads(order.quota_snapshot_json or "{}")
+        tier = snapshot.get("unified_tier") or order.target_plan
+        duration = snapshot.get("duration_days")
+        activate_subscription(db, order.user_id, tier, duration, source="order", commit=False)
+        order.status, order.paid_at, order.paid_amount = PAID, now, event.amount
+        order.provider_transaction_id, order.membership_started_at = event.provider_transaction_id, now
+        if duration:
+            order.membership_expires_at = now + timedelta(days=int(duration))
+        db.add(models.RevenueLedgerEntry(order_id=order.id, user_id=order.user_id,
+            service_key=order.service_key, entry_type="PAYMENT", amount=event.amount,
+            currency=order.currency, source=event.provider))
+        db.query(models.PaymentEvent).filter(models.PaymentEvent.provider == event.provider,
+            models.PaymentEvent.provider_event_id == event.provider_event_id).update(
+                {"processing_status": "processed", "processed_at": now})
+        db.flush()
+        return order, False
     membership = _membership(db, order.user_id, order.service_key)
     old_plan = membership.plan if membership and membership.is_enabled else "free"
     old_expiry = _as_utc(membership.expires_at) if membership else None
